@@ -72,3 +72,24 @@ test("UIV-13 K5: Todo's todos are a source in the composer's ＋, and a Todo tur
   await openAdd();
   await waitFor(`[...document.querySelectorAll('${composer} [data-composer-source]')].some((node) => node.textContent.includes('待办'))`, 20_000);
 });
+
+// E1 (K5): a source's name is a plugin word. An English page shows the plugin's own English for it — Todo's `ui.translations`
+// turn the declared 待办 into Todo — instead of the declared Chinese beside English menu words (specs/unified-input-voice
+// implementation-plan §3.3: the name is "translated as SearchSourceKind.title is").
+test("UIV-13 K5: an English page names the Todo source in English from the plugin's own translations", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId);
+  await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
+  await waitFor("document.documentElement.lang === 'en'");
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
+  const composer = "[data-assistant-composer]";
+  await evaluate(`document.querySelector('${composer} [data-composer-add]').click()`);
+  await waitFor(`!!document.querySelector('${composer} [data-compose-menu]:not([hidden])')`);
+  await waitFor(`[...document.querySelectorAll('${composer} [data-composer-source]')].some((node) => node.textContent.includes('Todo'))`, 20_000);
+  const labels = await evaluate<string[]>(`[...document.querySelectorAll('${composer} [data-composer-source]')].map((node) => node.textContent.trim())`);
+  assert.ok(labels.some((label) => label === "Todo"), `the Todo source is named Todo in English (${JSON.stringify(labels)})`);
+  assert.ok(!labels.some((label) => label.includes("待办")), `no declared Chinese name is drawn in an English page (${JSON.stringify(labels)})`);
+});

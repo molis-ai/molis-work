@@ -1,14 +1,16 @@
 // N41: inspect the live first-party declarations used by this build. The unified origin is not a date inferred from this check.
-// Two halves. The source constants and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
-// (versionOriginProblems, user 2026-11-07). The registered actions, Manifests, prompts and roles, and the prompt and method entries, only
-// this script checks. Explicit origin checking stays strict; the everyday content check reads the current version table.
+// Two halves. The source versions and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
+// (versionOriginProblems, user 2026-11-07). A source version is either a `const …VERSION` declaration or any literal a `/* @version */`
+// marker names (property, return, type), so the same rule reaches the values `pnpm versions:generate` writes but no constant declares.
+// The registered content versions (actions, Manifests, prompts, roles, methods) are checked strictly in the explicit origin run; the
+// everyday content check (`--content-current`) compares them with `tooling/versions.json`, so a content change doesn't need the origin rule.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { CODE_FILE, isMainScript } from "../script-paths.mjs";
 import { isTestFile, isUnderSourceRoots, markerAtEnd, REPOSITORY, SOURCE_ROOTS, versionSource } from "../version-source.mjs";
-import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
+import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
 import { contentVersionChanges } from "./content-versions.mjs";
 import { goldenManifests } from "../golden/formats.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
@@ -37,6 +39,7 @@ const PERSISTENT_CONSTANTS = new Map([
   ["apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION", "format.computer.settings"],
   ["apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION", "format.computer.record"],
   ["apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION", "format.model.preference"],
+  // The last-used language (batch 14 T10, #1976): a small versioned file in the chain since the 2026-11-11 review found it had none.
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
@@ -56,6 +59,9 @@ const PRODUCT_CONSTANT = "apps/local-host/src/product-version.ts#PRODUCT_VERSION
 
 /** Each persistent format's tooling/versions.json entry, by its definition: what a golden records it under. */
 export const PERSISTENT_FORMAT_ENTRIES = Object.freeze(Object.fromEntries([...PERSISTENT_CONSTANTS, ...[...PERSISTENT_ENTRIES].map(([entry, definition]) => [definition, entry])]));
+
+/** The other direction: a marker's entry name, back to the definition whose chain and old goldens it has to have. */
+export const PERSISTENT_DEFINITION_BY_ENTRY = Object.freeze(Object.fromEntries(Object.entries(PERSISTENT_FORMAT_ENTRIES).map(([definition, entry]) => [entry, definition])));
 
 /** Whether `froms` are the steps a chain to `version` needs: 1 to version - 1, each once. Empty when they are. */
 export function upgradeStepProblems(version, froms) {
@@ -96,7 +102,7 @@ function chainInSource(file, source, name) {
   const value = constants.get(name);
   if (!value) return undefined;
   if (ts.isNumericLiteral(value)) {
-    const steps = name.replace(/(?:_?SCHEMA)?_?VERSION$/, match => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES"));
+    const steps = upgradesNameFor(name);
     const list = constants.get(steps), froms = list && ts.isArrayLiteralExpression(list) ? stepFroms(list, constants) : undefined;
     return froms && { version: Number(value.text), froms };
   }
@@ -200,17 +206,32 @@ const exceptionNames = (text) => new Set(JSON.parse(text).filter(entry => entry.
 let thisRepository;
 const repositoryExceptions = () => (thisRepository ??= exceptionNames(readFileSync(new URL("../../tooling/gates/version-exceptions.json", import.meta.url), "utf8")));
 
+/** A literal behind a `/* @version *\/` marker, when it is a whole number: the form a version can be compared in. */
+const markedNumber = (node) => ts.isNumericLiteral(node) || (ts.isStringLiteralLike(node) && /^\d+$/u.test(node.text)) ? Number(node.text) : undefined;
+
+/**
+ * Whether an entry that is not a registered persistent format may be above 1 here. It may not: everything else stays at the unified origin,
+ * including the `action.*` and `format.*` values no source constant names. The one exception is a library (`database.*` baselines and a
+ * plugin's project tables): those are the version of a store, and `scripts/gates/store-schemas.mjs` with the golden replay is what lets one go
+ * up (UPG-01), so this half skips them rather than reading them twice with a weaker rule.
+ */
+const libraryEntry = (entry) => entry.startsWith("database.") && !PERSISTENT_DEFINITION_BY_ENTRY[entry];
+
 export function sourceVersionProblems(file, source, chains = new Map(), exceptions = repositoryExceptions()) {
-  if (!/\b[A-Z_\d]*VERSION\b/.test(source)) return [];
+  if (!/\b[A-Z_\d]*VERSION\b|@version/u.test(source)) return [];
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest);
-  const problems = [];
+  const problems = [], named = new Set();
   const visit = (node) => {
     if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const)) {
       for (const declaration of node.declarations) {
         const name = declaration.name.getText(tree);
-        if (!/^[A-Z_\d]*VERSION$/.test(name) || exceptions.has(`${file}#${name}`)) continue;
+        if (!/^[A-Z_\d]*VERSION$/u.test(name)) continue;
         let value = declaration.initializer;
         while (value && (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value))) value = value.expression;
+        // A version written as a named constant is judged once, here (or not at all, when an exception names it); the marker pass below
+        // skips the same literal, so one literal never produces two problems.
+        if (value) named.add(value.getStart(tree));
+        if (exceptions.has(`${file}#${name}`)) continue;
         if (value && ts.isRegularExpressionLiteral(value)) continue;
         if (value && `${file}#${name}` === PRODUCT_CONSTANT && ts.isStringLiteralLike(value) && markerAtEnd(source.slice(value.pos, value.getStart(tree))) === "product.release") continue;
         if (value && ts.isNumericLiteral(value) && Number(value.text) === 1) continue;
@@ -223,6 +244,28 @@ export function sourceVersionProblems(file, source, chains = new Map(), exceptio
     ts.forEachChild(node, visit);
   };
   visit(tree);
+  // Every other literal a marker names: an inline value (a property, a return, a type) whose version no constant declaration would show.
+  // The same marker grammar `pnpm versions:generate` rewrites, so a value it can write is a value this reads.
+  const marked = (node) => {
+    if (named.has(node.getStart(tree))) return;
+    const entry = markerAtEnd(source.slice(node.pos, node.getStart(tree)));
+    if (entry === undefined) return;
+    const value = markedNumber(node);
+    if (value === undefined) return;
+    const definition = PERSISTENT_DEFINITION_BY_ENTRY[entry];
+    if (definition !== undefined) {
+      if (value !== 1) problems.push(...persistentVersionProblems(definition, value, chains));
+    } else if (libraryEntry(entry)) return;
+    // Prompts, methods and roles are content versions: their text follows `tooling/versions.json` (the content check reads that table),
+    // so an inline marker above 1 there is not the persistent-format rule's business.
+    else if (/^(?:prompt|method|role)\./u.test(entry)) return;
+    else if (value !== 1) problems.push(`${file}: /* @version ${entry} */ = ${value} (expected 1; only a registered persistent format may be above the unified origin)`);
+  };
+  const visitMarkers = (node) => {
+    if (ts.isNumericLiteral(node) || ts.isStringLiteralLike(node)) marked(node);
+    ts.forEachChild(node, visitMarkers);
+  };
+  visitMarkers(tree);
   return problems;
 }
 

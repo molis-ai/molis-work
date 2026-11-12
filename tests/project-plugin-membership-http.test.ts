@@ -64,7 +64,12 @@ test("SPC-C08 public membership actions and HTTP use the same observation and re
   await assert.rejects(client.invoke({ ...caller, project_id: other.project_id }, setMembership, input), { code: "actions.scope_mismatch" });
   await assert.rejects(client.invoke(caller, setMembership, { ...input, actor_id: "forged", project_id: other.project_id }), { code: "actions.input_invalid" });
   const post = (method: string, body: object) => f.request(settingsPath(project.project_id), { method, body });
-  for (const body of [{ plugin_id: "schedule" }, { plugin_id: "schedule", expected_revision: observed.revision, project_id: other.project_id, actor_id: "forged" }]) {
+  for (const body of [{ plugin_id: "schedule" },
+    { plugin_id: "schedule", expected_revision: observed.revision, project_id: other.project_id, actor_id: "forged" },
+    // The wire shape is the action input schema now: a non-string id is refused there, not by a second field list in the transport.
+    { plugin_id: 7, expected_revision: observed.revision },
+    // `enabled` is the transport's own value (POST/DELETE); like the old envelope, a client value is refused.
+    { plugin_id: "schedule", expected_revision: observed.revision, enabled: false }]) {
     const refused = await post("DELETE", body);
     assert.equal(refused.status, 400);
     assert.equal((await refused.json()).code, "actions.input_invalid");

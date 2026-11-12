@@ -12,6 +12,13 @@ export declare const SEARCH_PERMISSIONS: readonly ["search:read", "search:manage
 
 export declare const SEARCH_PROVIDER_ID = "system.search";
 
+export declare const SEARCH_PROVIDER_UNAVAILABLE: {
+    readonly code: "provider_unavailable";
+    readonly retryable: false;
+    readonly sideEffectState: "none";
+    readonly recoveryAction: "change_provider";
+};
+
 export declare const SEARCH_READ_PERMISSION = "search:read";
 
 export interface SearchHit {

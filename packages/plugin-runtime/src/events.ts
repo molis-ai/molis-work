@@ -35,6 +35,29 @@ interface Envelope {
   version: string;
 }
 
+/** The failure record every event bus reports when a delivery cannot complete (`PluginEventBus` here and `PluginHostEvents`
+ * in host-events.ts): one shape, one place, so the two buses cannot drift apart. */
+export function eventDeliveryFailure(input: {
+  readonly code: PluginEventDeliveryFailure["code"];
+  readonly projectId: string;
+  readonly pluginId: string;
+  readonly record: PluginEventRecord;
+  readonly message: string;
+  readonly occurredAt: string;
+}): PluginEventDeliveryFailure {
+  return {
+    code: input.code,
+    project_id: input.projectId,
+    subscriber_plugin_id: input.pluginId,
+    source_plugin_id: input.record.source_plugin_id,
+    event_id: input.record.event_id,
+    event_type_id: input.record.event_type_id,
+    type_version: input.record.type_version,
+    message: input.message,
+    occurred_at: input.occurredAt,
+  };
+}
+
 function isolatePayload(payload: unknown): unknown {
   const json = JSON.stringify(payload ?? null);
   if (json === undefined) {
@@ -471,17 +494,9 @@ export class PluginEventBus implements PluginEventBusApi {
     record: PluginEventRecord,
     message: string,
   ): void {
-    const failure: PluginEventDeliveryFailure = {
-      code,
-      project_id: this.#projectId,
-      subscriber_plugin_id: pluginId,
-      source_plugin_id: record.source_plugin_id,
-      event_id: record.event_id,
-      event_type_id: record.event_type_id,
-      type_version: record.type_version,
-      message,
-      occurred_at: this.#now().toISOString(),
-    };
+    const failure = eventDeliveryFailure({
+      code, projectId: this.#projectId, pluginId, record, message, occurredAt: this.#now().toISOString(),
+    });
     for (const listener of this.#failureListeners) listener({ ...failure });
   }
 }

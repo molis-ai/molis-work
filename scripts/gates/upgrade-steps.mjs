@@ -46,3 +46,11 @@ export function stepFroms(node, constants) {
   }
   return froms;
 }
+
+/**
+ * The name of the array a version constant keeps its steps in, by the naming convention the gates read: `CATALOG_SCHEMA_VERSION` has
+ * `CATALOG_UPGRADES`, and a bare `SCHEMA_VERSION` has `UPGRADES`. `undefined` for a name that is not a version constant.
+ */
+export function upgradesNameFor(versionName) {
+  return /(?:_?SCHEMA)?_?VERSION$/u.test(versionName) ? versionName.replace(/(?:_?SCHEMA)?_?VERSION$/u, match => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES")) : undefined;
+}

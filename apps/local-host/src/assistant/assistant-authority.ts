@@ -1,6 +1,7 @@
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
@@ -49,14 +50,19 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   confirmAlways?: () => ReadonlySet<string>,
   /** Told the moment a change is really handed to its owner (a stopped round's step that never was reads as not run). */
   dispatched?: (view: ActionView) => void,
-  pageContext?: () => ActionCallContext["page_context"], locale?: WebLocale): AgentStartAuthority {
+  pageContext?: () => ActionCallContext["page_context"], locale?: WebLocale,
+  /** The Skills the person named for this round (its materials): the round's frozen list, so a `manual` one can be read. */
+  roundSkills: readonly SkillRef[] = []): AgentStartAuthority {
   const reference = work.project_ref;
   // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
   // outside any scope, so the number goes into every call's context.
   const callId = currentCallId() ?? newCallId();
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`, call_id: callId,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [],
-    page_context: pageContext?.(), ...(locale ? { locale } : {}), ...(signal ? { signal } : {}) });
+    page_context: pageContext?.(), ...(locale ? { locale } : {}), ...(signal ? { signal } : {}),
+    // This round's Skill reads are the Assistant's (`skill_round`, specs/capability-pack/contract-design.md §2.3): the catalog lets
+    // through the Skills `applies_to: assistant` and those the person named, and refuses the rest. Host-written, never from input.
+    skill_round: { consumer: "assistant", named: roundSkills } });
   const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => {
     const off = disabled();
     // Memory reaches the Assistant through its own remember / list / forget tools (under its switches, no extra

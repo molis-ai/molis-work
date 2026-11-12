@@ -46,7 +46,7 @@ test("UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's AI com
     ["发给：" + PROBE_LABEL, 0, "写给探针…", "undefined"], "the page's words are text in the bar, never markup");
   const pluginId = await child.evaluate<string>("document.body.dataset.pluginId");
   assert.deepEqual(await browser.evaluate("(() => { const options = globalThis.molisBarReceivers.front().options; return [options.sources, options.near()]; })()"),
-    [false, { kind: "composernotes.note", id: "n1", plugin_id: pluginId }], "no sources for a framed page, and its object is its own plugin's");
+    [false, { kind: "composernotes.note", id: "n1", plugin_id: pluginId }], "no sources for a framed page even though the page passed sources: true, and its object is its own plugin's");
 
   // UIV-22: what the person does in the bar reaches the page as plain data: a control, a command, the text and its draft, a send.
   await browser.evaluate(`(() => { const select = ${BAR}.querySelector('[data-composer-control=mode]'); select.value = 'b'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);

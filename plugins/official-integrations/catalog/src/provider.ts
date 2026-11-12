@@ -1,9 +1,10 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
-import type {
-  IntegrationProviderItem,
-  IntegrationProviderPort,
-  IntegrationProviderSyncResult,
+import {
+  integrationLiveFailure,
+  type IntegrationProviderItem,
+  type IntegrationProviderPort,
+  type IntegrationProviderSyncResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { getCatalogSpec } from "./catalog.js";
 import { CatalogLiveError, createCatalogHttp, tokenContext, asRecord, asList, text, nestedText } from "./http.js";
@@ -20,31 +21,15 @@ export type CatalogWhoamiResult =
       retryAfterAt?: string;
     };
 
-function liveFailure(
-  failure: Extract<IntegrationProviderSyncResult, { ok: false }>["failure"],
-  message: string,
-  opts?: { action?: string; httpStatus?: number; retryAfterAt?: string },
-): Extract<IntegrationProviderSyncResult, { ok: false }> {
-  return {
-    ok: false,
-    mode: "live",
-    failure,
-    message,
-    action: opts?.action,
-    httpStatus: opts?.httpStatus,
-    retryAfterAt: opts?.retryAfterAt,
-  };
-}
-
 function classify(error: unknown): Extract<IntegrationProviderSyncResult, { ok: false }> {
   if (error instanceof CatalogLiveError) {
-    return liveFailure(error.kind, error.action || error.kind, {
+    return integrationLiveFailure(error.kind, error.action || error.kind, {
       action: error.action,
       httpStatus: error.status,
       retryAfterAt: error.retryAfterAt,
     });
   }
-  return liveFailure("network", "连接器网络错误", { action: "网络恢复后重试" });
+  return integrationLiveFailure("network", "连接器网络错误", { action: "网络恢复后重试" });
 }
 
 async function resolveContext(
@@ -173,7 +158,7 @@ export function createCatalogProvider(opts: {
     },
     async sync({ cursor }, control) {
       control.current();
-      if (spec.feed_available === false) return liveFailure("configuration", `${spec.title} 当前未提供 REST Feed；请使用连接的身份检查或 MCP 工具`);
+      if (spec.feed_available === false) return integrationLiveFailure("configuration", `${spec.title} 当前未提供 REST Feed；请使用连接的身份检查或 MCP 工具`);
       const previous = catalogCursor(cursor, spec.id);
       const syncAt = now();
       if (previous && Date.parse(previous.next_poll_at) > syncAt.getTime()) {

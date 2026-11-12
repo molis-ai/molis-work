@@ -140,12 +140,12 @@ test("an unregistered CustomEvent name fails, however the constructor is written
 test("registered names, and a condition choosing between two of them, pass; events of the browser itself are not ours", () => {
   assert.deepEqual(problemsWith({ [NEW_FILE]: script([
     'window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: {} }));',
-    'document.dispatchEvent(new CustomEvent(open ? "molis:side-open" : "molis:side-toggle", { detail: { focus } }));',
+    'document.dispatchEvent(new CustomEvent(open ? "molis:side-open" : "molis:side-context-result", { detail: { focus } }));',
     "input.dispatchEvent(new Event('input', { bubbles: true }));",
     "form.dispatchEvent(new Event(kind));",
     "window.dispatchEvent(new StorageEvent('storage', { key: 'molis-work:theme' }));",
     'window.dispatchEvent(new CustomEvent<{ a: 1 }>("molis:placement-result", { detail: { a: 1 } }));',
-    'document.dispatchEvent(new CustomEvent<Detail>(open ? "molis:side-open" : "molis:side-toggle"));',
+    'document.dispatchEvent(new CustomEvent<Detail>(open ? "molis:side-open" : "molis:side-context-result"));',
     "const earlier = a < b, later = c > (d);",
   ].join("\n")) }), []);
 });
@@ -239,8 +239,8 @@ test("deleting a registry entry leaves its dispatchers and listeners unregistere
 });
 
 test("a registered event that nothing dispatches or listens to is stale", () => {
-  const problems = domEventProblems(withRegistry('    name: "molis:side-toggle"', '    name: "molis:side-toggled"'));
-  assert.ok(problems.some((problem) => /"molis:side-toggled" is registered but no source dispatches or listens to it/.test(problem)), problems.join("\n"));
+  const problems = domEventProblems(withRegistry('    name: "molis:side-shown"', '    name: "molis:side-shown-stale"'));
+  assert.ok(problems.some((problem) => /"molis:side-shown-stale" is registered but no source dispatches or listens to it/.test(problem)), problems.join("\n"));
 });
 
 test("an owner has to hold what it owns", () => {
@@ -275,8 +275,8 @@ test("the registry itself is held to its shape: order, names, prefixes, fields",
   assert.ok(field.some((problem) => /"workbench-open-group" has the unknown field "note"/.test(problem)), field.join("\n"));
   const kind = domEventProblems(withRegistry('name: "workbench-open-group", kind: "request"', 'name: "workbench-open-group", kind: "command"'));
   assert.ok(kind.some((problem) => /"workbench-open-group" has kind "command"/.test(problem)), kind.join("\n"));
-  const target = domEventProblems(withRegistry('name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "page"'));
-  assert.ok(target.some((problem) => /"molis:side-toggle" has on "page"/.test(problem)), target.join("\n"));
+  const target = domEventProblems(withRegistry('name: "molis:side-context-result", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-context-result", kind: "request", owner: "side-panel", on: "page"'));
+  assert.ok(target.some((problem) => /"molis:side-context-result" has on "page"/.test(problem)), target.join("\n"));
   const flag = domEventProblems(withRegistry('on: "document", cancelable: true', 'on: "document", cancelable: false'));
   assert.ok(flag.some((problem) => /has cancelable: false; leave it out or write true/.test(problem)), flag.join("\n"));
   const nobody = domEventProblems(withRegistry('name: "workbench-open-group", kind: "request", owner: "tab-workspace"', 'name: "workbench-open-group", kind: "request", owner: "ghost"'));
@@ -309,10 +309,10 @@ test("an event's name, payload and meaning are held to their shape", () => {
     }
   }
   // Both flags are held to "leave it out or write true".
-  const bubbles = domEventProblems(withRegistry('name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document", bubbles: "yes"'));
-  assert.ok(bubbles.some((problem) => /"molis:side-toggle" has bubbles: "yes"; leave it out or write true/.test(problem)), bubbles.join("\n"));
-  const target = domEventProblems(withRegistry('name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-toggle", kind: "request", owner: "side-panel"'));
-  assert.ok(target.some((problem) => /"molis:side-toggle" has on undefined/.test(problem)), target.join("\n"));
+  const bubbles = domEventProblems(withRegistry('name: "molis:side-context-result", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-context-result", kind: "request", owner: "side-panel", on: "document", bubbles: "yes"'));
+  assert.ok(bubbles.some((problem) => /"molis:side-context-result" has bubbles: "yes"; leave it out or write true/.test(problem)), bubbles.join("\n"));
+  const target = domEventProblems(withRegistry('name: "molis:side-context-result", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-context-result", kind: "request", owner: "side-panel"'));
+  assert.ok(target.some((problem) => /"molis:side-context-result" has on undefined/.test(problem)), target.join("\n"));
 });
 
 test("an owner is held to its shape: files, a sentence about its state, no other fields", () => {
@@ -356,13 +356,13 @@ test("the report names the receivers that cannot meet, and does not fail on them
   const report = domEventReport(changed({ [NEW_FILE]: script([
     'window.addEventListener("molis:side-open", () => {});',
     'document.addEventListener("molis:assistant-effect", () => {});',
-    'window.dispatchEvent(new CustomEvent("molis:side-toggle"));',
+    'window.dispatchEvent(new CustomEvent("molis:side-context-command"));',
     'window.addEventListener("molis:surface-focus", () => {});',
   ].join("\n")) }));
   const text = report.findings.join("\n");
   assert.match(text, /alpha\/src\/client\.ts:2 listens to "molis:side-open" on window, but it is dispatched on document and does not bubble/);
   assert.match(text, /alpha\/src\/client\.ts:3 listens to "molis:assistant-effect" on document, but it is dispatched on window/);
-  assert.match(text, /alpha\/src\/client\.ts:4 dispatches "molis:side-toggle" on window; the entry says document/);
+  assert.match(text, /alpha\/src\/client\.ts:4 dispatches "molis:side-context-command" on window; the entry says document/);
   assert.doesNotMatch(text, /alpha\/src\/client\.ts:5/, "an event that bubbles reaches a window listener");
   assert.deepEqual(domEventProblems(changed({ [NEW_FILE]: script('window.addEventListener("molis:side-open", () => {});') })), []);
   // A document event that bubbles does reach a window listener.
@@ -427,14 +427,14 @@ test("a finding that the known gaps do not name is caught, by its event and by i
   // A gap whose event is recorded but whose file is not: one more file that sends goal-document-loaded.
   const second = domEventReport(changed({ [NEW_FILE]: script('document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId: "g" } }));') })).findings;
   assert.deepEqual(unrecorded(second, section).map((finding) => finding.split(" ")[0]), [`${NEW_FILE}:2`]);
-  // A gap that the document stops naming.
-  const forgotten = section.replace(/- `molis:side-toggle`[^\n]*\n/, "");
+  // A gap that the document stops naming (the event still reported on the real tree, so the finding comes back).
+  const forgotten = section.replace(/- `molis-work:work-mode-changed`[^\n]*\n/, "");
   assert.notEqual(forgotten, section);
-  assert.deepEqual(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis:side-toggle"]);
+  assert.deepEqual(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis-work:work-mode-changed"]);
   // Only that section counts: the same words further down the document do not record the gap.
   const document = readFileSync(path.join(root, GAPS_DOCUMENT), "utf8");
-  const elsewhere = document.replace(/- `molis:side-toggle`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis:side-toggle` is mentioned here.\n";
-  assert.deepEqual(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis:side-toggle"]);
+  const elsewhere = document.replace(/- `molis-work:work-mode-changed`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis-work:work-mode-changed` is mentioned here.\n";
+  assert.deepEqual(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis-work:work-mode-changed"]);
 });
 
 // ---- the entry: `pnpm health:check` runs the gate -------------------------------------------------------------------

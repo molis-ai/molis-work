@@ -13,9 +13,16 @@ interface HomeUpgradeUnitDeclaration {
   readonly pattern: string;
   /** The files behind `pattern`, read only. Without it `pattern` is the one file. */
   readonly paths?: (home: string) => readonly string[];
-  /** The stores, by `pattern`, this one needs upgraded first (§6). If one of them fails, this one is not tried. */
+  /**
+   * The stores, by `pattern`, this one needs upgraded first (§6). If one of them fails, this one is not tried. No descriptor sets it today: the
+   * plugin tables' order is their own rule (a unit at `<file>#<store>` waits for its file, `home-upgrade.ts`). It is here for the day a step
+   * reads another store, as §8.1 describes.
+   */
   readonly after?: readonly string[];
-  /** Those that upgrade or go back together (§8.2): a secrets file and the stores it seals. If one fails, all of them are put back. */
+  /**
+   * Those that upgrade or go back together (§8.2): a secrets file and the stores it seals. If one fails, all of them are put back. No
+   * descriptor sets it today; the first encrypted-file step with a store will be its first user, and until then only the tests exercise it.
+   */
   readonly group?: string;
 }
 

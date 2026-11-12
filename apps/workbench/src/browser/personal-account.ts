@@ -5,8 +5,9 @@ import { accountTransition } from './account-transition.js';
 import { accountCohort, type AccountPreparation } from './account-cohort.js';
 import { accountRegistration } from './account-registration.js';
 import { createAccountMenuController, requiredElement } from './account-menu.js';
+import { pageSessionScope } from '../account-cache-key.js';
+import type { AccountIdentity } from '../account-identity.js';
 import type { UiRequestPorts } from '@molis-ai/molis-work-ui-host';
-interface AccountIdentity { userId: string; applicationId?: string; displayName?: string; emails?: string[] }
 interface AccountStatus {
   identity: AccountIdentity | null; space?: string; configured: boolean; viewScope?: string;
   browserSessionTicket?: string; loginCompleted?: boolean; offline?: boolean;
@@ -39,7 +40,7 @@ function observeAccountNavigation(cohort: Pick<ReturnType<typeof accountCohort>,
   addEventListener('pageshow', event => {
     if (!event.persisted) return;
     void molisWorkRequest<AccountStatus>('/api/personal/status').then(async state => {
-      const scope = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split('.')[1];
+      const scope = pageSessionScope(document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content);
       if (!state.identity || !scope || state.viewScope !== scope) await transition.invalidate();
       location.replace(destination);
     }).catch(onError);
@@ -183,7 +184,7 @@ const init = () => {
       if (state.identity) {await cohort.connect(state.pageBinding);if (preparationRevision === cohort.revision) cohort.observe(state.preparation);}
       if (document.body.hasAttribute('data-account-entry') && state.identity && state.ready) { location.replace(destination); return; }
       const pageToken = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content;
-      const changed = (state.identity && state.viewScope && pageToken && state.viewScope !== pageToken.split(".")[1]) || (loaded && space !== (state.space || 'local'));
+      const changed = (state.identity && state.viewScope && pageToken && state.viewScope !== pageSessionScope(pageToken)) || (loaded && space !== (state.space || 'local'));
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
       if(!changed)void syncConsent.update(space);
       if (changed) {

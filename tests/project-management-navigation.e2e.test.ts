@@ -10,10 +10,14 @@ test("Manage projects leaves a Coding session and returns from a responsive dire
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor } = browser;
   for (const desktop of [false, true]) {
     await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" + (desktop ? "?desktop=1" : "") }, sessionId));
-    // The strip is server-rendered; the client marks the current surface once it has taken over, and only then does a click switch.
-    await waitFor("document.body.classList.contains('immersive-workbench') && !!document.querySelector('[data-plugin-strip]') && !!document.body.dataset.desktopSurface", 30_000);
-    await click('[data-plugin-strip] [data-plugin-id="coding"]');
-    await waitFor("document.body.dataset.desktopSurface === 'coding'", 30_000);
+    await waitFor("document.body.classList.contains('immersive-workbench') && !!document.querySelector('[data-plugin-strip]')", 30_000);
+    // The strip and its current surface are server-rendered, and a press that lands before the client has taken over the page does
+    // nothing; on a loaded machine that can be a while, so the press is repeated, as a person would, until Coding is current.
+    for (const deadline = Date.now() + 30_000; ;) {
+      await click('[data-plugin-strip] [data-plugin-id="coding"]');
+      try { await waitFor("document.body.dataset.desktopSurface === 'coding'", 3_000); break; }
+      catch (error) { if (Date.now() > deadline) throw error; }
+    }
     await child.click('[data-coding-new]');
     await child.waitFor("!!document.querySelector('[data-coding-session][aria-current=\"true\"]')");
     const codingSessionId = await child.evaluate<string>("document.querySelector('[data-coding-session][aria-current=\"true\"]').dataset.codingSession");

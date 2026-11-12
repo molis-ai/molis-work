@@ -381,10 +381,11 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   /* The target reaches past the drawn line, to the bar's 28px floor (44px to a finger, in the touch rules). */
   ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -4px 0; }
   ${ASSIST} .assistant-attention[hidden] { display: none; }
-  /* At rest the composer is one row, so its receiver row is also its send row: the count then stands beside the composer
-     instead of over its send button. */
-  ${ASSIST} .assistant-composer:has(> .mw-composer[data-rest] ~ .assistant-attention:not([hidden])) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 6px; }
-  ${ASSIST} .assistant-composer > .mw-composer[data-rest] ~ .assistant-attention { position: relative; top: auto; right: auto; }
+  /* At rest the composer is one row, so its receiver row is also its send row: the count then stands at the composer's left
+     instead of over its send button, and send keeps the bar's right end (VUX-16). */
+  ${ASSIST} .assistant-composer:has(> .mw-composer[data-rest] ~ .assistant-attention:not([hidden])) { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-auto-flow: row dense; align-items: center; column-gap: 6px; }
+  ${ASSIST} .assistant-composer > .mw-composer[data-rest] { grid-column: 2; }
+  ${ASSIST} .assistant-composer > .mw-composer[data-rest] ~ .assistant-attention { position: relative; top: auto; right: auto; grid-column: 1; }
   ${ASSIST} .assistant-composer > .assistant-answer { grid-column: 1 / -1; }
   ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }

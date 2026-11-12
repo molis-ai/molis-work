@@ -1,5 +1,5 @@
 import { t as uiText, escapeHtml, renderBadge, renderButton, renderStatusMark, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderPermitRow, SESSION_SOURCE_STYLES, type MwPermitNote } from "@molis-ai/molis-work-design-system";
+import { renderPermitRow, renderTranscript, SESSION_SOURCE_STYLES, type MwPermitNote, type MwTranscriptEntry, type MwTranscriptOptions } from "@molis-ai/molis-work-design-system";
 
 /**
  * The component board's 外部会话 section: the two parts the external-sessions designs added (docs/design/sessions-sources/README.md
@@ -42,15 +42,61 @@ function edgesSpecimen(): string {
   return `<div class="mw-settings">${team}${long}${empty}</div>`;
 }
 
+const people = (): Pick<MwTranscriptOptions, "you" | "tool" | "label"> => ({
+  label: uiText.text("workbench.session-source-specimens.conversation"),
+  you: { name: uiText.text("workbench.session-source-specimens.you"), mark: uiText.text("workbench.session-source-specimens.you-mark"), label: uiText.text("workbench.session-source-specimens.you-person") },
+  tool: { name: "Claude Code", mark: "C", label: uiText.text("workbench.session-source-specimens.tool-ai", { tool: "Claude Code" }) },
+});
+
+function conversation(): MwTranscriptEntry[] {
+  return [
+    { kind: "note", text: uiText.text("workbench.session-source-specimens.started", { when: uiText.text("workbench.session-source-specimens.started-when"), dir: "~/code/molis-work" }) },
+    { kind: "you", time: "13:02", text: uiText.text("workbench.session-source-specimens.say-1") },
+    { kind: "tool", time: "13:03", text: uiText.text("workbench.session-source-specimens.say-2") },
+    { kind: "step", icon: "file", action: uiText.text("workbench.session-source-specimens.read-file"), object: "apps/workbench/src/assistant-island.ts", result: uiText.text("workbench.session-source-specimens.lines-read", { n: 412 }) },
+    { kind: "step", icon: "search", action: uiText.text("workbench.session-source-specimens.search"), object: "mw-receipt", result: uiText.text("workbench.session-source-specimens.matches-in-files", { n: 8, files: 3 }) },
+    { kind: "tool", time: "13:05", text: uiText.text("workbench.session-source-specimens.say-3") },
+    { kind: "step", icon: "edit", action: uiText.text("workbench.session-source-specimens.edit-file"), object: "packages/design-system/src/receipts.ts", result: "+38 −21" },
+    { kind: "you", time: "13:20", text: uiText.text("workbench.session-source-specimens.say-4") },
+    { kind: "tool", time: "13:21", text: uiText.text("workbench.session-source-specimens.say-5") },
+    { kind: "step", icon: "terminal", action: uiText.text("workbench.session-source-specimens.run-command"), object: "node scripts/run-tests.mjs tests/input-receipts.test.ts", result: uiText.text("workbench.session-source-specimens.passed", { n: 14 }) },
+  ];
+}
+
+function logSpecimen(): string {
+  const entries = [...conversation(), { kind: "you", time: "14:18", text: uiText.text("workbench.session-source-specimens.say-6") } as const, { kind: "tool", time: "14:20", text: uiText.text("workbench.session-source-specimens.say-7"), status: uiText.text("workbench.session-source-specimens.running") } as const];
+  return renderTranscript({ ...people(), entries, earlier: { label: uiText.text("workbench.session-source-specimens.load-earlier", { n: 73 }) } });
+}
+
+function searchSpecimen(): string {
+  const entries = conversation().slice(6).map((entry, index) => (index === 1 && entry.kind === "you" ? { ...entry, focus: true } : entry));
+  return `<div class="mw-session-board__search"><span>${escapeHtml(uiText.text("workbench.session-source-specimens.hits", { n: 3, term: uiText.text("workbench.session-source-specimens.search-term") }))}</span>${renderButton({ label: uiText.text("workbench.session-source-specimens.previous-hit"), variant: "ghost", size: "sm", icon: "chevron-up", iconOnly: true })}${renderButton({ label: uiText.text("workbench.session-source-specimens.next-hit"), variant: "ghost", size: "sm", icon: "chevron-down", iconOnly: true })}</div>`
+    + renderTranscript({ ...people(), entries, highlight: uiText.text("workbench.session-source-specimens.search-term"), earlier: { label: uiText.text("workbench.session-source-specimens.loading-earlier", { n: 74 }), loading: true } });
+}
+
+function longSpecimen(): string {
+  return renderTranscript({ ...people(), entries: [
+    { kind: "you", time: "09:41", text: uiText.text("workbench.session-source-specimens.say-long") },
+    { kind: "step", icon: "terminal", action: uiText.text("workbench.session-source-specimens.run-command"), object: "pnpm --filter @molis-ai/molis-work-design-system run build && node scripts/run-tests.mjs tests/ui-baseline.test.ts tests/soft-workbench-refinement.test.ts --jobs 1", result: uiText.text("workbench.session-source-specimens.passed", { n: 31 }) },
+    { kind: "tool", time: "09:44", text: uiText.text("workbench.session-source-specimens.say-url") },
+    { kind: "note", text: uiText.text("workbench.session-source-specimens.ended", { when: "09:52" }) },
+  ] });
+}
+
 export function renderSessionSourceSection(): string {
   return `<section class="mw-catalog__section" id="session-sources" data-primitive="session-sources"><h2>${escapeHtml(uiText.text("workbench.session-source-specimens.title"))}</h2>
     <div class="mw-catalog__specimens">
       ${figure(uiText.text("workbench.session-source-specimens.permit-states"), statesSpecimen())}
       ${figure(uiText.text("workbench.session-source-specimens.permit-edges"), edgesSpecimen())}
+      ${figure(uiText.text("workbench.session-source-specimens.log-normal"), logSpecimen())}
+      ${figure(uiText.text("workbench.session-source-specimens.log-search"), searchSpecimen())}
+      ${figure(uiText.text("workbench.session-source-specimens.log-long"), longSpecimen())}
     </div>
   </section>`;
 }
 
 /** The parts' look is the design system's; the board only lays the specimens out. */
 export const SESSION_SOURCE_SECTION_STYLES = SESSION_SOURCE_STYLES
-  + "#session-sources .mw-catalog__specimens{grid-template-columns:minmax(0,1fr)}#session-sources .mw-settings{width:min(640px,100%)}";
+  + "#session-sources .mw-catalog__specimens{grid-template-columns:minmax(0,1fr)}#session-sources .mw-settings{width:min(640px,100%)}"
+  + "#session-sources .mw-transcript{max-width:760px}"
+  + ".mw-session-board__search{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}.mw-session-board__search>span{margin-right:4px}";

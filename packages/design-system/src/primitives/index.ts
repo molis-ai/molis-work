@@ -66,6 +66,10 @@ export {
   SESSION_SOURCE_STYLES,
   renderPermitNote,
   renderPermitRow,
+  renderTranscript,
   type MwPermitNote,
   type MwPermitRowOptions,
+  type MwTranscriptEntry,
+  type MwTranscriptOptions,
+  type MwTranscriptWho,
 } from "./session-sources.js";

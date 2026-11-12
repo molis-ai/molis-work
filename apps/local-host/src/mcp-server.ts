@@ -239,7 +239,7 @@ export class LocalMcpServer {
     this.connectionState.accept({
       projectId: resolution.connection.project_id,
       databasePath: resolution.connection.database_path,
-      webBaseUrl: host.webBaseUrl ?? "http://127.0.0.1:4173",
+      webBaseUrl: host.webBaseUrl ?? homeHostUrl(host.homeDirectory),
     }, host.runtimeContext);
   }
 

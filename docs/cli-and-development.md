@@ -60,7 +60,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 插件作者的命令（`molis-work plugin create`、`validate`、`dev`、`pack`）见[插件开发手册](platform/PLUGIN-DEVELOPMENT.md#创建和运行)；`validate` 也查 Manifest `ui.locales` 声明的语言文件，挡得住的失败、只提示的放进 `locale_notes`，读法见手册的[界面文字与语言文件](platform/PLUGIN-DEVELOPMENT.md#界面文字与语言文件)。
 
-`molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
+`molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址按环境变量 `MOLIS_WORK_WEB_URL` > Home 的 `run/endpoint.json` > `http://127.0.0.1:4173` 找（与桌面、启动器同一套）。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
 ## 项目结构
 

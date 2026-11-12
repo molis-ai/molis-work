@@ -114,7 +114,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     note.textContent = globalThis.t.text("workbench.tab-workspace.its-tabs-content-still-here-add-back-project");
     stage.replaceChildren(title, note);
   };
-  // A plugin that did not start draws its placeholder stage marked unavailable (plugin-store-unavailable.ts, project-plugin-stages);
+  // A plugin that did not start draws its placeholder stage marked unavailable (owner-unavailable.ts, project-plugin-stages);
   // its tabs carry the amber point and stay (design README, shared part 7).
   const failedPlugin = (plugin) => Boolean(plugin) && Boolean(document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"]${UNAVAILABLE_STAGE}'));
   /* Records their plugin said are gone (molis-work:record-gone, sent by the page that tried to show one): their tabs are struck

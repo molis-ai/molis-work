@@ -456,6 +456,18 @@ fn waits_off_main_thread(started: &Result<Started, String>) -> bool {
     matches!(started, Ok(Started::Upgrading))
 }
 
+/// The document the main window shows while its Home upgrades (UPG-19, upgrade-continuity §4): the
+/// maintenance listener's opening page at `{origin}/`. Its own script reads `/upgrade-progress` and
+/// shows the progress line after two seconds; once the Host serves again the page reloads into it.
+fn upgrade_opening_url(port: u16) -> Option<Url> {
+    Url::parse(&format!("http://127.0.0.1:{port}/")).ok()
+}
+
+/// A failed upgrade wait cannot be drawn by the Host's opening page: the window goes back to the
+/// local placeholder first, and its page load puts the reason into it (`on_page_load`).
+#[derive(Default)]
+struct UpgradeOpeningFailure(Mutex<Option<String>>);
+
 fn is_molis_work_web_url(url: &Url) -> bool {
     host_port::is_host_url(url)
 }
@@ -1160,6 +1172,7 @@ fn main() {
     .manage(CapsuleStatusState::default())
     .manage(context_directories::ContextDirectoryState::default())
     .manage(runtime::RuntimeState::default())
+    .manage(UpgradeOpeningFailure::default())
     // 登录时启动 (resident-runtime-design §5): the desktop itself, as a login item; read and changed only from
     // 设置 › 运行 through `runtime_settings_*`. No page is granted the plugin's own commands (S-14).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
@@ -1240,6 +1253,18 @@ fn main() {
             }
             Err(error) => {
               eprintln!("{error}");
+              // The window was showing the Host's opening page while the upgrade was waited out;
+              // that page cannot show a failure. Go back to the local placeholder and let its page
+              // load draw the reason (the failure is handed over there).
+              if window.url().is_ok_and(|url| is_molis_work_web_url(&url)) {
+                if let Ok(mut failure) = app.state::<UpgradeOpeningFailure>().0.lock() {
+                  if let Ok(local) = Url::parse("tauri://localhost/index.html") {
+                    *failure = Some(error);
+                    let _ = window.navigate(local);
+                    return;
+                  }
+                }
+              }
               let _ = window.eval(bootstrap_view(Some(&error)));
             }
           }
@@ -1247,8 +1272,15 @@ fn main() {
       };
       // An upgrade is waited out on a thread of its own and shown on the main thread, as setup
       // shows every other start. The health monitor starts after the wait, so the two never start
-      // a service at once.
+      // a service at once. While it runs the main window shows the Host's own opening page (UPG-19,
+      // upgrade-continuity §4): its script shows the progress line after two seconds and reloads
+      // into the app once the Host serves again.
       if waits_off_main_thread(&started) {
+        if let Some(window) = app.get_webview_window("main") {
+          if let Some(url) = upgrade_opening_url(host_port::port()) {
+            let _ = window.navigate(url);
+          }
+        }
         let app = app.handle().clone();
         let _ = thread::Builder::new()
           .name("molis-work-web-upgrade".into())
@@ -1275,7 +1307,15 @@ fn main() {
           }
           PageLoadEvent::Finished => {
             traffic_lights::pin_from_handle(app);
-            let _ = window.eval(bootstrap_view(None));
+            // A failed upgrade wait comes back to the placeholder with the reason; every other
+            // load shows the ordinary startup view.
+            let failure = app
+                .state::<UpgradeOpeningFailure>()
+                .0
+                .lock()
+                .ok()
+                .and_then(|mut slot| slot.take());
+            let _ = window.eval(bootstrap_view(failure.as_deref()));
             if native_language_source(window.label(), Some(payload.url()))
               && window.url().is_ok_and(|current| &current == payload.url()) {
               if let Ok(mut language) = state.locale.lock() {
@@ -1366,8 +1406,8 @@ mod tests {
         anchored_capsule_position, answers_without_host, capsule_menu_bar_icon, capsule_web_url,
         desktop_molis_work_url, is_molis_work_web_url, molis_work_reload_url,
         normalized_capsule_height, should_attempt_web_recovery, should_keep_window_on_close,
-        should_show_main_on_reopen, stop_owned_web_service, validated_molis_work_path,
-        waits_off_main_thread, WebServiceState,
+        should_show_main_on_reopen, stop_owned_web_service, upgrade_opening_url,
+        validated_molis_work_path, waits_off_main_thread, WebServiceState,
     };
     use crate::native_language::builtin_language;
     use crate::web_service::{desktop_owns_web_service, Started};
@@ -1641,6 +1681,19 @@ mod tests {
         assert!(waits_off_main_thread(&Ok(Started::Upgrading)));
         assert!(!waits_off_main_thread(&Ok(Started::Ready)));
         assert!(!waits_off_main_thread(&refused));
+    }
+
+    // UPG-19: while its Home upgrades the main window opens the Host's own opening page, whose
+    // script reads `/upgrade-progress`; the address is the proved port's root, not the app's
+    // `?desktop=1`.
+    #[test]
+    fn upg19_the_upgrade_opening_page_is_the_proved_host_root() {
+        let url = upgrade_opening_url(4190).expect("loopback origin");
+        assert_eq!(url.scheme(), "http");
+        assert_eq!(url.host_str(), Some("127.0.0.1"));
+        assert_eq!(url.port(), Some(4190));
+        assert_eq!(url.path(), "/");
+        assert_eq!(url.query(), None);
     }
 
     #[test]

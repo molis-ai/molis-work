@@ -172,6 +172,8 @@ python3 -m http.server 4471 --bind 127.0.0.1 --directory docs/design/sessions-so
 | 项目许可行 | Setting Row 只有标题、说明和控件，放不下项目标识，也没有写在行里的回执：保存中、已开、已关、没存上要留在这一行并说清后果，Toast 一闪而过，又压不到 Sheet 上面 | Setting Row 里左边放 Project monogram，说明下面多一格回执；保存中用 Loading，已开已关用 Status mark 加一句话，失败用 `--red` 文字加重试按钮 |
 | 外部会话原文 | 组件板只有助理与 Coding 的气泡，没有「别的工具里的一段对话」：要分清你、那个工具和它调用的工具步骤，长历史能往上读、能就地搜索并标出命中 | 每条一行：Who 头像、名字、时间、正文；你的话放在 `--wash` 底的气泡里；工具步骤是带细边的一行（动作、对象、结果）；会话开始等说明居中淡色；命中用 `--amber-soft` 底加 `--amber` 下划线 |
 
+已在组件板补标本（`b7e855a7f6` 项目许可行、`4cfb771222` 外部会话原文、`81b32e81b0` 浏览器用例）：设计系统 `packages/design-system/src/primitives/session-sources.ts` 的 `renderPermitRow`、`renderPermitNote`、`renderTranscript` 与 `SESSION_SOURCE_STYLES`，组件板 `/__ui/catalog#session-sources`「外部会话」一节。
+
 **给组件板的补丁**（只在 `proto.css`，转 D 轨在源头改）：
 
 | 问题 | 源头 | 原型里的补法 |
@@ -180,7 +182,9 @@ python3 -m http.server 4471 --bind 127.0.0.1 --directory docs/design/sessions-so
 | 浅色下 Directory Row 悬停、按下、选中后底色变深，状态词不到 4.5:1：attention 选中 4.32，quiet 选中 4.08，progress 选中 4.18、按下 3.96，blocked 选中 4.21、按下 3.98，idle 按下 4.32 | Status mark 的色调令牌与 `--nav-hover`、`--nav-press`、`--nav-active` 的组合 | 行内 attention、progress、blocked 掺 20% `--ink`，quiet、idle 换 `--ink-soft`；色相不变，含义靠文字 |
 | 深色下 `.mw-select` 箭头平铺 | 组件板 `.mw-select` | 补一条背景不重复 |
 
-**交 D 轨，这次不改：** 390 下开关的点按区只有 36×22，组件板对 Switch 没有放大，补标本时一起看。场景卡片错开的 60ms、120ms 是手写值，令牌里没有错开时长，由 D 轨定。
+已在组件板补标本（`cf539df892`，在源头改）。Status mark 没有改行高：1.35 会让 Directory Row 的状态框从 16px 缩到 12px、单独的状态框从 11px 长到 15px，改成让 `.mw-status > span` 的裁切范围上下各多出 0.2em（`padding-block` 加等量负 `margin-block`），字尾露出、外框高度不变。浅色行内状态词改后在悬停、按下、选中三种底色上：attention 5.53/4.96/5.26，progress 5.31/4.77/5.06，blocked 5.49/4.92/5.22，quiet 与 idle 6.49/5.82/6.18。
+
+**交 D 轨，这次不改：** 390 下开关的点按区只有 36×22，组件板对 Switch 没有放大，补标本时一起看。场景卡片错开的 60ms、120ms 是手写值，令牌里没有错开时长，由 D 轨定。 已在组件板补标本：Switch 在窄屏与触屏下点按区 44×44、看上去不变（`433ab0ef1d`）；错开时长令牌 `--dur-stagger`（60ms，`14d83e73f1`），已有手写的错开值这次没换。
 
 ## 模拟边界
 

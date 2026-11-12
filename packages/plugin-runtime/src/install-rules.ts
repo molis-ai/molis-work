@@ -127,7 +127,11 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
   return undefined;
 }
 
-/** The code an uninstall's tombstone carries until the Host's cleanup has finished (BL-915). */
+/**
+ * The code an uninstall's tombstone carries until the Host's cleanup has finished (BL-915). It rides on `last_error_code`
+ * of the `uninstalled` record rather than a state of its own: the install store's shape stays as it is, and an unfinished
+ * cleanup is the failure that column already records. Its own column is BL-uninstall-pending-column.
+ */
 export const UNINSTALL_PENDING = "plugin.uninstall_cleanup_pending";
 
 /** The installation an uninstall names (BL-915): it must still be the row's, generation, version and digest alike. */

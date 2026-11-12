@@ -1,6 +1,6 @@
 # 第 27 批项目列表的个人内容搜索
 
-状态：用户于 2026-11-10 选定 A；2026-11-11 已在第 27 批实现（`b27/ui-rest`，BCS-01～03 由 `tests/project-arrival.e2e.test.ts` 证明），待隔离实操与本人验收。负责：第 27 批 Codex 统筹，D／工作台搜索。[BL-041](../../../backlog/BL-041.md) · [搜索原合同](../../../archive/system-search/spec.md#5-合同) · [设计认领](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6766272137)
+状态：用户于 2026-11-10 选定 A；2026-11-11 已在第 27 批实现（`b27/ui-rest`，BCS-01～03 由 `tests/project-arrival.e2e.test.ts` 证明），待隔离实操与本人验收。负责：第 27 批 Codex 统筹，D／工作台搜索。[BL-041（已并入第 27 批验收）](../../../backlog/BL-batch27-acceptance.md) · [搜索原合同](../../../archive/system-search/spec.md#5-合同) · [设计认领](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6766272137)
 
 ## 定样与行为
 

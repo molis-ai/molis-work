@@ -2,7 +2,7 @@
 
 状态：子分支定向验证通过，待整批回归（2026-11-09，负责人为第 27 批 Feed 测试写手）。
 
-本片交付 [BL-919](../../../backlog/BL-919.md) 的工程验证，归 [第 27 批第 5 项](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-5)。[T-121 二审及统筹裁定](https://github.com/molis-ai/molis-work/pull/1677#issuecomment-6541544756) 要求测试沿生产的按记录绑定，清掉来源配置驱动账号的路径。真实账号实操另记。认领见 [#1743](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6747329104)，基点为 `49da2f483`。
+本片交付 BL-919（已做完删除） 的工程验证，归 [第 27 批第 5 项](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-5)。[T-121 二审及统筹裁定](https://github.com/molis-ai/molis-work/pull/1677#issuecomment-6541544756) 要求测试沿生产的按记录绑定，清掉来源配置驱动账号的路径。真实账号实操另记。认领见 [#1743](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6747329104)，基点为 `49da2f483`。
 
 ## 依赖与范围
 

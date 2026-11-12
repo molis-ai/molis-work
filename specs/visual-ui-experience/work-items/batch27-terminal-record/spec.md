@@ -4,7 +4,7 @@
 
 ## 目标与边界
 
-属于 [27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的 [BL-913](../../../backlog/BL-913.md)。基点 `d2cae4ec8` 上，终端记录的 `launch_args` 经过 `record()` 解码。合法 JSON 的值不符合字符串数组形状时，目录抛出 `actions.execution_failed`。JSON 语法损坏时，裸解析抛出 `SyntaxError`，列出时被当成目录不可用，按原 key 重开时也丢失记录损坏的原因。
+属于 [27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的 BL-913（已做完删除）。基点 `d2cae4ec8` 上，终端记录的 `launch_args` 经过 `record()` 解码。合法 JSON 的值不符合字符串数组形状时，目录抛出 `actions.execution_failed`。JSON 语法损坏时，裸解析抛出 `SyntaxError`，列出时被当成目录不可用，按原 key 重开时也丢失记录损坏的原因。
 
 依赖基点已具备的终端目录、本人动作和 Goals 路由（T-137、T-148 及第 02／07 批的相关前置），可以独立验证。本片与在途 #1999 的终端启动安全检查、#2001 的 Projects／Context 合同按文件隔离。写手只改 `apps/local-host/src/plugin-terminal-panels.ts`、`tests/goals-terminal.test.ts` 和本规格，由第 27 批主会话集成和统一关闭待办。
 

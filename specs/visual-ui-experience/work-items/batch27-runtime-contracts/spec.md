@@ -74,7 +74,7 @@
 
 1. C1 先定有效声明接入点。保留签名清单及原静态 `sandboxOperationActions` 的派生。安装定义上的只读权限投影交同一套 Runtime grant 上限检查，覆盖 install、grant／regrant、start、recover、upgrade／rollback。避免只放宽 setter 后在重启时被 Runtime 的清单检查拒绝。批准缺失／无效或版本不符先拒绝。 SDK 投影、Runtime 入口形状以及设置释义有意变化时更新相应 API 快照。动作目录的动态权限更严格，固定引用保持原动作 ID、版本及提供方，调用者可能需新增授权。安装设置和内置动作 schema、版本、固定提供方不因此改变，按实际快照差异核对。推荐路径不升 Manifest、沙箱合同或持久格式版本。
 2. 现有 `installed-plugin-definition.ts` 的发行物来源串起设置投影和激活执行。 `plugin-builder/installed.ts` 在组件、目录和后台共同入点按已解析 operation 核 grant。 `installed-action-registration.ts`、`plugin-builder/exposed-actions.ts` 的启动操作的闭包包括后台目标及现有目录依赖，状态查询按自己的权限和现有定义校验处理。两者随激活撤下和恢复。 `plugin-sandbox` 的 broker 核真实使用的 effect； `sandbox-integration.ts` 在固定连接端口之前核 grant。撤权以原激活的 `requireGrant`、`assertLive`、signal 和尾检查为准，旧回调不能读新安装授权替自己继续。没有增加每次 effect 的包重读或每行目录发现。
-3. `plugin-install-service.ts`、`plugin-installed-view.ts`、`project-plugin-ports.ts` 用当前安装版本的同一投影，列表复用已验证发行物而非为每个权限再读包；变更后重读现行记录。 `settings-plugins.ts`／现行词典接现有确认及文案。同步 [S-94](../../../../docs/system/security-invariants/S-94.md)、[S-60](../../../../docs/system/security-invariants/S-60.md) 及受涉及的拒绝证据和插件开发手册／Skill。 [BL-910](../../../backlog/BL-910.md) 保留交互终端启动拒绝及本人可见原因，BL-915（已完成）损包依可信记录卸载、不明数据保留，两项已定；本片只防止不可读包放宽授权。
+3. `plugin-install-service.ts`、`plugin-installed-view.ts`、`project-plugin-ports.ts` 用当前安装版本的同一投影，列表复用已验证发行物而非为每个权限再读包；变更后重读现行记录。 `settings-plugins.ts`／现行词典接现有确认及文案。同步 [S-94](../../../../docs/system/security-invariants/S-94.md)、[S-60](../../../../docs/system/security-invariants/S-60.md) 及受涉及的拒绝证据和插件开发手册／Skill。 [BL-910（已并入第 27 批验收）](../../../backlog/BL-batch27-acceptance.md) 保留交互终端启动拒绝及本人可见原因，BL-915（已完成）损包依可信记录卸载、不明数据保留，两项已定；本片只防止不可读包放宽授权。
 
 | 验收编号 | 实际路径和断言 |
 | --- | --- |

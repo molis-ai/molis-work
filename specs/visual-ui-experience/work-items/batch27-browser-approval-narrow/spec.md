@@ -1,6 +1,6 @@
 # 第 27 批窄窗浏览器审批
 
-状态：已实现并通过隔离 Host 实操，待整批和本人验收（2026-11-10）。负责：第 27 批 Codex 统筹，A／D 写手实施。[BL-102](../../../backlog/BL-102.md) · [VUX-19／29／30](../../spec.md#4-验收标准) · [认领与原型结果](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6766272137)
+状态：已实现并通过隔离 Host 实操，待整批和本人验收（2026-11-10）。负责：第 27 批 Codex 统筹，A／D 写手实施。[BL-102（已并入第 27 批验收）](../../../backlog/BL-batch27-acceptance.md) · [VUX-19／29／30](../../spec.md#4-验收标准) · [认领与原型结果](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6766272137)
 
 ## 现状与方案
 

@@ -1,6 +1,6 @@
 # 第 27 批 Feed 与 Inbox 页面耗时
 
-状态：2026-11-11 Inbox 更新建议已测基线并修复（见文末），Feed 首开详情与 Inbox 转待办后打开仍待正式基线。负责：第 27 批 Codex 统筹，E／性能核查。[BL-097](../../../backlog/BL-097.md) · [BL-131](../../../backlog/BL-131.md) · [VUX-35](../../spec.md#4-验收标准) · [原实操](../../../archive/post-merge-review/spec.md#5-跨功能场景)
+状态：2026-11-11 Inbox 更新建议已测基线并修复（见文末），Feed 首开详情与 Inbox 转待办后打开仍待正式基线。负责：第 27 批 Codex 统筹，E／性能核查。[BL-097](../../../backlog/BL-097.md) · BL-131（已做完删除） · [VUX-35](../../spec.md#4-验收标准) · [原实操](../../../archive/post-merge-review/spec.md#5-跨功能场景)
 
 ## 测哪些操作
 

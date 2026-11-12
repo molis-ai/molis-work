@@ -260,7 +260,7 @@ const alert = notice(outcome.retained.some((kept) => kept.reason !== "other_hold
 for (const kept of outcome.retained) {
 const row = el("li"), mark = root.querySelector('[data-plugin-trust-kind="' + kept.kind + '"]');
 if (mark) row.append(mark.content.cloneNode(true));
-row.append(el("strong", "", readText(KEPT[kept.kind] || kept.kind) + (kept.label ? " · " + kept.label : "")), el("span", "", readText(WHY[kept.reason] || kept.reason))); list.append(row);
+row.append(el("strong", "", readText(KEPT[kept.kind]) + (kept.label ? " · " + kept.label : "")), el("span", "", readText(WHY[kept.reason]))); list.append(row);
 }
 done.addEventListener("click", () => { outcome = null; load().catch(fail); });
 actions.append(done); alert.append(list, el("p", "settings-muted", readText("workbench.settings-plugins.everything-else-deleted")), actions); item.tabIndex = -1; item.append(alert);

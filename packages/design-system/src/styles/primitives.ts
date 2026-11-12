@@ -1132,7 +1132,7 @@ ${BUTTON_STYLES}
 
   @media (max-width: 760px), (pointer: coarse) {
     .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg, .mw-menu__item { min-height: 44px; }
-    .mw-btn--sm { min-height: var(--control-h, 44px); }
+    .mw-btn--sm { min-height: var(--control-h, 44px); } .mw-switch input { inset: -11px -4px; } /* a 44 × 44 target round the 36 × 22 switch; it looks the same */
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; } .mw-input-group svg { width: 16px; height: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
     dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }

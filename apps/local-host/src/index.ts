@@ -385,6 +385,7 @@ export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-auth
 export { adoptProjectDatabase, inspectProjectAdoption, retireFilesConsents, type FilesConsentRetirement, type ProjectAdoptionReport } from "./process-items-adoption.js";
 export type { ProjectLayout } from "./project-layout.js";
 export { captureProcessItemsRecovery, verifyProcessItemsRecovery, type ProcessItemsRecoveryCapture } from "./process-items-recovery.js";
+export { processItemsMaintenance, type ProcessItemsMaintenance, type ProcessItemsMaintenancePorts, type ProcessItemsMaintenanceView } from "./process-items-maintenance.js";
 export { createProjectGoalContent } from "./project-goal-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.

@@ -1,15 +1,34 @@
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import type {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
 import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
+import {processItemsMaintenance,type ProcessItemsMaintenancePorts} from './process-items-maintenance.js';
 
 /** The caller has already checked the current space, Origin, control token and mutation key. */
-export async function serveSpaceSync(input:{request:IncomingMessage;response:ServerResponse;url:URL;local:boolean;service():Promise<PersonalSync|null>}){
+export async function serveSpaceSync(input:{request:IncomingMessage;response:ServerResponse;url:URL;local:boolean;service():Promise<PersonalSync|null>;maintenance?():ProcessItemsMaintenancePorts|undefined}){
   const {request,response,url}=input,query=url.searchParams,namespace=query.get('namespace')??'',key=query.get('key')??'';
   try{
     // Trial releases retain originals: refuse before opening any sync service or contacting a server.
     if(request.method!=='GET'&&(url.pathname==='/api/sync/purge-trash'||url.pathname==='/api/sync/history/purge')){sendLocalWebJson(response,409,{error:'永久清理暂未开放，保留内容仍计入云端容量。'});return;}
     const service=await input.service();
     if(!service){sendLocalWebJson(response,200,{available:false,reason:input.local?'本地空间不参与同步，请先切换到个人空间。':'尚未配置同步服务。'});return;}
+    // The person's process-item steps (sync-cutover.md steps 1–5): each answers itself, not the whole sync status.
+    if(url.pathname==='/api/sync/process-items'||url.pathname.startsWith('/api/sync/process-items/')){
+      const ports=input.maintenance?.();
+      if(!ports){sendLocalWebJson(response,409,{error:'这个空间暂不能切换过程项同步。'});return;}
+      const steps=processItemsMaintenance(service,ports);
+      if(request.method==='GET'&&url.pathname==='/api/sync/process-items'){sendLocalWebJson(response,200,await steps.status());return;}
+      if(request.method!=='POST'){sendLocalWebJson(response,404,{error:'接口不存在。'});return;}
+      await readLocalWebBody(request);
+      let value:unknown;
+      switch(url.pathname){
+        case '/api/sync/process-items/cut-over':value={cutover:await steps.cutOver()};break;
+        case '/api/sync/process-items/capture':value=await steps.capture();break;
+        case '/api/sync/process-items/adopt':value=await steps.adopt();break;
+        case '/api/sync/process-items/take-over':value={outcomes:await steps.takeOver()};break;
+        default:sendLocalWebJson(response,404,{error:'接口不存在。'});return;
+      }
+      sendLocalWebJson(response,200,{...(value as object),status:await steps.status()});return;
+    }
     if(request.method==='GET'){
       let value:unknown;
       switch(url.pathname){

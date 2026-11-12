@@ -1,6 +1,7 @@
 import {SYNC_COMPARISON_SCRIPT} from './settings-sync-comparison.js';
 import {SYNC_PROJECT_RECYCLE_SCRIPT} from './settings-sync-projects.js';
 import {SYNC_CLOUD_HISTORY_SCRIPT} from './settings-sync-history.js';
+import {SYNC_PROCESS_ITEMS_SCRIPT} from './settings-sync-process-items.js';
 
 export function renderSyncSettings(L:(text:string)=>string):string {
   return `<section class="settings-document" data-sync-settings aria-labelledby="settings-title">
@@ -10,6 +11,7 @@ export function renderSyncSettings(L:(text:string)=>string):string {
       <p class="settings-muted" data-sync-quota></p>
       <div class="settings-form-actions"><button type="button" class="mw-btn mw-btn--secondary" data-sync-reload>${L('重新读取')}</button> <button type="submit" class="mw-btn mw-btn--primary">${L('保存同步配置')}</button> <button type="button" class="mw-btn mw-btn--secondary" data-sync-run>${L('立即同步')}</button></div>
     </form>
+    <section class="settings-section" data-sync-process-items hidden></section>
     <div data-sync-conflicts></div><div class="settings-form-actions" data-sync-tools hidden><button type="button" class="mw-btn mw-btn--secondary" data-sync-trash>${L('回收站')}</button></div><button type="button" class="mw-btn mw-btn--secondary" data-sync-projects>${L('项目回收')}</button><div data-sync-history></div>
     <p class="settings-form-error" data-sync-error role="alert" hidden></p>
     <button type="button" class="mw-btn mw-btn--secondary" data-sync-retry hidden>${L('重试')}</button>
@@ -51,6 +53,8 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     };
     ${SYNC_CLOUD_HISTORY_SCRIPT}
     ${SYNC_PROJECT_RECYCLE_SCRIPT}
+    ${SYNC_PROCESS_ITEMS_SCRIPT}
+    let stepsRead=false;
     const render=(data)=>{
       if(state?.policy?.spaceId&&data.policy?.spaceId!==state.policy.spaceId)document.querySelectorAll('[data-sync-dialog]').forEach(dialog=>dialog.close());
       state=data;form.hidden=!data.available;status.classList.remove('mw-loading');
@@ -88,6 +92,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       const retained=node('details','settings-data-disclosure');retained.append(node('summary','',L('保留版本')));history.append(retained);
       for(const collection of data.collections){const entry=node('div','settings-setting-row');entry.append(node('span','',L(collection.title)),button('云端保留版本',()=>cloudHistory(collection)),button('本机保留版本',async()=>{try{const response=await request('/recoveries?namespace='+encodeURIComponent(namespace(collection.selection)));const body=node('div','');if(!response.items.length)body.append(node('p','settings-muted',L('暂无保留版本')));for(const item of response.items)body.append(node('p','',item.key),button('查看并恢复',()=>compare(collection,item,true)));sheet('本机保留版本',body,[]);}catch(failure){error.hidden=false;error.textContent=L(failure.message);}}));retained.append(entry);}
       error.hidden=!data.error;error.textContent=data.error?L(data.error):'';
+      if(!stepsRead){stepsRead=true;void loadSteps();}
     };
     const act=async(work,deviceOnly=false,propagate=false)=>{
       if(busy){if(propagate)throw new Error(L('正在同步…'));return;}busy=true;error.hidden=true;retry.hidden=true;
@@ -107,7 +112,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       void act(()=>request('/policy',{...state.policy,selections},'PUT'));
     });
     root.querySelector('[data-sync-run]').addEventListener('click',()=>act(()=>request('/run',{},'POST')));
-    root.querySelector('[data-sync-reload]').addEventListener('click',()=>{dirty=false;load();});
+    root.querySelector('[data-sync-reload]').addEventListener('click',()=>{dirty=false;stepsRead=false;load();});
     root.querySelector('[data-sync-trash]').addEventListener('click',async()=>{
       try{
         const body=node('div',''),dialog=sheet('回收站',body,[]);let before;

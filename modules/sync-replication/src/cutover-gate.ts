@@ -73,6 +73,11 @@ export class ProcessItemsCutoverGate {
     markSyncCutoverAdopted(this.ports.home,this.ports.spaceId,cutoverId);this.adopted=cutoverId;this.bind();
   });}
   /**
+   * Local maintenance that must see no sync round while it runs (keeping the original lines, adopting the libraries): `work` receives
+   * the cutover the service reports now, and runs while no round, cutover or takeover can start.
+   */
+  maintain<T>(work:(cutover:SyncCutoverView|null)=>Promise<T>|T){return this.ports.exclusive(async()=>work(await this.observe()));}
+  /**
    * The person's takeover of what a verified recovery file holds (sync-cutover.md step 5): only while this Home moves the adopted
    * stream and has read it up to the completion head, so every line the cutover seeded has been received or held as a conflict first.
    */

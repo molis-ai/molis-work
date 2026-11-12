@@ -87,6 +87,14 @@ export function processItemsSyncFailureKeys(home:string):string[]{
 }
 
 export const newProcessItemsCaptureId=()=>randomUUID().replaceAll('-','');
+/** The recovery files this Home holds, newest first, by capture id. A name that is not a capture id is not one of them. */
+export function listProcessItemsRecoveries(home:string):string[]{
+  const directory=path.join(home,...DIRECTORY);
+  let names:string[];
+  try{names=fs.readdirSync(directory);}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return [];throw error;}
+  return names.filter(name=>name.endsWith('.jsonl')&&CAPTURE.test(name.slice(0,-6)))
+    .map(name=>({id:name.slice(0,-6),at:fs.statSync(path.join(directory,name)).mtimeMs})).sort((a,b)=>b.at-a.at||a.id.localeCompare(b.id)).map(row=>row.id);
+}
 const file=(home:string,captureId:string)=>{
   if(!CAPTURE.test(captureId))throw syncError('invalid','过程项恢复件编号无效，原件已保留');
   return path.join(home,...DIRECTORY,captureId+'.jsonl');

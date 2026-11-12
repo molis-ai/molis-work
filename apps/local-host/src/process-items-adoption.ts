@@ -94,10 +94,13 @@ function plan(db: DatabaseSync, path: string, failures: readonly string[] = []):
     unsettled: layout === "original" ? unsettled(db, failures) : [] };
 }
 
-/** Read-only: what adopting this library would do, without taking a backup or changing anything. */
-export function inspectProjectAdoption(path: string): Omit<ProjectAdoptionReport, "project_id" | "state" | "backup"> {
+/**
+ * Read-only: what adopting this library would do, without taking a backup or changing anything. `refused` names everything that stops
+ * it now; `unsettled` is the part of that a recovery file of this Home can keep (lines sync has not settled, given its `failures`).
+ */
+export function inspectProjectAdoption(path: string, failures: readonly string[] = []): Omit<ProjectAdoptionReport, "project_id" | "state" | "backup"> & { readonly unsettled: readonly string[] } {
   const db = new DatabaseSync(path, { readOnly: true });
-  try { const { unsettled: open, refused, ...found } = plan(db, path); return { ...found, refused: [...refused, ...open] }; } finally { db.close(); }
+  try { const { unsettled, refused, ...found } = plan(db, path, failures); return { ...found, refused: [...refused, ...unsettled], unsettled }; } finally { db.close(); }
 }
 
 /**

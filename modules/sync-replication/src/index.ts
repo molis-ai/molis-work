@@ -10,7 +10,7 @@ import {ProcessItemsCutoverGate} from './cutover-gate.js';
 export {PROCESS_ITEMS_NAMESPACE,parseSyncCutover,syncCutoverLane,type SyncCutoverView} from './cutover.js';
 export type {ProcessItemsCutoverGate} from './cutover-gate.js';
 import type {ProcessItemsTakeoverOutcome} from './process-items-recovery.js';
-export {PROCESS_ITEMS_RECOVERY_FORMAT,newProcessItemsCaptureId,processItemsSyncFailureKeys,readProcessItemsRecovery,readProcessItemsSyncEvidence,writeProcessItemsRecovery,
+export {PROCESS_ITEMS_RECOVERY_FORMAT,listProcessItemsRecoveries,newProcessItemsCaptureId,processItemsSyncFailureKeys,readProcessItemsRecovery,readProcessItemsSyncEvidence,writeProcessItemsRecovery,
   type ProcessItemsRecovery,type ProcessItemsRecoveryHeader,type ProcessItemsRecoveryProject,type ProcessItemsSyncEvidence,type ProcessItemsTakeoverOutcome} from './process-items-recovery.js';
 
 export type SyncSelection = SpaceSyncPolicy['selections'][number];

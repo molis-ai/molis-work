@@ -84,7 +84,8 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.throws(() => new LocalProjectDatabase(h.path), /结构与当前完整基线不符|SQLITE_BASELINE_TRIGGER_MISMATCH/u);
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
-  assert.deepEqual({ ...inspected, refused: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, refused: [] });
+  assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, refused: [], unsettled: [] });
+  assert.deepEqual(inspected.unsettled, inspected.refused, "all that stops it is what a recovery file can keep");
   assert.match(inspected.refused.join("\n"), unsent, "lines the original journal never sent are unsettled");
   // BSH-14-D: those lines are adopted only once a recovery file of this Home keeps them.
   const before = await readFile(h.path);

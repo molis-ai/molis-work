@@ -25,6 +25,7 @@ import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
 import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
+import { pageMaterialsPicker } from "./materials-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
@@ -184,6 +185,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
+  const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, host.translate, text => host.showToast?.(text, true));
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -239,6 +241,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; }
+    if (message.type === "knowledge-pick") { pickMaterials(message); return; }
     if (message.type === "refresh-shell") { location.reload(); return; }
     if (message.type === "read-document") {
       if (!Number.isSafeInteger(message.id) || message.id <= 0 || documentReads.has(message.id)) return;

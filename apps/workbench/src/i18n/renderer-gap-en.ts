@@ -1,6 +1,12 @@
 import { PLUGIN_SLOTS_EN } from "./plugin-slots-en.js";
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "已选的资料": "Chosen material",
+  "加入选择": "Add to choice",
+  "已加入：{title}": "Added: {title}",
+  "这个文件不能在这里预览。": "This file can't be previewed here.",
+  "预览 {title}": "Preview {title}",
+  "不选 {title}": "Remove {title}",
   '草稿删除暂未开放，完整创作及文件已保留':'Draft deletion is not available yet; the full creation and files are retained',
   '永久清理暂未开放，保留内容仍计入云端容量。':'Permanent cleanup is not available yet. Retained content still counts toward cloud storage.',
   '变化字段':'Changed fields',

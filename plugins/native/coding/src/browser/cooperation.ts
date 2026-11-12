@@ -7,7 +7,7 @@ export type { CooperationClient, CooperationPorts } from "./cooperation-types.js
 /** What the delegation dialog holds: the project knowledge picked to go with the task. */
 interface Dialog {
   readonly node: HTMLDialogElement;
-  picks: { kind: string; id: string; title: string }[];
+  picks: { ref: unknown; title: string }[];
   ticket: number;
 }
 
@@ -112,15 +112,15 @@ export function cooperationClient(ports: CooperationPorts): CooperationClient {
     mail: [], commands: [], backgroundUnknown: false, again: () => refresh(coop, reading, true),
   };
   // What goes with the task is picked from project knowledge in the page's one picker (specs/project-knowledge PMAT-18), as the
-  // next round's materials are; the other session reads each piece through knowledge.read when its round starts.
+  // next round's materials are; the other session reads each piece by its reference when its round starts.
   const dialog: Dialog = { node: q<HTMLDialogElement>("[data-coding-delegate-dialog]"), picks: [], ticket: 0 };
   lifetime.listen(field(dialog, "[data-coding-delegate-pick]"), "click", () => {
     document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "coding-delegate:" + (++dialog.ticket), selected: structuredClone(dialog.picks), max: 30 } }));
   });
   lifetime.listen(document, "molis-work:knowledge-picked", event => {
-    const detail: { request_id?: unknown; picks?: { kind: string; id: string; title: string }[] } | null = event instanceof CustomEvent ? event.detail : null;
-    if (String(detail?.request_id || "") !== "coding-delegate:" + dialog.ticket || !dialog.node.open) return;
-    dialog.picks = (detail?.picks || []).map(pick => ({ kind: pick.kind, id: pick.id, title: pick.title }));
+    const detail: { request_id?: unknown; outcome?: unknown; items?: { ref: unknown; title: string; hint?: string }[] } | null = event instanceof CustomEvent ? event.detail : null;
+    if (String(detail?.request_id || "") !== "coding-delegate:" + dialog.ticket || !dialog.node.open || detail?.outcome !== "confirmed") return;
+    dialog.picks = (detail.items || []).map(item => ({ ref: item.ref, title: item.hint ? item.title + " · " + item.hint : item.title }));
     drawPicks(coop, dialog);
   });
   lifetime.listen(field(dialog, "form"), "submit", event => createDelegation(coop, dialog, reading, event));

@@ -526,6 +526,8 @@ export const CODING_MESSAGES = {
   "coding.facts.host-tools": { zh: "本轮内置工具", en: "Built-in tools this turn" },
   "coding.facts.no-host-tools": { zh: "不使用内置工具", en: "No built-in tools" },
   "coding.facts.materials": { zh: "本轮项目资料", en: "Project material this turn" },
+  "coding.facts.material-read": { zh: "{name}（读的是 {version}）", en: "{name} (read at {version})" },
+  "coding.facts.material-unrecorded": { zh: "{name}（当时未记录来源版本）", en: "{name} (source version not recorded then)" },
   "coding.facts.compaction": { zh: "上下文整理", en: "Context tidying" },
   "coding.facts.compaction-value": { zh: "自动 · 估计超过 {tokens} tokens 时选择较早原文 · v{version}", en: "Automatic · picks earlier text when the estimate passes {tokens} tokens · v{version}" },
   "coding.facts.usage-scope": { zh: "用量范围", en: "Usage covers" },

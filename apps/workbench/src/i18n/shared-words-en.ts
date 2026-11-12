@@ -200,6 +200,7 @@ export const SHARED_WORDS_EN: Record<string, string> = {
   "请输入文档的 HTTPS 链接。": "Enter the document's HTTPS URL.",
   "{count} 份": "{count}",
   "添加本机文件": "Add this file",
+  "有 {count} 份资料这个插件读不到，没有加入。": "{count} pieces were not added: this plugin cannot read them.",
   "已确认": "Confirmed",
   "新增": "Add",
   "未记录": "Not recorded",

@@ -339,6 +339,11 @@ export interface AgentImageMaterial {
     media_type: string;
 }
 
+export interface AgentMaterialOrigin {
+    material_ref?: MaterialRef;
+    read_revision?: string;
+}
+
 export interface AgentMcpCallResult {
     text: string;
     truncated: boolean;
@@ -1699,7 +1704,7 @@ export type AgentTextMaterial = {
     material_id: string;
     title: string;
     text: string;
-} & AgentMaterialSource;
+} & AgentMaterialSource & AgentMaterialOrigin;
 
 export interface AgentTextReviewDocument {
     kind: "text-edit";
@@ -2084,7 +2089,7 @@ interface AgentFrozenStartFields {
     text_materials: Array<{
         material_id: string;
         title?: string;
-    } & AgentMaterialSource>;
+    } & AgentMaterialSource & AgentMaterialOrigin>;
     image_materials?: Array<{
         material_id: string;
         title: string;

@@ -8,6 +8,7 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -94,6 +95,8 @@ export const codingManifest: PluginManifest = {
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
+      // A folder file, a quote or a snapshot chosen as a round's material is read through the platform's materials service.
+      materialsActions.read.capability_id,
       projectDirectoryActions.get.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,

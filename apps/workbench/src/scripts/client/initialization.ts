@@ -81,6 +81,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const materialsKit = (() => { ${FILE_PREVIEW_CLIENT_SCRIPT}
       ${MATERIALS_READER_CLIENT_SCRIPT}
       return { renderFilePreview, materialsReader }; })();
+    // The materials picker (its own bundle) previews a file with the same reader.
+    globalThis.molisWorkMaterials = materialsKit;
     (${MATERIALS_STAGE_FACTORY_SCRIPT})({ translate: L, route, kit: materialsKit });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.

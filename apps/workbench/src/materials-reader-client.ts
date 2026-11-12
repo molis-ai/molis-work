@@ -8,7 +8,8 @@
  * asks, and each fix is read again by the service, which refuses a file that changed since it was shown.
  *
  * The factory takes its place's helpers and the attribute its controls are named by (`renderMaterialsTools`); `open` answers false for
- * a file it does not read, which the place then shows as before.
+ * a file it does not read, which the place then shows as before. A place that collects what is taken (the materials picker) passes
+ * `take`, which gets `{ ref, title, hint }`; without it 「加入任务」 opens the Assistant with it.
  */
 export function renderMaterialsTools(L: (text: string) => string, name: "side-materials" | "stage-materials"): string {
   return `<div class="side-materials-tools" data-${name}-tools role="toolbar" aria-label="${L("取用这份资料")}" hidden>
@@ -20,7 +21,7 @@ export function renderMaterialsTools(L: (text: string) => string, name: "side-ma
         </div>`;
 }
 
-export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=({name,L,esc,body,tools,held,problem,post,renderFile})=>{
+export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=({name,L,esc,body,tools,held,problem,post,renderFile,take})=>{
     let state=null;
     // Each place names its own controls (the side panel's, the main area's), so two readers on one page never answer each other.
     const sel=(value)=>value==null?'[data-'+name+']':'[data-'+name+'="'+value+'"]';
@@ -127,6 +128,8 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
     const add=()=>{
       if(!state)return;
       const item=state.quote||state.pinned||{ref:{subject:state.subject,pin:{mode:'current',read_revision:state.revision}},title:state.title};
+      // A quote's title already says where it is; a snapshot says so in its hint.
+      if(take){take({ref:item.ref,title:item.title||state.title,hint:item.title&&item.title!==state.title?'':item.label||''});return;}
       document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{source:{surface:'materials',title:L('项目资料')},materials:[{title:item.title||state.title,ref:item.ref}]}}));
     };
     const act=async(action,button)=>{
@@ -138,6 +141,8 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       if(action==='pin'){const fixed=await fix({start:0},button);if(fixed&&state){state.pinned={ref:fixed.ref,label:L('固定快照'),title:state.title};state.quote=null;paintHeld();}return;}
       if(action==='add')add();
     };
+    // Pressing 引用选区 must not move focus off the text: where the text sits in a focused box (the picker), that clears the selection.
+    tools.addEventListener('mousedown',event=>{if(event.target?.closest?.(sel('quote')))event.preventDefault();});
     for(const container of [tools,held,body])container.addEventListener('click',event=>{const button=event.target?.closest?.(sel());if(button)void act(button.getAttribute('data-'+name),button);});
     return {open,close,say};
   };`.replace(/^[ \t]*\/\/.*\n/gm, "").replace(/^[ \t]+/gm, "");

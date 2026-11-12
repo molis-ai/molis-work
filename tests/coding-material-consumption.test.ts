@@ -7,6 +7,9 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 // W2-18-ALL-03 / S5, specs/project-knowledge PMAT-18: what Shelf saved into the project is a piece of project knowledge; picked for a
 // round, its fixed bytes are read through knowledge.read and consumed through the actual Host, workspace catalog and installed SDK.
+/** What the knowledge picker answers for a fixed version: its exact ref and title. */
+const fixedRef = (reference: { artifact_id: string; version: number }) => ({ ref: { subject: { kind: "artifact", id: artifactSubjectId(reference) }, pin: { mode: "fixed", version: { artifact_id: reference.artifact_id, version: reference.version } } }, title: "notes" });
+
 test("Coding actually consumes the version Shelf saved into project knowledge after an edit, and refuses another project's material or one kept from agents before inference", { timeout: 45_000 }, async t => {
   const { project, other, workspaceId, call, ended: waitRun, requests } = await codingProductHost(t, () => cogniaModelResponse("已读取固定原文。", 5));
   // The round's catalog listing brings knowledge current and organizes its cards in the background with the same Home model; those
@@ -20,7 +23,7 @@ test("Coding actually consumes the version Shelf saved into project knowledge af
   const pinned = await call<{ reference: ArtifactReference }>(project.project_id, path, { expected_fingerprint: preview.body.fingerprint }); assert.equal(pinned.status, 200);
   assert.equal((await call(project.project_id, `/api/plugins/io.molis.work.shelf/items/${item}/edit`, { text: "后来改写：不能替代原件", expected_content_hash: preview.body.payload.content_hash })).status, 200);
   const session = await call<{ session: { session_id: string } }>(project.project_id, prefix + "/sessions", {}); assert.equal(session.status, 200);
-  const start = { task: "说明这份固定材料。", intent: "discuss", workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model", materials: [{ kind: "artifact", id: artifactSubjectId(pinned.body.reference), title: "notes" }] };
+  const start = { task: "说明这份固定材料。", intent: "discuss", workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model", materials: [fixedRef(pinned.body.reference)] };
   const started = await call<{ run: { ref: AgentRunRef } }>(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, start);
   assert.equal(started.status, 200, JSON.stringify(started.body));
   const ended = await waitRun(started.body.run.ref);
@@ -33,7 +36,7 @@ test("Coding actually consumes the version Shelf saved into project knowledge af
   assert.ok(!data.text.includes("后来改写")); assert.equal(ended.frozen.text_materials[0]?.source_version, 1);
   const foreignPreview = await call<{ fingerprint: string }>(other.project_id, path);
   const foreign = await call<{ reference: ArtifactReference }>(other.project_id, path, { expected_fingerprint: foreignPreview.body.fingerprint }); assert.equal(foreign.status, 200);
-  const refused = await call(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, { ...start, materials: [{ kind: "artifact", id: artifactSubjectId(foreign.body.reference), title: "notes" }] });
+  const refused = await call(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, { ...start, materials: [fixedRef(foreign.body.reference)] });
   assert.equal(refused.status, 400); assert.equal(rounds().length, 1, "foreign material never reaches a new model request");
   // S-41: Coding reads what the person picked with the project's authority, yet a piece kept from agents is still refused, before inference.
   const states = await call<{ states: Array<{ kind: string; id: string }> }>(project.project_id, "/api/knowledge/states");

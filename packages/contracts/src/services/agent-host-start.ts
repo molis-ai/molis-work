@@ -1,6 +1,7 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
+import type { MaterialRef } from "../platform/project-materials.js";
 import type { CharacterContent } from "../modules/characters.js";
 import type { RunDirectories } from "../modules/projects.js";
 import type { AgentRoleExecution, AgentPromptLayer, AgentSkillDeclaration, AgentPromptText, AgentSkillDefinition } from "../platform/plugin-agent.js";
@@ -34,12 +35,19 @@ type AgentMaterialSource =
   | { source_artifact_id: string; source_version: number }
   | { source_artifact_id?: never; source_version?: never };
 
+/**
+ * Where a piece the person chose came from, kept with the round that received it (materials-ui-contract §2): the exact reference,
+ * a live one carrying the revision read for this round, and that revision. A round from before they were kept has neither, and
+ * says the source version was not recorded; it is never guessed from the file as it is now.
+ */
+export interface AgentMaterialOrigin { material_ref?: MaterialRef; read_revision?: string }
+
 export type AgentTextMaterial = {
   material_id: string;
   title: string;
   /** Verbatim text the model may read. Frozen before the Run starts. */
   text: string;
-} & AgentMaterialSource;
+} & AgentMaterialSource & AgentMaterialOrigin;
 
 /**
  * An image the person brought, already taken in by the runtime (its bytes stay with the runtime; this is only the
@@ -60,6 +68,8 @@ export function agentTextMaterialContent(material: AgentTextMaterial): string {
   const sourced = "source_artifact_id" in material || "source_version" in material;
   if (sourced && (typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
     || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) throw new Error("固定材料的标题、来源或版本无效");
+  if (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")
+    || material.read_revision !== undefined && (typeof material.read_revision !== "string" || !material.read_revision || material.read_revision.length > 200)) throw new Error("材料的来源引用或读取版本无效");
   const header = JSON.stringify(sourced
     ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version }
     : { title: material.title, material_id: material.material_id });
@@ -188,7 +198,7 @@ interface AgentFrozenStartFields {
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
-  text_materials: Array<{ material_id: string; title?: string } & AgentMaterialSource>;
+  text_materials: Array<{ material_id: string; title?: string } & AgentMaterialSource & AgentMaterialOrigin>;
   /** Images the model was shown in this Run (references only). */
   image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
   budget: AgentRunBudget | null;

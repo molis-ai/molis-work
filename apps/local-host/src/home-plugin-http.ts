@@ -184,6 +184,8 @@ async function answerPackageAction(request: IncomingMessage, response: ServerRes
     if (operation === "uninstall" && pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
     const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
     // The installation this request reaches is fixed when it arrives (BL-915): a reinstall or upgrade while it waits is not taken off in its place; what it kept is answered as the settings door answers it (`retained`).
+    // Read once the Home has started: before that no installation is known, and the uninstall would fall back to whatever is current then.
+    if (operation === "uninstall") await homePlugins.ready();
     const row = operation === "uninstall" ? homePlugins.installation(pluginId) : undefined;
     const retained = await homePlugins.packageAction(pluginId, operation, { keepData: body?.keep_data === true,
       ...row ? { target: { install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } } : {} });

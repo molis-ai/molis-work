@@ -108,7 +108,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const contribution: PluginAppContribution = {
         kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
-          let outcomeUnknown = false;
+          let outcomeUnknown = false, refused: unknown;
           try {
             const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown; operation?: unknown; input?: unknown };
             // The platform (its scheduler, or the action directory) runs an operation by id; people reach operations through parts.
@@ -120,7 +120,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
             const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
             // Before any of its code runs, whichever door it came through (BL-701).
-            assertOperationGranted(effects, context.grants);
+            try { assertOperationGranted(effects, context.grants); } catch (error) { refused = error; throw error; }
             const projectReach = executionProjectReach(request.execution);
             const callContext: SandboxServiceContext = { identity, operationId: call.operationId, signal: request.execution?.signal ?? new AbortController().signal, projectReach };
             const capabilities = dependencies.length ? await host.capabilities?.(callContext) ?? [] : [];
@@ -160,8 +160,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
               if (gone) { outcomeUnknown = true; throw failure !== error ? failure : new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
               throw failure;
             }
-          } catch (error) { // A switched-off effect (BL-701) is refused before its code ran: the refusal is the answer, not an unknown outcome.
-            if (!outcomeUnknown && error instanceof ActionError && error.code === 'actions.forbidden') throw error;
+          } catch (error) { // Only a switched-off effect (BL-701), refused before its code ran, is answered as the refusal itself.
+            if (error === refused) throw error;
             return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }
         } }],
         views: [{ descriptor: { contribution_id: uiId, kind: 'primary-page', label: release.design.title, slots: [] },

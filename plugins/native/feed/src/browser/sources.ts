@@ -15,7 +15,8 @@ const SCHEDULE_MAY_HAVE_LANDED: ReadonlySet<string> = new Set(["ui_host.outcome_
 interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: FeedSourceRunRecord }
 
-/** What each kind of failed pull says (run-failure.ts decides which). */
+/** What each kind of failed pull says (run-failure.ts decides which). The table stays beside its translator call so the translation gate sees
+ *  the keys; `Record<FeedRunFailure, …>` makes both copies cover every kind. */
 const RUN_FAILURE: Readonly<Record<FeedRunFailure, string>> = Object.freeze({
   kept: "feed.run.existing-kept-retry-later",
   refused: "feed.run.source-refused-access",

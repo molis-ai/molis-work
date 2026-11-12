@@ -1,7 +1,8 @@
 import type { FeedSourceRunRecord } from "./projection.js";
 import type { FeedUiSourceRun } from "./ui.js";
 
-/** Why a pull did not bring anything new, as a person reads it; each caller says it from its own key table (the page's script has no SDK text). */
+/** Why a pull did not bring anything new, as a person reads it; each caller says it from its own key table. No SDK import here: the
+ * page's script uses the page's own `t`, and pulling in the SDK's text added about 10 KB to it. */
 export type FeedRunFailure = "kept" | "refused" | "not_feed" | "unusable" | "unavailable";
 
 /** Only the received HTTP status is needed to distinguish a refusal from a site that never answered. */

@@ -419,7 +419,8 @@ export function renderSourceWorkbench(model: FeedUiModel): string {
   return `<section class="desktop-work-surface source-workbench" data-work-surface="sources" data-work-surface-label="${uiText("feed.ui.source")}" data-source-workbench hidden>${panels}<div class="feed-detail-empty" data-source-detail-empty${panels ? " hidden" : ""}>${p.icon("settings")}<h1>${panels ? uiText("feed.ui.select-source") : uiText("feed.ui.no-manageable-sources-yet")}</h1>${panels ? "" : `<button class="mw-btn mw-btn--primary" type="button" data-feed-sources-open>${p.icon("plus")}${uiText("feed.ui.add-source")}</button>`}</div></section>`;
 }
 
-/** What each kind of failed pull says (run-failure.ts decides which). */
+/** What each kind of failed pull says (run-failure.ts decides which). The table stays beside its translator call so the translation gate sees
+ *  the keys; `Record<FeedRunFailure, …>` makes both copies cover every kind. */
 const RUN_FAILURE: Readonly<Record<FeedRunFailure, string>> = Object.freeze({
   kept: "feed.run.existing-kept-retry-later",
   refused: "feed.run.source-refused-access",

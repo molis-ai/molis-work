@@ -889,15 +889,14 @@ export interface ExternalSessionSuggestion {
 ```ts
 export interface ExternalSessionAttributionInput {
   session_key: string;
-  decision: { kind: "project"; project_id: string } | { kind: "leave_unfiled" } | { kind: "clear" };
-  suggestion_accepted: boolean;
+  decision: { kind: "project"; project_id: string; suggestion_accepted?: boolean } | { kind: "leave_unfiled" } | { kind: "clear" };
   expected_revision: number;
 }
 ```
 
 - 只给 `user`：AI 不能确认归属，这是拒绝测试的内容（S-sessions-person-decides）。
 - `decision.project_id` 是归到哪里，不是谁在调用，所以不算 S-sessions-person-decides 说的身份字段；输入顶层的 `project_id` 照样不认。
-- `suggestion_accepted` 只有 `kind: "project"` 时能为真，schema 就拦。
+- `suggestion_accepted` 是 `kind: "project"` 这一种决定自己的字段，不写就是 `false`；别的决定带它、或写在输入顶层，schema 都拦。
 - `expected_revision` 取行上的 `attribution_revision`，只给本人，从没决定过时是 0；不符报 `sessions.attribution_conflict`。原来的类型里没有地方拿到这个数，C-3 加在行上。
 - 输出这一行的 `ExternalSessionRow`，`attribution_revision` 已是新值。
 - `clear` 之后 `attribution_revision` 不回到 0：服务保留这一行，版本只增不减。否则决定、清掉、再决定之后版本又回到 1，拿着旧版本的页面能覆盖新决定。0 只表示从没决定过。

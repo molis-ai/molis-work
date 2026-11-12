@@ -104,7 +104,7 @@ test("SRB-06: no input carries a trusted identity, a native id or a path", () =>
   const smuggled = { actor_id: "a", project_id: "p", audience: "user", native_id: "n", path: "/etc", location_key: "local:default" };
   const inputs: Array<[ActionDefinition, Record<string, unknown>]> = [[sessionsActions.list, { view: "project" }], [sessionsActions.historyRead, { session_key: KEY }], [sessionsActions.scopeRead, {}],
     [sessionsActions.scopeSet, { sources: [], expected_revision: 0 }], [sessionsActions.projectAiReadSet, { allowed: true, expected_revision: 0 }], [sessionsActions.discoveryRun, {}],
-    [sessionsActions.attributionSet, { session_key: KEY, decision: { kind: "clear" }, suggestion_accepted: false, expected_revision: 0 }], [sessionsActions.attributionSuggest, { session_keys: [KEY] }]];
+    [sessionsActions.attributionSet, { session_key: KEY, decision: { kind: "clear" }, expected_revision: 0 }], [sessionsActions.attributionSuggest, { session_keys: [KEY] }]];
   for (const [definition, valid] of inputs) {
     assertActionInput(definition.action.input_schema, valid);
     for (const [name, value] of Object.entries(smuggled)) assert.throws(() => assertActionInput(definition.action.input_schema, { ...valid, [name]: value }), Error, `${reference(definition)} took ${name}`);
@@ -248,12 +248,19 @@ test("SRB-14: a directory the person linked outranks a tool's binding: the sessi
 });
 
 test("SRB-14, SRB-15: a decision is one session's, made by the person, on a revision the row gives", () => {
-  const input = sessionsActions.attributionSet.action.input_schema, base = { session_key: KEY, suggestion_accepted: false, expected_revision: 2 };
+  const input = sessionsActions.attributionSet.action.input_schema, base = { session_key: KEY, expected_revision: 2 };
   for (const decision of [{ kind: "project", project_id: "p1" }, { kind: "leave_unfiled" }, { kind: "clear" }]) assertActionInput(input, { ...base, decision });
-  assertActionInput(input, { ...base, suggestion_accepted: true, decision: { kind: "project", project_id: "p1" } });
-  for (const decision of [{ kind: "leave_unfiled" }, { kind: "clear" }]) assert.throws(() => assertActionInput(input, { ...base, suggestion_accepted: true, decision }), Error, `accepted a suggestion with ${decision.kind}`);
+  for (const accepted of [true, false]) assertActionInput(input, { ...base, decision: { kind: "project", project_id: "p1", suggestion_accepted: accepted } });
+  // Only a project decision can be the suggestion taken: the mark belongs to that kind alone and is taken nowhere else.
+  for (const decision of [{ kind: "leave_unfiled" }, { kind: "clear" }]) {
+    for (const accepted of [true, false]) {
+      assert.throws(() => assertActionInput(input, { ...base, decision: { ...decision, suggestion_accepted: accepted } }), Error, `accepted a suggestion with ${decision.kind}`);
+    }
+  }
+  assert.throws(() => assertActionInput(input, { ...base, suggestion_accepted: true, decision: { kind: "project", project_id: "p1" } }), Error, "the mark beside the decision");
+  assert.throws(() => assertActionInput(input, { ...base, decision: { kind: "project", project_id: "p1", suggestion_accepted: "yes" } }), Error, "a mark that is not a boolean");
   for (const decision of [{ kind: "project" }, { kind: "clear", project_id: "p1" }, { kind: "project", project_id: "p1", actor_id: "a" }, { kind: "directory" }]) assert.throws(() => assertActionInput(input, { ...base, decision }), Error, JSON.stringify(decision));
-  assert.throws(() => assertActionInput(input, { session_key: KEY, decision: { kind: "clear" }, suggestion_accepted: false }), Error, "a decision without a revision");
+  assert.throws(() => assertActionInput(input, { session_key: KEY, decision: { kind: "clear" } }), Error, "a decision without a revision");
   const decided = row({ state: "confirmed", project: PROJECT, basis: "suggestion_accepted", decided_at: "2026-11-07T00:00:00Z" });
   assert.ok(accepts(output(sessionsActions.attributionSet), { ...decided, attribution_revision: 3 }));
   const { attribution_revision: _revision, ...withoutRevision } = decided;

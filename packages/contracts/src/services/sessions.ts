@@ -349,9 +349,8 @@ export interface ExternalSessionDiscoveryRunOutput { queued: ExternalToolId[] }
  */
 export interface ExternalSessionAttributionInput {
   session_key: string;
-  decision: { kind: "project"; project_id: string } | { kind: "leave_unfiled" } | { kind: "clear" };
-  /** Only a `project` decision can be the suggestion accepted. */
-  suggestion_accepted: boolean;
+  /** `suggestion_accepted` marks a `project` decision as the suggestion taken; only that kind can carry it, and leaving it out is `false`. */
+  decision: { kind: "project"; project_id: string; suggestion_accepted?: boolean } | { kind: "leave_unfiled" } | { kind: "clear" };
   expected_revision: number;
 }
 
@@ -498,7 +497,7 @@ const scopeView = { type: "object", properties: { sources: { type: "array", item
 
 const projectId = { type: "string", minLength: 1, maxLength: 200 };
 const attributionDecision = { anyOf: [
-  { type: "object", properties: { kind: { const: "project" }, project_id: projectId }, required: ["kind", "project_id"], additionalProperties: false },
+  { type: "object", properties: { kind: { const: "project" }, project_id: projectId, suggestion_accepted: bool }, required: ["kind", "project_id"], additionalProperties: false },
   { type: "object", properties: { kind: { enum: ["leave_unfiled", "clear"] } }, required: ["kind"], additionalProperties: false },
 ] };
 
@@ -552,9 +551,8 @@ export const sessionsActions = {
     output_schema: { type: "object", properties: { queued: entryIds }, required: ["queued"], additionalProperties: false } } } as ActionDefinition<ExternalSessionDiscoveryRunInput, ExternalSessionDiscoveryRunOutput>,
   attributionSet: { capability_id: "sessions.attribution.set", version: /* @version action.sessions.attribution.set */ 1, operation: "command", action: { ...decision,
     title: "决定外部会话归到哪里", description: "只改这一个会话：归到一个项目、先不归，或交回规则。不碰目录关系，不搬文件，不改原工具。归属不授予读取或控制权。",
-    input_schema: { type: "object", properties: { session_key: sessionKey, decision: attributionDecision, suggestion_accepted: bool, expected_revision: revision },
-      required: ["session_key", "decision", "suggestion_accepted", "expected_revision"], additionalProperties: false,
-      anyOf: [{ properties: { suggestion_accepted: { const: false } } }, { properties: { decision: { properties: { kind: { const: "project" } } } } }] },
+    input_schema: { type: "object", properties: { session_key: sessionKey, decision: attributionDecision, expected_revision: revision },
+      required: ["session_key", "decision", "expected_revision"], additionalProperties: false },
     output_schema: personRow } } as ActionDefinition<ExternalSessionAttributionInput, ExternalSessionRow>,
   attributionSuggest: { capability_id: "sessions.attribution.suggest", version: /* @version action.sessions.attribution.suggest */ 1, operation: "command", action: { ...decision, scheduling: "concurrent" as const,
     title: "建议外部会话归到哪里", description: `请配置的模型看标题、目录和开头几句，建议这些会话归到哪个项目。同一目录的会话一起问，一次最多 ${EXTERNAL_SESSION_SUGGEST_MAX_GROUPS} 组。只写建议，不写归属；模型失败时状态是 failed，会话照常待归类。`,

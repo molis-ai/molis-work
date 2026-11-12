@@ -29,6 +29,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   manifest_invalid: "invalid",
   manifest_version_invalid: "invalid",
   package_invalid: "invalid",
+  /** The signed package an installation names is not in the package store: no bundle, or no entry file (BL-915). Not the same as one there and not valid. */
+  package_missing: "not_found",
   permission_invalid: "invalid",
   preview_unknown: "not_found",
   publisher_revoked: "invalid",
@@ -43,6 +45,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   stop_timeout: "timeout",
   storage_denied: "invalid",
   storage_input_invalid: "invalid",
+  /** An uninstall stopped the installation and wrote its tombstone but did not finish the Host's cleanup (BL-915): kept on the row, listed, retried with the first data choice; nothing installs, enables or upgrades over it. */
+  uninstall_cleanup_pending: "unavailable",
   upgrade_required: "invalid",
   upgrade_rollback_failed: "invalid",
   upgrade_validation_failed: "invalid",

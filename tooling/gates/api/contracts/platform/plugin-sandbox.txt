@@ -4,7 +4,9 @@
 
 export declare const SANDBOX_IMAGE_LIMITS: Readonly<{
     max_images: 4;
+    max_image_bytes: number;
     max_bytes: number;
+    part_bytes: number;
 }>;
 
 export declare const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxOperationContract, 'kind' | 'input' | 'output' | 'effects'>>>;
@@ -93,6 +95,29 @@ export interface SandboxImageConnection {
     display_name: string;
     state: string;
     target_origin?: string;
+}
+
+export interface SandboxImageDescriptor {
+    result_id: string;
+    revision: string;
+    images: Array<{
+        byte_length: number;
+        mime?: string;
+    }>;
+}
+
+export interface SandboxImagePart {
+    offset: number;
+    byte_length: number;
+    size: number;
+    data_base64: string;
+}
+
+export interface SandboxImageRange {
+    result_id: string;
+    image_index: number;
+    offset: number;
+    length: number;
 }
 
 export interface SandboxImageRequest extends SandboxImageTarget {
@@ -503,7 +528,7 @@ export interface SandboxSdk {
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

@@ -15,7 +15,10 @@ import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
-import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { noteRetained } from "./uninstall-retained.js";
+import { openInstalledPluginLibrary, removeInstalledPluginLibrary } from "./installed-plugin-libraries.js";
+import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { declaresProjectCoordination } from "./plugin-project-coordination.js";
@@ -50,6 +53,8 @@ export class HomePluginExecutor implements PluginExecutor {
     background?: ReturnType<typeof pluginBackgroundFor> }>();
   /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
   private readonly partitionDeletions = new Map<string, PartitionDeletions>();
+  /** A stopped sandbox library's process exit, by installation: what an uninstall waits for before it removes the library (BL-915). */
+  private readonly libraryExits = new Map<string, Promise<void>>();
   /** Service calls each instance's code made after it stopped, each doing nothing (BL-411). */
   private readonly stoppedCalls = new StoppedServiceCalls();
   constructor(private readonly options: {
@@ -112,7 +117,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const failures: unknown[] = [];
       try { terminal?.dispose(); } catch (error) { failures.push(error); }
       withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.();
-      for (const release of [() => database?.close(), () => sandboxLibrary?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
+      for (const release of [() => database?.close(), () => { if (sandboxLibrary) { sandboxLibrary.close(); this.libraryExits.set(context.install_id, sandboxLibrary.exited()); } }, () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -221,13 +226,18 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
-  uninstalled(record: PluginInstanceRecord): void {
+  async uninstalled(record: PluginInstanceRecord): Promise<void> {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
     if (record.execution === "sandbox" && !record.retain_private_data) {
       removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
       forgetSandboxImageBindings(this.options.home, record.install_id);
+      // Its own library goes too, once its statement process has exited, and only the one the ledger and its verified Manifest agree on (BL-915 A).
+      await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
+      const manifest = new SandboxPackageStore(this.options.home).installedManifest(record), declared = manifest?.databases?.home;
+      const kept = removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
+      if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });
     }
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }

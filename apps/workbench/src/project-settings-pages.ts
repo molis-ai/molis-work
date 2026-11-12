@@ -17,7 +17,7 @@ import { renderProjectDirectoriesSection } from "./project-directories-section.j
 import { PROJECT_DIRECTORIES_CLIENT_SCRIPT } from "./scripts/project-directories-client.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 import { knowledgeClientTag, renderKnowledgeSettings } from "./settings-knowledge.js";
-import { PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPluginTrustSettings } from "./settings-plugins.js";
+import { PLUGIN_RETAINED_ICONS, PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPluginTrustSettings } from "./settings-plugins.js";
 import { renderTaskGrantsSettings, TASK_GRANTS_SETTINGS_CLIENT_SCRIPT } from "./settings-task-grants.js";
 
 export interface ProjectSettingsPagePorts {
@@ -74,7 +74,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ L, projectId: escapeHtml(view.project!.project_id) });
     if (section === "kit") return renderKitSettings({ L, lang: htmlLang(), projectId: escapeHtml(view.project!.project_id) });
-    if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
+    if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down"), kinds: Object.fromEntries(Object.entries(PLUGIN_RETAINED_ICONS).map(([kind, name]) => [kind, icon(name)])) });
     if (section === "grants") return renderTaskGrantsSettings({ L, projectId: escapeHtml(view.project!.project_id) });
     if (section === "rules") return content("rules", { policy_bindings: view.policy_bindings }, {}, view);
     return content("project", { methods }, { desktop: String(desktopShell) }, view);

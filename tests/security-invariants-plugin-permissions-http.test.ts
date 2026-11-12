@@ -175,7 +175,9 @@ test("RAC-2604 S-94 the Host settings door's disable, enable and uninstall are g
   const state = () => f.host.homePlugins!.installation(probe.id)?.state;
   assert.equal(state(), "running");
   for (const step of ["disable", "enable", "uninstall"] as const) {
-    const path = `/api/settings/plugin-permissions/${step}`, body = { plugin_id: probe.id, ...(step === "uninstall" ? { keep_data: true } : {}) };
+    // An uninstall names the installation it takes off (BL-915); the probe has no such row, so the target matches nothing.
+    const target = { install_id: probe.id, installation_generation: "none", version: "0.0.0", manifest_digest: "none" };
+    const path = `/api/settings/plugin-permissions/${step}`, body = { plugin_id: probe.id, ...(step === "uninstall" ? { keep_data: true, target } : {}) };
     const call = (input: unknown, init: { authorized?: boolean; headers?: Record<string, string> } = {}) => f.request(path, { method: "POST", body: input, ...init });
     assert.equal((await call(body, { authorized: false })).status, 403, `${step}: no control token`);
     assert.equal((await call(body, { headers: { origin: "http://127.0.0.1:1" } })).status >= 400, true, `${step}: another origin`);

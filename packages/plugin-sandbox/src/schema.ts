@@ -8,6 +8,8 @@ export class SandboxError extends Error {
 
 /** A call the Host's side refuses as not the person's to allow (`sandbox.not_authorized`), for the Host's own ports that must answer the package with the sandbox's code. */
 export const sandboxNotAuthorized = (message: string): SandboxError => new SandboxError('sandbox.not_authorized', message);
+/** A result larger than the channel's limits, as the Host's own ports refuse it (BL-918). */
+export const sandboxResponseTooLarge = (message: string): SandboxError => new SandboxError('sandbox.response_too_large', message);
 
 const schemaFailure: SandboxSchemaFailure = (kind, reason) => { throw new SandboxError(`sandbox.${kind}`, reason); };
 

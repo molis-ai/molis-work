@@ -15,7 +15,7 @@
 
 适用流程与合同。 [开工前检查](../../../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)、[开发](../../../post-anticorruption-roadmap/reference/development-workflow.md#8-开发)、[评审](../../../post-anticorruption-roadmap/reference/development-workflow.md#10-评审与合并)、[合同变更](../../../../docs/system/CONTRACT-CHANGES.md)、[插件开发 Skill](../../../../skills/molis-plugin-dev/SKILL.md)
 
-需求与接续。BL-910 已随 `c19f85c3c` 进入本基点。BL-701、367、803 沿现有 Runtime 合同，本稿复用现行安装授权和直接本人入口，消费 BL-367／第 06 批的实际资源释放等待。 [BL-915](../../../backlog/BL-915.md)、[BL-918](../../../backlog/BL-918.md)、[BL-628 §3.7](../../../archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md#37-卸载与数据清理)、[T-143 与原验收](../../../archive/repository-anti-corruption/slices/pg011-pg017-remaining.md#6-bl-491-模型设置与生图t-143)、[Runtime 合同](../batch27-runtime-contracts/spec.md)、[第 06 批](../../../post-anticorruption-roadmap/reference/batches/06.md)
+需求与接续。BL-910 已随 `c19f85c3c` 进入本基点。BL-701、367、803 沿现有 Runtime 合同，本稿复用现行安装授权和直接本人入口，消费 BL-367／第 06 批的实际资源释放等待。 BL-915、BL-918（都已完成，待办文件已删，实现记录见下文）、[BL-628 §3.7](../../../archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md#37-卸载与数据清理)、[T-143 与原验收](../../../archive/repository-anti-corruption/slices/pg011-pg017-remaining.md#6-bl-491-模型设置与生图t-143)、[Runtime 合同](../batch27-runtime-contracts/spec.md)、[第 06 批](../../../post-anticorruption-roadmap/reference/batches/06.md)
 
 ## BL-915 · 依可信记录卸载
 
@@ -50,7 +50,7 @@ BL-628 §3.7 的原表写明「Home 库（S-91）」，不保留数据时「删�
 | A 按原验收补齐已知库删除（统筹选定） | 由 `installed-plugin-libraries.ts` 原 owner 增加精确清理入口。只在 `keep_data=false`、目标 Home 可信 install 身份、持有者清楚、已匹配该安装摘要的 Manifest `databases.home` 与账本的 `plugin_id/publisher_signature/store_name/version/schema_digest` 对上、真实空间/目录与库 baseline 都可信且已等待实际 child 退出时，移除明确的 DB 与其 SQLite sidecar，安全地 rmdir 已清空的归属根，再移除该账本行（空根若留下会被现行首次建库拒绝）。清理与打开在 owner 的同一账本互斥下，重用精确库路径/保护名单验证，发现未知兄弟文件或链接时保留该库并逐项回执。文件/目录先删、账本后删；若后者失败，同代 pending 重试只收尾仍匹配的账本和已经删空的路径。精确发行物和账本任一缺失、另有持有方、路径/库身份不符，保留并逐项回执，不查其他目录。无新表和数据迁移；须补健康及损包两条既有动作的真实删除/保留、重装、失败与等待证据。 |
 | B 维持基点存储行为（未采用） | 两种卸载都会保留已知独立 Home 库，重装读到原库。这会缩减 §3.7 已约定的删除验收。 |
 
-2026-11-09 第 27 批统筹核对原 BL-628 §3.7、BL-915 的现行引用及 2026-11-04 的既有用户决定，按原验收选 A。由现有库 owner 实施，公共 C 仍须合审归属证明、实际资源退出、删除顺序、重试与拒绝。当前仅有设计。 [原卸载验收](../../../archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md#37-卸载与数据清理)、[BL-915 决定](../../../backlog/BL-915.md)
+2026-11-09 第 27 批统筹核对原 BL-628 §3.7、BL-915 的现行引用及 2026-11-04 的既有用户决定，按原验收选 A。由现有库 owner 实施，公共 C 仍须合审归属证明、实际资源退出、删除顺序、重试与拒绝。当前仅有设计。 [原卸载验收](../../../archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md#37-卸载与数据清理)
 
 ### 失败、重试与回执
 
@@ -69,6 +69,24 @@ BL-628 §3.7 的原表写明「Home 库（S-91）」，不保留数据时「删�
 | B27-UN-03 | 沿 S-94／S-75 在两个真实入口断言跨范围、内置／unsigned、伪造上下文、非本人、项目有效常开、过期世代拒绝，原运行/授权/数据均可核回。身份冒用/框页返回 `actions.forbidden`，输入附带身份字段 `actions.input_invalid`，可信行缺失/错误范围按已有门的 missing/scope 或 `plugin.state_invalid`，预期世代失配 `plugin.install_replaced`，常开 `plugin.always_on`。撤回常开再卸载；发布者已撤销仍允许卸载且 pin 不变。 |
 | B27-UN-04 | 在真实副作用之间设失败／等待栅栏，已释放授权不能调用。失败后在重启的管理列表找到同代待清理行，继续同一选择；反向 keep／enable／reinstall/upgrade 拒，零越权回写。另在墓碑提交前后取消管理请求，前者零新增持久状态，后者保留已提交进度且不写后续步骤。清理完成后重放无重复副作用；夹入重装或升级，旧世代不会命中新安装。测试锁保持至最后 owner 完成，且实际退出可观察。 |
 | B27-UN-05 | 隔离 Home 实操设置页的损包、保留项、失败重试与完成清单；Home／项目各走一次，中英文、深浅色、1440/1024/390、键盘确认和反馈。分开记录工程测试、实际操作和一骏本人验收。 |
+
+### 设置页呈现（用户 2026-11-11 选 A）
+
+定样在 [docs/design/uninstall-retained](../../../../docs/design/uninstall-retained/README.md)（1440/1024/390、中英、深浅、正常/留下/读不全/出错四种情形）。用户选 **A 就地结果**，它取代上面「失败、重试与回执」第 5 条里「成功 toast 后在所属列表上方内联列出」的放法：
+
+- 卸载结果带 `retained` 时，刚才那一行原地换成一条 `mw-alert`：有需要核对的留下项用警示色，全部只是「别处还在用」时用信息色。标题「已卸载 X · 有 N 项留下了」，每类一行，写图标、类别名和一句原因，末尾「其余数据已经删除。」，按钮「知道了」收起。焦点移到这条提示上，不再弹 toast。什么都没留下时照旧轻提示、行消失。
+- 清理没做完（墓碑 `plugin.uninstall_cleanup_pending`）时，这一行展开，里面是一条错误提示（`role=alert`）：「卸载没做完」、安全码翻成的原因、主按钮「重试卸载」，用第一次的选择。刚失败的那次会把这行滚进视野，焦点放在「重试卸载」上；页顶不另报错。
+- 否掉 B（轻提示加「查看」）：轻提示一过，明细就找不回来了，而留下的东西是人要知道、可能还要处理的事。否掉 C（确认框里转成结果）：用模态拦住人不值得，而且「什么都没留下」和「留下了」两种结果的去向不一样。A 把正常、留下、出错放在同一个位置。
+
+### 实现记录（2026-11-11，第 27 批主会话）
+
+- Runtime 与宿主（`5d088b0bd6`）。Home 和项目都按可信记录卸载，不读包。列表带 `uninstall_target` 和 `pending_keep_data`，两条卸载动作要求带目标，入口和锁里各核一次，不符回 `plugin.install_replaced`。带宿主清理的卸载在清理完成前把墓碑记为 `plugin.uninstall_cleanup_pending`；同代重试沿用第一次的选择，反向的拒绝；已完成的重放原样回答。待清理期间，重装和升级都被拒。项目卸载只认 S-94 的项目设置入口凭据。
+- 独立 Home 库按 A 删（`712caa7133`）。`removeInstalledPluginLibrary` 在账本锁下，只在账本行与留存的已验签 Manifest 对上、目录里只有库文件和 sidecar 时，才删文件、目录和账本行；对不上或有不认识的文件，就整个留下并报告。执行器先等语句进程实际退出（`ProjectStatementProcesses.exited`）再删。S-94 已补拒绝、代码位置与测试。
+- 回执（`99a853fe1f`）。合同新增 `PluginRetainedKind/Reason/Item` 与 `PluginUninstallResult`；两条卸载动作同版本输出加可选的 `retained`，Home 旧 HTTP 入口也回带。宿主在一次卸载里收集各 owner 的保留说明，只放内存、不建表。今天会报告保留的是 Home 库、连接绑定、判断规则三处 owner。
+- 设置页（本提交）。`apps/workbench/src/settings-plugins.ts` 按上一节画；类别图标由 `PLUGIN_RETAINED_ICONS` 给，写成 `Record<PluginRetainedKind, …>`，合同加类别时编译就报。英文在 `plugin-trust-en.ts`。存文件的文件夹指向这个空间之外时，宿主的说法改成人话（`plugin-sandbox-owner-files.ts`）。
+- 一处取舍：存文件的父目录是指向 Home 之外的链接时，整个清理停在 pending、让人处理后重试，而不是当成「核实不了」留下就算完成。理由是这一步连本安装确认属于它的文件都删不了，算完成就会悄悄留下一整份数据。
+- 第 06 批：子进程实际退出这一承诺用的是本批基点上的 `ProjectStatementProcesses.exited`；最终同步 main 时，对照第 06 批的实合头再核一次。
+- 证据。工程测试：`tests/security-invariants-broken-package-uninstall.test.ts`（B27-UN-01、03、04），`tests/security-invariants-sandbox-signed-resources.test.ts`（B27-UN-02 库的删、留与重装），RAC-861/863、RAC-504 的保留说明，以及 `tests/plugin-uninstall-retained.e2e.test.ts`。最后这个是 B27-UN-02、04 在真实设置页上的一遍：真签包，按钮由人点。它覆盖留下的结果、焦点、无 toast、不显示 id 和路径、390 不横滚、「知道了」，以及失败后在行里重试；截图在 `.impeccable/qa/review/b27-uninstall-retained/`，有中文浅色的 1024 和 390、英文深色的 1024、失败态的 1024。B27-UN-05 的 1440、键盘逐键确认、项目内插件的一遍，和一骏本人验收，都还没做。
 
 ## BL-918 · 生图结果用现行分段协议交付
 
@@ -107,6 +125,17 @@ BL-628 §3.7 的原表写明「Home 库（S-91）」，不保留数据时「删�
 | B27-IMG-02 | 真签包 → 生产 Host/Seatbelt/broker/Prologue → 隔离 HTTPS 假厂商。真实 PNG/JPEG 1–2 MiB（含非整段尾）、4×2 MiB 对照独立原字节长度/摘要，插件只返回小验证值。每个批次确实只有一次供应商 POST，每段在半限以下，测最大报文/Host 和 worker 峰值，原小图 fixture 保持。未信任 CA、错 SAN 及错来源拒且 HTTP=0，保留既有计量策略证据。 |
 | B27-IMG-03 | 正面证明单 RPC dispose 后同一个 `runner.call` 可续读。旁路 raw frame 分别带另一调用、安装、项目的 ref（同名 operation 也拒），无声明/授权、未知字段、负数、非整数、越界、释放后读均断言拒绝本身。正面测同范围重复无 provider POST，恶意并发分片或并行 generate 受既有队列和未释放结果限额约束。 |
 | B27-IMG-04 | 在供应商回之前、描述符已回首段前、中段后及最终交付边界设置真实栅栏，分别取消、超时、撤权限/项目许可/发布者、切换或断开连接、停用、进程退出。每组至少测一处晚回包与半批失败；不交付后续结果，所有内存持有、connector registration 和 Prologue refs 释放，原件／ownerFiles／成果／持久业务及计量无新增，重试只由新的显式动作发起。 |
+
+### 实现记录（2026-11-11，第 27 批主会话）
+
+按上面的推荐做，作者 API 不变。合同：`SandboxImageDescriptor`、`SandboxImageRange`、`SandboxImagePart` 与两个内部方法 `imageGeneration.readRange`、`imageGeneration.releaseResult` 进 `platform/plugin-sandbox`，`SANDBOX_IMAGE_LIMITS` 定为 4 张、单张 4 MiB、合计 8 MiB、每段 256 KiB（公开 API 快照已刷新）。
+
+- 持有：`SandboxImageHolder`（`packages/plugin-sandbox/src/image.ts`）由 runner 为每个 `active` 调用新建，绑在该调用的 `controller.signal` 上；调用正常结束、插件报错、取消、超时、撤权、停止、进程退出都走这个 controller 的 abort，holder 同步清空。broker 的 `invoke` 多一个参数把它传进来，单个 RPC 的 lifetime 结束不影响它。结果号用 `randomUUID`，只在本调用内有效；只记得最近一个已释放的号，用来让重复释放成为空操作。
+- 每段的门：broker 再查 `generate` 效果与原地址的 `networkDomains`；`beforeEffect` 走 runner 的原调用者检查；宿主客户端在同一动作作用域里 `inspect`，授权或连接版本不对即丢弃整个结果。**采用了「只在续读时查版本」的简化**：连接在两段之间改变时不会主动回收，只保证下一段必拒、之后什么都不交付；没有接 `withConnectorRequest` 的租约。留给 C 审。
+- 限额先查后分配：holder 对宿主真实交回的 `Uint8Array` 查张数、单张、合计与 MIME 形状，worker 对描述符再查一遍再分配缓冲、逐段核 offset、长度、尺寸与解码后字节数；agent-host 适配器新增可选的 `output` 上限，只由沙箱的图片端口传入，先 inspect 全部资源、整批合格才分配，超限 `agent.inference.image_too_large`（宿主映射为 `host.image_too_large`，沙箱端口再转成 `sandbox.response_too_large`），资源在 `finally` 全部撤销；读块循环加了「多读」「未到长度就 done」的拒绝。原生图片客户端不传 `output`，行为不变。
+- 切换：第 ② 步（新传输、仍 360 KiB）与第 ③ 步（上限与 agent-host 预检）在同一提交落地，没有长期双解码；旧阶段的 360 KiB+1 拒绝由同一个校验器（holder 给 360 KiB 限额）在 B27-IMG-01 里保留。
+- 新错误码：`agent.inference.image_too_large`、`host.image_too_large`。
+- 证据：`tests/security-invariants-sandbox-image-ranges.test.ts`（B27-IMG-01、03、04，含真 Seatbelt runner 的续读、段间取消与停进程）、`tests/prologue-inference-native.test.ts`（适配器预检）、`tests/security-invariants-sandbox-home-signed-model.test.ts` 的 RAC-2655 trusted 分支（B27-IMG-02：真签包、生产宿主、Seatbelt、Prologue、隔离 HTTPS，1.5 MiB 与 4×(2 MiB−64 KiB) 的真 PNG，每批一次供应商 POST）、RAC-2633 改为新形状。未做：真实 JPEG、峰值 RSS 与最大报文的数字测量、撤项目许可或发布者的分组栅栏（这几种撤销都经同一个 `beforeEffect`／controller，单测覆盖了撤权与取消两种代表）。
 
 ## 开工前 15 项
 

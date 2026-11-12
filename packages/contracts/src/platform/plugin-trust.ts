@@ -151,6 +151,39 @@ export interface PluginInstalledView {
   readonly consents: readonly PluginConsentRecord[];
   /** Why the Host's plugin host could not start this installation when it last tried (its kept package missing, its start failing); null when nothing is wrong with it. The `state` is the record's own. */
   readonly recovery_error: string | null;
+  /** A signed sandbox installation the person can take off in the settings (BL-915), even when its package is gone or altered: the exact installation
+   * an uninstall made from this row names, so it reaches this generation and version and nothing installed after it. Absent on every other row. */
+  readonly uninstall_target?: PluginUninstallTarget;
+  /** Present while an uninstall of this installation has not finished its cleanup (`plugin.uninstall_cleanup_pending`): the data choice it was
+   * made with, which a retry keeps. The row stays listed, stopped, until the cleanup finishes. */
+  readonly pending_keep_data?: boolean;
+}
+
+/** The installation an uninstall from the settings names (BL-915); the Host checks every field against the trusted row, under the installation's lock. */
+export interface PluginUninstallTarget {
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly version: string;
+  readonly manifest_digest: string;
+}
+
+/** What an uninstall kept that it would otherwise have taken off (BL-915): the plugin's own Home library, its files, its bindings or declared rules. */
+export type PluginRetainedKind = "home_library" | "owner_files" | "network_credential" | "installation_binding" | "task_grant" | "declared_rule";
+/** Why it was kept: what owns it could not be proven, something else still holds it, or the Home could not be read all the way through to tell. */
+export type PluginRetainedReason = "ownership_unverified" | "other_holder" | "inventory_unavailable";
+
+/** One kind of thing an uninstall kept, and why; `label` only where its owner has a name that is safe to show. No path, reference or secret. */
+export interface PluginRetainedItem {
+  readonly kind: PluginRetainedKind;
+  readonly reason: PluginRetainedReason;
+  readonly label?: string;
+}
+
+/** What an uninstall answers: the installation is off; `retained` only when something stayed behind (absent when nothing did). */
+export interface PluginUninstallResult {
+  readonly plugin_id: string;
+  readonly state: string;
+  readonly retained?: readonly PluginRetainedItem[];
 }
 
 /** A background job a Manifest declares (`background.jobs`). */

@@ -41,7 +41,8 @@
     "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
     "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "marked": "^18.0.11",
+    "micromark": "^4.0.2",
+    "micromark-extension-gfm": "^3.0.0",
     "sanitize-html": "^2.17.7"
   },
   "molis-work": {
@@ -58,7 +59,8 @@
     "extraDependencies": {
       "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
       "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
-      "marked": "^18.0.11",
+      "micromark": "^4.0.2",
+      "micromark-extension-gfm": "^3.0.0",
       "sanitize-html": "^2.17.7"
     }
   },

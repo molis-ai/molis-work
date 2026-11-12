@@ -1,5 +1,5 @@
 import { ActionError, bindActionHandler, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
@@ -42,13 +42,16 @@ const consentRow = {
   properties: { consent_id: text, plugin_id: text, publisher_signature: text, kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory", "project_reach"] }, subject: text, manifest_digest: text,
     granted_at: text, granted_by: { enum: ["user", "host_build"] }, revoked_at: { type: ["string", "null"] }, approved_capability_ids: { type: ["array", "null"], items: text } },
 };
+/** The installation an uninstall names (BL-915): the `uninstall_target` of the row the person acted on, checked against the trusted row under its lock. */
+const uninstallTarget = { type: "object", additionalProperties: false, required: ["install_id", "installation_generation", "version", "manifest_digest"],
+  properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, installation_generation: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 200 }, manifest_digest: { type: "string", minLength: 1, maxLength: 200 } } };
 const installedView = {
   type: "object", additionalProperties: false,
   required: ["install_id", "plugin_id", "name", "version", "state", "trust", "publisher_signature", "publisher_label", "manifest_available", "permissions", "jobs", "consents", "recovery_error"],
   properties: { install_id: text, plugin_id: text, name: text, version: text, state: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text,
     publisher_label: { type: ["string", "null"] }, manifest_available: { type: "boolean" }, permissions: { type: "array", items: installedPermissionView },
     jobs: { type: "array", items: { type: "object", additionalProperties: false, required: ["job_id", "reason", "permissions"], properties: { job_id: text, reason: text, permissions: { type: "array", items: text } } } },
-    consents: { type: "array", items: consentRow }, recovery_error: { type: ["string", "null"] } },
+    consents: { type: "array", items: consentRow }, recovery_error: { type: ["string", "null"] }, uninstall_target: uninstallTarget, pending_keep_data: { type: "boolean" } },
 };
 
 export const pluginInstallActions = {
@@ -122,6 +125,11 @@ export const pluginInstallActions = {
 };
 
 const controlOutput = { type: "object", additionalProperties: false, required: ["plugin_id", "state"], properties: { plugin_id: text, state: text } };
+/** What an uninstall kept that it would otherwise have taken off, and why (BL-915); present only when something stayed behind. No path, reference or secret. */
+const retainedItem = { type: "object", additionalProperties: false, required: ["kind", "reason"], properties: {
+  kind: { enum: ["home_library", "owner_files", "network_credential", "installation_binding", "task_grant", "declared_rule"] },
+  reason: { enum: ["ownership_unverified", "other_holder", "inventory_unavailable"] }, label: { type: "string", maxLength: 200 } } };
+const uninstallOutput = { ...controlOutput, properties: { ...controlOutput.properties, retained: { type: "array", minItems: 1, items: retainedItem } } };
 const controlInput = { plugin_id: { type: "string", minLength: 1, maxLength: 200 } };
 const controlled = (title: string, description: string) => ({ ...metadata, scope: "project", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
 const homeControlled = (title: string, description: string) => ({ ...metadata, scope: "home", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
@@ -141,7 +149,7 @@ export const pluginControlActions = {
     input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
   uninstall: { capability_id: "plugins.installed.uninstall", version: /* @version action.plugins.installed.uninstall */ 1, operation: "command", action: { ...controlled("卸载签名包装的插件",
     "把这个项目里一个从签名的包装进来的插件卸载：`keep_data` 为真时它的数据留下（以后重装可以接上），为假时数据一并删除，也删除它存的密钥。有常开同意的插件不能卸载。发布者已被撤销信任的插件可以卸载。"),
-    input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
+    input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" }, target: uninstallTarget }, required: ["plugin_id", "keep_data", "target"], additionalProperties: false }, output_schema: uninstallOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean; target: PluginUninstallTarget }, PluginUninstallResult>,
   // The same three for a signed package installed in the Home (BL-715): the person's act in the Host settings, no project in the call.
   homeDisable: { capability_id: "plugins.home.installed.disable", version: /* @version action.plugins.home.installed.disable */ 1, operation: "command", action: { ...homeControlled("停用个人空间里签名包装的插件",
     "停用运行在个人空间（所有项目共用）的一个从签名的包装进来的插件：它的动作在每个项目里都停止提供，数据保留，之后可以再启用或卸载。有常开同意的插件不能停用。"),
@@ -151,7 +159,7 @@ export const pluginControlActions = {
     input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
   homeUninstall: { capability_id: "plugins.home.installed.uninstall", version: /* @version action.plugins.home.installed.uninstall */ 1, operation: "command", action: { ...homeControlled("卸载个人空间里签名包装的插件",
     "把个人空间里一个从签名的包装进来的插件卸载，每个项目都不再有它：`keep_data` 为真时它的数据留下（以后重装可以接上），为假时数据一并删除，也删除它存的密钥。有常开同意的插件不能卸载。发布者已被撤销信任的插件可以卸载。"),
-    input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
+    input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" }, target: uninstallTarget }, required: ["plugin_id", "keep_data", "target"], additionalProperties: false }, output_schema: uninstallOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean; target: PluginUninstallTarget }, PluginUninstallResult>,
 };
 
 /** Importing Skills from this machine is installing the content package the import makes, so this provider offers it too (batch 08, 08-8). */
@@ -182,16 +190,18 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
       return { publisher: service.revokePublisher((input as { key_id: string }).key_id) };
     } },
     ...(["disable", "enable", "uninstall"] as const).map((action): ActionHandlerBinding => ({ capability_id: pluginControlActions[action].capability_id, version: pluginControlActions[action].version, handle: async (caller, input) => {
+      // Taking a plugin off is the project settings door's alone, like switching its permissions (S-94, BL-915); switching it off and on stays the person's act in the project.
+      if (action === "uninstall") assertPluginPermissionSettingsEntry(caller);
       const who = pluginInstallPerson(caller); await caller.beforeEffect();
-      const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
-      return { plugin_id, state: await service.control(action, { plugin_id, keep_data: keep_data === true }, who) };
+      const { plugin_id, keep_data, target } = input as { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget };
+      return { plugin_id, ...await service.control(action, { plugin_id, keep_data: keep_data === true, ...target ? { target } : {} }, who, caller) };
     } })),
     ...([["homeDisable", "disable"], ["homeEnable", "enable"], ["homeUninstall", "uninstall"]] as const).map(([name, action]): ActionHandlerBinding => ({ capability_id: pluginControlActions[name].capability_id, version: pluginControlActions[name].version, handle: async (caller, input) => {
       // Only the Host settings door's credential for the Home's own plugins (S-94), asked before the Home's plugin host is touched.
       assertHomePluginPermissionSettingsEntry(caller);
       await caller.beforeEffect();
-      const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
-      return { plugin_id, state: await service.controlHome(action, { plugin_id, keep_data: keep_data === true }) };
+      const { plugin_id, keep_data, target } = input as { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget };
+      return { plugin_id, ...await service.controlHome(action, { plugin_id, keep_data: keep_data === true, ...target ? { target } : {} }, caller) };
     } })),
     { capability_id: pluginInstallActions.setPermission.capability_id, version: pluginInstallActions.setPermission.version, handle: async (caller, input) => {
       assertPluginPermissionSettingsEntry(caller);

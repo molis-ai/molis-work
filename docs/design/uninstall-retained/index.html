@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-resolved-theme="light" data-skin="soft" data-density="standard">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>卸载后留下的项目定样 · Molis Work 原型</title>
+  <!-- kit.css + settings.css: the component board and the settings page's own sheets (../kit/README.md); proto.css: the prototype bar and layout only. -->
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="../kit/settings.css">
+  <link rel="stylesheet" href="dist/plugins.css">
+  <link rel="stylesheet" href="proto.css?v=1">
+</head>
+<body class="settings-page project-preferences-page proto-body">
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-plan"></span><select class="mw-select" id="plan"></select></label>
+    <label><span id="p-case"></span><select class="mw-select" id="case"></select></label>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="语言 / Language" id="lang"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="明暗 / Light or dark" id="theme"></div>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
+  </div>
+  <p class="proto-note" id="note" role="note"></p>
+  <div id="app"></div>
+  <div id="toasts" class="proto-toasts"></div>
+  <div id="live" class="mw-sr-only" aria-live="polite"></div>
+  <script src="../kit/kit.js"></script>
+  <script>
+    document.getElementById("icons").innerHTML = window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

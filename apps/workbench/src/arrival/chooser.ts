@@ -11,7 +11,7 @@ import {
 import { renderAssistantDock } from "../assistant-dock.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
-import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "../scripts/client/global-search.js";
+import { CHOOSER_SEARCH_LOADER_SCRIPT } from "./chooser-search.js";
 import { renderGlobalSearchOverlay } from "../immersive-shell.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "../scripts/control.js";
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
@@ -94,6 +94,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${uiText("workbench.chooser.search-projects")}" aria-label="${uiText("workbench.chooser.search-projects")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
       ${renderButton({ variant: "secondary", icon: "search", label: uiText("workbench.chooser.search-personal"), className: "chooser-personal-search", attrs: { "data-global-search-open": "", "aria-haspopup": "dialog" } })}
+      <p class="ob-error" role="alert" data-chooser-search-error hidden></p>
       <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${uiText("workbench.chooser.personal-space-projects")}">${rows}</div>
       <p class="chooser-none" data-chooser-none hidden role="status">${uiText("workbench.chooser.no-matching-projects")}</p>
       <p class="chooser-foot">${icon("folder")}<span>${uiText("workbench.chooser.projects-documents-saved-computer")}</span></p>`;
@@ -131,8 +132,8 @@ const chosenRoute = path => { const id = document.querySelector('.chooser')?.dat
 globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
   placeholder: project => project && project.title ? globalThis.t.text("workbench.chooser.ask-about-name-give-assistant-task", { name: project.title }) : globalThis.t.text("workbench.chooser.ask-assistant-do-something-personal-space") });
 // The person's own content, searched from here with the workbench's dialog (BL-041): the Host fixes the scope to the Home, and a hit opens in its own space.
-globalThis.__CHOOSER_SEARCH__ = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({ translate: globalThis.t.text, home: true, projectId: "", route: path => path, itemTabs: JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id),
-  setMobileView: () => {}, noteSearchActivity: () => {} });
+// Its program comes on the first press of its button (chooser-search.ts).
+${CHOOSER_SEARCH_LOADER_SCRIPT}
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,

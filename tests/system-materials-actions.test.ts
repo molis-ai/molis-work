@@ -23,6 +23,8 @@ import { openTestHome } from "./fixtures/test-home.js";
 const DIFF = "io.molis.work.diff";
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 const reading = ["workspace:read"];
+// Opening and fixing write as well, so they ask what Files' open and capture asked (BSH-05).
+const writing = ["artifact:read", "artifact:write", "storage:private", "workspace:read"];
 
 async function materialsHome(t: TestContext, plugins: readonly string[] = ["diff"]) {
   const f = await openTestHome(t);
@@ -40,7 +42,7 @@ async function materialsHome(t: TestContext, plugins: readonly string[] = ["diff
   const platform = await runningProjectPlatform(owner.store, project.project_id);
   assert.ok(platform, "the project's plugins are running");
   const actions = f.host.actionClient(project.reference);
-  const call = <Output>(definition: ActionReference, input: unknown, caller: ActionCallContext = person(reading, project.project_id)) =>
+  const call = <Output>(definition: ActionReference, input: unknown, caller: ActionCallContext = person(writing, project.project_id)) =>
     actions.invoke(caller, definition, input) as Promise<Output>;
   const processItems = () => owner.processItems.query.listArtifacts(project.project_id);
   return { f, project, folder, output, owner, graph: platform.wiring, call, processItems };
@@ -150,10 +152,20 @@ test("BSH-05 a refused capture writes no process item, no port value and no even
   await refused("a range past the text", () => m.call(materialsActions.capture, { ...input, port: "selection", start: 0, end: text.length + 1 }), "actions.input_invalid");
   await refused("a selection port without a range", () => m.call(materialsActions.capture, { ...input, port: "selection" }), "actions.input_invalid");
   await refused("no workspace:read", () => m.call(materialsActions.capture, input, person([], m.project.project_id)), "actions.forbidden");
+  // A folder read alone is not a write: fixing a version, handing it to Diff or moving the reading folder asks what Files asked.
+  await refused("only workspace:read", () => m.call(materialsActions.capture, input, person(reading, m.project.project_id)), "actions.forbidden");
+  await refused("open with only workspace:read", () => m.call(materialsActions.open, { workspace_id: m.output.workspace_id, path: ["notes.md"] }, person(reading, m.project.project_id)), "actions.forbidden");
+  // Only the person, directly or through a plugin's page, opens and fixes: an Agent, a workflow or an MCP client holding every
+  // permission is refused, as Files refused every caller but its own page.
+  for (const audience of ["agent", "workflow", "mcp"] as const) {
+    const other: ActionCallContext = { ...person(writing, m.project.project_id), audience };
+    await refused(`capture from ${audience}`, () => m.call(materialsActions.capture, input, other), "actions.forbidden");
+    await refused(`open from ${audience}`, () => m.call(materialsActions.open, { workspace_id: m.output.workspace_id, path: ["notes.md"] }, other), "actions.forbidden");
+  }
 
   // Revoked after its last wait: the reads went through, the authority is gone by the write window.
   let read = false;
-  const revoking: ActionCallContext = { ...person(reading, m.project.project_id),
+  const revoking: ActionCallContext = { ...person(writing, m.project.project_id),
     validate_authority: async (reference: ActionReference) => {
       if (reference.capability_id === workspaceReadActions.file.capability_id) read = true;
       else if (read && reference.capability_id === materialsActions.capture.capability_id) throw new ActionError("actions.forbidden", "revoked");
@@ -163,7 +175,7 @@ test("BSH-05 a refused capture writes no process item, no port value and no even
 
   // Cancelled after the read (the person closed the page, the run stopped): nothing is written either.
   const controller = new AbortController();
-  const cancelling: ActionCallContext = { ...person(reading, m.project.project_id), signal: controller.signal,
+  const cancelling: ActionCallContext = { ...person(writing, m.project.project_id), signal: controller.signal,
     validate_authority: async (reference: ActionReference) => { if (reference.capability_id === workspaceReadActions.file.capability_id) controller.abort(); } };
   await assert.rejects(m.call(materialsActions.capture, input, cancelling), (error: unknown) => (error as Error).name === "AbortError", "cancelled after the read");
   assert.ok(controller.signal.aborted);

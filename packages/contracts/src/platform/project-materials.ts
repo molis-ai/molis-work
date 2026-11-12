@@ -231,6 +231,10 @@ const capturePort = { enum: ["before", "after", "selection"] };
 const cursorShape = { type: "string", minLength: 1, maxLength: MATERIALS_CURSOR_MAX };
 
 /**
+ * `open` and `capture` also write (the reading position, the fixed process item, the platform's ports), so they ask what Files' own
+ * open and capture asked and are offered to the person only, directly or through a plugin's page: as with Files, no Agent, workflow
+ * or MCP client moves Diff's versions or the project's reading folder.
+ *
  * The platform's materials service (Files retirement, specs/batch-06-shared-tools §3 and materials-ui-contract §1, §5): open a file of the
  * project's folders, fix what was seen as a process item, and read a reference back. Project, person and calling plugin come from the call.
  */
@@ -240,7 +244,8 @@ export const materialsActions = {
     version: /* @version action.materials.open */ 1,
     operation: "command",
     action: { title: "打开资料", description: "有界读取项目文件夹里的一个文本文件，记下阅读位置；文件夹可列出时，同时把它作为文件集合交给接了「资料」输出的插件",
-      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"],
       input_schema: shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath }),
       output_schema: shape({ workspace: workspaceShape, result: fileResult, path: filePath }) },
   } as ActionDefinition<MaterialsOpenInput, MaterialsOpenResult>,
@@ -249,7 +254,8 @@ export const materialsActions = {
     version: /* @version action.materials.capture */ 1,
     operation: "command",
     action: { title: "固定资料", description: "重新读取并核对看过的指纹，把全文或一段选区固定成过程项并返回它的引用；给了 port 时同一次提交交到这个输出；不改原文件",
-      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"],
       input_schema: { ...shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath, fingerprint: { type: "string", minLength: 1, maxLength: MATERIAL_REF_LIMITS.revision },
         cursor: cursorShape, port: capturePort, start: offset, end: offset }, ["workspace_id", "path"]), oneOf: [{ required: ["fingerprint"] }, { required: ["cursor", "start", "end"] }] },
       output_schema: shape({ ref: MATERIAL_REF_SCHEMA, port: nullable(capturePort), snapshot: snapshotShape }) },

@@ -29,7 +29,7 @@ export interface ProcessItemsProjectView {
   readonly project_id: string;
   readonly name: string;
   readonly layout: ProjectAdoptionReport["layout"];
-  /** Lines, outputs, bindings and values adoption would still move. */
+  /** Lines, outputs, bindings, values, positions and the retired installs and cursors adoption would still move or clean up (as `adoptionPending`). */
   readonly pending: number;
   /** Lines sync has not settled: they need a recovery file before this library is adopted. */
   readonly unsettled: readonly string[];
@@ -87,7 +87,7 @@ export function processItemsMaintenance(sync: Pick<PersonalSync, "processItems">
       const projects = inspect().map(({ projectId, report }) => {
         const open = new Set(report.unsettled);
         return { project_id: projectId, name: name(projectId), layout: report.layout,
-          pending: report.items + report.outputs + report.bindings + report.private_values + report.positions,
+          pending: report.items + report.outputs + report.bindings + report.private_values + report.positions + report.installs + report.cursors,
           unsettled: [...report.unsettled], refused: report.refused.filter(reason => !open.has(reason)) };
       });
       const recovery = cutover?.phase === "complete" ? verified(cutoverId(cutover)) : null;

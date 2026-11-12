@@ -82,7 +82,8 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     const fixMaterial = (project: { id: string; workspace: string }, port: string, text: string) => request(`/projects/${project.id}/api/materials/capture`, "POST",
       { workspace_id: project.workspace, path: ["note.txt"], fingerprint: createHash("sha256").update(text).digest("hex"), port });
     const foreign = await fixMaterial({ id: other.id, workspace: files.workspace }, "before", "中文🙂\nfirst\n");
-    assert.ok(foreign.status >= 400 && foreign.status < 500, `another project's folder is not this project's material: ${JSON.stringify(foreign.body)}`);
+    // Files answered 400 for another project's folder; the materials service names it: that folder is not this project's.
+    assert.deepEqual([foreign.status, (foreign.body as { code?: string }).code], [404, "actions.subject_unavailable"], `another project's folder is not this project's material: ${JSON.stringify(foreign.body)}`);
     const fixedBefore = await fixMaterial(files, "before", "中文🙂\nfirst\n"); assert.equal(fixedBefore.status, 200, JSON.stringify(fixedBefore.body));
     await writeFile(path.join(files.directory, "note.txt"), "中文🙂\nsecond\n");
     const fixedAfter = await fixMaterial(files, "after", "中文🙂\nsecond\n"); assert.equal(fixedAfter.status, 200, JSON.stringify(fixedAfter.body));

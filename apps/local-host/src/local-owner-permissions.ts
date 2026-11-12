@@ -13,7 +13,7 @@ import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_A
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { MATERIALS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
@@ -72,7 +72,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
     // The platform's materials service reads the person's own project folders, as Files did for them (Files retirement, BSH-08).
     // Held over this provider only; a route carries it in its cap only when it reads folders (`MATERIALS_OWNER_PERMISSIONS`).
-    [MATERIALS_PROVIDER_ID, MATERIALS_OWNER_PERMISSIONS],
+    // Opening and fixing also ask what Files' open and capture asked (artifact read/write, private storage), held as Files held them.
+    [MATERIALS_PROVIDER_ID, [...MATERIALS_OWNER_PERMISSIONS, ...asks([materialsActions.open, materialsActions.capture])]],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_RUNS_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],

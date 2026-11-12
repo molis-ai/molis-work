@@ -191,7 +191,7 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
   // materials source, and the write is recorded once on the adopted journal after the carried lines.
   const workspace = read(join(home, "projects/catalog.db"), rows => rows("SELECT workspace_id FROM workspaces WHERE canonical_path=?", join(folders, "folder-0")))[0]!.workspace_id as string;
   assert.equal((await fetch(`${served.origin}/projects/${first.project_id}/`, { headers: { origin: served.origin, "x-molis-work-control-token": served.controlToken } })).status, 200);
-  const captured = await host.actionClient(reference).invoke(person(["workspace:read"], first.project_id), materialsActions.capture,
+  const captured = await host.actionClient(reference).invoke(person(["artifact:read", "artifact:write", "storage:private", "workspace:read"], first.project_id), materialsActions.capture,
     { workspace_id: workspace, path: ["note.txt"], fingerprint: sha256(text), port: "before" }) as MaterialsCaptureResult;
   const next = captured.ref.pin.mode === "snapshot" ? captured.ref.pin.version : assert.fail("a snapshot");
   const published = library(pathOf(first));

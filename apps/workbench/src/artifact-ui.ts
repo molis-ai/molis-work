@@ -75,8 +75,8 @@ export function createArtifactWorkbenchRenderer(host: UiDeclaredMountHost) {
     contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, surface, model,
   }).html;
   return {
-    fragments: (model: ArtifactBrowserUiModel, surface: "detail" | "frame-block" = "detail"): string =>
-      `<div data-artifact-directory>${mount("directory", model)}</div><div data-artifact-detail>${surface === "frame-block" ? mount("frame-block", model) : mount("detail", model)}</div>`,
+    fragments: (model: ArtifactBrowserUiModel, surface: "detail" | "frame-block" = "detail", language?: string): string =>
+      `<div data-artifact-directory>${mount("directory", model)}</div><div data-artifact-detail${language ? ` data-artifact-fragment-language="${model.primitives.escape(language)}"` : ""}>${surface === "frame-block" ? mount("frame-block", model) : mount("detail", model)}</div>`,
     embed: (model: ArtifactBrowserUiModel): string => mount("embed", model),
     goalContext: (items: readonly GoalArtifactEmbed[], model: Omit<ArtifactBrowserUiModel, "view" | "relationship">): string =>
       items.map((item) => mount("embed", { ...model, view: item.view, relationship: item.relationship })).join(""),

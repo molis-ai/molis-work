@@ -7,23 +7,8 @@ import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
 import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
-import { GOALS_MESSAGES } from "./messages.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
-import { GOALS_PAGE_EN } from "./page/en.js";
-import { GOALS_READ_GROUPS_EN } from "./read-groups-en.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
-import { GOALS_CONTEXT_EN } from "./context-en.js";
-import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
-import { GOALS_DOCUMENT_EN } from "./document-en.js";
-import { GOALS_MOMENTUM_EN } from "./momentum-en.js";
-import { GOALS_PLANNING_EN } from "./planning-en.js";
-import { GOALS_POLICY_EN } from "./policy-en.js";
-import { GOALS_PROPOSAL_EN } from "./proposal-en.js";
-import { GOALS_RELATION_EN } from "./relation-en.js";
-import { GOALS_SAFETY_EN } from "./safety-en.js";
-import { GOALS_STATUS_EN } from "./status-en.js";
-import { GOALS_TREE_EN } from "./tree-en.js";
-import { GOALS_WORKSPACE_EN } from "./workspace-en.js";
 import { GOALS_HOME_DATABASE } from "./home-database.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
@@ -85,7 +70,7 @@ export const goalsManifest: PluginManifest = {
   plugin_id: GOALS_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Goals",
-  summary: "确定目标，推进工作，留下结果。",
+  summary: "确定目标，推进工作，留下结果。", summary_text: { key: "goals.directory.summary" },
   kind: "native",
   runtime: { scope: "home" },
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
@@ -133,32 +118,14 @@ export const goalsManifest: PluginManifest = {
   background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,
   sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
-  ui: {
-    messages: GOALS_MESSAGES,
-    // English for the words still keyed by their Chinese text (PG-071); the order is the one the Host's catalog used to merge them in.
-    translations: {
-      ...GOALS_POLICY_EN,
-      ...GOALS_SAFETY_EN,
-      ...GOALS_RELATION_EN,
-      ...GOALS_TREE_EN,
-      ...GOALS_MOMENTUM_EN,
-      ...GOALS_WORKSPACE_EN,
-      ...GOALS_DOCUMENT_EN,
-      ...GOALS_CONTEXT_EN,
-      ...GOALS_STATUS_EN,
-      ...GOALS_DIALOGS_EN,
-      ...GOALS_PLANNING_EN,
-      ...GOALS_PROPOSAL_EN,
-      ...GOALS_PAGE_EN,
-      ...GOALS_READ_GROUPS_EN,
-    },
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,
     views: [
       { view_id: "stage", slot: "stage", title: "Goals", contribution_id: GOALS_STAGE_CONTRIBUTION_ID,
         stage_data: { action: "goals.stage.read", input: ["collection", "goal_id"] } },
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
-        start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" } },
+        start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" , title_text: { key: "goals.directory.start-title" }, hint_text: { key: "goals.directory.start-hint" } } },
       { view_id: "settings", slot: "settings", title: "Goals", contribution_id: GOALS_SETTINGS_UI_CONTRIBUTION_ID, icon: "workflow", order: 120 },
     ],
   },

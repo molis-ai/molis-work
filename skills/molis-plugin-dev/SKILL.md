@@ -24,10 +24,11 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 生成插件的代码怎么写 | [generated-code.md](generated-code.md) |
 | 字段词典 | [elements.md](elements.md) |
 | 画面、槽、客户端 | [ui.md](ui.md) |
-| 界面文字、语言文件、颜色和字体变量；给模型的内容用哪种语言 | [text-and-appearance.md](text-and-appearance.md)（今天能做什么、哪些第 16 批起） |
+| 界面文字、语言文件、颜色和字体变量；给模型的内容用哪种语言 | [text-and-appearance.md](text-and-appearance.md)（同一套语言文件和 SDK） |
 | 接到本仓库产品 | [host.md](host.md) |
 | SDK / CLI / 存储 / 测试 | [authoring.md](authoring.md) |
 | 个人空间同步集合、快照试点与后续增量边界 | [sync.md](sync.md) |
+| 给助理和 Coding 一份做法（技能）、只做技能的内容包；插件在「设置 › 能力包」里怎样出现 | [skills-and-kits.md](skills-and-kits.md) |
 | 调模型、跑 Agent、改提示词或模型设置 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md)（纯非 AI 功能不用读） |
 | AI 要人补信息、确认一步或挑一个对象：问卷卡、操作卡、对象引用，动作先问再做（`needs_input`）；让自己的对象能被 AI 的问题引用 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md) 的「交互」一节、[search.md](search.md)。生成插件按 [generated-ai.md](generated-ai.md) 的边界：`model.generate` 只承诺一次文字生成，没有 Agent 的 `ask-user` 与 `suggest-action`，也不能 `needs_input`，要先问的做成提交部件的字段 |
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
@@ -156,6 +157,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - Plugin CLI / SDK `start` 兑现规则
 - 对象上下文读取、`result_subject`、版本前提、`data-assistant-context` 与助理通知（[continuity.md](continuity.md)）
 - 选区动作（`fragment_offer_choices`）、创建入口 `intake`、追加 `attach`、选项的 `places`、侧栏视图的 `objects`（[contextual.md](contextual.md)）
+- 技能声明（`methods`、`SKILL.md` frontmatter）、内容包打包、技能目录的三档，以及能力包的条目、上报与导出导回（[skills-and-kits.md](skills-and-kits.md)）
 
 只改实现、合同没变：不必改 Skill。合同变了只改代码：任务没完。
 
@@ -170,4 +172,4 @@ ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/ski
 `<release>` 来自 `~/.molis-work/config/installation.json` 的 `release_path`。npm 包在 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。
 
 
-签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览、助理读取和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。
+签名 app 的包内角色资料采用三字段 wire 与资源文件，方法写完整的方法声明（`description`、`applies_to` 必填），参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览、助理读取和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。

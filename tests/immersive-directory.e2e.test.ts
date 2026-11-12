@@ -312,7 +312,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-dock] [data-assistant-input]') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
+  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
   // The Assistant sits in the middle of the bar; nothing in the bar overlaps anything else.
   assert.ok(await evaluate(`(()=>{
     const bar=document.querySelector('[data-dock]').getBoundingClientRect();
@@ -325,42 +325,42 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
       && start.right<=composer.left && (side ? composer.right<=side.left && side.right<=project.left : composer.right<=project.left)
       && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
   })()`), "the bar reads switcher and Dock · Assistant · the person's own · project, left to right, none covering another");
-  // At rest the bar is the input: no chip for a new work, no chooser nobody changed; “+” only adds (files, references,
-  // capabilities) — who carries a new work and where it lives are chosen in its tab.
-  assert.ok(await evaluate(`(()=>{const hidden=(sel)=>!document.querySelector(sel)?.getClientRects().length;
-    return hidden('[data-assistant-target-wrap]') && hidden('[data-assistant-executor]') && hidden('[data-assistant-character]');})()`), "a new work shows no work chip and no default chooser");
-  await click("[data-assistant-attach]");
-  await waitFor("!document.querySelector('[data-assistant-more]').hidden && /添加文件/.test(document.querySelector('[data-assistant-more]').textContent)");
-  assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-more]').textContent;return /引用项目里的内容/.test(t) && /用一个能力或方法/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
+  // At rest the bar is the input (K3, UIV-12): its receiver row says a new work goes to the Assistant, with nothing to reset
+  // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
+  // are chosen in its tab.
+  assert.ok(await evaluate(`(()=>{const shown=(sel)=>Boolean(document.querySelector(sel)?.getClientRects().length);
+    return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
+  await click("[data-assistant-composer] [data-composer-add]");
+  await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
+  assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个技能或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
   assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search");
-  await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
-  await waitFor("document.querySelector('[data-assistant-more]').hidden");
+  await evaluate("document.querySelector('[data-assistant-composer] [data-compose-menu]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden");
   // However many chips stand beside it, the input keeps room to type: a long work and what needs a look (what the Send carries
   // is the strip above the line now, context-program §21.2 point 1).
   const crowd = `(()=>{
     for (const [chip, count] of [['[data-assistant-attention]', '23']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
-    for (const chooser of document.querySelectorAll('[data-assistant-executor], [data-assistant-character]')) chooser.hidden = false;
-    document.querySelector('[data-assistant-target-label]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
+    document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
   })()`;
   await evaluate(crowd);
-  // The choosers give way first (they shrink to an ellipsis, or fold when even that is not enough); the input never does.
-  await waitFor("document.querySelector('[data-assistant-input]').getBoundingClientRect().width >= 120");
+  // The receiver row and the controls give way (they shrink to an ellipsis, or fold behind 更多); the input never does.
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= 120");
   assert.ok(await evaluate("document.querySelector('[data-assistant-composer]').scrollWidth <= document.querySelector('[data-assistant-composer]').clientWidth + 1"), "nothing runs out of the composer");
   // A narrower window, where the bar's middle is well under 600px, keeps the same room. (With one button at the bar's end
   // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was; and with
   // nothing of the person's own on the right, that column is only as wide as the project button, so it is 780px, not 820px —
   // 07-1 S4b.)
   const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]'),end=document.querySelector('.bar-end').getBoundingClientRect();
-    return f.querySelector('[data-assistant-input]').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
+    return f.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
   await command("Emulation.setDeviceMetricsOverride", { width: 780, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`document.querySelector('.bar-center').getBoundingClientRect().width < 560 && ${roomy(120)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await click("[data-assistant-send]");
+  await evaluate(`(()=>{const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await click("[data-assistant-composer] [data-composer-send]");
   // No model configured: the work is kept with what was typed, and the panel says what to do next.
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden && /模型/.test(document.querySelector('[data-assistant-thread] .assistant-problem')?.textContent || '')");
   assert.equal(await evaluate("document.querySelector('[data-assistant-thread] .assistant-problem a')?.getAttribute('href')"), "/settings/models", "the next step is one click away");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello", "a failed question stays in the input");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input')?.value"), "hello", "a failed question stays in the input");
   assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /hello/, "the work exists, named after what was asked");
   assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0;})()`), "the panel opens above the input, inside the window");
   // The work is a tab; a wide window shows its side pane beside the conversation, which stays right above the input.
@@ -368,12 +368,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.ok(await evaluate(`(()=>{const s=document.querySelector('[data-assistant-side]').getBoundingClientRect(),m=document.querySelector('.assistant-main').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect(),p=document.querySelector('[data-assistant-panel]').getBoundingClientRect();
     return s.width>0 && s.right<=m.left+1 && m.left<=c.left && m.right>=c.right && p.left>=0;})()`), "side pane on the left, the conversation over the input, all inside the window");
   assert.match(await evaluate("document.querySelector('[data-assistant-meta]')?.textContent || ''"), /属于/, "the side pane says where the work belongs");
-  assert.ok(await evaluate("!document.querySelector('[data-assistant-target-wrap]').getClientRects().length"), "with the panel open its tab, not a chip, says where the next message goes");
+  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent || ''"), /发给：.*hello/, "with the panel open the receiver row names the work the next message goes to");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
-  // With the panel open the choosers come back; the input still keeps a place, and nothing runs under the bar's end.
+  // With the panel open and the bar crowded, the input still keeps a place, and nothing runs under the bar's end.
   await command("Emulation.setDeviceMetricsOverride", { width: 900, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(crowd);
-  await waitFor(`document.querySelector('[data-assistant-character]').getClientRects().length > 0 && ${roomy(64)}`);
+  await waitFor(roomy(64));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // Switching goes through the list at the bar's left; its label follows.
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');

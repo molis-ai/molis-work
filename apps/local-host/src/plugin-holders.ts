@@ -24,8 +24,15 @@ export interface InstallRef { readonly scope: InstallScope; readonly install_id:
 export interface HeldInstall { readonly record: PluginInstanceRecord; readonly manifest: PluginManifest | null; readonly scope: InstallScope }
 
 type RuntimeDatabase = Parameters<typeof readPluginRuntimeRecords>[0];
-const heldIn = (db: RuntimeDatabase, scope: InstallScope): HeldInstall[] =>
-  readPluginRuntimeRecords(db).filter(holdsInstall).map(record => ({ record, manifest: readPluginReleaseManifest(db, record), scope }));
+type IncludeInstall = (record: PluginInstanceRecord, scope: InstallScope) => boolean;
+interface InstallScopeSelection {
+  readonly home: boolean;
+  readonly projects: "all" | ReadonlySet<string>;
+}
+
+const heldIn = (db: RuntimeDatabase, scope: InstallScope, include: IncludeInstall): HeldInstall[] =>
+  readPluginRuntimeRecords(db).filter(record => holdsInstall(record) && include(record, scope))
+    .map(record => ({ record, manifest: readPluginReleaseManifest(db, record), scope }));
 
 /**
  * Whether the plugin is installed anywhere but as `self` (an installation, or null: the Home's own activation, whose scope is the Home's
@@ -36,7 +43,7 @@ const heldIn = (db: RuntimeDatabase, scope: InstallScope): HeldInstall[] =>
  */
 export function pluginHeldElsewhere(home: string, pluginId: string, self: InstallRef | null): boolean {
   try {
-    return heldInstalls(home).some(held => held.record.plugin_id === pluginId && !(self !== null && held.record.install_id === self.install_id && sameScope(held.scope, self.scope)));
+    return heldInstalls(home).some(held => held.record.plugin_id === pluginId && !(self !== null && held.record.install_id === self.install_id && sameInstallScope(held.scope, self.scope)));
   } catch (error) {
     hostLog.warn("functions", "plugin_holders_unreadable", error, { plugin_id: pluginId, install_id: self?.install_id ?? null });
     return true;
@@ -52,26 +59,34 @@ export function pluginHeldElsewhere(home: string, pluginId: string, self: Instal
 export function installedIdentities(home: string, without?: InstallRef): Set<string> | null {
   try {
     return new Set(heldInstalls(home).filter(held => held.record.state !== "uninstalled"
-      && !(without !== undefined && held.record.install_id === without.install_id && sameScope(held.scope, without.scope))).map(held => held.record.install_id));
+      && !(without !== undefined && held.record.install_id === without.install_id && sameInstallScope(held.scope, without.scope))).map(held => held.record.install_id));
   } catch (error) {
     hostLog.warn("connections", "installation_holders_unreadable", error, { install_id: without?.install_id ?? null });
     return null;
   }
 }
 
-const sameScope = (a: InstallScope, b: InstallScope): boolean => a.kind === b.kind && (a.kind === "home" || (b.kind === "project" && a.project_id === b.project_id));
+export const sameInstallScope = (a: InstallScope, b: InstallScope): boolean => a.kind === b.kind && (a.kind === "home" || (b.kind === "project" && a.project_id === b.project_id));
 
 /**
  * Every installation that holds a claim anywhere in the Home, with the scope it lives in (the Home's plugin store, or a project's id):
  * the Home's own plugin store and each project's, read as they are on disk. This is where a plugin's names are kept one owner for
  * (S-82) and where the last holder of a plugin's rules is told, so what cannot be read is not guessed at: it throws, and the caller
  * refuses (or counts the plugin as held). `current` is the database of the installation scope asking, read as it is open.
+ * The selection limits which libraries are opened. The optional filter runs before any release Manifest is read.
  */
-export function heldInstalls(home: string | null, current?: { readonly db: RuntimeDatabase; readonly scope: InstallScope }): HeldInstall[] {
-  const found = current ? heldIn(current.db, current.scope) : [];
+export function heldInstalls(home: string | null, current?: { readonly db: RuntimeDatabase; readonly scope: InstallScope },
+  selection: InstallScopeSelection = { home: true, projects: "all" }, include: IncludeInstall = () => true): HeldInstall[] {
+  const { projects } = selection;
+  const wantsProject = (id: string) => projects === "all" || projects.has(id);
+  const readsCurrent = current && (current.scope.kind === "home" ? selection.home : wantsProject(current.scope.project_id));
+  const found = readsCurrent ? heldIn(current.db, current.scope, include) : [];
   if (home === null) return found;
-  const store = openReadOnlyHomePluginStore(home);
-  if (store) try { found.push(...heldIn(store, { kind: "home" })); } finally { store.close(); }
+  if (selection.home && current?.scope.kind !== "home") {
+    const store = openReadOnlyHomePluginStore(home);
+    if (store) try { found.push(...heldIn(store, { kind: "home" }, include)); } finally { store.close(); }
+  }
+  if (projects !== "all" && [...projects].every(id => current?.scope.kind === "project" && id === current.scope.project_id)) return found;
   const catalogPath = join(home, "projects", "catalog.db");
   if (!existsSync(catalogPath)) return found;
   const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
@@ -79,17 +94,15 @@ export function heldInstalls(home: string | null, current?: { readonly db: Runti
     if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog.db).owner())) throw new Error("项目目录不是本 Home 建的，读不了其中的安装");
     const root = resolve(home, "projects") + sep;
     for (const project of listCatalogProjectsForUninstall(catalog.db, join(home, "projects"))) {
+      if (!wantsProject(project.project_id) || current?.scope.kind === "project" && current.scope.project_id === project.project_id) continue;
       const file = resolve(project.database_path);
       if (!file.startsWith(root)) throw new Error(`项目库 ${project.project_id} 不在本 Home 的项目目录里，读不了其中的安装`);
       const db = new LocalSqliteStorage(file, { readonly: true });
       try {
         // A project that never ran a Plugin Runtime has no table, and so holds nothing.
-        if (db.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugin_runtime_installs'").get()) found.push(...heldIn(db.db, { kind: "project", project_id: project.project_id }));
+        if (db.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugin_runtime_installs'").get()) found.push(...heldIn(db.db, { kind: "project", project_id: project.project_id }, include));
       } finally { db.close(); }
     }
   } finally { catalog.close(); }
-  // The same installation is read once: the open database of the asking scope is also a file on disk. An install id is the scope's own, so two scopes may hold the same one.
-  const seen = new Set<string>();
-  const keyOf = (item: HeldInstall) => `${item.scope.kind === "home" ? "home" : `project:${item.scope.project_id}`}\u0000${item.record.install_id}`;
-  return found.filter(item => !seen.has(keyOf(item)) && seen.add(keyOf(item)));
+  return found;
 }

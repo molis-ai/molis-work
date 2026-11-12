@@ -14,6 +14,7 @@ export { planMaterial, planTask } from "./plans.js";
 export { executionSteps, parseCodingPlan } from "./plan-content.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
 export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, MODEL_DIGEST_HEAD } from "./history-digest.js";
+export { writeCheckCache, type CodingWriteCheck } from "./write-checks.js";
 export { MAX_DELEGATION_HOPS, DELEGATION_STATE_KEY, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
 
@@ -28,7 +29,6 @@ export {
   type CodingIdentityLayer,
   type CodingIdentityView,
 } from "./identity.js";
-export { CODING_MESSAGES } from "./messages.js";
 export {
   CODING_DIRECTORY_FACES,
   CODING_SETTINGS_UI_CONTRIBUTION_ID,

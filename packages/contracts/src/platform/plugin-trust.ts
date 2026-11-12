@@ -1,5 +1,43 @@
+import { inputSchemaFor, type ActionDefinition } from "./actions.js";
+import { closedObjectSchema } from "./closed-object-schema.js";
+import type { PluginPackageFile } from "./plugin-package.js";
+
 // Install trust and consent (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md). Trust says who gave the evidence for
 // an install, never how important the plugin is; consent is one recorded row per declaration that changes a plugin's effect elsewhere.
+
+export const PLUGIN_INSTALL_WRITE = "plugin-install:write";
+
+/** The declaration and files the person wants to sign. The Host supplies the publisher and the package's manifest.json. */
+export interface LocalPackageSignInput {
+  readonly manifest: Record<string, unknown>;
+  readonly files: readonly PluginPackageFile[];
+}
+
+export interface LocalPackageSignResult {
+  readonly preview_id: string;
+}
+
+/** The Host's plugin-install provider signs a content package and holds an ordinary installation preview. */
+export const localPackageSignAction: ActionDefinition<LocalPackageSignInput, LocalPackageSignResult> = {
+  capability_id: "plugins.local_packages.sign",
+  version: /* @version action.plugins.local_packages.sign */ 1,
+  operation: "command",
+  action: {
+    title: "签名内容包",
+    description: "本人明确发布时，以这个 Home 的发布身份签名内容包，返回待确认的安装预览",
+    kind: "operation",
+    effect: "write",
+    audiences: ["user"],
+    scope: "home",
+    subject_kinds: [],
+    permissions: [PLUGIN_INSTALL_WRITE],
+    input_schema: inputSchemaFor<LocalPackageSignInput>()(closedObjectSchema({
+      manifest: { type: "object" },
+      files: { type: "array", items: closedObjectSchema({ path: { type: "string" }, content_base64: { type: "string" } }) },
+    })),
+    output_schema: closedObjectSchema({ preview_id: { type: "string", minLength: 1, maxLength: 80 } }),
+  },
+};
 
 /** Who vouches for an installation: the Host's own build, a signature a person pinned, or nobody. */
 export type PluginTrustLevel = "host" | "pinned" | "unsigned";

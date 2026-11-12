@@ -5,6 +5,8 @@ import { post } from "./request.js";
 import { readTaskReads, showCreated } from "./reads.js";
 import { closeArea, placeArea } from "./area.js";
 
+const uiText = globalThis.t;
+
 const expand = (expanded: boolean) => {
   const shell = document.querySelector<HTMLElement>("[data-schedule-stage-shell]"), workspace = document.querySelector<HTMLElement>("[data-schedule-stage-workspace]");
   if (!shell) return;
@@ -79,13 +81,13 @@ export function select(page: SchedulePage, id: string | null | undefined, kind: 
  * a failure is thrown to the dialog that asked, which keeps its review on show; otherwise it is a toast.
  */
 export async function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false): Promise<boolean> {
-  const { L, list, workbench, host } = page;
+  const { list, workbench, host } = page;
   try {
     const scrollTop = list.scrollTop, template = document.createElement("template");
     template.innerHTML = (await host.view.readDocument()).trim();
     const nextList = template.content.querySelector("[data-schedule-list]"), nextWorkspace = template.content.querySelector("[data-schedule-stage-workspace]");
     const workspace = workbench.querySelector("[data-schedule-stage-workspace]");
-    if (!nextList || !nextWorkspace || !workspace) throw new Error(L("schedule.error.refresh"));
+    if (!nextList || !nextWorkspace || !workspace) throw new Error(uiText.text("schedule.error.refresh"));
     const chrome = list.querySelector(".plugin-stage-chrome");
     nextList.querySelector(".plugin-stage-chrome")?.remove();
     const incoming = [...nextList.childNodes];
@@ -99,8 +101,8 @@ export async function refreshStage(page: SchedulePage, openId?: string, kind: Ro
     void readTaskReads(page);
     return true;
   } catch {
-    if (preserveConfirmation) throw new Error(L("schedule.error.refresh"));
-    host.showToast(L("schedule.error.refresh"), true);
+    if (preserveConfirmation) throw new Error(uiText.text("schedule.error.refresh"));
+    host.showToast(uiText.text("schedule.error.refresh"), true);
     return false;
   }
 }

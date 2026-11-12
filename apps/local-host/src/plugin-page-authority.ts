@@ -8,7 +8,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginImageGenerationDeclaration, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginActivationOpen, pluginRouteMatcher, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginTextReader, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import type { installedComponentSubmit } from "./installed-action-registration.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
@@ -20,12 +21,15 @@ export { installedPageRelease };
 type PageRelease = ReturnType<typeof installedPageRelease>;
 
 interface PageSelection {
-  install_id: string;
-  project_id: string | null;
-  project_key?: string;
-  release?: PageRelease;
-  objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
-  surfaceSlotSource?: SurfaceSlotSource;
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly project_id: string | null;
+  readonly project_key?: string;
+  /** The exact signed release a stage or position was drawn from; a page of it opens only while that release still runs. */
+  readonly release?: PageRelease;
+  readonly objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
+  readonly surfaceSlotSource?: SurfaceSlotSource;
+  readonly embedded?: readonly { plugin_id: string; install_id: string; installation_generation: string; assertCurrent(): void }[];
   assertCurrent(): void;
 }
 
@@ -39,7 +43,7 @@ export function installedPageSelection(record: PluginInstanceRecord, project_id:
     contribution_id: descriptor.contribution_id, surface: mount.surface_id, target_slot_id: mount.target_slot_id,
     producer: owner.producer, slots: descriptor.slots, installation: owner.installation,
   } : undefined;
-  return { install_id: release.install_id, project_id, release, surfaceSlotSource, assertCurrent() {
+  return { install_id: release.install_id, installation_generation: release.installation_generation, project_id, release, surfaceSlotSource, assertCurrent() {
     const now = current();
     if (now?.state !== "running" || !sameInstalledRelease(release, now)) throw refused();
     owner.assertCurrent();
@@ -49,6 +53,9 @@ export function installedPageSelection(record: PluginInstanceRecord, project_id:
 interface Activation {
   readonly manifest: PluginManifest;
   readonly install_id: string | null;
+  /** The Runtime's own activation, if this is a running plugin rather than a registered platform page. */
+  readonly instance?: PluginInstance;
+  readonly registeredText?: PluginTextReader;
   readonly project_id: string | null;
   readonly actor_id: string;
   readonly release?: PageRelease;
@@ -60,15 +67,25 @@ interface Activation {
   resolveFiles?(paths: readonly string[]): readonly string[];
   requestAllowed?(method: string, pathname: string): boolean;
 }
+interface PageTextSource {
+  readonly id: string;
+  readonly manifest: PluginManifest;
+  readonly reader: PluginTextReader | null;
+  readonly embedded: boolean;
+}
+export type ReadShownProjectPlugins = () => Promise<readonly string[]>;
+type AssertPageScope = (shown?: ReadShownProjectPlugins) => Promise<void>;
+
 interface Page {
   readonly activation: Activation;
+  readonly embedded: readonly Activation[];
   readonly project_id: string | null;
   readonly requests: Set<AbortController>;
   readonly match: ReturnType<typeof pluginRouteMatcher>;
   expiresAt: number;
-  sessionCurrent(): void;
+  sessionCurrent(reader?: IncomingMessage): void;
   closing?: boolean;
-  assertScope?(): Promise<void>;
+  assertScope?: AssertPageScope;
   selection?: PageSelection;
   surfaceSlots?: ReturnType<typeof pageSurfaceSlotState>;
 }
@@ -76,6 +93,32 @@ const refused = () => new ActionError("actions.forbidden", "插件页面权限�
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
 const homes = new Map<string, PluginPageAuthority>();
 const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; pageCurrent(): void; signal: AbortSignal; surfaceSlot: boolean }>();
+
+/** The list can only come from the same stage selection as the original, actual nested render. */
+function capturedEmbedded(activations: ReadonlySet<Activation>, page: Activation, selection?: PageSelection): Activation[] {
+  return (selection?.embedded ?? []).map(selected => {
+    if (!page.manifest.ui.embedded_plugins?.includes(selected.plugin_id)) throw refused();
+    selected.assertCurrent();
+    const exact = [...activations].find(active => active.manifest.plugin_id === selected.plugin_id && active.actor_id === page.actor_id
+      && active.project_id === page.project_id && active.install_id === selected.install_id
+      && active.instance?.installation_generation === selected.installation_generation);
+    if (!exact) throw refused();
+    exact.assertCurrent();
+    return exact;
+  });
+}
+
+function assertTextSource(activation: Activation, connected: ReadonlySet<Activation>) {
+  if (!connected.has(activation) || (activation.instance && !pluginActivationOpen(activation.instance))) throw refused();
+  activation.assertCurrent();
+}
+
+function pageTextSources(id: string, page: Page): PageTextSource[] {
+  return [page.activation, ...page.embedded].map((activation, index) => ({
+    id, manifest: activation.manifest, reader: activation.instance ? pluginTextReader(activation.instance) : activation.registeredText ?? null, embedded: index > 0,
+  }));
+}
+
 
 /** Authority stays in the trusted outer document. The embedded document receives only a MessagePort. */
 export function pluginPagesFor(home: string): PluginPageAuthority {
@@ -124,21 +167,24 @@ export class PluginPageAuthority {
     } };
   }
 
-  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
+  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: AssertPageScope, registered?: Activation & { readonly exact?: true },
     selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
-    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
+    const activation = registered?.exact ? registered : selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
+      && item.instance?.installation_generation === selected.installation_generation
       && (!selected.release || sameInstalledRelease(selected.release, item.release)))
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
-    if (!activation) throw refused();
+    if (!activation || activation.manifest.plugin_id !== pluginId || activation.actor_id !== actorId
+      || activation === registered && (selected || activation.install_id !== null || activation.project_id !== projectId)) throw refused();
     selected?.assertCurrent();
     activation.assertCurrent();
+    const embedded = capturedEmbedded(this.activations, activation, selected);
     if (activation === registered) this.activations.add(activation);
     for (const [id, page] of this.pages) if (page.expiresAt < Date.now()) this.close(id);
     if (this.pages.size >= 256) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
-    this.pages.set(id, { activation, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
+    this.pages.set(id, { activation, embedded, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
     return { page_id: id, storage_scope: `${this.storageScope}:${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
@@ -198,6 +244,31 @@ export class PluginPageAuthority {
 
   clearProject(projectId: string): void {
     for (const [id, page] of this.pages) if (page.project_id === projectId) this.close(id);
+  }
+
+  /** Capture the same grants already minted for this document, and read their exact owners only after the last asynchronous scope check. */
+  async withPageText(request: IncomingMessage, ids: readonly string[], project: string | null, signal: AbortSignal,
+    read: (sources: readonly PageTextSource[]) => void, shown?: ReadShownProjectPlugins): Promise<void> {
+    const entries = ids.map(id => {
+      const page = this.pages.get(id);
+      if (!page || page.project_id !== project) throw refused();
+      return { id, page };
+    });
+    const check = () => {
+      signal.throwIfAborted();
+      for (const { id, page } of entries) {
+        if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now()) throw refused();
+        page.sessionCurrent(request); page.selection?.assertCurrent();
+        assertTextSource(page.activation, this.activations);
+        for (const embedded of page.embedded) assertTextSource(embedded, this.activations);
+      }
+    };
+    check();
+    let selection: ReturnType<ReadShownProjectPlugins> | undefined;
+    const requestSelection = shown && (() => selection ??= shown());
+    await Promise.all(entries.map(({ page }) => page.assertScope?.(requestSelection)));
+    check();
+    read(entries.flatMap(({ id, page }) => pageTextSources(id, page)));
   }
 
   /** A terminal transport keeps this closure, never a caller-supplied installation or project. */

@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { TextArgs } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginComponentNode } from './plugin-components.js';
 import type { createPluginPresentationClient } from './plugin-presentation-client.js';
 import type { PluginComponentClientOptions, PluginComponentView } from './plugin-component-client.js';
@@ -11,8 +12,8 @@ import type { pcOutput, pcQuery } from './plugin-component-output.js';
 import type { pcSubmit, pcPart } from './plugin-component-part.js';
 
 export type { SandboxSchema };
-export interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; busy: boolean; query: number; draft: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string>; slot?: { dispose(): void } }
-export type Column = { field: string; label: string; values?: Record<string, string> };
+export interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; slot?: { dispose(): void }; busy: boolean; query: number; draft: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
+export type Column = { field: string; label: SandboxVisibleText; values?: Record<string, SandboxVisibleText> };
 export interface DetailView { layout: HTMLElement; pane: HTMLElement; back: HTMLButtonElement; content?: string; scroll?: Array<[Element, number]> }
 
 /**
@@ -26,7 +27,7 @@ export interface State {
   /** Replaced by the query layer; the layers built before it call it only when something happens. */
   refresh: (componentId?: string) => Promise<unknown>;
 }
-export type Kit = ReturnType<typeof pcKit>;
+export type Kit = ReturnType<typeof pcKit> & { word(ref?: SandboxVisibleText, args?: TextArgs): string };
 export type Rel = ReturnType<typeof pcRelations>;
 export type Rec = ReturnType<typeof pcRecords>;
 export type Det = ReturnType<typeof pcDetail>;

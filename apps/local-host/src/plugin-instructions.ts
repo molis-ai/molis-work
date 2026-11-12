@@ -2,10 +2,13 @@ import path from "node:path";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
-import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, declaredMethods } from "./agent-definitions/agent-definitions.js";
+import { definitionOrigin } from "@molis-ai/molis-work-plugin-runtime";
+import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, assertInstructionRoles, declaredMethods, instructionRegistration } from "./agent-definitions/agent-definitions.js";
 import { notRunning } from "./agent-definitions/agent-declarations.js";
-import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import type { PluginPlatformHome } from "./home-side.js";
+import { registeredBuiltinText } from "./ui-text-provider.js";
+import { bindAgentDisplayWords } from "./agent-definitions/display-words.js";
 
 /**
  * Per Home and owner: the installations this module holds for, how many running instances hold each, and the newest version among
@@ -104,9 +107,11 @@ export function pluginAgentRegistration(definition: PluginDefinition, source: Ag
       if (prompt) { prompt.default_ref = { source: signedSource, kind: "role", entry_id: role.role_id }; role.purpose = prompt.purpose; }
     }
   }
-  return { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version,
-    kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body }))], roles: declared.roles,
+  const registration: AgentDefinitionRegistration = { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(instructionRegistration)], roles: declared.roles,
     ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
+  assertInstructionRoles(registration);
+  const reader = definition.execution !== "sandbox" && registeredBuiltinText(definitionOrigin(definition).manifest);
+  return reader ? bindAgentDisplayWords(registration, reader) : registration;
 }
 
 /** Provenance comes from the verified definition, never from body text or a consumer's request. */
@@ -126,6 +131,29 @@ export function updatePluginAgentDefinitions(home: PluginPlatformHome, definitio
   if (!registration) { registry.unregister(owner, installId); declarations.forgetOwner(installId, owner); return; }
   registry.register(state === "disabled" && !holder?.held ? notRunning(registration) : registration, installId);
   declarations.remember(installId, registration);
+}
+
+/**
+ * A plugin with only declarations (`kind: "content"`) runs no instance whose start and stop hold its Agent definitions (specs/skill-packs/
+ * contract-design.md §3): while it is enabled on a Host, the Host holds them in the instance's place (`set`), and lets go when it is switched
+ * off, taken off (`release`, before `forgetPluginAgentDefinitions`) or the Host closes (`releaseAll`). As with running instances, the
+ * last hold let go leaves its Skills not running, so they are offered only while some Host has the plugin enabled and its package verified.
+ */
+export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
+  const held = new Map<string, { version: string; release: () => void }>();
+  const release = (pluginId: string) => { const hold = held.get(pluginId); held.delete(pluginId); hold?.release(); };
+  return {
+    set(definition: PluginDefinition, installId: string, state: "enabled" | "disabled"): void {
+      const { plugin_id: pluginId, version, kind } = definition.manifest, holds = state === "enabled" && kind === "content";
+      if (holds && held.get(pluginId)?.version === version) return;
+      // A new version is held before the earlier one is let go, so the Skills are not left not running in between.
+      const acquired = holds ? registerPluginAgentDefinitions(home, definition, installId) : undefined;
+      release(pluginId);
+      if (acquired) held.set(pluginId, { version, release: acquired });
+    },
+    release,
+    releaseAll(): void { for (const pluginId of [...held.keys()]) release(pluginId); },
+  };
 }
 
 /** An uninstalled installation's declarations leave the register and the Home (PG-051 Q1 b), unless it still runs somewhere. */

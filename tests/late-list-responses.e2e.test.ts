@@ -251,27 +251,32 @@ test("VUX-31: the search palette does not add a late page of the earlier words t
   } finally { await hold.close(); }
 });
 
-test("VUX-31: the Assistant's slash menu shows the words typed last when the lists the first asked for answer late", { timeout: 120_000 }, async (t) => {
+// K3: the slash menu is the unified composer's now. The lists it draws from (capabilities, methods) are read once, when the
+// person first comes to the input, not once per word typed; so a late answer has nothing later to overwrite. What is checked:
+// one read each however much is typed while they are out, and once they are in "/" lists what they hold.
+test("VUX-31: the Assistant's slash menu reads its lists once, however much is typed while they answer late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   await wide(browser);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("!!document.querySelector('[data-assistant-input]') && !!document.querySelector('[data-assistant-starters]')", 20_000);
-  const menu = () => evaluate<{ hidden: boolean; buttons: number; text: string }>("(() => { const pop = document.querySelector('[data-assistant-starters]'); return { hidden: pop.hidden, buttons: pop.querySelectorAll('button').length, text: pop.textContent }; })()");
-  // The lists the menu draws from are read the first time it opens: two words typed before they arrive each ask for them.
+  await waitFor("!!document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
+  const input = "[data-assistant-composer] .mw-composer__input";
+  const slash = `(() => { const input = document.querySelector(${JSON.stringify(input)}); input.focus(); input.value = '/'; input.setSelectionRange(1, 1); input.dispatchEvent(new InputEvent('input', { bubbles: true, data: '/', inputType: 'insertText' })); })()`;
+  const menu = () => evaluate<{ hidden: boolean; commands: string[] }>("(() => { const pop = document.querySelector('[data-assistant-composer] [data-compose-menu]'); return { hidden: pop.hidden, commands: [...pop.querySelectorAll('[data-composer-command] .mw-menu__shortcut')].map((node) => node.textContent) }; })()");
   const hold = await holdReads(browser, ["*/api/assistant/capabilities", "*/api/assistant/methods"]);
   try {
-    await evaluate(typed("[data-assistant-input]", "/")); const first = await hold.next("/api/assistant/capabilities");
-    await evaluate(typed("[data-assistant-input]", "/zzzzqq"));
-    const [, second] = await hold.every("/api/assistant/capabilities", 2);
-    await hold.release(second!); await hold.answer("/api/assistant/methods");
-    await waitFor("document.querySelector('[data-assistant-starters]').textContent.includes('没有匹配的能力')", 10_000);
-    assert.equal((await menu()).buttons, 0, "the words typed last match nothing");
-    await hold.release(first); await pause(800);
-    const late = await menu();
-    assert.equal(late.buttons, 0, "the first words' late answer does not draw its menu over the second's: " + late.text);
-    assert.ok(late.text.includes("没有匹配的能力"));
-    assert.equal(hold.seen.length, 3, JSON.stringify(hold.seen));
+    await evaluate(`document.querySelector(${JSON.stringify(input)}).focus()`);
+    const first = await hold.next("/api/assistant/capabilities"), methods = await hold.next("/api/assistant/methods");
+    await evaluate(typed(input, "/zzzzqq")); await evaluate(typed(input, "整理")); await evaluate(typed(input, ""));
+    await pause(400);
+    assert.equal(hold.seen.length, 2, "typing while the lists are out asks for nothing more: " + JSON.stringify(hold.seen));
+    await hold.release(first); await hold.release(methods); await pause(400);
+    await evaluate(slash);
+    await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden", 10_000);
+    const open = await menu();
+    // A row is the command's name, what it does, and its `/word` where a shortcut stands (the menu as batch 11 drew it).
+    assert.ok(open.commands.includes("/用"), "the late lists are in the menu once they came: " + JSON.stringify(open.commands));
+    assert.equal(hold.seen.length, 2, JSON.stringify(hold.seen));
   } finally { await hold.close(); }
 });
 

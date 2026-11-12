@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TerminalPaneElements, TerminalStatus, TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
 import type { TerminalRequest } from "./types.js";
@@ -14,7 +15,7 @@ export interface TerminalMenuOptions {
 
 /** The "add terminal" menu: Runtime choice, availability marks, and the custom command. */
 export function createTerminalMenu(options: TerminalMenuOptions) {
-  const { els, text: L, guard, setStatus } = options;
+  const { els, guard, setStatus } = options;
   const { menu, addBtn, emptyAddBtn } = els;
   const genericFields = menu.querySelector("[data-tui-generic-fields]") as HTMLElement | null;
   const genericOpen = menu.querySelector("[data-tui-generic-open]") as HTMLButtonElement | null;
@@ -40,7 +41,7 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
 
   const setMenuOpen = (open: boolean) => {
     if (open && guard.readOnly()) {
-      setStatus(L("请进入一个具体的子 Goal"), "error");
+      setStatus(uiText.text("workbench.client-menu.open-specific-child-goal"), "error");
       return;
     }
     menu.classList.toggle("is-open", open);
@@ -69,10 +70,10 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
         button.querySelector("small")?.remove();
         return;
       }
-      button.title = L("需要先安装 CLI");
+      button.title = uiText.text("workbench.client-menu.install-cli-first");
       if (!button.querySelector("small")) {
         const hint = document.createElement("small");
-        hint.textContent = L("未安装");
+        hint.textContent = uiText.text("workbench.client-menu.not-installed");
         button.append(hint);
       }
     });

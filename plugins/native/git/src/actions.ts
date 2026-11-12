@@ -148,8 +148,13 @@ export function gitActionHandlers(context: PluginStartContext): ActionHandlerBin
       const current = await workspace(input?.workspace_id, true), value = await read({ workspace_id: current.workspace_id, kind: "status" });
       const saved = services.storage?.get("git-selection");
       const selected = typeof saved === "string" ? JSON.parse(saved) as GitSelected : null;
-      if (value.result.outcome !== "status") return { workspace: current,
-        view: projectGit({ phase: value.result.outcome === "not-a-repository" ? "not-a-repository" : "error", status: null, message: "message" in value.result ? value.result.message : "Git 状态不可读" }), selected: null };
+      if (value.result.outcome !== "status") {
+        const notRepository = value.result.outcome === "not-a-repository";
+        const view = projectGit({ phase: notRepository ? "not-a-repository" : "error", status: null,
+          message: "message" in value.result ? value.result.message : "Git 状态不可读",
+          ...(value.result.outcome === "not-a-repository" && value.result.reason ? { reason: value.result.reason } : {}) });
+        return { workspace: current, view, selected: null };
+      }
       const status = parsePorcelainStatus({ stdout: value.result.porcelain });
       if (status.head.kind !== "unborn" && value.result.head_commit) status.head = { ...status.head, commit: value.result.head_commit };
       return { workspace: current, view: projectGit({ phase: "ready", status }), selected: selected?.workspace_id === current.workspace_id ? selected : null };

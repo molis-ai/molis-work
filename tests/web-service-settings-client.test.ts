@@ -1,8 +1,10 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { createUiFailureView, createUiRequest, type UiFetchInit } from "@molis-ai/molis-work-ui-host";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "../apps/workbench/src/scripts/settings-web-service.js";
+import { chinesePagePacks, pageTextForPacks, pageTextScriptForPacks } from "./fixtures/page-text-packs.js";
 
 // DOM ports exercise the shipped script, not a substitute for the native App test.
 class Element {
@@ -26,10 +28,13 @@ class Element {
   focus() { this.focused = true; }
   closest(_selector: string): Element | null { return null; }
 }
+const packs = chinesePagePacks();
+const readText = pageTextForPacks("zh", packs);
+
 /** The page's `molisWorkRequest`, built from the package's two public factories over the fixture's fake network (as the page program builds it). */
 function pageRequest(fakeFetch: (url: string, init: UiFetchInit) => Promise<Response>) {
-  const call = createUiRequest({ fetch: fakeFetch, origin: "http://127.0.0.1:4173", token: () => "token", newKey: () => "key", translate: text => text });
-  const view = createUiFailureView({ createElement: () => ({ textContent: "", append() {}, setAttribute() {}, getAttribute: () => null, remove() {} }), copy: async () => {}, translate: text => text, setTimeout: () => 0, clearTimeout() {} });
+  const call = createUiRequest({ fetch: fakeFetch, origin: "http://127.0.0.1:4173", token: () => "token", newKey: () => "key", readText }, UI_HOST_CLIENT_CODES);
+  const view = createUiFailureView({ createElement: () => ({ textContent: "", append() {}, setAttribute() {}, getAttribute: () => null, remove() {} }), copy: async () => {}, readText, setTimeout: () => 0, clearTimeout() {} });
   return Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
 }
 const answer = (body: unknown, ok = true) => new Response(JSON.stringify(body), { status: ok ? 200 : 409 });
@@ -41,13 +46,12 @@ function fixture(failure?: "preview" | "confirm" | "restart" | "timeout" | "unow
   const toast = new Element(); const timers: (() => void)[] = [];
   const requests: { suffix: string; body: Record<string, unknown> }[] = [];
   let clock = 0; let healthReads = 0;
-  vm.runInNewContext(WEB_SERVICE_SETTINGS_SCRIPT, {
+  vm.runInNewContext(pageTextScriptForPacks("zh", packs) + "\n" + WEB_SERVICE_SETTINGS_SCRIPT, {
     // The script delegates clicks from document to [data-web-service-action], as in the real page.
-    document: { body, createElement: () => new Element(),
+    document: { body, documentElement: {}, createElement: () => new Element(),
       addEventListener: (type: string, callback: (event: { target: Element; preventDefault(): void }) => unknown) => { documentListeners.set(type, callback); },
       querySelectorAll: (s: string) => s === "[data-web-service-action]" ? [button] : [],
       querySelector: (s: string) => s === "[data-web-service-error]" ? error : s.split(",").map(part => part.trim()).includes("[data-settings-toast]") ? toast : null },
-    L: (value: string) => value,
     setTimeout: (f: () => void, ms: number) => { if (ms === 500) { clock += 1000; f(); } else timers.push(f); }, location: { reload() {} },
     Date: { now: () => clock }, AbortSignal,
     window: { confirm() { throw new Error("Native confirm must not be used"); } },

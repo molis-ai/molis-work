@@ -111,3 +111,30 @@ test("RAC-406 the project's settings has a 插件 page, in the directory and as 
   assert.match(embedded, /data-plugin-trust-settings/);
   assert.doesNotMatch(embedded, /<main class="settings-shell">/, "an embedded section brings no page chrome");
 });
+
+test("SKC-10 S-skill-import disconnecting plugin confirmation cancels the real action before installation", mac, async t => {
+  const env = await setup(t), publisher = newPublisher(), bundle = signedPackage(publisher);
+  const preview = await env.send<{ preview_id: string }>("/api/plugin-trust/install/preview", { body: { bundle } });
+  let entered!: () => void, resume!: () => void, observed!: () => void, settled!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { resume = resolve; });
+  const disconnected = new Promise<void>(resolve => { observed = resolve; }), completed = new Promise<void>(resolve => { settled = resolve; });
+  const actionClient = env.host.actionClient.bind(env.host);
+  env.host.actionClient = reference => {
+    const client = actionClient(reference);
+    return { ...client, async invoke(caller, action, input) {
+      if (action.capability_id !== "plugins.install.confirm") return client.invoke(caller, action, input);
+      assert.ok(caller.signal, "the HTTP door carries disconnection to the original caller");
+      caller.signal.addEventListener("abort", observed, { once: true }); entered();
+      try { await held; return await client.invoke(caller, action, input); } finally { settled(); }
+    } };
+  };
+  const controller = new AbortController();
+  try {
+    const sending = fetch(env.prefix + "/api/plugin-trust/install/confirm", { method: "POST", headers: env.headers(), signal: controller.signal,
+      body: JSON.stringify({ preview_id: preview.body.preview_id, consent: true, pin_label: "Example" }) });
+    const rejected = assert.rejects(sending, { name: "AbortError" });
+    await reached; controller.abort(); await disconnected; resume(); await rejected; await completed;
+    assert.deepEqual(new HomeConsentLedger(env.home).publishers(), [], "no pin after disconnection");
+    assert.equal((await env.overview()).plugins.some(row => row.plugin_id === PACKAGE_PLUGIN_ID), false);
+  } finally { resume(); env.host.actionClient = actionClient; }
+});

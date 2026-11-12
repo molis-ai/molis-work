@@ -1,10 +1,12 @@
 # SDK、CLI、存储、测试
 
-这一页给「作者 API 和怎么跑起来」。内置插件接到产品的清单在 [host.md](host.md)。命令细则在 `docs/platform/PLUGIN-DEVELOPMENT.md`。
+这一页说明作者 API，以及怎样用安装版 CLI 和公开两包跑起插件。[安装版开发入口](#安装版开发入口) · [中英文最小例子](text-and-appearance.md#最小的完整例子)
+
+内置插件接到产品时看 Host 接线。完整命令细则和 MCP 登记见源码树参考。[Host 接线](host.md) · [源码树开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md)
 
 ## SDK
 
-包 `@molis-ai/molis-work-plugin-sdk`（仓库内 0.0.0，用同一次构建的 tarball，不要假设 npm 上已有发行物）。
+作者只装 `@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk` 两个公开包。源码树内版本为 0.0.0，开发时取同一次构建的两个压缩包。[离线安装命令](#安装版开发入口)
 
 ```ts
 import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
@@ -40,40 +42,57 @@ Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作
 
 今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 一级入口插件。
 
-在仓库根、先 `pnpm build`：
+### 安装版开发入口
+
+Molis Work 安装后，CLI 在该 Home 的 `bin/molis-work`。默认完整路径如下，自选 Home 时换成对应路径。安装两个公开包不会把这个命令加到 PATH。把下面两个压缩包路径改成你拿到的实际路径，再从空目录创建样例。
 
 ```bash
+molis_cli="$HOME/.molis-work/bin/molis-work"
+contracts_tgz="/实际目录/molis-ai-molis-work-contracts-0.0.0.tgz"
+plugin_sdk_tgz="/实际目录/molis-ai-molis-work-plugin-sdk-0.0.0.tgz"
 plugin_dev_dir="$(mktemp -d)"
-node dist/cli/main.js plugin create "$plugin_dev_dir/sample" io.molis.work.example.notes local-developer local-development-binding
-pnpm --dir packages/contracts pack --pack-destination "$plugin_dev_dir"
-pnpm --dir packages/plugin-sdk pack --pack-destination "$plugin_dev_dir"
+"$molis_cli" plugin create "$plugin_dev_dir/sample" io.molis.work.example.notes local-developer local-development-binding
 npm --prefix "$plugin_dev_dir/sample" install --offline --ignore-scripts --no-audit --no-fund \
-  "$plugin_dev_dir/molis-ai-molis-work-contracts-0.0.0.tgz" \
-  "$plugin_dev_dir/molis-ai-molis-work-plugin-sdk-0.0.0.tgz"
-node dist/cli/main.js plugin validate "$plugin_dev_dir/sample/manifest.json"
-node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" \
+  "$contracts_tgz" "$plugin_sdk_tgz"
+"$molis_cli" plugin validate "$plugin_dev_dir/sample/manifest.json"
+"$molis_cli" plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" \
   storage:private,artifact:write,artifact:read,ui:register --allow-unsigned-development
 ```
+
+在独立 Home 里试跑时，把 `MOLIS_WORK_HOME` 指向该临时 Home，设 `MOLIS_WORK_SECRET_BACKEND=file`，再给 `plugin dev` 单独的空状态目录。
 
 `dev`：真实安装、启动、poll 一次、渲染已注册 UI、卸载并撤 UI/授权。退出码 0 只表示这次健康检查和 poll 成功，**不是**浏览器交互已验收。状态目录必须是新目录、空目录或已有 `.molis-work-plugin-development.json` 的开发目录。不要用正式项目目录。
 
 空 grant `""` 应被拒。没有 `--allow-unsigned-development` 不会执行插件。开发 JS 仍能碰进程和磁盘；Host grant 只限制提供给插件的 API。
 
-也可：`molis-work-plugin validate|create|pack|identity|sign|verify`。
+### 从源码树构建
+
+在仓库根目录先构建，再把两个公开包打到同一临时目录。
+
+```bash
+pnpm build
+plugin_packages_dir="$(mktemp -d)"
+pnpm --dir packages/contracts pack --pack-destination "$plugin_packages_dir"
+pnpm --dir packages/plugin-sdk pack --pack-destination "$plugin_packages_dir"
+```
+
+沿用上面的开发步骤，把两个压缩包路径指到这个目录，并用 `node dist/cli/main.js` 代替 `"$molis_cli"`。源码树内的独立工具 `molis-work-plugin` 也提供 `validate`、`create`、`pack`、`identity`、`sign`、`verify`，它没有 `dev` 或 `install` 所需的 Host。[源码树的完整命令](../../docs/platform/PLUGIN-DEVELOPMENT.md#创建和运行)
 
 ## 打包与签名
 
-`plugin pack` 只含 package.json 的 `files` 以及 package.json/manifest.json；拒绝 `..` 和符号链接；不跑安装脚本、不收集依赖。JSON bundle 上限 64 MiB，不覆盖已有输出。
+`molis-work plugin pack <源目录> <bundle.json>` 打包 `package.json` 的 `files`、`package.json`、`manifest.json` 及 Manifest 声明的语言文件。拒绝 `..` 和符号链接，不执行安装脚本或收集依赖。JSON 包上限 64 MiB，输出不覆盖已有文件。
 
-要签名：`identity` 拿 Ed25519 公钥当 binding；`sign` 显式私钥；`verify` 用调用者信任的公钥。签名只证明内容和发布者，不是官方审核。`local-development-binding` 没有密码学含义。
+同一个安装版 CLI 提供三条签验命令。`molis-work plugin identity <public.pem>` 从 Ed25519 公钥取得发布者绑定。`molis-work plugin sign <bundle.json> <private.pem> <signed.json>` 显式使用与该绑定对应的私钥。`molis-work plugin verify <signed.json> <trusted-public.pem>` 用调用者信任的公钥检查包内容和发布者身份。`local-development-binding` 只供本地预览，签验与官方审核各有自己的流程。
+
+沙箱包用 `molis-work plugin pack-sandbox`，只有技能的内容包用 `molis-work plugin pack-content`。在安装版 CLI 运行 `molis-work plugin --help` 查看参数。公开 SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest`、`effectsFromContract` 与 CLI 共用清单和效果的生成逻辑。角色资料与方法可在随包手册查看，完整格式留作源码树参考。[签名 app 包的文字资料](#签名-app-包的文字资料) · [源码树的沙箱包格式与安装](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)
 
 ## 生命周期
 
-状态：`installed` → `running` / `disabled` / `crashed` / `quarantined` / `uninstalled`。一个插件启动失败只影响自己。卸载不删已形成的 Artifact/Signal。崩溃可在上限内恢复。当前项目的插件市场支持 Runtime 插件手动升级：Manifest 用精确的 `upgrade_compatibility` 来源版本声明直接兼容或可迁移；可迁移版本还须实现只读 `validateUpgrade`。常规启动不写入新版本，升级保留 `install_id` 与既有 grant。独立进程沙箱和 Server entry 仍不是已上线承诺。详见[插件版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
+状态：`installed` → `running` / `disabled` / `crashed` / `quarantined` / `uninstalled`。一个插件启动失败只影响自己。卸载不删已形成的 Artifact/Signal。崩溃可在上限内恢复。当前项目的插件市场支持 Runtime 插件手动升级：Manifest 用精确的 `upgrade_compatibility` 来源版本声明直接兼容或可迁移；可迁移版本还须实现只读 `validateUpgrade`。常规启动不写入新版本，升级保留 `install_id` 与既有 grant。独立进程沙箱和 Server entry 仍不是已上线承诺。[随包的版本升级约定](elements.md#版本升级) · [源码树的升级流程与 Manifest 片段](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)
 
 ## 测试
 
-每个测试对应合同、状态转换或真实故障。必须打到生产代码或公共 CLI，不要测测试工具自己。
+每个测试对应合同、状态转换或真实故障，直接调用生产代码或公共 CLI。下表和构建命令供源码树中的验证使用。
 
 | 路径 | 测什么 |
 | --- | --- |
@@ -96,6 +115,10 @@ node --import tsx --test tests/plugin-sample.e2e.test.ts tests/plugin-package.te
 
 ## 签名 app 包的文字资料
 
-wire 的 `agent`、`methods` 是只含 `{ name, purpose, body }` 的数组，正文放在已签名包内的 agent/ 资源中；不是完整 AgentManifest。合计 64 项，名字 80、用途 300、正文 8000 UTF-16 单元，正文资源先限 32,000 字节。用 SDK 的 `parsePluginPackageManifest` 及唯一派生 helper，不能自行取短 hash、截名字或把包 SemVer 写成 Agent 数字版本。宿主会在安装预览中显示每条名字与节选，并用全文判断升级变化。
+wire 的 `agent` 是只含 `{ name, purpose, body }` 的数组，正文放在已签名包内的 agent/ 资源中；不是完整 AgentManifest。名字 80、用途 300、正文 8000 UTF-16 单元，正文资源先限 32,000 字节。`methods` 是完整的方法声明，与内置插件写的一样：自己写 `skill_id`、`version`、`description`（什么时候用）、`applies_to`（`assistant`／`coding`／`both`），`body` 写 `skills/<skill_id>/SKILL.md`，`tools` 为空；宿主不派生 id、不编默认值，旧的 `{ name, purpose, body }` 方法会被拒。两者合计 64 项。用 SDK 的 `parsePluginPackageManifest` 及唯一派生 helper，不能自行取短 hash、截名字或把包 SemVer 写成 Agent 数字版本。宿主会在安装预览中显示每条名字与节选，并用全文判断升级变化。
 
-角色资料和方法通过助理材料/读取动作消费，元数据与正文均为带签名来源的不可信 JSON；无工具、目录、执行或子 Agent 授权。角色的用户覆盖标明 effective/user_revision，不能称为发布者签名原文；方法不提供编辑。详见[包格式](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。
+角色资料和方法通过助理材料/读取动作消费，元数据与正文均为带签名来源的不可信 JSON；无工具、目录、执行或子 Agent 授权。角色的用户覆盖标明 effective/user_revision，不能称为发布者签名原文；方法不提供编辑。SDK 的 `sandboxAgentDeclarations` 负责派生。安装版 CLI 的入口在本手册，完整包格式留作源码树参考。[打包与签名](#打包与签名) · [源码树的包格式](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)
+
+### 日评 A-1 公开复用入口
+
+插件 ID 的完整格式由 SDK 根入口 `PLUGIN_ID` 定义，路由与作者校验共用。执行生命周期与动作声明检查也可从 `@molis-ai/molis-work-plugin-sdk/execution` 读取，与根入口是同一实现。subjectContext 的分页 offset/length 按 Unicode 码点计数，调用方按同一单位推进；不自行按 UTF-16 长度换算。

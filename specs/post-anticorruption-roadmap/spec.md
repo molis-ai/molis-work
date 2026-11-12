@@ -1,6 +1,6 @@
 # 防腐后路线书 · 执行目录
 
-状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话独立安排、派写手（[决定 26](reference/decisions.md#decision-26)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
+状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
 
 **当前入口：[01 主线核账](reference/batches/01.md#baseline-01) · [本人试用单](reference/acceptance-01.md)。** 01 已按主线核实并交单；实际试用、真实 Home 和后续批次另计。
 
@@ -40,7 +40,7 @@
 |  | [页面读取与轮询整治](reference/batches/07.md#batch-07-item-2) |
 |  | [Feed 投影归回插件](reference/batches/07.md#batch-07-item-3) |
 | [08](reference/batches/08.md) | [技能包基础能力](reference/batches/08.md#batch-08-item-1) |
-| [09](reference/batches/09.md) | [助理与 Coding 接点](reference/batches/09.md#batch-09-item-1) |
+| [09](reference/batches/09.md) | [能力包](reference/batches/09.md#batch-09-item-2)；[助理与 Coding 接点](reference/batches/09.md#batch-09-item-1) |
 | [10](reference/batches/10.md) | [统一输入公共组件](reference/batches/10.md#batch-10-item-1) |
 | [11](reference/batches/11.md) | [三入口接入统一输入](reference/batches/11.md#batch-11-item-1) |
 | [12](reference/batches/12.md) | [Coding 执行、委派与可见状态](reference/batches/12.md#batch-12-item-1) |
@@ -61,7 +61,7 @@
 | [22](reference/batches/22.md) | [Sessions 来源与历史合同](reference/batches/22.md#batch-22-item-1) |
 | [23](reference/batches/23.md) | [同步与团队共同设计 → SRV-1](reference/batches/23.md#batch-23-item-1) |
 | [24](reference/batches/24.md) | [Prologue 采用与任务能力核准](reference/batches/24.md#batch-24-item-1) |
-|  | [Memory P0 非上游余项](reference/batches/24.md#batch-24-item-2) |
+|  | [Memory P0 非上游余项](reference/batches/24.md#batch-24-item-2)（2026-11-11 移出本批：独立的 Memory V0 收口批，以 #2020 为基线；P1 在 [31](reference/batches/31.md#batch-31-item-2)，见 [Memory 去向](reference/requirements.md#memory-paused)） |
 |  | [逐项交付与证据关联合同](reference/batches/24.md#batch-24-item-3) |
 | [25](reference/batches/25.md) | [常驻、休眠与单 Home 执行恢复](reference/batches/25.md#batch-25-item-1) |
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |

@@ -1,4 +1,9 @@
 /// <reference lib="dom" />
+import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
+import type { AgentSteerMode, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { MwComposerAiLabels, MwComposerLabels } from "./ui/composer.js";
+import type { PluginIconName } from "./ui/icon-names.js";
 
 /**
  * What the Workbench page puts on `window` for every plugin page, and the shapes those helpers take and give. The helpers are
@@ -127,8 +132,161 @@ export interface InteractionClient {
   destroy(): void;
 }
 
+/**
+ * The unified input (specs/unified-input-voice/implementation-plan.md §3.2, slice K0): what `window.molisComposer(root, options)`
+ * takes and gives. The options are this one instance's own and are seen by no other plugin; a source another plugin offers in the
+ * `+` menu is registered as an action (`composer_source`) instead. The keys are the platform's (Enter breaks the line, ⌘/Ctrl+Enter
+ * sends or supplements, ⌘/Ctrl+Shift+Enter is for the next turn, Esc closes a menu, Tab moves focus): nothing here rebinds them,
+ * and neither commands nor controls see them. ＋ is drawn only when something is behind it: `attachments`, registered sources
+ * (`sources`), or `commands`. The words are `labels`, the same object the first screen (`renderComposer`) takes.
+ *
+ * `receiver`, `delivery`, `pause`, `controls` and `commands` are read again on every draw: a page whose choices change gives them
+ * as functions or getters and calls `refresh()` once they did, so the bar always shows the page's own state.
+ */
+/** Another receiver of the page's that 「发给」 lists (another session), by its own id. */
+export interface ComposerReceiverChoice { id: string; label: string; detail?: string }
+
+export type ComposerOptions = ComposerCommonOptions & (
+  /** The editor layer only. */
+  | { kind: "plain"; labels: MwComposerLabels }
+  /** The receiver row and the delivery menu besides. */
+  | { kind: "ai"; labels: MwComposerAiLabels;
+      /**
+       * Who it goes to now, as a tag beside ＋ (`icon`: what it is); null or absent draws none. `open` makes its name a button that opens the conversation; `reset` puts back the default receiver (the tag's ×), named `resetLabel`.
+       * In the workbench's bar (one input, specs/unified-input-voice §10.4) the tag opens 「发给」 instead: `detail` says what the receiver is (「Coding 会话」),
+       * `others` are the page's other receivers the person may switch to (its other sessions, at most 20), and `choose` opens the one picked by its `id`.
+       */
+      receiver?: () => { label: string; icon?: PluginIconName; detail?: string; others?: ComposerReceiverChoice[]; choose?: (id: string) => void; open?: () => void; reset?: () => void; resetLabel?: string } | null;
+      /** Which deliveries the target takes now; without it only the default (`next-boundary`) is offered. */
+      delivery?: () => ComposerDelivery;
+      /** Stops the turn under way; without it no stop is drawn. */
+      stop?(signal: AbortSignal): Promise<void>;
+      /**
+       * Pausing the turn under way, for a target that takes it (Coding): its words now (暂停, 继续, 正在暂停…), drawn beside stop while
+       * a turn runs; `busy` holds it while the change is on its way. Null or absent draws none.
+       */
+      pause?: () => ComposerPause | null }
+);
+
+export interface ComposerCommonOptions {
+  /** The entry's name, unique inside the plugin ("session"). */
+  entry: string;
+  /**
+   * A platform draft kept on this machine per conversation (project and installation come from the page), or the owner's own.
+   * Absent: nothing is kept (a dialog's field that starts from what the page puts in it each time it opens).
+   */
+  draft?: { conversation: string } | { adapter: ComposerDraftAdapter };
+  /** A decision's reason, say, is submitted by the page's own button: the send keys then only write. */
+  submitKeys?: false;
+  /** Scene controls, drawn with the board's controls and folded into "more" on a narrow screen. */
+  controls?: readonly ComposerControl[];
+  /** This page's own `/` commands. */
+  commands?: readonly ComposerCommand[];
+  /**
+   * What `@` names in this page's own text (Coding: a workspace's files and their definitions), in place of the system search: the
+   * words after `@` (no space, at most 200 characters) are looked up after a pause, and choosing one puts its `insert` in their place.
+   * A rejection's message is said in the menu. The page's own references: no other plugin reaches them.
+   */
+  mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
+  attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
+  /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
+  onMaterials?(): void;
+  /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
+  sources?: boolean;
+  /**
+   * The object the page is on, handed to a source as `near` only when that source's own `subject_kinds` hold its kind: a source
+   * never learns which object of another owner the page shows (S-composer-source-call). `plugin_id` narrows to the page object's owner; otherwise the mount root's owner is used. Missing ownership means no near. This hint never grants access.
+   */
+  near?: () => (ActionSubject & { plugin_id?: string }) | null;
+  /** The microphone's name, for a page that takes voice (batch 53); the same option as `renderComposer`'s. */
+  voice?: string;
+  /** The page's own required check: what is missing, or null. */
+  required?: () => string | null;
+  /** `signal` aborts when the instance is mounted again or let go; late outcomes settle only the original draft and sent selections. */
+  submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+}
+
+/** A draft its owner already keeps (the Assistant per work, Coding per session); the composer keeps no second persistent copy. Reuse the adapter object for the same draft within this document to retain its selected attachments. */
+export interface ComposerDraftAdapter {
+  read(signal: AbortSignal): Promise<string>;
+  /** Throttled as the person writes; a rejection is told in the status line and the text stays. */
+  write(text: string): Promise<void>;
+  /** Settle a successful send when the owner already clears its persistent draft atomically. Otherwise the composer writes an empty draft. */
+  sent?(): Promise<void>;
+}
+
+/** Each delivery the target may take now, or why not: a mode it does not take is shown and cannot be picked, never sent as another. */
+export type ComposerDelivery = { readonly [Mode in AgentSteerMode]: { available: true } | { available: false; reason: string } };
+
+/**
+ * A select's value is one of its options; a toggle's is `"on"` or `"off"`; a button only runs. `disabled` holds a control while
+ * the page cannot take its change (a send on its way); an option that is `disabled` is listed but cannot be chosen, its label
+ * saying why (a way of working this runtime does not offer yet).
+ */
+export type ComposerControl =
+  | { kind: "select"; id: string; label: string; options: readonly { value: string; label: string; disabled?: boolean }[]; value: string; disabled?: boolean; change?(value: string): void }
+  | { kind: "toggle"; id: string; label: string; on: boolean; disabled?: boolean; change?(on: boolean): void }
+  | { kind: "button"; id: string; label: string; title?: string; disabled?: boolean; run(): void };
+
+/**
+ * A `/` command. `keywords` are other words that find it (an English name, a synonym). `add: false` keeps it out of ＋, whose menu
+ * is for what goes with the next send: it is offered under `/` only (switching the way of working, opening a panel). `icon` leads its
+ * row, as a source's does.
+ */
+export interface ComposerCommand { slash: string; label: string; hint?: string; keywords?: readonly string[]; icon?: PluginIconName; add?: false; run(): void }
+
+/** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */
+export interface ComposerMention { title: string; hint?: string; insert: string }
+
+/** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
+export interface ComposerPause { label: string; title: string; busy?: boolean; run(signal: AbortSignal): Promise<void> }
+
+/**
+ * What an upload ends as; while it runs the strip says it is being read. `failed` is a file that will not go (its row offers only
+ * ×); an upload that rejects could not be read this time, and its row offers 重试 beside × (VUX-18).
+ */
+export type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
+
+export interface ComposerSubmission {
+  text: string;
+  materials: readonly ComposerMaterial[];
+  /** `ai` only. */
+  delivery?: AgentSteerMode;
+  /** Each control's value by its id. */
+  controls: Readonly<Record<string, string>>;
+  /** Names this send, so the target can tell a repeat of it. */
+  request_id: string;
+}
+
+/**
+ * `unknown`: the page cannot tell yet whether it went; `check` asks the target. A failure may name the materials the target could
+ * not read (by their place in `materials`): the strip says why beside each, they stay, and the next send waits until the person
+ * removes them (never sent without them unasked).
+ */
+export type ComposerOutcome =
+  | { state: "sent"; receipt?: AgentSteerReceipt }
+  | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }
+  | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
+
+export interface ComposerHandle {
+  setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
+  /**
+   * The page cannot take words now (Coding until a session's first read is in, or while it starts a round by another button): the
+   * text, ＋, the controls and send wait, and the status line says `reason`; null lets go. A send already on its way is the composer's
+   * own state, not a hold.
+   */
+  hold(reason: string | null): void;
+  /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
+  attach(files: readonly File[]): void;
+  /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */
+  materials(): readonly ComposerMaterial[];
+  destroy(): void;
+}
+
 declare global {
   interface Window {
+    /** `window.molisComposer(root, options)`: the unified input in `root`; mounting the same root again lets the last one go first. */
+    molisComposer?: (root: HTMLElement, options: ComposerOptions) => ComposerHandle;
     /** `window.molisMediaZoom(viewport, image, options)`: zoom about the point looked at, and bounded panning, for one image. */
     molisMediaZoom?: (viewport: HTMLElement, image: HTMLImageElement, options?: MediaZoomOptions) => MediaZoom;
     /** `window.molisDropZone(zone, mark, accepts, reason)`: `mark(true)` while a drag `accepts` takes (files, unless said) is over the

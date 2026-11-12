@@ -406,6 +406,8 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly locale?: ActionLocale;
+    readonly named_skills?: import("platform/action-named-skills").ActionNamedSkills;
+    readonly skill_round?: import("platform/action-named-skills").ActionSkillRound;
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
     readonly delegated_audience?: ActionAudience;
@@ -511,7 +513,7 @@ export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;
@@ -536,6 +538,7 @@ export interface ActionMetadata {
     readonly workflow_content?: WorkflowContentStation;
     readonly search_source?: SearchSourceDeclaration;
     readonly file_source?: FileSourceDeclaration;
+    readonly composer_source?: ComposerSourceDeclaration;
     readonly thread_source?: {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
@@ -573,6 +576,13 @@ export interface ActionMetadata {
         readonly version: number;
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
+}
+
+export interface ActionNamedSkills {
+    readonly install_id: string;
+    readonly action: ExactActionReference;
+    readonly from: "page" | "host";
+    readonly refs: readonly SkillRef[];
 }
 
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
@@ -764,6 +774,12 @@ export interface ActionSceneView {
 }
 
 export type ActionSchema = Readonly<Record<string, unknown>>;
+
+export interface ActionSkillRound {
+    readonly consumer: "assistant" | "coding" | "agent";
+    readonly named: readonly SkillRef[];
+    readonly engine?: "builtin" | "local";
+}
 
 export interface ActionSubject {
     kind: string;
@@ -2170,6 +2186,13 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePageSubject {
+    readonly kind: "home-page" | "home-page-preview";
+    readonly project_id: string;
+    readonly page_id: string;
+    readonly version: number;
+}
+
 export interface HostOfferedOriginalFile {
     readonly path: string;
     readonly install_id: string;
@@ -3107,6 +3130,7 @@ export interface WorkExecutorRunControlResult {
 export interface WorkExecutorRunStart {
     session_id: string;
     task: string;
+    skills?: SkillRef[];
 }
 
 export interface WorkExecutorRunStarted {
@@ -3233,6 +3257,14 @@ export declare function actionFieldLabel(key: string, declared?: {
     title?: string;
     description?: string;
 }): string;
+
+export declare function actionFieldLabelSource(key: string, declared?: {
+    title?: string;
+    description?: string;
+}): {
+    label: string;
+    defaultKey?: string;
+};
 
 export declare function actionFieldOptions(declared?: unknown): Array<{
     value: string;

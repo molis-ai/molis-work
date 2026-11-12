@@ -7,12 +7,13 @@ import {
   PLACEMENT_COPY_INPUT_TYPE, PLACEMENT_COPY_INPUT_SCHEMA, PLACEMENT_COPY_OUTPUT_TYPE, PLACEMENT_MOVE_INPUT_SCHEMA,
   PLACEMENT_MOVE_INPUT_TYPE, PLACEMENT_MOVE_OUTPUT_TYPE, PLACEMENT_RESULT_SCHEMA,
   SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_TYPE,
-  PLACEMENT_RELATION_ROLES, isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
-  type FileSourceKind, type FragmentOfferChoice, type PlacementRelationRole, type SearchSourceKind,
+  PLACEMENT_RELATION_ROLES, actionEffect, isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
+  type ActionMetadata, type FileSourceKind, type FragmentOfferChoice, type PlacementRelationRole, type SearchSourceKind,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+import { COMPOSER_PICK_INPUT_SCHEMA, COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_SCHEMA, COMPOSER_PICK_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/composer";
 
-// The checks a Manifest's action declarations get for the four protocols the system reads a plugin's actions through: search
-// sources, fragment offers, file sources and placement. `inspectActionDeclarations` is the one caller, and each returns its
+// The checks a Manifest's action declarations get for the five protocols the system reads a plugin's actions through: search
+// sources, composer sources, fragment offers, file sources and placement. `inspectActionDeclarations` is the one caller, and each returns its
 // problems, never throws. The protocol definitions (types, schemas, `define…`, `bind…`, `is…`) stay in the contracts package; the
 // checks moved here from the same files (W3-03), and they are not part of the SDK's public exports.
 
@@ -37,6 +38,36 @@ export function searchSourceDeclarationProblems(key: string, action: Record<stri
     problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`);
   }
   return problems;
+}
+
+const COMPOSER_LAYERS: readonly unknown[] = ["ai", "plain"];
+const COMPOSER_SOURCE_FIELDS: readonly string[] = ["title", "layers"];
+const distinctList = (value: unknown, valid: (entry: unknown) => boolean): value is unknown[] =>
+  Array.isArray(value) && value.length > 0 && value.every(valid) && new Set(value).size === value.length;
+
+/**
+ * A source in the unified input's `+` menu (S-composer-source-call). The pick schemas are compared whole: a provider that widened its
+ * input under the same type name could be handed what the composer holds (the draft, the receiver, other attachments). Whether each
+ * kind is one this provider reads back is a cross-reference (`action-cross-references.ts`).
+ */
+export function composerSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[] {
+  const declared = action.composer_source;
+  const mentions = [COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_TYPE].some(type => action.input_type === type || action.output_type === type);
+  if (!mentions && declared === undefined) return [];
+  // The kinds it picks are the action's own `subject_kinds`: the declaration does not write them a second time.
+  const picksKinds = Array.isArray(action.subject_kinds) && action.subject_kinds.length > 0;
+  const shaped = isRecord(declared) && Object.keys(declared).every(field => COMPOSER_SOURCE_FIELDS.includes(field))
+    && typeof declared.title === "string" && declared.title.trim().length > 0 && picksKinds
+    && distinctList(declared.layers, layer => COMPOSER_LAYERS.includes(layer));
+  // The composer lists sources as the person, and a source only reads.
+  const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");
+  const effect = typeof action.effect === "string" ? { effect: action.effect as ActionMetadata["effect"] } : {};
+  if (!shaped || operation !== "query" || action.kind !== "query" || actionEffect({ kind: "query", ...effect }, key.split("@")[0]!) !== "read" || !["home", "project"].includes(String(action.scope)) || !openToUser
+    || action.input_type !== COMPOSER_PICK_INPUT_TYPE || action.output_type !== COMPOSER_PICK_OUTPUT_TYPE
+    || canonical(action.input_schema) !== canonical(COMPOSER_PICK_INPUT_SCHEMA) || canonical(action.output_schema) !== canonical(COMPOSER_PICK_OUTPUT_SCHEMA)) {
+    return [`能力 ${key} 没有兑现输入框来源协议 v1：需要平台给的输入输出、对本机用户开放的只读查询，动作自己的对象种类，以及名称和所在的层（ai、plain）`];
+  }
+  return [];
 }
 
 const INTENT_IDS: ReadonlySet<string> = new Set(FRAGMENT_INTENTS.map(intent => intent.id));

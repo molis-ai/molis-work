@@ -6,7 +6,7 @@
 
 保存的版本是成果库里的成果，所以 Manifest 的 `artifacts.produces` 给这个类型写了显示名（`title`）和指向 `results.preview` 的 `preview`（[成果类型声明](../../docs/platform/PLUGIN-DEVELOPMENT.md#成果类型声明)）；解析 Manifest 时检查，缺了任何一项，`validate`、安装和本地开发运行都会拒绝。
 
-每次 poll 调用同一个注册的 `results.publish`，按 type/schema 读回具体版本并保存原私人计数。UI 显示已保存数量。崩溃后恢复原计数；卸载撤回动作和 UI，已交换的 Artifact 不删除。
+每次 poll 调用同一个注册的 `results.publish`，按 type/schema 读回具体版本并保存原私人计数。UI 从 Manifest 的 `ui.locales` 读取独立的中英文词包，用 `t` 按稳定键显示已保存数量。打包时带上整个 `locales/`，由 `molis-work plugin validate` 检查。崩溃后恢复原计数；卸载撤回动作和 UI，已交换的 Artifact 不删除。
 
 健康查询可以单独授权给 MCP/工作流。个人结果的两项动作仅允许本地用户入口，并通过 `bindOwnerPluginAction` 检查真实调用者，不能用外部客户端身份借用启动用户的个人数据。这个样例不宣称已解决跨调用者的个人 Artifact 归属。
 

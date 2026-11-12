@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 // RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -11,7 +12,7 @@ import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
 import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
@@ -19,6 +20,8 @@ import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { serveNativeHttp } from "./fixtures/native-http.js";
+
+hostModule.installHostUiText();
 
 // specs/archive/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
 // project catalog's error class, the artifact edge's four classes, the project-reference class and the edge refusals' bare 403 are gone; a failure
@@ -32,7 +35,7 @@ import { serveNativeHttp } from "./fixtures/native-http.js";
 //   2. The catalog: its failures are ActionErrors carrying the kind each answered before (FAILS there: a class of its own), and the settings
 //      plugin routes that told "no such project" from every other failure by the class still do, now with the code in the body.
 //   3. The artifact edge answers a plugin that is off with 403 (FAILS there: 404), the 成果 browser's and the import's failures with a
-//      code and the status of their kind (415 and 422 are 400), and the English page still gets English text.
+//      code and the status of their kind (415 and 422 are 400). The edge carries the original refusal across languages.
 //   4. The edge refusals of the local web host (Host, Origin, control token) answer one opaque body, so the answer never says which check
 //      failed (FAILS there: no code). The other answers before an action runs (a missing or replayed one-time key) keep their status.
 //   5. A `project://` reference that cannot be opened is a coded failure of the Host's, the missing workspace the Artifacts plugin's.
@@ -253,18 +256,18 @@ test("the plugin routes of the settings tell a missing project from every other 
       headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": `host-pages-key-${++sequence}-${Date.now()}` } });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
-  const missing = await call("POST", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals" });
+  const missing = await call("POST", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([missing.status, missing.body.code], [404, "catalog.project_not_found"]);
-  const unknown = await call("POST", `/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "no-such-plugin" });
+  const unknown = await call("POST", `/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "no-such-plugin", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([unknown.status, unknown.body.code], [400, "catalog.plugin_not_found"]);
-  const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals" });
+  const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([removed.status, removed.body.code], [404, "catalog.project_not_found"]);
 });
 
 // ---- 3. The artifact edge --------------------------------------------------------------------------------------------
 
-async function artifactEdge(t: TestContext, failure: { current: unknown }) {
-  const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
+async function artifactEdge(t: TestContext, failure: { current: unknown }, invoke: BoundActionClient["invoke"] = async () => { throw failure.current; }) {
+  const actions: BoundActionClient = { discover: async () => [], invoke };
   const handle = hostModule.createLocalArtifactHttp();
   return serve((request, response, url) => hostModule.runWithLocale(request.headers["accept-language"] === "en" ? "en" : "zh", () => handle(request, response, url.pathname, {
     projectId: "p1", routePrefix: "/projects/p1", projectTitle: "项目", actions, controlToken: "token", desktopShell: false, pageCsp: "default-src 'none'",
@@ -291,15 +294,25 @@ test("the artifact edge answers by kind: a plugin that is off is 403, and the co
   assert.deepEqual([uncoded.status, uncoded.body], [500, { error: "读取失败", code: "actions.execution_failed" }]);
 });
 
-test("the artifact edge translates the message on an English page, and only there", async t => {
-  const failure: { current: unknown } = { current: new ActionError("actions.missing", "这个版本没有可取回的文件") };
+test("the artifact edge preserves the original action refusal in both languages", async t => {
+  const failure: { current: unknown } = { current: new ActionError("actions.missing", "外部来源拒绝原文") };
   const edge = await artifactEdge(t, failure);
   const english = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench", "accept-language": "en" } });
   const chinese = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
-  assert.equal(chinese.body.error, "这个版本没有可取回的文件");
-  assert.equal(english.body.error, hostModule.runWithLocale("en", () => hostModule.L("这个版本没有可取回的文件")));
-  assert.notEqual(english.body.error, chinese.body.error, "the English page has English text here");
+  assert.equal(chinese.body.error, "外部来源拒绝原文");
+  assert.equal(english.body.error, "外部来源拒绝原文");
   assert.equal(english.body.code, "actions.missing");
+});
+
+test("the artifact download's own missing-file message follows the request language", async t => {
+  const edge = await artifactEdge(t, { current: undefined }, async <Input, Output>(action: ActionDefinition<Input, Output>) => {
+    assert.equal(action.capability_id, artifactsModule.artifactsActions.browser.capability_id);
+    return { selected: null } as Output;
+  });
+  for (const [language, error] of [["zh", "这个版本没有可取回的文件"], ["en", "This version has no file to retrieve"]] as const) {
+    const answer = await edge.send("GET", "/api/artifacts/a1/versions/1/file", { headers: { "accept-language": language } });
+    assert.deepEqual([answer.status, answer.body], [404, { code: "artifacts.file_missing", error }]);
+  }
 });
 
 test("the 成果 browser's route failures carry a code and the status of their kind", async t => {

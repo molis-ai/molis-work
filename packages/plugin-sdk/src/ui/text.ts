@@ -1,5 +1,5 @@
-import type { OwnedTextRef, TextArgs, TextDateStyle, TextNumberStyle, UiFormatTool, UiLocalePack, UiSayOptions, UiSayTool, UiTextProvider, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "../message-declarations.js";
+import type { OwnedTextRef, TextArgs, TextDateOptions, TextDateStyle, TextNumberStyle, UiFormatTool, UiLocalePack, UiSayOptions, UiSayTool, UiTextProvider, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "./text-keys.js";
 import { escapeHtml } from "./html.js";
 import { formatDate, formatNumber } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";
@@ -70,7 +70,10 @@ export const say: UiSayTool = /* @__PURE__ */ Object.assign((ref: OwnedTextRef, 
 function formatted(what: string, last: string, write: (locale: string | undefined, problem: (code: string) => void) => string): string {
   const provider = requireProvider(what);
   // `format` has no `.text` and goes into HTML, and a bad date shows as it was written, so it escapes the way `t` does.
-  return escapeHtml(guarded(provider, () => write(languageFor(provider, null, what) ?? undefined, (code) => report(provider, { code, key: what })), last));
+  return escapeHtml(guarded(provider, () => {
+    const locale = languageFor(provider, null, what);
+    return write(locale === null ? undefined : provider.intlLocale?.(locale) ?? locale, (code) => report(provider, { code, key: what }));
+  }, last));
 }
 
 /** Explicit display locale, falling back to the named owner's default in the same text environment. */
@@ -80,7 +83,7 @@ export function ownerFormatLocale(owner: string, locale: string | null): string 
 
 /** Dates and numbers in the current language. The result goes into HTML like `t`'s. */
 export const format: UiFormatTool = {
-  date: (at: string, style: TextDateStyle) => formatted(`format.date("${at.slice(0, 40)}")`, at, (locale, problem) => formatDate(at, style, locale, { problem })),
+  date: (at: string, style: TextDateStyle, options?: TextDateOptions) => formatted(`format.date("${at.slice(0, 40)}")`, at, (locale, problem) => formatDate(at, style, locale, { ...options, problem })),
   number: (value: number, style?: TextNumberStyle) => formatted("format.number", String(value), (locale) => formatNumber(value, locale, style)),
 };
 

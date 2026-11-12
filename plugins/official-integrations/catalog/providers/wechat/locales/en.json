@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.wechat",
+  "locale": "en",
+  "messages": {
+    "wechat.connection.auth-help": "Personal WeChat accounts have no stable official API. This connection uses a custom WeCom app with credentials in corpid:corpsecret format.",
+    "wechat.connection.inbound": "Feed reads the WeCom contacts list",
+    "wechat.connection.summary": "WeCom messages.",
+    "wechat.connection.title": "WeCom",
+    "wechat.connection.token-label": "WeCom CorpID and Secret",
+    "wechat.directory.name": "WeChat",
+    "wechat.guide.token-note": "Enter the CorpID and Secret of a custom WeCom app. Personal WeChat accounts do not have this official API.",
+    "wechat.setup.open-the-wecom-admin-console": "Open the WeCom admin console",
+    "wechat.setup.view-wecom-developer-documentation": "View WeCom developer documentation"
+  }
+}

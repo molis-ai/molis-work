@@ -4,7 +4,30 @@
 
 ## [Unreleased]
 
+### Feed 有界读取（2026-11-11，待 CI 验收）
+
+- `feed.snapshot@1`、`feed.stage.read@1` 改为每页最多 200 条元数据，输入为字符串 `offset` 和 JSON 字符串 `filter`，返回 `offset`、`next_offset`、来源汇总 `facets`；移除 `include_contents`。列表不含正文与材料，调用方使用 `feed.items.get@1` 读取一项完整内容，页面通过阅读器按页读取材料。固定引用须按 `next_offset` 继续读取，不能将第一页当完整集合。
+- 工作区内 `FeedQuery.list` 必须显式传分页，且只返回元数据；移除原无分页聚合入口。单项完整读取语义不变。
+- `feed.items.reader@1` 接受 `material_offset`，返回材料页位置与下一页。后台引用与检索操作按稳定键遍历，由 Feed 库去重；来源计数与筛选选项独立于当前消息页。
+- `UiPageView.readDocument` 可传 Manifest 已声明的字符串 `input`，通用舞台端口拒绝未声明参数和身份覆盖。权限、MCP 名称与动作版本沿阶段一现行合同更新；不含库结构变更或历史读取回退。
+
+### 日评 A-1 合同说明（2026-11-09）
+
+- 已有Home库的只读查询保留完整空间归属核对；外来或缺失归属以 `storage.space_ownership_mismatch`（forbidden）拒绝，不创建描述符、表或业务记录。
+
+- 当前 `assistant.methods.read@1` 与 `plugins.install.preview@1` 均按第02批统一版本合同调用。下文历史切片中的 @2/@3/@4 是当时记录，不是现在可调用的版本；固定旧引用须重新选择现行合同，不保留旧工具别名。
+- Manifest 版本1使用 SDK 的完整声明检查（动作、交叉引用、权限、Agent、方法与成果等）；没有放宽旧规则的开关。SDK和Runtime共用同一解析；Runtime安装不再把SDK声明/权限错误二次包装成manifest_invalid，保留原owner码。错版统一为 `plugin.manifest_version_invalid`，含 found/expected 原因。
+- SDK 的 `PLUGIN_ID` 及 `/execution` 是公开面；平台路由、内核和插件作者复用同一实现。浏览器请求错误码由合同 `UI_HOST_CLIENT_CODES` 统一；外部业务错误仍保留自己的码。
+- subjectContext 的 offset/length 以 Unicode 码点计数，所有页边界保留完整码点。读取方须按码点推进游标；字素簇可以跨页。动作id与版本遵循当前开发期政策不变，公开快照随本批更新。
+
+- 隐藏胶囊新增只读`goals.capsule.menu.read@1`，由Goals统一注册并走同一动作目录；MCP/Agent目录可发现此查询，权限仍是goals:read。`goals.collection.read@1`和`goals.stage.read@1`的display_status新增cancelled，固定引用须处理该状态；本仓所有消费者已同步，按当前阶段一在原版本修改。
+- 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
+
 ### 升级须知（需要动手）
+
+- **第 09 批：助理和 Coding 改用同一份技能目录，第三方工作执行方要接住 `run.start` 的 `skills`**（#2015 + 收尾 #2019，2026-11-11；阶段一不留兼容）：`run.start` 在同一版本上多一个 `skills`（`SkillRef` 数组，至多 20 项），把这一轮要用的技能交给执行方；第三方工作执行方要按引用读正文并按精确引用冻结，读不到就整轮拒绝、不悄悄换版本。读共同目录用插件自己的身份、要 `skills:read`：第三方执行方要在 Manifest 里声明并获授予，才能用目录给它的技能（本人在助理里点名、由宿主按调用绑定到冻结名单的那几项例外）；缺这项权限时目录读取被拒、这一轮不开。Manifest 角色的 `skills` 字段与 `AgentRoleSkillsDeclaration` 已删，写了旧字段的声明检查直接拒绝；角色不再自带技能表，技能写进 Manifest 的 `methods`（给别的 Agent 用）或 `agent.skills`（自己的 Agent 用）。SDK 新增 `/skill-ref` 子路径（`skillRefKey`，页面也能引）；`ActionCallContext` 多 `named_skills`、`skill_round`，冻结记录里的 `skills` 改成带 `ref`、`origin`、`name`、`tools`、`named` 并多 `reply_locale`。旧写法、旧版本引用都要改成现行形状，没有读取兼容。
+
+- **技能包方法声明与 SDK 出口（第 08 批）**：含 Manifest `methods` 的插件作者须为每项方法补齐 `description` 与 `applies_to`，再重新打包签名。旧三键方法声明的签名包会被明确拒绝，不做自动迁移。使用 SDK 的作者将 `ContentPackageSkill` 改为 `PackagedSkillBody`；原 `sandboxAgentBodyIdentity` 的角色用途改为 `sandboxRoleIdentity`，方法身份使用声明中的 `skill_id` 与 `version`，正文使用声明中的 `body` 路径。固定调用 `plugins.install.preview@1` 的调用方须接受新增的技能、需求及升级差异字段；输入现在支持 `bundle` 或 `bundled` 二选一。安装或导入技能后仍为关闭，需本人另行启用。
 
 - **MCP 独立客户端凭据（D0071，2026-11-08）**：更新后在设置中对已有 Runtime 重新执行接入，并重启其 MCP 连接。主控制令牌不再允许动作网关声明任意客户端身份；旧请求体 `client_id` 被拒绝。连接凭据只存安装 Home，不写入 Runtime 配置、不随快照恢复；恢复后重新接入。动作名称、版本、输入输出 schema 与 MCP 工具名不变。实验 Server 的本地 `authorize` 命令须提供 `--host-home DIR`，由管理员为该成员建立独立连接。
 

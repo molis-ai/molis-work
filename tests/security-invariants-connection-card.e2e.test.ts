@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -42,8 +42,9 @@ async function open(t: TestContext) {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return null;
   await browser.setViewport(1440, 960);
   const { projectId, homeDirectory } = browser;
+  assert.ok(projectId);
   const client = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
-  await client.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
+  await client.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(client, projectId) });
   const api = `/projects/${projectId}/api/plugins/io.molis.work.feed`;
   const source = (await client.post<{ source: { source_id: string } }>(api + "/sources/accounts", { service: "github", name: "Card source" })).source.source_id;
   await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{window.pageHost=host;return value(host)}:value;return true}});${OBSERVE}`);
@@ -289,6 +290,8 @@ test("DRT-13 S-plugin-connection-card 还不能一键连接 opens the connection
   p.account("Connected meanwhile");
   const reads = async () => (await p.sent()).filter(item => item.body?.operation === "read").length;
   const before = await reads();
+  await browser.evaluate(`document.querySelector('[data-settings-return-bar]').scrollIntoView({ behavior: 'instant', block: 'center' })`);
+  await browser.waitFor(`(() => { const box = document.querySelector('[data-return-bar-back]').getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight; })()`);
   await browser.click("[data-settings-return-bar] [data-return-bar-back]");
   await browser.waitFor("document.body.dataset.desktopSurface === 'feed'", 15_000);
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "choose"`, 15_000);

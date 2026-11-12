@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { interactionNextSteps, NEXT_STEP, type NextStepCard } from "@molis-ai/molis-work-app-local-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import { pageText } from "./fixtures/page-text.js";
 
 // specs/context-program §21.2: the conversation's next steps beside the composer, derived from the records (FLOW-01…05).
-const say = (text: string, values: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+const say = pageText("zh");
 const choice = (index: number, extra: Partial<NonNullable<AgentPendingQuestion["questions"]>[number]> = {}) => ({ index, prompt: `题 ${index}`, type: "choice" as const, required: true,
   options: [{ index: 0, label: "团队", recommended: true }, { index: 1, label: "只给经理" }], multiple: false, allow_other: false, ...extra });
 const question = (id: string, questions: AgentPendingQuestion["questions"], extra: Partial<AgentPendingQuestion> = {}): AgentPendingQuestion =>

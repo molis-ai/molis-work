@@ -1,3 +1,4 @@
+import { projectDeletionLabels } from "./web-project-deletion.js";
 import type { IncomingMessage } from "node:http";
 import type { WorkbenchRenderer, WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -28,7 +29,8 @@ export interface LocalWebPlatform {
 }
 
 export function createLocalWebComposition(platform: LocalWebPlatform, home: string, accountRegistration=false,
-  diagnostics: NonNullable<WebServerOptions["installationDiagnostics"]> = projectCount=>installationDiagnostics(home,projectCount)) {
+  diagnostics: NonNullable<WebServerOptions["installationDiagnostics"]> = projectCount=>installationDiagnostics(home,projectCount),
+  appearance?: WorkbenchRendererPorts["appearance"]) {
   // Shared controls draw select chevrons as inline data: SVG; images cannot run script.
   // frame-ancestors: only this origin may put a page of the host in a frame (the plugin side panels and the Studio are same-origin frames; the
   // desktop shell loads the page as the window's own document). Another site cannot overlay the page that already holds the control token
@@ -37,11 +39,11 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   // frame inherits the policy, and WebKit will not load the frame's scripts while the only source is 'self'.
   const PAGE_CSP = "default-src 'self'; img-src 'self' data: blob:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'";
   const { withCatalog, isDesktopShellRequest } = platform;
-  const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer,accountRegistration);
+  const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer, accountRegistration, appearance, () => projectDeletionLabels(home).map(owner => owner.label));
   const projectSettings = createLocalProjectSettingsHttp(withCatalog,diagnostics);
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();
-  const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(platform.renderDesktopCapsuleShell);
+  const { buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell } = createLocalHostCapsule(platform.renderDesktopCapsuleShell);
   const planningHttp = createLocalPlanningHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const goalsReadHttp = createLocalGoalsReadHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const handleOnboarding = createLocalOnboardingHttp({
@@ -53,11 +55,11 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   registerConnectorDevicePolling(home, periodicTasks);
   registerOnboardingStagingCleanup(home, periodicTasks);
   return {
-    PAGE_CSP, accountRegistration, withCatalog, workbenchRenderer, isDesktopShellRequest, desktopRenderer: platform.desktopRenderer, installationDiagnostics:diagnostics,
+    PAGE_CSP, accountRegistration, appearance, withCatalog, workbenchRenderer, isDesktopShellRequest, desktopRenderer: platform.desktopRenderer, installationDiagnostics:diagnostics,
     desktopRuntimeAvailability: platform.cliAvailability,
     projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,
-    buildCapsuleSnapshot, renderCapsuleShell, planningHttp, goalsReadHttp, handleOnboarding,
+    buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell, planningHttp, goalsReadHttp, handleOnboarding,
     /** This server's periodic tasks (W4-09): registered by their owners, listed in Settings › 诊断, stopped when the server closes. */
     periodicTasks,
   };

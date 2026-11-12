@@ -103,7 +103,7 @@ test("N34-VS-02 a method carrier moves that method's frontmatter and leaves its 
   const { files, outputs } = move("method.goals.domain-app-product", 3);
   const file = "plugins/native/goals/methods/domains/domain-app-product.md";
   assert.deepEqual([...outputs.keys()], [file]);
-  assert.equal(outputs.get(file)!.replace(/^version: 3$/m, "version: 1"), files.get(file));
+  assert.equal(outputs.get(file)!.replace(/^version: 3$/m, "version: 2"), files.get(file));
 });
 
 test("N34-VS-02 a key stays with its own pattern: a string that carries a version follows it", () => {
@@ -638,7 +638,7 @@ test("VG-11 one package's entry cannot be borrowed by another", () => {
 
   // The entries that really are public contracts pass with any two users, without a list of them here or in the gate.
   for (const key of [
-    "format.sandbox.agent-prompt", "format.sandbox.agent-method", "format.sandbox.contract", "type.character.definition", "type.search-intent", "artifact.io.molis.work.document",
+    "format.sandbox.agent-prompt", "format.sandbox.agent-role", "format.sandbox.contract", "type.character.definition", "type.search-intent", "artifact.io.molis.work.document",
     "artifact.io.molis.work.pages.document", "format.project.portable", "format.plugin.build-lock", "format.builder.build-manifest", "format.plugin.package", "format.sync.round",
     "type.coding.changeset", "type.coding.report", "type.molis.behavior-recommendation", "format.memory.export", "format.plugin.presentation", "format.asset.bundle",
     "manifest.schema", "host.api", "sync.protocol", "protocol.workflow-content", "type.molis.workflow.content.list.output", "event.host.connection.changed", "event.io.molis.work.coding.run-updated",
@@ -664,11 +664,12 @@ test("VG-11 one package's entry cannot be borrowed by another", () => {
 
 test("VG-12 what stays at its first version until the first outside install cannot be bumped in the table (CONTRACT-CHANGES §3)", () => {
   const problems = (versions: Record<string, number | string>) => versionDeclarationProblems(tree({ "tooling/versions.json": source(versions) })).filter((problem: string) => problem.includes("before the first outside install"));
-  for (const key of ["action.a.b", "prompt.a", "role.a", "action-family.a", "scene.a", "manifest.schema", "host.api"]) {
+  for (const key of ["action.a.b", "action-family.a", "scene.a", "manifest.schema", "host.api"]) {
     assert.deepEqual(problems({ [key]: 2 }), [`tooling/versions.json: ${key} is 2; before the first outside install it stays 1 (docs/system/CONTRACT-CHANGES.md §3)`], key);
     assert.deepEqual(problems({ [key]: 1 }), [], key);
   }
-  assert.deepEqual(problems({ "format.a": 2, "database.a": 2, "type.a": 2, "method.a": 2, "protocol.a": "1.0.0" }), []);
+  assert.deepEqual(problems({ "role.a": 2, "prompt.a": 2, "method.a": 2 }), [], "the release check leaves authored content to the current-content checks");
+  assert.deepEqual(problems({ "format.a": 2, "database.a": 2, "type.a": 2, "prompt.a": 2, "method.a": 2, "protocol.a": "1.0.0" }), []);
 });
 
 test("VG-13 what each script scans is pinned, so sharing the walk did not narrow it", () => {

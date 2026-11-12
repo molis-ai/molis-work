@@ -22,22 +22,16 @@ export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
 export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; prompt: AgentPromptRegistration }> = [
   // Plugin Builder's designer and code Agents run these, outside the Agent Host; its workflow asks for them by name.
   ...(Object.keys(BUILDER_PROMPTS) as BuilderPromptName[]).map(name => ({ owner_id: BUILDER_PLUGIN_ID, prompt: { prompt_id: `builder-${name}`, version: builderPromptVersion(name),
-    kind: "agent" as const, layer: "role" as const, ...BUILDER_PROMPT_TITLES[name], used_by: [...BUILDER_PROMPT_TITLES[name].used_by], body: BUILDER_PROMPTS[name].text } })),
+    kind: "agent" as const, layer: "role" as const, ...BUILDER_PROMPT_TITLES[name], used_by: [...BUILDER_PROMPT_TITLES[name].used_by], body: BUILDER_PROMPTS[name].text, body_by_locale: BUILDER_PROMPTS[name].body_by_locale } })),
 ];
 
 /** Roles of those Agents, so they show as Characters beside the ones Plugin manifests declare. */
-export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role: AgentRoleRegistration }> = [
+export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role: AgentRoleRegistration; host_tools: readonly string[] }> = [
   { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "designer", version: /* @version role.designer */ 1, name: "主线设计师", purpose: "理解需求，规划体验、功能合同与界面，并按截图复查；没有工具，每次按阶段使用对应指令",
-    execution: "read-only", workspace: "none", prompt_ids: ["builder-designer", "builder-experience", "builder-ui", "builder-review"] } },
+    execution: "read-only", workspace: "none", prompt_ids: ["builder-designer", "builder-experience", "builder-ui", "builder-review"] }, host_tools: [] },
   { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "coder", version: /* @version role.coder */ 1, name: "代码 Agent", purpose: "在构建目录里写插件代码：实现、按意见修改、按检查修复、处理验收失败，每次按任务用其中一段",
-    execution: "workspace-write", workspace: "required", prompt_ids: ["builder-implement", "builder-revise", "builder-repair", "builder-acceptance"] } },
-];
-
-/**
- * Model calls that still send text nobody can see in “Prompt 与 Character”, shown in developer diagnostics. Keep in
- * step with the transitional list in `tests/prompt-registration.test.ts`.
- */
-export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
+    execution: "workspace-write", workspace: "required", prompt_ids: ["builder-implement", "builder-revise", "builder-repair", "builder-acceptance"] },
+    host_tools: ["read-file", "write", "edit-file", "plugin-checks"] },
 ];
 
 /**

@@ -1,13 +1,13 @@
+export { KEYBOARD_GROUP_ITEMS, KEYBOARD_GROUP_SELECTOR } from "./keyboard-groups.js";
 export { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 export { STATE_RING_STYLES } from "./styles/state-ring.js";
-export { SKIN_STYLES } from "./styles/skins.js";
 
 export {
   MOLIS_WORK_DENSITY_STORAGE_KEY,
-  MOLIS_WORK_SKIN_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
+  DEVICE_PREFERENCES_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
   VISUAL_FOUNDATION_PAGE_STYLES,
@@ -20,7 +20,6 @@ export {
   CRAFT_FINISH_STYLES,
   CRAFT_FINISH_CLIENT_SCRIPT,
   type MolisWorkDensity,
-  type MolisWorkSkin,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
 } from "./visual-foundation.js";
@@ -29,8 +28,11 @@ export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./ove
 export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
 export { HIDDEN_SCROLLBAR_STYLES } from "./styles/scrollbars.js";
 export { DIFF_VIEW_STYLES } from "./styles/diff-view.js";
-export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT } from "./page-clients.js";
+export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, COMPOSER_CLIENT_SCRIPT, COMPOSER_LOADER_CLIENT_SCRIPT, COMPOSER_SWEEP_CLIENT_SCRIPT, ANCHORED_MENU_CLIENT_SCRIPT } from "./page-clients.js";
 export { FIELD_FIT_MAX, FIELD_FIT_ROOM, FIELD_FIT_STYLES, fieldHeight } from "./field-fit.js";
+export { COMPOSER_DRAFT_PREFIX, ENTER_HINT_KEY, composerDeliveries, composerDraft, composerDraftInner, composerDraftKey, composerGenerations, composerKey, composing, parseComposerDraftKey, pickComposerDelivery, staleComposerDrafts, wantsEnterHint, type ComposerChoice, type ComposerDraftPlace, type ComposerStorage } from "./composer-rules.js";
+export { composerShortcuts, renderComposerAddMenu, renderComposerCommands, renderComposerDeliveryMenu, renderComposerMention, renderComposerPick, renderComposerRestore, renderComposerStrip, type ComposerMenuCommand, type ComposerMenuSource, type ComposerStripItem, type Fill as ComposerFill } from "./composer-parts.js";
+export { COMPOSER_STYLES } from "./composer-styles.js";
 export { SHOW_MORE_STYLES } from "./show-more.js";
 export { STREAM_TEXT_STYLES, freshStart } from "./stream-text.js";
 export { MEDIA_ZOOM_STYLES, mediaAxis } from "./media-zoom.js";
@@ -69,11 +71,17 @@ export {
   type MwContentMarkId,
   type MwHueId,
 } from "./palette.js";
-export { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC } from "./baseline.js";
+export { BASELINE_DEFINITIONS, BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "./baseline.js";
+export { renderSkinScope, renderFontScope, renderMonoScope } from "./appearance-tokens.js";
+export { renderLookCard, renderLookGroup, renderLookProof } from "./primitives/catalog-appearance.js";
+export { APPEARANCE_PARTS_STYLES } from "./primitives/catalog-appearance-styles.js";
+export { LOOK_FADE_CLIENT_SCRIPT } from "./page-clients.js";
 export * from "./primitives/index.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';
+export { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from './plugin-component-program.js';
 export * from './plugin-presentation.js';
+export { literalPluginWord, pluginSurfaceWord, pluginTextSlot, pluginTextSlotKey, pluginFieldWords, usesPluginFieldWords, pluginTemplatePaths, pluginTemplateName, pluginTemplateBindings, pluginMessageNames, sandboxUiTextRefs } from "./plugin-surface-text.js";
 export { renderPluginPresentationExample } from './plugin-presentation-example.js';
 export * from './interaction.js';
 export * from './interaction-client.js';
@@ -86,3 +94,5 @@ export { sanitizeContextTools } from './context-tools.js';
 
 export { PRESENTATION_FORM_STYLES, presentationOwnerHue } from "./styles/presentation.js";
 export type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "./surface-home-display.js";
+export { BUTTON_STYLES } from "./styles/buttons.js";
+export { TOAST_STYLES } from "./styles/toast.js";

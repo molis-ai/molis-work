@@ -1,10 +1,10 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalsDocumentView as WebGoalView } from "../document-view.js";
 import { isAppliedGoalCompletion } from "../decision-view.js";
 import type { GoalsPageView } from "./view.js";
-import type { GoalsTranslate } from "./ports.js";
 import type { CapsuleGoalItem, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 
-export function createCapsuleItemProjection(L: GoalsTranslate) {
+export function createCapsuleItemProjection() {
   function activeGoalViews(view: GoalsPageView): WebGoalView[] {
     return view.goals.filter((item) => item.display_status === "in_progress");
   }
@@ -55,11 +55,11 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
   }
 
   function goalWhy(item: WebGoalView): string {
-    return item.goal.why.trim() || item.goal.outcome.trim() || L("这项目标还没有补充说明");
+    return item.goal.why.trim() || item.goal.outcome.trim() || uiText.text("goals.capsule-items.goal-does-not-have-summary-yet");
   }
 
   function primaryBlocker(): { message: string; remediation: string | null } {
-    return { message: L("打开目标详情查看具体原因"), remediation: null };
+    return { message: uiText.text("goals.capsule-items.open-goal-see-what-blocking"), remediation: null };
   }
 
   function itemBase(
@@ -86,10 +86,10 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       status_label: item.status_label,
       status_since: null,
       current: item.action_summary,
-      blocker: L("完成这一步前，相关工作不会继续"),
+      blocker: uiText.text("goals.capsule-items.related-work-will-not-continue-until-step-done"),
       next_step: item.main_action_label,
       next: decisionCount > 0
-        ? L("打开对应事项，确认采用、修改或拒绝")
+        ? uiText.text("goals.capsule-items.open-decisions-approve-revise-reject-them")
         : item.action_summary,
       action_label: item.main_action_label,
       action_path: actionPath,
@@ -109,7 +109,7 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       current: item.action_summary,
       blocker: null,
       next_step: item.main_action_label,
-      next: L("打开这条 Goal，查看最新进展和下一步。"),
+      next: uiText.text("goals.capsule-items.open-goal-see-latest-progress-next-step"),
       action_label: item.main_action_label,
       action_path: goalPath(view, item.goal.goal_id),
     });
@@ -131,6 +131,11 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       action_label: item.main_action_label,
       action_path: goalPath(view, item.goal.goal_id),
     });
+  }
+
+  /** D0013: keep the explicit resume path, outside the immediately actionable group. */
+  function cancelledItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
+    return { ...availableItem(view, item), tab_kind: "cancelled", kind: "cancelled" };
   }
 
   function blockedItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
@@ -170,11 +175,11 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       kind: "complete",
       status_label: item.status_label,
       status_since: at,
-      current: L("这项目标已满足全部完成条件"),
+      current: uiText.text("goals.capsule-items.goal-now-meets-all-completion-criteria"),
       blocker: null,
-      next_step: L("查看完成结果"),
-      next: L("确认结果符合预期后，可以继续下一项工作"),
-      action_label: L("查看结果"),
+      next_step: uiText.text("goals.capsule-items.review-completed-result"),
+      next: uiText.text("goals.capsule-items.confirm-result-meets-expectations-then-continue-next-goal"),
+      action_label: uiText.text("goals.capsule-items.view-result"),
       action_path: goalPath(view, item.goal.goal_id),
     });
   }
@@ -186,23 +191,25 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
     "waiting",
     "blocked",
     "completed",
+    "cancelled",
   ];
 
   function tabMeta(kind: CapsuleTabKind): Pick<CapsuleTab, "label" | "tone"> {
     switch (kind) {
-      case "waiting_user": return { label: L("等你"), tone: "needs_you" };
-      case "in_progress": return { label: L("进行中"), tone: "working" };
-      case "continue": return { label: L("可继续"), tone: "ready" };
-      case "waiting": return { label: L("等待中"), tone: "waiting" };
-      case "blocked": return { label: L("受阻"), tone: "blocked" };
-      case "completed": return { label: L("已完成"), tone: "complete" };
+      case "waiting_user": return { label: uiText.text("goals.capsule-items.needs"), tone: "needs_you" };
+      case "in_progress": return { label: uiText.text("goals.capsule-items.running"), tone: "working" };
+      case "continue": return { label: uiText.text("goals.capsule-items.continue"), tone: "ready" };
+      case "waiting": return { label: uiText.text("goals.capsule-items.waiting"), tone: "waiting" };
+      case "blocked": return { label: uiText.text("goals.capsule-items.blocked"), tone: "blocked" };
+      case "cancelled": return { label: uiText.text("goals.state-invalidated.label"), tone: "cancelled" };
+      case "completed": return { label: uiText.text("goals.capsule-items.completed"), tone: "complete" };
     }
   }
 
   function menuBarTitle(tabs: CapsuleTab[], selected: CapsuleGoalItem): string {
     const tab = tabs.find((candidate) => candidate.kind === selected.tab_kind);
     const count = tab?.items.length ?? 1;
-    return count > 1 ? L("{label} · {count}", { label: tab?.label ?? selected.status_label, count }) : selected.status_label;
+    return count > 1 ? uiText.text("goals.capsule-items.status-count", { label: tab?.label ?? selected.status_label, count }) : selected.status_label;
   }
 
   function stateFromItem(
@@ -223,13 +230,13 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       status_since: selected.status_since,
       why: selected.why,
       current: selected.current,
-      blocker: selected.blocker ?? L("目前没有需要你处理的事项"),
+      blocker: selected.blocker ?? uiText.text("goals.capsule-items.nothing-needs-attention-right-now"),
       next: selected.next,
       running_count: runningCount,
       additional_running: Math.max(0, runningCount - (selected.tab_kind === "in_progress" ? 1 : 0)),
       menu_bar_title: title,
-      menu_bar_tooltip: `${view.project?.display_name ?? L("当前项目")} · ${selected.goal_title} · ${title}`,
+      menu_bar_tooltip: `${view.project?.display_name ?? uiText.text("goals.capsule-items.current-project")} · ${selected.goal_title} · ${title}`,
     };
   }
-  return { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem };
+  return { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem };
 }

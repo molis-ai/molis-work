@@ -1,3 +1,4 @@
+import { studioProblem } from "../plugin-builder-surface.js";
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -14,6 +15,10 @@ import { capabilityLimits, latestCapability, slowOperations, type Lane } from '.
 import { catalogCapabilities, standIn, type CatalogCapability } from './catalog.js';
 import { STABLE_PREVIEW } from './storage.js';
 import type { AgentBuild, AgentStudioOptions, Studio } from './agent-surface.js';
+
+export function studioDraftManifest(input: Omit<Parameters<typeof sandboxPluginManifest>[0], "version">) {
+  return sandboxPluginManifest({ ...input, version: "0.0.0" });
+}
 
 /** The canvas preview keeps its records; gate runs use fresh identities and memory only. */
 export const PREVIEW_KEY = 'plugin-builder:agent-studio:preview:';
@@ -40,7 +45,7 @@ function previewServices(storage: PluginPrivateStorage): SandboxServices {
           const result = mutate(working);
           await context.beforeEffect?.();
           context.signal.throwIfAborted();
-          if (stable) { if (!storage.compareAndSet!(key, raw, JSON.stringify([...working]))) throw new Error('试用数据被同时修改，请重试'); }
+          if (stable) { if (!storage.compareAndSet!(key, raw, JSON.stringify([...working]))) throw studioProblem("plugin-builder.request.trial-changed", '试用数据被同时修改，请重试'); }
           else {
             memory.set(id, working);
             // Gate identities are single-use; keep a bounded window instead of letting them accumulate.
@@ -73,7 +78,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const live = (identity: Readonly<SandboxIdentity>) => !!currentBuild(identity) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
   const projectCapability = installed.capabilityFor(live);
   const homeCapability = options.homeActions && catalogCapabilities({ actions: options.homeActions, catalog: () => studio.catalog('home'), live,
-    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: sandboxPluginManifest({ pluginId: identity.pluginId, name: build.title, version: "0.0.0",
+    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: studioDraftManifest({ pluginId: identity.pluginId, name: build.title,
       publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects: buildEffects(build), contract: build.design!.contract, runtime: { scope: 'home' } }) } : undefined; },
     granted: identity => { const build = currentBuild(identity); return build ? buildEffects(build).capabilities ?? [] : []; } });
   const standIns: NonNullable<SandboxServices['capability']> = { async call(context, id, input) {
@@ -97,7 +102,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   /** The newest bundle that passed the gates for the connected operations. */
   const runnerFor = async (build: AgentBuild, lane: Lane, capabilities: CatalogCapability[], assertCurrent?: () => void): Promise<SandboxRunner> => {
     const bundle = build.checks.global?.bundlePath ?? [...build.connected].reverse().map(id => build.checks[id]?.bundlePath).find(Boolean);
-    if (!bundle || !build.design) throw new Error('还没有接通的功能可以试用');
+    if (!bundle || !build.design) throw studioProblem("plugin-builder.request.no-feature-to-try", '还没有接通的功能可以试用');
     const used = new Set(buildEffects(build).capabilities);
     const policies = capabilities.filter(item => used.has(item.id)).map(item => [item.id, item.version, item.provider_id, item.execution]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
     const info = await stat(bundle), key = `${build.runtimeScope ?? 'project'}:${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
@@ -117,14 +122,14 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const trials = new Map<string, Trial>();
   studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => execute(buildId, async () => {
     const trial = trials.get(key);
-    if (!trial || trial.original !== buildId) throw new Error('这轮界面验收已结束');
+    if (!trial || trial.original !== buildId) throw studioProblem("plugin-builder.request.acceptance-ended", '这轮界面验收已结束');
     const node = trial.build.nodes.find(node => node.id === componentId);
-    if (!node) throw new Error('界面组件不存在');
+    if (!node) throw studioProblem("plugin-builder.request.component-not-found", '界面组件不存在');
     const call = resolvePluginComponentCall(node, binding, payload);
     const currentCase = trial.case, signal = AbortSignal.any([trial.signal, currentCase.signal, ...(control?.signal ? [control.signal] : [])]);
     const assertCurrent = () => {
       signal.throwIfAborted();
-      if (trials.get(key) !== trial || trial.case !== currentCase) throw new Error('这轮界面验收已结束');
+      if (trials.get(key) !== trial || trial.case !== currentCase) throw studioProblem("plugin-builder.request.acceptance-ended", '这轮界面验收已结束');
       control?.assert_authority_current?.();
     };
     const beforeEffect = async () => { assertCurrent(); await control?.beforeEffect(); assertCurrent(); };
@@ -140,11 +145,11 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     return runner.call(call.operationId, call.input, { ...control, signal, beforeEffect, assert_authority_current: assertCurrent });
   });
   const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
-    if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
+    if (!studio.origin) throw studioProblem("plugin-builder.request.acceptance-requires-studio", '界面验收需要从创作台页面发起');
     const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };
     const state: Trial = { original: build.id, build: trial, signal, case: new AbortController(), submits: new Map() };
     accepting.add(trial.id); trials.set(key, state);
-    const current = () => { signal.throwIfAborted(); state.case.signal.throwIfAborted(); if (trials.get(key) !== state) throw new Error('这轮界面验收已结束'); return state; };
+    const current = () => { signal.throwIfAborted(); state.case.signal.throwIfAborted(); if (trials.get(key) !== state) throw studioProblem("plugin-builder.request.acceptance-ended", '这轮界面验收已结束'); return state; };
     const reset = async () => {
       state.case.abort(new Error('界面验收用例已结束'));
       delete state.fault; state.submits.clear(); await stopRunner(trial.id); clearPreview(trial.id);
@@ -165,7 +170,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
       },
     };
     try {
-      const result = await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, trial: controls, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) });
+      const result = await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, locale: build.design!.contract.ui?.locales.default, trial: controls, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) });
       if (state.fault) throw new Error('界面验收留下未消费的读取故障');
       return result;
     }

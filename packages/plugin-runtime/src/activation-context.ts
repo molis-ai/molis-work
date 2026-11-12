@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginRuntimeApi, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { outsidePluginAction, requirePluginPermission } from "./action-scope.js";
+import { endPluginActivation, outsidePluginAction, requirePluginPermission } from "./action-scope.js";
 
 /** Every activation owns a fresh grant snapshot and revocation cell, including Home activations. */
 export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string,
@@ -30,7 +30,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
       if (!active || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
       bound?.();
     };
-  }, revoke() { active = false; }, revoked() { return !active; } };
+  }, revoke() { active = false; endPluginActivation(context); }, revoked() { return !active; } };
 }
 
 /** An asynchronous refusal keeps its original reason through cleanup and cannot become a crash. */

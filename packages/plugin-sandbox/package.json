@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && ../../node_modules/.bin/esbuild dist/worker.js --bundle --platform=node --format=esm --target=node24 --outfile=dist/worker.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

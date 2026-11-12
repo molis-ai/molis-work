@@ -54,6 +54,7 @@ export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-c
 export { readMaterialLocalPage } from "./material-local-page.js";
 export { readMaterialOrigins, MATERIAL_ORIGINS_DEADLINE_MS, type MaterialOriginPorts, type ProjectFolders } from "./material-origins.js";
 export { projectWorkspaceActionProvider, type ProjectMaterialPorts } from "./project-workspace-actions.js";
+export { directoryPage } from "./project-workspace-http.js";
 export { checkWorkspaceFile, type WorkspaceFileCheck } from "./workspace-files.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
@@ -106,20 +107,16 @@ export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-l
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 
-export { CATALOG_BASELINE, initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
+export { CATALOG_BASELINE, initializeCatalog, assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
 export { seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
-  seedDemoPluginSurfaces,
   seedDemoHomeSamples,
   enableDemoProjectPlugins,
-  DEMO_GITHUB_SOURCE_ID,
-  DEMO_GMAIL_SOURCE_ID,
   DEMO_CORE_ARTIFACT_ID,
 } from "./demo-plugin-seed.js";
 
-export { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions, type DemoFeedSourceOptions } from "./demo-feed-library.js";
 export { createNotificationDelivery, declaredNotificationReceivers } from "./plugin-notification-delivery.js";
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, artifactLinkSubjectActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
@@ -131,7 +128,6 @@ export { seedSceneRules, withFunctionsService } from "./judgment-rules-host.js";
 export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 
-export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
 export { connectLocalMcp } from "./connector-local-mcp-setup.js";
@@ -146,16 +142,22 @@ export { modelProviderSwitch } from "./model-provider-switch.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
-export { PluginInstallService } from "./plugin-install-service.js";
+export { pluginPackageExport } from "./plugin-package-export.js";
+export { pluginAgentRegistration } from "./plugin-instructions.js";
+export { agentMcpKitEntries } from "./kit-mcp-reports.js";
+export { promptOverrideActions } from "./agent-definitions/prompt-overrides.js";
+export { PluginInstallService, type BundledPluginList } from "./plugin-install-service.js";
+export { bundledPackagesDirectory } from "./bundled-packages.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
+export { SkillImportService, localSkillScan, suggestedAppliesTo, type SkillImportPorts } from "./skill-import.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
-export { installedStageSection } from "./installed-stage-section.js";
+export { installedStageSection } from "./workbench-renderer.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
@@ -350,7 +352,7 @@ export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { markProjectOpened, PROJECT_ARRIVAL_FILE, readProjectArrival, setProjectDescription } from "./project-arrival.js";
 export { lastUsedLocale, readUiLocale, rememberUiLocale, UI_LOCALE_RELATIVE_PATH } from "./ui-locale-memory.js";
-export { replyLanguagePrompt } from "./reply-language.js";
+export { replyLanguage, replyLanguagePrompt } from "./reply-language.js";
 export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
@@ -397,4 +399,13 @@ export { verifySyncPluginDistribution } from "./sync-distribution.js";
 
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
 
-export { WebSessions } from "./web-sessions.js";
+export { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
+export { handlePageLocales } from "./web-ui-locales.js";
+export { registeredBuiltinText } from "./ui-text-provider.js";
+
+export { currentNamedSkills, roundSkillCatalog, type RoundSkillReaders } from "./agent-round-skills.js";
+export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";
+
+export { gatewayFactory } from "./continuity-gateway.js";
+export { configureMemberActions } from "./continuity-admin.js";
+export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";

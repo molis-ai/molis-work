@@ -132,7 +132,7 @@ test("UPG1-i-initial-08: every persistent format named here is still where it sa
     const [file] = definition.split("#") as [string];
     assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), "utf8").includes(`/* @version ${key} */`), `${file} carries ${key}`);
   }
-  assert.equal(PERSISTENT_DEFINITIONS.length, 15);
+  assert.equal(PERSISTENT_DEFINITIONS.length, 17);
   // A golden records each one under its version entry, so the entry is the one its definition carries, and the golden knows where it sits.
   for (const definition of PERSISTENT_DEFINITIONS) {
     const [file, name] = definition.split("#") as [string, string], entry = PERSISTENT_FORMAT_ENTRIES[definition];

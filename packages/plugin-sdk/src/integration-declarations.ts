@@ -2,6 +2,7 @@ import { isRecord } from "./json-value.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { INTEGRATION_KINDS } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { oauthMethodProblems } from "./oauth-declarations.js";
+import { tryOwnedTextRef } from "./ui/text-ref.js";
 
 // The shape of a Manifest's `connection_services` and `integrations` (PG-046): the services a plugin works with, the cards shown for
 // them, and what it does with each. Only the shape and the references between the two lists are checked here; whether an id is taken
@@ -18,11 +19,18 @@ const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "a
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
-export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
+export function integrationDeclarationProblems(manifest: { kind?: unknown; plugin_id?: unknown; ui?: { locales?: unknown }; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
   const { connection_services: services, integrations, source_presentations: presentations } = manifest;
   if (services === undefined && integrations === undefined && presentations === undefined) return [];
   if (manifest.kind !== "integration") return ["只有 Integration Plugin 能声明 connection_services 和 integrations"];
   const problems: string[] = [];
+  const word = (input: unknown, optionalEmpty = false) => {
+    if (typeof input === "string") return optionalEmpty || text(input);
+    if (typeof manifest.plugin_id !== "string") return false;
+    const ref = tryOwnedTextRef(input, manifest.plugin_id);
+    return ref !== null && ("literal" in ref ? ref.literal.trim() !== ""
+      : ref.args === undefined && ref.fallback === undefined && (ref.key.startsWith("common.") || manifest.ui?.locales !== undefined));
+  };
   if (presentations !== undefined && (!Array.isArray(presentations) || !presentations.length || presentations.length > 32
     || presentations.some(id => typeof id !== "string" || !INTEGRATION_ID.test(id)) || new Set(presentations).size !== presentations.length)) {
     problems.push("source_presentations 必须是 1 到 32 个不重复的集成名字");
@@ -30,7 +38,7 @@ export function integrationDeclarationProblems(manifest: { kind?: unknown; conne
   const serviceIds = new Set<string>();
   if (services !== undefined) {
     if (!Array.isArray(services) || services.length === 0) problems.push("connection_services 必须是至少一项的数组");
-    else for (const service of services) problems.push(...serviceProblems(service, serviceIds));
+    else for (const service of services) problems.push(...serviceProblems(service, serviceIds, word));
   }
   if (integrations !== undefined) {
     if (!Array.isArray(integrations) || integrations.length === 0) problems.push("integrations 必须是至少一项的数组");
@@ -42,7 +50,9 @@ export function integrationDeclarationProblems(manifest: { kind?: unknown; conne
   return problems;
 }
 
-function serviceProblems(value: unknown, seen: Set<string>): string[] {
+type WordCheck = (input: unknown, optionalEmpty?: boolean) => boolean;
+
+function serviceProblems(value: unknown, seen: Set<string>, word: WordCheck): string[] {
   if (!isRecord(value) || typeof value.service_id !== "string" || !SERVICE_ID.test(value.service_id)) {
     return ["连接服务的 service_id 必须是小写字母开头、只含小写字母、数字和连字符、至多 64 个字符的名字"];
   }
@@ -52,15 +62,15 @@ function serviceProblems(value: unknown, seen: Set<string>): string[] {
   const problems: string[] = [];
   const unknown = Object.keys(value).filter(field => !SERVICE_FIELDS.has(field));
   if (unknown.length > 0) problems.push(`连接服务 ${id} 不认这些字段：${unknown.join("、")}`);
-  if (!text(value.title)) problems.push(`连接服务 ${id} 要写 title`);
-  if (!text(value.summary)) problems.push(`连接服务 ${id} 要写 summary`);
+  if (!word(value.title)) problems.push(`连接服务 ${id} 的 title 要写原文、通用键或本插件的无参键`);
+  if (!word(value.summary)) problems.push(`连接服务 ${id} 的 summary 要写原文、通用键或本插件的无参键`);
   if (typeof value.group_id !== "string" || !GROUPS.has(value.group_id)) problems.push(`连接服务 ${id} 的 group_id 不是目录里的分组`);
   if (typeof value.auth_kind !== "string" || !AUTH_KINDS.has(value.auth_kind)) problems.push(`连接服务 ${id} 的 auth_kind 不合法`);
-  problems.push(...methodProblems(id, value.auth));
-  if (value.auth_help !== undefined && !text(value.auth_help)) problems.push(`连接服务 ${id} 的 auth_help 必须是非空文字`);
-  problems.push(...capabilityProblems(id, value.capabilities));
-  if (value.outbound_note !== undefined && !text(value.outbound_note)) problems.push(`连接服务 ${id} 的 outbound_note 必须是非空文字`);
-  if (value.setup_links !== undefined) problems.push(...linkProblems(id, value.setup_links));
+  problems.push(...methodProblems(id, value.auth, word));
+  if (value.auth_help !== undefined && !word(value.auth_help)) problems.push(`连接服务 ${id} 的 auth_help 必须是非空文字`);
+  problems.push(...capabilityProblems(id, value.capabilities, word));
+  if (value.outbound_note !== undefined && !word(value.outbound_note)) problems.push(`连接服务 ${id} 的 outbound_note 必须是非空文字`);
+  if (value.setup_links !== undefined) problems.push(...linkProblems(id, value.setup_links, word));
   if (value.origins !== undefined) problems.push(...originProblems(id, value.origins));
   return problems;
 }
@@ -90,7 +100,7 @@ function originProblems(id: string, value: unknown): string[] {
   return problems;
 }
 
-function methodProblems(id: string, auth: unknown): string[] {
+function methodProblems(id: string, auth: unknown, word: WordCheck): string[] {
   if (!isRecord(auth) || Object.keys(auth).some(field => field !== "methods") || !Array.isArray(auth.methods)) {
     return [`连接服务 ${id} 的 auth 必须是 { methods: [...] }`];
   }
@@ -105,7 +115,7 @@ function methodProblems(id: string, auth: unknown): string[] {
     const slot = method.kind === "oauth" ? `oauth:${method.grant === "device" ? "device" : "authorization_code"}` : method.kind;
     if (kinds.has(slot)) { problems.push(`连接服务 ${id} 的接入方式重复：${slot === "oauth:device" ? "oauth（device）" : method.kind}`); continue; }
     kinds.add(slot);
-    if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method)); continue; }
+    if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method, word)); continue; }
     if (method.kind === "mcp" && Object.keys(method).length > 1) { problems.push(...mcpMethodProblems(id, method)); continue; }
     if (method.kind !== "token") {
       if (Object.keys(method).length !== 1) problems.push(`连接服务 ${id} 的 ${method.kind} 接入方式现在只写 kind，数据仍在平台的表里`);
@@ -113,8 +123,8 @@ function methodProblems(id: string, auth: unknown): string[] {
     }
     const unknown = Object.keys(method).filter(field => !TOKEN_FIELDS.has(field));
     if (unknown.length > 0) problems.push(`连接服务 ${id} 的 token 接入方式不认这些字段：${unknown.join("、")}`);
-    if (!text(method.label)) problems.push(`连接服务 ${id} 的 token 接入方式要写 label`);
-    if (method.placeholder !== undefined && typeof method.placeholder !== "string") problems.push(`连接服务 ${id} 的 token.placeholder 必须是文字`);
+    if (!word(method.label)) problems.push(`连接服务 ${id} 的 token 接入方式要写 label`);
+    if (method.placeholder !== undefined && !word(method.placeholder, true)) problems.push(`连接服务 ${id} 的 token.placeholder 必须是文字`);
   }
   return problems;
 }
@@ -146,15 +156,15 @@ function mcpMethodProblems(id: string, method: Record<string, unknown>): string[
   return problems;
 }
 
-function capabilityProblems(id: string, value: unknown): string[] {
+function capabilityProblems(id: string, value: unknown, word: WordCheck): string[] {
   if (!Array.isArray(value) || value.length === 0) return [`连接服务 ${id} 要写 capabilities`];
-  const bad = value.some(entry => !isRecord(entry) || !text(entry.label) || typeof entry.fulfillment !== "string" || !FULFILLMENTS.has(entry.fulfillment));
+  const bad = value.some(entry => !isRecord(entry) || !word(entry.label) || typeof entry.fulfillment !== "string" || !FULFILLMENTS.has(entry.fulfillment));
   return bad ? [`连接服务 ${id} 的 capabilities 每项要有 label 和 fulfillment（live 或 unfulfilled）`] : [];
 }
 
-function linkProblems(id: string, value: unknown): string[] {
+function linkProblems(id: string, value: unknown, word: WordCheck): string[] {
   if (!Array.isArray(value)) return [`连接服务 ${id} 的 setup_links 必须是数组`];
-  const bad = value.some(link => !isRecord(link) || !text(link.label) || typeof link.url !== "string" || !link.url.startsWith("https://"));
+  const bad = value.some(link => !isRecord(link) || !word(link.label) || typeof link.url !== "string" || !link.url.startsWith("https://"));
   return bad ? [`连接服务 ${id} 的 setup_links 每项要有 label 和 https 地址`] : [];
 }
 

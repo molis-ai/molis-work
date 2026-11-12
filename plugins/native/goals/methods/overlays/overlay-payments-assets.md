@@ -1,6 +1,6 @@
 ---
 method_id: overlay-payments-assets
-version: 1
+version: 2
 kind: overlay
 name: "支付与资产"
 summary: "为任何涉及收费、余额、权益或可转移资产的产品叠加账实一致和异常恢复约束。"

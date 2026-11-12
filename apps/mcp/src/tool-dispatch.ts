@@ -7,6 +7,12 @@ export const MANAGEMENT_GOAL_ACTIONS = {
   decide: { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 },
   treeDecide: { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 },
 } as const;
+/** The three management tools' names, one per Goals action they call. */
+export const MANAGEMENT_GOAL_TOOL_NAMES = {
+  initialize: "molis_work_v1_initialize",
+  treeDecide: "molis_work_v1_goal_tree_decide",
+  decide: "molis_work_v1_event_decide",
+} as const satisfies Record<keyof typeof MANAGEMENT_GOAL_ACTIONS, string>;
 type McpGoalActionReference = { readonly capability_id: string; readonly version: number };
 
 /** The Host's management port: the entry chooses a Goals action and business input, never a caller or permissions. */
@@ -36,12 +42,12 @@ export async function dispatchMcpProjectTool(
   };
   let result: unknown;
   switch (name) {
-  case "molis_work_v1_initialize": {
+  case MANAGEMENT_GOAL_TOOL_NAMES.initialize: {
     const actions = management(); bound(actions, String(arguments_.project_id));
     result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize, { idempotency_key: String(arguments_.idempotency_key) });
     break;
   }
-  case "molis_work_v1_event_decide": {
+  case MANAGEMENT_GOAL_TOOL_NAMES.decide: {
     const actions = management();
     // Event decisions accept the declared business fields plus the transport's project and database, with no authority or identity.
     const eventFields = new Set(["database_path", "project_id", ...actions.fields(MANAGEMENT_GOAL_ACTIONS.decide)]);
@@ -58,7 +64,7 @@ export async function dispatchMcpProjectTool(
     });
     break;
   }
-  case "molis_work_v1_goal_tree_decide": {
+  case MANAGEMENT_GOAL_TOOL_NAMES.treeDecide: {
     if (ports.audience === "runtime") throw ports.createError("mcp.runtime_decide_unsupported",
       "Runtime 不能写入 Goal Tree 决定。请让用户在 Web 或管理入口批准已保存的提案。");
     const actions = management();

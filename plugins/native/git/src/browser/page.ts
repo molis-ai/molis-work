@@ -1,16 +1,16 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { sayHostSentence, sayUpstream } from "../say.js";
-import type { GitSentenceTable } from "../say.js";
+import { sayUpstream } from "../say.js";
 import { required } from "./dom.js";
 import type { GitHost, GitLifetime, ListItem, ResultRow, Selected, SourceSummary, Translate, Upstream } from "./types.js";
+
+const format = globalThis.format;
+const uiText = globalThis.t;
 
 /** Everything one mounted Git page holds: its elements, and the state every part reads and moves. */
 export interface GitPage {
   readonly host: GitHost;
   readonly lifetime: GitLifetime;
-  readonly L: Translate;
-  /** A sentence the Host or an action wrote (a refusal, a result, a summary), in the page's language. */
-  readonly S: (sentence: string) => string;
+  readonly readText: Translate;
   readonly U: (upstream: Upstream | null) => string;
   /** The times the page shows follow the page's language. */
   readonly when: (value: string) => string;
@@ -65,21 +65,20 @@ export interface GitPage {
 }
 
 /** Finds Git's two panels in the root and mounts the client on them; null when the page has no Git panels. */
-export function createPage(host: GitHost, sentences: GitSentenceTable): GitPage | null {
+export function createPage(host: GitHost): GitPage | null {
   const scope = host.root ?? document;
   const directory = scope.querySelector<HTMLElement>("[data-git-browser]"), result = scope.querySelector<HTMLElement>("[data-git-results]");
   if (!directory || !result) return null;
   const lifetime = host.mountPluginClient(directory);
   if (!lifetime) return null;
-  const L = host.translate;
+  const readText = uiText.text;
   const q = <E extends HTMLElement = HTMLElement>(selector: string) => required<E>(result, selector);
   const sc = required(directory, "[data-git-sc]");
   const s = <E extends HTMLElement = HTMLElement>(selector: string) => required<E>(sc, selector);
   return {
-    host, lifetime, L, q, s, directory, result, sc,
-    S: (sentence) => sayHostSentence(L, sentences, sentence),
-    U: (upstream) => sayUpstream(L, upstream),
-    when: (value) => new Date(value).toLocaleString(document.documentElement.lang || "zh-CN"),
+    host, lifetime, readText, q, s, directory, result, sc,
+    U: (upstream) => sayUpstream(readText, upstream),
+    when: (value) => format.date(value, "datetime-with-seconds"),
     list: required(directory, "[data-git-list]"), notice: required(directory, "[data-git-status]"),
     reopen: required(directory, "[data-git-reopen]"), history: required(directory, "[data-git-history]"),
     refreshButton: required(directory, "[data-git-refresh]"),
@@ -90,7 +89,7 @@ export function createPage(host: GitHost, sentences: GitSentenceTable): GitPage 
     viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
     resultRows: [], resultsTicket: 0, resultSaving: false,
     summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
-    conflictTicket: 0, conflictPath: "", conflictSides: { ours: L("git.conflict.ours"), theirs: L("git.conflict.theirs") },
+    conflictTicket: 0, conflictPath: "", conflictSides: { ours: uiText.text("git.conflict.ours"), theirs: uiText.text("git.conflict.theirs") },
   };
 }
 
@@ -139,16 +138,16 @@ export function reveal(page: GitPage, source: HTMLElement | null): void {
  */
 export function sayRefusal(page: GitPage, target: HTMLElement, error: unknown, workspaceId: string, again: () => void): void {
   const said = document.createElement("span");
-  said.textContent = page.S(messageOf(error));
+  said.textContent = (messageOf(error));
   target.replaceChildren(said);
   const workspaces = page.host.workspaces;
   if ((error as { code?: unknown } | null)?.code !== "projects.directory_input_only" || !workspaces || !workspaceId) return;
   const button = document.createElement("button");
-  button.type = "button"; button.className = "mw-btn mw-btn--secondary mw-btn--sm git-set-output"; button.textContent = page.L("git.output.set");
+  button.type = "button"; button.className = "mw-btn mw-btn--secondary mw-btn--sm git-set-output"; button.textContent = uiText.text("git.output.set");
   page.lifetime.listen(button, "click", () => {
     button.disabled = true;
     void workspaces.setOutput(workspaceId).then(() => { if (page.lifetime.alive) again(); },
-      (failure: unknown) => { if (!page.lifetime.alive) return; button.disabled = false; said.textContent = page.S(messageOf(failure)); });
+      (failure: unknown) => { if (!page.lifetime.alive) return; button.disabled = false; said.textContent = (messageOf(failure)); });
   });
   target.append(" ", button);
 }

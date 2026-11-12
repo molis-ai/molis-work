@@ -244,6 +244,22 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 路由从 Host 的 `web-assets.ts` 和插件登记中发现，基点所有已测路径还会再次向候选 Host 探测；仍下发但已藏在不可读路由后的资源会失败。具体读取范围和局限见 [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs)。新增资产路径、测量范围或批准边界的改动仍要评审。
 
+### 首屏字节
+
+`pnpm build` 后运行 `node scripts/gates/first-screen.mjs --base origin/main`。CI 在 Package boundaries 中保留页面资源检查，另用同一个首屏测量器先测实际 merge-base，再测候选。两边使用等长的临时 Home、固定项目种子和各自的构建。首次引入时，旧基点使用候选的首屏清单补足启动 GET。若同一 PR 同时增删动态路径，用 `introduced: true` 标出只在候选出现的行，用 `baseOnly: true` 保留旧基点才用的行。基点已有清单后，按各树自己的清单测量。两边的 HTML 和链接资源独立发现，实际请求失败会使检查退出。
+
+[首屏清单](../tooling/gates/first-screen.json)收录自动发现之外的隐藏文档和已知启动 GET。每行包含页面、语言（`zh`、`en`、`both`）、请求路径和负责人，项目标识写成 `<project>`。到达页、项目选择、新项目工作台、全部项目插件工作台分别记中英文冷、热总量；示例项目的增量只报告。受保护的 GET 用 `document` 指明同页已登记的来源文档，事件流加 `response: "sse-first-event"`；省略来源的流从顶层文档取证明。每轮按来源文档、路径和响应方式记一次真实 HTTP 响应字节，含头和编码后的响应体。采样使用本页临时的同源会话，凭据不写入报告；流累计到第一个完整数据事件，首帧前断开或超时均失败。热轮仍对可缓存且有 ETag 的有限响应实际发送条件请求。清单删行或缩小范围时，CI 摘要会列出差异，供评审对照浏览器报告。
+
+增长许可与页面资源共用目录。`assets` 约束静态资源，`pages` 约束页面及语言的总量净增，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，即使页总量缩小，也须在带 `userApproval` 的新许可中用 `entryApprovals` 列明这一项：`pages`（所涉页面数组）、`locale`、`entry`、`change`（`new` 或 `growth`），以及适用的 `response` 和 `document`。顶层文档可写 `<page>`，项目标识可写 `<project>`；工作台启动词包用对应语言的 `/assets/locale/workbench.<语言>.<digest>.js` 匹配一条内容定址路径。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
+
+每批开工前由统筹通过独立浏览器做一次防漏核对。构建后运行：
+
+```sh
+node scripts/machine-slot.mjs run browser --label 'first-screen audit' -- node scripts/first-screen-report.mjs --runs 1 --pages arrival-empty,chooser,workbench-default,workbench-all-plugins,workbench-demo
+```
+
+`audit.json` 列出浏览器实际发出的未登记 GET、测量未重放的非 GET 或其他来源的请求，以及未观察到的登记路径。清单差异供评审检查。Host 中断、页面或登记资源响应失败、采样未完成时，报告以非零退出，保留上一次的完整结果。
+
 ### 推送前扫描密钥
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。
@@ -259,3 +275,20 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，PTY 与 Alchemist 的 SQLite 不带入构建机二进制，也不附 Node。消费环境需要 Node 24.15.x：项目库用的就是它自带的 SQLite，别的 Node 上插件语句全部被拒，启动时会说。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
 
 上句描述当前发布物；DV4 的干净环境完整发布验收仍未完成。
+
+## 账号环境启动
+
+macOS 首次准备 Node 24.15.x、pnpm 11.9.0，然后执行 `pnpm install --frozen-lockfile` 和 `pnpm build`。先在 Auth 仓库执行 `npm run setup`（首次）及 `npm run dev`，再在本仓库执行 `pnpm dev`。
+
+| 命令 | Auth | Work 端口 | 独立 Home |
+| --- | --- | --- | --- |
+| pnpm dev | 本机 8787 / LOCAL / MOCK | 4207 | ~/.molis-work-environments/dev |
+| pnpm start:test | auth-staging.molis.ai / TEST | 44207 | ~/.molis-work-environments/test |
+| pnpm start:prod | 已登记的 production Workers 域名 / PRODUCTION / LIVE | 4207 | ~/.molis-work-environments/prod |
+
+公共配置统一在 scripts/account-environments.mjs，改端口必须同时修改 Auth 对应客户端登记。dev 不需要手动配置密钥或客户端；Auth 创建普通测试账号 preview@example.test，初始密码 Molis-dev-2026!，重启保留已修改密码。启动器不停止任何已有服务，不使用日常 ~/.molis-work，端口被占用直接提示。构建后改源码需重新 pnpm build。
+
+test/prod 只选择对应环境，不代表云端资源已经部署；prod 首次须由部署人员应用 Auth 的 worker/deploy/production/work-client.sql 并配置密钥和外部渠道。没有可用 Auth 时不会偷偷回退 dev。启动脚本只配置账号依赖，其他插件的外部服务仍按各自配置处理。
+### 测试文件的类型盘点
+
+`pnpm typecheck:tests` 使用严格noEmit配置检查全部测试及类型依赖，目前因存量问题返回非零；暂不属于必过CI。口径、起点对照和后续分批方案见[D0069阶段记录](reviews/daily-quality/2026-11-08-test-types.md)。

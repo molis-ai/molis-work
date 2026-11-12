@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -26,7 +27,7 @@ test("VUX-40: a Coding route answers in the language of the page that called it"
     const created = await request("/api/settings/projects", "POST", { display_name: "Locale", user_confirmed: true });
     assert.equal(created.status, 201);
     const project = (created.body.project as { project_id: string }).project_id;
-    assert.equal((await request(`/api/settings/projects/${project}/plugins`, "POST", { plugin_id: "coding" })).status, 200);
+    assert.equal((await request(`/api/settings/projects/${project}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, project) })).status, 200);
     const coding = `/projects/${project}/api/plugins/io.molis.work.coding`;
     const session = await request(coding + "/sessions", "POST", { title: "Locale" });
     assert.equal(session.status, 200, JSON.stringify(session.body));
@@ -50,7 +51,7 @@ test("VUX-40: a Coding route answers in the language of the page that called it"
     const delegation = (language: Record<string, string>) => request(`${coding}/sessions/${id}/delegations/missing`, "POST", { action: "accept" }, language);
     const missing = await delegation(en);
     assert.equal(missing.status, 400, JSON.stringify(missing.body));
-    assert.equal(missing.body.error, "Can't find this delegation");
+    assert.equal(missing.body.error, "Can’t find this delegation");
     assert.equal((await delegation(zh)).body.error, "找不到这个委派");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

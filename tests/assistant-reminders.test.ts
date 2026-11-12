@@ -1,5 +1,7 @@
+import { noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { AssistantNotice } from "@molis-ai/molis-work-contracts/services/assistant";
 import { DatabaseSync } from "node:sqlite";
 import { assertDueReminderWindow, defineDueRemindersAction, withinDueReminderWindow, type ActionCallContext, type DueReminder, type DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
@@ -53,7 +55,7 @@ test("a reminder the person set is told once when it comes due, where to open it
     assert.equal(await service.followUps.sweepReminders(), 1);
     assert.equal(asked[1]!.from, "2026-09-29T09:00:00.000Z", "each look starts where the last stopped");
     let notices = service.notices.notices("pages");
-    assert.deepEqual(notices.map(notice => [notice.kind, notice.work_id, notice.text, notice.open]), [["reminder", "", "提醒（待办 · 17:03）：给王总回电话", { surface: "todo", id: "t1", title: "给王总回电话", project_id: "project-a" }]]);
+    assert.deepEqual(notices.map(notice => [notice.kind, notice.work_id, noticeText(notice), notice.open]), [["reminder", "", "提醒（待办 · 17:03）：给王总回电话", { surface: "todo", id: "t1", title: "给王总回电话", project_id: "project-a" }]]);
     // Told once, however often it is looked at.
     assert.equal(await service.followUps.sweepReminders(), 0);
 
@@ -77,7 +79,7 @@ test("a reminder the person set is told once when it comes due, where to open it
     assert.equal(await service.followUps.sweepReminders(), 1);
     assert.equal(asked.at(-1)!.from, "2026-09-29T09:04:00.000Z");
     notices = service.notices.notices("goals");
-    assert.deepEqual(notices.map(notice => [notice.text, notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", null]]);
+    assert.deepEqual(notices.map(notice => [noticeText(notice), notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", null]]);
   } finally { unregister(); await local.close(); }
 });
 
@@ -101,9 +103,9 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
     const created = await request("/api/plugins/io.molis.work.todo/items", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
     await new Promise(resolve => setTimeout(resolve, 25)); t.mock.timers.tick(60_000);
     const deadline = Date.now() + 10_000;
-    let notices: Array<{ notice_id: string; kind: string; text: string; link?: string }> = [];
+    let notices: AssistantNotice[] = [];
     do {
-      notices = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => notice.text.includes("Read the actual overdue draft"));
+      notices = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => noticeText(notice).includes("Read the actual overdue draft"));
       if (notices.length) break;
       assert.ok(Date.now() < deadline, "the actual service reminder timer did not report Todo"); await new Promise(resolve => setTimeout(resolve, 10));
     } while (true);
@@ -111,7 +113,7 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
     assert.match(JSON.stringify(notices[0]), new RegExp(created.item.id));
     const first = notices[0]!.notice_id;
     t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
-    const again = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => notice.text.includes("Read the actual overdue draft"));
+    const again = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => noticeText(notice).includes("Read the actual overdue draft"));
     assert.deepEqual(again.map(notice => notice.notice_id), [first], "actual Todo and the timer's persistent notice dedupe agree");
   } finally {
     server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

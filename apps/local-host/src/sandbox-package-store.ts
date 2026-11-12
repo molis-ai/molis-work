@@ -1,27 +1,33 @@
 import { sandboxPackageBuildId } from '@molis-ai/molis-work-plugin-sdk';
 /**
- * Where the Host keeps the signed sandbox packages it installed (the Home's `plugin-packages/`): the package exactly as it was verified
- * and the plugin's code beside it, written once and read-only. A package is read back with the same checks it was installed with, so
- * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked.
+ * Where the Host keeps the signed packages it installed (the Home's `plugin-packages/`): the package exactly as it was verified and a
+ * sandbox plugin's code beside it, written once and read-only. A package is read back with the same checks it was installed with, so
+ * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked;
+ * a content package whose files no longer match its declarations (a body, a resource's digest) is not read back, and does not run.
  */
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { isIntegrationPackage, readKeptSandboxPackage, type KeptSandboxPackage, type SandboxPackage } from './sandbox-package.js';
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { pluginManifestDigest, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { isContentPackage, isIntegrationPackage, readKeptPackage, type KeptPackage, type SandboxPackage } from './sandbox-package.js';
 import type { InstalledRelease } from './installed-release.js';
 
 const BUNDLE_FILE = 'bundle.json';
 
 /**
  * What the Host runs a verified package from: the release, with the trust its publisher's pinned key gives it. An integration package
- * (BL-530) has no interface and no prompts: its release has none either.
+ * (BL-530) has no interface and no prompts: its release has none either. A content package has no code and no contract: its release
+ * offers no operation, page or prompt, and Plugin Runtime never starts it (declared, not started); its Skills are its methods' bodies.
  */
-export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publishedAt: string): InstalledRelease {
-  const { manifest, contract } = pkg;
-  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation' | 'ui'> = isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
+export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt: string): InstalledRelease {
+  const { manifest } = pkg;
+  const contract: SandboxPluginContract = isContentPackage(pkg)
+    ? { version: /* @version format.sandbox.contract */ 1, pluginId: manifest.plugin_id, revision: pluginManifestDigest(manifest), operations: [], entities: [], pages: [], acceptance: [] } : pkg.contract;
+  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation' | 'ui'> = isContentPackage(pkg) || isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
+  const blueprint = isContentPackage(pkg) ? pkg.blueprint : undefined;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
     buildId: sandboxPackageBuildId(manifest.plugin_id, manifest.publisher.signature), pluginId: manifest.plugin_id, version: 1,
@@ -29,7 +35,8 @@ export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publ
       ...(app.presentation ? { presentation: app.presentation } : {}), ...(app.ui ? { ui: app.ui } : {}) },
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
-    packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
+    packaged: { manifest, localePacks: pkg.localePacks, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
+      trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }
 
@@ -41,7 +48,7 @@ export class SandboxPackageStore {
   }
 
   /** Writes a verified package. The same package again changes nothing; other content under the same plugin, publisher and version is refused. */
-  save(bundle: PluginPackageBundle, pkg: KeptSandboxPackage): string {
+  save(bundle: PluginPackageBundle, pkg: KeptPackage): string {
     const { manifest } = pkg, directory = this.directory(manifest.plugin_id, manifest.publisher.signature, manifest.version);
     const text = JSON.stringify(bundle);
     if (existsSync(join(directory, BUNDLE_FILE))) {
@@ -50,7 +57,7 @@ export class SandboxPackageStore {
     }
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     const write = (name: string, content: string | Uint8Array) => { const path = join(directory, name); writeFileSync(path, content, { flag: 'w', mode: 0o600 }); chmodSync(path, 0o400); };
-    write(SANDBOX_PACKAGE_FILES.entrypoint, pkg.entrypoint);
+    if ('entrypoint' in pkg) write(SANDBOX_PACKAGE_FILES.entrypoint, pkg.entrypoint);
     write(BUNDLE_FILE, text);
     return directory;
   }
@@ -71,27 +78,83 @@ export class SandboxPackageStore {
     return undefined;
   }
 
+  /**
+   * When each retained release of this publisher's plugin was kept, read from its bundle without verifying it: display data for the AI
+   * kit's 「上次升级」 (capability-pack §4.2), never an installation record. One entry per kept release of this plugin and publisher; a
+   * directory it cannot read is skipped, as `scopeOf` does, so a foreign directory cannot fail a listing.
+   */
+  retainedVersions(pluginId: string, keyId: string): Array<{ version: string; saved_at: string }> {
+    const root = join(this.home, 'plugin-packages');
+    if (!existsSync(root)) return [];
+    const versions: Array<{ version: string; saved_at: string }> = [];
+    for (const name of readdirSync(root)) {
+      const path = join(root, name, BUNDLE_FILE);
+      try {
+        if (!lstatSync(path, { throwIfNoEntry: false })) continue;
+        const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
+        if (payload.manifest.plugin_id !== pluginId || payload.manifest.publisher.signature !== keyId) continue;
+        versions.push({ version: payload.manifest.version, saved_at: statSync(path).mtime.toISOString() });
+      } catch { /* not a package directory this build can read: display data, not a refusal */ }
+    }
+    return versions;
+  }
+
+  /** All retained releases of this publisher's plugin, verified through the same reader as installations; uninstall keeps these bytes. */
+  releases(pluginId: string, keyId: string): NonNullable<InstalledRelease['packaged']>[] {
+    const root = join(this.home, 'plugin-packages');
+    if (!existsSync(root)) return [];
+    const releases: NonNullable<InstalledRelease['packaged']>[] = [];
+    for (const name of readdirSync(root)) {
+      const path = join(root, name, BUNDLE_FILE);
+      const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
+      if (payload.manifest.plugin_id !== pluginId || payload.manifest.publisher.signature !== keyId) continue;
+      releases.push(this.load(pluginId, keyId, payload.manifest.version).packaged!);
+    }
+    return releases;
+  }
+
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */
   /** Offline inspection reads only retained signed bytes and never imports the package or follows symlinks. */
   snapshotManifest(pluginId:string, keyId:string, version:string) {
     const path = join(this.directory(pluginId,keyId,version),BUNDLE_FILE);
     if (!lstatSync(path,{throwIfNoEntry:false})) return undefined;
     const {bundle,key_id} = verifyPluginPackageSignature(JSON.parse(readSnapshotFile(path,64 * 1024 * 1024).toString("utf8")));
-    const {manifest} = readKeptSandboxPackage(bundle.payload);
+    const {manifest} = readKeptPackage(bundle.payload);
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
       throw pluginErrors.signer_mismatch("留存发行包的身份与安装记录不符");
     return manifest;
   }
 
-  load(pluginId: string, keyId: string, version: string): InstalledRelease {
+  private read(pluginId: string, keyId: string, version: string) {
     const directory = this.directory(pluginId, keyId, version);
     let raw: unknown;
     try { raw = JSON.parse(readFileSync(join(directory, BUNDLE_FILE), 'utf8')); } catch { throw new Error('找不到已安装的插件包：' + pluginId + ' ' + version); }
     const { bundle, key_id } = verifyPluginPackageSignature(raw);
     const { manifest } = bundle.payload;
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw new Error('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
-    const pkg = readKeptSandboxPackage(bundle.payload);
-    if (!Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
+    const pkg = readKeptPackage(bundle.payload);
+    if ('entrypoint' in pkg && !Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
+    return { pkg, bundle, directory };
+  }
+
+  /** The kept bundle's text exactly as written, after the same checks as a load: what 「导出这个包」 hands out, never re-signed (capability-pack §4.9). */
+  keptText(pluginId: string, keyId: string, version: string): string {
+    const { directory } = this.read(pluginId, keyId, version);
+    return readFileSync(join(directory, BUNDLE_FILE), 'utf8');
+  }
+
+  load(pluginId: string, keyId: string, version: string): InstalledRelease {
+    const { pkg, directory } = this.read(pluginId, keyId, version);
     return packagedRelease(pkg, directory, statSync(join(directory, BUNDLE_FILE)).mtime.toISOString());
+  }
+
+  /** SKC-09: only a declared resource from the currently verified signed package, never a filesystem path from the caller. */
+  skillResource(pluginId: string, keyId: string, version: string, skillId: string, resourcePath: string): Uint8Array {
+    const { pkg, bundle } = this.read(pluginId, keyId, version);
+    const declaration = pkg.manifest.methods?.find(skill => skill.skill_id === skillId)?.resources?.find(resource => resource.path === resourcePath);
+    if (!declaration) throw pluginErrors.package_invalid("技能没有声明这个附带文件");
+    const file = bundle.payload.files.find(item => item.path === resourcePath);
+    if (!file) throw pluginErrors.package_invalid("技能的附带文件缺失");
+    return Buffer.from(file.content_base64, "base64");
   }
 }

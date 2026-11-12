@@ -17,17 +17,17 @@ type MenuMode = "root" | "turn" | "tone";
 
 function turnIntoItems(translate: Translate | undefined) {
   return [
-    { id: "paragraph", icon: "text", label: t(translate, "段落") },
-    { id: "heading1", icon: "hash", label: t(translate, "标题 1") },
-    { id: "heading2", icon: "hash", label: t(translate, "标题 2") },
-    { id: "heading3", icon: "hash", label: t(translate, "标题 3") },
-    { id: "bullet_list", icon: "rows", label: t(translate, "无序列表") },
-    { id: "ordered_list", icon: "list-ordered", label: t(translate, "有序列表") },
-    { id: "task_list", icon: "check", label: t(translate, "清单") },
-    { id: "callout", icon: "info", label: t(translate, "Callout") },
-    { id: "blockquote", icon: "message", label: t(translate, "引用") },
-    { id: "toggle", icon: "chevron-right", label: t(translate, "Toggle") },
-    { id: "code_block", icon: "code", label: t(translate, "代码") },
+    { id: "paragraph", icon: "text", label: t(translate, "pages.editor.paragraph") },
+    { id: "heading1", icon: "hash", label: t(translate, "pages.editor.heading-1") },
+    { id: "heading2", icon: "hash", label: t(translate, "pages.editor.heading-2") },
+    { id: "heading3", icon: "hash", label: t(translate, "pages.editor.heading-3") },
+    { id: "bullet_list", icon: "rows", label: t(translate, "pages.editor.bulleted-list") },
+    { id: "ordered_list", icon: "list-ordered", label: t(translate, "pages.editor.numbered-list") },
+    { id: "task_list", icon: "check", label: t(translate, "pages.editor.checklist") },
+    { id: "callout", icon: "info", label: t(translate, "pages.editor.callout") },
+    { id: "blockquote", icon: "message", label: t(translate, "pages.editor.quote") },
+    { id: "toggle", icon: "chevron-right", label: t(translate, "pages.editor.toggle") },
+    { id: "code_block", icon: "code", label: t(translate, "pages.editor.code-2") },
   ];
 }
 
@@ -49,8 +49,8 @@ function menuItem(icon: string, label: string, run: () => void, danger = false, 
 
 function appendToneChoices(menu: HTMLElement, translate: Translate | undefined, pick: (kind: "font_color" | "highlight", tone: string) => void): void {
   ([
-    ["font_color", "文字颜色"],
-    ["highlight", "背景色"],
+    ["font_color", "pages.editor.text-color"],
+    ["highlight", "pages.editor.background"],
   ] as const).forEach(([kind, labelText]) => {
     const label = document.createElement("p");
     label.className = "pages-menu-label";
@@ -71,7 +71,7 @@ function appendToneChoices(menu: HTMLElement, translate: Translate | undefined, 
       });
       strip.append(button);
     };
-    swatch("", t(translate, "默认"));
+    swatch("", t(translate, "pages.editor.default"));
     PAGES_TONES.forEach((tone) => swatch(tone.id, t(translate, tone.label)));
     menu.append(label, strip);
   });
@@ -110,7 +110,7 @@ export class PagesBlockMenu {
     this.view.focus();
   }
   private modeItem(mode: "turn" | "tone"): HTMLButtonElement {
-    return menuItem(mode === "turn" ? "refresh" : "tune", this.text(mode === "turn" ? "转换为" : "颜色"), () => this.render(mode), false, true);
+    return menuItem(mode === "turn" ? "refresh" : "tune", this.text(mode === "turn" ? "pages.editor.turn-into" : "pages.editor.color"), () => this.render(mode), false, true);
   }
   private hover() { return hoverKey.getState(this.view.state) ?? EMPTY_HOVER; }
   close(): void {
@@ -148,17 +148,17 @@ export class PagesBlockMenu {
       this.apply(tr);
     };
     this.dom.append(
-      menuItem("plus", this.text("加一行"), () => run(addTableRow)),
-      menuItem("grid", this.text("加一列"), () => run(addTableColumn)),
-      menuItem("minus", this.text("删行"), () => run(deleteTableRow)),
-      menuItem("minus", this.text("删列"), () => run(deleteTableColumn)),
-      menuItem("rows", this.text("表头行"), () => run(toggleHeaderRow)),
+      menuItem("plus", this.text("pages.editor.add-row"), () => run(addTableRow)),
+      menuItem("grid", this.text("pages.editor.add-column"), () => run(addTableColumn)),
+      menuItem("minus", this.text("pages.editor.delete-row"), () => run(deleteTableRow)),
+      menuItem("minus", this.text("pages.editor.delete-column"), () => run(deleteTableColumn)),
+      menuItem("rows", this.text("pages.editor.header-row"), () => run(toggleHeaderRow)),
     );
   }
   private moveItems(): HTMLButtonElement[] {
     const move = (direction: -1 | 1) => { nudgeEditor(this.view, direction); this.close(); };
-    return [menuItem("chevron-up", this.text("上移"), () => move(-1)),
-      menuItem("chevron-down", this.text("下移"), () => move(1))];
+    return [menuItem("chevron-up", this.text("pages.editor.move-up"), () => move(-1)),
+      menuItem("chevron-down", this.text("pages.editor.move-down"), () => move(1))];
   }
   private render(mode: MenuMode): void {
     this.mode = mode;
@@ -191,36 +191,36 @@ export class PagesBlockMenu {
     };
     this.dom.append(
       ...this.moveItems(), this.modeItem("tone"), this.modeItem("turn"),
-      menuItem("copy", this.text("创建副本"), () => finish(duplicateSpan(grouped.anchor, grouped.head))),
-      menuItem("trash", this.text("删除"), () => finish(deleteSpan(grouped.anchor, grouped.head)), true),
+      menuItem("copy", this.text("pages.editor.duplicate"), () => finish(duplicateSpan(grouped.anchor, grouped.head))),
+      menuItem("trash", this.text("pages.action.delete"), () => finish(deleteSpan(grouped.anchor, grouped.head)), true),
     );
   }
   private renderNested(): void {
     this.appendTableActions();
     this.dom.append(
       this.modeItem("turn"), this.modeItem("tone"), ...this.moveItems(),
-      menuItem("copy", this.text("创建副本"), () => {
+      menuItem("copy", this.text("pages.editor.duplicate"), () => {
         runBlockCommand(this.view, duplicateRow(this.pos));
         this.close();
       }),
-      menuItem("trash", this.text("删除"), () => {
+      menuItem("trash", this.text("pages.action.delete"), () => {
         runBlockCommand(this.view, deleteRow(this.pos));
         this.close();
       }, true),
     );
   }
   private renderTone(): void {
-    this.dom.append(menuItem("arrow", this.text("返回"), () => this.render("root")));
+    this.dom.append(menuItem("arrow", this.text("pages.editor.back"), () => this.render("root")));
     appendToneChoices(this.dom, this.translate, (kind, tone) => {
       const tr = setRowsTone(this.view.state, this.tonePositions(), kind, tone);
       this.apply(tr);
     });
   }
   private renderTurn(): void {
-    this.dom.append(menuItem("arrow", this.text("返回"), () => this.render("root")));
+    this.dom.append(menuItem("arrow", this.text("pages.editor.back"), () => this.render("root")));
     const label = document.createElement("p");
     label.className = "pages-menu-label";
-    label.textContent = this.text("转换为");
+    label.textContent = this.text("pages.editor.turn-into");
     this.dom.append(label);
     const conversion = (id: string) => {
       const span = this.activeSpan();
@@ -236,7 +236,7 @@ export class PagesBlockMenu {
       });
       button.disabled = !conversion(item.id);
       if (button.disabled)
-        button.title = this.text("此转换无法保留块中的内容");
+        button.title = this.text("pages.editor.this-conversion-cannot-preserve-the-block-contents");
       this.dom.append(button);
     });
   }
@@ -257,26 +257,26 @@ export class PagesBlockMenu {
     })();
     if (columnListAt >= 0) {
       this.dom.append(
-        menuItem("columns", this.text("加一栏"), () => {
+        menuItem("columns", this.text("pages.editor.add-a-column"), () => {
           this.apply(addColumn(this.view.state, columnListAt));
         }),
-        menuItem("rows", this.text("取消分栏"), () => {
+        menuItem("rows", this.text("pages.editor.remove-columns"), () => {
           this.apply(unwrapColumns(this.view.state, columnListAt));
         }),
       );
     }
     this.dom.append(
       this.modeItem("turn"), this.modeItem("tone"),
-      menuItem("copy", this.text("创建副本"), () => {
+      menuItem("copy", this.text("pages.editor.duplicate"), () => {
         runBlockCommand(this.view, duplicateBlock(block));
         this.close();
       }),
-      menuItem("message", this.text("备注"), () => {
+      menuItem("message", this.text("pages.editor.note"), () => {
         this.onNote(block);
         this.close();
       }),
       ...this.moveItems(),
-      menuItem("trash", this.text("删除"), () => {
+      menuItem("trash", this.text("pages.action.delete"), () => {
         runBlockCommand(this.view, deleteBlock(block));
         this.close();
       }, true),

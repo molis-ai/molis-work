@@ -4,7 +4,7 @@ import type { PluginDeployment, PluginExecutor, PluginInstanceRecord, PluginMani
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { pluginManifestDigest } from "./identity.js";
-import { assertRequiredGrants, validateManifest } from "./runtime-rules.js";
+import { assertRequiredGrants } from "./runtime-rules.js";
 
 /**
  * Why a confirmed install at another version may not reuse the private data an uninstall kept, or undefined when it
@@ -127,18 +127,12 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
   return undefined;
 }
 
-/**
- * The Manifest an install or a version change puts on a record: the shape every definition is checked for. What a Manifest declares
- * that changes its effect elsewhere (`always_on`, a default wiring, a default input group) is not refused here for where the
- * plugin came from: it takes effect only with a consent on the ledger (`trust-rules.ts`), whatever the plugin's trust level.
- */
-export function validateInstalledManifest(manifest: PluginManifest, owners?: DeclarationOwners): void {
-  validateManifest(manifest);
-  assertDeclarationsFree(manifest, owners);
+/** The Host supplies scope-aware declaration ownership and can reserve keys that a failed version change would restore. */
+export interface DeclarationOwners {
+  (manifest: PluginManifest, installId?: string, onlySettings?: boolean): readonly DeclarationOwner[];
+  retainSettings?(previous: PluginInstanceRecord, candidate: PluginInstanceRecord, target: PluginManifest,
+    oldDefinition?: PluginManifest): (() => void) | undefined;
 }
-
-/** Whoever the Host says declares the names the platform keeps one owner for, asked about the Manifest that wants to declare some. It throws when it cannot tell. */
-export type DeclarationOwners = (manifest: PluginManifest) => readonly DeclarationOwner[];
 
 /** The old edition is checked before its record is saved and again while it is starting. */
 export interface PresentationRestoration {
@@ -159,39 +153,61 @@ export function assertPresentationAdmitted(manifest: PluginManifest, admit: Pres
   return admit(manifest, rollback);
 }
 
-/** What a start needs besides a running host: the grants its Manifest requires, and its names still being its own (S-82: a start is where an enable lands). */
-export function assertStartable(manifest: PluginManifest, grants: readonly string[], owners?: DeclarationOwners): void {
-  assertRequiredGrants(manifest, grants);
-  assertDeclarationsFree(manifest, owners);
+/** A start or recovery is an enable, so it rechecks ownership of the settings it will serve. */
+export function assertStartable(manifest: PluginManifest, record: PluginInstanceRecord, owners?: DeclarationOwners, onlySettings = false): void {
+  assertRequiredGrants(manifest, record.grants);
+  if (manifest.settings_entries?.entries.length && pluginManifestDigest(manifest) !== record.manifest_digest) {
+    throw pluginErrors.upgrade_required("设置声明必须属于已安装的发行版本，请先确认升级");
+  }
+  assertDeclarationsFree(manifest, record.install_id, owners, onlySettings);
 }
 
-function assertDeclarationsFree(manifest: PluginManifest, owners?: DeclarationOwners): void {
-  if (!owners || (manifest.artifacts.produces.length === 0 && !manifest.artifacts.links?.length)) return;
-  const refusal = declarationClaimRefusal(manifest, owners(manifest));
+export function assertDeclarationsFree(manifest: PluginManifest, installId: string, owners?: DeclarationOwners, onlySettings = false): void {
+  const artifacts = !onlySettings && (manifest.artifacts.produces.length > 0 || !!manifest.artifacts.links?.length);
+  if (!owners || (!artifacts && !manifest.settings_entries?.entries.length)) return;
+  const refusal = declarationClaimRefusal(manifest, owners(manifest, installId, onlySettings), onlySettings);
   if (refusal) throw pluginErrors.definition_conflict(refusal);
 }
 
-/** What one Plugin or Host producer already declares of the names the platform keeps one owner for (S-70). */
+/** The declarations an installation holds in the requested scope or the Host reserves (S-70). */
 export interface DeclarationOwner {
   readonly plugin_id: string;
-  readonly artifacts: { readonly produces: readonly { readonly artifact_type_id: string }[]; readonly links?: readonly { readonly kind: string }[] };
+  readonly artifacts?: { readonly produces: readonly { readonly artifact_type_id: string }[]; readonly links?: readonly { readonly kind: string }[] };
+  readonly settings?: readonly string[];
 }
 
-/**
- * A 成果 type id and a link kind have one owner (S-70.2, S-70.3): an install or a version change whose Manifest declares one that
- * another Plugin already declares is refused, so a second Plugin cannot take over what the first one's versions mean. The same
- * Plugin declaring it again (an upgrade) is not another owner.
- */
-export function declarationClaimRefusal(manifest: PluginManifest, owners: readonly DeclarationOwner[]): string | undefined {
+function declarationClaimRefusal(manifest: PluginManifest, owners: readonly DeclarationOwner[], onlySettings: boolean): string | undefined {
+  for (const entry of manifest.settings_entries?.entries ?? []) {
+    const owner = owners.find(item => item.settings?.includes(entry.key));
+    if (owner) return `设置键 ${entry.key} 已由 ${owner.plugin_id} 声明，${manifest.plugin_id} 不能再声明`;
+  }
+  if (onlySettings) return undefined;
   for (const type of manifest.artifacts.produces) {
-    const owner = owners.find(item => item.plugin_id !== manifest.plugin_id && item.artifacts.produces.some(other => other.artifact_type_id === type.artifact_type_id));
+    const owner = owners.find(item => item.plugin_id !== manifest.plugin_id && item.artifacts?.produces.some(other => other.artifact_type_id === type.artifact_type_id));
     if (owner) return `成果类型 ${type.artifact_type_id} 已由 ${owner.plugin_id} 声明，${manifest.plugin_id} 不能再声明`;
   }
   for (const link of manifest.artifacts.links ?? []) {
-    const owner = owners.find(item => item.plugin_id !== manifest.plugin_id && (item.artifacts.links ?? []).some(other => other.kind === link.kind));
+    const owner = owners.find(item => item.plugin_id !== manifest.plugin_id && item.artifacts?.links?.some(other => other.kind === link.kind));
     if (owner) return `链接种类 ${link.kind} 已由 ${owner.plugin_id} 声明，${manifest.plugin_id} 不能再声明`;
   }
   return undefined;
+}
+
+/** The same installation and edition still hold their declarations, including while disabled or recovering. */
+export function holdsInstalledEdition(current: PluginInstanceRecord | null, expected: PluginInstanceRecord): boolean {
+  return current !== null && current.state !== "uninstalled" && current.install_id === expected.install_id
+    && current.installation_generation === expected.installation_generation && current.version === expected.version
+    && current.manifest_digest === expected.manifest_digest;
+}
+
+export function versionChangeRecord(stopped: PluginInstanceRecord, target: PluginManifest, options: {
+  deployment: PluginDeployment; entrypoint: string; grants: string[]; disabled: boolean; at: string;
+}): PluginInstanceRecord {
+  return {
+    ...stopped, version: target.version, publisher_id: target.publisher.publisher_id, publisher_signature: target.publisher.signature,
+    manifest_digest: pluginManifestDigest(target), deployment: options.deployment, selected_entrypoint: options.entrypoint, grants: options.grants,
+    state: options.disabled ? "disabled" : "installed", recovery_count: 0, last_error_code: null, updated_at: options.at, uninstalled_at: null,
+  };
 }
 
 export function assertMutable(record: PluginInstanceRecord): void {

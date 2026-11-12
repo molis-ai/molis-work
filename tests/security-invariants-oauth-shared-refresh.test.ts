@@ -16,6 +16,7 @@ import { createCallConnectionsClient, createPluginConnectionsClient, type Plugin
 import { connectionsProbe, grantConnections } from "./fixtures/connections-runtime.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
+import { alternateAsanaIntegration } from "./fixtures/alternate-asana.js";
 
 // W5-11 slice 5 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6, §10 Q3): an OAuth connection of the
 // generic flow is bound to the plugin that declared its service when it was authorized, and its tokens are refreshed once at a time for
@@ -335,8 +336,7 @@ test("RAC-1085 the declaring plugin disabled, or replaced by another plugin, whi
       const refused = assert.rejects(pending, unavailable);
       await registry.disable(owner.plugin_id);
       if (change === "another plugin") {
-        const replacement = createCatalogIntegrationPlugin({ connectorId: "asana", providerFor: () => { throw new Error("the test reads no integration records"); } });
-        await registry.enable({ ...replacement, manifest: { ...replacement.manifest, plugin_id: "io.molis.work.integration.asana.lookalike" } });
+        await registry.enable(alternateAsanaIntegration());
         assert.notEqual(registry.oauthOwner("asana")?.install_id, owner.install_id);
       }
       net.refreshes[0]!.release();

@@ -5,18 +5,20 @@ import { post, read } from "./request.js";
 import { closeForm, refreshStage, showForm } from "./stage.js";
 import type { Readiness, TaskAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 const field = (form: HTMLFormElement, name: string) => required<HTMLInputElement | HTMLTextAreaElement>(form, `[name=${name}]`);
 
 /** The form while a write is on its way: nothing in it can be changed, opened again or left. */
 function setCreating(page: SchedulePage, busy: boolean): void {
-  const { L, form, workbench } = page;
+  const { form, workbench } = page;
   page.creating = busy;
   form.setAttribute("aria-busy", String(busy));
   required(form, ".mw-form__body").inert = busy;
   workbench.querySelectorAll<HTMLButtonElement>("[data-schedule-new], [data-schedule-create-close]").forEach(button => { button.disabled = busy; });
   const submit = required<HTMLButtonElement>(form, "[type=submit]");
   submit.disabled = busy;
-  submit.textContent = busy ? L("schedule.form.saving") : page.editingTaskId ? L("schedule.form.save") : L("schedule.action.create");
+  submit.textContent = busy ? uiText.text("schedule.form.saving") : page.editingTaskId ? uiText.text("schedule.form.save") : uiText.text("schedule.action.create");
 }
 
 const showHints = (page: SchedulePage, ready?: Readiness) =>
@@ -35,10 +37,10 @@ function readHints(page: SchedulePage, opening: number): Promise<void> {
 
 /** The form for a new task or an edit; only a new one says that what it reads is chosen once it exists. */
 function open(page: SchedulePage, editing: string): void {
-  const { L, form, workbench } = page;
+  const { form, workbench } = page;
   page.editingTaskId = editing;
   const heading = workbench.querySelector("[data-schedule-form-title]");
-  if (heading) heading.textContent = editing ? L("schedule.form.edit-title") : L("schedule.action.new");
+  if (heading) heading.textContent = editing ? uiText.text("schedule.form.edit-title") : uiText.text("schedule.action.new");
   required(form, "[data-schedule-form-reads]").hidden = Boolean(editing);
   setCreating(page, false);
   showMessage(page.errorEl, "");
@@ -67,7 +69,7 @@ function openNew(page: SchedulePage): void {
 }
 
 async function submit(page: SchedulePage): Promise<void> {
-  const { L, form, host } = page;
+  const { form, host } = page;
   if (page.creating || !form.reportValidity()) return;
   const data = new FormData(form), editing = page.editingTaskId;
   setCreating(page, true);
@@ -78,12 +80,12 @@ async function submit(page: SchedulePage): Promise<void> {
       instructions: String(data.get("instructions") ?? ""),
       time: String(data.get("time") ?? ""),
       notify_important: data.get("notify_important") === "on",
-    }, L("schedule.error.save"));
+    }, uiText.text("schedule.error.save"));
     form.reset();
     if (!editing) page.created = result.task.task_id;
     await refreshStage(page, result.task.task_id, "task");
   } catch (error) {
-    showMessage(page.errorEl, messageOf(error) || L("schedule.error.create"));
+    showMessage(page.errorEl, messageOf(error) || uiText.text("schedule.error.create"));
   } finally {
     setCreating(page, false);
   }

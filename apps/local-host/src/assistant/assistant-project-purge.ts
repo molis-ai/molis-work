@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { existsSync } from "node:fs";
 import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
@@ -48,7 +49,7 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
         for (const table of WORK_TABLES) db.prepare(`DELETE FROM ${table} WHERE work_id = ?`).run(work.work_id);
       }
       db.exec("COMMIT");
-    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
     return works.length;
   } finally { db.close(); }
 }

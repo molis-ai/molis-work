@@ -1,4 +1,7 @@
-import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -10,6 +13,7 @@ import { resolveGoalContext } from "./goal-context.js";
 import { WRITER_SPLIT_HEAD } from "./writer-split.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
 import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
+import { autoSkillMaterial, autoSkillsOf, withSkillTools } from "./skill-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { MODEL_UNAVAILABLE } from "./models.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
@@ -22,7 +26,7 @@ import { limitsCharacters } from "./runtime-choice.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
+import { skillSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
@@ -122,6 +126,39 @@ async function chosenWorktree(a: CodingActivation, body: Record<string, unknown>
 }
 
 /**
+ * Study in the round: the Character it runs as, its selected imported Skills, and the actions that Character limits it to (the Host freezes
+ * both again at start). Read here so a round's own steps stay apart from this resolution.
+ */
+async function roundCharacter(context: PluginStartContext, record: CodingSessionRecord, body: Record<string, unknown>, execution: CodingExecution, beforeWrite: CodingBeforeWrite) {
+  const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
+  const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
+  let characterTools: readonly ExactActionReference[] | null | undefined;
+  if (character) {
+    if (!limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id)) throw codingFailure("coding.server.character-unverified");
+    characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
+  }
+  return { character, character_skill_ids, characterTools };
+}
+
+/**
+ * The round's action tools and the materials that explain them: the person's own picks plus project knowledge (as before), and SKP-10's
+ * 「自动」 Skills — one catalog listing, their names/descriptions/exact references as one material, and `skills.body.read@1` added when there is
+ * anything to read. Only metadata; the round reads a body when the model picks it, and the Host writes that call's `skill_round`.
+ */
+async function roundActions(context: PluginStartContext, offered: readonly ActionView[], characterTools: readonly ExactActionReference[] | null | undefined,
+  chosen: readonly ExactActionReference[], selected: readonly SkillRef[], words: string, locale: CodingExecution["locale"], beforeWrite: CodingBeforeWrite) {
+  const control = codingActionControl(beforeWrite);
+  const auto = await autoSkillsOf(context.services?.actions, control);
+  const action_tools = withSkillTools(withKnowledgeTools(chosen, offered, characterTools), offered, characterTools, auto.length > 0);
+  const materials: AgentTextMaterial[] = [];
+  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, words, control);
+  if (catalog) materials.push(catalog);
+  const skills = autoSkillMaterial(auto, action_tools, selected, locale);
+  if (skills) materials.push(skills);
+  return { action_tools, materials };
+}
+
+/**
  * Start a round in a session: from the person's send, or later from a queued round when the work it waited for is
  * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
  */
@@ -182,15 +219,12 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const roles = await codingActions(context, beforeWrite).invoke(agent.availableRoles, [record.runtime_id]);
   const availability = roles.find((entry) => entry.role_id === role);
   if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
-  const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
-  const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
-  let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
-  if (character) {
-    if (!limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id)) throw codingFailure("coding.server.character-unverified");
-    characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
-  }
-  const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
-    await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools);
+  const { character, character_skill_ids, characterTools } = await roundCharacter(context, record, body, execution, beforeWrite);
+  const chosenActions = body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools);
+  const chosenSkills = skillSelection(body.skills ?? []);
+  const { action_tools, materials: roundMaterials } = await roundActions(context,
+    await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools, chosenActions, chosenSkills,
+    `${record.title}\n${task}`, execution.locale, beforeWrite);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
   const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
@@ -198,8 +232,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
   if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, codingActions(context, beforeWrite)));
   if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
-  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, codingActionControl(beforeWrite));
-  if (catalog) text_materials.push(catalog);
+  text_materials.push(...roundMaterials);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await codingActions(a.context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory, title: record.title }]);
@@ -233,7 +266,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
     queued: "carry",
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: chosenSkills, action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
   const follower = follow(a, execution, record.session_id, session, workspace.workspace_id);
   let run, receipted = false;
   try { run = await start(history).catch(async error => {
@@ -279,7 +312,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
 export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string },
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
-  if (!saved) return { started: false, reason: codingText(execution.locale)("coding.server.start-unknown") };
+  if (!saved) return { started: false, reason: codingText("coding.server.start-unknown") };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
   const start = () => startRound(a, record, body, api, execution, beforeWrite);
   const reason = (error: unknown) => error instanceof Error ? error.message : String(error);

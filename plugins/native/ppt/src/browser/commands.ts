@@ -3,6 +3,8 @@ import * as record from "./record-commands.js";
 import * as slide from "./slide-commands.js";
 import type { Failure, PptPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Run = (page: PptPage, found: HTMLElement, button: HTMLButtonElement) => void | Promise<void>;
 
 /** One thing a click can mean: how to find its control from the click, and what to do. `needsOpen` ones wait for a deck in the editor. */
@@ -36,7 +38,7 @@ const COMMANDS: readonly Command[] = [
 
 /** Runs the command a click means, holding the editor busy for its whole length. */
 async function onClick(page: PptPage, event: Event): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   const target = event.target as Element;
   const button = target.closest("button");
   if (!button || button.closest("dialog") || button.disabled || s.busy) return;
@@ -50,7 +52,7 @@ async function onClick(page: PptPage, event: Event): Promise<void> {
     }
   } catch (error) {
     if ((error as Failure).code === "ppt.conflict") s.saveError = error;
-    page.showNote(messageOf(error) || L("ppt.error.request"), true);
+    page.showNote(messageOf(error) || uiText.text("ppt.error.request"), true);
   } finally {
     page.setBusy(false);
   }

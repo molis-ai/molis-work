@@ -31,28 +31,30 @@
 - [daily-quality-d0244](daily-quality-d0244/spec.md)：高项整理来源授权与迟到写入修复，已批准，验证中。
 
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
-- [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作，尚未实现。
+- [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；第 10 批已实现公共组件、首页与助理接入（#1991，2026-11-09 合入 main）；Coding／其余入口与语音待后续批。10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作。
 - [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
 - [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理，尚未实现。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
 - [work-brief](work-brief/spec.md)：项目综合首页与工作简报；10-27 已定可选安装、未安装时的基础首页、共用公开来源／呈现、承接生成页面及 Feed 归属。保留 Home 级范围、周期报告、living page、风险总览接续与版本能力；需求已整理，尚未实现。需求维护 Codex，实施沿原 E 轨并与 C/D/A 协作。
-- [scene-and-page-contract](scene-and-page-contract/spec.md)：场景与生成页面公共合同（路线书 20 ①）。场景方案由哪些部分组成、各交给哪个主人；设置的有效值与来源；角色模板；生成页面怎样隔离运行与挂首页；多步采用的续做、撤销、移除与升级；插件要声明什么才能被配置。设计稿，没有实现；页面形态待用户定。
+- [scene-and-page-contract](scene-and-page-contract/spec.md)：场景与生成页面公共合同（路线书 20 ①）。场景方案由哪些部分组成、各交给哪个主人；设置的有效值与来源；角色模板；生成页面怎样隔离运行与挂首页；多步采用的续做、撤销、移除与升级；插件要声明什么才能被配置。**公共合同、SDK 校验与必要接入已实现并合入（2026-11-09，main `6df7285c31`）；页面运行与真实安全归 37，采用／另存归 44，官方场景包成品归 51。**
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
 - [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；59 项验收与 21 组设计机制。原视觉工作实现中，输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。2026-11-02 补全产品文案与按需帮助：减少常驻解释，名称、按钮和下一步易懂，与渐进式引导接续（VUX-51～59）；新增需求尚未实现或验收。负责人：Claude（2026-10-19 起接手实现）；本次需求维护：Codex。
 - [intelligent-surfaces](intelligent-surfaces/spec.md)：智能呈现与操作层（Intelligent UI）。插件声明对象的字段、形态、操作和允许别人放东西的挂载位；平台的确定组合加上助理在候选内的组合，把插件内容、平台内容、MCP 与 Skill 拼成此刻最合适的展示与操作面，注入插件内、插件之间、对话、项目讨论、首页、Shelf、等你等位置。2026-11-02 需求已整理，尚未实现；负责人未分配，轨道见正文（合同 C1、组合服务 C3、组件 D）。
-- [shared-sources-and-surfaces](shared-sources-and-surfaces/spec.md)：公共来源与呈现合同（路线书 05 ②）。资料身份、多个输入目录配一个输出目录、浏览与执行和撤权、智能呈现声明、组合服务的公开合同与 SDK 共用校验；设计稿，没有实现，合同归 C 轨、组件归 D 轨。
+- [shared-sources-and-surfaces](shared-sources-and-surfaces/spec.md)：公共来源与呈现合同（路线书 05 ②）。资料身份、多个输入目录配一个输出目录、浏览与执行和撤权、智能呈现声明、组合服务的公开合同与 SDK 共用校验；已在第 05 批合入（C-1 #1894；C-2、C-3 与 05② 目录实现随 #1979 于 2026-11-08），剩下组合服务实现与呈现组件归第 15 批；合同归 C 轨、组件归 D 轨。
 - [surface-composition](surface-composition/spec.md)：确定组合平台服务（路线书 15 ①）。新的 horizontal 包按调用方、位置和对象排出操作面描述（形态、字段、操作、分组），不调模型；宿主只装配；基础首页的三组怎样给。设计稿，没有实现；C3 写稿，合同缺口交 C 轨，首页一节请 D 轨共审。
 - [work-mainline](work-mainline/spec.md)：主线。事项是平台的轻量容器（可以只起名字，Goal、待办等可以变成事项），用户把手头的事项按自己的分组和顺序排好，从顶部切换器一下切到某件事，工作台状态、相关对象、助理范围与等你随之切换；插件对象的内容仍归插件。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
-- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；实现中（分支 `claude/05-sqlite-switch`，四片一个 PR），桌面打包那半等 F 轨。
-- [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 全部处理器一次迁到从 schema 推导的类型（用户 2026-11-06 定），约 30 片；设计稿，没有实现。
+- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；已实现：SQLD-a～e 随第 05 批 #1979 于 2026-11-08 合入 main，桌面打包那半同 PR 改完、F 轨事后审。
+- [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 处理器迁到从 schema 推导的类型（用户 2026-11-06 定）：N14 两段（#1913、#1961）与 N22-01/02/04/06（#1909、#1939、#1923、#1893）、防回潮计数（#1951）已在第 05 批合入，N22 余片按决定 29 移到第 55 批第 3 项（第 56 批开工前全部合入，范围不变）。
 - [draft-and-return](draft-and-return/spec.md)：草稿与返回（路线书 12 第三项）。平台共用的「回程」：从哪里进的设置、配好后回到哪里、回来后只接着做依赖新配置的那一步；插件页面用 `host.returns`，普通链接自动得到回到原处，第 13 批⑤是第一个消费者。2026-11-07 设计稿，没有实现；五项待用户拍板（含返回条定样）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）；2026-10-27 补服务连接页面的默认直接连接、技术配置收起及连接后可用要求（ASC-45～50，需求阶段）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
+- [feed-bounded-reads](feed-bounded-reads/spec.md)：Feed完整快照改为分页与按需读取；2026-11-11实现及本地定向验收完成，待CI Full与合入。
+- [daily-quality-low-a1](daily-quality-low-a1/spec.md)：2026-11-08 日评低优先级A-1的50项修复；2026-11-09获批，D0328暂缓，其余实施中。
 - [daily-quality-d0039](daily-quality-d0039/spec.md)：项目关闭与删除等待激活作业真实收尾；2026-11-08 获批，实施中。
-- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-301～309。
+- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-302、BL-306～308；A5 已按 main 重核（2026-11-11，[A5 重核](prologue-adoption/a5-recheck-2026-11.md)）。
 - [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
@@ -68,7 +70,8 @@
 - [plugin-tab-groups](plugin-tab-groups/spec.md)：既有插件组已合入，PTG-10 待本人看实物；现行标签合同保留，统一分屏、右栏与底栏按产品治理在 03／07 接续。
 - [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件 AI 交互；I0 预览已在工作台框架里按实物重做并走查，待用户看实物；共享组件与产品接入未开始。
 - [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（等真机验收，BL-325）。能力切片已合入，门禁与全量由 CI 证明；二十步、带截图的 Shelf、五类拒绝和同进程 sheet 等真机验收。
-- [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；2026-10-18 新立，尚未实现。
+- [capability-pack](capability-pack/spec.md)：能力包——技能、提示词、角色、工具、MCP 的声明与元数据进同一份聚合目录，执行仍走原机制；在技能包之上扩展；2026-11-08 新立，第 09 批已实现（#2015 + 收尾 #2019，2026-11-11）；余项自组包（[BL-kit-user-packs](backlog/BL-kit-user-packs.md)）等见 BACKLOG；能力包页用户 11-10 以「视作我通过了」免走验收（未实际走查，11-11 追认含 SKP-12 真实项目/卸载/业务事实的范围）。
+- [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；第 08 批基础能力由 Codex 接续完成并随 #1984 合入，消费方随第 09 批（#2015 + 收尾 #2019，2026-11-11）接入同一目录、按精确版本冻结；SKP-10 的 Coding「自动」档 2026-11-11 审计整改补做（BL-coding-skill-auto 已补做并删除），SKP-09 脚本沙箱记 [BL-skill-scripts-sandbox](backlog/BL-skill-scripts-sandbox.md)；SKP-12 的真实项目/卸载/业务事实与本人验收 2026-11-10 以「视作我通过了」免走验收（未实际走查，11-11 追认范围），本人验收另行跟踪（[BL-skill-packs-acceptance](backlog/BL-skill-packs-acceptance.md)）。
 - [agent-approval](agent-approval/spec.md)：Agent 变更的授权复用与显式人审；有效委托内持续执行，明确启用的人审按人员与版本校验，Coding 可选 AI 代批不计真人票数；2026-10-28 对齐，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
@@ -82,7 +85,7 @@
 
 - [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
 
-- [daily-quality-d0033](daily-quality-d0033/spec.md)：高项真实侧栏隔离核查；补拒绝证据并纠正外层 frame 的旧评估，待 PR 核回。
+
 
 ## 现行规范
 
@@ -131,6 +134,9 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-10：[D0033 侧栏与打印隔离](archive/daily-quality-d0033/spec.md)归档（已实现）；既有隔离与打印回收专项 42 项通过，Chrome 验收不替代真实桌面 IPC。
+- 2026-11-10：[中优先级 A54 修复](archive/daily-quality-medium-20261108/spec.md)归档（已实现）；#2004 经最终 CI、Full 32 分片与正常合并队列通过后合入 main，B/C 未决项仍见对应日评。
 
 - 2026-11-07：[单机构建与测试各三个槽位](archive/machine-slots-three/spec.md)归档（已实现，负责人 Codex）；#1953 经 PR CI 与合并队列通过后合入 main，本机主检出已同步并确认两个三槽池。
 

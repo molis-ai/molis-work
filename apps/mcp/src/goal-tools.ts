@@ -1,7 +1,7 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { McpToolDefinition } from "./protocol.js";
 import { V1_COMMON, V1_STRING } from "./tool-schemas.js";
-import type { MANAGEMENT_GOAL_ACTIONS } from "./tool-dispatch.js";
+import { MANAGEMENT_GOAL_TOOL_NAMES, type MANAGEMENT_GOAL_ACTIONS } from "./tool-dispatch.js";
 
 /** What a management tool takes from the action's definition: its own description and the schema of its business input. */
 export interface McpManagementActionText {
@@ -23,7 +23,7 @@ export function managementGoalTools(read: McpManagementActionSource): McpToolDef
   const initialize = read("initialize"), treeDecide = read("treeDecide"), decide = read("decide");
   return [
     {
-      name: "molis_work_v1_initialize",
+      name: MANAGEMENT_GOAL_TOOL_NAMES.initialize,
       description: initialize.description,
       inputSchema: {
         type: "object",
@@ -35,7 +35,7 @@ export function managementGoalTools(read: McpManagementActionSource): McpToolDef
       },
     },
     {
-      name: "molis_work_v1_goal_tree_decide",
+      name: MANAGEMENT_GOAL_TOOL_NAMES.treeDecide,
       description: treeDecide.description,
       inputSchema: {
         type: "object",
@@ -58,7 +58,7 @@ export function managementGoalTools(read: McpManagementActionSource): McpToolDef
       },
     },
     {
-      name: "molis_work_v1_event_decide",
+      name: MANAGEMENT_GOAL_TOOL_NAMES.decide,
       description: decide.description,
       inputSchema: { ...decide.input_schema,
         properties: { ...V1_COMMON, ...decide.input_schema.properties as Record<string, unknown> },

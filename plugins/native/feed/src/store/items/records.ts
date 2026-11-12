@@ -1,3 +1,4 @@
+import { feedPageSelection, type FeedItemPage } from "./page.js";
 import { randomUUID } from "node:crypto";
 import { feedErrors } from "../../contract/feed.js";
 import type {
@@ -22,25 +23,43 @@ export class FeedRecords {
     return this.options.now?.() ?? new Date();
   }
 
-  list(projectId: string): FeedItemRecord[] {
-    const links = this.goalLinks.list(projectId);
-    const materials = (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? ORDER BY updated_at DESC, material_id", projectId) as Row[]).map(mapFeedMaterial);
-    const byItem = new Map<string, FeedMaterialRecord[]>();
-    for (const material of materials) {
-      byItem.set(material.item_id, [...(byItem.get(material.item_id) ?? []), material]);
-    }
-    return (this.db.all("SELECT * FROM feed_items WHERE project_id = ? ORDER BY source_updated_at DESC, item_id", projectId) as Row[]).map((row) => mapFeedItem(row, byItem.get(text(row.item_id)) ?? [],
-      links.get(text(row.item_id)) ?? null));
+  list(projectId: string, page: FeedItemPage): FeedItemRecord[] {
+    const selected = feedPageSelection(page);
+    // Lists never need article bodies; select their metadata before material hydration.
+    const columns = "project_id,item_id,source_id,signal_id,signal_revision,kind,title,summary,source_kind,source_label,external_id,url,origin_status,priority,tags_json,author,disposition,read_at,revision,source_created_at,source_updated_at,imported_at,updated_at";
+    const items = this.db.all(`SELECT ${columns} FROM feed_items WHERE project_id = ?${selected.where} ORDER BY ${selected.order} LIMIT ? OFFSET ?`, projectId,
+      ...selected.values, Math.min(200, Math.max(1, page.limit)), Math.max(0, page.offset)) as Row[];
+    if (!items.length) return [];
+    // One owner query for this page: no full ledger scan and no per-item authorization/query loop.
+    const links = this.goalLinks.list(projectId, items.map(row => text(row.item_id)));
+    return items.map(row => mapFeedItem(row, [], links.get(text(row.item_id)) ?? null));
   }
 
-  get(projectId: string, itemId: string): FeedItemRecord {
+  get(projectId: string, itemId: string, page?: { offset: number; limit: number }): FeedItemRecord {
     const row = this.db.get("SELECT * FROM feed_items WHERE project_id = ? AND item_id = ?", projectId, itemId) as Row | undefined;
     if (!row) throw feedErrors.item_not_found("找不到这个 Feed Item");
-    const materials = (this.db.all(`
+    const materials = page ? this.materials(projectId, itemId, page.offset, page.limit) : (this.db.all(`
       SELECT * FROM feed_materials
       WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
     `, projectId, itemId) as Row[]).map(mapFeedMaterial);
     return mapFeedItem(row, materials, this.goalLinks.get(projectId, itemId));
+  }
+
+  materials(projectId: string, itemId: string, offset: number, limit: number): FeedMaterialRecord[] {
+    return (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? AND item_id = ? ORDER BY material_id LIMIT ? OFFSET ?",
+      projectId, itemId, Math.min(200, Math.max(1, limit)), Math.max(0, offset)) as Row[]).map(mapFeedMaterial);
+  }
+
+  hasPackage(projectId: string, sourceId: string, externalId: string, hash: string): boolean {
+    return Boolean(this.db.get(`SELECT 1 FROM feed_materials WHERE project_id = ? AND item_id IN
+      (SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? AND external_id = ?)
+      AND json_extract(provenance_json, '$.manifest_sha256') = ? LIMIT 1`, projectId, projectId, sourceId, externalId, hash));
+  }
+
+  facets(projectId: string): { source_id: string; label: string; count: number }[] {
+    return this.db.all<{ source_id: string; label: string; count: number }>(`SELECT COALESCE(source_id, '') AS source_id,
+      COALESCE(NULLIF(source_label, ''), source_kind) AS label, COUNT(*) AS count FROM feed_items
+      WHERE project_id = ? GROUP BY source_id, label ORDER BY source_id, label`, projectId);
   }
 
   exists(projectId: string, itemId: string): boolean {

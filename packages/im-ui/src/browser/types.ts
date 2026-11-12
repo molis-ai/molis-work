@@ -5,7 +5,6 @@ export interface ImObjectBridge {
   search(room: string, query: string, signal: AbortSignal): Promise<{ items: Array<ActionSubject & { label: string; owner?: string }> }>;
   update(room: string, stream: HTMLElement, shown: boolean): void;
   clear(): void;
-  translate(text: string): string;
 }
 declare global { interface Window { molisDiscussionObjects?: ImObjectBridge } }
 export type StreamKind = 'group' | 'thread';
@@ -29,5 +28,6 @@ export interface ApiError extends Error {
   status?: number;
   code?: string;
   uncertain?: boolean;
+  word?: string;
 }
 export type Api = <T>(path: string, body?: unknown) => Promise<T>;

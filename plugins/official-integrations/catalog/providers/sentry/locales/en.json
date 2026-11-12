@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.sentry",
+  "locale": "en",
+  "messages": {
+    "sentry.connection.auth-help": "Use a Sentry user or organization auth token with event:read and org:read.",
+    "sentry.connection.inbound": "Feed reads the error list",
+    "sentry.connection.summary": "Errors and performance.",
+    "sentry.connection.token-label": "Sentry Auth Token",
+    "sentry.guide.cli-link": "Sentry CLI",
+    "sentry.guide.mcp-link": "View the official Sentry MCP",
+    "sentry.guide.oauth-link": "View Sentry OAuth app",
+    "sentry.setup.create-sentry-auth-token": "Create Sentry Auth Token"
+  }
+}

@@ -41,7 +41,7 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 
 ## 接入与边界
 
-当前有 63 个公共子路径（外加根入口；以 `package.json` 的 `exports` 为准），其中部分表达未来能力；存在类型不代表已有服务。无数据库或网络依赖，根导出也不是所有业务类型的大集合。
+公共子路径以 `package.json` 的 `exports` 为准。其中部分表达未来能力。合同包无数据库或网络依赖，业务类型按领域子路径导出。
 
 工作区依赖：无。其他运行依赖见 [package.json](package.json)。
 
@@ -65,6 +65,16 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 ## 开发要求
 
 插件同步集合/快照合同从 `/platform/plugin` 导出；spaceId 级配置格式从 `/modules/sync-replication` 导出。校验不负责授权、持久化或传输，详见[同步接入规范](../../skills/molis-plugin-dev/sync.md)。
+
+`/platform/settings` 提供设置条目、读写输入及共用返回的合同。动作输入只携带设置键和修改内容，主人和项目从可信上下文获得。写入用读到的 revision 与 `request_id`，返回同一事务内回读的有效值。接入见 [SDK 的设置说明](../plugin-sdk/README.md#设置)。
+
+`/platform/blueprints` 提供场景包正文的 `Blueprint`、`BlueprintPart`、`BlueprintProposal` 和 `BLUEPRINT_LIMITS`。正文的校验由 SDK 共用，场景身份由外层调用方给出。见 [SDK 的场景包正文说明](../plugin-sdk/README.md#场景包正文)。
+
+`/modules/characters` 的 `characterRoleActions` 定义角色模板采用和同主人批读。新建交模板，复用交固定的个人版本或项目成员的两项观察值；来源只是记录。声明尚未绑定角色层次服务，项目和调用者由实际主人从可信上下文取得。
+
+`/services/blueprints` 的 `blueprintActions` 定义草稿、预览、应用、回读、撤销、移除和另存，供场景服务登记。通用内容采用从 `/platform/blueprints` 取来源、选择、批读和撤销合同，正文 schema 由声明的主人给出。按操作和请求键回读的是原回执，当前状态独立返回。
+
+`/services/home` 的 `homePageActions` 定义生成首页的版本、文件、试用、采用与恢复。草稿采用用固定通用回执，`subject.id` 和数字 `revision` 给出页面与保存时的固定版本。保存不批准动作或切换首页；`home.read` 的批准回读用 `by: "approval_request"` 与草稿采用回读区分，可在同一批中并列。真实首页主人会接入权限、版本核对和文件送达。
 
 同步声明解析与依赖展开实现在 plugin-sdk；空间策略解析实现在 sync-replication。这里不定义同步 Error 子类，失败统一使用各 owner 声明的 ActionError。
 
@@ -91,6 +101,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 导出的 schema 常量和帮手的类型在 API 快照里，加 `as const` 或改 `const` 泛型都要 `pnpm api:update`，排 api 队列（§4.5）。
   - Projects 的 `renameProject` 第四参为必填的原始名称观察值；Host HTTP、Workbench 表单和进程内调用同步更新。缺失或过期值按 `catalog.project_name_conflict` 拒绝，不提供旧签名别名或用新读取替换旧观察。
   - 项目目录的七个动作（`projectDirectoryActions`）和最近资料的两个动作（`materialRecentActions`）现在只声明，还没有提供方登记，调用得到 `actions.missing`。`ProjectDirectories.source_links` 只有 id 没有路径；目录的 `state` 只有 `ok`、`missing`；撤权按调用方的授权算，不是目录的状态；`projects.directory_revoked` 回答冻结轮次用到已经移除的目录。`MaterialOrigin` 的 `unmapped` 只用于 `source: "directory"`，这时不带 `directory`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md)。
+  - `services/skills` 的 Skill 目录四个动作（`skillCatalogActions`，提供方 `system.skills`）与导入两个动作（`skillImportActions`，由 `plugin-install` 提供方登记，导入就是安装）已由宿主登记（第 08 批 #1984）。范围、操作者、调用方的安装从调用上下文来，输入 schema 都不收；`skills.body.read@1` 一次收 1～`SKILL_BODY_READ_MAX_REFS` 个 `SkillRef`，逐项回答正文或 `SkillReadRefusal`，不换成别的版本；目录项不带正文。规则见 [技能包合同稿](../../specs/skill-packs/contract-design.md) 第 6～8 节。
+  - 能力包：上报协议在 `platform/kit-report`（两个合同类型、`defineKitReportAction`、条目类型与封闭 schema、`KIT_TOOL_ORIGINS`），它单独一个子路径、不经 `platform/actions` 转出，因为它用技能目录的条目，而 `services/skills` 引 `platform/actions`；汇总的 `kit.catalog.list@1`（`services/kit`，提供方 `system.kit`）只声明，还没有提供方登记。包不存、不登记，状态从内容读出；条目 schema 没有放正文、凭据、端点或路径的字段。点名名单是宿主写的调用上下文字段（`ActionCallContext.named_skills` 绑定安装与动作，`skill_round` 只在宿主对 `system.skills` 的调用上），动作输入里的 `SkillRef`（如工作执行方 `run.start` 的 `skills`）不算点名；`SkillRef` 的封闭 schema 在不公开的 `services/skill-ref-schema.ts`，`services/skills` 以 `SKILL_REF_SCHEMA` 公开。改动后跑 `node scripts/run-tests.mjs tests/capability-pack-contract.test.ts`。规则见 [能力包合同稿](../../specs/capability-pack/contract-design.md) 第 2、4 节。
   - 智能呈现的声明在 `platform/presentation`（Manifest 的 `presentation` 字段引用它），组合服务的合同在 `services/surface-composition`（C-2、C-3）。`surfaces.compose@1`、`surfaces.correct@1` 由 `system.surfaces` 登记；SDK 的 `parsePluginManifest` 用 `validatePresentationDeclaration` 查 `presentation`。values 与概况动作的 schema 只用 `SandboxSchema` 有的写法，字段组合（`stale` 必有 `read_at`、概况的 `start` 是声明的子集）由 SDK `/presentation` 的共用校验查。描述里给人看的字是 `OwnedTextRef`；`excluded` 的件数和插件 id 只给 user 受众，这是服务的规矩，schema 两种都收。挂载位不另起声明：`UiSlotDescriptor`（`platform/ui`）上可选的 `accepts_forms`、`max`、`refuse_kinds` 说平台按形态往这个 slot 放别人的什么，没有 `accepts_forms` 的 slot 平台什么都不放；组合服务的位置叫 `plugin-slot`，带 `plugin_id` 和 `slot_id`。平台的关系类型只有 `modules/context-ledger` 的 `CONTEXT_RELATION_TYPES`，placement 的两种边从它取名。状态环的取值（`STATE_RING_FAMILIES`）在 `platform/ui-state-rings.ts`，经 `platform/ui` 转出，画法留在 SDK 的 `/ui`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md) 第 5～7 节。
 
   - 首页请求可给去重且有界的 `home_order`，范围只及可见插件卡。仅插件组的 `plugin_card` 可带本轮概况、说明的 `OwnedTextRef`，以及绑定确切安装的开始、打开和启用入口。开始分为直接动作和打开同 Manifest 视图的表单，项目成员恢复保留原观察的 `expected_revision`。实际路由和权限由宿主在点击时复核。
@@ -98,8 +110,9 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - `ActionCallContext.assert_authority_current` 只来自可信宿主和原 dispatcher，必须同步；可选目标与必要权限由当前消费场景/启用声明给出。`bindActionClient` 的 control 尾检只保留真实父调用自己的来源/权限/生命周期，子动作的目标和消费权限仍由绑定 caller 核对；同 caller 的 `retainActionAuthority` 保留来源和目标。`PluginExecutionControl` 不抹除父尾检。无目标尾检仍核原配置权限，不能授予目标权限或复活已结束的调用，不从业务 input、MCP `_meta` 或 run state 读取。
   - 文字引用（`platform/ui-text.ts`，经 `platform/ui` 转出）分两个形状：声明位置的 `TextRef` 没有 `owner`，写了就被 `TEXT_REF_SCHEMA` 拒绝；`OwnedTextRef` 是平台从可信目录绑好主人之后的。`OWNED_TEXT_REF_SCHEMA` 由前者加 `owner` 得来，不复制属性；数字上限只写在 `TEXT_REF_LIMITS`。`SandboxSchema` 写不出联合，字段组合不归 schema 管。改动后跑 `node scripts/run-tests.mjs tests/ui-text-ref-contract.test.ts`。
   - 外观与语言文件的类型（`platform/ui-files.ts`）和展示快照（`platform/ui-environment.ts`）只有类型和现行格式常量；解析和每一条拒绝在插件 SDK 的 `/ui`。每种文件的版本数字只写在 `UI_FORMAT_VERSIONS`，接口的 `format_version` 从它取；快照只有身份和问题，不带令牌值和译文。文字工具（`t`、`say`、`format`）的类型在 `ui-text.ts`，实现同样在 SDK。改动后跑 `node scripts/run-tests.mjs tests/ui-text-files-contract.test.ts`。
+  - 统一输入的来源（`platform/composer.ts`，第 10 批 K0）：`composer_source` 动作的输入输出 schema 由平台定死，声明者照抄，SDK 逐字比对；挂载页给的实例选项只是类型，在插件 SDK 的 `/page-globals`。改动后跑 `node scripts/run-tests.mjs tests/security-invariants-composer.test.ts`（`S-composer-source-call`）。
 - 改了公开导出：`pnpm build` 后跑 `pnpm api:update`，提交 `tooling/gates/api/`；改了动作的形状或声明：跑 `pnpm actions:update`，提交 `tooling/gates/actions/`（两份快照与源码不同，CI 失败；PR 里写对调用方的影响，见 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-input-types.test.ts tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest.test.ts tests/plugin-declaration-rules.test.ts tests/action-read-compatibility.test.ts tests/runtime-provider-identity.test.ts tests/plugin-capability-availability.test.ts tests/action-error-model.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/action-project-materials.test.ts tests/presentation-surface-contracts.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-input-types.test.ts tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest.test.ts tests/plugin-declaration-rules.test.ts tests/action-read-compatibility.test.ts tests/runtime-provider-identity.test.ts tests/plugin-capability-availability.test.ts tests/action-error-model.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/action-project-materials.test.ts tests/skill-catalog-actions.test.ts tests/presentation-surface-contracts.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[docs/platform/CONTRACTS-AND-OPERATIONS.md](../../docs/platform/CONTRACTS-AND-OPERATIONS.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

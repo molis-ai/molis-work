@@ -1,20 +1,17 @@
-import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
+import { dockDefaultPins } from "../../plugin-catalog.js";
 import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
-export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
+export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
   // The label is set once on the shell, so a plugin that re-renders its list keeps the heading.
-  // [the Plugin's id, its summary] by work surface.
-  const STAGE_SUMMARIES = ${JSON.stringify(Object.fromEntries(Object.entries(pluginStageSummaries()).map(([id, { plugin_id, summary }]) => [id, [plugin_id, summary]])))};
   const titleStages = () => document.querySelectorAll('.plugin-stage-shell[data-work-surface-label]').forEach((shell) => {
-    const title = JSON.stringify(L(shell.dataset.workSurfaceLabel || ''));
+    const title = JSON.stringify((shell.dataset.workSurfaceLabel || ''));
     if (shell.style.getPropertyValue('--stage-title') !== title) shell.style.setProperty('--stage-title', title);
-    const summary = STAGE_SUMMARIES[shell.dataset.workSurface || ''];
-    // The summary is the Plugin's own text: English from its own words.
-    const desc = JSON.stringify(summary ? LF(summary[0], summary[1]) : '');
+    const desc = JSON.stringify(shell.dataset.workSurfaceDescription || '');
     if (shell.style.getPropertyValue('--stage-desc') !== desc) shell.style.setProperty('--stage-desc', desc);
   });
   titleStages();
+  document.addEventListener("molis-work:language-changed", titleStages);
   const stageHost = document.querySelector('.immersive-plugin-stage');
   if (stageHost) new MutationObserver(titleStages).observe(stageHost, { childList: true });
   const dismiss = (event) => {
@@ -43,7 +40,7 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
  * folds (specs/craft-finish, round four). When even 项目首页 and "+N" do not fit (a phone's second row under 356px with
  * a directory button), the "+N" button goes too: the switcher lists every plugin, the kept ones included, so nothing is
  * lost. */
-export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
+export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
   const dock = document.querySelector('[data-dock]');
   if (!dock) return;
@@ -60,15 +57,17 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const picker = dock.querySelector('[data-plugin-picker]');
   const pickerToggle = dock.querySelector('[data-plugin-picker-toggle]');
   const pickerPopover = dock.querySelector('[data-plugin-picker-popover]');
+  const toast = document.querySelector('[data-toast]');
   const current = dock.querySelector('[data-plugin-picker-current]');
   // The switcher is its glyph alone: its name says what the work area shows, so a screen reader hears where it is.
   const nameSwitcher = (names) => {
-    const label = L('切换插件 · 现在：{now}').replace('{now}', names.join(L('、')));
+    const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now").replace('{now}', names.join(globalThis.t.text("common.list.separator")));
     if (pickerToggle && pickerToggle.getAttribute('aria-label') !== label) pickerToggle.setAttribute('aria-label', label);
   };
   const setPicker = (open) => {
     if (!pickerPopover || !pickerToggle) return;
     pickerPopover.hidden = !open;
+    toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
     if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
   };
@@ -144,7 +143,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     const pin = document.createElement('button');
     pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : '') + (arriving ? ' is-arriving' : ''); pin.dataset.dockPin = id;
     if (arriving) pin.addEventListener('animationend', () => pin.classList.remove('is-arriving'), { once: true });
-    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + L('没能启动') : ''));
+    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + globalThis.t.text("workbench.navigation-presentation.didn-t-start") : ''));
     const glyph = glyphOf(id); if (glyph) pin.append(glyph);
     warn(pin, id);
     return pin;
@@ -195,7 +194,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     };
     return tray;
   };
-  const trays = [makeTray(pins, L('更多常驻插件')), makeTray(own, L('你自己的'))].filter(Boolean);
+  const trays = [makeTray(pins, globalThis.t.text("workbench.navigation-presentation.more-pinned-plugins")), makeTray(own, globalThis.t.text("workbench.navigation-presentation.own"))].filter(Boolean);
   const fit = () => { trays.forEach((tray) => tray.fit()); paintCurrent(); };
   const closeOverflows = (except) => trays.forEach((tray) => { if (tray !== except && !tray.overflow.hidden) tray.setOverflow(false); });
   // The trays keep the buttons they have: one that is kept stays where it is, a new one lands, one that goes lets go.
@@ -268,12 +267,12 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (asking && asking.tile === tile) { stopAsking(); void host.membership?.change(id, 'remove'); return; }
     stopAsking();
     const list = (tile.dataset.dependents || '').split('|').filter(Boolean).join('、');
-    const message = list ? L('再点一次移除；同时移除：{list}').replace('{list}', list) : L('再点一次移除');
+    const message = list ? globalThis.t.text("workbench.navigation-presentation.press-again-remove-also-removes-list").replace('{list}', list) : globalThis.t.text("workbench.navigation-presentation.press-again-remove");
     tile.querySelector('.plugin-rail-confirm').textContent = message;
     const title = toggle.getAttribute('title');
     toggle.setAttribute('title', message);
     const label = toggle.getAttribute('aria-label') || '';
-    const sure = L('确认移除') + label.slice(label.indexOf('：'));
+    const sure = globalThis.t.text("workbench.navigation-presentation.confirm-removal") + label.slice(label.indexOf('：'));
     toggle.setAttribute('aria-label', sure);
     const words = toggle.querySelector('.mw-sr-only'); if (words) words.textContent = sure;
     tile.classList.add('is-confirming');
@@ -301,11 +300,9 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
 
-  /* The resident Assistant: its answer opens above the bar and stays until closed. */
+  /* The resident Assistant: its answer opens above the bar and stays until closed (the island opens it on a Send). */
   const panel = dock.querySelector('[data-assistant-panel]');
-  const composer = dock.querySelector('[data-assistant-composer]');
   const setPanel = (open) => { if (panel) panel.hidden = !open; };
-  composer?.addEventListener('submit', () => setPanel(true), true);
 
   dock.addEventListener('click', (event) => {
     const target = event.target?.nodeType === 1 ? event.target : null;

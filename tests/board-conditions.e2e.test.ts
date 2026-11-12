@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-39 (§render-lifecycle 同源标本): the component board's 条件与状态 section is the shipped
 // Assistant reply (Host renderer, Coding's tokenizer, the code figure's copy and fold, molisStreamText, molisFollow, molisCopy,

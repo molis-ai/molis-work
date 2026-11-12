@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
@@ -12,10 +13,12 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 test("ASR-07 page storage scopes isolate identical installations and projects by Home", () => {
   const homes = [mkdtempSync(join(tmpdir(), "page-scope-a-")), mkdtempSync(join(tmpdir(), "page-scope-b-"))];
+  const disconnect: Array<() => void> = [];
   try {
     const manifest = {plugin_id: "io.example.scope", ui: {}, actions: [], routes: []} as PluginManifest;
     const activation = {manifest, install_id: "same-install", project_id: "same-project", actor_id: "web-user", assertCurrent() {}};
-    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user", undefined, activation);
+    for (const home of homes) disconnect.push(pluginPagesFor(home).connect(activation));
+    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user");
     const a = open(homes[0]!), b = open(homes[1]!);
     assert.notEqual(a.storage_scope, b.storage_scope);
     const reopened = open(homes[0]!);
@@ -24,7 +27,10 @@ test("ASR-07 page storage scopes isolate identical installations and projects by
     pluginPagesFor(homes[0]!).close(a.page_id);
     pluginPagesFor(homes[0]!).close(reopened.page_id);
     pluginPagesFor(homes[1]!).close(b.page_id);
-  } finally { homes.forEach(home => rmSync(home, {recursive: true, force: true})); }
+  } finally {
+    disconnect.forEach(close => close());
+    homes.forEach(home => rmSync(home, {recursive: true, force: true}));
+  }
 });
 
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
@@ -293,7 +299,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   } });
   await grantHomeProbe(f.host, probe);
   const project = await f.project("External page visibility"), prefix = `/projects/${project.project_id}`;
-  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
   assert.equal(shown.status, 200, await shown.clone().text());
   const mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
   const open = () => f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
@@ -304,7 +310,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   block = true; const pending = action("availability");
   try {
     await entered.promise;
-    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
     assert.equal(hidden.status, 200, await hidden.clone().text());
     assert.equal(f.host.homePlugins!.installation(probe.id)!.state, "running", "hiding this project does not stop the Home instance");
   } finally { release.resolve(); }
@@ -336,7 +342,7 @@ test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw forei
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
   for (const plugin_id of ["coding", "files", "git", "diff", "text-stats"]) {
-    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
+    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);
@@ -568,6 +574,7 @@ type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
 
 import { createSettingsAddressHarness, type SettingsAddressSection } from "./fixtures/settings-address.js";
+import { pageText } from "./fixtures/page-text.js";
 
 /** A single address; lifecycle regressions below retain the harness across requests. */
 function openSettingsAddress(href: string, pluginSections: readonly SettingsAddressSection[] = [], via: "event" | "link" = "event"): string {
@@ -592,7 +599,7 @@ async function homeModelAddress(href: string): Promise<string> {
     dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
   };
   vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
-    document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
+    document, t: { text: pageText("zh") }, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
     DOMParser: class {}, AbortController, setTimeout, clearTimeout,
   });
   const swallowed: unknown[] = [];

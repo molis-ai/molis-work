@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 import { renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
@@ -137,7 +138,7 @@ test("the motion script rests under reduced motion and automation, and types by 
 });
 
 test("the component board lists the arrival components, each with a specimen", () => {
-  const html = renderPrimitiveCatalog();
+  const html = withPageText("zh", [], renderPrimitiveCatalog);
   assert.match(html, /<section class="mw-catalog__section" id="arrival" data-primitive="arrival"><h2>到达 \/ Arrival<\/h2>/);
   for (const id of ["wordmark", "caption", "steps", "bar-context", "bar-status", "goal-track", "file-list", "brief"]) {
     assert.match(html, new RegExp(`data-primitive="${id}"`), id);

@@ -227,6 +227,41 @@ async function code(operation: Promise<unknown> | (() => unknown)): Promise<stri
   catch (error) { return (error as { code?: string }).code; }
 }
 
+test("FSS-38 a viewless Runtime offer loses its exact text source before a replacement starts", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const executor = Object.assign(new NativePluginExecutor(), {
+    async stop(definition: PluginDefinition) {
+      if (definition.manifest.version === "1.0.0") { entered.resolve(); await release.promise; }
+    },
+  });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
+  const viewless = (version: string, compatible?: string[]): PluginDefinition => {
+    const definition = probe(version, { compatible, sandbox: true });
+    return { ...definition, manifest: { ...definition.manifest, name: "Viewless " + version, ui: { contributions: [] } },
+      start: async () => ({ kind: "app" }) };
+  };
+  const started = await supervisor.start([{ definition: viewless("1.0.0"), grants: [] }]);
+  assert.deepEqual(started.failed, []);
+  const previous = supervisor.activeInstance(ID)!;
+  assert.equal(previous.contribution.views, undefined);
+  const before = previous.source!()!;
+  assert.equal(before.manifest.name, "Viewless 1.0.0");
+  const upgrading = supervisor.upgrade(ID, viewless("2.0.0", ["1.0.0"]));
+  try {
+    await entered.promise;
+    assert.equal(previous.source!(), undefined, "the retained cleanup context is unavailable as a producer");
+  } finally { release.resolve(); }
+  assert.equal((await upgrading).status, "running");
+  const next = supervisor.activeInstance(ID)!, current = next.source!()!;
+  assert.equal(next.install_id, previous.install_id);
+  assert.equal(current.manifest.name, "Viewless 2.0.0");
+  assert.notEqual(current.activation, before.activation);
+  assert.equal(previous.source!(), undefined, "a stable install id cannot rebind an earlier offer");
+  supervisor.revoke(ID);
+  assert.equal(next.source!(), undefined);
+  await runtime.stop(next.install_id);
+});
+
 test("upgrading or rolling back a disabled install switches the code and leaves it disabled", async () => {
   const starts: string[] = [];
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
@@ -866,4 +901,84 @@ test("RAC-2400 a stop hook that throws synchronously still reports the missing i
   assert.equal(hooks, 1, "the stop hook ran once");
   assert.throws(() => contexts[0]!.requireGrant("storage:private"), { code: "plugin.grant_denied" }, "the grant was withdrawn before the hook");
   assert.equal(runtime.contribution(id), null, "nothing of the instance is kept");
+});
+
+
+test("SKC-10 cancellation after successful Runtime start revokes and releases the instance without a crash record", async t => {
+  for (const cleanupFailure of [false, true]) await t.test(cleanupFailure ? "cleanup rejects" : "cleanup succeeds", async () => {
+    const repository = new MemoryPluginRuntimeRepository(), writes: PluginInstanceRecord[] = [], save = repository.save.bind(repository);
+    repository.save = record => { writes.push(record); save(record); };
+    const controller = new AbortController(), cancelled = new Error("cancelled after entrypoint started");
+    const resources = new Set<PluginStartContext>(), base = probe("1.0.0");
+    let stops = 0, started: PluginStartContext | undefined;
+    const definition: PluginDefinition = {
+      ...base, manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] },
+      async start(context) {
+        const contribution = await base.start(context);
+        context.requireGrant("storage:private"); resources.add(context); started = context;
+        controller.abort(cancelled);
+        return contribution;
+      },
+      async stop(context) {
+        stops++;
+        assert.equal(context, started, "cleanup uses the context of the successful activation");
+        assert.throws(() => context.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+        assert.equal(runtime.contribution(context.install_id), null);
+        resources.delete(context);
+        if (cleanupFailure) throw new Error("cleanup failed after releasing resources");
+      },
+    };
+    const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["storage:private"] }).install;
+    writes.length = 0;
+    await assert.rejects(runtime.start(installed.install_id, { assertCurrent: () => controller.signal.throwIfAborted() }), error => error === cancelled);
+    assert.equal(stops, 1, "the successful entrypoint must be stopped even though running was not saved");
+    assert.equal(resources.size, 0, "the cancelled instance owns no surviving resources");
+    assert.deepEqual(runtime.get(installed.install_id), installed);
+    assert.deepEqual(writes, [], "neither running nor crashed nor a cleanup failure is saved");
+    assert.equal(runtime.contribution(installed.install_id), null);
+    await runtime.stop(installed.install_id);
+    assert.equal(stops, 1, "queued or later cleanup cannot stop this activation twice");
+  });
+});
+
+test("SKC-10 cancellation after candidate Runtime start releases it before restoring the old instance", async () => {
+  const repository = new MemoryPluginRuntimeRepository(), writes: PluginInstanceRecord[] = [], save = repository.save.bind(repository);
+  repository.save = record => { writes.push(record); save(record); };
+  const controller = new AbortController(), cancelled = new Error("cancelled after candidate started");
+  const resources = new Map<PluginStartContext, string>(), order: string[] = [];
+  const definition = (version: string): PluginDefinition => {
+    const base = probe(version, version === "2.0.0" ? { compatible: ["1.0.0"] } : {});
+    return {
+      ...base, manifest: { ...base.manifest, permissions: [{ permission: "storage:private", required: true, reason: "probe" }] },
+      async start(context) {
+        assert.equal(resources.size, 0, "starting another version cannot overwrite an unreleased instance");
+        const contribution = await base.start(context);
+        resources.set(context, version); order.push("start " + version);
+        if (version === "2.0.0") controller.abort(cancelled);
+        return contribution;
+      },
+      async stop(context) {
+        assert.throws(() => context.requireGrant("storage:private"), { code: "plugin.grant_denied" });
+        assert.equal(resources.get(context), version);
+        resources.delete(context); order.push("stop " + version);
+      },
+    };
+  };
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: definition("1.0.0"), deployment: "local", grants: ["storage:private"] }).install.install_id;
+  await runtime.start(id);
+  const before = runtime.get(id); writes.length = 0;
+  try {
+    await assert.rejects(runtime.upgrade({ install_id: id, definition: definition("2.0.0"), assertCurrent: () => controller.signal.throwIfAborted() }), error => error === cancelled);
+    assert.deepEqual(order, ["start 1.0.0", "stop 1.0.0", "start 2.0.0", "stop 2.0.0", "start 1.0.0"]);
+    assert.deepEqual([...resources.values()], ["1.0.0"], "only the restored old instance remains active");
+    const restored = runtime.get(id);
+    assert.equal(restored.version, before.version); assert.equal(restored.state, "running");
+    assert.equal(restored.installation_generation, before.installation_generation); assert.equal(restored.last_error_code, before.last_error_code);
+    assert.ok(runtime.contribution(id));
+    assert.ok(writes.every(record => record.state !== "crashed" && record.last_error_code === null), "cancellation and cleanup never write failure accounting");
+    assert.ok(writes.every(record => record.version !== "2.0.0" || record.state === "installed"), "the cancelled candidate is never published as running");
+  } finally { await runtime.stop(id); }
+  assert.equal(resources.size, 0);
 });

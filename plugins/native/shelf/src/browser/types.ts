@@ -1,3 +1,4 @@
+import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type {
   ShelfAiStatus,
   ShelfClipboardRecord,
@@ -11,9 +12,8 @@ import type {
   ShelfSettingsPatch,
   ShelfShortcutAction,
 } from "@molis-ai/molis-work-module-shelf/contract";
-import type { UiClientTranslate, UiPluginClientHost, UiRequestScope } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPluginClientHost, UiRequestScope } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export type Translate = UiClientTranslate;
 export type Item = ShelfItemRecord;
 export type Child = ShelfFolderChild;
 export type Clip = ShelfClipboardRecord;
@@ -34,20 +34,17 @@ export interface ShelfLifetime extends UiRequestScope {
 }
 
 /** What the page hands Shelf's client: the shared host fields it uses, and the root's lifetime. */
-export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLElement>, "translate" | "pluginRoute" | "pluginId" | "copyText" | "nativeFiles" | "loadMedia"> {
+export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLElement>, "pluginRoute" | "pluginId" | "copyText" | "nativeFiles" | "loadMedia"> {
   mountPluginClient(root: Element): ShelfLifetime | null;
 }
 
 /** The terminal bridge terminal.ts leaves on the page while the root lives. */
 export interface ShelfTui { open(): void; send(text: string): boolean; isLive(): boolean }
 
-/** The page's drop-zone program (workbench): says when a file drag is over the zone and when it has left. */
-type DropZone = (zone: string | Element, mark: (on: boolean) => void, accepts?: (types: readonly string[]) => boolean) => void;
-
 declare global {
-  // `molisWorkShelfTui` is terminal.ts's own bridge (tests stand in for it); `molisDropZone` is left by the page, Shelf only asks.
+  // `molisWorkShelfTui` is terminal.ts's own bridge (tests stand in for it); `window.molisDropZone` comes from the SDK's page
+  // globals (imported above, the workbench leaves it on the page), Shelf only asks.
   var molisWorkShelfTui: ShelfTui | undefined;
-  interface Window { molisDropZone?: DropZone }
 }
 
 /** What the page shows: Shelf's snapshot, with what a page that has not loaded yet lacks. */
@@ -96,7 +93,6 @@ export interface Reading {
 /** The page: its parts, what it knows, and what the person has chosen so far. One per mounted root. */
 export interface ShelfPage {
   readonly host: ShelfHost;
-  readonly L: Translate;
   readonly lifetime: ShelfLifetime;
   readonly directory: HTMLElement;
   readonly bench: HTMLElement;

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.teams",
+  "locale": "en",
+  "messages": {
+    "teams.connection.auth-help": "Use a Microsoft Graph token with Chat.Read.",
+    "teams.connection.inbound": "Feed reads the chat list",
+    "teams.connection.summary": "Messages, channels and chats.",
+    "teams.connection.token-label": "Microsoft Graph access token (Chat.Read)",
+    "teams.guide.cli-link": "View Microsoft Graph PowerShell",
+    "teams.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work does not read the PowerShell session.",
+    "teams.guide.mcp-link": "Microsoft Work IQ MCP",
+    "teams.guide.mcp-note": "A tenant administrator must enable the Work IQ preview, a Copilot license and Entra app permissions.",
+    "teams.guide.oauth-link": "Register Microsoft Entra app",
+    "teams.guide.token-note": "Use Graph Explorer to get a user token for testing. Register your own app for ongoing use.",
+    "teams.oauth.tenant": "Tenant ID (leave blank for personal accounts or multitenant apps)",
+    "teams.setup.get-a-token-in-graph-explorer": "Get a token in Graph Explorer",
+    "teams.setup.register-azure-app": "Register Azure app"
+  }
+}

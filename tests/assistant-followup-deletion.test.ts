@@ -152,3 +152,31 @@ for (const stage of ["session.read", "run.start"] as const) {
     assert.equal(store.rounds(sent.work.work_id).length, 1, "the already completed Assistant round remains");
   });
 }
+
+// D0199 / D0188: a refused post-start check must not fabricate a round after authority was withdrawn.
+test("D0199 a second beforeStart refusal after Host acceptance adds no assistant round", { timeout: 60_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-post-start-refusal-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(() => reply(), async () => reply()));
+  const reviews = new AgentReviewQueue(), host = new AgentHost({ reviews });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.post-start-test", appVersion: "1.0.0" },
+    storageRoot: join(directory, "sdk"), reviewQueue: reviews,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "Project" }, "web-user");
+  t.after(async () => { service.continuations.close(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
+  let accepted = false, refused = 0;
+  const start = host.start.bind(host);
+  t.mock.method(host, "start", async (...args: Parameters<typeof start>) => { const handle = await start(...args); accepted = true; return handle; });
+  await assert.rejects(service.send({ text: "Start once", request_id: "D0199-post-start" }, {
+    project_ref: { project_id: "project", storage_key: "memory:post-start" },
+    beforeStart: async () => { if (accepted) { refused++; throw new Error("post-start authority refused"); } },
+  }), /post-start authority refused/);
+  assert.equal(accepted, true);
+  assert.equal(refused, 1);
+  const work = store.list("web-user")[0]!;
+  assert.ok(work);
+  assert.equal(store.rounds(work.work_id).length, 0);
+});

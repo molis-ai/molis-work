@@ -13,7 +13,7 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import { recordMemoryUsage, registerMemoryHost } from "./memory/memory-host.js";
 import { memoryRuntime } from "./memory/memory-runtime.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";

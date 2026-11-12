@@ -49,7 +49,7 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=todo]')");
-  await waitFor("document.querySelector('[data-assistant-input]')");
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')");
 
   const api = `/projects/${projectId}/api/assistant`;
   type Work = { work_id: string; session_id?: string; state: string };
@@ -70,10 +70,10 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   };
 
   const typeAndSend = async (text: string) => {
-    await click("[data-assistant-input]");
+    await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   };
 
   // 1. The person types a message: no mark.
@@ -81,7 +81,7 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   const work = await roundsDone(1);
 
   // 2. A plugin's page hands a request over on a click: the page's words, sent without the person seeing them first.
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "e2e-delegate-1", purpose: "delegate", source: { surface: "todo", title: "待办" },
     object: { kind: "todo_item", id: "todo-1", title: "以后报销都不用问我", version: 1 }, text: "帮我推进「以后报销都不用问我」", materials: [], work_id: ${JSON.stringify(work.work_id)} } }))`);
   await roundsDone(2);
@@ -111,10 +111,10 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   await roundsDone(5);
 
   // 6. A hand-over that brings only material and no words: the panel opens for the person, and what they write themselves carries no mark.
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "e2e-delegate-2", purpose: "delegate", source: { surface: "todo", title: "待办" },
     object: { kind: "todo_item", id: "todo-2", title: "整理周报", version: 1 }, text: "", materials: [{ title: "待办「整理周报」", text: "要做什么：整理周报" }], work_id: ${JSON.stringify(work.work_id)} } }))`);
-  await waitFor("document.activeElement === document.querySelector('[data-assistant-input]')", 10_000);
+  await waitFor("document.activeElement === document.querySelector('[data-assistant-composer] .mw-composer__input')", 10_000);
   await typeAndSend("按这条待办的说明做");
   await roundsDone(6);
 
@@ -167,10 +167,10 @@ test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a cor
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?openPlugin=todo" }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-input]')");
-  await click("[data-assistant-input]"); await command("Input.insertText", { text: "整理报告" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')");
+  await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text: "整理报告" }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('[data-ix-question] [data-ix-field=q0] [data-ix-option=\"0\"]')", 15_000);
   const api = "/projects/" + projectId + "/api/assistant/works";
   type View = { work: { work_id: string; state: string }; rounds: { run_id: string; awaiting_input: { pending_id: string }[] }[] };

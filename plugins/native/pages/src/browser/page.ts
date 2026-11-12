@@ -2,6 +2,8 @@ import type { PagesFocus } from "../focus.js";
 import { pagesRequest } from "./request.js";
 import type { Fresh, Goal, PagesEditor, PagesEditorApi, PagesFolder, PagesHost, PagesLifetime, PagesRecord, PagesRequest, SurfaceDetail, Translate } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** The import dialog's own state: what was chosen, whether a request is out, and which project and route it is for. */
 export interface ImportState {
   files: { name: string; data: string }[];
@@ -19,7 +21,7 @@ export interface ImportState {
  */
 export interface PagesPage {
   readonly host: PagesHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly api: PagesRequest;
   readonly Editor: PagesEditorApi;
   readonly bench: HTMLElement;
@@ -87,7 +89,7 @@ export function createPage(host: PagesHost, Editor: PagesEditorApi): PagesPage |
   if (!bench) return null;
   const el = <T extends HTMLElement = HTMLElement>(selector: string) => bench.querySelector<T>(selector);
   return {
-    host, L: host.translate, api: pagesRequest(host, host.translate), Editor, bench, el,
+    host, readText: uiText.text, api: pagesRequest(host), Editor, bench, el,
     els: (selector) => bench.querySelectorAll<HTMLElement>(selector),
     list: el("[data-pages=directory]"), rowsEl: el("[data-pages-rows]")!, empty: el("[data-pages-empty]")!, searchEmpty: el("[data-pages-search-empty]")!,
     searchInput: el<HTMLInputElement>("[data-pages-search]"), workspace: el("[data-pages-stage-workspace]")!, titleEl: el("[data-pages-editor-title]")!,

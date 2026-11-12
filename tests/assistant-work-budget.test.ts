@@ -10,6 +10,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, stopInWords } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -75,14 +76,15 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     assert.equal(cleared.usage?.budget_tokens, null);
     assert.equal((await service.budget.usage()).today.rounds, 3, "the daily count sees the same rounds");
 
+    const stopText = (...args: Parameters<typeof stopInWords>) => inAssistantPage("zh", () => stopInWords(...args));
     // A stop at the round's token limit, in a work with a cap, is that cap in the person's words.
-    assert.match(stopInWords("AGENT_BUDGET_EXCEEDED: This run already used 1200 of its 390 tokens; nothing was sent.", 1000), /这项工作的用量上限（1,000 tokens）/);
-    assert.match(stopInWords("This run already used 1200 of its 390 tokens; nothing was sent."), /这一轮的用量上限/);
+    assert.match(stopText("AGENT_BUDGET_EXCEEDED: This run already used 1200 of its 390 tokens; nothing was sent.", 1000), /这项工作的用量上限（1,000 tokens）/);
+    assert.match(stopText("This run already used 1200 of its 390 tokens; nothing was sent."), /这一轮的用量上限/);
     // A desktop task needs a look and an action per step; the round's limit leaves room for about twenty of them.
-    assert.match(stopInWords("too many tool turns"), /步数上限（60 步）.*继续/);
+    assert.match(stopText("too many tool turns"), /步数上限（60 步）.*继续/);
     // Seen with an unreachable model address: the person reads what happened and what to check, not a code.
-    assert.match(stopInWords("MODEL_NETWORK_FAILED: fetch failed"), /^连不上模型服务.*模型设置.*（MODEL_NETWORK_FAILED: fetch failed）$/);
-    assert.match(stopInWords("MODEL_AUTH_FAILED: 401 invalid api key"), /模型服务拒绝了这次调用/);
-    assert.match(stopInWords("MODEL_HTTP_ERROR: 529 overloaded"), /太忙/);
+    assert.match(stopText("MODEL_NETWORK_FAILED: fetch failed"), /^连不上模型服务.*模型设置.*\nMODEL_NETWORK_FAILED: fetch failed$/);
+    assert.match(stopText("MODEL_AUTH_FAILED: 401 invalid api key"), /模型服务拒绝了这次调用/);
+    assert.match(stopText("MODEL_HTTP_ERROR: 529 overloaded"), /太忙/);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

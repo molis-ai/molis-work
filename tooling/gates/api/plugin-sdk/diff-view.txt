@@ -71,11 +71,6 @@ export interface DiffViewLabels {
     readonly reveal: string;
 }
 
-export type DiffViewMessages = Readonly<Record<string, {
-    readonly zh: string;
-    readonly en: string;
-}>>;
-
 export interface DiffViewModel<Group extends string = string> {
     readonly view: DiffView<Group>;
     readonly primitives: DiffViewPrimitives;
@@ -91,7 +86,7 @@ export interface DiffViewPrimitives {
     icon(name: string): string;
 }
 
-export type DiffViewText = (value: string, values?: Record<string, string | number>) => string;
+export type DiffViewText = (key: string, values?: Record<string, string | number>) => string;
 
 export interface UnifiedHunk {
     before_start: number;
@@ -119,8 +114,6 @@ export declare function countChangedLines(hunks: readonly UnifiedHunk[]): {
     added: number;
     removed: number;
 };
-
-export declare function diffViewText(messages: DiffViewMessages, locale?: ActionLocale, templates?: readonly string[], say?: DiffViewText): DiffViewText;
 
 export declare function emptyDiffView<Group extends string>(group: Group | null, message: string, phase?: DiffPhase, recovery?: string): DiffView<Group>;
 

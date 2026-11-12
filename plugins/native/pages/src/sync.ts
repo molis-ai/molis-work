@@ -1,4 +1,5 @@
 import { syncError } from './sync-errors.js';
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type { PagesBody } from "./contract.js";
 import { parsePagesBody } from "./document.js";
 interface Folder { id: string; title: string; created_at: string; updated_at: string }
@@ -35,7 +36,7 @@ export function parsePayload(input: unknown): Payload {
     return { ...base(row, 80), body, folder_id, starred: row.starred, goal_id: text(row.goal_id, 80, true), artifact_id, artifact_version: Number(row.artifact_version) };
   });
   unique(documents);
-  const sort = (a: Folder, b: Folder) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  const sort = (a: Folder, b: Folder) => compareCodeUnits(a.id, b.id);
   return { folders: folders.sort(sort), documents: documents.sort(sort) };
 }
 

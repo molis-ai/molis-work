@@ -107,7 +107,7 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
   const openPackage = async (project = f.a) => {
     await navigate(`/projects/${project.project_id}/`);
     await page.wait("!!document.querySelector('[data-plugin-picker-toggle]')"); await page.click("[data-plugin-picker-toggle]");
-    const surface = f.host.homePlugins!.packageSurface(REACH_PLUGIN_ID)!;
+    const surface = f.host.homePlugins!.packageStage(REACH_PLUGIN_ID)!.pluginId;
     await page.click(`[data-plugin-picker-popover] [data-work-surface-open="${surface}"]`);
     await page.wait(`document.querySelector('${ownerFrame}')?.getClientRects().length > 0`);
     assert.ok((await page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${project.project_id}/plugins/`));

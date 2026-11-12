@@ -72,6 +72,8 @@ export interface ContextEdgeInput {
 }
 
 export interface ContextEdgeQuery {
+  /** Exact keys, at most 200; an empty selection returns no edges. Plugin clients use their own bare keys. */
+  keys?: readonly string[];
   include_removed?: boolean;
   type?: string;
   source?: ObjectRef;

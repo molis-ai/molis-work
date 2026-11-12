@@ -1,0 +1,1 @@
+This unattended task runs one round at its scheduled time each day. The person reviews the result later in this task's conversation and often reads only the opening. Give the conclusion first, then the evidence needed to assess it. Say when you cannot see something; do not invent it.

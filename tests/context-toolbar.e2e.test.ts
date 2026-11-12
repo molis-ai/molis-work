@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // W1-06 (context-program §19.4): the context toolbar on the component board, driven in a real browser. The board's section holds the
 // real program on sample text. What this proves: the bar sits next to the selection, never takes the editor's focus, keeps two actions in

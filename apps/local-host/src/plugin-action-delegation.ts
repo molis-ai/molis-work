@@ -4,6 +4,7 @@ import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider, pluginActionView } from "./plugin-action-provider.js";
 import { checkedReference } from "./plugin-action-query.js";
+import { activeLocale } from "./web-locale.js";
 
 /** The Manifest permission that gives a plugin `services.actions.directory`. Declared and granted like any other; never implied by who published the plugin. */
 export const ACTIONS_DELEGATE_PERMISSION = "actions:delegate";
@@ -51,7 +52,7 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current?.()); } };
     const own: ActionCallContext = { ...inherited, validate_authority: async target => { await original.validate_authority?.(target); source(); },
       assert_authority_current: original.assert_authority_current };
-    const caller: ActionCallContext = { ...inherited, ...(plugin ? { plugin_install_id, host_plugin } : { audience: "workflow" as const }),
+    const caller: ActionCallContext = { ...inherited, ...(plugin ? { plugin_install_id, host_plugin } : { audience: "workflow" as const }), locale: activeLocale() ?? undefined,
       delegated_by: manifest.plugin_id, delegated_audience: original.audience,
       ...(signal ? { signal } : {}), ...(control?.query_only ? { query_only: true as const } : {}), ...withControlChecks(own, fence),
       validate_permissions: async permissions => { source(); await original.validate_permissions?.(permissions); source(); } };

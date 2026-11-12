@@ -1,0 +1,92 @@
+{
+  "V1": {
+    "status_label": "In progress",
+    "main_action_label": "Record progress"
+  },
+  "PLATFORM": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "WORKSPACE": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "ADOPTION": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "CORE": {
+    "status_label": "Completed",
+    "main_action_label": "Continue this Goal"
+  },
+  "INTERFACES": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "RISK": {
+    "status_label": "Blocked",
+    "main_action_label": "Handle the blocker"
+  },
+  "DESKTOP": {
+    "status_label": "In progress",
+    "main_action_label": "Record progress"
+  },
+  "DECIDE": {
+    "status_label": "Needs your decision",
+    "main_action_label": "Make a decision"
+  },
+  "WEB": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "WEB-SCAN": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "WEB-SCAN-ROW": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "WEB-SCAN-NEST": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "RELEASE": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "ONBOARDING": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "DOCS": {
+    "status_label": "Not started",
+    "main_action_label": "Start work",
+    "action_summary": "Open the terminal to start work, or add a record."
+  },
+  "DROPPED": {
+    "status_label": "Cancelled",
+    "main_action_label": "Continue this Goal",
+    "action_summary": "Continue a cancelled Goal explicitly. Adding a record will not reopen it."
+  },
+  "GRAPH": {
+    "status_label": "Archived",
+    "main_action_label": "View history",
+    "action_summary": "This Goal is archived and no longer appears in ordinary work lists."
+  },
+  "AUTO-CONNECT": {
+    "status_label": "Trash",
+    "main_action_label": "Restore",
+    "action_summary": "This Goal is in the trash. Its history is kept."
+  }
+}

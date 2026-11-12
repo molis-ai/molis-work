@@ -112,7 +112,7 @@ function projectPackageRoute(record: PluginInstanceRecord, manifest: PluginManif
 }
 
 function homePackageRoute(home: HomePluginHost | undefined, id: string, manifest: PluginManifest): Route | undefined {
-  if (!home?.packageSurface(id)) return undefined;
+  if (!home?.packageStage(id)) return undefined;
   const stage = projectHomeStageLocation(manifest);
   return stage ? { kind: "package", ...stage, shell: id } : undefined;
 }

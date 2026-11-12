@@ -1,5 +1,6 @@
 // S-upgrade-too-new-untouched, the files' half: the owners that used to take a file they could not read for an empty one and then write over it
 // (upgrade-chain-design §2.6), and the writers that did something else first and only then met the refusal. Temporary Homes only.
+import {createTrialAuthPeer,trialAccountConfig} from "../examples/personal-trial-tools/mock-auth.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -102,7 +103,7 @@ test("S-upgrade-too-new-untouched: `config/onboarding.json` one version ahead or
 
 test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead, unreadable or holding an entry that is not sealed: a login is refused before it sends anything or spends its code", async t => {
   const relative = join("feed", "secrets.json"), callback = "http://127.0.0.1:4173/account/callback";
-  const config = { authOrigin: "https://auth.example", clientId: "too-new-vault" };
+  const config = trialAccountConfig("http://127.0.0.1:8787", "http://127.0.0.1:4173");
   // What the vault turns out to be, from the one this build wrote: a newer build's, damaged, or with another owner's entry that is not a current
   // envelope (version and structure fine: only the check `put` makes finds that one).
   const vaults = [
@@ -112,24 +113,22 @@ test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead, unread
   ] as const;
   for (const [label, turn, refused] of vaults) {
     const { home } = upgradeTestHome(t), sent: string[] = [];
-    let state = "";
-    // Only the Auth peer is synthetic; the vault is the Home's real one, through the same store and check the account HTTP owner uses.
-    const http: typeof fetch = async (url, init) => {
-      const at = new URL(String(url)).pathname;
-      sent.push(at);
-      if (at === "/api/v1/auth/transactions") { state = JSON.parse(String(init?.body)).state; return Response.json({ data: { loginUrl: `${config.authOrigin}/login` } }); }
-      if (at === "/oauth2/token") return Response.json({ access_token: "synthetic-vault-access", refresh_token: "synthetic-vault-refresh", expires_in: 3600 });
-      return Response.json({ data: { userId: "vault-person", displayName: "Vault", emails: [], applicationId: "work", clientId: config.clientId } });
-    };
+    const peer=createTrialAuthPeer({configuration:()=>config,user:()=>"vault-person"});
+    const http: typeof fetch = async (url, init) => { sent.push(new URL(String(url)).pathname); return peer.fetch(url,init); };
     const auth = runWithMolisWorkHome(home, () => new PersonalAuth(config, fileAccountSecrets(), http));
     // Someone is signed in and is switching accounts when the vault turns out to be one this build cannot write.
     await auth.begin(callback);
-    await auth.complete("first-code", state);
+    const control={assertCurrent(){}};
+    const first=await auth.authentication.create({purpose:'LOGIN',method:'EMAIL_PASSWORD'},control);
+    await auth.authentication.submit(first.handle,{step:'PASSWORD_LOGIN',email:'vault-person@example.test',password:'synthetic-vault-password'},control);
+    await auth.authentication.submit(first.handle,{step:'COMPLETE'},control);await auth.adoptLogin(false);auth.finishLogin();
     const lease = auth.accountLease(), generation = auth.accountGeneration();
     await auth.begin(callback, false, true);
+    const second=await auth.authentication.create({purpose:'LOGIN',method:'EMAIL_PASSWORD'},control);
+    await auth.authentication.submit(second.handle,{step:'PASSWORD_LOGIN',email:'vault-person@example.test',password:'synthetic-vault-password'},control);
     const file = place(home, relative, turn(json(join(home, relative)))), before = sha256(file);
     sent.length = 0;
-    await assert.rejects(auth.complete("second-code", state), refused);
+    await assert.rejects(async()=>auth.authentication.submit(second.handle,{step:'COMPLETE'},control), refused);
     assert.deepEqual(sent, [], `${label}: the code is not exchanged and no profile is read`);
     assert.equal(auth.accountGeneration(), generation, `${label}: the signed-in account is not invalidated`);
     assert.doesNotThrow(() => lease.assertCurrent(), `${label}: and its lease still holds`);

@@ -13,14 +13,14 @@ export function projectMcpRevision(home: string, server: AgentMcpServerView): st
   return withConnectorConnections(home, store => {
     const row = store.get(server.auth_connection_id!);
     return row?.enabled && !row.disconnected_at ? `${server.version}:${row.updated_at}` : undefined;
-  });
+  }, true);
 }
 
 export function describeProjectMcpStatus(home: string, owner: AgentSkillOwner, server: AgentMcpServerView, actions: readonly ActionView[], caller: ActionCallContext) {
   const revision = projectMcpRevision(home, server);
   const status = projectConnectorStatus({ revision: revision ?? String(server.version), configured: true, enabled: server.enabled, active: !!revision,
     source: "project-mcp-owner", noAuthentication: server.credential === "none", live: server.health === "connected",
-    observations: withConnectorObservations(home, store => store.read(server.id)), caller,
+    observations: withConnectorObservations(home, store => store.read(server.id), true) ?? {}, caller,
     actions: actions.filter(view => view.provider.provider_id === projectMcpProviderId(owner, server.id)),
   });
   if (caller.project_id !== owner.project_id) {

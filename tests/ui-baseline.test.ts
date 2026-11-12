@@ -17,21 +17,26 @@ const FROZEN = JSON.parse(read("tests/fixtures/baseline-token-names.json")) as {
 const ALL_FROZEN = Object.values(FROZEN.groups).flat();
 const SPEC_ROLES = BASELINE_SPEC.groups.flatMap((group) => group.roles);
 const LOCKED = ["focus-stroke", "focus-stroke-inset", "icon-xs", "icon-sm", "icon-md", "icon-lg", "control-h", "control-pad-x", "sheet-inset", "code-tab"];
+const TYPE_TOKENS = [
+  ...["body", "control", "title", "display", "reading", "note", "code"].flatMap(role => [`type-${role}-size`, `type-${role}-line-height`]),
+  "type-control-font", "type-title-font", "type-display-font", "type-display-weight", "type-reading-font",
+  "type-reading-weight", "type-reading-tracking", "type-note-font", "type-note-weight", "type-note-tracking", "type-code-weight",
+];
 
-test("FSS-54 the spec has exactly the 194 tokens frozen before the files existed", () => {
+test("FSS-54 the spec preserves the 194 frozen tokens and adds the B2 typography roles", () => {
   assert.equal(ALL_FROZEN.length, 194);
   const fontTokens = BASELINE_SPEC.font_roles.flatMap((role) => Object.values(role.tokens));
-  assert.deepEqual([...SPEC_ROLES.map((role) => role.name), ...fontTokens].sort(), [...ALL_FROZEN].sort());
+  assert.deepEqual([...SPEC_ROLES.map((role) => role.name), ...fontTokens].sort(), [...ALL_FROZEN, ...TYPE_TOKENS].sort());
   assert.deepEqual(Object.fromEntries(BASELINE_SPEC.groups.map(({ group, roles }) => [group, roles.map((role) => role.name)])), Object.fromEntries(Object.entries(FROZEN.groups).filter(([group]) => group !== "font")), "the groups, in output order");
-  assert.deepEqual(fontTokens.sort(), [...FROZEN.groups.font!].sort());
+  assert.deepEqual(fontTokens.sort(), [...FROZEN.groups.font!, ...TYPE_TOKENS].sort());
 });
 
-test("FSS-54 114 tokens differ by theme or terminal, 10 are locked, 62 are shared by a skin and 8 belong to the font scheme", () => {
+test("FSS-54 114 tokens differ by theme or terminal, 10 are locked and 62 are shared by a skin", () => {
   assert.equal(SPEC_ROLES.filter((role) => role.varies_by === "theme").length, 108);
   assert.equal(SPEC_ROLES.filter((role) => role.varies_by === "terminal").length, 6);
   assert.deepEqual(SPEC_ROLES.filter((role) => role.locked !== undefined).map((role) => role.name).sort(), [...LOCKED].sort());
   assert.equal(SPEC_ROLES.filter((role) => role.varies_by === "none" && role.locked === undefined).length, 62);
-  assert.equal(Object.keys(BASELINE_FONT.tokens).length, 8);
+  assert.equal(Object.keys(BASELINE_FONT.tokens).length, 8 + TYPE_TOKENS.length);
 });
 
 test("FSS-54 every role has its value on every axis it has, and the two themes write the same roles", () => {

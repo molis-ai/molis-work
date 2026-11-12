@@ -102,6 +102,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 状态变化只经 `src/module/` 的公开入口，页面不另算完成。
+  - 逐项依据（第 24-3 批，用户 2026-11-11 定；安全不变量 S-goal-evidence-tier）：`goals.events.report` 的判断可附依据（核对的确切交付版本、检查方法、观察结果、至多 8 条证据引用：成果版本或某一轮里某条命令的回执）。可信层级（`self_reported`、`machine_verified`、`peer_reviewed`）与缺口只由 `src/evidence-check.ts` 的 `assessGoalReport` 在保存前核对得出，放在输入之外、由插件自己的包装作为第三个参数直接交给处理器，输入 schema 不收层级；同一个幂等键重发的报告先认出是重放，不再重新核对；依据里引用的成果版本读不到或不存在时按自述保存并记缺口；依据点名的版本不是目标已确认的交付物时整批拒绝，其余查不到的一律按自述保存并记缺口。会话只认宿主绑定给 Agent 轮次的：外部客户端经 MCP 自报的会话不算，它的报告只是自述；不是从某一轮固定出来的版本认不出做出者，不算复查；同一轮同一组命令只问平台一次。同步导入的判断行由 `src/module/replication-validation.ts` 的 `validateJudgmentTrust` 校验取值。为此这个动作声明并发调度，在写窗口之前以调用方身份委托 `artifacts.read` 与 `agent.evidence.check`，不替调用方加权限。满足规则在 `src/module/event-state-authorization.ts` 的 `requirementSatisfaction`：用户认可记下它针对的版本，之后的报告核对了另一版（或认可没记版本、之后的报告写明了版本），这一条回到待认可（`conclusion_superseded`），其余要求不受影响；不要求用户决定的要求可由有据的报告满足，前提是所核对的版本仍是已确认的交付物、用户没有不认可；要求用户决定的要求只认用户。每条判断的依据、层级、缺口随事件保存，后来的报告不改它。项目库为此升到第 2 版（判断表与结论表各加列，新列不带 CHECK：平台的升级段不放行带 CHECK 的加列）。改这里跑 `tests/goal-event-evidence.test.ts`、`tests/security-invariants-goal-evidence.test.ts`。
   - CLI 与管理 MCP 使用同一 owner 动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
@@ -132,3 +133,5 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 共享的五个 Goals 插件动作合同与schema在 `plugins/native/goals/src/contract/goal-actions.ts`，由 Goals 自己的动作注册引用（`src/actions.ts`、`src/event-command-actions.ts`）；Coding、CLI、MCP 不 import 它，按动作 id 与版本调用、用到的字段就地声明（Coding 在 `plugins/native/coding/src/goals-actions.ts`；MCP 的描述与字段从宿主自带的 Goals 定义读，与登记进动作目录的是同一份，提供方按 BL-501 固定，不查运行时目录）。contract/state/progress/receipt的plugin受众要求Host实际登记且仍有效的内置caller，项目、操作者与安装都须一致；输入不提供资格。list与note保留原plugin边界。四个Goals context/progress typed协议已移除，Host与SDK均答不可用，不通过伪造描述符恢复。
 
 规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为1；其他动作版本保持。review_action指向goals.planning.impact@1，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。
+
+菜单栏只读摘要：`goals.capsule.menu.read@1` 由 Goals 查询本包事实表，只返回当前一条摘要及同组数量，不展开事件正文。隐藏胶囊经此动作读取；显示胶囊仍读取原完整视图。

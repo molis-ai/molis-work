@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "./transaction-errors.js";
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, constants, copyFileSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
@@ -198,7 +199,8 @@ function removeUnflushedJournal(db: UpgradeSqliteConnection, file: string): void
   if (!journalLooksUnflushed(journal)) return;
   db.exec("BEGIN EXCLUSIVE");
   try { if (journalLooksUnflushed(journal)) rmSync(journal, { force: true }); }
-  finally { db.exec("ROLLBACK"); }
+  catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
+  db.exec("ROLLBACK");
 }
 
 /** §2.2 step 2. Also how a store left by a kill recovers: opening replays a WAL, and a read rolls back a hot journal. */

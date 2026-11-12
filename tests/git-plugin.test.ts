@@ -20,6 +20,7 @@ import {
   serializeStoredDrafts,
 } from "@molis-ai/molis-work-plugin-git";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { withPageText } from "./fixtures/page-text.js";
 
 const NUL = String.fromCharCode(0);
 
@@ -27,13 +28,13 @@ function porcelain(...records: string[]): string {
   return records.join(NUL) + NUL;
 }
 
-test("分支名之外，没有提交和游离 HEAD 也各有一句看得懂的标签", () => {
+test("分支名之外，没有提交和游离 HEAD 也各有一句看得懂的标签", () => withPageText("zh", ["git"], () => {
   assert.equal(headLabel(parsePorcelainStatus({ stdout: porcelain("## main...origin/main [ahead 2, behind 1]") }).head), "main");
   assert.match(headLabel(parsePorcelainStatus({ stdout: porcelain("## No commits yet on main") }).head), /还没有提交/);
   assert.match(headLabel({ kind: "detached", commit: "0123456789abcdef" }), /^游离于 01234567$/);
-});
+}));
 
-test("有冲突时不能提交，干净时也不能", () => {
+test("有冲突时不能提交，干净时也不能", () => withPageText("zh", ["git"], () => {
   const conflicted = projectGit({
     phase: "ready",
     status: parsePorcelainStatus({ stdout: porcelain("## main", "M  a.ts", "UU b.ts") }),
@@ -50,14 +51,14 @@ test("有冲突时不能提交，干净时也不能", () => {
     status: parsePorcelainStatus({ stdout: porcelain("## main", "M  a.ts") }),
   });
   assert.equal(staged.committable, true);
-});
+}));
 
-test("每种起不来的情况各有各的下一步", () => {
+test("每种起不来的情况各有各的下一步", () => withPageText("zh", ["git"], () => {
   const phases = ["waiting", "not-a-repository", "unavailable", "error"] as const;
   const recoveries = phases.map((phase) => projectGit({ phase, status: null }).recovery);
   assert.equal(new Set(recoveries).size, phases.length, "四种麻烦不该给同一句建议");
   assert.equal(recoveries.every((text) => text !== undefined), true);
-});
+}));
 
 test("刷新后选中的行没了就不再报告它被选中", () => {
   const status = parsePorcelainStatus({ stdout: porcelain("## main", "M  a.ts") });

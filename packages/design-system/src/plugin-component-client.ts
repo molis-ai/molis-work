@@ -1,7 +1,9 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { UiPageView } from '@molis-ai/molis-work-contracts/platform/ui';
+import { createTextReader, ownedTextRef, t, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pluginSurfaceWord } from './plugin-surface-text.js';
+import type { TextArgs, UiLocalePack, UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { SandboxPluginContract, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient as present } from './plugin-presentation-client.js';
@@ -11,7 +13,7 @@ import { pcRecords, pcRelations } from './plugin-component-records.js';
 import { pcControls, pcDetail } from './plugin-component-controls.js';
 import { pcOutput, pcQuery } from './plugin-component-output.js';
 import { pcPart, pcSubmit } from './plugin-component-part.js';
-export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation }
+export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[]; deriveFieldWords?: boolean }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
   mountSurfaceSlot?: UiPageView<HTMLElement>['surfaceSlot'];
   translate?(text: string): string;
@@ -27,15 +29,38 @@ export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: 
  * of the product. The part's kind is the catalog component it was given; kinds from older builds map onto the catalog.
  */
 export function createPluginComponentClient(options: PluginComponentClientOptions) {
-  const kit = pcKit(), { make } = kit;
+  let authored: ReturnType<typeof createTextReader> | undefined;
+  const word = (ref?: SandboxVisibleText, args?: TextArgs): string => {
+    if (!ref) return '';
+    const owner = state.view!.contract.pluginId;
+    return authored && typeof ref !== 'string' ? authored.text(ownedTextRef(ref, owner), args ? { extra: textArgs(args) } : undefined) : pluginSurfaceWord(owner, ref, args);
+  };
+  const selectAuthoringWords = (view?: PluginComponentView) => {
+    const fallback = view?.contract.ui?.locales.default, packs = view?.authoringWords;
+    const shown = document.documentElement.dataset.uiLanguageTag;
+    authored = fallback && packs ? createTextReader({
+      locale: packs.some(pack => pack.locale === shown) ? shown! : fallback,
+      packs: [...packs.filter(pack => pack.locale === fallback), ...packs.filter(pack => pack.locale !== fallback)],
+    }) : undefined;
+  };
+  const update = (view: PluginComponentView) => {
+    selectAuthoringWords(view);
+    const updated = life.update(view);
+    if (authored) kit.refreshWords(root);
+    return updated;
+  };
+  const kit = pcKit(word), { make } = kit;
   const root = options.root; root.classList.add('pc-view');
-  const tabs = make('nav', undefined, 'mw-tabs pc-tabs'), tabList = make('div', undefined, 'mw-tabs__list'); tabs.dataset.slot = 'tabs'; tabList.setAttribute('role', 'tablist'); tabList.setAttribute('aria-label', '插件页面'); tabs.append(tabList); root.append(tabs);
+  const tabs = make('nav', undefined, 'mw-tabs pc-tabs'), tabList = make('div', undefined, 'mw-tabs__list'); tabs.dataset.slot = 'tabs'; tabList.setAttribute('role', 'tablist'); tabList.setAttribute('aria-label', t.text("common.generated.pages")); tabs.append(tabList); root.append(tabs);
   const state: State = { options, root, composition: present(), tabs, tabList, view: undefined, currentPage: '', selection: {}, disposed: false, epoch: 0, fresh: false,
     selectionVersions: new Map(), parts: new Map(), pages: new Map(), regions: new Map(), details: new Map(), refresh: async () => [] };
   // Each layer is a function of the state plus what the layers before it added.
-  const c1 = Object.assign(state, kit), c2 = Object.assign(c1, pcRelations(c1)), c3 = Object.assign(c2, pcRecords(c2), pcDetail(c2), pcControls(c2));
+  const c1 = Object.assign(state, kit, { word }), c2 = Object.assign(c1, pcRelations(c1)), c3 = Object.assign(c2, pcRecords(c2), pcDetail(c2), pcControls(c2));
   const c4 = Object.assign(c3, pcOutput(c3)), c5 = Object.assign(c4, pcQuery(c4)), c6 = Object.assign(c5, pcSubmit(c5)), c7 = Object.assign(c6, pcPart(c6));
-  const { update, destroy } = pcLifecycle(c7);
+  const life = pcLifecycle(c7), localeChanged = () => {
+    selectAuthoringWords(state.view); kit.refreshWords(root);
+  };
+  document.addEventListener("molis-work:language-changed", localeChanged);
   const openInput = (id: string): boolean => {
     const part = state.parts.get(id);
     if (state.disposed || !part?.form || !part.node.submit || !c7.ready(part.node.submit.operationId)) return false;
@@ -78,10 +103,12 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     row.tabIndex = -1; row.focus({ preventScroll: true }); row.scrollIntoView({ block: "center" });
     return true;
   };
-  return { update, refresh: c7.refresh, destroy, openInput, openRecord };
+  return { update, refresh: c7.refresh, openInput, openRecord, destroy() {
+    document.removeEventListener("molis-work:language-changed", localeChanged); life.destroy();
+  } };
 }
 function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt) {
-  const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;
+  const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, words, word, bindWord, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;
   async function update(next: PluginComponentView) {
     if (c.disposed) return;
     const refreshNeeded = !c.view || JSON.stringify([c.view.contract.revision, c.view.nodes, c.view.connected]) !== JSON.stringify([next.contract.revision, next.nodes, next.connected]);
@@ -95,10 +122,11 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     for (const page of next.contract.pages) {
       pageIds.add(page.id); let element = pages.get(page.id);
       if (!element) { element = make('div', undefined, 'pc-page'); element.dataset.page = page.id; pages.set(page.id, element); root.append(element); }
-      const tab = make('button', page.title, 'mw-tabs__tab'); tab.type = 'button'; tab.dataset.page = page.id; tab.setAttribute('role', 'tab'); tab.addEventListener('click', () => { selectPage(page.id); void refresh(); }); tabList.append(tab);
+      const tab = words('button', () => word(page.title), 'mw-tabs__tab'); tab.type = 'button'; tab.dataset.page = page.id; tab.setAttribute('role', 'tab'); tab.addEventListener('click', () => { selectPage(page.id); void refresh(); }); tabList.append(tab);
       for (const region of page.regions) {
         const key = page.id + '/' + region.id; regionIds.add(key); let section = regions.get(key);
-        if (!section) { section = make('section', undefined, 'pc-region'); section.setAttribute('aria-label', region.title); regions.set(key, section); element.append(section); }
+        if (!section) { section = make('section', undefined, 'pc-region'); regions.set(key, section); element.append(section); }
+        bindWord(section, 'aria-label', () => word(region.title));
         let previousPart: HTMLElement | undefined;
         for (const node of next.nodes.filter(item => item.pageId === page.id && item.regionId === region.id)) {
           partIds.add(node.id); let part = parts.get(node.id);
@@ -114,18 +142,18 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
           } else {
             // Label-only changes update in place, so the person's input, focus and caret stay where they were.
             const before = part.node; part.node = node;
-            const heading = part.root.querySelector<HTMLElement>('[data-pc-title]'); if (heading) { heading.textContent = node.intent === 'heading' ? headingOf(node) : node.props.title ?? ''; heading.hidden = !heading.textContent; if (heading.parentElement?.classList.contains('pc-part-head')) heading.parentElement.hidden = heading.hidden; }
-            const submit = part.form?.querySelector<HTMLButtonElement>('[type=submit]'); if (submit) submit.textContent = node.props.submitLabel || '提交';
-            if (part.opener) part.opener.querySelector('[data-slot=button-label]')!.textContent = part.dialog ? node.props.title || node.props.submitLabel || '新建' : rowLabel(node);
+            const heading = part.root.querySelector<HTMLElement>('[data-pc-title]'); if (heading) { heading.textContent = node.intent === 'heading' ? headingOf(node) : word(node.props.title); heading.hidden = !heading.textContent; if (heading.parentElement?.classList.contains('pc-part-head')) heading.parentElement.hidden = heading.hidden; }
+            const submit = part.form?.querySelector<HTMLButtonElement>('[type=submit]'); if (submit) submit.textContent = word(node.props.submitLabel) || t.text("common.generated.submit");
+            if (part.opener) part.opener.querySelector('[data-slot=button-label]')!.textContent = part.dialog ? word(node.props.title) || word(node.props.submitLabel) || t.text("common.generated.new") : rowLabel(node);
             const overlay = part.dialog ?? part.confirm;
             if (overlay) {
-              overlay.querySelector('h2')!.textContent = part.dialog ? node.props.title || node.props.submitLabel || '新建' : '确定要' + rowLabel(node) + '吗？';
+              overlay.querySelector('h2')!.textContent = part.dialog ? word(node.props.title) || word(node.props.submitLabel) || t.text("common.generated.new") : t.text("common.generated.confirm", { action: rowLabel(node) });
               const hint = overlay.querySelector<HTMLElement>('[data-pc-overlay-description]')!;
-              if (part.dialog) { hint.textContent = node.props.description ?? ''; hint.hidden = !hint.textContent; }
+              if (part.dialog) { hint.textContent = word(node.props.description); hint.hidden = !hint.textContent; }
               const confirmLabel = part.confirm?.querySelector('[data-pc-confirm-yes] [data-slot=button-label]'); if (confirmLabel) confirmLabel.textContent = rowLabel(node);
             }
-            const description = part.root.querySelector<HTMLElement>('[data-pc-description]'); if (description) { description.textContent = node.props.description ?? ''; description.hidden = !node.props.description; }
-            part.root.setAttribute('aria-label', node.props.title || node.purpose);
+            const description = part.root.querySelector<HTMLElement>('[data-pc-description]'); if (description) { description.textContent = word(node.props.description); description.hidden = !node.props.description; }
+            part.root.setAttribute('aria-label', word(node.props.title) || node.purpose);
             const { title: _t, description: _d, submitLabel: _s, ...shownProps } = node.props, { title: _bt, description: _bd, submitLabel: _bs, ...wasShown } = before.props;
             if (JSON.stringify(shownProps) !== JSON.stringify(wasShown)) void query(part);
           }
@@ -168,6 +196,3 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
   function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { part.slot?.dispose(); clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
   return { update, destroy };
 }
-/** The renderer layers are plain functions so the whole client can be sent to a page as source (`toString`); they use nothing from this module. */
-const CLIENT_LAYERS = [pcKit, pcRelations, pcRecords, pcDetail, pcControls, pcOutput, pcQuery, pcSubmit, pcPart, pcLifecycle, createPluginComponentClient];
-export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = '((present)=>{' + CLIENT_LAYERS.map(layer => layer.toString()).join(';') + ';return createPluginComponentClient})(' + present.toString() + ')';

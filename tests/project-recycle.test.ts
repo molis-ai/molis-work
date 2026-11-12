@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { prepareSyncTestHome } from './fixtures/runtime-personal-sync.js';
-import { createMolisWorkLocalHost, ProjectDeletionService } from '@molis-ai/molis-work-app-local-host';
+import { createMolisWorkLocalHost, installHostUiText, ProjectDeletionService, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 
 test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and replays receipts without changing a later state', () => {
   const db = openTestSqlite(':memory:');
@@ -61,7 +61,8 @@ test('PCSYNC-20 the unique Host service retains project bytes, refuses active te
   const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
   const { withCatalog } = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
-  await withCatalog({ homeDirectory: home }, async catalog => {
+  installHostUiText();
+  await runWithLocale('zh', () => withCatalog({ homeDirectory: home }, async catalog => {
     const p = await catalog.createProject({ display_name: '保留原件', actor_id: 'alice' });
     const bytes = await readFile(p.database_path);
     const panel = await catalog.commit(() => catalog.terminalPanels.insert({panel_id:'plugin-recycle-terminal',install_id:'fixture-install',project_id:p.project_id,actor_id:'alice',key:'cat',subject:'goal',runtime:'command',launch_command:'/bin/cat',launch_args:[],title:'cat'},home));
@@ -84,7 +85,7 @@ test('PCSYNC-20 the unique Host service retains project bytes, refuses active te
     await service.changeRecycled(home, { ...input, operation_id: 'restore', expected_state: archived.state, recycled: false }, () => {});
     assert.equal(releases, before);assert.equal(catalog.getProject(p.project_id).display_name, '等待期间改名');
     assert.deepEqual(catalog.terminalPanels.listIds(p.project_id),[panel.panel_id]);
-  });
+  }));
 });
 
 test('PCSYNC-20 frozen actual v23 catalog is refused before modifying any bytes', async t => {

@@ -212,7 +212,7 @@ export interface AssistantFollowUp {
         due_at: string;
         at: string;
         outcome: "started" | "missed" | "skipped" | "failed";
-        detail?: string;
+        detail?: AssistantSavedText;
     };
 }
 
@@ -252,6 +252,8 @@ export interface AssistantMaterial {
             kind: string;
             id: string;
         };
+    } | {
+        material: MaterialRef;
     };
     method?: AssistantMethodSelection & {
         name?: string;
@@ -319,34 +321,38 @@ export interface AssistantMemoryPrefs {
 
 export type AssistantMessagePurpose = "background" | "change" | "suggest" | "delegate" | "reply";
 
-export interface AssistantMethod extends AssistantMethodSelection {
-    kind?: "role" | "method";
-    method_id: string;
+export type AssistantMethod = {
+    kind: "skill";
+    skill: SkillCatalogEntry;
+} | (Extract<AssistantMethodSelection, {
+    kind: "role";
+}> & {
     plugin_id: string;
     plugin_title: string;
     version: number;
     name: string;
     summary: string;
-}
+});
 
-export interface AssistantMethodSelection {
+export type AssistantMethodSelection = {
+    kind: "skill";
+    ref: SkillRef;
+} | {
+    kind: "role";
     method_id: string;
     version?: number;
-    default_ref?: SignedAgentReference;
-    installation?: SignedAgentInstallation;
-}
+    default_ref: SignedAgentReference;
+    installation: SignedAgentInstallation;
+};
 
 export interface AssistantNotice {
     notice_id: string;
     kind: AssistantNoticeKind;
     work_id: string;
     work_title: string;
-    text: string;
-    text_params?: {
-        plugin: string;
-        folder: string;
-        origin: string;
-    };
+    text: AssistantSavedText;
+    directory_origin?: DirectoryReadOrigin;
+    additional_count?: number;
     created_at: string;
     settings_path?: string;
     open?: {
@@ -614,6 +620,11 @@ export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "exce
     enabled?: boolean;
 };
 
+export type AssistantSavedText = AssistantTextKey | {
+    readonly original: string;
+    readonly label?: AssistantTextKey;
+};
+
 export type AssistantScope = {
     kind: "personal";
 } | {
@@ -635,10 +646,13 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     target?: "answer" | "steer";
     delivery?: AgentSteerMode;
     reask?: AgentQuestionReask;
+    submission_id?: string;
+    draft_revision?: number;
     request_id: string;
 }
 
 export interface AssistantSendResult {
+    submission_id?: string;
     work: AssistantWork;
     outcome: "started" | "steered" | "queued" | "answered" | "repeated";
     run_id?: string;
@@ -722,6 +736,7 @@ export interface AssistantWork {
     state: AssistantWorkState;
     session_id: string | null;
     draft: string;
+    draft_revision: number;
     created_at: string;
     updated_at: string;
     archived: boolean;
@@ -854,3 +869,9 @@ export declare const servicesAssistantContract: {
     readonly maturity: "partial";
     readonly ssot: "specs/archive/system-assistant/spec.md";
 };
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type AssistantTextKey = Extract<OwnedTextRef, {
+    readonly key: string;
+}>;

@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.linear",
+  "locale": "zh",
+  "messages": {
+    "linear.connection.auth-help": "Linear Personal API key。只读 viewer 与最近 Issue。",
+    "linear.connection.inbound": "Feed 读取 Issue",
+    "linear.connection.summary": "Issue、项目与周期。",
+    "linear.connection.token-label": "Linear API Key",
+    "linear.guide.mcp-link": "查看 Linear 官方 MCP",
+    "linear.guide.oauth-link": "查看 Linear OAuth 应用",
+    "linear.setup.open-linear-api-settings": "打开 Linear API 设置"
+  }
+}

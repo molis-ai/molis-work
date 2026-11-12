@@ -64,16 +64,19 @@ export class GoalEventOutcomeRecords {
     verdict: "accepted" | "rejected";
     at: string;
     journalSeq: number;
+    /** The version each requirement's report had checked when the person decided; absent where it named none. */
+    checked: ReadonlyMap<string, { artifact_id: string; version: number }>;
   }): void {
     const insert = this.db.prepare(`
       INSERT INTO goal_event_requirement_conclusions (
-        project_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        project_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq, checked_artifact_id, checked_version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const requirementId of input.requirementIds) {
+      const checked = input.checked.get(requirementId);
       insert.run(
         input.projectId, input.goalId, requirementId, input.decisionId,
-        input.actorId, input.verdict, input.at, input.journalSeq,
+        input.actorId, input.verdict, input.at, input.journalSeq, checked?.artifact_id ?? null, checked?.version ?? null,
       );
     }
   }
@@ -94,6 +97,8 @@ export class GoalEventOutcomeRecords {
         verdict: rowText(row.verdict) as GoalEventUserConclusion["verdict"],
         received_at: rowText(row.received_at),
         journal_seq: Number(row.journal_seq),
+        checked: typeof row.checked_artifact_id === "string" && row.checked_version != null
+          ? { artifact_id: row.checked_artifact_id, version: Number(row.checked_version) } : null,
       });
     }
     return latest;

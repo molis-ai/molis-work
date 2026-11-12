@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 type MenuFrame = { elapsed: number; opacity: number; visible: boolean; pointer: string; content: string; animations: unknown[] };
 

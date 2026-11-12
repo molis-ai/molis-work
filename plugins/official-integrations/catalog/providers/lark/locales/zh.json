@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.lark",
+  "locale": "zh",
+  "messages": {
+    "lark.connection.auth-help": "Lark 国际版自建应用，格式 app_id:app_secret，与飞书凭据分开保存。导入正文需文档只读权限及文档共享，知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
+    "lark.connection.inbound": "Feed 拉会话；成果导入文档",
+    "lark.connection.summary": "国际版 Lark 的消息与文档。",
+    "lark.connection.token-label": "Lark 应用凭证",
+    "lark.guide.cli-link": "查看 Lark 官方 CLI",
+    "lark.guide.cli-note": "同一官方 CLI 支持 Lark 环境；Molis Work 的 Lark Connector 尚未复用其登录。",
+    "lark.guide.mcp-link": "查看 Lark 官方 MCP",
+    "lark.guide.oauth-link": "查看 Lark 用户授权",
+    "lark.guide.token-note": "国际版 Lark 自建应用需 app_id:app_secret。",
+    "lark.setup.open-lark-open-platform": "打开 Lark 开放平台"
+  }
+}

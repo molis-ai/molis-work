@@ -15,4 +15,4 @@ export function purgeFunctionsProject(homeDirectory: string, projectId: string):
 }
 
 /** What this module keeps in the Home for a project and how the project's deletion clears it. Not a plugin, so the Host lists it by hand. */
-export const functionsProjectData: ProjectDataDeclaration = { label: "判断规则在这个项目里的场景绑定和判断记录", order: 70, purge: purgeFunctionsProject };
+export const functionsProjectData: ProjectDataDeclaration = { label: { key: "workbench.project-deletion.judgment-rules" }, order: 70, purge: purgeFunctionsProject };

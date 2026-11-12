@@ -1,3 +1,5 @@
+import { pageText } from "./fixtures/page-text.js";
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -20,10 +22,10 @@ const CALL_ID = "3f9a2c1d-8b47-4e0a-9c55-0d1f6a7b2e90";
 
 test('PERSAF-04 scoped reads and native transport share UiRequest without replacing global fetch',async()=>{
   const original=globalThis.fetch,seen:UiFetchInit[]=[];let browserCalls=0;
-  const request=createUiRequest({origin:ORIGIN,token:()=> 'page-owner',readHeaders:()=>({'x-molis-work-page-session':'page-owner'}),newKey:()=> 'one-key',translate:text=>text,
+  const request=createUiRequest({origin:ORIGIN,token:()=> 'page-owner',readHeaders:()=>({'x-molis-work-page-session':'page-owner'}),newKey:()=> 'one-key',readText:text=>text,
     fetch:async()=>{browserCalls++;return Response.json({browser:true});},
     intercept:(input,init)=>{if(new URL(input).pathname!=='/api/personal/status')return null;seen.push(init);return Promise.resolve(Response.json({native:true}));},
-  });
+  }, UI_HOST_CLIENT_CODES);
   assert.deepEqual(await request('/api/personal/status'),{native:true});
   assert.equal(seen[0]?.headers['x-molis-work-page-session'],'page-owner');
   assert.deepEqual(await request('/api/projects'),{browser:true});assert.equal(browserCalls,1);
@@ -35,8 +37,7 @@ test('PERSAF-04 scoped reads and native transport share UiRequest without replac
 interface Seen { readonly input: string; readonly init: UiFetchInit }
 const headersOf = (seen: Seen) => seen.init.headers;
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const fill = (text: string, values?: Record<string, string | number>) =>
-  Object.entries(values ?? {}).reduce((out, [key, value]) => out.split(`{${key}}`).join(String(value)), text);
+const fill = pageText("zh");
 
 function harness(answer: (seen: Seen) => Response | Promise<Response> = () => json(200, {})) {
   const seen: Seen[] = [];
@@ -46,9 +47,9 @@ function harness(answer: (seen: Seen) => Response | Promise<Response> = () => js
     origin: ORIGIN,
     token: () => "page-token",
     newKey: () => `key-${String(++keys).padStart(8, "0")}`,
-    translate: fill,
+    readText: fill,
   };
-  return { seen, ports, request: createUiRequest(ports) };
+  return { seen, ports, request: createUiRequest(ports, UI_HOST_CLIENT_CODES) };
 }
 
 async function failureOf(run: Promise<unknown>): Promise<UiRequestFailure> {
@@ -263,7 +264,7 @@ function viewPorts(copy: (text: string) => Promise<void> = async () => {}) {
   const ports: UiFailureViewPorts = {
     createElement: () => new FakeNode(),
     copy: async (text) => { copied.push(text); await copy(text); },
-    translate: fill,
+    readText: fill,
     setTimeout: (run, ms) => { const id = next++; pending.set(id, { at: now + ms, run }); return id; },
     clearTimeout: (id) => { pending.delete(id as number); },
   };
@@ -462,8 +463,8 @@ test("each factory runs on its own after toString(), with nothing from the modul
   const seen: string[] = [];
   const request = makeRequest({
     fetch: async (input, init) => { seen.push(`${init.method} ${input}`); assert.deepEqual(Object.keys(init.headers).sort(), ["content-type", "x-molis-work-fragment", "x-molis-work-idempotency-key", "x-molis-work-page-session"]); assert.equal(init.headers["x-molis-work-page-session"], "t"); return json(200, { ok: true }); },
-    origin: ORIGIN, token: () => "t", newKey: () => "k-0000001", translate: fill,
-  });
+    origin: ORIGIN, token: () => "t", newKey: () => "k-0000001", readText: fill,
+  }, UI_HOST_CLIENT_CODES);
   // The page's context has its own Object, so a parsed answer is compared by value.
   assert.equal(JSON.stringify(await request("/api/x", { body: {}, headers: { "X-Molis-Work-Control-Token": "stolen", "x-molis-work-fragment": "1" } })), JSON.stringify({ ok: true }));
   assert.deepEqual(seen, [`POST ${ORIGIN}/api/x`]);
@@ -485,7 +486,7 @@ function pageContext(extra: Record<string, unknown> = {}): PageContext {
   let keys = 0;
   const meta = { content: "meta-token" };
   const sandbox = {
-    URL, setTimeout, clearTimeout,
+    URL, setTimeout, clearTimeout, t: { text: fill },
     location: { origin: ORIGIN },
     crypto: { randomUUID: () => `uuid-${String(++keys).padStart(8, "0")}` },
     navigator: { clipboard: { writeText: async () => {} } },
@@ -529,11 +530,11 @@ test("the page program runs once per page and leaves an existing molisWorkContro
   assert.equal(page.clicks.length, 1);
 });
 
-test("the page program speaks the page's language when there is one, and plain Chinese when there is none", async () => {
-  const withTranslator = pageContext({ L: (text: string) => `EN ${text}`, fetch: async () => { throw new TypeError("Failed to fetch"); } });
+test("the request helper reads fixed failures from the mounted page language", async () => {
+  const withTranslator = pageContext({ t: { text: pageText("en") }, fetch: async () => { throw new TypeError("Failed to fetch"); } });
   run(withTranslator, UI_REQUEST_CLIENT_SCRIPT);
   const english = await run(withTranslator, `molisWorkRequest("/api/things").catch(error => error.message)`);
-  assert.equal(english, "EN 连不上 Molis Work 服务，请稍后重试");
+  assert.equal(english, "Can’t reach the Molis Work service. Try again in a moment.");
   const plain = pageContext({ fetch: async () => { throw new TypeError("Failed to fetch"); } });
   run(plain, UI_REQUEST_CLIENT_SCRIPT);
   assert.equal(await run(plain, `molisWorkRequest("/api/things").catch(error => error.message)`), "连不上 Molis Work 服务，请稍后重试");
@@ -565,8 +566,8 @@ test("SYS-15-L4 a closing request keeps its transport alive while retaining the 
 // WUA-10 / S-unified-account-credentials: a protected read uses only this page's token, never a supplied credential.
 test("protected GET sends the page control token only to its own origin", async () => {
   const seen: {url: string; init: UiFetchInit}[] = [];
-  const request = createUiRequest({ origin: ORIGIN, token: () => "page-control", newKey: () => "unused", translate: value => value,
-    fetch: async (url, init) => { seen.push({url, init}); return Response.json({}); } });
+  const request = createUiRequest({ origin: ORIGIN, token: () => "page-control", newKey: () => "unused", readText: value => value,
+    fetch: async (url, init) => { seen.push({url, init}); return Response.json({}); } }, UI_HOST_CLIENT_CODES);
   await request("/api/account/session", { control: true, headers: { "x-molis-work-page-session": "injected" } });
   assert.deepEqual(seen[0]!.init.headers, { "x-molis-work-page-session": "page-control" });
   await assert.rejects(request("https://outside.invalid/api/account/session", {control: true}));

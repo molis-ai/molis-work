@@ -15,11 +15,11 @@ export function renderBacklinks(page: JellyPage): void {
   if (!relations.length && !links.length) { target.innerHTML = ""; return; }
   const related = relations.map((relation) => {
     const item = state.items.find((entry) => entry.id === relation.owner_id) || state.series.find((entry) => entry.id === relation.owner_id);
-    return item ? btn(item.title, `data-jelly-open-linked-item="${esc(item.id)}"`, "calendar") : "";
+    return item ? btn({ original: item.title }, `data-jelly-open-linked-item="${esc(item.id)}"`, "calendar") : "";
   }).join("");
   const tasks = links.map((link) => {
     const item = state.items.find((entry) => entry.id === link.item_id);
-    return item ? btn(`${item.title} · ${dateLabel(item.start_date, true)}`, `data-jelly-open-linked-item="${esc(item.id)}"`, "check") + btn("jelly.relation.unlink-task", `data-jelly-unlink-task="${esc(link.block_id)}"`, "link") : "";
+    return item ? btn({ original: `${item.title} · ${dateLabel(item.start_date, true)}` }, `data-jelly-open-linked-item="${esc(item.id)}"`, "check") + btn("jelly.relation.unlink-task", `data-jelly-unlink-task="${esc(link.block_id)}"`, "link") : "";
   }).join("");
   target.innerHTML = `<p class="jelly-muted">${tx("jelly.relation.items")}</p>${related}${tasks}`;
 }

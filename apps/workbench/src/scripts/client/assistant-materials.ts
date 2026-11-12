@@ -1,18 +1,16 @@
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
-import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
 import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT, ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT, ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT } from "./assistant-side-context.js";
 
-/** What a sentence carries when it is sent: the page in view and its selection, the work's objects, materials and attachments, the side context, the context strip, and the page context sent with it. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
+/** What a sentence carries when it is sent: the page in view and its selection, the work's objects and the materials the person picked, the side context, the context strip, and the page context sent with it. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
 export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──────────────────────────────────────────────────────────── */
   /* ─── What the person is looking at, and what goes with this Send ──────── */
   let contextStrip = null;
-  const startPop = island.querySelector("[data-assistant-starters]");
-  const attach = island.querySelector("[data-assistant-attach]");
-  const fileInput = island.querySelector("[data-assistant-file]");
   let lastSurface = null;
   let sel = null;
   let files = [];
+  // The files and picks on the composer's own strip, as 待发送 names them; the composer part fills it in once the composer is there.
+  let stripPending = () => [];
   const removed = new Set();
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
   const noteSurface = (target) => {
@@ -61,7 +59,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
   const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
-    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
+    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), readText });
   /** The page's session of the plugin a new work aims at, which it continues instead of starting another. */
   const executorSession = (id) => { const offer = id === "assistant" ? null : executorOffer(id), ctx = pageCtx(); return offer && ctx && ctx.object && ctx.object.kind === offer.session_kind ? ctx.object.id : null; };
   const pageObject = () => {
@@ -78,34 +76,33 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     const page = pageObject();
     // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
     // Not added, it is offered — unless something handed over from it already brings it along.
-    const name = page && (page.object.title || page.object.id), label = page && L("正在看：{title}", { title: name });
-    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
+    const name = page && (page.object.title || page.object.id), label = page && readText("workbench.assistant-materials.viewing-title", { title: name });
+    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? readText("workbench.assistant-materials.objects-work") : "" });
     else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
-    if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
+    if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: readText("workbench.assistant-materials.unsaved-edits"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
-      .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
-    if (sel && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + (file.chip || file.material_id), label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, put: true, thumb: file.preview }));
-    return items.concat(attachments ? attachments.items() : []);
+      .forEach((row) => items.push({ key: "work:" + row.work_id, label: readText("workbench.assistant-materials.belongs-work") + "「" + row.title + "」", optional: true, work: row }));
+    if (sel && !removed.has("selection")) items.push({ key: "selection", label: readText("workbench.assistant-materials.selection") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.reference ? readText("workbench.assistant-materials.quote") + "：" : "") + file.title, auto: false, put: true }));
+    return items;
   };
   /** Leaves an item out of this Send: a page object the person added goes back to optional; the rest are removed. */
   function dropMaterial(item) {
     const page = item.key === "object" ? pageObject() : null;
     if (page && joined.has(objectKey(page.object))) joined.delete(objectKey(page.object));
-    else if (item.key.startsWith("file:")) { if (!attachments.drop(item.key)) files = files.filter((file) => "file:" + (file.chip || file.material_id) !== item.key); } else removed.add(item.key);
+    else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
   }
   const stripNode = island.querySelector("[data-assistant-context-strip]");
-  attachments = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ L, api, toast: (text) => host.showToast?.(text), files: () => files, take: (file) => files.push(file), paint: () => paintMats() });
-  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ L, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
-    current: () => (view && view.work.work_id === curId ? view : null), pickFile: () => fileInput?.click(), expired: EXPIRED_IMAGE, block: () => blocks.materials,
-    pending: () => materialsNow().filter((item) => !item.optional && !item.state).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + (file.chip || file.material_id) === item.key) || {}).kind || "file" : "object", title: item.label })) });
-  const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
-  const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ L, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
-  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
+  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ readText, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
+    current: () => (view && view.work.work_id === curId ? view : null), pickFile, expired: EXPIRED_IMAGE, block: () => blocks.materials,
+    pending: () => materialsNow().filter((item) => !item.optional).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })).concat(stripPending()) });
+  const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ readText, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
+  const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ readText, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
+  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, readText, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
     add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
-    drop: (item) => { dropMaterial(item); paintMats(); }, retry: (item) => attachments.retry(item.key),
+    drop: (item) => { dropMaterial(item); paintMats(); },
     go: (work) => { void switchTo(work.work_id); input.focus(); } });
-  function paintMats() { sideContext.paint(); paintEmpty(); contextStrip?.paint(); syncSend(); }
+  function paintMats() { sideContext.paint(); paintEmpty(); contextStrip?.paint(); }
   island.addEventListener("focusin", () => contextStrip?.paint());
   island.addEventListener("focusout", () => setTimeout(() => contextStrip?.paint(), 0));
   const pageContext = () => {
@@ -124,20 +121,21 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
   };
   const sendMaterials = () => {
     const ctx = pageCtx();
-    const list = files.map(({ preview: _preview, chip: _chip, ...file }) => file);
+    const list = files.slice();
     const page = pageObject();
     if (page && curId && joined.has(objectKey(page.object))) {
       list.push({ material_id: "object", kind: "object", title: page.object.title || page.object.id, explicit: true, object: page.object,
         source: { surface: ctx.plugin_id || "page", ...(ctx.plugin_id ? { plugin_id: ctx.plugin_id } : {}) } });
     }
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) {
-      list.unshift({ material_id: "draft", kind: "text", title: L("未保存的修改") + "：" + ((ctx.object && ctx.object.title) || ""), text: ctx.draft_text,
+      list.unshift({ material_id: "draft", kind: "text", title: readText("workbench.assistant-materials.unsaved-edits") + "：" + ((ctx.object && ctx.object.title) || ""), text: ctx.draft_text,
         explicit: false, draft: true, source: { surface: ctx.plugin_id, plugin_id: ctx.plugin_id }, object: ctx.object });
     }
     return list;
   };
-  const takeMaterials = (sent) => {
+  const takeMaterials = (sent, sameTarget) => {
     files = files.filter(file => !sent.files.includes(file));
     if (sel === sent.selection) sel = null;
-    sent.removed.forEach(key => removed.delete(key)); sent.joined.forEach(key => joined.delete(key)); paintMats();
+    if (sameTarget) { sent.removed.forEach(key => removed.delete(key)); sent.joined.forEach(key => joined.delete(key)); }
+    paintMats();
   };`;

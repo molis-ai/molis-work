@@ -1,7 +1,9 @@
+import { currentLocale, DEFAULT_WEB_LOCALE, webLanguage } from "./web-locale.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { openServerDatabase, SERVER_DATABASE_BASELINE, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain, type ServerOptions } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
+import { frameUiLanguage } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { homeToolKeysScript } from "@molis-ai/molis-work-app-workbench";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -24,7 +26,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: Discussi
       return { storage, events, identity, continuity, options: { identity, events, continuity,
         im: createImDomain({ db: storage.db, identity, events }),
         // Here the discussion is a frame of the workbench: a Home tool's chord pressed in it goes up to the shell.
-        imAssets: { html: renderImPage({ embedded: true }), css: IM_STYLES, script: `${IM_CLIENT_SCRIPT};\n${homeToolKeysScript()}` },
+        imAssets: { html: () => renderImPage({ embedded: true, language: frameUiLanguage(webLanguage(currentLocale()) ?? webLanguage(DEFAULT_WEB_LOCALE)!) }), css: IM_STYLES, script: `${IM_CLIENT_SCRIPT};\n${homeToolKeysScript()}` },
       } };
     } catch (error) { storage.close(); throw error; }
   }

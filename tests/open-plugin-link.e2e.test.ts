@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -15,8 +16,9 @@ test("a plugin link opens the plugin the project offers and drops one it does no
   await waitFor("document.body.dataset.desktopSurface === 'todo' && !new URL(location.href).searchParams.has('openPlugin')");
   assert.ok((await evaluate<string[]>(offered)).includes("todo"));
   // The person takes Feed out of this project in the plugin market.
+  const expectedRevision = await projectPluginRevision(browser.web, projectId!);
   const removed = await evaluate<number>(`fetch('/api/settings/projects/' + encodeURIComponent(${JSON.stringify(projectId)}) + '/plugins', { method: 'DELETE',
-    headers: typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : { 'content-type': 'application/json' }, body: JSON.stringify({ plugin_id: 'feed' }) }).then(response => response.status)`);
+    headers: typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : { 'content-type': 'application/json' }, body: JSON.stringify({ plugin_id: 'feed', expected_revision: ${JSON.stringify(expectedRevision)} }) }).then(response => response.status)`);
   assert.equal(removed, 200);
   const off = "feed";
 

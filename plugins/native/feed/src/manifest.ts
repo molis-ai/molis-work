@@ -1,3 +1,4 @@
+import { FEED_PAGE_INPUTS } from "./page-input.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -5,9 +6,7 @@ import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERS
 import { FEED_HOME_DATABASE } from "./content-ledger.js";
 import { feedSync } from './replication.js';
 import { FEED_PROJECT_DATABASE } from "./database.js";
-import { FEED_EN } from "./en.js";
 import { feedPresentation } from "./presentation.js";
-import { FEED_MESSAGES } from "./messages.js";
 import { feedReconcileJob } from "./runtime-reconcile.js";
 import { feedWakeJob } from "./runtime-wake.js";
 import { FEED_PERMISSIONS } from "./permissions.js";
@@ -15,6 +14,7 @@ import { FEED_ACTIONS, GOAL_CONTRACT, WAKE } from "./runtime-actions.js";
 import { FEED_STAGE_INBOX_READ, feedQueryActions } from "./query-actions.js";
 import { feedItemActions } from "./item-actions.js";
 import { feedRuntimeCaptureScene } from "./scenes.js";
+import { feedDemoSeedAction } from "./demo-seed.js";
 import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 export { FEED_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
@@ -31,7 +31,7 @@ export const feedManifest: PluginManifest = {
   plugin_id: FEED_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Feed",
-  summary: "订阅来源，读消息，留下值得留的。",
+  summary: "订阅来源，读消息，留下值得留的。", summary_text: { key: "feed.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -40,7 +40,8 @@ export const feedManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
   presentation: feedPresentation,
   actions: FEED_ACTIONS,
-  artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
+  demo_seed: { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version },
+  artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" },
     preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },
   requires: [],
   sync: feedSync,
@@ -76,13 +77,12 @@ export const feedManifest: PluginManifest = {
   // The Home says when a connection changed (never which account); the kept job then looks at each account source again.
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
-  ui: {
-    messages: FEED_MESSAGES,
-    translations: FEED_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
+    page_routes: [{ route_id: "feed-stage", path: "/api/stage/feed", query: FEED_PAGE_INPUTS }],
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true,
-        stage_data: { action: feedQueryActions.stage.capability_id, object_action: feedQueryActions.reader.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
+        stage_data: { action: feedQueryActions.stage.capability_id, input: FEED_PAGE_INPUTS, object_action: feedQueryActions.reader.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
     ],
   },
 };

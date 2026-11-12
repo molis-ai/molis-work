@@ -10,7 +10,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
-import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -157,7 +157,7 @@ test("S-task-grants-area TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is t
   for (const id of ["two", "three", "four", "five"]) await p.place(id, "k" + id, `left:${700 + 10}px;top:${["two", "three", "four", "five"].indexOf(id) * 120}px;width:300px;height:1px`);
   assert.equal(await p.placed("five"), "refused: 暂时不能显示", "a fifth area on one page is not shown");
   const refusals = (await p.down()).filter(message => message.type === "task-grants-shown" && "error" in message);
-  assert.deepEqual(new Set(refusals.map(message => message.error)), new Set(["暂时不能显示"]), "every refusal is one fixed sentence");
+  assert.deepEqual(new Set(refusals.map(message => message.error)), new Set(["common.task-grants.cannot-display-this-right-now"]), "every refusal carries the same text key without details");
   assert.ok(refusals.some(message => message.id === 90) && refusals.some(message => message.id === 91), "the forged and the bad opens are refused");
   assert.equal(refusals.some(message => message.id === -1 || message.id === 0.5), false, "a bad id gets no answer at all");
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-framed-area]').length"), 4);
@@ -443,8 +443,8 @@ test("S-task-grants-area TGA-12 TGA-13 TGA-14 TGA-17 a change sends every catego
   };
   const grantsOf = async (provider: string) => JSON.stringify((await readMcpToolPreference(browser.homeDirectory)).action_grants
     .filter(grant => grant.client_id.startsWith("agent:task:") && grant.client_id.endsWith(":daily") && grant.provider_id === provider).map(grant => [grant.capability_id, grant.generation]).sort());
-  const plugins = (method: "DELETE" | "POST", plugin_id: string) => fetch(`${browser.origin}/api/settings/projects/${encodeURIComponent(browser.projectId!)}/plugins`, { method,
-    headers: { origin: browser.origin, "content-type": "application/json", "x-molis-work-control-token": browser.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ plugin_id }) });
+  const plugins = async (method: "DELETE" | "POST", plugin_id: string) => fetch(`${browser.origin}/api/settings/projects/${encodeURIComponent(browser.projectId!)}/plugins`, { method,
+    headers: { origin: browser.origin, "content-type": "application/json", "x-molis-work-control-token": browser.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ plugin_id, expected_revision: await projectPluginRevision(browser.web, browser.projectId!) }) });
 
   await reread();
   await act(OPERATIONS, "switch", "granted");

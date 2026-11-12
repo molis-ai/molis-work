@@ -1,7 +1,7 @@
 /**
  * The context strip just above the Assistant's input (specs/context-program §21.2 point 1): what the next Send carries,
  * one removable chip each — what the person has in hand (a selection, an object a page handed over), the page's object
- * once added, its unsaved edits, the files and references the person added. The object on show that is not added is a
+ * once added, its unsaved edits, the references, methods and capabilities the person added. The object on show that is not added is a
  * dashed chip that says so, with + to add it: added, the model sees it and the work is linked under it; not added,
  * neither (§21.5). A work that already holds that object is one click away. It replaces the 「材料」 button and list.
  *
@@ -9,15 +9,13 @@
  * selection alone does not raise it over the page. More chips than fit scroll sideways: the side with more fades out (the
  * design system's overflow fade), a chip reached by keyboard scrolls into view, and a vertical wheel scrolls the row (§21.5).
  *
- * A chip keeps its element while its item stays (specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a file
- * being read turns into the material in the same element, a new chip makes its neighbours move aside and a removed one lets them close
- * up (`window.molisReflow`), and the focused chip keeps focus. A file not in hand yet says so on its chip: 「读取中」, or its
- * name and why it cannot go, with 重试 when trying again could help. A chip in a new state takes the new look in its own
- * element, so it does not arrive again; focus stays on the same chip's button of the same kind, or the first one when that
- * chip went away.
+ * A chip keeps its element while its item stays (specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a new chip
+ * makes its neighbours move aside and a removed one lets them close up (`window.molisReflow`), and the focused chip keeps focus.
+ * A chip whose words change takes them in its own element, so it does not arrive again; focus stays on the same chip's button of
+ * the same kind, or the first one when that chip went away. Files from this machine are the composer's own strip, in its box.
  */
 export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
-  const { strip, L, el } = input;
+  const { strip, readText, el } = input;
   let signature = "";
   const row = el("div", "assistant-strip-row");
   row.dataset.overflowFade = "";
@@ -36,22 +34,18 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
   const chip = (item) => {
     if (item.work) {
       const go = el("button", "assistant-strip-chip is-work", "→ " + item.work.title); go.type = "button";
-      go.title = item.label; go.setAttribute("aria-label", L("切换到这项工作") + "：" + item.work.title);
+      go.title = item.label; go.setAttribute("aria-label", readText("workbench.assistant-context-strip.switch-work-title", { title: item.work.title }));
       go.addEventListener("click", () => input.go(item.work));
       return go;
     }
-    const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : "") + (item.state ? " is-" + item.state : ""));
-    if (item.state === "reading") node.setAttribute("aria-busy", "true");
-    node.title = item.note || (item.state === "reading" ? L("读取中") : item.optional ? L("没加入：助理看不到它，这项工作也不会记在它下面") : item.auto ? L("来自当前页面") : L("你添加的"));
-    if (item.thumb) { const thumb = el("img", "assistant-strip-thumb"); thumb.src = item.thumb; thumb.alt = ""; node.append(thumb); }
+    const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : ""));
+    node.title = item.note || (item.optional ? readText("workbench.assistant-context-strip.not-added-assistant-can-t-see-work-won") : item.auto ? readText("workbench.assistant-context-strip.page") : readText("workbench.assistant-context-strip.added"));
     const label = el("span", "assistant-strip-label", item.label);
     // The arrow and the short name are for the eye; a screen reader hears the whole sentence (「放进去的位置：…」).
     if (item.landing) { const arrow = el("span", "", "→"); arrow.setAttribute("aria-hidden", "true"); label.setAttribute("aria-hidden", "true"); node.append(arrow, el("span", "mw-sr-only", item.note)); }
     node.append(label);
-    if (item.state) node.append(el("span", "assistant-strip-note", item.state === "reading" ? L("读取中") : item.note));
-    if (item.again) node.append(act("↻", L("重试") + "：" + item.label, () => input.retry(item)));
-    if (item.optional) node.append(el("span", "assistant-strip-note", L("没加入")), act("+", L("加入") + "：" + item.label, () => input.add(item)));
-    else node.append(act("×", L("不带上") + "：" + item.label, () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
+    if (item.optional) node.append(el("span", "assistant-strip-note", readText("workbench.assistant-context-strip.not-added")), act("+", readText("workbench.assistant-context-strip.add-title", { title: item.label }), () => input.add(item)));
+    else node.append(act("×", readText("workbench.assistant-context-strip.leave-out-title", { title: item.label }), () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
     return node;
   };
   // Where a thing would be put on the left, as its owner reported it (molis:surface-landing): one chip after the rest, there
@@ -63,17 +57,17 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     if (event.detail && event.detail.object) { landing = event.detail; from = event.target; } else if (from === event.target) landing = null;
     paint();
   });
-  const WHERE = { cursor: "光标处", selection: "选中处", end: "文末" };
+  const WHERE = { cursor: "workbench.assistant-context-strip.cursor", selection: "workbench.assistant-context-strip.selection", end: "workbench.assistant-context-strip.end" };
   const kept = (items) => landing && WHERE[landing.position] && left !== landing.object.id
     && items.some((item) => item.key === "object" && !item.optional && item.object && item.object.id === landing.object.id) ? landing : null;
   const landingItem = (items) => {
     const at = kept(items);
     if (!at) return null;
-    const heading = ((at.surroundings || {}).heading_path || []).slice(-1)[0] || "", where = L(WHERE[at.position]), name = at.object.title || at.object.id;
+    const heading = ((at.surroundings || {}).heading_path || []).slice(-1)[0] || "", where = readText(WHERE[at.position]), name = at.object.title || at.object.id;
     const near = (at.position === "selection" ? ((at.targets || [])[0] || {}).text || "" : ((at.surroundings || {}).before || "").split("\n").pop().slice(-12)).replace(/\s+/g, " ").trim();
     return { key: "landing", landing: true, label: name + " · " + (heading ? "「" + (heading.length > 10 ? heading.slice(0, 10) + "…" : heading) + "」" : "") + where,
-      note: L("放进去的位置：{place}", { place: [name, heading && "「" + heading + "」", where].filter(Boolean).join("，") })
-        + (near ? (at.position === "selection" ? L("（替换「{text}」）", { text: near.slice(0, 20) }) : L("（「…{text}」之后）", { text: near })) : "") };
+      note: readText("workbench.assistant-context-strip.where-would-go-place", { place: [name, heading && "「" + heading + "」", where].filter(Boolean).join("，") })
+        + (near ? (at.position === "selection" ? readText("workbench.assistant-context-strip.replacing-text", { text: near.slice(0, 20) }) : readText("workbench.assistant-context-strip.after-text", { text: near })) : "") };
   };
   /** What the Send carries of the landing (contracts AssistantLanding; the Host bounds it): only while its chip is on the strip. */
   const carried = () => {
@@ -86,7 +80,7 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     const shown = items.length > 0 && (input.open() || strip.contains(document.activeElement) || input.focused() || items.some((item) => item.put));
     strip.hidden = !shown;
     if (!shown) return;
-    const look = (item) => JSON.stringify([item.label, item.optional, item.note, Boolean(item.thumb), item.state, item.again]);
+    const look = (item) => JSON.stringify([item.label, item.optional, item.note]);
     const next = JSON.stringify(items.map((item) => [item.key, look(item)]));
     if (next === signature) return;
     signature = next;
@@ -110,6 +104,6 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
       (buttons.find((button) => button.getAttribute("aria-label")?.split("：")[0] === label) || buttons[0] || row.querySelector("button"))?.focus();
     }
   };
-  strip.setAttribute("aria-label", L("这次发送带上的"));
+  strip.setAttribute("aria-label", readText("workbench.assistant-context-strip.going-send"));
   return { paint, carried };
 }`;

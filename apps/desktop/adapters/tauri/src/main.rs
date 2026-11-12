@@ -10,6 +10,7 @@ mod drop_wheel;
 #[cfg(target_os = "macos")]
 mod drop_wheel_macos;
 mod external_links;
+mod native_language;
 mod page_files;
 mod personal_session;
 mod runtime_env;
@@ -26,6 +27,7 @@ mod traffic_lights;
 mod web_identity;
 mod web_service;
 
+use native_language::{NativeLanguage, NativeLanguageState};
 use std::path::PathBuf;
 use std::sync::{atomic::Ordering, Mutex};
 use std::thread;
@@ -42,76 +44,9 @@ use web_service::{
     wait_for_upgrading_web, web_healthy, Started, WebServiceState,
 };
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum CapsuleLocale {
-    #[default]
-    Zh,
-    En,
-}
-
-impl CapsuleLocale {
-    fn from_web_locale(value: &str) -> Self {
-        if value.trim().to_ascii_lowercase().starts_with("en") {
-            Self::En
-        } else {
-            Self::Zh
-        }
-    }
-
-    fn query_value(self) -> &'static str {
-        match self {
-            Self::Zh => "zh",
-            Self::En => "en",
-        }
-    }
-
-    fn default_status(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Zh => ("读取中", "Molis Work 正在读取当前工作"),
-            Self::En => ("Loading", "Molis Work is reading current work"),
-        }
-    }
-
-    fn recovering_status(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Zh => (
-                "连接中断",
-                "暂时无法确认最新工作状态，Molis Work 正在自动重新连接",
-            ),
-            Self::En => (
-                "Disconnected",
-                "Molis Work is reconnecting to confirm the latest work status",
-            ),
-        }
-    }
-
-    fn synced_status(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Zh => ("正在同步", "Molis Work 已重新连接，正在读取最新工作状态"),
-            Self::En => (
-                "Syncing",
-                "Molis Work reconnected and is reading the latest work status",
-            ),
-        }
-    }
-
-    /// 桌面是本机服务的主人（用户 2026-11-04 定）：服务由桌面拉起时，退出一起停；
-    /// 服务是命令行装的常驻服务或别的入口拉起的，退出菜单写明它会继续运行。
-    fn tray_actions(self, desktop_owns_host: bool) -> (&'static str, &'static str) {
-        match (self, desktop_owns_host) {
-            (Self::Zh, true) => ("打开当前目标", "退出 Molis Work"),
-            (Self::Zh, false) => ("打开当前目标", "退出 Molis Work（后台服务继续运行）"),
-            (Self::En, true) => ("Open current Goal", "Quit Molis Work"),
-            (Self::En, false) => (
-                "Open current Goal",
-                "Quit Molis Work (background service keeps running)",
-            ),
-        }
-    }
-}
-
 struct CapsuleTrayMenuItems {
     open_molis_work: MenuItem<tauri::Wry>,
+    restore_appearance: MenuItem<tauri::Wry>,
     quit_molis_work: MenuItem<tauri::Wry>,
 }
 
@@ -122,7 +57,7 @@ struct CapsuleStatusState {
     last_tray_rect: Mutex<Option<tauri::Rect>>,
     last_appkit_anchor: Mutex<Option<(f64, capsule_window::AppKitRect)>>,
     ignore_focus_loss_until: Mutex<Option<Instant>>,
-    locale: Mutex<CapsuleLocale>,
+    locale: Mutex<NativeLanguageState>,
     menu_items: Mutex<Option<CapsuleTrayMenuItems>>,
 }
 
@@ -203,26 +138,27 @@ fn desktop_molis_work_url(path: &str) -> Result<Url, String> {
     Url::parse(&target).map_err(|error| format!("Molis Work 页面地址无效：{error}"))
 }
 
-fn capsule_web_url(locale: CapsuleLocale) -> Result<Url, String> {
-    Url::parse(&format!(
-        "http://127.0.0.1:4173/desktop/capsule?desktop=1&locale={}",
-        locale.query_value(),
-    ))
-    .map_err(|error| format!("工作胶囊页面地址无效：{error}"))
+fn capsule_web_url(locale: &NativeLanguage) -> Result<Url, String> {
+    let mut url = Url::parse("http://127.0.0.1:4173/desktop/capsule")
+        .map_err(|error| format!("工作胶囊页面地址无效：{error}"))?;
+    url.query_pairs_mut()
+        .append_pair("desktop", "1")
+        .append_pair("locale", &locale.language.tag);
+    Ok(url)
 }
 
-fn current_capsule_locale(state: &CapsuleStatusState) -> Result<CapsuleLocale, String> {
+fn current_capsule_locale(state: &CapsuleStatusState) -> Result<NativeLanguage, String> {
     state
         .locale
         .lock()
-        .map(|locale| *locale)
+        .map(|locale| locale.displayed.clone())
         .map_err(|error| error.to_string())
 }
 
 fn update_capsule_tray_menu(
     app: &tauri::AppHandle,
     state: &CapsuleStatusState,
-    locale: CapsuleLocale,
+    locale: &NativeLanguage,
 ) -> Result<(), String> {
     let items = state.menu_items.lock().map_err(|error| error.to_string())?;
     let Some(items) = items.as_ref() else {
@@ -235,26 +171,30 @@ fn update_capsule_tray_menu(
         .set_text(open_current)
         .map_err(|error| error.to_string())?;
     items
+        .restore_appearance
+        .set_text(locale.restore_appearance_label())
+        .map_err(|error| error.to_string())?;
+    items
         .quit_molis_work
         .set_text(quit)
         .map_err(|error| error.to_string())
 }
 
-fn sync_capsule_locale(
-    app: &tauri::AppHandle,
-    state: &CapsuleStatusState,
-    locale: CapsuleLocale,
+fn apply_capsule_language(
+    window: &tauri::WebviewWindow,
+    locale: &NativeLanguage,
+    revision: u64,
 ) -> Result<(), String> {
-    *state.locale.lock().map_err(|error| error.to_string())? = locale;
-    update_capsule_tray_menu(app, state, locale)?;
-    let (title, tooltip) = locale.default_status();
-    set_capsule_connection_status(app, title, tooltip)?;
-    if let Some(capsule) = app.get_webview_window("capsule") {
-        capsule
-            .navigate(capsule_web_url(locale)?)
-            .map_err(|error| error.to_string())?;
+    if !window
+        .url()
+        .is_ok_and(|url| is_molis_work_web_url(&url) && url.path() == "/desktop/capsule")
+    {
+        return Ok(());
     }
-    Ok(())
+    let language = serde_json::to_string(&locale.language).map_err(|error| error.to_string())?;
+    window.eval(format!(
+        "if(location.origin==='http://127.0.0.1:4173'&&location.pathname==='/desktop/capsule') globalThis.molisWorkSelectCapsuleLanguage?.({language}, {revision})"
+    )).map_err(|error| error.to_string())
 }
 
 fn hide_capsule_window(app: &tauri::AppHandle, state: &CapsuleStatusState) -> Result<(), String> {
@@ -292,7 +232,7 @@ fn should_keep_window_on_close(label: &str) -> bool {
 fn refresh_tray_quit_item(app: &tauri::AppHandle) {
     let state = app.state::<CapsuleStatusState>();
     let locale = current_capsule_locale(state.inner()).unwrap_or_default();
-    let _ = update_capsule_tray_menu(app, state.inner(), locale);
+    let _ = update_capsule_tray_menu(app, state.inner(), &locale);
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -300,6 +240,15 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+fn show_appearance_recovery(app: &tauri::AppHandle) {
+    show_main_window(app);
+    if let Some(main) = app.get_webview_window("main") {
+        if main.url().is_ok_and(|url| is_molis_work_web_url(&url)) {
+            let _ = main.eval("if(location.origin==='http://127.0.0.1:4173') globalThis.molisWorkRestoreAppearance?.()");
+        }
     }
 }
 
@@ -325,13 +274,15 @@ fn waits_off_main_thread(started: &Result<Started, String>) -> bool {
     matches!(started, Ok(Started::Upgrading))
 }
 
+fn is_molis_work_web_url(url: &Url) -> bool {
+    url.scheme() == "http"
+        && url.host_str() == Some("127.0.0.1")
+        && url.port_or_known_default() == Some(4173)
+}
+
 fn molis_work_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
     let mut url = current
-        .filter(|url| {
-            url.scheme() == "http"
-                && url.host_str() == Some("127.0.0.1")
-                && url.port_or_known_default() == Some(4173)
-        })
+        .filter(is_molis_work_web_url)
         .or_else(|| Url::parse(fallback).ok())?;
     let query = url
         .query_pairs()
@@ -349,7 +300,7 @@ fn reload_molis_work_webviews(app: &tauri::AppHandle) {
     if let Some(capsule) = app.get_webview_window("capsule") {
         let state = app.state::<CapsuleStatusState>();
         let locale = current_capsule_locale(state.inner()).unwrap_or_default();
-        if let Ok(url) = capsule_web_url(locale) {
+        if let Ok(url) = capsule_web_url(&locale) {
             let _ = capsule.navigate(url);
         }
     }
@@ -555,11 +506,24 @@ fn capsule_resize(
 #[tauri::command]
 fn capsule_update_menu_bar(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<CapsuleStatusState>,
+    language_revision: u64,
     title: String,
     tooltip: String,
     path: String,
 ) -> Result<(), String> {
+    if window.label() != "capsule"
+        || !window
+            .url()
+            .is_ok_and(|url| is_molis_work_web_url(&url) && url.path() == "/desktop/capsule")
+    {
+        return Err("菜单栏状态来源无效".into());
+    }
+    let shown = state.locale.lock().map_err(|error| error.to_string())?;
+    if shown.revision != language_revision {
+        return Err("菜单栏状态语言已经变化".into());
+    }
     let title = title.trim();
     let tooltip = tooltip.trim();
     if title.is_empty() || title.chars().count() > 24 {
@@ -577,13 +541,33 @@ fn capsule_update_menu_bar(
     Ok(())
 }
 
+fn native_language_source(label: &str, url: Option<&Url>) -> bool {
+    label == "main"
+        && url.is_some_and(|url| {
+            is_molis_work_web_url(url) && url.username().is_empty() && url.password().is_none()
+        })
+}
+
 #[tauri::command]
 fn capsule_set_locale(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<CapsuleStatusState>,
-    locale: String,
+    document: u64,
+    sequence: u64,
+    projection: NativeLanguage,
 ) -> Result<(), String> {
-    sync_capsule_locale(&app, state.inner(), CapsuleLocale::from_web_locale(&locale))
+    if !native_language_source(window.label(), window.url().ok().as_ref()) {
+        return Err("界面语言来源无效".into());
+    }
+    let mut language = state.locale.lock().map_err(|error| error.to_string())?;
+    language.accept(document, sequence, projection, |locale| {
+        update_capsule_tray_menu(&app, state.inner(), locale)
+    })?;
+    if let Some(capsule) = app.get_webview_window("capsule") {
+        apply_capsule_language(&capsule, &language.displayed, language.revision)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -664,10 +648,17 @@ fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
 }
 
 /// Leave feedback in the existing main WebView without opening it or changing focus.
-fn shelf_notice(app: &tauri::AppHandle, message: &str, partial: bool, delay_ms: u64) {
+fn shelf_notice(
+    app: &tauri::AppHandle,
+    message: &str,
+    partial: bool,
+    original_warning: Option<&str>,
+    delay_ms: u64,
+) {
     if let Some(window) = app.get_webview_window("main") {
         let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
-        let notice = format!("globalThis.molisWorkShelfNotice?.({encoded},{partial});");
+        let warning = serde_json::to_string(&original_warning).unwrap_or_else(|_| "null".into());
+        let notice = format!("globalThis.molisWorkShelfNotice?.({encoded},{partial},{warning});");
         let script = if delay_ms == 0 {
             notice
         } else {
@@ -695,7 +686,7 @@ fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Res
     for path in paths {
         let candidate = std::path::Path::new(&path);
         shelf_http::admit_file(candidate)?
-            .into_item_id(|message| shelf_notice(app, message, true, 0));
+            .into_item_id(|message| shelf_notice(app, message, true, Some(message), 0));
         added += 1;
     }
     Ok(added)
@@ -857,9 +848,24 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     let (open_current, quit) = locale.tray_actions(owns_host);
     let open_molis_work_item =
         MenuItem::with_id(app, "open_molis_work", open_current, true, None::<&str>)?;
+    let restore_appearance_item = MenuItem::with_id(
+        app,
+        "restore_builtin_appearance",
+        locale.restore_appearance_label(),
+        true,
+        None::<&str>,
+    )?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit_molis_work", quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open_molis_work_item, &separator, &quit_item])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &open_molis_work_item,
+            &restore_appearance_item,
+            &separator,
+            &quit_item,
+        ],
+    )?;
     let (title, tooltip) = locale.default_status();
     TrayIconBuilder::with_id("molis-work-status")
         .icon(capsule_menu_bar_icon())
@@ -897,6 +903,7 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
                     let _ = open_main_window(app, &path);
                 }
             }
+            "restore_builtin_appearance" => show_appearance_recovery(app),
             "quit_molis_work" => app.exit(0),
             _ => {}
         })
@@ -904,10 +911,45 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     if let Ok(mut menu_items) = state.menu_items.lock() {
         *menu_items = Some(CapsuleTrayMenuItems {
             open_molis_work: open_molis_work_item,
+            restore_appearance: restore_appearance_item,
             quit_molis_work: quit_item,
         });
     }
     Ok(())
+}
+
+/// Only the local bootstrap document can receive startup details. Values are data, including an unmodified failure reason.
+fn bootstrap_view(failure: Option<&str>) -> String {
+    let values = native_language::bootstrap_view_values(failure);
+    format!(
+        r#"((data) => {{
+        const show = () => {{
+            if (!(location.protocol === 'tauri:' && location.hostname === 'localhost') && location.origin !== 'http://tauri.localhost') return;
+            const host = document.getElementById('molis-native-bootstrap');
+            if (!host || (host.dataset.failed && data.failure === null)) return;
+            const find = key => data.catalog.locales.find(row => row.tag.toLowerCase() === key)
+                || data.catalog.locales.find(row => row.html_lang.toLowerCase() === key || row.intl.toLowerCase() === key);
+            const choose = raw => {{
+                const parts = raw.toLowerCase().split('-');
+                for (; parts.length; parts.pop()) {{
+                    const value = find(parts.join('-'));
+                    if (value) return value;
+                }}
+            }};
+            const language = (navigator.languages || []).map(choose).find(Boolean) || find(data.catalog.default.toLowerCase());
+            document.documentElement.lang = language.html_lang;
+            document.documentElement.dir = language.direction;
+            document.getElementById('molis-native-tokens').textContent = data.tokens;
+            host.querySelector('h1').textContent = data.failure === null ? language.loading : language.failed;
+            const detail = host.querySelector('p');
+            detail.textContent = data.failure || '';
+            detail.hidden = data.failure === null;
+            if (data.failure !== null) host.dataset.failed = '1';
+            host.hidden = false;
+        }};
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {{ once: true }}); else show();
+    }})({values});"#
+    )
 }
 
 fn main() {
@@ -976,19 +1018,14 @@ fn main() {
               if let Some(capsule) = app.get_webview_window("capsule") {
                 let capsule_state = app.state::<CapsuleStatusState>();
                 let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
-                if let Ok(url) = capsule_web_url(locale) {
+                if let Ok(url) = capsule_web_url(&locale) {
                   let _ = capsule.navigate(url);
                 }
               }
             }
             Err(error) => {
               eprintln!("{error}");
-              let message = serde_json::to_string(&error)
-                .unwrap_or_else(|_| "\"Molis Work 启动失败\"".into());
-              let script = format!(
-                r#"document.body.innerHTML='<main style="font:14px -apple-system,sans-serif;max-width:640px;margin:12vh auto;padding:32px;color:#20232a"><h1 style="font-size:24px">Molis Work 无法启动</h1><p id="molis-work-bootstrap-error" style="line-height:1.7;color:#5f6673"></p></main>';document.getElementById('molis-work-bootstrap-error').textContent={message};"#
-              );
-              let _ = window.eval(&script);
+              let _ = window.eval(bootstrap_view(Some(&error)));
             }
           }
         }
@@ -1014,14 +1051,29 @@ fn main() {
       Ok(())
     })
     .on_page_load(|window, payload| {
-      if payload.event() == PageLoadEvent::Finished && window.label() == "main" {
-        traffic_lights::pin_from_handle(window.app_handle());
-        let _ = window.eval(
-          r#"(() => {
-            const locale = String(document.documentElement.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
-            globalThis.__TAURI__?.core?.invoke?.("capsule_set_locale", { locale }).catch(() => {});
-          })();"#,
-        );
+      let app = window.app_handle();
+      let state = app.state::<CapsuleStatusState>();
+      if window.label() == "main" {
+        match payload.event() {
+          PageLoadEvent::Started => {
+            if let Ok(mut language) = state.locale.lock() { language.navigated(); }
+          }
+          PageLoadEvent::Finished => {
+            traffic_lights::pin_from_handle(app);
+            let _ = window.eval(bootstrap_view(None));
+            if native_language_source(window.label(), Some(payload.url()))
+              && window.url().is_ok_and(|current| &current == payload.url()) {
+              if let Ok(mut language) = state.locale.lock() {
+                let generation = language.ready_document();
+                let _ = window.eval(format!("if(location.origin==='http://127.0.0.1:4173') globalThis.molisWorkPublishNativeLanguage?.({generation})"));
+              }
+            }
+          }
+        }
+      } else if payload.event() == PageLoadEvent::Finished && window.label() == "capsule" {
+        if let (Some(capsule), Ok(language)) = (app.get_webview_window("capsule"), state.locale.lock()) {
+          let _ = apply_capsule_language(&capsule, &language.displayed, language.revision);
+        };
       }
     })
     .on_window_event(|window, event| {
@@ -1079,10 +1131,11 @@ fn main() {
 mod tests {
     use super::{
         anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
-        molis_work_reload_url, normalized_capsule_height, should_attempt_web_recovery,
-        should_keep_window_on_close, should_show_main_on_reopen, stop_owned_web_service,
-        validated_molis_work_path, waits_off_main_thread, CapsuleLocale, WebServiceState,
+        is_molis_work_web_url, molis_work_reload_url, normalized_capsule_height,
+        should_attempt_web_recovery, should_keep_window_on_close, should_show_main_on_reopen,
+        stop_owned_web_service, validated_molis_work_path, waits_off_main_thread, WebServiceState,
     };
+    use crate::native_language::builtin_language;
     use crate::web_service::{desktop_owns_web_service, Started};
     use std::process::Command;
     use tauri::{PhysicalPosition, PhysicalRect, PhysicalSize, Url};
@@ -1167,20 +1220,39 @@ mod tests {
 
     #[test]
     fn capsule_locale_controls_its_url_and_native_menu_copy() {
-        assert_eq!(CapsuleLocale::from_web_locale("en-US"), CapsuleLocale::En);
-        assert_eq!(CapsuleLocale::from_web_locale("zh-CN"), CapsuleLocale::Zh);
         assert_eq!(
-            capsule_web_url(CapsuleLocale::En).unwrap().as_str(),
+            capsule_web_url(&builtin_language("en").unwrap())
+                .unwrap()
+                .as_str(),
             "http://127.0.0.1:4173/desktop/capsule?desktop=1&locale=en"
         );
         assert_eq!(
-            CapsuleLocale::En.tray_actions(true),
+            builtin_language("en").unwrap().tray_actions(true),
             ("Open current Goal", "Quit Molis Work")
         );
         assert_eq!(
-            CapsuleLocale::Zh.tray_actions(true),
+            builtin_language("zh").unwrap().tray_actions(true),
             ("打开当前目标", "退出 Molis Work")
         );
+    }
+
+    #[test]
+    fn s14_native_language_only_accepts_the_main_document_at_the_exact_origin() {
+        let local = Url::parse("http://127.0.0.1:4173/projects/").unwrap();
+        assert!(super::native_language_source("main", Some(&local)));
+        assert!(!super::native_language_source("capsule", Some(&local)));
+        for address in [
+            "http://localhost:4173/",
+            "http://127.0.0.1:4174/",
+            "https://127.0.0.1:4173/",
+            "http://user@127.0.0.1:4173/",
+            "https://example.org/",
+        ] {
+            assert!(!super::native_language_source(
+                "main",
+                Url::parse(address).ok().as_ref()
+            ));
+        }
     }
 
     #[test]
@@ -1238,20 +1310,22 @@ mod tests {
         let state = WebServiceState::default();
         assert!(!desktop_owns_web_service(&state));
         assert_eq!(
-            CapsuleLocale::Zh
+            builtin_language("zh")
+                .unwrap()
                 .tray_actions(desktop_owns_web_service(&state))
                 .1,
             "退出 Molis Work（后台服务继续运行）"
         );
         assert_eq!(
-            CapsuleLocale::En.tray_actions(false).1,
+            builtin_language("en").unwrap().tray_actions(false).1,
             "Quit Molis Work (background service keeps running)"
         );
         let child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
         state.owned_child.lock().unwrap().replace(child);
         assert!(desktop_owns_web_service(&state));
         assert_eq!(
-            CapsuleLocale::Zh
+            builtin_language("zh")
+                .unwrap()
                 .tray_actions(desktop_owns_web_service(&state))
                 .1,
             "退出 Molis Work"
@@ -1272,5 +1346,21 @@ mod tests {
         assert!(waits_off_main_thread(&Ok(Started::Upgrading)));
         assert!(!waits_off_main_thread(&Ok(Started::Ready)));
         assert!(!waits_off_main_thread(&refused));
+    }
+
+    #[test]
+    fn appearance_recovery_checks_the_main_webview_origin() {
+        assert!(is_molis_work_web_url(
+            &Url::parse("http://127.0.0.1:4173/projects/project-a/?settings=appearance").unwrap()
+        ));
+        for address in [
+            "http://127.0.0.1:4174/",
+            "http://localhost:4173/",
+            "https://127.0.0.1:4173/",
+            "http://example.test:4173/",
+            "tauri://localhost/",
+        ] {
+            assert!(!is_molis_work_web_url(&Url::parse(address).unwrap()));
+        }
     }
 }

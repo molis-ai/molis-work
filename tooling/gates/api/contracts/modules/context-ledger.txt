@@ -35,6 +35,7 @@ export interface ContextEdgeInput {
 }
 
 export interface ContextEdgeQuery {
+    keys?: readonly string[];
     include_removed?: boolean;
     type?: string;
     source?: ObjectRef;

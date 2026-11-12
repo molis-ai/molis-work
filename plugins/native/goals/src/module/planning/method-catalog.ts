@@ -55,6 +55,12 @@ const SECTION_NAMES = [
   "常见误拆",
 ] as const;
 
+const ENGLISH_SECTIONS = new Map([
+  ["Planning path", "规划路径"], ["Required coverage", "必须覆盖"], ["Dependency rules", "依赖规则"],
+  ["Completion evidence", "完成证据"], ["Closeout checks", "收口检查"], ["Common mistakes", "常见误拆"],
+  ["Event types", "事件类型"], ["Event fields", "事件字段"], ["Default requirements", "默认要求"],
+]);
+
 const OPTIONAL_SECTION_NAMES = [
   "事件类型",
   "事件字段",
@@ -83,14 +89,14 @@ function markdownFiles(directory: string): string[] {
     for (const entry of readdirSync(current, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
       const path = join(current, entry.name);
       if (entry.isDirectory()) visit(path);
-      else if (entry.isFile() && entry.name.endsWith(".md")) files.push(path);
+      else if (entry.isFile() && entry.name.endsWith(".md") && !entry.name.endsWith(".en.md") && !entry.name.endsWith(".zh.md")) files.push(path);
     }
   };
   visit(directory);
   return files;
 }
 
-function parseFrontmatter(path: string, source: string): { fields: Map<string, string>; body: string } {
+function parseFrontmatter(path: string, source: string, expected: readonly string[] = FRONTMATTER_FIELDS): { fields: Map<string, string>; body: string } {
   const match = source.replaceAll("\r\n", "\n").match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) catalogError(path, "必须以完整的 --- frontmatter 开始");
   const fields = new Map<string, string>();
@@ -102,10 +108,10 @@ function parseFrontmatter(path: string, source: string): { fields: Map<string, s
     const key = line.slice(0, separator).trim();
     const value = line.slice(separator + 1).trim();
     if (fields.has(key)) catalogError(path, `frontmatter 字段 ${key} 重复`);
-    if (!(FRONTMATTER_FIELDS as readonly string[]).includes(key)) catalogError(path, `未知 frontmatter 字段 ${key}`);
+    if (!expected.includes(key)) catalogError(path, `未知 frontmatter 字段 ${key}`);
     fields.set(key, value);
   }
-  for (const field of FRONTMATTER_FIELDS) {
+  for (const field of expected) {
     if (!fields.get(field)?.trim()) catalogError(path, `缺少 frontmatter 字段 ${field}`);
   }
   return { fields, body: match[2]! };
@@ -139,7 +145,7 @@ function numberField(path: string, fields: Map<string, string>, name: string): n
   return value;
 }
 
-function parseSections(path: string, body: string, expectedName: string): Map<string, string[]> {
+function parseSections(path: string, body: string, expectedName: string, translated: boolean): Map<string, string[]> {
   const lines = body.split("\n");
   while (lines[0]?.trim() === "") lines.shift();
   if (lines.shift()?.trim() !== `# ${expectedName}`) catalogError(path, `一级标题必须是 # ${expectedName}`);
@@ -148,7 +154,7 @@ function parseSections(path: string, body: string, expectedName: string): Map<st
   for (const rawLine of lines) {
     const heading = rawLine.match(/^##\s+(.+?)\s*$/);
     if (heading) {
-      const name = heading[1]!;
+      const name = translated ? ENGLISH_SECTIONS.get(heading[1]!) ?? "" : heading[1]!;
       if (
         !(SECTION_NAMES as readonly string[]).includes(name)
         && !(OPTIONAL_SECTION_NAMES as readonly string[]).includes(name)
@@ -233,23 +239,24 @@ function table(path: string, section: string, lines: readonly string[], header: 
   return values;
 }
 
-export function parsePlanningMethodMarkdown(path: string, source: string, rootDirectory?: string): ParsedPlanningMethodSource {
-  const { fields, body } = parseFrontmatter(path, source);
-  const methodId = stringField(path, fields, "method_id");
+export function parsePlanningMethodMarkdown(path: string, source: string, rootDirectory?: string, original?: ParsedPlanningMethodSource): ParsedPlanningMethodSource {
+  const { fields, body } = parseFrontmatter(path, source, original ? ["name", "summary", "applies_to"] : undefined);
+  const methodId = original?.method_id ?? stringField(path, fields, "method_id");
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(methodId)) catalogError(path, "method_id 格式无效");
-  if (basename(path) !== `${methodId}.md`) catalogError(path, `文件名必须是 ${methodId}.md`);
-  const kind = stringField(path, fields, "kind") as ParsedPlanningMethodSource["kind"];
+  const filename = `${methodId}${original ? ".en" : ""}.md`;
+  if (basename(path) !== filename) catalogError(path, `文件名必须是 ${filename}`);
+  const kind = original?.kind ?? stringField(path, fields, "kind") as ParsedPlanningMethodSource["kind"];
   if (!Object.hasOwn(KIND_DIRECTORIES, kind)) catalogError(path, `kind ${kind} 无效`);
   if (rootDirectory) {
     const firstSegment = relative(rootDirectory, path).split(sep)[0];
     if (firstSegment !== KIND_DIRECTORIES[kind]) catalogError(path, `kind ${kind} 必须放在 ${KIND_DIRECTORIES[kind]}/`);
   }
-  const version = numberField(path, fields, "version");
+  const version = original?.version ?? numberField(path, fields, "version");
   if (!Number.isInteger(version) || version < 1) catalogError(path, "version 必须是正整数");
-  const confidence = numberField(path, fields, "confidence");
+  const confidence = original?.confidence ?? numberField(path, fields, "confidence");
   if (confidence < 0 || confidence > 1) catalogError(path, "confidence 必须在 0 到 1 之间");
   const name = stringField(path, fields, "name");
-  const sections = parseSections(path, body, name);
+  const sections = parseSections(path, body, name, Boolean(original));
   const coverageRows = table(path, "必须覆盖", sections.get("必须覆盖")!, ["area", "label", "question"]);
   const dependencyRows = table(path, "依赖规则", sections.get("依赖规则")!, ["rule_id", "statement", "direction_hint"]);
   const eventTypes = parseEventTypes(path, methodId, version, sections);
@@ -267,14 +274,14 @@ export function parsePlanningMethodMarkdown(path: string, source: string, rootDi
     name,
     summary: stringField(path, fields, "summary"),
     applies_to: stringArrayField(path, fields, "applies_to"),
-    domain_tags: stringArrayField(path, fields, "domain_tags"),
+    domain_tags: original?.domain_tags ?? stringArrayField(path, fields, "domain_tags"),
     steps: orderedList(path, "规划路径", sections.get("规划路径")!),
     required_coverage: coverageRows.map(([area, label, question]) => ({ area: area!, label: label!, question: question! })),
     dependency_rules: dependencyRows.map(([rule_id, statement, direction_hint]) => ({ rule_id: rule_id!, statement: statement!, direction_hint: direction_hint! })),
     evidence_requirements: bulletList(path, "完成证据", sections.get("完成证据")!),
     completion_checks: bulletList(path, "收口检查", sections.get("收口检查")!),
     failure_modes: bulletList(path, "常见误拆", sections.get("常见误拆")!),
-    source_refs: stringArrayField(path, fields, "source_refs"),
+    source_refs: original?.source_refs ?? stringArrayField(path, fields, "source_refs"),
     confidence,
     event_types: eventTypes,
     default_requirements: defaultRequirements,
@@ -359,9 +366,23 @@ function parseDefaultRequirements(path: string, sections: Map<string, string[]>)
   });
 }
 
-export function loadPlanningMethodSources(directory: string | URL): ParsedPlanningMethodSource[] {
+function methodStructure(method: ParsedPlanningMethodSource) {
+  return { coverage: method.required_coverage.map(row => row.area), dependencies: method.dependency_rules.map(row => [row.rule_id, row.direction_hint]),
+    types: method.event_types.map(row => [row.type_id, row.version, row.semantic_family, row.fields.map(field => [field.field_id, field.format, field.required])]),
+    requirements: method.default_requirements.map(row => [row.requirement_id, row.bound_type_id]),
+    lengths: [method.steps.length, method.evidence_requirements.length, method.completion_checks.length, method.failure_modes.length] };
+}
+
+export function loadPlanningMethodSources(directory: string | URL, language?: "en"): ParsedPlanningMethodSource[] {
   const root = catalogPath(directory);
-  const methods = markdownFiles(root).map((path) => parsePlanningMethodMarkdown(path, readFileSync(path, "utf8"), root));
+  const methods = markdownFiles(root).map(path => {
+    const original = parsePlanningMethodMarkdown(path, readFileSync(path, "utf8"), root);
+    if (!language) return original;
+    const filename = path.replace(/\.md$/u, "." + language + ".md");
+    const translation = parsePlanningMethodMarkdown(filename, readFileSync(filename, "utf8"), root, original);
+    if (JSON.stringify(methodStructure(original)) !== JSON.stringify(methodStructure(translation))) catalogError(filename, "译文改变了方法的规则、字段或条目");
+    return translation;
+  });
   const ids = new Map<string, number>();
   for (const method of methods) ids.set(method.method_id, (ids.get(method.method_id) ?? 0) + 1);
   const duplicate = [...ids].find(([, count]) => count > 1)?.[0];

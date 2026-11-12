@@ -1,25 +1,10 @@
+import type { AgentMcpServerView as McpServer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el } from "../dom.js";
-import { codeOf, codingRequest, errorMessage, translate as L, type Workspace } from "./page.js";
+import { codeOf, codingRequest, errorMessage, type Workspace } from "./page.js";
+import type { VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 
-interface McpServer {
-  readonly id: string;
-  readonly version: number;
-  readonly label: string;
-  readonly transport: string;
-  readonly enabled: boolean;
-  readonly timeout_ms: number;
-  readonly executable?: string;
-  readonly argv?: readonly string[];
-  readonly endpoint?: string;
-  readonly auth_connection_id?: string;
-  readonly credential?: string;
-  readonly directory?: { readonly canonical_path: string };
-  readonly health: string;
-  readonly error?: string;
-  readonly tools: readonly { readonly tool: string; readonly description: string }[];
-  readonly resources?: readonly string[];
-  readonly busy?: string;
-}
+const uiText = globalThis.t;
 
 /** A connection the person made in Connectors that an MCP server may sign in with. */
 interface AuthConnection {
@@ -54,7 +39,7 @@ interface Mcp {
 const status = (state: Mcp, text: string) => {
   state.q("[data-mcp-status]").textContent = text;
 };
-const api = <Answer>(state: Mcp, path: string, body?: unknown) => codingRequest<Answer>(state.root, path, body, L("coding.mcp-config.failed"));
+const api = <Answer>(state: Mcp, path: string, body?: unknown) => codingRequest<Answer>(state.root, path, body, uiText.text("coding.mcp-config.failed"));
 
 const transport = (state: Mcp) => {
   const kind = state.field("transport").value;
@@ -64,7 +49,7 @@ const transport = (state: Mcp) => {
 const reset = (state: Mcp) => {
   state.editing = null;
   state.form.reset();
-  state.q("[data-mcp-form-title]").textContent = L("coding.mcp-config.add");
+  state.q("[data-mcp-form-title]").textContent = uiText.text("coding.mcp-config.add");
   transport(state);
 };
 
@@ -72,7 +57,7 @@ const reset = (state: Mcp) => {
 function edit(state: Mcp, server: McpServer) {
   const { field } = state;
   state.editing = { id: server.id, version: server.version };
-  state.q("[data-mcp-form-title]").textContent = L("coding.mcp-config.edit-title", { name: server.label });
+  state.q("[data-mcp-form-title]").textContent = uiText.text("coding.mcp-config.edit-title", { name: server.label });
   field("label").value = server.label;
   field<HTMLSelectElement>("transport").value = server.transport;
   field("enabled").checked = server.enabled;
@@ -100,17 +85,17 @@ function serverActions(state: Mcp, server: McpServer, busy: string | undefined) 
   const add = (label: string, action: () => unknown) => {
     const button = el("button", label, "mw-btn mw-btn--secondary");
     button.type = "button";
-    button.setAttribute("aria-label", L("coding.mcp-config.action-label", { action: label, name: server.label }));
+    button.setAttribute("aria-label", uiText.text("coding.mcp-config.action-label", { action: label, name: server.label }));
     button.addEventListener("click", () => void action());
     actions.append(button);
   };
   if (!busy) {
-    add(L("coding.mcp-config.edit"), () => edit(state, server));
-    if (server.enabled && server.health !== "connected") add(L("coding.mcp-config.connect"), () => control(state, server, "connect"));
-    if (server.health === "connected") add(L("coding.mcp-config.disconnect"), () => control(state, server, "disconnect"));
-    add(L("coding.mcp-config.remove"), () => control(state, server, "remove"));
+    add(uiText.text("coding.mcp-config.edit"), () => edit(state, server));
+    if (server.enabled && server.health !== "connected") add(uiText.text("coding.mcp-config.connect"), () => control(state, server, "connect"));
+    if (server.health === "connected") add(uiText.text("coding.mcp-config.disconnect"), () => control(state, server, "disconnect"));
+    add(uiText.text("coding.mcp-config.remove"), () => control(state, server, "remove"));
   } else if (busy === "connect") {
-    add(L("coding.mcp-config.cancel"), () => control(state, server, "cancel"));
+    add(uiText.text("coding.mcp-config.cancel"), () => control(state, server, "cancel"));
   }
   return actions;
 }
@@ -118,20 +103,20 @@ function serverActions(state: Mcp, server: McpServer, busy: string | undefined) 
 /** What a server is doing, in words. */
 function busyWords(busy: string | undefined) {
   if (!busy) return "";
-  const names: Readonly<Record<string, string>> = { connect: L("coding.mcp-config.connect"), disconnect: L("coding.mcp-config.disconnect"), remove: L("coding.mcp-config.remove"), cancel: L("coding.mcp-config.cancel"), save: L("coding.mcp-config.save") };
-  return L("coding.mcp-config.busy", { action: names[busy] || busy });
+  const names: Readonly<Record<string, string>> = { connect: uiText.text("coding.mcp-config.connect"), disconnect: uiText.text("coding.mcp-config.disconnect"), remove: uiText.text("coding.mcp-config.remove"), cancel: uiText.text("coding.mcp-config.cancel"), save: uiText.text("coding.mcp-config.save") };
+  return uiText.text("coding.mcp-config.busy", { action: names[busy] || busy });
 }
 
 function serverRow(state: Mcp, server: McpServer, opened: ReadonlySet<string | undefined>) {
   const row = el("details");
   row.dataset.server = server.id;
   row.open = opened.has(server.id);
-  const health: Readonly<Record<string, string>> = { connected: L("coding.mcp-config.health.connected"), disconnected: L("coding.mcp-config.health.disconnected"), unavailable: L("coding.mcp-config.health.unavailable"), "not-reattached": L("coding.mcp-config.health.not-reattached") };
-  row.append(el("summary", server.label + " · " + (server.enabled ? health[server.health] || server.health : L("coding.mcp-config.disabled"))));
+  const health: Readonly<Record<string, string>> = { connected: uiText.text("coding.mcp-config.health.connected"), disconnected: uiText.text("coding.mcp-config.health.disconnected"), unavailable: uiText.text("coding.mcp-config.health.unavailable"), "not-reattached": uiText.text("coding.mcp-config.health.not-reattached") };
+  row.append(el("summary", server.label + " · " + (server.enabled ? health[server.health] || server.health : uiText.text("coding.mcp-config.disabled"))));
   row.append(el("p", server.transport === "stdio" ? server.executable + " " + JSON.stringify(server.argv) : server.endpoint));
   const error = el("p", server.error || "");
   error.setAttribute("role", "status");
-  row.append(error, listOf(server.tools.map(tool => tool.tool + L("coding.timeline.colon") + tool.description)), listOf((server.resources || []).map(uri => L("coding.mcp-config.resource", { uri }))));
+  row.append(error, listOf(server.tools.map(tool => tool.tool + uiText.text("coding.timeline.colon") + tool.description)), listOf((server.resources || []).map(uri => uiText.text("coding.mcp-config.resource", { uri }))));
   const busy = state.pending.get(server.id) || server.busy;
   row.append(serverActions(state, server, busy), el("p", busyWords(busy)));
   return row;
@@ -145,7 +130,7 @@ function render(state: Mcp) {
   const opened = new Set([...list.querySelectorAll<HTMLElement>("details[open]")].map(item => item.dataset.server));
   list.replaceChildren();
   for (const server of state.servers) list.append(serverRow(state, server, opened));
-  if (!state.servers.length) list.textContent = L("coding.mcp-config.none");
+  if (!state.servers.length) list.textContent = uiText.text("coding.mcp-config.none");
 }
 
 /** The connections the section offers in its sign-in list. A failed read leaves the list as it is. */
@@ -154,7 +139,7 @@ async function readConnections(state: Mcp) {
   if (!response.ok) return;
   const data: { connections?: AuthConnection[] } = await response.json();
   state.authConnections = (data.connections || []).filter(item => item.service_id === "mcp-bearer" || (item.auth_method === "mcp" && item.agent_available !== false));
-  const select = state.field<HTMLSelectElement>("auth_connection_id"), current = select.value, none = el("option", L("coding.mcp-config.choose-connection"));
+  const select = state.field<HTMLSelectElement>("auth_connection_id"), current = select.value, none = el("option", uiText.text("coding.mcp-config.choose-connection"));
   none.value = "";
   select.replaceChildren(none, ...state.authConnections.filter(item => item.state === "connected").map(item => {
     const option = el("option", item.display_name);
@@ -188,11 +173,11 @@ async function control(state: Mcp, server: McpServer, action: Control) {
   if (state.pending.has(server.id) && action !== "cancel") return;
   if (action !== "cancel") state.pending.set(server.id, action);
   render(state);
-  const doing = { connect: L("coding.mcp-config.doing.connect"), disconnect: L("coding.mcp-config.doing.disconnect"), cancel: L("coding.mcp-config.doing.cancel"), remove: L("coding.mcp-config.doing.remove") };
+  const doing = { connect: uiText.text("coding.mcp-config.doing.connect"), disconnect: uiText.text("coding.mcp-config.doing.disconnect"), cancel: uiText.text("coding.mcp-config.doing.cancel"), remove: uiText.text("coding.mcp-config.doing.remove") };
   status(state, doing[action]);
   try {
     await api(state, "/mcp/" + encodeURIComponent(server.id) + "/control", { action });
-    status(state, action === "connect" ? L("coding.mcp-config.connected") : action === "remove" ? L("coding.mcp-config.removed") : L("coding.mcp-config.confirmed"));
+    status(state, action === "connect" ? uiText.text("coding.mcp-config.connected") : action === "remove" ? uiText.text("coding.mcp-config.removed") : uiText.text("coding.mcp-config.confirmed"));
   } catch (error) {
     status(state, errorMessage(error));
   } finally {
@@ -209,7 +194,7 @@ function formBody(state: Mcp) {
   if (kind === "stdio") {
     body.workspace_id = field<HTMLSelectElement>("workspace").value;
     body.executable = field("executable").value;
-    try { body.argv = JSON.parse(field("argv").value); } catch { throw new Error(L("coding.mcp-config.argv-json")); }
+    try { body.argv = JSON.parse(field("argv").value); } catch { throw new Error(uiText.text("coding.mcp-config.argv-json")); }
   } else {
     const auth = field<HTMLSelectElement>("auth").value;
     body.endpoint = field("endpoint").value;
@@ -227,7 +212,7 @@ async function submit(state: Mcp, event: Event) {
     await api(state, "/mcp", formBody(state));
     reset(state);
     await refresh(state);
-    status(state, L("coding.mcp-config.saved"));
+    status(state, uiText.text("coding.mcp-config.saved"));
   } catch (error) {
     status(state, errorMessage(error));
   } finally {
@@ -236,36 +221,50 @@ async function submit(state: Mcp, event: Event) {
 }
 
 /** Turns Coding on for the project the section belongs to, then reloads the page. */
-async function enable(state: Mcp, button: HTMLButtonElement) {
+async function enable(state: Mcp, button: HTMLButtonElement, project: string, expectedRevision: string) {
   button.disabled = true;
   try {
-    const project = new URL(state.root.dataset.prefix ?? "", location.origin).pathname.split("/").filter(Boolean)[1];
-    if (!project) throw new Error(L("coding.mcp-config.choose-project"));
-    await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(project) + "/plugins", { method: "POST", body: { plugin_id: "coding" }, fallback: L("coding.mcp-config.enable-failed") });
+    await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(project) + "/plugins", {
+      method: "POST", body: { plugin_id: "coding", expected_revision: expectedRevision }, fallback: uiText.text("coding.mcp-config.enable-failed"),
+    });
     location.reload();
   } catch (error) {
-    unavailable(state, error, true);
+    const body = (error as UiRequestFailure).body as { details?: { committed?: boolean } } | undefined;
+    if (body?.details?.committed === true) status(state, errorMessage(error));
+    else await unavailable(state, error, true);
   }
 }
 
 /** Says why the servers cannot be read; when Coding is not enabled in the project, stops polling and offers to enable it. */
-function unavailable(state: Mcp, error: unknown, off = false) {
-  status(state, L("coding.mcp-config.unreadable", { reason: errorMessage(error) }));
-  if (!off && codeOf(error) !== "actions.plugin_disabled") return;
+async function unavailable(state: Mcp, error: unknown, retry = false) {
+  status(state, uiText.text("coding.mcp-config.unreadable", { reason: errorMessage(error) }));
+  if (!retry && codeOf(error) !== "actions.plugin_disabled") return;
   if (state.poll !== null) {
     clearInterval(state.poll);
     state.poll = null;
   }
-  status(state, L("coding.mcp-config.not-enabled"));
-  const button = el("button", L("coding.mcp-config.enable"), "mw-btn mw-btn--secondary");
-  button.type = "button";
-  button.addEventListener("click", () => enable(state, button));
-  state.q("[data-mcp-status]").append(" ", button);
+  const prefix = state.root.dataset.prefix;
+  try {
+    const segment = new URL(prefix ?? "", location.origin).pathname.split("/").filter(Boolean)[1];
+    if (!segment) throw new Error(uiText.text("coding.mcp-config.choose-project"));
+    const project = decodeURIComponent(segment);
+    const { projects } = await molisWorkRequest<{ projects: Array<VersionedProjectPluginMembership & { project_id: string }> }>("/api/settings/project-plugins", {
+      fallback: uiText.text("coding.mcp-config.enable-failed"),
+    });
+    if (!state.root.isConnected || state.root.dataset.prefix !== prefix) return;
+    const observed = projects.find(row => row.project_id === project);
+    if (!observed?.revision || observed.plugins.includes("coding")) return;
+    status(state, retry ? errorMessage(error) : uiText.text("coding.mcp-config.not-enabled"));
+    const button = el("button", uiText.text("coding.mcp-config.enable"), "mw-btn mw-btn--secondary");
+    button.type = "button";
+    button.addEventListener("click", () => enable(state, button, project, observed.revision));
+    state.q("[data-mcp-status]").append(" ", button);
+  } catch (failure) { status(state, errorMessage(failure)); }
 }
 
 /** Reads now, and keeps reading every few seconds while the section is on the page. */
 function resume(state: Mcp) {
-  void refresh(state).then(() => status(state, L("coding.mcp-config.read"))).catch(error => unavailable(state, error));
+  void refresh(state).then(() => status(state, uiText.text("coding.mcp-config.read"))).catch(error => unavailable(state, error));
   if (state.poll !== null) return;
   state.poll = setInterval(() => {
     if (!state.root.isConnected) {

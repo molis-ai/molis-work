@@ -58,11 +58,11 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return typeof this.personalMethods === "function" ? this.personalMethods() : this.personalMethods;
   }
 
-  effectiveMethods(projectId: string): PlanningMethodPack[] {
+  effectiveMethods(projectId: string, locale?: string): PlanningMethodPack[] {
     this.context.requireGoalsLibrary(projectId);
     return resolvePlanningMethodPacks(
       this.readPersonalMethods(),
-      this.context.repository.listPlanningMethodPacks(projectId),
+      this.context.repository.listPlanningMethodPacks(projectId), locale,
     );
   }
 

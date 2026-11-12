@@ -73,11 +73,27 @@ test("SKC-01: a plugin with only declarations parses, without entrypoints, and t
   assert.deepEqual(manifest.entrypoints, []);
   assert.deepEqual(inspectContentPlugin(contentManifest()), []);
   // Identity, words in both languages, the Home scope and upgrade sources are all on the list.
-  parsePluginManifest(contentManifest({ name_en: "Meeting skills", summary: "会议用的技能", developer: true, runtime: { scope: "home" },
-    upgrade_compatibility: { compatible_from_versions: ["1.0.0"] }, ui: { contributions: [], messages: { "meeting-skills.title": { zh: "会议", en: "Meeting" } }, translations: { 会议: "Meeting" } } }));
+  parsePluginManifest(contentManifest({ name_text: { literal: "Meeting skills" }, summary: "会议用的技能", developer: true, runtime: { scope: "home" },
+    upgrade_compatibility: { compatible_from_versions: ["1.0.0"] }, ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } }));
   const read = parseContentPackage(contentPackage());
   assert.deepEqual(read.skills, [{ skill_id: SKILL, version: 1, body: BODY }]);
   assert.equal(read.manifest.plugin_id, "io.molis.work.meeting-skills");
+});
+
+test("FSS-53 SKC-03 content language files must match the signed package declarations exactly", () => {
+  const manifest = contentManifest({ ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } });
+  const entries = [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(manifest)), file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE)];
+  const pathOf = (locale: string) => "locales/" + locale + ".json";
+  const words = (locale: string, title: string, owner = String(manifest.plugin_id)) => JSON.stringify({ format_version: 1, owner, locale, messages: { "meeting-skills.title": title } });
+  const zh = words("zh", "会议 <名称>"), en = words("en", "Don't invent R&D <names>");
+  const files = [...entries, file(pathOf("zh"), zh), file(pathOf("en"), en)];
+  const read = parseContentPackage(contentPackage(manifest, files));
+  assert.deepEqual(read.locale_files, { [pathOf("zh")]: zh, [pathOf("en")]: en });
+  assert.deepEqual(read.skills, [{ skill_id: SKILL, version: 1, body: BODY }]);
+  assert.ok(refused(() => parseContentPackage(contentPackage(manifest, files.slice(0, -1)))).some(problem => problem.path === pathOf("en")));
+  assert.ok(refused(() => parseContentPackage(contentPackage(manifest, [...files, file(pathOf("de"), words("de", "Meeting"))]))).some(problem => problem.path === pathOf("de")));
+  assert.ok(refused(() => parseContentPackage(contentPackage(manifest, [...files.slice(0, -1), file(pathOf("en"), words("en", "Meeting", "io.other.meeting-skills"))]))).some(problem => problem.path === pathOf("en")));
+  for (const name of ["messages", "translations"]) assert.ok(reasons(refused(() => parsePluginManifest(contentManifest({ ui: { contributions: [], [name]: {} } })))).some(reason => reason.includes(name)));
 });
 
 test("SKC-01: a key outside the content plugin's list is refused by name, whatever else is right", () => {
@@ -109,7 +125,7 @@ test("SKC-01: what a content plugin must leave empty is refused when it is not",
     ["只有声明的插件的 capabilities.provides 必须是空列表"]);
   assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ ui: { contributions: ["io.molis.work.meeting-skills.main"] } })))),
     ["只有声明的插件的 ui.contributions 必须是空列表"]);
-  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ methods: [] })))), ["只有声明的插件至少要声明一个方法（methods）"]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ methods: [] })))), ["只有声明的插件至少要声明一个方法（methods）或场景包（blueprint）"]);
   const problems = refused(() => parsePluginManifest(contentManifest({ methods: [skill({ body: undefined })] })));
   assert.deepEqual(problems, [{ skill_id: SKILL, reason: `方法 ${SKILL} 要写 body：只有声明的插件的正文随包发布` }]);
 });
@@ -312,8 +328,40 @@ test("a plugin's own Agent may not write applies_to, user_invocable or argument_
     { skill_id: "draft", reason: "Agent 方法重复：draft" },
     { skill_id: "draft", reason: "Agent 方法 draft 必须声明可用工具" },
   ]);
-  // The new fields stay optional in C-1: a method with none of them parses as before.
-  parsePluginManifest(declarationManifest({ methods: [{ skill_id: "plain", version: 1, name: "Plain", summary: "Plain method", tools: [] }] }));
+  // SKC-03 with C-3: in `agent.skills` the new fields stay optional; a plugin's own Agent writes none of them and parses.
+  parsePluginManifest(declarationManifest({ agent: { ...agent, skills: [{ skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: ["read"] }] } }));
+});
+
+test("SKC-03 SKC-06: a plugin's own Agent Skill and a method it offers other Agents may not share one id (capability-pack contract-design §2.2)", () => {
+  // A plugin's own round reads its own Skills without the catalog's three states: under a shared id it would read, as its own, a method
+  // the person keeps off or manual in the catalog. So the Manifest is refused, pointing at that id.
+  const agent = { roles: [{ role_id: "writer", version: 1, name: "Writer", workspace: "none" }], prompts: [{ prompt_id: "writer", version: 1 }],
+    skills: [{ skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: ["read"] }] };
+  const method = { skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: [], description: "要起草时用。", applies_to: "both" };
+  const problems = refused(() => parsePluginManifest(declarationManifest({ agent, methods: [method] })));
+  assert.deepEqual(problems, [{ skill_id: "draft", reason: "Agent 方法 draft 与 methods 里的方法同名：自己的方法和给别的 Agent 的方法不能用同一个 skill_id" }]);
+  // Named once however often it repeats, and only the shared id: the other method is fine.
+  const again = refused(() => parsePluginManifest(declarationManifest({ agent, methods: [method, { ...method, skill_id: "outline" }] })));
+  assert.deepEqual(again.map(problem => problem.skill_id), ["draft"]);
+  parsePluginManifest(declarationManifest({ agent, methods: [{ ...method, skill_id: "outline" }] }));
+});
+
+test("SKP-08 SKC-03: a method in Manifest methods must say when to pick it and which built-in Agent may", () => {
+  const plain = { skill_id: "plain", version: 1, name: "Plain", summary: "Plain method", tools: [] };
+  const problems = refused(() => parsePluginManifest(declarationManifest({ methods: [plain] })));
+  assert.deepEqual(problems, [
+    { skill_id: "plain", reason: "方法 plain 要写 description：什么时候用它" },
+    { skill_id: "plain", reason: "方法 plain 要写 applies_to：assistant、coding、both" },
+  ]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, applies_to: "assistant" }] })))), ["方法 plain 要写 description：什么时候用它"]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。" }] })))), ["方法 plain 要写 applies_to：assistant、coding、both"]);
+  // A key outside the declaration is named, and an id too long to be a folder name is refused.
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。", applies_to: "both", purpose: "旧写法" }] })))), ["方法 plain 不能写 \"purpose\""]);
+  // The key is the author's text: quoted, and cut to 200 units, as every outside key in a refusal (C-1 `quoted`).
+  const long = "k".repeat(300);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。", applies_to: "both", [long]: 1 }] })))), [`方法 plain 不能写 ${JSON.stringify(`${"k".repeat(200)}…`)}`]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, skill_id: "a".repeat(SKILL_LIMITS.skillIdChars + 1), description: "d", applies_to: "both" }] })))), ["方法声明不合法"]);
+  parsePluginManifest(declarationManifest({ methods: [{ ...plain, skill_id: "a".repeat(SKILL_LIMITS.skillIdChars), description: "要整理时用。", applies_to: "both" }] }));
 });
 
 // ---- SKILL.md frontmatter -------------------------------------------------------------------------------------------------------
@@ -341,4 +389,11 @@ test("skillDeclarationFromFrontmatter refuses what the Manifest check refuses, a
   assert.deepEqual(reasons(refused(() => skillDeclarationFromFrontmatter(head(["name: multi", "description: |", "  two lines"])))),
     ["SKILL.md 的 frontmatter 第 3 行要写成一行的 key: value（不支持嵌套和多行值）"]);
   assert.deepEqual(reasons(refused(() => skillDeclarationFromFrontmatter("# 没有 frontmatter"))), ["SKILL.md 要以 --- 包起的 frontmatter 开头"]);
+});
+
+test("SKC-03: signed local-only reasons are bounded declarations and survive content parsing", () => {
+  const reason = "Requires local files and tools";
+  const manifest = parsePluginManifest(contentManifest({ methods: [skill({ native_only_reason: reason })] }));
+  assert.equal(manifest.methods?.[0]?.native_only_reason, reason);
+  for (const value of ["", "x".repeat(513), false]) assert.ok(refused(() => parsePluginManifest(contentManifest({ methods: [skill({ native_only_reason: value })] }))).some(item => item.reason.includes("native_only_reason")));
 });

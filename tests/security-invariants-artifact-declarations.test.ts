@@ -13,7 +13,7 @@ import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeR
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { readRestoredAssets, restoreWorkAssets } from "@molis-ai/molis-work-app-server";
+import { readRestoredAssets, restoreWorkAssets } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, declarationOwnersFor, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
   heldInstalls, pluginHeldElsewhere, homeStores, installedArtifacts, openProjectVersionStores, restoreArtifactVersions, seedDemoBoard, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { DECLARED_RULE_OPTIONS, declaredRule, declaredScene } from "./fixtures/declared-rules.js";
@@ -258,7 +258,7 @@ test("RAC-415 a built-in Plugin that is not in effect declares nothing, and Goal
   const p = project(t, bareHome(t));
   // Goals' declarations (its link kinds, its actions) with the pages and routes it serves left out, so a bare start redeems all it declares.
   // Goals is the Host's own build, so it starts under Host trust, as the Host starts it.
-  const manifest = { ...structuredClone(goalsManifest), ui: { contributions: [], views: [] }, routes: [] } as typeof goalsManifest;
+  const manifest = { ...structuredClone(goalsManifest), ui: { locales: goalsManifest.ui.locales, contributions: [], views: [] }, routes: [] } as typeof goalsManifest;
   const report = await p.platform.start([entry({ manifest, async start() { return { kind: "app", views: [], actions: (manifest.actions ?? []).map(action => ({ ...action, async handle() { return {}; } })) }; } } as PluginDefinition, { level: "host" })]);
   assert.deepEqual(report.failed, []);
   assert.equal(artifactLinkKinds().has("goal.input"), true);
@@ -333,7 +333,7 @@ test("RAC-416 S-81 a project rebuilt from a bundle takes a producer it has not i
 
 test("RAC-416 S-81 only the restore from a work-assets bundle calls the restore entry", () => {
   // The entry that takes a version from an uninstalled producer: defined with the stores, exported by the Host, called by the restore.
-  const allowed = new Set(["apps/local-host/src/project-version-stores.ts", "apps/local-host/src/index.ts", "apps/server/src/assets.ts", "modules/artifacts/src/index.ts"]);
+  const allowed = new Set(["apps/local-host/src/project-version-stores.ts", "apps/local-host/src/index.ts", "apps/local-host/src/work-assets.ts", "modules/artifacts/src/index.ts"]);
   const root = join(import.meta.dirname, "..");
   const users = ["apps", "packages", "modules", "plugins", "server", "horizontal"].flatMap(top => productSources(join(root, top)))
     .map(file => relative(root, file)).filter(path => !allowed.has(path) && /restoreArtifactVersions|restoreVersionStores/u.test(readFileSync(join(root, path), "utf8")));

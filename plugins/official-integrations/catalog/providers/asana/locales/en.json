@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.asana",
+  "locale": "en",
+  "messages": {
+    "asana.connection.auth-help": "Use an Asana PAT to retrieve incomplete tasks assigned to the current user.",
+    "asana.connection.inbound": "Feed retrieves tasks and projects",
+    "asana.connection.summary": "Tasks and projects.",
+    "asana.connection.token-label": "Asana Personal Access Token",
+    "asana.guide.mcp-connected-note": "Asana MCP authorization is separate from standard REST API authorization.",
+    "asana.guide.mcp-link": "View the official Asana MCP",
+    "asana.guide.mcp-note": "Asana MCP authorization is separate from standard REST API authorization. Molis Work has not integrated it.",
+    "asana.guide.oauth-link": "View Asana OAuth app",
+    "asana.oauth.note": "Enable the needed user, workspace and task read permissions in the app.",
+    "asana.setup.create-asana-personal-access-token": "Create Asana Personal Access Token"
+  }
+}

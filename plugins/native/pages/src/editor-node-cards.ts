@@ -2,27 +2,37 @@
 import { Node } from "prosemirror-model";
 import { EditorView } from "prosemirror-view";
 import { closePagesPopover, pagesPopoverAnchor } from "./editor-transient.js";
-import { taskStatusText } from "./card-content.js";
 import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { PagesEditorMountOptions, Translate } from "./editor-types.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { t, dsIcon, overlayRoot, field, actions } from "./editor-view-ui.js";
+import { bindEditorWords, t, dsIcon, overlayRoot, field, actions } from "./editor-view-ui.js";
 
 
-const CARD_LOOK = { ref: ["link", "选择文档"], task: ["clipboard", "任务"], event: ["calendar", "日程"] } as const;
+const CARD_LOOK = { ref: ["link", "pages.editor.choose-a-page"], task: ["clipboard", "pages.editor.task"], event: ["calendar", "pages.editor.event"] } as const;
 
 export function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: EditorView, getPos: () => number | undefined, options: PagesEditorMountOptions) {
   const translate = options.translate;
   const dom = document.createElement("article");
+  const words = () => {
+    const { title, status, due, at } = node.attrs;
+    const key = kind === "ref" ? "pages.editor.page-mention" : "pages.editor.no-date";
+    const task = kind === "task" ? statusLabel(String(status), translate) : null;
+    const subtitle = task && due ? t(translate, "pages.editor.task-status-date", { status: task, date: { kind: "date", at: String(due), style: "date" } })
+      : task ?? (kind === "event" && at ? t(translate, "pages.editor.event-date", { date: { kind: "date", at: String(at), style: "date" } }) : t(translate, key));
+    const heading = dom.querySelector("strong"), line = dom.querySelector(".pages-card-body > span");
+    if (heading && !title) heading.textContent = t(translate, CARD_LOOK[kind][1]);
+    if (line) line.textContent = subtitle;
+  };
   const paint = (current: Node) => {
     node = current;
-    const { title, status, due, description, at } = current.attrs;
+    const { title, status, description } = current.attrs;
     // One card for all three: the mark, the title (or what to fill in), and one line under it; a task adds its note.
-    const sub = kind === "ref" ? t(translate, "文档引用") : kind === "task" ? statusLabel(String(status), translate) + (due ? " · " + due : "") : String(at || t(translate, "没有日期"));
     dom.className = "pages-card pages-card--" + kind + (kind === "task" ? " is-" + String(status || "todo") : "");
-    dom.innerHTML = `<span class="pages-card-mark">${dsIcon(CARD_LOOK[kind][0])}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(String(title || t(translate, CARD_LOOK[kind][1])))}</strong><span>${escapeHtml(sub)}</span>${kind === "task" && description ? `<p>${escapeHtml(String(description))}</p>` : ""}</span>`;
+    dom.innerHTML = `<span class="pages-card-mark">${dsIcon(CARD_LOOK[kind][0])}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(String(title || ""))}</strong><span></span>${kind === "task" && description ? `<p>${escapeHtml(String(description))}</p>` : ""}</span>`;
+    words();
   };
   paint(node);
+  bindEditorWords(dom, words);
   dom.addEventListener("mousedown", (event) => {
     event.preventDefault();
     const pos = getPos();
@@ -46,7 +56,7 @@ export function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: E
 }
 
 function statusLabel(status: string, translate: Translate | undefined): string {
-  return t(translate, taskStatusText(status));
+  return t(translate, status === "doing" ? "pages.editor.doing" : status === "done" ? "pages.editor.done" : "pages.editor.todo");
 }
 
 function pickPage(view: EditorView, pos: number, node: Node, options: PagesEditorMountOptions): void {
@@ -58,7 +68,7 @@ function pickPage(view: EditorView, pos: number, node: Node, options: PagesEdito
   const scope = pagesPopoverAnchor(view, pop, pos, pos + node.nodeSize);
   if (!pages.length) {
     const empty = document.createElement("p");
-    empty.textContent = t(options.translate, "没有匹配的文档");
+    empty.textContent = t(options.translate, "pages.list.no-match");
     pop.append(empty);
   }
   pages.forEach((item) => {
@@ -76,7 +86,7 @@ function pickPage(view: EditorView, pos: number, node: Node, options: PagesEdito
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "mw-btn mw-btn--ghost";
-  cancel.textContent = t(options.translate, "取消");
+  cancel.textContent = t(options.translate, "pages.action.cancel");
   cancel.addEventListener("click", scope.close);
   pop.append(cancel);
   overlayRoot().append(pop);
@@ -89,16 +99,16 @@ function editCard(kind: "task" | "event", view: EditorView, pos: number, node: N
   pop.className = "pages-pop";
   pop.dataset.open = "card";
   const scope = pagesPopoverAnchor(view, pop, pos, pos + node.nodeSize);
-  const title = field(options.translate, "标题", String(node.attrs.title || ""), "text");
+  const title = field(options.translate, "pages.editor.title", String(node.attrs.title || ""), "text");
   pop.append(title.label);
   // What the card's own fields say, written with its title when confirmed.
   let read: () => Record<string, string>;
   if (kind === "task") {
-    const description = field(options.translate, "描述", String(node.attrs.description || ""), "text");
+    const description = field(options.translate, "pages.editor.description", String(node.attrs.description || ""), "text");
     const status = document.createElement("label");
-    status.textContent = t(options.translate, "状态");
+    status.textContent = t(options.translate, "pages.editor.status");
     const select = document.createElement("select");
-    [["todo", "待办"], ["doing", "进行中"], ["done", "完成"]].forEach(([value, label]) => {
+    [["todo", "pages.editor.todo"], ["doing", "pages.editor.doing"], ["done", "pages.editor.done"]].forEach(([value, label]) => {
       const option = document.createElement("option");
       option.value = value;
       option.textContent = t(options.translate, label);
@@ -106,11 +116,11 @@ function editCard(kind: "task" | "event", view: EditorView, pos: number, node: N
       select.append(option);
     });
     status.append(select);
-    const due = field(options.translate, "截止日期", String(node.attrs.due || ""), "date");
+    const due = field(options.translate, "pages.editor.due-date", String(node.attrs.due || ""), "date");
     pop.append(description.label, status, due.label);
     read = () => ({ description: description.input.value, status: select.value, due: due.input.value });
   } else {
-    const date = field(options.translate, "日期", String(node.attrs.at || ""), "date");
+    const date = field(options.translate, "pages.editor.date", String(node.attrs.at || ""), "date");
     pop.append(date.label);
     read = () => ({ at: date.input.value });
   }

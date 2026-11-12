@@ -7,6 +7,8 @@ import { join } from "node:path";
 import { assistantConnectionCard, connectorCliActions, connectorLocalActions, connectorManagementActions, connectorSetupAction, connectorSetupExecuteAction, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, presentActionResult, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 import { createCliPackageFixture } from "./fixtures/connector-cli-package.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
@@ -149,21 +151,22 @@ test("ASC-69 S-37 the Assistant's connection card reads and cancels only the req
   const prepared = await actions.invoke(assistant, connectorSetupAction, { service_id: "github", method: "token", display_name: "Work account", expected_revision: null }) as Request;
   const card = { status: "done", presentation: { summary: "接入方案已准备", pending_connection: { authorization_id: prepared.authorization_id } } } as AssistantCard;
   const work = (session: string) => ({ project_ref: undefined, session_id: session }) as CardWork;
-  const say = (text: string, values: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/gu, (_, name: string) => String(values[name] ?? ""));
+  const cardView = (session: string, card: AssistantCard, step: "read" | "cancel") =>
+    inAssistantPage("zh", () => assistantConnectionCard(home.host, home.home, work(session), card, step, uiText.text));
   const state = async () => (await actions.invoke(assistant, connectorManagementActions.authorization, { authorization_id: prepared.authorization_id }) as { status: string }).status;
-  assert.deepEqual(await assistantConnectionCard(home.host, home.home, work("another-session"), card, "read", say), { state: "link" },
+  assert.deepEqual(await cardView("another-session", card, "read"), { state: "link" },
     "another session's work draws no card, only the link");
-  await assert.rejects(assistantConnectionCard(home.host, home.home, work("another-session"), card, "cancel", say), { code: "connector.setup.foreign_request" },
+  await assert.rejects(cardView("another-session", card, "cancel"), { code: "connector.setup.foreign_request" },
     "another session's work cannot cancel it");
   assert.equal(await state(), "prepared", "the refused cancel left the request to the session that prepared it");
-  const drawn = await assistantConnectionCard(home.host, home.home, work("assistant-session"), card, "read", say);
+  const drawn = await cardView("assistant-session", card, "read");
   assert.equal(drawn.state, "prepared");
   assert.ok("html" in drawn && drawn.html.includes("data-connection-need-key") && drawn.html.includes("GitHub"), "its own work draws the key card for the service");
   assert.deepEqual("setup" in drawn ? drawn.setup : null, { service_id: "github", method: "token", display_name: "Work account", setup_id: prepared.authorization_id },
     "the page gets only the non-secret plan");
-  const cancelled = await assistantConnectionCard(home.host, home.home, work("assistant-session"), card, "cancel", say);
+  const cancelled = await cardView("assistant-session", card, "cancel");
   assert.equal(cancelled.state, "cancelled"); assert.equal(await state(), "cancelled", "its own work cancels it");
-  await assert.rejects(assistantConnectionCard(home.host, home.home, work("assistant-session"), { ...card, presentation: { summary: "x" } } as AssistantCard, "read", say),
+  await assert.rejects(cardView("assistant-session", { ...card, presentation: { summary: "x" } } as AssistantCard, "read"),
     { code: "assistant.not_found" }, "a card without a pending connection has none to read");
 });
 

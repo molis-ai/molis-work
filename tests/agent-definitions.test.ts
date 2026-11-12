@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -14,13 +14,20 @@ import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/ass
 import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { codingManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { AgentDefinitions, agentDefinitionsFor, agentRegistration, openedAgentDefinitions } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 import { ASSISTANT_PROMPTS } from "../apps/local-host/dist/assistant/assistant-agent.js";
 
 const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.version;
+
+test("FSS-35 an Agent display preview's cold lookup does not create an Agent store", async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-preview-cold-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  assert.equal(openedAgentDefinitions(home), undefined);
+  assert.deepEqual(await readdir(home), []);
+});
 
 function registry(now = () => new Date("2026-09-28T00:00:00.000Z")) {
   const definitions = new AgentDefinitions(new DatabaseSync(":memory:"), now);
@@ -88,16 +95,16 @@ test("the two questions of the selection bar are listed under 选区推荐 with 
   assert.deepEqual([next.title, surface.title], ["选区推荐：下一步", "选区推荐：助手要不要出面"]);
 
   assert.equal(judgmentWordingRevision(home), "-.-", "the default is in force");
-  assert.deepEqual(definitions.uses(NEXT_KEY), [], "reading the revision records no use");
+  assert.deepEqual(definitions.uses.list(NEXT_KEY), [], "reading the revision records no use");
   assert.deepEqual(judgmentWording(home), DEFAULT_JUDGMENT_WORDING);
-  assert.equal(definitions.uses(NEXT_KEY).length, 1, "reading the text records one use");
-  assert.equal(definitions.uses(NEXT_KEY)[0]!.caller, "contextual.judgment");
+  assert.equal(definitions.uses.list(NEXT_KEY).length, 1, "reading the text records one use");
+  assert.equal(definitions.uses.list(NEXT_KEY)[0]!.caller, "contextual.judgment");
 
   definitions.save(NEXT_KEY, "只看内容。\n\n选一个。", null, "web-user");
   assert.equal(judgmentWordingRevision(home), "1.-");
-  assert.equal(definitions.uses(NEXT_KEY).length, 1, "and still none for the revision");
+  assert.equal(definitions.uses.list(NEXT_KEY).length, 1, "and still none for the revision");
   assert.deepEqual(judgmentWording(home), { next: "只看内容。\n\n选一个。", surface: DEFAULT_JUDGMENT_WORDING.surface });
-  assert.equal(definitions.uses(NEXT_KEY).length, 2);
+  assert.equal(definitions.uses.list(NEXT_KEY).length, 2);
   definitions.save(SURFACE_KEY, "要不要出面？", null, "web-user");
   assert.equal(judgmentWordingRevision(home), "1.1");
   definitions.reset(NEXT_KEY, 1, "web-user");
@@ -153,10 +160,10 @@ test("over HTTP: what the person saved in 设置 › 提示词 for the selection
   assert.equal(first.body.plan.basis, "judgment", JSON.stringify(first.body.receipt));
   assert.equal(instructionsOf(asked[0]!, "next"), opening + FROZEN_FIRST + FROZEN_SECOND, "before any edit the questions read as they always did");
   assert.equal(instructionsOf(asked[0]!, "surface"), DEFAULT_JUDGMENT_WORDING.surface);
-  assert.equal(definitions.uses(NEXT_KEY).length, 1, "the question that was really asked records one use");
+  assert.equal(definitions.uses.list(NEXT_KEY).length, 1, "the question that was really asked records one use");
   await judge();
   assert.equal(asked.length, 1, "the same context is not asked again");
-  assert.equal(definitions.uses(NEXT_KEY).length, 1, "and a cached judgment records no use");
+  assert.equal(definitions.uses.list(NEXT_KEY).length, 1, "and a cached judgment records no use");
 
   const saved = definitions.save(NEXT_KEY, "只看这段话。\n\n选一个。", null, "web-user");
   definitions.save(SURFACE_KEY, "要不要出面？", null, "web-user");
@@ -165,7 +172,7 @@ test("over HTTP: what the person saved in 设置 › 提示词 for the selection
   assert.equal(asked.length, 2, "an edit in settings takes effect on the next judgment");
   assert.equal(instructionsOf(asked[1]!, "next"), opening + "只看这段话。选一个。");
   assert.equal(instructionsOf(asked[1]!, "surface"), "要不要出面？");
-  assert.equal(definitions.uses(NEXT_KEY).at(0)?.user_revision, saved.user!.revision, "the use says it ran the person's version");
+  assert.equal(definitions.uses.list(NEXT_KEY).at(0)?.user_revision, saved.user!.revision, "the use says it ran the person's version");
 
   definitions.reset(NEXT_KEY, saved.user!.revision, "web-user");
   await judge();
@@ -290,4 +297,50 @@ test("PMAT-25 PMAT-30 the Assistant's and Coding's base say once when to look in
     assert.match(body, /行号/u, `${name}: a line found leads to where reading starts`);
   }
   for (const id of ["assistant-work", "assistant-delegated"]) assert.doesNotMatch(ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === id)!.body, /项目资料/u, "said once, in the base");
+});
+
+
+test("SKC-05: Skill settings isolate scopes, reject stale writes and retain the original enablement", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    let at = "2026-11-08T10:00:00.000Z";
+    const definitions = new AgentDefinitions(db, () => new Date(at));
+    const store = definitions.skills;
+    assert.equal(store.setting("project-a", "install", "review"), undefined);
+    assert.equal(store.set("project-a", "install", "review", "auto", 0, "person"), "ok");
+    at = "2026-11-08T11:00:00.000Z";
+    assert.equal(store.set("project-a", "install", "review", "manual", 1, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "auto", 1, "person"), "conflict");
+    assert.equal(store.setting("project-a", "install", "review")?.state, "manual");
+    assert.equal(store.setting("project-a", "install", "review")?.enabled_at, "2026-11-08T10:00:00.000Z");
+    assert.equal(store.setting("project-b", "install", "review"), undefined);
+    assert.equal(store.set("project-b", "install", "review", "auto", 0, "person"), "ok");
+    store.keep("project-a", "install", ["review"]);
+    assert.equal(store.setting("project-a", "install", "review")?.state, "manual");
+    store.forget("project-a", "install");
+    assert.equal(store.setting("project-a", "install", "review"), undefined);
+    assert.equal(store.setting("project-b", "install", "review")?.state, "auto");
+    assert.equal(store.set("project-a", "install", "review", "auto", 0, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "manual", 1, "stale-window"), "conflict", "SKC-05: uninstall and reinstall never reuse the old revision");
+    const beforeOff = store.setting("project-a", "install", "review")!.revision;
+    assert.equal(store.set("project-a", "install", "review", "off", beforeOff, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "manual", 0, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "auto", beforeOff, "stale-window"), "conflict", "SKC-05: off and on never reuse the old revision");
+    store.keep("project-a", "install", []);
+    assert.equal(store.setting("project-a", "install", "review"), undefined);
+    assert.equal(store.setting("project-b", "install", "review")?.state, "auto");
+  } finally { db.close(); }
+});
+
+test("SKC-12: Skill use history retains the accepted reference after uninstall", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    const store = new AgentDefinitions(db).skills;
+    const ref = { source: { kind: "plugin" as const, plugin_id: "example.review", plugin_version: "1.0.0", publisher_signature: "signer" },
+      skill_id: "review", version: 1, install_id: "install", installation_generation: "generation" };
+    store.set("project-a", "install", "review", "manual", 0, "person");
+    store.recordUse({ ref, name: "Review", scope_ref: "project-a", caller: "assistant", run_ref: "round-1", at: "2026-11-08T10:00:00.000Z" });
+    store.forget("project-a", "install");
+    assert.deepEqual(store.uses("install", "review"), [{ ref, name: "Review", scope_ref: "project-a", caller: "assistant", run_ref: "round-1", at: "2026-11-08T10:00:00.000Z" }]);
+  } finally { db.close(); }
 });

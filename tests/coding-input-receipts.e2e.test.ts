@@ -8,6 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
+import { CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_SEND, CODING_STOP, CODING_TAKEN, codingDeliver } from "./fixtures/coding-composer.js";
 
 const sse = (type: string, value: object) => `event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`;
 const start = sse("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } })
@@ -57,6 +58,8 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "login.txt"), "login uses the old endpoint\n");
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => b.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const shot = async (name: string) => {
     const evidence = reviewEvidenceUrl("ai-input-receipts/"); await mkdir(evidence, { recursive: true });
     await writeFile(new URL(name, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
@@ -76,59 +79,58 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-plain"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-mode]').hidden`), true, "no send modes before a round runs");
-  await fill(`${coding} [data-coding-task]`, "登录流程哪里用了旧接口？");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
+  assert.equal(await b.evaluate<boolean>(`!document.querySelector('${CODING_COMPOSER} [data-compose-menu-toggle]')`), true, "no send modes before a round runs");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "登录流程哪里用了旧接口？");
+  await b.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   // The round shows as running before the call that started it has returned (its receipt is still checked); the button reads
   // 「正在提交…」 until then, and the stop button is held with it (BL-410).
-  await waitFor(`!document.querySelector('${coding} [data-coding-mode]').hidden && !document.querySelector('${coding} [data-coding-stop]').hidden && !document.querySelector('${coding} [data-coding-stop]').disabled`, 30_000);
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-send]').textContent`), "发送");
-  assert.equal(await evaluate<boolean>(`(() => { const stop = document.querySelector('${coding} [data-coding-stop]').getBoundingClientRect(), send = document.querySelector('${coding} [data-coding-send]').getBoundingClientRect(); return Math.abs((stop.top + stop.bottom) - (send.top + send.bottom)) < 8; })()`), true, "the modes fit on the composer's row: stopping stays beside them");
+  await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-compose-menu-toggle]') && !!document.querySelector('${CODING_STOP}') && !document.querySelector('${CODING_STOP}').disabled`, 30_000);
+  assert.equal(await b.evaluate<string>(`document.querySelector('${CODING_COMPOSER} [data-composer-send]').textContent.trim()`), "补充", "while a round runs, send adds to it");
+  assert.equal(await b.evaluate<boolean>(`(() => { const stop = document.querySelector('${CODING_COMPOSER} [data-composer-stop]').getBoundingClientRect(), send = document.querySelector('${CODING_COMPOSER} [data-composer-send]').getBoundingClientRect(); return Math.abs((stop.top + stop.bottom) - (send.top + send.bottom)) < 8; })()`), true, "the modes fit on the composer's row: stopping stays beside them");
 
   // D3: Esc in the composer no longer stops the round; stopping takes the button.
-  await evaluate(`document.querySelector('${coding} [data-coding-task]').focus()`);
+  await b.evaluate(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').focus()`);
   for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
-  assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} [data-coding-stop]').hidden && !document.querySelector('${coding} [data-coding-status]').textContent.includes('停止')`), true);
+  assert.equal(await b.evaluate<boolean>(`!!document.querySelector('${CODING_STOP}')`), true, "Esc leaves the round running");
+  assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} [data-coding-status]').textContent.includes('停止')`), true);
 
   // RC-18: words for the next round wait in the session; nothing shows them while this round runs.
-  await fill(`${coding} [data-coding-send-mode]`, "after-run");
-  await fill(`${coding} [data-coding-task]`, "下一轮顺便看注册接口");
-  await click(`${coding} [data-coding-send]`);
+  await b.evaluate(codingDeliver("after-run"));
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "下一轮顺便看注册接口");
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`document.querySelector('${coding} [data-coding-status]').textContent.includes('已存好，下一轮开始时带上')`, 15_000);
   assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} .mw-tray')?.textContent.includes('下一轮顺便看注册接口')`), true, "the queue is read only while no round is live");
 
 
-  // The mode menu is the shared select menu; each choice says what it does, and interrupting says what it costs.
-  const trigger = `${coding} [data-coding-mode] [data-mw-select-trigger]`;
-  await click(trigger);
-  const menu = await evaluate<string>(`'#'+CSS.escape(document.querySelector(${JSON.stringify(trigger)}).getAttribute('aria-controls'))`);
-  await waitFor(`document.querySelector(${JSON.stringify(menu)})?.matches(':popover-open, [data-open], .is-open') || document.querySelector(${JSON.stringify(menu)})?.getBoundingClientRect().height > 0`);
-  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(menu + " [data-mw-select-option]")})].map(item => item.textContent.trim())`),
+  // The modes are the composer's ▾ beside send; each choice says what it does, and interrupting says what it costs.
+  await b.click(`${CODING_COMPOSER} [data-compose-menu-toggle]`);
+  await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-compose-menu]:not([hidden]) [data-composer-delivery]')`);
+  assert.deepEqual(await b.evaluate<string[]>(`[...document.querySelectorAll('${CODING_COMPOSER} [data-composer-delivery]')].map(item => item.querySelector('[id$=-label]').textContent.trim())`),
     ["补充", "打断并改向", "下一轮再做"]);
   await shot("coding-send-modes.png");
-  await click(`${menu} [data-mw-select-option="1"]`);
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-send-mode]').value`), "interrupt");
+  await b.click(`${CODING_COMPOSER} [data-composer-delivery="interrupt"]`);
+  assert.equal(await b.evaluate<string>(`document.querySelector('${CODING_SEND}').textContent.trim()`), "打断并改向", "send says the mode it sends in");
 
   // The first answer is lost on the way: the bubble says so and sends the same supplement again.
   await evaluate(`(() => { window.__steers = []; let failed = false; const original = window.fetch; window.fetch = async (...args) => {
     const body = args[1] && typeof args[1].body === 'string' ? args[1].body : '';
     if (body.includes('"kind":"steer"')) { window.__steers.push(JSON.parse(body)); if (!failed) { failed = true; throw new TypeError('Failed to fetch'); } }
     return original(...args); }; })()`);
-  await fill(`${coding} [data-coding-task]`, "别看旧接口了，改用 /v2/login");
-  await click(`${coding} [data-coding-send]`);
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "别看旧接口了，改用 /v2/login");
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   const lost = `${coding} .coding-turn.is-sending[data-lost="1"]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(lost)}))`);
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(lost)}).textContent`), /别看旧接口了.*没确认送到 · 再按发送，同一条不会重复/su);
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-task]').value`), "别看旧接口了，改用 /v2/login", "the words stay in the composer");
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-send-mode]').value`), "interrupt", "and so does the mode");
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-status]').textContent`), "没确认送到：连接断了，或回复读不出。");
+  assert.equal(await b.evaluate<string>(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value`), "别看旧接口了，改用 /v2/login", "the words stay in the composer");
+  assert.equal(await b.evaluate<string>(`document.querySelector('${CODING_SEND}').textContent.trim()`), "打断并改向", "and so does the mode");
+  assert.ok((await b.evaluate<string>(`document.querySelector('${CODING_COMPOSER_STATUS}').textContent`)).includes("没确认送到：连接断了，或回复读不出。"), "the composer says the answer was lost");
   await shot("coding-send-lost.png");
-  await click(`${coding} [data-coding-send]`);
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   try { await waitFor(`document.querySelector('${coding} [data-coding-status]').textContent.includes('正在写的回复已丢掉')`, 15_000); }
   catch (error) { throw new Error(JSON.stringify(await evaluate(`({status:document.querySelector('${coding} [data-coding-status]').textContent,steers:window.__steers})`)), {cause:error}); }
   const steers = await evaluate<Array<{ key: string; mode: string; text: string }>>("window.__steers");
@@ -136,7 +138,7 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   assert.equal(steers[1]!.key, steers[0]!.key, "the retry is the same supplement");
   assert.deepEqual([steers[1]!.mode, steers[1]!.text], ["interrupt", "别看旧接口了，改用 /v2/login"]);
   assert.match(steers[0]!.key, /^send\./);
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-send-mode]').value`), "next-boundary", "the mode goes back to the default after each send");
+  assert.equal(await b.evaluate<boolean>(`!document.querySelector('${CODING_SEND}').textContent.includes('打断')`), true, "the mode goes back to the default after each send");
 
   // Interrupting dropped the reply under way; the round goes on with the person's words, and its record shows them with a receipt.
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
@@ -181,19 +183,19 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   // RCPT-325, RCPT-324: the next round carries the correction, and the original's receipt says what it was changed to; a
   // supplement this round has not put in the context yet is taken back from its receipt and never reaches the model.
   const asked = bodies.length;
-  await fill(`${coding} [data-coding-task]`, "第二轮再看一遍登录");
-  await click(`${coding} [data-coding-send]`);
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "第二轮再看一遍登录");
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   for (let i = 0; i < 600 && bodies.length <= asked; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[asked]?.messages ?? ""), /登录失败时提示要说清原因/u, "the correction went with the next round");
   assert.equal(JSON.stringify(bodies.slice(asked)).includes("下一轮顺便看注册接口"), false, "RCPT-332 the one taken back from the tray did not");
   await waitFor(`${receiptOf("/v2/login")}?.querySelector('.mw-receipt__link')?.textContent === '你改为：「补充一句：登录失败时提示…」'`, 20_000);
-  await waitFor(`!document.querySelector('${coding} [data-coding-stop]').hidden`, 15_000);
-  await fill(`${coding} [data-coding-task]`, "顺便把日志也看一遍");
-  await click(`${coding} [data-coding-send]`);
+  await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-composer-stop]')`, 15_000);
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "顺便把日志也看一遍");
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`[...(${receiptOf("顺便把日志也看一遍")}?.querySelectorAll('button') ?? [])].some(node => node.textContent === '撤回')`, 15_000);
   await press("顺便把日志也看一遍", "撤回");
   await waitFor(`${receiptOf("顺便把日志也看一遍")}?.dataset.state === 'withdrawn'`, 15_000);
   later[0]!.end(reply("好的。"));
-  await waitFor(`document.querySelector('${coding} [data-coding-stop]').hidden`, 20_000);
+  await b.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-stop]')`, 20_000);
   assert.ok(bodies.every(body => !JSON.stringify(body).includes("顺便把日志也看一遍")), "RCPT-324 what was taken back never reached the model");
 });

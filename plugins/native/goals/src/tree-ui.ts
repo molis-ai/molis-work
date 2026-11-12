@@ -1,3 +1,4 @@
+import { format as uiFormat, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { presentationOwnerHue, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { goalsPresentation } from "./presentation.js";
@@ -5,19 +6,19 @@ import { GOALS_PLUGIN_ID } from "./identity.js";
 import type { GoalCollectionModel } from "./collection-model.js";
 import type { GoalsTreeItem, GoalsTreeView, GoalsTreeUiPrimitives, GoalVisibleStatus } from "./tree-ui-model.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
-import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeCreatedParts, goalTreeCreatorHue, goalTreeCreatorInitial, treeDependencySearchText, visibleGoalStatus } from "./tree-presentation.js";
+import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeCreatorHue, goalTreeCreatorInitial, treeDependencySearchText, visibleGoalStatus } from "./tree-presentation.js";
 
 export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
 const treeObject = { ...goalsPresentation.objects[0], owner: GOALS_PLUGIN_ID };
 const treeOwner = { name: "Goals", icon: "target", hue: presentationOwnerHue(GOALS_PLUGIN_ID) } as const;
 
 function createTreeRenderer(primitives: GoalsTreeUiPrimitives) {
-  const { translate: L, escapeHtml, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
+  const { escapeHtml, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
   function renderGoalRootEntry(count: number, active: boolean): string {
-    return `<button class="desktop-module-item${active ? " is-current" : ""}" type="button" data-work-surface-open="goals"${active ? ' aria-current="page"' : ""}>${icon("target")}<span><strong>Goals</strong><small>${L("{count} 个 Goal", { count: count })}</small></span>${icon("chevron-right")}</button>`;
+    return `<button class="desktop-module-item${active ? " is-current" : ""}" type="button" data-work-surface-open="goals"${active ? ' aria-current="page"' : ""}>${icon("target")}<span><strong>Goals</strong><small>${uiText("goals.tree-ui.count-count", { count: count })}</small></span>${icon("chevron-right")}</button>`;
   }
 function quotedGoalNames(names: string[]): string {
-  const [open, close] = [L("goals.quote.open"), L("goals.quote.close")];
+  const [open, close] = [uiText.text("goals.quote.open"), uiText.text("goals.quote.close")];
   return listJoin(names.map((name) => `${open}${name}${close}`));
 }
 
@@ -33,14 +34,14 @@ function renderTreeDependencies(item: GoalsTreeItem, view: GoalsTreeView): strin
   const blocked = waiting.filter(({ target }) => target && isBlockedWorkStatus(target.status));
   const tone = blocked.length ? "is-blocked" : waiting.length ? "is-waiting" : "is-ready";
   const health = blocked.length
-    ? L("{count} 个阻塞", { count: blocked.length })
+    ? uiText.text("goals.tree-ui.count-blocked", { count: blocked.length })
     : waiting.length
-      ? L("{count} 个未完成", { count: waiting.length })
-      : L("已就绪");
-  const countLabel = L("{count} 个前置", { count: relations.length });
+      ? uiText.text("goals.tree-ui.count-incomplete", { count: waiting.length })
+      : uiText.text("goals.tree-ui.ready");
+  const countLabel = uiText.text("goals.tree-ui.count-count-2", { count: relations.length });
   const copy = waiting.length ? `${countLabel} · ${health}` : countLabel;
   return `<details class="tree-relations ${tone}" data-tree-relations>
-    <summary aria-label="${L("查看 {count} 个前置依赖", { count: relations.length })}">
+    <summary aria-label="${uiText("goals.tree-ui.view-count-count", { count: relations.length })}">
       <span class="tree-relations-copy">${escapeHtml(copy)}</span>
     </summary>
     <div class="tree-deps">${targets
@@ -51,11 +52,11 @@ function renderTreeDependencies(item: GoalsTreeItem, view: GoalsTreeView): strin
       const waiters = target && !satisfied ? unsatisfiedOutgoingDependencies(target, view) : [];
       const state = satisfied ? "is-ready" : blocked ? "is-blocked" : "is-waiting";
       const statusLine = satisfied
-        ? L("已完成，不再挡住")
+        ? uiText.text("goals.tree-ui.done-no-longer-blocking")
         : waiters.length
-          ? `${L("还在等它完成")} · ${L("它还要等 {names}", { names: quotedGoalNames(waiters.map((waiter) => waiter.goal.title)) })}`
-          : L("还在等它完成");
-      return `<button class="tree-dep ${state}" type="button" data-select-goal="${escapeHtml(relation.to_goal_id)}" aria-label="${L("打开依赖")} ${escapeHtml(title)}">
+          ? `${uiText.text("goals.tree-ui.still-waiting")} · ${uiText.text("goals.tree-ui.still-needs-names", { names: quotedGoalNames(waiters.map((waiter) => waiter.goal.title)) })}`
+          : uiText.text("goals.tree-ui.still-waiting");
+      return `<button class="tree-dep ${state}" type="button" data-select-goal="${escapeHtml(relation.to_goal_id)}" aria-label="${uiText("goals.tree-ui.open-dependency")} ${escapeHtml(title)}">
         <span class="tree-dep-mark" aria-hidden="true">${icon("link")}</span>
         <span class="tree-dep-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(relation.reason)}</small></span>
         <em>${escapeHtml(statusLine)}</em>
@@ -71,8 +72,8 @@ function renderTreeProgress(item: GoalsTreeItem, children: readonly GoalsTreeIte
   const blocked = units.filter((unit) => isBlockedWorkStatus(unit.status)).length;
   const progress = Math.round((done / units.length) * 100);
   const label = blocked
-    ? L("{done}/{total} 完成，{blocked} 个阻塞", { done, total: units.length, blocked })
-    : L("{done}/{total} 完成", { done, total: units.length });
+    ? uiText.text("goals.tree-ui.done-total-done-blocked-blocked", { done, total: units.length, blocked })
+    : uiText.text("goals.tree-ui.done-total-done", { done, total: units.length });
   return `<span class="tree-progress${blocked ? " is-blocked" : ""}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
     <span>${done}/${units.length}</span><i aria-hidden="true"><b style="--tree-progress:${progress}%"></b></i>
   </span>`;
@@ -108,16 +109,14 @@ function renderGoalTree(
     const hasChildren = nodeChildren.length > 0;
     const searchValue = `${item.goal.goal_id} ${item.goal.title} ${treeDependencySearchText(item, view)}`.toLowerCase();
     const selected = item.goal.goal_id === selectedGoalId;
-    const createdParts = goalTreeCreatedParts(item.goal.created_at);
-    // Chinese reads 9月5日; English keeps the compact Sep 5 column.
-    const createdLabel = createdParts ? L("{month}月{day}日", createdParts) : "";
+    const createdLabel = item.goal.created_at ? uiFormat.date(item.goal.created_at, "month-day") : "";
     const creatorId = item.created_by?.trim() || item.goal.accepted_by?.trim() || "";
     const creatorInitial = creatorId ? goalTreeCreatorInitial(creatorId) : "";
     const avatar = creatorId
-      ? `<span class="tree-avatar" title="${escapeHtml(creatorId)}" aria-label="${L("创建人")} ${escapeHtml(creatorId)}" style="--tree-avatar-hue:${goalTreeCreatorHue(creatorId)}">${escapeHtml(creatorInitial)}</span>`
+      ? `<span class="tree-avatar" title="${escapeHtml(creatorId)}" aria-label="${uiText("goals.tree-ui.creator")} ${escapeHtml(creatorId)}" style="--tree-avatar-hue:${goalTreeCreatorHue(creatorId)}">${escapeHtml(creatorInitial)}</span>`
       : `<span class="tree-avatar is-unknown" aria-hidden="true"></span>`;
     const created = createdLabel
-      ? `<time class="tree-created" datetime="${escapeHtml(item.goal.created_at)}" title="${escapeHtml(item.goal.created_at)}">${escapeHtml(createdLabel)}</time>`
+      ? `<time class="tree-created" datetime="${escapeHtml(item.goal.created_at)}" title="${escapeHtml(item.goal.created_at)}">${createdLabel}</time>`
       : `<time class="tree-created is-empty" aria-hidden="true"></time>`;
     const title = escapeHtml(item.goal.title);
     const chip = item.presentation_status && renderPresentationForm(treeObject, "chip", { locale: primitives.presentationLocale?.() ?? null,
@@ -130,7 +129,7 @@ function renderGoalTree(
           <div class="tree-leading">
             ${
               hasChildren
-                ? `<button class="tree-toggle" type="button" data-tree-toggle aria-expanded="true" aria-label="${L("折叠")} ${escapeHtml(item.goal.title)}">${icon("chevron-down")}</button>`
+                ? `<button class="tree-toggle" type="button" data-tree-toggle aria-expanded="true" aria-label="${uiText("goals.tree-ui.toggle")} ${escapeHtml(item.goal.title)}">${icon("chevron-down")}</button>`
                 : `<span class="tree-guide" aria-hidden="true"></span>`
             }
             ${chip ? `<div class="tree-presentation-name" title="${title}"><div aria-hidden="true">${chip}</div>${choose(`<strong class="mw-sr-only">${title}</strong>`)}</div>`
@@ -161,13 +160,13 @@ function renderTreeStatusFilter(items: readonly GoalsTreeItem[]): string {
   }
   const options = [...GOAL_DISPLAY_STATUSES, "archived", "trashed"]
     .filter((status): status is GoalVisibleStatus => (counts.get(status as GoalVisibleStatus) ?? 0) > 0);
-  return `<section class="tree-filter" id="tree-status-filter" data-tree-filter hidden aria-label="${L("按状态筛选")}">
-    <header><strong>${L("按状态筛选")}</strong><button class="mw-btn mw-btn--link" type="button" data-clear-status-filter disabled>${L("清除")}</button></header>
-    <p>${L("可同时选择多个状态。")}</p>
-    <div class="tree-filter-options" role="group" aria-label="${L("Goal 状态")}">
-      ${options.length ? options.map((status) => `<label class="tree-filter-option"><input type="checkbox" value="${status}" data-status-filter><span>${status === "archived" || status === "trashed" ? renderStatus(status) : renderActionStatus(status)}</span><small>${counts.get(status)}</small></label>`).join("") : `<p class="empty-row">${L("当前没有可筛选的 Goal。")}</p>`}
+  return `<section class="tree-filter" id="tree-status-filter" data-tree-filter hidden aria-label="${uiText("goals.tree-ui.filter-status")}">
+    <header><strong>${uiText("goals.tree-ui.filter-status")}</strong><button class="mw-btn mw-btn--link" type="button" data-clear-status-filter disabled>${uiText("goals.tree-ui.clear")}</button></header>
+    <p>${uiText("goals.tree-ui.select-more-than-one-status")}</p>
+    <div class="tree-filter-options" role="group" aria-label="${uiText("goals.tree-ui.goal-status")}">
+      ${options.length ? options.map((status) => `<label class="tree-filter-option"><input type="checkbox" value="${status}" data-status-filter><span>${status === "archived" || status === "trashed" ? renderStatus(status) : renderActionStatus(status)}</span><small>${counts.get(status)}</small></label>`).join("") : `<p class="empty-row">${uiText("goals.tree-ui.there-no-goal-filter")}</p>`}
     </div>
-    <p class="tree-filter-summary" data-tree-filter-summary aria-live="polite">${L("显示全部状态")}</p>
+    <p class="tree-filter-summary" data-tree-filter-summary aria-live="polite">${uiText("goals.tree-ui.showing-every-status")}</p>
   </section>`;
 }
 
@@ -178,14 +177,14 @@ function renderCollectionFold(
   items: readonly GoalsTreeItem[],
   open: boolean,
 ): string {
-  const title = kind === "current" ? L("当前") : kind === "archive" ? L("归档") : L("回收站");
-  const empty = kind === "current" ? L("还没有 Goal") : kind === "archive" ? L("没有已归档的 Goal") : L("回收站是空的");
+  const title = kind === "current" ? uiText.text("goals.tree-ui.current") : kind === "archive" ? uiText.text("goals.tree-ui.archive") : uiText.text("goals.tree-ui.trash");
+  const empty = kind === "current" ? uiText.text("goals.tree-ui.no-goals-yet") : kind === "archive" ? uiText.text("goals.tree-ui.no-archived-goals") : uiText.text("goals.tree-ui.trash-empty");
   const persist = kind === "current" ? "goal-collection-current" : kind === "archive" ? "goal-collection-archive" : "goal-collection-trash";
   const mark = kind === "current" ? "target" : kind === "archive" ? "archive" : "trash";
   const treeToken = kind === "current" ? "data-tree-root" : `data-collection-tree="${kind}"`;
   const tree = items.length ? renderGoalTree(view, selectedId, items, treeToken) : "";
   const filterEmpty = kind === "current"
-    ? `<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${L("没有符合当前筛选条件的 Goal。")}</p><button class="mw-btn mw-btn--link" type="button" data-clear-tree-filter>${L("清除所有筛选")}</button></div>`
+    ? `<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${uiText("goals.tree-ui.no-goal-matches-current-filters")}</p><button class="mw-btn mw-btn--link" type="button" data-clear-tree-filter>${uiText("goals.tree-ui.clear-all-filters")}</button></div>`
     : "";
   const body = items.length ? `${tree}${filterEmpty}` : `<p class="goal-collection-empty">${empty}</p>`;
   return `<details class="goal-collection-fold" data-goal-collection-fold="${kind}" data-persist-open="${persist}"${open ? " open data-collection-open" : ""}>
@@ -219,9 +218,9 @@ function renderGoalList(view: GoalsTreeView, selectedId: string, archiveView: bo
 function renderTreeChrome(view: GoalsTreeView): string {
   return `<header class="tree-chrome" data-tree-chrome data-directory-list-actions>
     <div class="tree-tools">
-      <button class="mw-btn mw-btn--primary tree-create" type="button" data-open-create>${icon("plus")}<span>${L("新建 Goal")}</span></button>
+      <button class="mw-btn mw-btn--primary tree-create" type="button" data-open-create>${icon("plus")}<span>${uiText("goals.tree-ui.new-goal")}</span></button>
       <div class="tree-filter-control">
-        <button class="mw-btn mw-btn--ghost tree-filter-trigger" type="button" data-tree-filter-trigger aria-expanded="false" aria-controls="tree-status-filter" aria-label="${L("筛选目标")}" title="${L("筛选目标")}">${icon("filter")}<span>${L("状态")}</span></button>
+        <button class="mw-btn mw-btn--ghost tree-filter-trigger" type="button" data-tree-filter-trigger aria-expanded="false" aria-controls="tree-status-filter" aria-label="${uiText("goals.tree-ui.filter-goals")}" title="${uiText("goals.tree-ui.filter-goals")}">${icon("filter")}<span>${uiText("goals.tree-ui.status")}</span></button>
       </div>
       ${renderTreeStatusFilter(view.goals)}
     </div>
@@ -230,12 +229,12 @@ function renderTreeChrome(view: GoalsTreeView): string {
 
 function renderTreeFooter(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
   const { collectionSuffix, collectionNote } = collection;
-  return `<footer class="tree-footer" data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: view.goals.length, suffix: "" })}</span><small>${collectionNote}</small></footer>`;
+  return `<footer class="tree-footer" data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${uiText("goals.tree-ui.count-suffix-goals", { count: view.goals.length, suffix: "" })}</span><small>${collectionNote}</small></footer>`;
 }
 
 function renderGoalStageList(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, proposals = ""): string {
   const { selectedId, archiveView, trashView } = collection;
-  return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${L("目标列表")}"><div class="goal-list-view" data-goal-list-view>${archiveView || trashView ? "" : proposals}${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
+  return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${uiText("goals.tree-ui.goal-list")}"><div class="goal-list-view" data-goal-list-view>${archiveView || trashView ? "" : proposals}${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
 }
 
 function renderGoalDirectory(_view: GoalsTreeView, _collection: GoalCollectionModel<GoalsTreeItem>, _initiallyOpen: boolean): string {

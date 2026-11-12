@@ -6,6 +6,7 @@ import type { CodingSessionState } from "./projection.js";
 import { codingRouteEntry } from "./route-entry.js";
 import type { CodingExecution } from "./routes.js";
 import { summaryCache } from "./session-window.js";
+import { writeCheckCache } from "./write-checks.js";
 import { startRound } from "./start-round.js";
 import { codingWakeLoop } from "./wake-loop.js";
 import { codingText } from "./words.js";
@@ -25,6 +26,8 @@ export interface CodingActivation {
   /** Sessions with a send (or a delivery being taken) under way. */
   readonly busy: Set<string>;
   readonly summaries: ReturnType<typeof summaryCache>;
+  /** The after-write checks of the rounds the timeline shows, each receipt read once. */
+  readonly writeChecks: ReturnType<typeof writeCheckCache>;
   readonly fileIndexes: Map<string, { at: number; value: Promise<{ files: string[]; truncated: boolean }> }>;
   /** The follower of each session's latest round, by session (start-round.ts). */
   readonly following: Map<string, PluginKeptJob>;
@@ -45,7 +48,7 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, records: from => from.sessions.list(projectId),
     record: (from, id) => from.sessions.get(projectId, id),
     startRound: (record, body, api, from, beforeWrite) => startRound(activation, record, body, api, from, beforeWrite) });
-  const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
+  const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), writeChecks: writeCheckCache(), fileIndexes: new Map(), following: new Map(),
     state: { read: null, next: null }, route: codingRouteEntry(context, execution, actions, failure), waits };
   // The loops' job is kept while the activation starts, the one place outside a command it may be kept from: a later
   // `coding.state` read only wakes it. Idle, it asks the Agent runtime nothing.
@@ -81,7 +84,7 @@ const sideOf = (a: CodingActivation, execution: CodingExecution, id: string | nu
 
 /** The page's view of one delegation letter; the two ends are named as this project's Coding sessions. */
 export const delegationView = (a: CodingActivation, execution: CodingExecution, letter: AgentSessionMessage, letters: AgentSessionMessage[]) =>
-  delegationViewOf(letter, letters, { codingOf: runtime => execution.sessions.byRuntimeSession(a.projectId, runtime)?.session_id ?? null, sideOf: id => sideOf(a, execution, id) }, codingText(execution.locale));
+  delegationViewOf(letter, letters, { codingOf: runtime => execution.sessions.byRuntimeSession(a.projectId, runtime)?.session_id ?? null, sideOf: id => sideOf(a, execution, id) }, codingText);
 
 export const savedBudget = (a: CodingActivation, sessionId: string): { tokens: number } | null => {
   const saved = a.context.services?.storage?.get(`budget:${sessionId}`);

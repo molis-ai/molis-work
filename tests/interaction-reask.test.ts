@@ -12,6 +12,7 @@ import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { codingReaskMaterial } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 
 // specs/ai-interaction-experience D5: a question that closed before it was answered (it expired, or it was closed with the
 // round a restart cut off) is asked again by a new round of the person's, carrying the question and their draft as one
@@ -101,7 +102,7 @@ test("D5: an expired question is asked again by a new round that carries the per
 
 // A restart parks a round that waits for the person's answer (BL-156): its card takes the answer (AC-07,
 // interaction-parked-answer). The person may close the round instead; then its question is closed and asked again like any other.
-test("D5: a question a restart parked, its round closed instead of answered, is asked again with the draft", { timeout: 60_000 }, async t => {
+test("D5: a question a restart parked, its round closed instead of answered, is asked again with the draft", { timeout: 60_000 }, t => inAssistantPage("zh", async () => {
   const fixture = await assistant(t, "restart");
   const { workId, runId, pending } = await fixture.asked();
   await fixture.reopen();
@@ -114,7 +115,7 @@ test("D5: a question a restart parked, its round closed instead of answered, is 
   await fixture.service.closeInterrupted(workId, { run_id: round!.run_id, version: round!.version });
   await fixture.closed(workId, pending.pending_id);
   await reasked(fixture, workId, runId, pending.pending_id);
-});
+}));
 
 test("D5: re-asking an open question, or one that is not this work's, is refused and starts nothing", { timeout: 60_000 }, async t => {
   const fixture = await assistant(t, "refused");

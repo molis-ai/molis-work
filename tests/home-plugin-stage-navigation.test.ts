@@ -3,11 +3,13 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HomeConsentLedger, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, mac, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): a signed package installed in the Home draws
 // its stage in the Home: a page of its own, a stage in every project's workbench, and a place that follows its state. Since 07-1 S4b
@@ -42,7 +44,14 @@ const groupOf = (html: string, pluginId: string) => new RegExp(`data-plugin-tile
 const plusPersonal = (html: string, pluginId: string) => (JSON.parse(/<script type="application\/json" data-plugin-directory>(.*?)<\/script>/su.exec(html)?.[1] ?? "[]") as { id: string; personal?: true }[])
   .find(entry => entry.id === pluginId)?.personal === true;
 const surfaceOf = (entry: string) => /data-work-surface-open="([^"]+)"/u.exec(entry)?.[1];
-const stagesOf = (html: string) => [...html.matchAll(/<section class="desktop-work-surface pb-surface" data-work-surface="([^"]+)"[^>]* data-installed-plugin="([^"]+)"/gu)].map(match => ({ surface: match[1]!, plugin_id: match[2]! }));
+const stagesOf = (html: string) => [...html.matchAll(/<section class="desktop-work-surface plugin-stage-shell" data-work-surface="([^"]+)"[^>]* data-installed-plugin="([^"]+)" data-plugin-page-source="([^"]+)"[^>]* data-deferred-surface hidden><script type="application\/json" data-plugin-document>/gu)]
+  .map(match => ({ surface: match[1]!, plugin_id: match[2]!, source: match[3]!.replaceAll("&amp;", "&") }));
+/** A stage frames the page of the exact Home installation that drew it (SCS-11). */
+const assertStageSource = (source: string, page: string) => {
+  const url = new URL(source, "http://local");
+  assert.equal(url.pathname + "?frame=" + url.searchParams.get("frame"), page + "?frame=workbench");
+  assert.equal((JSON.parse(url.searchParams.get("installation") ?? "null") as { scope?: string } | null)?.scope, "home");
+};
 
 test("RAC-2620 a project's switcher (its 个人 group) and ＋ offer a Home package with the personal plugins, with the icon it picked and `package` when it picked none; the arrival page has no tool slot", mac, async t => {
   const h = await navHome(t);
@@ -88,7 +97,10 @@ test("RAC-2621 a package that has only a stage view has no side tab; its entry o
   const stages = stagesOf(project.text);
   assert.deepEqual(stages.map(stage => stage.plugin_id).sort(), [PACKAGE_PLUGIN_ID, SECOND_PLUGIN_ID].sort(), "both packages have a stage");
   assert.equal(new Set(stages.map(stage => stage.surface)).size, 2, "two stages, two ids");
-  for (const stage of stages) assert.equal(surfaceOf(entryOf(project.text, stage.plugin_id)!), stage.surface, `${stage.plugin_id}'s entry opens its own stage`);
+  for (const stage of stages) {
+    assert.equal(surfaceOf(entryOf(project.text, stage.plugin_id)!), stage.surface, `${stage.plugin_id}'s entry opens its own stage`);
+    assertStageSource(stage.source, `${h.projectPath}plugins/${stage.plugin_id}`);
+  }
 });
 
 test("RAC-2622 a package switched off leaves the tool bar and has no page; switched on again, it is back", mac, async t => {
@@ -204,18 +216,33 @@ test("RAC-2621.2 a framed page is the page of a package running in this Home and
   }
 });
 
-test("RAC-2621.3 the framed page carries the Home page's policy, and neither the Home's page nor a project's stage sandboxes its frame by markup", mac, async t => {
+test("RAC-2621.3 the framed page carries the Home page's policy and a project opens its installed stage in the opaque Workbench frame", mac, async t => {
   const h = await navHome(t);
   await h.install();
   const framed = await fetch(`${h.home.origin}/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
   assert.equal(framed.status, 200);
   assert.match(framed.headers.get("content-security-policy") ?? "", /frame-ancestors 'self'/u, "only this origin frames it");
   assert.equal(framed.headers.get("x-frame-options"), "SAMEORIGIN");
-  const frameOf = (html: string, from: RegExp) => from.exec(html)?.[0];
-  const outer = frameOf((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text, /<iframe src="\/plugins\/[^"]*\?frame=workbench&amp;installation=[^"]+"[^>]*>/u);
-  const stage = frameOf((await h.page(h.projectPath)).text, new RegExp(`data-installed-plugin="${PACKAGE_PLUGIN_ID.replaceAll(".", "\\.")}" hidden><iframe [^>]*>`, "u"));
-  for (const [where, tag] of Object.entries({ "the Home's page": outer, "a project's stage": stage })) {
-    assert.ok(tag, `${where} has the frame`);
-    assert.ok(!/\bsandbox\b/u.test(tag), `${where}: the frame is not sandboxed by its markup (the package's page is the document that is isolated)`);
-  }
+  const outer = /<iframe src="\/plugins\/[^"]*\?frame=workbench&amp;installation=[^"]+"[^>]*>/u.exec((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text)?.[0];
+  assert.ok(outer, "the Home page embeds the package document");
+  assert.doesNotMatch(outer, /\bsandbox\b/u, "the Home package page is itself isolated");
+  const stage = stagesOf((await h.page(h.projectPath)).text).find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  assert.ok(stage, "the project carries the package stage as an inert document");
+  assertStageSource(stage.source, `${h.projectPath}plugins/${PACKAGE_PLUGIN_ID}`);
+  const chrome = locateTestChrome();
+  await t.test("the workbench mounts the signed package's real controls in an opaque document", { skip: !chrome }, async check => {
+    assert.ok(chrome);
+    const browser = await ChromeHarness.start(h.home.home, { executable: chrome });
+    try {
+      const page = await browser.page();
+      const child = await pluginFrameBrowser(check, { sessionId: page.sessionId, command: browser.command.bind(browser),
+        on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) }, stage.surface);
+      await page.command("Page.navigate", { url: `${h.home.origin}${h.projectPath}?openSurface=${encodeURIComponent(stage.surface)}` });
+      await child.waitFor("globalThis.__molisPluginReady === true");
+      assert.equal(await child.evaluate(`document.querySelector('[data-field=text]')?.form.querySelector('[type=submit]').textContent.trim()`), "添加");
+      const frame = `iframe[data-plugin-frame=${JSON.stringify(stage.surface)}]`;
+      assert.deepEqual(await page.evaluate(`(() => {const frame = document.querySelector(${JSON.stringify(frame)});
+        return [frame.sandbox.contains('allow-scripts'), frame.sandbox.contains('allow-same-origin'), frame.contentDocument];})()`), [true, false, null]);
+    } finally { await browser.close(); }
+  });
 });

@@ -37,7 +37,8 @@ function dualTree(change: { runtime?: string; manifest?: string; project?: strin
     "plugins/native/probe/src/index.ts": lines(`export * from "./manifest.js";`, `export { createProbePlugin } from "./plugin.js";`),
     "plugins/native/probe/src/manifest.ts": lines(
       `const PERMISSIONS = [${change.permissions ?? `{ permission: "storage:private", required: true, reason: "库" }, { permission: "probe:read", required: true, reason: "读" }`}];`,
-      `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: PERMISSIONS } as const satisfies object;`),
+      `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: PERMISSIONS, ui: { contributions: [], locales: { default: "en", available: ["en"] } } } as const satisfies object;`),
+    "plugins/native/probe/locales/en.json": JSON.stringify({ format_version: 1, owner: "io.molis.work.example.probe", locale: "en", messages: { "probe.view.title": "Probe" } }),
     [PROJECT_START_LIST]: lines(
       `import { createProbePlugin } from "${PACKAGE}";`,
       `import { createOtherPlugin } from "@molis-ai/molis-work-plugin-other";`,

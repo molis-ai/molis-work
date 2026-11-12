@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -8,7 +9,6 @@ import type { WebServerOptions } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
 import { dispatchCatalogRoutes } from "./web-catalog-routes.js";
 
 /** The catalog's pages and settings: what the Host answers with no project open. The addresses are `CATALOG_ROUTES`, tried in order. */
@@ -21,8 +21,8 @@ export async function handleLocalCatalogWebRequest(
 ): Promise<void> {
   if (await dispatchCatalogRoutes({ request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition, deletionPorts, agentRuntimes })) return;
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-    sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
+    sendJson(response, 400, { error: uiText.text("workbench.catalog.choose-molis-work-project-first") });
     return;
   }
-  sendJson(response, 404, { error: L("页面不存在") });
+  sendJson(response, 404, { error: uiText.text("workbench.catalog.page-not-found") });
 }

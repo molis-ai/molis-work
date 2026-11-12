@@ -222,6 +222,7 @@
     }
   },
   "other_writes": {
+    "appearance.ts": "经外观动作保存并读取 Home 的选择和回执，记录在 interface/state.json",
     "host-settings.ts": "写宿主的设置文件，不是 §3 里的库",
     "model-settings.ts": "写模型设置和密文，都在 feed/ 的文件里",
     "model-turn.ts": "走一轮真实对话，写 Prologue 的会话记录文件",

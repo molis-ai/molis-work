@@ -1,3 +1,5 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -97,18 +99,18 @@ async function refreshReviews(state: Integration) {
 
 /** The buttons that settle one conflict block by taking a side, rebuilt each time the text in the editor changes. */
 function drawPicks(state: Integration, picks: HTMLElement, editor: HTMLTextAreaElement, sync: () => void) {
-  const { translate: L, lifetime } = state.ports;
+  const { lifetime } = state.ports;
   const found = hunks(editor.value);
   picks.hidden = !found.length;
   picks.replaceChildren();
   found.forEach((hunk, index) => {
     const pick = el("div", "", "coding-merge-pick");
-    pick.append(el("span", L("coding.integration.hunk", { number: index + 1, ours: lines(hunk.ours), theirs: lines(hunk.theirs) })));
-    const sides: readonly (readonly [Side, string])[] = [["ours", L("coding.integration.take-ours")], ["theirs", L("coding.integration.take-theirs")], ["both", L("coding.integration.take-both")]];
+    pick.append(el("span", uiText.text("coding.integration.hunk", { number: index + 1, ours: lines(hunk.ours), theirs: lines(hunk.theirs) })));
+    const sides: readonly (readonly [Side, string])[] = [["ours", uiText.text("coding.integration.take-ours")], ["theirs", uiText.text("coding.integration.take-theirs")], ["both", uiText.text("coding.integration.take-both")]];
     for (const [how, label] of sides) {
       const side = el("button", label, "mw-btn mw-btn--ghost");
       side.type = "button";
-      side.setAttribute("aria-label", L("coding.integration.take-label", { number: index + 1, choice: label }));
+      side.setAttribute("aria-label", uiText.text("coding.integration.take-label", { number: index + 1, choice: label }));
       lifetime.listen(side, "click", () => {
         editor.value = take(editor.value, index, how);
         sync();
@@ -122,20 +124,20 @@ function drawPicks(state: Integration, picks: HTMLElement, editor: HTMLTextAreaE
 
 /** The editor a person finishes a conflicted file in; unresolved markers keep the file out of the hand-over. */
 function openMerge(state: Integration, key: string, file: IntegrationFile, conflict: NonNullable<IntegrationFile["conflict"]>, merge: HTMLElement) {
-  const { translate: L, lifetime } = state.ports;
+  const { lifetime } = state.ports;
   const editor = el("textarea", "", "mw-textarea coding-merge-editor"), status = el("p"), use = el("label", "", "mw-check-row"), useCheck = el("input");
   editor.rows = Math.min(18, Math.max(6, conflict.merged_text.split("\n").length + 1));
   editor.spellcheck = false;
   editor.value = state.resolutions.get(key) ?? conflict.merged_text;
-  editor.setAttribute("aria-label", L("coding.integration.merge-label", { path: key }));
+  editor.setAttribute("aria-label", uiText.text("coding.integration.merge-label", { path: key }));
   useCheck.type = "checkbox";
   useCheck.className = "mw-check";
-  use.append(useCheck, el("span", L("coding.integration.merge-use")));
+  use.append(useCheck, el("span", uiText.text("coding.integration.merge-use")));
   const picks = el("div", "", "coding-merge-picks");
   const sync = () => {
     const blocked = MARKER.test(editor.value);
     drawPicks(state, picks, editor, sync);
-    status.textContent = blocked ? L("coding.integration.unresolved", { count: Math.max(markers(editor.value), 1) }) : conflict.clean && editor.value === conflict.merged_text ? L("coding.integration.clean") : L("coding.integration.resolved");
+    status.textContent = blocked ? uiText.text("coding.integration.unresolved", { count: Math.max(markers(editor.value), 1) }) : conflict.clean && editor.value === conflict.merged_text ? uiText.text("coding.integration.clean") : uiText.text("coding.integration.resolved");
     status.dataset.tone = blocked ? "attention" : "done";
     useCheck.disabled = blocked;
     if (blocked) {
@@ -156,46 +158,46 @@ function openMerge(state: Integration, key: string, file: IntegrationFile, confl
     remember(state);
     update(state);
   });
-  merge.append(el("p", conflict.clean ? L("coding.integration.clean-note") : L("coding.integration.conflict-note")), editor, picks, status, use);
+  merge.append(el("p", conflict.clean ? uiText.text("coding.integration.clean-note") : uiText.text("coding.integration.conflict-note")), editor, picks, status, use);
   sync();
   editor.focus();
 }
 
 /** What would change in the main workspace, as a folded diff; without one, the two full texts. */
-function changes(L: WriterIntegrationPorts["translate"], row: HTMLElement, key: string, file: IntegrationFile, shown: number) {
+function changes(_L: WriterIntegrationPorts["translate"], row: HTMLElement, key: string, file: IntegrationFile, shown: number) {
   if (file.diff_html) {
     const diff = el("details", "", "coding-integration-diff");
     diff.open = shown <= 3;
-    diff.append(el("summary", L("coding.integration.diff")));
+    diff.append(el("summary", uiText.text("coding.integration.diff")));
     const body = el("div");
     body.dataset.codePath = key;
-    body.innerHTML = file.diff_html;
+    setContentHtml(body, file.diff_html);
     diff.append(body);
     row.append(diff);
     return;
   }
   if (file.before_text !== undefined) {
     const before = el("details");
-    before.append(el("summary", L("coding.integration.before")), el("pre", file.before_text === null ? L("coding.integration.not-yet") : file.before_text || L("coding.integration.empty")));
+    before.append(el("summary", uiText.text("coding.integration.before")), el("pre", file.before_text === null ? uiText.text("coding.integration.not-yet") : file.before_text || uiText.text("coding.integration.empty")));
     row.append(before);
   }
   if (file.after_text !== undefined) {
     const after = el("details");
-    after.append(el("summary", L("coding.integration.after")), el("pre", file.after_text === null ? L("coding.integration.delete-file") : file.after_text || L("coding.integration.empty")));
+    after.append(el("summary", uiText.text("coding.integration.after")), el("pre", file.after_text === null ? uiText.text("coding.integration.delete-file") : file.after_text || uiText.text("coding.integration.empty")));
     row.append(after);
   }
 }
 
 /** One changed file: its check box, what changed and, when both sides changed it, the merge. */
 function fileRow(state: Integration, file: IntegrationFile, previous: ReadonlyMap<string, string>, shown: number) {
-  const { translate: L, lifetime } = state.ports;
+  const { translate: readText, lifetime } = state.ports;
   const key = file.path.join("/"), row = el("section", "", "coding-material");
   const label = el("label", "", "mw-check-row"), check = el("input");
   check.type = "checkbox";
   check.className = "mw-check";
   check.disabled = !file.selectable;
   check.checked = file.selectable && previous.get(key) === file.revision;
-  check.setAttribute("aria-label", L("coding.integration.file-label", { path: key }));
+  check.setAttribute("aria-label", uiText.text("coding.integration.file-label", { path: key }));
   if (check.checked) state.selection.set(key, file.revision);
   lifetime.listen(check, "change", () => {
     if (check.checked) state.selection.set(key, file.revision);
@@ -204,15 +206,15 @@ function fileRow(state: Integration, file: IntegrationFile, previous: ReadonlyMa
     remember(state);
     update(state);
   });
-  const targets = { added: L("coding.integration.added"), modified: L("coding.integration.modified"), deleted: L("coding.integration.deleted") };
+  const targets = { added: uiText.text("coding.integration.added"), modified: uiText.text("coding.integration.modified"), deleted: uiText.text("coding.integration.deleted") };
   label.append(check, el("span", key + " · " + targets[file.target]));
   row.append(label);
   if (file.reason) row.append(el("p", file.reason));
-  changes(L, row, key, file, shown);
+  changes(readText, row, key, file, shown);
   // Both sides changed this file: a three-way merge a person finishes, never the child's version over the main one.
   const conflict = file.conflict;
   if (conflict) {
-    const merge = el("div", "", "coding-merge"), open = el("button", conflict.clean ? L("coding.integration.merge-view") : L("coding.integration.merge-resolve"), "mw-btn");
+    const merge = el("div", "", "coding-merge"), open = el("button", conflict.clean ? uiText.text("coding.integration.merge-view") : uiText.text("coding.integration.merge-resolve"), "mw-btn");
     open.type = "button";
     merge.append(open);
     row.append(merge);
@@ -226,10 +228,10 @@ function fileRow(state: Integration, file: IntegrationFile, previous: ReadonlyMa
 
 /** Reads what the directory changed and draws it. */
 async function refresh(state: Integration) {
-  const { ports, dialog, list, message } = state, { translate: L, lifetime, api, q } = ports;
+  const { ports, dialog, list, message } = state, { lifetime, api, q } = ports;
   if (state.reading || state.busy) return;
   state.reading = true;
-  message.textContent = L("coding.integration.reading");
+  message.textContent = uiText.text("coding.integration.reading");
   update(state);
   const at = state.ticket;
   try {
@@ -239,14 +241,14 @@ async function refresh(state: Integration) {
     state.workspace = data.workspace_id;
     state.operation = "";
     list.replaceChildren();
-    q("[data-coding-integration-source]").textContent = L("coding.integration.source", { path: data.source_path, branch: data.branch });
-    q("[data-coding-integration-target]").textContent = L("coding.integration.target", { path: data.target_path });
+    q("[data-coding-integration-source]").textContent = uiText.text("coding.integration.source", { path: data.source_path, branch: data.branch });
+    q("[data-coding-integration-target]").textContent = uiText.text("coding.integration.target", { path: data.target_path });
     const previous = state.selection;
     state.selection = new Map();
-    if (!data.files.length) list.append(el("p", L("coding.integration.no-changes")));
+    if (!data.files.length) list.append(el("p", uiText.text("coding.integration.no-changes")));
     for (const file of data.files) list.append(fileRow(state, file, previous, data.files.length));
     remember(state);
-    message.textContent = L("coding.integration.choose");
+    message.textContent = uiText.text("coding.integration.choose");
     await refreshReviews(state);
   } catch (error) {
     if (!lifetime.alive) return;
@@ -263,10 +265,10 @@ async function refresh(state: Integration) {
 
 /** Hands the chosen files (and the text a conflict was finished with) to the Host to prepare in the main workspace. */
 async function prepare(state: Integration) {
-  const { ports, message } = state, { translate: L, lifetime, api } = ports, view = state.view;
+  const { ports, message } = state, { lifetime, api } = ports, view = state.view;
   if (state.busy || state.reading || !view) return;
   state.busy = true;
-  message.textContent = L("coding.integration.preparing");
+  message.textContent = uiText.text("coding.integration.preparing");
   update(state);
   state.operation ||= crypto.randomUUID();
   const at = state.ticket;
@@ -278,7 +280,7 @@ async function prepare(state: Integration) {
     await api(state.endpoint, "POST", { operation_id: state.operation, files });
     state.operation = "";
     if (at === state.ticket) {
-      message.textContent = L("coding.integration.prepared");
+      message.textContent = uiText.text("coding.integration.prepared");
       await refreshReviews(state);
     }
   } catch (error) {
@@ -291,9 +293,9 @@ async function prepare(state: Integration) {
 }
 
 async function open(state: Integration, endpoint: string) {
-  const { ports, list, message } = state, { translate: L, q } = ports;
+  const { ports, list, message } = state, { q } = ports;
   if (state.busy || state.reading) {
-    ports.status(L("coding.integration.busy"), true);
+    ports.status(uiText.text("coding.integration.busy"), true);
     return;
   }
   state.endpoint = endpoint;
@@ -309,7 +311,7 @@ async function open(state: Integration, endpoint: string) {
   state.view = null;
   state.operation = "";
   list.replaceChildren();
-  message.textContent = L("coding.integration.reading");
+  message.textContent = uiText.text("coding.integration.reading");
   const reviews = q("[data-coding-integration-reviews]");
   reviews.replaceChildren();
   delete reviews.dataset.reviewHtml;

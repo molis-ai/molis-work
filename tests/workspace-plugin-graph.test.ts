@@ -23,7 +23,9 @@ import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git"
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { pagePack } from "./fixtures/page-text.js";
 
 /** Artifact companions run independently of the retired Workspace plugin. */
 
@@ -169,7 +171,8 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
   }
 });
 
-test("Coding fixed output reaches Diff through the production default binding without replacing the selected group", async () => {
+test("Coding fixed output reaches Diff through the production default binding without replacing the selected group", async t => {
+  t.after(installTextForTest({ locale: "zh", packs: [pagePack("diff", "zh")] }));
   const directory = mkdtempSync(join(tmpdir(), "coding-diff-graph-"));
   const { store, platform } = project(directory);
   let coding: PluginStartContext | undefined;
@@ -192,7 +195,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
     platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "change-set");
     await platform.wiring.drain();
     const response = await platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.diff/state", actor_id: "tester", query: {} });
-    assert.equal(response?.status, 200);
+    assert.equal(response?.status, 200, JSON.stringify(response?.body));
     const view = (response?.body as { view: { rows: Array<{ text: string }>; group: string; partial: boolean } }).view;
     assert.equal(view.group, "change-set"); assert.equal(view.partial, false);
     assert.deepEqual(view.rows.map(row => row.text), ["original", "fixed"]);

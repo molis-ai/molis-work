@@ -5,7 +5,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderAgentReviewSurface, renderAgentReviewRecovery } from "@molis-ai/molis-work-app-workbench";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 import { confirmArrivedTooSoon, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -47,17 +47,17 @@ export async function handleAgentReviewHttp(
     const body = request.method === "POST" ? await readLocalWebBody(request) : {};
     const reviewId = request.method === "POST" ? body.review_id : url.searchParams.get("review_id");
     if (typeof reviewId !== "string" || ports.agentHost.reviews.get(reviewId)?.project_id !== ports.projectId) {
-      sendLocalWebJson(response, 404, { error: "找不到此项目的原操作" }); return true;
+      sendLocalWebJson(response, 404, { error: uiText.text("workbench.agent-review.operation-missing") }); return true;
     }
-    if (!ports.observeGitIndex) { sendLocalWebJson(response, 409, { error: "当前暂存区核对尚未接通" }); return true; }
+    if (!ports.observeGitIndex) { sendLocalWebJson(response, 409, { error: uiText.text("workbench.agent-review.index-unavailable") }); return true; }
     try {
-      if (request.method === "POST" && body.action !== "refresh" && body.action !== "not-happened") throw new Error("核对动作无效");
-      if (request.method === "POST" && body.action === "not-happened" && body.confirmed !== true) throw new Error("请明确确认原操作未发生");
+      if (request.method === "POST" && body.action !== "refresh" && body.action !== "not-happened") throw new Error(uiText.text("workbench.agent-review.bad-recovery-action"));
+      if (request.method === "POST" && body.action === "not-happened" && body.confirmed !== true) throw new Error(uiText.text("workbench.agent-review.must-confirm"));
       const view = request.method === "GET" ? await ports.agentHost.reviews.inspectRecovery(reviewId, ports.observeGitIndex)
         : await ports.agentHost.reviews.recover({ review_id: reviewId, action: body.action as "refresh" | "not-happened", actor_id: ports.actorId,
           ...(typeof body.revision === "string" ? { revision: body.revision } : {}), ...(typeof body.reason === "string" ? { reason: body.reason } : {}) }, ports.observeGitIndex);
       sendLocalWebJson(response, 200, { view, html: renderAgentReviewRecovery(view, value => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!)) });
-    } catch (error) { sendLocalWebJson(response, 409, { error: error instanceof Error ? error.message : "无法核对原操作" }); }
+    } catch (error) { sendLocalWebJson(response, 409, { error: error instanceof Error ? error.message : uiText.text("workbench.agent-review.check-failed") }); }
     return true;
   }
   if (request.method === "GET" && url.pathname === "/api/agent/reviews") {
@@ -72,7 +72,7 @@ export async function handleAgentReviewHttp(
     const workspaceId = url.searchParams.get("workspace_id");
     const limitParam = url.searchParams.get("limit"), limit = limitParam === null ? undefined : Number(limitParam);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)) {
-      sendLocalWebJson(response, 400, { error: "审查记录数量必须为 1–1000" });
+      sendLocalWebJson(response, 400, { error: uiText.text("workbench.agent-review.bad-limit") });
       return true;
     }
     const matched = ports.agentHost.reviews.list(projectId, status)
@@ -93,7 +93,7 @@ export async function handleAgentReviewHttp(
     const rows = kept ? matched.filter(row => open(row) || kept.has(row)) : matched;
     const html = renderAgentReviewSurface({ rows, primitives: {
       escape: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!),
-      icon, formatDate: value => new Date(value).toLocaleString("zh-CN"),
+      icon, formatDate: value => format.date(value, "datetime-with-seconds"),
     } });
     sendLocalWebJson(response, 200, { reviews: rows, html, total: matched.length, omitted: matched.length - rows.length });
     return true;
@@ -106,24 +106,24 @@ export async function handleAgentReviewHttp(
       ? body.decision
       : null;
     if (reviewId === "" || decision === null) {
-      sendLocalWebJson(response, 400, { error: "请求缺少 review_id 或 decision" });
+      sendLocalWebJson(response, 400, { error: uiText.text("workbench.agent-review.decision-required") });
       return true;
     }
     if (body.note !== undefined && (typeof body.note !== "string" || body.note.length > 2000)) {
-      sendLocalWebJson(response, 400, { error: "审查说明最多 2000 字符" }); return true;
+      sendLocalWebJson(response, 400, { error: uiText.text("workbench.agent-review.feedback-too-long") }); return true;
     }
     if (body.remember !== undefined && body.remember !== "session" && body.remember !== "app-this-round") {
-      sendLocalWebJson(response, 400, { error: "remember 只能是 session 或 app-this-round" }); return true;
+      sendLocalWebJson(response, 400, { error: uiText.text("workbench.agent-review.bad-remember") }); return true;
     }
     const holder = ports.computerHolder?.() ?? null;
     const review = ports.agentHost.reviews.get(reviewId);
     const projectId = pluginPageRequest(request) ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
     if (!review || review.project_id !== projectId) {
-      sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
+      sendLocalWebJson(response, 404, { error: uiText.text("workbench.agent-review.review-missing") });
       return true;
     }
     if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, ports.now?.() ?? Date.now())) {
-      sendLocalWebJson(response, 409, { error: "这一步刚落到屏幕上，助理不能马上批准自己", code: "computer.self_approval" });
+      sendLocalWebJson(response, 409, { error: uiText.text("workbench.agent-review.self-approval"), code: "computer.self_approval" });
       return true;
     }
     await ports.agentHost.reviews.refresh(projectId);
@@ -143,7 +143,7 @@ export async function handleAgentReviewHttp(
       // A decision that cannot be recorded — already decided, expired, cancelled
       // — is a conflict, not a server fault, and it must not read as success.
       sendLocalWebJson(response, 409, {
-        error: error instanceof Error ? error.message : "这条待审操作已经不能再决定",
+        error: error instanceof Error ? error.message : uiText.text("workbench.agent-review.cannot-decide"),
         code: (error as { code?: string }).code ?? "agent.review_conflict",
       });
     }

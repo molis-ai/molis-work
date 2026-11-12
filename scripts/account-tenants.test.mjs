@@ -39,7 +39,7 @@ try {
   authOrigin = await listen(authServer);
   const reserve = http.createServer(); origin = await listen(reserve); await stop(reserve);
   proxy = await getRustProxy({ AUTH_ORIGIN: authOrigin, PROVIDER_STATE_KEY: randomBytes(32).toString('base64url'), UNIFIED_ACCOUNT_CONFIG: JSON.stringify({ environmentId: 'unified-local', kind: 'LOCAL', authOrigin, deliveryMode: 'MOCK', providerMode: 'MOCK' }) });
-  await initializeLocalRuntime(proxy);
+  await initializeLocalRuntime(proxy,false);
   for (const file of ['unified-account-local-seed.sql', 'mock-provider-local-seed.sql']) for (const sql of readFileSync(resolve(source, 'worker', file), 'utf8')
     .replaceAll('http://127.0.0.1:4207', origin).replaceAll('http://127.0.0.1:8787', authOrigin).replace(/--[^\n]*/g, '').split(';').map(v => v.trim()).filter(Boolean)) await proxy.env.DB.prepare(sql).run();
   const config = { environmentId: 'unified-local', environmentKind: 'LOCAL', authOrigin, productOrigin: origin, clientId: 'molis-work-unified-local', applicationId: 'molis-work-unified-local-app', policyProfile: 'unified-account-v2', redirectAllowlist: [origin + '/account/callback'], providerMode: 'MOCK', deliveryMode: 'MOCK' };
@@ -128,5 +128,12 @@ try {
 
   await page.evaluate("{const row=[...document.querySelectorAll('.account-method')].find(r=>r.textContent.includes('Work Alpha renamed'));row.querySelector('button').click();}");await page.wait("Boolean(document.querySelector('input[name=reason]'))");await page.fill('input[name=reason]','WUA-22 restored');await click('确认操作');await page.wait("document.querySelector('.account-message').textContent.includes('租户状态已更新')");
   assert.equal((await api('/platform/tenants/'+alpha.tenantId)).status,'ACTIVE');assert.equal((await api('/session')).user.userId,owner.user.userId);
+  // V2U-06: an ordinary user can create under the central self-service policy, without paid grants.
+  await logout();await login(memberPhone);await open();await click('创建租户');await page.wait("Boolean(document.querySelector('input[name=name]'))");
+  const paidBefore=(await db.prepare('SELECT count(*) n FROM billing_subscription').first()).n;
+  await page.fill('input[name=name]','Work self service');await click('创建租户');await page.wait("document.querySelector('.account-message').textContent.includes('租户已创建')");
+  const own=(await api('/tenants')).items.find(t=>t.name==='Work self service');assert.ok(own);assert.equal(own.myRole,'OWNER');
+  assert.equal((await db.prepare('SELECT count(*) n FROM billing_subscription').first()).n,paidBefore);
+  process.stdout.write('PASS V2U-06 Chrome: ordinary self-service tenant creation through the shared action gateway, owner from session, no billing grants\n');
   process.stdout.write('PASS WORK-06 WUA-19/20/21/22: actual Host actions/Auth/Chrome, platform create/assign/status, tenant pagination/switch/edit, phone invite and confirmation, role denial, two-party ownership handoff, retained seat then atomic removal release, responsive light/dark, local Home preserved\n');
 } catch(error){if(page){process.stderr.write(JSON.stringify(await page.evaluate('({text:document.querySelector(".account-dialog")?.innerText})').catch(()=>null))+'\n');await page.screenshot('/private/tmp/work06-browser-failure.png').catch(()=>{});}throw error;} finally {await browser?.close();otherAuth?.close();await otherSession?.close();if(server)await stop(server);await host?.close();await stop(authServer);await proxy?.dispose();await rm(home,{recursive:true,force:true});}

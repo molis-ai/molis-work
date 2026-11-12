@@ -3,14 +3,15 @@ import type { PluginContribution, PluginDefinition, PluginInstanceRecord } from 
 import { exposeInstalledPlugin, exposedActionId, exposedActionReference, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { ProjectActions } from './plugin-builder/catalog.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
-import { definitionOrigin } from '@molis-ai/molis-work-plugin-runtime';
+import { definitionOrigin, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
+import type { InstalledRelease } from './installed-release.js';
 import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
 import { sandboxOperationEffects, sandboxOperationPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 // Only the Host's actual sandbox definition has a released contract (the Runtime's view of it counts as it). Nothing decoded from a
 // package supplies this port.
-type ActionRelease = InstalledPluginActions['release'];
+type ActionRelease = InstalledRelease;
 type CapabilityGrants = (identity: Readonly<SandboxIdentity>) => readonly string[];
 type ComponentBinding = {
   readonly node: ActionRelease['nodes'][number];
@@ -20,7 +21,7 @@ type ComponentBinding = {
   readonly ownPermissions: readonly string[];
   readonly capabilities: readonly string[];
 };
-type ActionSource = { release: ActionRelease; granted?: CapabilityGrants; bindings: ReadonlyMap<string, ComponentBinding> };
+type ActionSource = { release: ActionRelease; granted?: CapabilityGrants; words: PluginLocaleReader | null; bindings: ReadonlyMap<string, ComponentBinding> };
 type ActionScope = Pick<ProjectActions, 'registry' | 'project_id'>;
 
 const sources = new WeakMap<PluginDefinition, ActionSource>();
@@ -29,7 +30,8 @@ const registrationKey = (scope: ActionScope, record: PluginInstanceRecord) => JS
   record.install_id, record.installation_generation, record.version, record.manifest_digest]);
 const replaced = () => new ActionError('actions.provider_replaced', '原插件的动作激活已失效');
 
-export function rememberInstalledActionSource(definition: PluginDefinition, release: ActionRelease, granted?: CapabilityGrants): void {
+export function rememberInstalledActionSource(definition: PluginDefinition, release: ActionRelease, granted?: CapabilityGrants,
+  words: PluginLocaleReader | null = release.packaged?.localePacks ?? null): void {
   // Keep the verified bindings and their effect requirements private to this definition, independent of later catalog reads.
   const contract = release.design.contract;
   const bindings = new Map(release.nodes.flatMap(node => {
@@ -42,8 +44,11 @@ export function rememberInstalledActionSource(definition: PluginDefinition, rele
       ownPermissions: [...new Set(['storage:private', ...sandboxOperationPermissions(effects)])], capabilities: [...(effects.capabilities ?? [])] };
     return [[node.id, binding] as const];
   }));
-  sources.set(definitionOrigin(definition), { release, granted, bindings });
+  sources.set(definitionOrigin(definition), { release, granted, words, bindings });
 }
+
+/** The release already redeemed for this exact Runtime definition; never discover a producer by the plugin id. */
+export const installedLocalePacks = (definition: PluginDefinition) => sources.get(definitionOrigin(definition))?.words ?? null;
 
 /** The original exposure and both permission proofs are the same for form navigation and submission. */
 export function installedComponentSubmit(definition: PluginDefinition, scope: ActionScope, readRecord: () => PluginInstanceRecord | null | undefined) {

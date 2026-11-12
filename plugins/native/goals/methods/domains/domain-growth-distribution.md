@@ -1,6 +1,6 @@
 ---
 method_id: domain-growth-distribution
-version: 1
+version: 2
 kind: domain
 name: "增长与分发"
 summary: "围绕目标用户、触发时刻、渠道机制和可验证增长循环组织工作。"

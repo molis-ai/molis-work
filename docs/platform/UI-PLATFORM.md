@@ -110,7 +110,7 @@ GW5 已提供全部 Goals contribution、专属客户端、集合/导航投影�
 - `packages/ui-host` 已有真实 Contribution registry 和 surface render，不再只是目录占位。
 - `apps/workbench` 是 composition root，注册 `io.molis.work.native.feed.ui.v1`；它不读取 Feed Store。
 - `plugins/native/feed` 声明 Feed 页面、Source 页面、overlays 和 detail Slot。Goal 决定仍由 Goals owner 生成，再通过 `detail_slot_html` 挂入 Feed 声明的详情位置。
-- 旧 `src/web/feed-native-plugin-ui.ts` 已随根 `src/` 删除；Feed UI model 由 Workbench 的 `feed-projection-ui.ts` 投影，图标、i18n、安全链接和富文本由 Host primitives 提供。
+- 旧 `src/web/feed-native-plugin-ui.ts` 已随根 `src/` 删除；Feed UI model 由 Feed 自己的 `plugins/native/feed/src/stage-ui.ts` 从 stage 读取结果建（`buildFeedStageUiModel` / `buildFeedReaderUiModel`），图标、i18n、安全链接和富文本仍由 Host primitives 提供。
 
 Planning contribution 通过显式 renderPage 原语使用原设置页外框，不复制全局导航。根 HTTP host 经 Workbench 调用 Plugin 的页面 matcher，仍自己负责 GET/控制权限、项目解析、读取与响应。Plugin 不导入根 Web view 或 Store；方法组合由公开 Goals Module 产出。
 
@@ -143,7 +143,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 隔离页面的 `host.terminal.mount(element, { panelId, onEvent })` 按需加载平台已有终端资源。返回的视图提供 `focus()`、`fit()` 和 `dispose()`；卸载视图不停止已接受的进程，停止须显式发送 `kill`。共享滚动、流式文字与复制反馈在子页面中初始化；`navigator.clipboard.writeText` 也接到同一受限复制通道，宿主仍检查真实用户激活，不提供剪贴板读取。
 
-服务端投影的页面使用 `host.view.readDocument(): Promise<string>` 获取自己当前贡献的 HTML。宿主固定读取页面来源，提取该贡献的惰性内容，并在读取前后验证页面授权；页面不能请求其他贡献或宿主整页。普通业务变更仍走自身声明的动作或路由。
+服务端投影的页面使用 `host.view.readDocument(): Promise<string>` 获取自己当前贡献的 HTML。宿主固定读取页面来源，提取该贡献的惰性内容，并在读取前后验证页面授权；页面不能请求其他贡献或宿主整页。普通业务变更仍走自身声明的动作或路由。`readDocument({ input })` 可传当前贡献 Manifest 的 `stage_data.input` / `page_routes` 声明的字符串参数，供 owner 分页和筛选；未声明、重复、过长参数或身份覆盖均拒绝。对象读取可以同时传 `object` 和 `input`，对象身份固定取路径；前后仍复核同一个页面与运行 owner，取消或失效后不交回结果。
 
 页面要在自己的布局里展示另一个已启用插件的对象，使用 `host.view.embed(element, { surface, itemId, title? })`，得到 `ready` 与 `dispose()`。它只提交对象身份和区域坐标；宿主在该区域显示同项目的独立页面，内容 DOM、页面凭据和任意地址均不交给调用插件。区域受父页边界裁切，隐藏随父页隐藏，移除占位元素或关闭父页即释放；创建时复核父页授权，目标交互继续由目标页自己的授权处理。
 
@@ -153,21 +153,14 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 ## 5. 界面文字、语言与外观
 
-插件作者的写法（`t`、`format`、`locales/<语言>.json`、语义变量，今天能做什么、哪些第 16 批起）在 [`skills/molis-plugin-dev/text-and-appearance.md`](../../skills/molis-plugin-dev/text-and-appearance.md)。这里写平台一侧谁做什么。规则的来由见[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节。
+插件作者的写法见 [界面文字、语言与外观](../../skills/molis-plugin-dev/text-and-appearance.md)；[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节说明合同。
 
-**今天谁在用：** `molis-work plugin dev` 跑的插件、组件板的「语言与文字」一节（`/__ui/catalog#environment`）和两包样例。工作台、宿主和内置插件的页面照旧用 `L`、`p.text`（[`apps/workbench/README.md`](../../apps/workbench/README.md)「界面文字」），第 16 批一起换。
+**文字属于生产者。** 工作台的语言目录随资源登记发现，内置插件、开发插件与签名安装各从自己的 `ui.locales` 和实际包文件取词。SDK `t` 读当前作用域，`say` 读生产者的明确引用；宿主渲染时按准确的 Home、项目、激活或获准安装选择读表。失效或找不到键时显示规定的后备，不尝试同名的另一个安装。公共词由平台投影为 `common.*`。
 
-| 件 | 在哪 | 做什么 |
-| --- | --- | --- |
-| 文字工具 | SDK `/ui`：`t`、`say`、`format`，语言文件的 `parseLocalePack`、`inspectLocaleSet`，外观文件的解析器 | 业务代码只调它们。工具不存语言和译文，每次从进程的文字上下文取（`Symbol.for("molis.work.ui-text.v1")`），所以打进插件包里的那份 SDK 读到的也是同一个 |
-| 文字上下文 | `apps/local-host/src/ui-text-provider.ts` 的 `installHostUiText` | 每个进程装一次：应用宿主启动时，开发入口运行插件之前。查不到词、没有语言都记一条问题（宿主日志 `ui-text` 一行，`fields` 带 `owner`、`key`、`locale`，键名只进日志、不上页面；`hostTextProblems` 留最近 200 条） |
-| 语言范围 | `apps/local-host/src/web-locale.ts` | 页面请求在 `runWithLocale` 里；没有页面的平台工作用 `runBackgroundWork(locale, fn)`，语言由入口每次开始时读最后用的语言；开发路径用 `runDevelopmentText`。范围结束，语言就作废：请求里起的定时器在请求结束后读不到那次的语言。没有语言时开发路径和测试抛 `ui.text_no_context`，正式运行用主人的默认语言、不抛 |
-| 各主人的词 | `apps/workbench/src/plugin-text.ts` | 每个主人一张表，不合成一张。插件的会话打开时登记自己的语言读取器、释放时撤回（按次计数，升级不留旧词）。`t` 按键的第一段找主人，两个主人最后一段相同就拒绝（`ui.text_owner_conflict`）；`say` 按完整 `plugin_id` 找 |
-| 平台自己的词 | 资源登记表 `packages/design-system/resources/registry.json` 的 `locale` 行，现在只有工作台（`apps/workbench/resources/locales/`） | 加一个平台主人、给平台主人加一种语言今天各要动几处（登记表、语言目录、`WEB_LOCALES`、`package.json` 的 `files`、`tests/ui-resources.test.ts` 钉住的名单），见 [A 段设计稿](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处)第 1.4 节；默认语言是 `WEB_LOCALES` 的第一个（`zh`）。A 段里面只有组件板的词 |
-| 外观的值 | `packages/design-system/resources/` 的基线文件，`src/baseline.ts` 经 SDK 的解析器读一次 | `palette.ts`、`typeface.ts` 和样式里的令牌块只把它们写成 CSS，不另存数值 |
+**页面和后台各有自己的作用域。** 同源父文档按原页面证明一次批取所需的语言包；Host 按实际获准挂载求交。沙箱 frame 不请求网络：由原始 srcdoc 一次握手领端口，在它的挂载生存期内收到必要词包和已有公共资源。后台工作开始时从自己的 Home 读取最近使用的语言；结束的页面不能给迟到的动作延续供语言。给模型的语言在轮次开始时冻结，本轮明确指定的语言优先。
 
-**切语言时原地换字（组件板上的标本，第 16 批在真实首屏验收）：** 服务端把同一块内容按旧、新两种语言各画一遍，两份不同的就是要改的字；`apps/workbench/src/browser/locale-switch.ts` 只写 `Text.data` 和 `setAttribute`，不删节点、不用 `innerHTML`，所以事件监听、焦点、输入框里的字和选区、滚动、展开的部分都留着。`textarea`、可编辑内容、输入框的 `value` 和 `translate="no"` 里的字不碰（它们是用户的），按钮类 `input` 的 `value` 算界面字；两份形状不同的一块整块不动并记一条问题。浏览器自己画的字按 `t`、`say` 的产出记录重算。业务代码什么都不用做。
+**切换留在原处。** [`locale-switch.ts`](../../apps/workbench/src/browser/locale-switch.ts) 先准备旧、新两份表示和词包。只合并确认是界面文字的文本或属性，保留节点、草稿、焦点、选区、滚动和运行中的终端；用户文字和形状已经变动的业务部分不覆写。失败可在原位重试，晚到的旧语言结果不能盖回新语言。
 
-**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；第 16 批的产品代码照这样做（[定样记录](../design/appearance-selection/README.md)）。
+**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；产品代码照这样做（[定样记录](../design/appearance-selection/README.md)）。
 
 改了这几处加跑：`node scripts/run-tests.mjs tests/host-ui-text.test.ts tests/ui-resources.test.ts tests/ui-baseline.test.ts`；浏览器的（要本机 Chrome）`tests/board-locale-switch.e2e.test.ts`、`tests/board-appearance.e2e.test.ts`。

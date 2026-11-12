@@ -169,6 +169,6 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     await click('[data-home-offers-reload]');
     await waitFor(`!document.querySelector('[data-home-offers]').textContent.includes('执行结果尚未确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找') && !${TAG}`);
     assert.equal(writes, 2, "the owner confirms the old offer no longer applies without resubmitting it");
-    assert.equal(await evaluate("Object.keys(sessionStorage).some(key=>key.startsWith('molis.home-action:'))"), false);
+    assert.equal(await evaluate("Array.from({length:sessionStorage.length},(_,index)=>sessionStorage.key(index)).filter(key=>key!==null).some(key=>key.startsWith('molis.home-action:'))"), false);
   } finally { releaseOffers(); await runtime.stop(installed.install_id); }
 });

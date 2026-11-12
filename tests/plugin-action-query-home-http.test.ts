@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -17,12 +18,12 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const s = await openTestHome(t, mode === "controlled owner unavailable" ? { host: { actionAvailability: (_caller, action) =>
     action.capability_id === pagesContentActions.read.capability_id
       ? { available: false, code: "actions.plugin_disabled", reason: "Controlled owner unavailable" } : { available: true } } } : {}), project = await s.createProject("Home project query", ["pages"]), client = s.host.actionClient(project.reference);
-  const request = (path: string, body: unknown, method = "POST") => fetch(s.origin + path, { method, headers: { origin: s.origin, "content-type": "application/json",
+  const request = (path: string, body: unknown, method = "POST", signal?: AbortSignal) => fetch(s.origin + path, { method, signal, headers: { origin: s.origin, "content-type": "application/json",
     "x-molis-work-control-token": s.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
   const page = await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: ["pages:write"] }, pagesActions.create,
     { title: "Home query material", markdown: "Native Pages through Home" }) as { document: { id: string } };
   if (mode === "pages-hidden") {
-    const disabled = await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "pages" }, "DELETE");
+    const disabled = await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "pages", expected_revision: await projectPluginRevisionAt(s.origin, project.project_id) }, "DELETE");
     assert.equal(disabled.status, 200, await disabled.clone().text());
     assert.ok((await disabled.json()).hidden.includes("pages"));
   }
@@ -55,9 +56,15 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const pending = request(path, { item_id: page.document.id });
   try {
     await Promise.race([entered.promise, pending.then(async response => { throw new Error(`Missed query wait: ${response.status} ${await response.text()}`); })]);
-    const response = mode === "hidden" ? await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "issues" }, "DELETE")
-      : await request(`/api/plugins/${entry.manifest.plugin_id}/disable`, {});
-    assert.equal(response.status, 200, await response.clone().text());
+    if (mode === "hidden") {
+      const expected_revision = await projectPluginRevisionAt(s.origin, project.project_id);
+      const response = await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "issues", expected_revision }, "DELETE", AbortSignal.timeout(20_000));
+      assert.equal(response.status, 200, await response.clone().text());
+      assert.ok((await response.json()).hidden.includes("issues"));
+    } else {
+      const response = await request(`/api/plugins/${entry.manifest.plugin_id}/disable`, {});
+      assert.equal(response.status, 200, await response.clone().text());
+    }
   } finally { release.resolve(); }
   assert.notEqual((await pending).status, 200);
   if (mode === "disabled") await (await s.host.homePlugins!.ready()).supervisor.enable(entry.manifest.plugin_id);

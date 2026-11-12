@@ -1,3 +1,4 @@
+import { textRefProblems } from "./ui/text-ref.js";
 import { isRecord } from "./json-value.js";
 // The shape of `databases.home.project_rows` (PG-024): which rows of a plugin's Home library go with a deleted project. Only what can
 // be read from the declaration is checked here: names, that each table is one the declaration's own `schema` creates, how the
@@ -10,6 +11,8 @@ const FIELDS = new Set(["label", "order", "tables", "files"]);
 const FILES_FIELDS = new Set(["table", "column", "key", "directory"]);
 const TABLE_FIELDS = new Set(["table", "column", "parent", "key"]);
 const LABEL_LIMIT = 200;
+export const projectDeletionLine = (label: string): boolean =>
+  label.trim().length > 0 && label.length <= LABEL_LIMIT && !/[\p{Cc}\u2028\u2029]/u.test(label);
 const CREATED_TABLE = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`[]?([A-Za-z_][A-Za-z0-9_.]*)/giu;
 
 export function projectRowsProblems(path: string, value: unknown, schema: unknown, partitioned: boolean, ownerFiles?: unknown): string[] {
@@ -19,8 +22,12 @@ export function projectRowsProblems(path: string, value: unknown, schema: unknow
   const problems: string[] = [];
   const unknown = Object.keys(value).filter(field => !FIELDS.has(field));
   if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
-  if (typeof value.label !== "string" || value.label.trim().length === 0 || value.label.length > LABEL_LIMIT || /[\p{Cc}\u2028\u2029]/u.test(value.label)) {
+  const label = value.label;
+  const literal = typeof label === "string" ? label : isRecord(label) && typeof label.literal === "string" ? label.literal : undefined;
+  if (literal !== undefined && !projectDeletionLine(literal)) {
     problems.push(`${path}.label 必须是不超过 ${LABEL_LIMIT} 字的非空单行文字（不含控制字符或 Unicode 换行）`);
+  } else if (typeof label !== "string" && (textRefProblems(label).length || isRecord(label) && ("args" in label || "fallback" in label))) {
+    problems.push(`${path}.label 必须是无参词键或非空单行文字`);
   }
   if (value.order !== undefined && (typeof value.order !== "number" || !Number.isSafeInteger(value.order))) problems.push(`${path}.order 必须是整数`);
   if (!Array.isArray(value.tables) || value.tables.length === 0) return [...problems, `${path}.tables 至少要写一张表`];

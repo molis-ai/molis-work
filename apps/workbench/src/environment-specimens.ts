@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { UI_FORMAT_VERSIONS, type UiLocalePack, type UiSkinFile, type UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BASELINE_SKIN, BASELINE_SPEC, renderToggleGroup } from "@molis-ai/molis-work-design-system";
-import { escapeHtml, format, parseSkinFile, renderButton, resolveUiEnvironment, t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginTextPack, registerPluginText } from "./plugin-text.js";
+import { createTextReader, escapeHtml, format, parseSkinFile, renderButton, resolveUiEnvironment, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import type { WebLocale } from "./i18n.js";
+import { pluginTextForOwner } from "@molis-ai/molis-work-ui-host";
 
 // The component board's 语言与文字 section (specs/font-and-skin-system/a-section-contract.md §8.2): the platform's text tools used the way §1.1 writes
 // them, by the Host (its `t` and `format` read the workbench's language files, `apps/workbench/resources/locales/`) and by the page (the same tools,
@@ -16,7 +18,6 @@ const SAMPLE_PACKS: readonly UiLocalePack[] = [
   { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "en", messages: { "board-notes.env.owner": "Words of a sample plugin" } },
   { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "zh", messages: { "board-notes.env.owner": "样例插件自己的词" } },
 ];
-let sampleRegistered = false;
 
 /** A name with ' and &: `renderButton` escapes its label, so the label is `t.text`. */
 const SAMPLE_TITLE = "Tom's R&D notes";
@@ -24,11 +25,10 @@ const SAMPLE_AT = "2026-11-07T09:30:00.000Z";
 
 /** What the page computes again (`resolveUiEnvironment` reads only which definitions are in force), so the two can be compared. */
 const SPEC_IDENTITY: UiSpecFile = { format_version: BASELINE_SPEC.format_version, id: BASELINE_SPEC.id, revision: BASELINE_SPEC.revision,
-  baseline_skin: BASELINE_SPEC.baseline_skin, baseline_font: BASELINE_SPEC.baseline_font, groups: [], font_roles: [] };
+  baseline_skin: BASELINE_SPEC.baseline_skin, baseline_font: BASELINE_SPEC.baseline_font, groups: [], font_roles: [], components: [] };
 const SKIN_IDENTITY: UiSkinFile = { format_version: UI_FORMAT_VERSIONS.skin, id: BASELINE_SKIN.ref.id, revision: BASELINE_SKIN.ref.revision, spec: BASELINE_SKIN.spec,
   name: BASELINE_SKIN.name, recommended_font: BASELINE_SKIN.recommended_font, light: {}, dark: {}, shared: {}, terminal: {} };
-const LOCALES = ["zh", "en"] as const;
-type Locale = (typeof LOCALES)[number];
+const LOCALES = WORKBENCH_LANGUAGES.languages.map(language => language.tag);
 
 /** A skin a person wrote, wrong four ways: what `parseSkinFile` says of each is what an author sees. */
 function skinChecks(): string {
@@ -50,18 +50,15 @@ function skinChecks(): string {
  * The section's content in the language of the scope it is drawn in, as business code writes it: `t` and `format` only, no language and no owner.
  * The Host draws it once a language and puts both in the page (`renderEnvironmentSection`).
  */
-export function renderEnvironmentSpecimen(): string {
-  if (!sampleRegistered) {
-    registerPluginText({ owner: SAMPLE_OWNER, default: "en", pack: (locale) => SAMPLE_PACKS.find((pack) => pack.locale === locale) ?? null }, { t: true });
-    sampleRegistered = true;
-  }
+export function renderEnvironmentSpecimen(locale: WebLocale): string {
+  const sampleText = createTextReader({ packs: SAMPLE_PACKS, locale });
   const lines = Array.from({ length: 12 }, (_, index) => `<p>${t("workbench.env.line", { n: index + 1 })}</p>`).join("");
   return `<h2>${t("workbench.env.title")}</h2>
     <p class="mw-board-env__lead">${t("workbench.env.lead")}</p>
     <dl class="mw-board-env__facts">
       <dt>${t("workbench.env.skin")}</dt><dd>${t("workbench.skin.soft-workbench")}</dd>
       <dt>${t("workbench.env.font")}</dt><dd>${t("workbench.font.system-sans")}</dd>
-      <dt>${t("workbench.env.owners")}</dt><dd>${t("workbench.env.owner")} · ${t("board-notes.env.owner")}</dd>
+      <dt>${t("workbench.env.owners")}</dt><dd>${t("workbench.env.owner")} · ${sampleText({ owner: SAMPLE_OWNER, key: "board-notes.env.owner" })}</dd>
       <dt>${t("workbench.env.when")}</dt><dd><time datetime="${SAMPLE_AT}">${format.date(SAMPLE_AT, "datetime")}</time></dd>
       <dt>${t("workbench.env.count")}</dt><dd>${t("workbench.env.saved", { count: 1 })} · ${t("workbench.env.saved", { count: 3 })} · ${format.number(12345, "compact")}</dd>
     </dl>
@@ -69,7 +66,7 @@ export function renderEnvironmentSpecimen(): string {
     <label class="mw-board-env__field"><span>${t("workbench.env.search")}</span><input class="mw-input" type="search" data-board-env-search placeholder="${t("workbench.env.search-hint")}" aria-label="${t("workbench.env.search")}"></label>
     <details class="mw-collapsible" data-board-env-more><summary>${t("workbench.env.more")}</summary><div class="mw-collapsible__body"><p>${t("workbench.env.more-body")}</p></div></details>
     <div class="mw-board-env__scroll" data-board-env-scroll tabindex="0" role="region" aria-label="${t("workbench.env.lines")}">${lines}</div>
-    <p class="mw-board-env__same" data-board-env-same><span>${t("workbench.env.same")}</span> <q data-board-env-user>保存</q> <span data-board-env-word>${t("workbench.env.save")}</span></p>
+    <p class="mw-board-env__same" data-board-env-same><span>${t("workbench.env.same")}</span> <q data-board-env-user translate="no">保存</q> <span data-board-env-word>${t("workbench.env.save")}</span></p>
     <p class="mw-board-env__same"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-board-env-save>${t("workbench.env.save")}</button><span class="mw-board-env__editable" contenteditable="true" data-board-env-editable role="textbox" aria-label="${t("workbench.env.editable")}">保存</span></p>
     <ul class="mw-board-env__rows" data-board-env-rows><li>${t("workbench.env.row", { n: 1 })}</li></ul>
     <p class="mw-board-env__actions">${renderButton({ label: t.text("workbench.env.add-row"), variant: "secondary", attrs: { "data-board-env-add-row": true } })}${renderButton({ label: t.text("workbench.env.add-user"), variant: "ghost", attrs: { "data-board-env-add-user": true } })}</p>
@@ -78,11 +75,14 @@ export function renderEnvironmentSpecimen(): string {
 }
 
 /** The section: the content on show, both languages' renders for the switch, and what the page's own text tools need. */
-export function renderEnvironmentSection(renders: Readonly<Record<Locale, string>>, lang: Locale): string {
-  const packs = [WORKBENCH_OWNER, SAMPLE_OWNER].flatMap((owner) => LOCALES.flatMap((locale) => pluginTextPack(owner, locale) ?? []));
+export function renderEnvironmentSection(renders: Readonly<Record<WebLocale, string>>, lang: WebLocale): string {
+  const packs = [...LOCALES.flatMap(locale => {
+    const pack = pluginTextForOwner(WORKBENCH_OWNER)?.pack(locale);
+    return pack ? [{ ...pack, messages: Object.fromEntries(Object.entries(pack.messages).filter(([key]) => key.startsWith("workbench.env."))) }] : [];
+  }), ...SAMPLE_PACKS];
   const snapshots = Object.fromEntries(LOCALES.map((locale) => [locale, resolveUiEnvironment({ spec: SPEC_IDENTITY, skin: SKIN_IDENTITY, locale: { tag: locale, source: "explicit" } })]));
   const data = JSON.stringify({ locale: lang, packs, environment: { spec: SPEC_IDENTITY, skin: SKIN_IDENTITY, snapshots } }).replace(/</gu, "\\u003c");
-  const languages = renderToggleGroup({ label: t.text("workbench.env.switch"), items: LOCALES.map((locale) => ({ value: locale, label: locale === "zh" ? "中文" : "English", current: locale === lang, attrs: { "data-board-env-lang": locale } })) });
+  const languages = renderToggleGroup({ label: t.text("workbench.env.switch"), items: WORKBENCH_LANGUAGES.languages.map(({ tag, name }) => ({ value: tag, label: name, current: tag === lang, attrs: { "data-board-env-lang": tag } })) });
   return `<section class="mw-catalog__section" id="environment" data-primitive="environment">
     <div class="mw-board-env__bar">${languages}<p class="mw-board-env__status" data-board-env-status role="status" hidden></p>${renderButton({ label: t.text("workbench.env.retry"), variant: "secondary", attrs: { "data-board-env-retry": true, hidden: true } })}</div>
     <div class="mw-board-env" id="board-env" data-board-env-live>${renders[lang]}</div>

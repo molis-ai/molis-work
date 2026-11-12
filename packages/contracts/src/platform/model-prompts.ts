@@ -7,7 +7,17 @@
  * material, this call's parameters) is appended by the Host after them. Text the call builds for itself never
  * reaches the model without going through a registered instruction; an automated check fails on raw prompt strings.
  */
-export interface InstructionPrompt {
+export interface LocalizedAgentBody {
+  readonly body: string;
+  /** Alternate shipped bodies of this exact declaration, never selected from a plugin request. */
+  readonly body_by_locale?: Readonly<Record<string, string>>;
+}
+
+export function agentBodyIn(body: LocalizedAgentBody, locale?: string): string {
+  return locale && body.body_by_locale && Object.hasOwn(body.body_by_locale, locale) ? body.body_by_locale[locale] ?? body.body : body.body;
+}
+
+export interface InstructionPrompt extends LocalizedAgentBody {
   /** The Plugin id, or `system:<module>` for the Host's own. */
   readonly owner_id: string;
   readonly prompt_id: string;
@@ -17,14 +27,21 @@ export interface InstructionPrompt {
   readonly purpose: string;
   /** Which features use it, as the person reads them. */
   readonly used_by: readonly string[];
-  readonly body: string;
+  /**
+   * The role these instructions work for: a role the same owner declares in `agent.roles` (the Host refuses the owner's registration
+   * otherwise, `agent_definitions.instruction_role_unknown`). Absent, they belong to the personal assistant, which runs them by default
+   * (specs/capability-pack/contract-design.md §4.2).
+   */
+  readonly role_id?: string;
 }
 
 const TOKEN = /^[a-z0-9][a-z0-9.-]*$/u;
+/** A role id as a Manifest declares one; whether the owner declares it is the Host's to check, here only its form. */
+const ROLE_TOKEN = /^[a-z0-9][a-z0-9-]*$/u;
 
 export function defineInstructionPrompt(prompt: InstructionPrompt): InstructionPrompt {
   if (!prompt.owner_id.trim() || !TOKEN.test(prompt.prompt_id) || !Number.isSafeInteger(prompt.version) || prompt.version < 1
-    || !prompt.title.trim() || !prompt.body.trim()) {
+    || (prompt.role_id !== undefined && !ROLE_TOKEN.test(prompt.role_id)) || !prompt.title.trim() || !prompt.body.trim()) {
     throw new Error(`指令 Prompt ${prompt.owner_id}/${prompt.prompt_id} 的声明不完整`);
   }
   return Object.freeze({ ...prompt, used_by: Object.freeze([...prompt.used_by]) });

@@ -1,3 +1,5 @@
+import {v2AccountPeer} from './fixtures/v2-account-peer.js';
+import {completeInstallationLogin} from './fixtures/installation-login.js';
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -96,19 +98,12 @@ async function close(server:Server) {await new Promise<void>(resolve=>server.clo
 
 test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, rejects stale clients and restores the same account', async () => {
   const home=mkdtempSync(join(tmpdir(),'space-web-'));
-  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean},remote='', user='alice';
-  const upstream=createServer(async(req,res)=>{
-    let raw='';for await(const chunk of req)raw+=chunk;
-    res.setHeader('content-type','application/json');
-    if(req.url==='/api/v1/auth/transactions') {transaction=JSON.parse(raw);res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
-    else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-access',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:user,displayName:user,emails:[],applicationId:'work',clientId:'web-test'}}));
-    else res.end('{}');
-  });
+  let remote='', user='alice';
+  const peer=v2AccountPeer(()=>user),upstream=peer.server;
   remote=await listen(upstream);
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
   const previous=names.map(name=>process.env[name]);
-  [remote,'web-test','desktop-test',remote].forEach((value,i)=>process.env[names[i]]=value);
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG='';
   const rootToken='synthetic-space-web-root-control-0123456789';
   const localCatalog=await openMolisWorkProjectCatalog({homeDirectory:home});
   const localProject=await localCatalog.createProject({display_name:'Local retained project',actor_id:'local'});localCatalog.close();
@@ -120,8 +115,9 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
   const webServiceManager=new MolisWorkWebServiceManager({homeDirectory:home,userHomeDirectory:userHome,platform:'linux'});
   const server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken,runtimeIntegrationService,webServiceManager});
   const origin=await listen(server);let cookie='',token=rootToken,sequence=0;
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
   const request=async(path:string,init:RequestInit={})=>{
-    const response=await fetch(origin+path,{...init,headers:{Cookie:cookie,...init.headers}});
+    const response=await fetch(origin+path,{...init,headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'space-v2-'+(++sequence),...init.headers}});
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     return response;
   };
@@ -142,8 +138,8 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     const ack=await post('/api/personal/prepare?action=ack&page=space-main&id='+id);assert.equal((await ack.json()).ready,true);return '&page=space-main&preparation='+id;
   };
   const login=async(name:string)=>{
-    const prepared=await prepare('switch');user=name;assert.equal((await post('/api/personal/'+(prepared?'switch':'login')+'?returnTo=%2F'+prepared)).status,200);
-    assert.equal((await request('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'})).status,303);
+    const prepared=await prepare('switch');user=name;const begun=await post('/api/personal/'+(prepared?'switch':'login')+'?returnTo=%2F'+prepared);assert.equal(begun.status,200);
+    assert.equal((await completeInstallationLogin(request,(await begun.json()).loginUrl,name+'@example.test')).status,200);
     const state=await(await request('/api/personal/status')).json();token=readFileSync(join(home,"spaces",personalStorageSpace(remote,state.identity.applicationId,state.identity.userId).spaceId,"config/web-control-token"),"utf8").trim();
   };
   try {

@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { DATASET_CLIENT_FACTORY_SCRIPT, DATASET_MESSAGES, renderDatasetWorkbench } from "@molis-ai/molis-work-plugin-dataset";
+import { DATASET_CLIENT_FACTORY_SCRIPT, renderDatasetWorkbench } from "@molis-ai/molis-work-plugin-dataset";
 
 const SRC = "plugins/native/dataset/src";
 const BROWSER = join(SRC, "browser");
@@ -19,15 +20,9 @@ test("RAC-150 every word the Dataset page says has a stable key with both langua
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "no Chinese key: every word the page says is a stable key");
   assert.deepEqual(scan.dynamicCalls.filter(call => owns(call.file)), [], "all dynamic stable-key choices are enumerated by the real scanner");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in DATASET_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(DATASET_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(DATASET_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderDatasetWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /<span>«dataset\.action\.new»<\/span>/u, "the server-drawn page speaks through the translator");
+  assertPageWords("dataset", used);
+  const html = withPageText("en", ["dataset"], () => renderDatasetWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "dataset")("dataset.action.new")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

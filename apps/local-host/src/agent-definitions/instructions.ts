@@ -1,10 +1,18 @@
 import { composeInstructedPrompt, modelPromptText, type InstructionPrompt, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { agentDefinitionsFor } from "./agent-definitions.js";
-import { builtinRegistrations } from "./builtin-registrations.js";
+import { modelRoundLocale } from "../reply-language.js";
+import { builtinRegistrations } from "./builtin-agents.js";
 
 /** Resolve a named instruction in a Host-bound owner's namespace. */
 export function resolveInstructionPrompt(homeDirectory: string, ownerId: string, promptId: string, caller: string): string {
-  return agentDefinitionsFor(homeDirectory, builtinRegistrations).instruction(ownerId, promptId, caller).body;
+  return agentDefinitionsFor(homeDirectory, builtinRegistrations).instruction(ownerId, promptId, caller, modelRoundLocale(homeDirectory)).body;
+}
+
+/** Freeze the selected body before an authorization wait; only an admitted draft records the use of that exact body. */
+export function prepareInstructionPrompt(home: string, owner: string, promptId: string, locale: string) {
+  let used: (() => void) | undefined;
+  const { body } = agentDefinitionsFor(home, builtinRegistrations).instruction(owner, promptId, owner, locale, record => { used = record; });
+  return { body, recordUse: () => used?.() };
 }
 
 /**
@@ -20,7 +28,13 @@ export function resolveModelPrompt(homeDirectory: string | undefined, prompt: Mo
 /** Just the instruction's text as the person left it (their version, or the default), for callers that place it themselves. */
 export function registeredInstructionBody(homeDirectory: string | undefined, instruction: InstructionPrompt, caller: string): string {
   if (!homeDirectory) return instruction.body;
-  return agentDefinitionsFor(homeDirectory, builtinRegistrations).instruction(instruction.owner_id, instruction.prompt_id, caller).body;
+  return resolveInstructionPrompt(homeDirectory, instruction.owner_id, instruction.prompt_id, caller);
+}
+
+/** The declaration was selected from the exact activation by the caller, never accepted from request data. */
+export function declaredInstructionBody(home: string, instruction: InstructionPrompt, caller: string, locale: string): string {
+  return agentDefinitionsFor(home, builtinRegistrations)
+    .instructionForDeclaration(instruction.owner_id, { ...instruction, kind: "instruction" }, caller, locale).body;
 }
 
 /**

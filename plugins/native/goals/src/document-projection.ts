@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalRecord } from "./contract/goals.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { GoalsDocumentView } from "./document-view.js";
@@ -18,18 +19,18 @@ function archiveOrTrashPresentation(goal: Pick<GoalRecord, "trashed_at" | "archi
     return {
       status: "trashed",
       display_status: "blocked",
-      status_label: "回收站",
-      main_action_label: "恢复",
-      action_summary: "Goal 已移入回收站，历史仍被保留。",
+      status_label: uiText.text("goals.document-projection.trash"),
+      main_action_label: uiText.text("goals.document-projection.restore"),
+      action_summary: uiText.text("goals.document-projection.this-goal-is-in-the-trash-its"),
     };
   }
   if (goal.archived_at) {
     return {
       status: "archived",
       display_status: "completed",
-      status_label: "已归档",
-      main_action_label: "查看历史",
-      action_summary: "已归档，不再出现在普通工作列表。",
+      status_label: uiText.text("goals.document-projection.archived"),
+      main_action_label: uiText.text("goals.document-projection.view-history"),
+      action_summary: uiText.text("goals.document-projection.this-goal-is-archived-and-no-longer"),
     };
   }
   return null;
@@ -54,9 +55,9 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     ?? {
       status: "execution_pending" as const,
       display_status: "continue" as const,
-      status_label: "历史记录",
-      main_action_label: "阅读历史",
-      action_summary: "这条 Goal 还没有当前事件归属，可阅读保留的历史记录。",
+      status_label: uiText.text("goals.document-projection.history"),
+      main_action_label: uiText.text("goals.document-projection.read-history"),
+      action_summary: uiText.text("goals.document-projection.this-goal-has-no-current-event-context"),
     };
   const resolvedPolicy = ports.goals.getResolvedGoalPolicy({
     project_id: projectId,

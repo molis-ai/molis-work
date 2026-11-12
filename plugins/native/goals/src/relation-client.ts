@@ -1,22 +1,40 @@
 /** Existing relation browser behavior, composed into the Workbench lexical host. */
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
-const GOALS_RELATION_PREVIEW_SCRIPT = `    const updateRelationPreviews = () => {
+import { relationWordKey } from "./relation-presentation.js";
+const GOALS_RELATION_PREVIEW_SCRIPT = `    const relationWordKey = (${relationWordKey.toString()});
+    const updateRelationPreviews = () => {
       if (!form) return;
       const parent = form.elements.parent_goal_id?.selectedOptions?.[0];
       const parentPreview = form.querySelector("[data-parent-preview]");
       if (parentPreview) {
         parentPreview.textContent = parent?.value
-          ? L("关系预览：新 Goal → 属于 → 「{name}」。这是目录层级，不需要等待它完成。", { name: parent.dataset.goalName || parent.textContent })
-          : L("关系预览：新 Goal 将作为独立 Goal 出现在 Tree 中。");
+          ? globalThis.t.text("goals.relation-client.preview-new-goal-part-name-tree-placement-does", { name: parent.dataset.goalName || parent.textContent })
+          : globalThis.t.text("goals.relation-client.preview-new-goal-will-appear-tree-its-own");
       }
       const dependencies = [...form.querySelectorAll('[name="dependency_goal_ids"]:checked')];
       const dependencyPreview = form.querySelector("[data-dependency-preview]");
       if (dependencyPreview) {
         const names = dependencies.map((input) => "「" + (input.dataset.goalName || input.value) + "」");
         dependencyPreview.textContent = names.length
-          ? L("关系预览：新 Goal → 依赖 → {names}；这些 Goal 完成前，新 Goal 还不能收尾。普通笔记和准备仍可先做。", { names: names.join(currentLocale() === "en" ? ", " : "、") })
-          : L("关系预览：当前没有执行前置，Goal 可以独立推进。");
+          ? globalThis.t.text("goals.relation-client.preview-new-goal-depends-names-new-goal-cannot", { names: names.join(currentLocale() === "en" ? ", " : "、") })
+          : globalThis.t.text("goals.relation-client.preview-there-no-execution-prerequisite-goal-can-move");
       }
+    };
+
+    const paintRelationFormPreview = (relationForm) => {
+      const preview = relationForm.querySelector("[data-relation-live-preview]");
+      const type = relationForm.elements.type?.selectedOptions?.[0];
+      const target = relationForm.elements.target_goal_id?.selectedOptions?.[0];
+      const direction = relationForm.elements.direction?.value || "outgoing";
+      if (!preview || !type || !target) return;
+      const currentName = relationForm.dataset.currentGoalName || relationForm.dataset.goalId;
+      const targetName = target.dataset.goalName || target.textContent;
+      const left = direction === "outgoing" ? currentName : targetName;
+      const right = direction === "outgoing" ? targetName : currentName;
+      const label = type.value ? globalThis.t.text(relationWordKey(type.value, "out")) : type.textContent;
+      preview.querySelector("strong").textContent = left + " → " + label + " → " + right;
+      preview.querySelector("p").textContent = type.value ? globalThis.t.text(relationWordKey(type.value, "description"))
+        : globalThis.t.text("goals.relation-client.direction-and-reason-enter-history");
     };
 
     const updateRelationFormPreview = (relationForm) => {
@@ -32,23 +50,15 @@ const GOALS_RELATION_PREVIEW_SCRIPT = `    const updateRelationPreviews = () => 
         relationForm.elements.direction.value = intentMap[intent][0];
         relationForm.elements.type.value = intentMap[intent][1];
       }
-      const preview = relationForm.querySelector("[data-relation-live-preview]");
-      const type = relationForm.elements.type?.selectedOptions?.[0];
-      const target = relationForm.elements.target_goal_id?.selectedOptions?.[0];
-      const direction = relationForm.elements.direction?.value || "outgoing";
-      if (!preview || !type || !target) return;
-      const currentName = relationForm.dataset.currentGoalName || relationForm.dataset.goalId;
-      const targetName = target.dataset.goalName || target.textContent;
-      const left = direction === "outgoing" ? currentName : targetName;
-      const right = direction === "outgoing" ? targetName : currentName;
-      const label = type.dataset.outLabel || type.textContent;
-      preview.querySelector("strong").textContent = left + " → " + label + " → " + right;
-      preview.querySelector("p").textContent = type.dataset.description || "关系方向和原因会进入事件历史";
+      paintRelationFormPreview(relationForm);
     };
 
     const updateAllRelationFormPreviews = () => {
       document.querySelectorAll("[data-relation-form]").forEach(updateRelationFormPreview);
     };
+    document.addEventListener("molis-work:language-changed", () => {
+      document.querySelectorAll("[data-relation-form]").forEach(paintRelationFormPreview);
+    });
 
 `;
 
@@ -102,12 +112,12 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         const errorBox = relationForm.querySelector("[data-relation-error]");
         if (requireFormFacts(relationForm, errorBox)) return;
         const values = new FormData(relationForm);
-        const relationSummary = relationForm.querySelector("[data-relation-live-preview] strong")?.textContent?.trim() || L("当前 Goal 的关系");
+        const relationSummary = relationForm.querySelector("[data-relation-live-preview] strong")?.textContent?.trim() || globalThis.t.text("goals.relation-client.current-goal-relationship");
         const submitLabel = submit.textContent;
         relationForm.setAttribute("aria-busy", "true");
         const controls = [...relationForm.querySelectorAll("input:not(:disabled),select:not(:disabled),textarea:not(:disabled),button:not(:disabled)")];
         controls.forEach(control => { control.disabled = true; });
-        submit.textContent = L("正在保存…");
+        submit.textContent = globalThis.t.text("goals.relation-client.saving");
         errorBox.hidden = true;
         try {
           await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
@@ -124,11 +134,11 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
           await refreshBoard(true);
           showFactorReceipt(
             "relations",
-            L("关系已建立"),
-            L("已建立：{relation}。准确方向和建立原因已进入完整记录。", { relation: relationSummary }),
+            globalThis.t.text("goals.relation-client.relationship-created"),
+            globalThis.t.text("goals.relation-client.created-relation-exact-direction-reason-saved-full-record", { relation: relationSummary }),
           );
         } catch (error) {
-          errorBox.textContent = humanDecisionError(unreachable(error) ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系建立失败，请检查目标、方向和原因"));
+          errorBox.textContent = humanDecisionError(unreachable(error) ? globalThis.t.text("goals.relation-client.could-not-reach-local-service-input-kept-please") : error.message, globalThis.t.text("goals.relation-client.could-not-create-relationship-check-goal-direction-reason"));
           errorBox.hidden = false;
           submit.disabled = false;
           submit.textContent = submitLabel;
@@ -147,7 +157,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         const errorBox = relationDeactivateForm.querySelector("[data-relation-deactivate-error]");
         if (requireDecisionText(relationDeactivateForm, errorBox, "reason", "请填写解除原因。说明这条关系为什么不再成立。")) return;
         const reason = String(new FormData(relationDeactivateForm).get("reason") || "").trim();
-        const relatedGoal = relationDeactivateForm.closest(".relation-record")?.querySelector(".relation-copy strong")?.textContent?.trim() || L("另一个 Goal");
+        const relatedGoal = relationDeactivateForm.closest(".relation-record")?.querySelector(".relation-copy strong")?.textContent?.trim() || globalThis.t.text("goals.relation-client.other-goal");
         relationDeactivateForm.setAttribute("aria-busy", "true");
         const controls = [...relationDeactivateForm.querySelectorAll("input:not(:disabled),select:not(:disabled),textarea:not(:disabled),button:not(:disabled)")];
         controls.forEach(control => { control.disabled = true; });
@@ -161,11 +171,11 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
           await refreshBoard(true);
           showFactorReceipt(
             "relations",
-            L("关系已解除"),
-            L("与「{goal}」的关系已停止生效；原方向和解除原因仍保留在完整记录中。", { goal: relatedGoal }),
+            globalThis.t.text("goals.relation-client.relationship-removed"),
+            globalThis.t.text("goals.relation-client.relationship-goal-no-longer-active-its-original-direction", { goal: relatedGoal }),
           );
         } catch (error) {
-          errorBox.textContent = humanDecisionError(unreachable(error) ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系解除失败，请检查解除原因后重试"));
+          errorBox.textContent = humanDecisionError(unreachable(error) ? globalThis.t.text("goals.relation-client.could-not-reach-local-service-input-kept-please") : error.message, globalThis.t.text("goals.relation-client.could-not-remove-relationship-check-reason-try-again"));
           errorBox.hidden = false;
           submit.disabled = false;
         } finally {
@@ -178,7 +188,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
 `;
 
 export const GOALS_RELATION_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { form, currentLocale, route, translate: L,
+    const { form, currentLocale, route, translate: readText,
       refreshBoard, requireFormFacts, requireDecisionText, showFactorReceipt, humanDecisionError } = host;
     // A write the Host never answered: the person's input is still in the form.
     const unreachable = (error) => error instanceof TypeError || error?.code === "ui_host.outcome_unknown";

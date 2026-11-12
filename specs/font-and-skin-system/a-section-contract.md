@@ -216,7 +216,8 @@ export const OWNED_TEXT_REF_SCHEMA: SandboxSchema = /* TEXT_REF_SCHEMA 加可选
 
 ### 2.3 键、参数与上限
 
-- **键的规则复用 `STABLE_KEY`**（`packages/plugin-sdk/src/message-declarations.ts:9`）：它和 `messageOwnerOf`（`:16`）都改成模块内 `export`，`ui/text-ref.ts` 从那里取，不另写一份。取键主人的规则另由 `/ui` 公开一份：`textKeyPrefix(owner)`，以及 `t` 按前缀找主人时拒绝第二个同前缀主人的 `refuseSharedTextPrefix`（`ui.text_owner_conflict`）；宿主的 `apps/workbench/src/plugin-text.ts` 和 CLI 的 `create.ts` 都调它们，不再各截一次最后一段、各声明一次错误码（#1976 评审①第 2 条，统筹定「SDK 导出一份」）。门禁脚本 `scripts/gates/translations.mjs` 自己那份不动。
+- **键的规则复用 `STABLE_KEY`**（`packages/plugin-sdk/src/message-declarations.ts:9`）：它和 `messageOwnerOf`（`:16`）都改成模块内 `export`，`ui/text-ref.ts` 从那里取，不另写一份。取键主人的规则另由 `/ui` 公开一份：`textKeyPrefix(owner)`，以及 `t` 按前缀找主人时拒绝第二个同前缀主人的 `refuseSharedTextPrefix`（`ui.text_owner_conflict`）；宿主的 `apps/workbench/src/plugin-text.ts` 和 CLI 的 `create.ts` 都调它们，不再各截一次最后一段、各声明一次错误码（#1976 评审①第 2 条，统筹定「SDK 导出一份」）。A 段未改门禁脚本 `scripts/gates/translations.mjs` 自己那份；C 段按下述 2026-11-09 决定同步首段规则。
+- **2026-11-09 C 段键首段决定（用户已批准）**：主人段允许小写字母或数字开头，统一形状为 `^[a-z0-9][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$`。其余段、长度、参数、`common` 保留名及完整插件身份绑定不变。同步 SDK、翻译门禁和正反例，不为生成插件另建例外，不改已发布 ID。下文 A 段交付记录中的“最后一段以字母开头”是当时规则，自本决定起由此条替代。
 - **键的前缀决定能不能用**：`ownedTextRef(ref, owner)` 里，`common.*` 绑到平台主人 `workbench`（共有词有唯一主人，引用要显式）；否则前缀必须等于主人名（`messageOwnerOf(plugin_id)`，即 `plugin_id` 最后一段；平台主人就是它自己的名字）；别的前缀拒绝。这条是防冒充：插件不能把字显示成别人的。Manifest 只保证最后一段能开头，没管长度：键最短是 `<名字>.x`，所以最后一段长于 118 就写不出 120 以内的键，`ownedTextRef`、`parseLocalePack` 直接说这一句，不逐个键报错。`common` 作插件最后一段继续拒绝：现在由 `messageProblems` 管（`message-declarations.ts:32`），`parseLocalePack` 同样拒绝，C 段删 `messageProblems` 时这条留在 `parseLocalePack` 里。
 - **查词按（完整主人，键）**，不再合成一张平面表（实现方案 §4.1）。`OwnedTextRef.owner` 是完整 `plugin_id`（平台主人是它的名字），`io.molis.work.a.notes`、`io.molis.work.b.notes` 不互相覆盖，也不因同名被拒。`t` 从键算主人，那张索引的范围见第 5.2 节。
 - **参数名**是 `[A-Za-z_]\w*`，和 `message-declarations.ts` 的 `PLACEHOLDER` 一致。`{标题}` 这种中文占位符新语言包不收，旧的 `fillMessage` 到 C 段都还认（第 3.5 节）。
@@ -758,7 +759,7 @@ export interface PluginLocalesDeclaration {
 locales?: PluginLocalesDeclaration;
 ```
 
-`parsePluginManifest` 检查：语言标记形状；`default` 在 `available` 里；语言不重复；`available` 最多 32 种（`PLUGIN_LOCALE_LIMITS`，合同常量）；`ui.locales` 只有 `default`、`available` 两个键，别的键拒绝，不静默忽略；`plugin_id` 最后一段要能当键的第一段（以字母开头，不是 `common`），否则这个插件写不出一个键（第 2.3 节），这条只对写了 `ui.locales` 的 Manifest。
+`parsePluginManifest` 检查：语言标记形状；`default` 在 `available` 里；语言不重复；`available` 最多 32 种（`PLUGIN_LOCALE_LIMITS`，合同常量）；`ui.locales` 只有 `default`、`available` 两个键，别的键拒绝，不静默忽略；`plugin_id` 最后一段要能当键的第一段（以小写字母或数字开头，不是 `common`），否则这个插件写不出一个键（第 2.3 节），这条只对写了 `ui.locales` 的 Manifest。
 
 **同一个 Manifest 不能既写 `ui.locales` 又写 `ui.messages` 或 `ui.translations`，写了就拒绝。** 这是 A 段「不双认」的落法：没有一个翻译器同时读两种格式，也没有一个插件走两条路。现有写法里只有样例写 `ui.locales`（第 08 批的内容包是新东西，也写它，第 12 节第 4 条）；第 16 批 C 段一次改完并删掉旧字段。**测试断言 C 段之前没有内置 Manifest 写 `ui.locales`**（FSS-53）：新内置插件一写，就成了决定 20 不许的逐插件切换。用户 2026-11-07 同意这样并存到第 16 批（第 12 节第 4 条）。
 
@@ -918,21 +919,23 @@ apps/workbench/
 
 **开发路径。** `molis-work plugin dev` 没有 HTTP 请求：`runPluginDevelopment` 直接调 `options.ui.render(...)`（`plugin-development.ts`，`rendered_ui`），经 `developInPrivateHost`（`cli.ts:46`）进来，全程没有 `runWithLocale`。所以 `createPrivateDevelopmentHost` 同样要装 provider，`runPluginDevelopment` 在自己的范围里跑 `render`：语言取 `PluginDevelopmentInput.locale`（新的可选字段，`platform/tooling`，T3），CLI 写 `--locale <语言>`，没写用 `ui.locales.default`，不在 `available` 里就报错并列出可选的；这个范围里 `noContext()` 是 `"throw"`。这个入口只收 Integration（`contribution.kind !== "integration"` 就抛），手册的小插件写成 Integration（第 16.1 节）。
 
-**语言包谁灌、谁删。** 新文件 `apps/workbench/src/plugin-text.ts`，存各主人的语言读取器，`local-host` 从 `@molis-ai/molis-work-app-workbench` 引用（`home-plugin-executor.ts:43` 已这样引 `withPluginWords`）：
+**语言包谁灌、谁删。** 第 14 批将读取器放在 `apps/workbench/src/plugin-text.ts`，存各主人的语言读取器，`local-host` 从 `@molis-ai/molis-work-app-workbench` 引用（`home-plugin-executor.ts:43` 已这样引 `withPluginWords`）：
+
+第 16 批接入后，现行词源登记及释放由 [UI Host](../../packages/ui-host/src/text-sources.ts) 负责，键与主人检查见 [SDK](../../packages/plugin-sdk/src/ui/text-keys.ts)。工作台保留静态组件板的词源绑定。
 
 | 时机 | 谁 | 做什么 |
 | --- | --- | --- |
-| 会话打开 | `openHostSession`、Home 执行器 | `options.localePacks?.(definition)` 有内容就 `registerPluginText(plugin_id, reader)`，拿到一个撤回函数 |
-| 会话释放（停用、撤权、升级前的旧会话） | 同一处的 `dispose` | 调撤回函数。按计数：同一插件在几个项目里各有一次会话，都释放才删。两个项目装了不同版本时，先查最新登记的，没有的键再查旧的：词是显示，不是权限，残余是显示新版的译文；同一 `plugin_id`、不同发布者的残余登在 BL-586 下 |
+| 会话打开 | `openHostSession`、Home 执行器 | `options.localePacks?.(definition)` 有内容就按该会话的原 Runtime activation 对象登记 reader，拿到一个撤回函数；不以可重复的安装 ID 或进程内的 owner 代替来源 |
+| 会话释放（停用、撤权、升级前的旧会话） | 同一处的 `dispose` | 撤回这一个 activation 的 reader，不影响其他会话。第 16 批替换 A 起点的「最新登记优先」：不同 Home、项目、版本或发布者不得相互补词，准确来源没有键时走既有 fallback；停止后的旧回调也不能借到重新启动的 reader |
 | 卸载 | 卸载先停，走上一行 | 不另写 |
 | 升级 | 新会话登记新的读取器，旧的随旧会话撤回 | 所以插件升级后不重启进程也不会留旧词 |
-| 内容包（08，第 6.2 节） | 没有会话：安装记录启用时登记，停用时撤回 | 和 08 第 3 节「启用时登记方法」同一个时机 |
+| 内容包（08，第 6.2 节） | 没有会话：安装记录启用时登记，停用时撤回 | 和 08 第 3 节「启用时登记方法」同一个时机；读取由宿主按当前 Home 已启用的准确发布记录选包，不按进程内同名 owner 选最近登记 |
 
 `PluginHostExecutorOptions.localePacks` 是可选的。A 段只有 `runPluginDevelopment` 传（用 `loadDevelopmentLocalePacks`）；第 16 批沙箱包和内置插件各传各的，只有能调 `t` 的进 `t` 的索引（第 5.2 节）。今天的 `registerPluginMessages` 不一样：它在 `plugin-platform.ts:249` 只登记，生产代码里没人删；新路径不沿用。
 
 现有插件 `options.localePacks` 不给，不调 `t`，所以行为不变，一个请求也不多。
 
-**插件页面画别人的对象。** 05② §7 写了 `renderPresentationForm` 给「插件在自己页面上画别人交来的对象」；可是 iframe 只带自己和 `common.*` 的词，读不出别人的 `label`。两条路：
+**插件页面画别人的对象。** 05② §7 写了 `renderPresentationForm` 给「插件在自己页面上画别人交来的对象」；可是 iframe 只带自己和 `common.*` 的词，读不出别人的 `label`。平台代画时由宿主沿可信目录或挂载绑定选择对象提供方的准确 reader，不能使用当前调用者的 reader；`OwnedTextRef` 不增加调用方自报的身份字段。两条路：
 
 | 路 | 怎样做 | 代价 |
 | --- | --- | --- |

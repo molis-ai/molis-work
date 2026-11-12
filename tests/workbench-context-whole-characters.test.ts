@@ -8,6 +8,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { transformSync } from "esbuild";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT, PANE_MESSAGES_SCRIPT, renderPluginFrameClientScript } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 
 const ORIGIN = "http://127.0.0.1:4173";
 const PAIR = "\u{1F7E2}"; // two UTF-16 units: U+D83D U+DFE2
@@ -80,6 +81,7 @@ function page(script: string, mode: "frame" | "full") {
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
     CustomEvent: class { type: string; init: unknown; constructor(type: string, init: unknown) { this.type = type; this.init = init; } },
     crypto: { randomUUID: () => "id" }, AbortController, HTMLIFrameElement: class {}, Element: PageElement,
+    t: { text: pageText("zh") },
     molisWorkRequest: (path: string, options: { body?: Record<string, unknown> } = {}) => {
       requests.push({ path, body: JSON.parse(JSON.stringify(options.body ?? {})) as Record<string, unknown> });
       if (path.endsWith("/candidates") || path.endsWith("/judge")) return Promise.resolve({ plan, receipt: {} });

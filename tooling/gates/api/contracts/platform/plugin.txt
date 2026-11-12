@@ -408,6 +408,8 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly locale?: ActionLocale;
+    readonly named_skills?: import("platform/action-named-skills").ActionNamedSkills;
+    readonly skill_round?: import("platform/action-named-skills").ActionSkillRound;
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
     readonly delegated_audience?: ActionAudience;
@@ -513,7 +515,7 @@ export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;
@@ -538,6 +540,7 @@ export interface ActionMetadata {
     readonly workflow_content?: WorkflowContentStation;
     readonly search_source?: SearchSourceDeclaration;
     readonly file_source?: FileSourceDeclaration;
+    readonly composer_source?: ComposerSourceDeclaration;
     readonly thread_source?: {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
@@ -575,6 +578,13 @@ export interface ActionMetadata {
         readonly version: number;
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
+}
+
+export interface ActionNamedSkills {
+    readonly install_id: string;
+    readonly action: ExactActionReference;
+    readonly from: "page" | "host";
+    readonly refs: readonly SkillRef[];
 }
 
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
@@ -767,6 +777,12 @@ export interface ActionSceneView {
 
 export type ActionSchema = Readonly<Record<string, unknown>>;
 
+export interface ActionSkillRound {
+    readonly consumer: "assistant" | "coding" | "agent";
+    readonly named: readonly SkillRef[];
+    readonly engine?: "builtin" | "local";
+}
+
 export interface ActionSubject {
     kind: string;
     id: string;
@@ -849,7 +865,7 @@ export interface AgentPromptDeclaration {
 
 export type AgentPromptLayer = "base" | "role" | "project" | "task";
 
-export interface AgentPromptText {
+export interface AgentPromptText extends LocalizedAgentBody {
     prompt_id: string;
     version: number;
     body: string;
@@ -865,16 +881,10 @@ export interface AgentRoleDeclaration {
     workspace?: "required" | "none" | "business";
     prompts?: string[];
     host_tools?: string[];
-    skills?: AgentRoleSkillsDeclaration;
     subagent_workspaces?: "required";
 }
 
 export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
-
-export interface AgentRoleSkillsDeclaration {
-    allowed: string[];
-    default?: string[];
-}
 
 export interface AgentSkillDeclaration {
     skill_id: string;
@@ -888,12 +898,13 @@ export interface AgentSkillDeclaration {
     applies_to?: SkillAppliesTo;
     user_invocable?: boolean;
     argument_hint?: string;
+    native_only_reason?: string;
     body?: string;
     resources?: SkillResourceDeclaration[];
     connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body">, LocalizedAgentBody {
     body: string;
 }
 
@@ -2306,6 +2317,13 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePageSubject {
+    readonly kind: "home-page" | "home-page-preview";
+    readonly project_id: string;
+    readonly page_id: string;
+    readonly version: number;
+}
+
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
     readonly project_rows?: PluginProjectRowsDeclaration;
@@ -2880,7 +2898,7 @@ export interface PluginDefinition {
     }>>;
     agent_skills?: readonly AgentSkillDefinition[];
     instructions?: readonly InstructionPrompt[];
-    methods?: readonly AgentSkillDefinition[];
+    methods?: readonly PluginMethodDefinition[];
     start(context: PluginStartContext): Promise<PluginContribution>;
     stop?(context: PluginStartContext): Promise<void>;
     health?(context: PluginStartContext): Promise<{
@@ -3470,12 +3488,16 @@ export interface PluginLocalesDeclaration {
 }
 
 export interface PluginManifest {
+    demo_seed?: {
+        capability_id: string;
+        version: number;
+    };
     sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
     schema_version: 1;
     plugin_id: string;
     version: string;
     name: string;
-    name_en?: string;
+    name_text?: TextRef;
     kind: PluginKind;
     publisher: {
         publisher_id: string;
@@ -3484,6 +3506,7 @@ export interface PluginManifest {
     host_api_version: 1;
     always_on?: boolean;
     summary?: string;
+    summary_text?: TextRef;
     developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
@@ -3496,6 +3519,9 @@ export interface PluginManifest {
             artifact_type_id: string;
             schema_version: number;
             title?: string;
+            title_text?: {
+                key: string;
+            };
             preview?: {
                 capability_id: string;
                 version: number;
@@ -3539,8 +3565,6 @@ export interface PluginManifest {
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
         page_routes?: UiPageRouteDeclaration[];
-        messages?: PluginMessagesDeclaration;
-        translations?: PluginTranslationsDeclaration;
         locales?: PluginLocalesDeclaration;
     };
     ports?: PluginPortsDeclaration;
@@ -3548,7 +3572,7 @@ export interface PluginManifest {
     routes?: PluginRouteDeclaration[];
     requires?: PluginRequirementDeclaration[];
     agent?: AgentManifest;
-    methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
+    methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").PluginMethodDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
@@ -3566,6 +3590,11 @@ export interface PluginManifest {
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
     };
     notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
+    settings_entries?: import("@molis-ai/molis-work-contracts/platform/settings").SettingsDeclaration;
+    blueprint?: {
+        locales: string[];
+    };
+    adopts?: readonly import("@molis-ai/molis-work-contracts/platform/blueprints").AdoptsDeclaration[];
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
@@ -3598,10 +3627,14 @@ export interface PluginMaterialsClient {
     releaseOriginal?(record_key: string): Promise<void>;
 }
 
-export type PluginMessagesDeclaration = Readonly<Record<string, {
-    readonly zh: string;
-    readonly en: string;
-}>>;
+export interface PluginMethodDeclaration extends AgentSkillDeclaration {
+    description: string;
+    applies_to: SkillAppliesTo;
+}
+
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body">, LocalizedAgentBody {
+    body: string;
+}
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -3974,7 +4007,7 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 export type PluginProjectRow = Record<string, null | number | string>;
 
 export interface PluginProjectRowsDeclaration {
-    readonly label: string;
+    readonly label: string | TextRef;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
     readonly files?: readonly PluginProjectRowsFiles[];
@@ -4360,8 +4393,6 @@ export type PluginTerminalProgram = {
     readonly args?: readonly string[];
 };
 
-export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
-
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -4653,6 +4684,7 @@ export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
 
 export declare const SKILL_LIMITS: {
+    readonly skillIdChars: 64;
     readonly descriptionChars: 1024;
     readonly whenChars: 500;
     readonly argumentHintChars: 80;
@@ -5017,9 +5049,8 @@ export interface SandboxPackageInterface {
     acceptance?: SandboxJson[];
 }
 
-export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+export type SandboxPackageManifest = Omit<PluginManifest, "agent"> & {
     agent?: SandboxAgentBodyDeclaration[];
-    methods?: SandboxAgentBodyDeclaration[];
 };
 
 export interface SandboxPackagePrompt {
@@ -5385,6 +5416,7 @@ export interface WorkExecutorRunControlResult {
 export interface WorkExecutorRunStart {
     session_id: string;
     task: string;
+    skills?: SkillRef[];
 }
 
 export interface WorkExecutorRunStarted {
@@ -5511,6 +5543,14 @@ export declare function actionFieldLabel(key: string, declared?: {
     title?: string;
     description?: string;
 }): string;
+
+export declare function actionFieldLabelSource(key: string, declared?: {
+    title?: string;
+    description?: string;
+}): {
+    label: string;
+    defaultKey?: string;
+};
 
 export declare function actionFieldOptions(declared?: unknown): Array<{
     value: string;
@@ -5801,6 +5841,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly event_type_missing: "invalid";
     readonly event_type_undeclared: "invalid";
     readonly executor_failed: "invalid";
+    readonly export_unavailable: "not_found";
     readonly grant_denied: "invalid";
     readonly home_scope_unavailable: "invalid";
     readonly id_namespace_conflict: "invalid";
@@ -5810,6 +5851,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly integration_unavailable: "unavailable";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
+    readonly manifest_version_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
     readonly preview_unknown: "not_found";

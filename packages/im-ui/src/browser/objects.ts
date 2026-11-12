@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ImCtx } from "./controller-types.js";
 import type { StreamKind } from "./types.js";
@@ -12,16 +13,16 @@ export function createImObjects(c: ImCtx, limit: number) {
     const host = bridge(), form = c.formFor(kind), open = form.querySelector<HTMLButtonElement>("[data-im-add-object]")!;
     const target = c.target(kind), subjects = drafts.get(target)?.subjects ?? [];
     open.hidden = !host; open.disabled = subjects.length >= limit || s.busyTargets.has(target);
-    if (host) { open.title = host.translate("引用对象"); open.setAttribute("aria-label", open.title); }
+    open.title = uiText.text("im-ui.object.add"); open.setAttribute("aria-label", open.title);
     const root = form.querySelector<HTMLElement>("[data-im-draft-objects]")!;
     const signature = JSON.stringify([Boolean(host), subjects.map(subject => [key(subject), labels.get(key(subject))])]);
     if (root.dataset.signature === signature) return;
     root.dataset.signature = signature; root.replaceChildren();
     if (!host) return;
     for (const [index, subject] of subjects.entries()) {
-      const title = labels.get(key(subject)) || host.translate("引用对象");
+      const title = labels.get(key(subject)) || uiText.text("im-ui.object.add");
       const button = document.createElement("button"); button.type = "button"; button.className = "im-object-chip";
-      button.textContent = title + " ×"; button.setAttribute("aria-label", host.translate("移除引用") + "：" + title);
+      button.textContent = title + " ×"; button.setAttribute("aria-label", uiText.text("im-ui.object.remove", { title }));
       button.onclick = event => {
         if (!event.isTrusted || target !== c.target(kind) || s.busyTargets.has(target)) return;
         drafts.objects(target, subjects.filter((_, at) => at !== index)); paint(kind); c.syncComposer(kind); open.focus();
@@ -32,8 +33,8 @@ export function createImObjects(c: ImCtx, limit: number) {
   function picker(kind: StreamKind) {
     const host = bridge(), target = c.target(kind), room = s.roomId, before = s.epoch;
     if (!host || !target || !s.hostVisible) return;
-    const label = host.translate("搜索项目对象");
-    c.openDialog(host.translate("引用对象"), '<label class="im-field">' + e(label) + '<input type="search" maxlength="200" placeholder="' + e(label) + '"></label><div data-im-object-choices aria-live="polite"></div>');
+    const label = uiText.text("im-ui.object.search");
+    c.openDialog(uiText.text("im-ui.object.add"), '<label class="im-field">' + e(label) + '<input type="search" maxlength="200" placeholder="' + e(label) + '"></label><div data-im-object-choices aria-live="polite"></div>');
     const input = c.dialogBody.querySelector("input")!, output = c.dialogBody.querySelector<HTMLElement>("[data-im-object-choices]")!;
     const current = () => c.dialog.open && input.isConnected && before === s.epoch && target === c.target(kind) && host === bridge() && s.hostVisible;
     input.oninput = async () => {
@@ -57,9 +58,9 @@ export function createImObjects(c: ImCtx, limit: number) {
           };
           output.append(button);
         }
-        if (!result.items.length) output.textContent = host.translate("没有可引用的对象");
+        if (!result.items.length) output.textContent = uiText.text("im-ui.object.none");
       } catch {
-        if (!request.signal.aborted && current()) output.textContent = host.translate("暂时读不到");
+        if (!request.signal.aborted && current()) output.textContent = uiText.text("im-ui.object.unavailable");
       }
     };
     input.focus();

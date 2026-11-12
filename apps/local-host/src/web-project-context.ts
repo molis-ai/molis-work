@@ -18,6 +18,7 @@ import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
 export interface ProjectRequestContext extends WebRequestContext {
@@ -30,6 +31,8 @@ export interface ProjectRequestContext extends WebRequestContext {
   readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => BoundActionClient;
   /** The plugins this project's page shows: personal ones included unless the person hid them here. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
+  /** The rendered selector keeps the revision of the same membership it displays. */
+  readonly shownPluginSelection: (projectId: string, withRevision: boolean) => Promise<{ shown: string[]; revision?: string }>;
   /**
    * Whether Goals is in this project, by its plugin list (RAC-400). Pages ask this, not a refusal's code: in a project with Goals, a Goals read
    * the policy refuses (any code) is that refusal, shown; only a project without Goals reads as one with none.
@@ -46,6 +49,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly pluginServices: ProjectPluginServices;
   readonly pluginPorts: ProjectPluginSurfacePorts;
   readonly readWebView: () => Promise<GoalsWebView>;
+  readonly readArtifactDisplay: ReadArtifactDisplay;
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home, its plugins and settled reviews. */
@@ -57,7 +61,7 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const directory = homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
-  const shownPlugins = async (projectId: string) => {
+  const selection = async (projectId: string, versioned: boolean): Promise<{ shown: string[]; revision?: string }> => {
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
     const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
@@ -66,15 +70,22 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
       return [...new Set([...shownProjectPlugins(plugins, hidden), ...external])];
     };
     // An explicitly served single-database fixture has the same declared default selection as its page, without a Catalog record.
-    if (!options.project) return withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []);
+    if (!options.project) return { shown: withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []) };
     return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
+      if (versioned) {
+        const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);
+        return { shown: withExternal(plugins, hidden), revision };
+      }
       const { plugins, hidden } = catalog.projectPluginMembership(projectId, directory);
-      return withExternal(plugins, hidden);
+      return { shown: withExternal(plugins, hidden) };
     });
   };
   const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
     catalog => catalog.listProjectPlugins(options.projectId, directory).includes("goals"));
-  return { ...context, options, hostReference, userActions, shownPlugins, goalsHere };
+  return { ...context, options, hostReference, userActions, goalsHere,
+    shownPlugins: async projectId => (await selection(projectId, false)).shown,
+    shownPluginSelection: selection,
+  };
 }
 
 /**
@@ -99,7 +110,8 @@ export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.
 
 export function projectPluginServices({ localHost, hostReference, options, agentHost, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
-    actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
+    // These ports are used while the project Runtime starts. Re-entering its public preparation would wait on that same start.
+    actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference, false), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
     homePlugins: localHost.homePlugins,

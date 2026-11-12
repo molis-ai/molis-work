@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { openCoding, coding } from "./fixtures/coding-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -80,10 +80,11 @@ for (const mode of ["field-sizing", "fallback"] as const) {
 }
 
 for (const fallback of [false, true]) {
-  test(`VUX-16 (${fallback ? "fallback" : "field-sizing"}): Coding's box grows to 320 px and starts small again in a new session`, { timeout: 150_000 }, async (t) => {
+  test(`VUX-16 (${fallback ? "fallback" : "field-sizing"}): Coding's box grows to the bar's 240 px and starts small again in a new session`, { timeout: 150_000 }, async (t) => {
     const browser = await openCoding(t, fallback ? WITHOUT_FIELD_SIZING : ""); if (!browser) return;
-    const { evaluate, waitFor, command, sessionId, box, start } = browser;
-    // Leave at least 800 px inside the plugin frame after the shell chrome, so 40% reaches the 320 px field cap.
+    // The box is the workbench bar's one input (unified-input-voice §10.3): it is measured and typed into in the top document.
+    const { owner: { evaluate, waitFor }, command, sessionId, box, start } = browser;
+    // Leave at least 800 px of window, so 40% of it is past the field's 240 px cap (`--fit-max`'s default, field-fit.ts).
     await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("innerHeight >= 800");
     assert.equal(await evaluate(`${box}.hasAttribute('data-fit')`), true);
@@ -92,8 +93,8 @@ for (const fallback of [false, true]) {
     const one = await height();
     await evaluate(`${box}.focus()`);
     for (let line = 2; line <= 30; line++) await command("Input.insertText", { text: "\n第 " + line + " 行" }, sessionId);
-    // The child viewport allows at least 320 px, so the box's own 320 px is the max.
-    assert.equal(await height(), 320, "the box stops at 320 px");
+    // Coding's words are the bar's one input (§10.3), sized as the Assistant's: the window allows more, so the field's 240 px is the max.
+    assert.equal(await height(), 240, "the box stops at 240 px");
     assert.ok(await evaluate(`(() => { const f = ${box}; return f.scrollTop + f.clientHeight >= f.scrollHeight - 1; })()`), "the last line is in view, whole");
     // A new session's box is emptied by the page's draft (no input event): it starts small again.
     await browser.click(`${coding} [data-coding-new]`);

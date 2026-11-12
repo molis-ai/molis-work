@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { captureHostLog, HomePluginHost, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, homeAgentDefinitions, HomePluginHost, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -206,4 +206,51 @@ test("S-71 RAC-1700 the Home's own install takes the bindings a Home that could 
   assert.equal(attempt().install_id, id);
   assert.deepEqual(both(), [false, false], "the Home's installation starts with no account of the old one's");
   assert.equal(withConnectorConnections(home, store => store.get(connection.connection_id))?.connection_id, connection.connection_id, "the account itself stays");
+});
+
+
+// SKC-05: Home cleanup only depends on projects that have settings for this installation. An independent project installation
+// owns its choices; an inherited choice leaves with Home. All relevant libraries are checked before any choice is removed.
+for (const shape of ["home-only", "unrelated-unreadable", "related-unreadable"] as const) {
+  test(`SKC-05 Home Skill cleanup ${shape} preserves independent choices and never partially deletes`, { timeout: 120_000 }, async t => {
+    const w = await world(t, 3), probe = ownerFilesProbe(PROBE, "home"), definition = probe.withoutFiles(), actions = new ActionService();
+    const host = new HomePluginHost({ home: w.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [], installed: new Set([definition]) });
+    t.after(() => host.close());
+    const runtime = (await host.ready()).runtime;
+    const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: probe.permissions }).install.install_id;
+    await runtime.start(id);
+    const store = homeAgentDefinitions(w.home).skills;
+    assert.equal(store.set("home", id, "review", "auto", 0, LOCAL_PERSON_ACTOR_ID), "ok");
+    const independent = w.projects[0]!, inherited = w.projects[1]!, unrelated = w.projects[2]!;
+    if (shape !== "home-only") {
+      assert.equal(await w.install(0), id);
+      assert.equal(store.set(independent.project_id, id, "review", "manual", 0, LOCAL_PERSON_ACTOR_ID), "ok");
+      assert.equal(store.set(inherited.project_id, id, "review", "auto", 0, LOCAL_PERSON_ACTOR_ID), "ok");
+    }
+    const before = ["home", independent.project_id, inherited.project_id].map(scope => store.settings(scope));
+    const file = shape === "related-unreadable" ? inherited.database_path : unrelated.database_path;
+    renameSync(file, file + ".away");
+    try {
+      if (shape === "related-unreadable") {
+        await assert.rejects(runtime.uninstall(id, { retain_private_data: true }), /unable to open database/);
+        assert.deepEqual(["home", independent.project_id, inherited.project_id].map(scope => store.settings(scope)), before,
+          "a relevant unreadable library must leave even the Home's own settings untouched");
+      } else await runtime.uninstall(id, { retain_private_data: true });
+    } finally { renameSync(file + ".away", file); }
+    if (shape === "related-unreadable") await runtime.uninstall(id, { retain_private_data: true });
+    assert.deepEqual(store.settings("home"), []);
+    assert.deepEqual(store.settings(inherited.project_id), []);
+    assert.deepEqual(store.settings(independent.project_id), before[1], "a separate project installation keeps its complete original settings");
+  });
+}
+
+test("SKC-05 a project uninstall removes only its own Skill settings even when another project library is unreadable", { timeout: 120_000 }, async t => {
+  const w = await world(t, 2), id = await w.install(0), store = homeAgentDefinitions(w.home).skills;
+  const here = w.projects[0]!, elsewhere = w.projects[1]!;
+  for (const scope of ["home", here.project_id, elsewhere.project_id]) assert.equal(store.set(scope, id, "review", "manual", 0, LOCAL_PERSON_ACTOR_ID), "ok");
+  const kept = [store.settings("home"), store.settings(elsewhere.project_id)];
+  renameSync(elsewhere.database_path, elsewhere.database_path + ".away");
+  try { await w.uninstall(0, id, true); } finally { renameSync(elsewhere.database_path + ".away", elsewhere.database_path); }
+  assert.deepEqual(store.settings(here.project_id), []);
+  assert.deepEqual([store.settings("home"), store.settings(elsewhere.project_id)], kept);
 });

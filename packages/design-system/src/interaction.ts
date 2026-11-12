@@ -182,7 +182,7 @@ function control(scope: string, field: InteractionField): string {
     case "reference": return referenceControl(id, c, describedBy);
   }
 }
-const REFERENCE_LABELS: Required<InteractionReferenceLabels> = { remove: "去掉", empty: "没有找到", failed: "暂时搜不了，稍后再试", full: "已经选够了", found: "{n} 个结果" };
+const REFERENCE_LABELS: Required<Omit<InteractionReferenceLabels, "found">> = { remove: "去掉", empty: "没有找到", failed: "暂时搜不了，稍后再试", full: "已经选够了" };
 /** One picked object; the shared client draws the same when the person picks one. */
 export const renderInteractionReferenceChip = (ref: InteractionReference, remove = REFERENCE_LABELS.remove): string =>
   `<li class="mw-ix-chip" data-ix-reference="${esc(ref.value)}"><span>${esc(ref.label)}</span><button type="button" data-ix-unpick aria-label="${esc(`${remove} ${ref.label}`)}">${icon("x")}</button></li>`;

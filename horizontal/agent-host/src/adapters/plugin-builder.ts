@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, readFile, writeFile, rename, readdir, rm } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
 import { collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
+import { MAX_COMPOSED_INSTRUCTION_CHARS, stageInstructions } from './prologue-node-kit.js';
 import type { PrologueModelConfiguration } from './prologue.js';
 
 import type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
+import { PLUGIN_CHECKS_TOOL } from '../tool-catalog.js';
 export type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export interface PluginBuilderAgentOptions {
@@ -28,7 +30,7 @@ export const MODEL_CALL_LIMIT_MS = { designer: 600_000, coder: 300_000 } as cons
 /** The most one request may write: a designer's whole answer, or one code turn. */
 export const MAX_OUTPUT_TOKENS = { designer: 32768, coder: 16384 } as const;
 // No search: every file the code role needs is named in its task, and real runs spent most turns on empty searches.
-const TOOLS = ['read', 'write', 'edit', 'plugin-checks'] as const;
+const TOOLS = ['read', 'write', 'edit', PLUGIN_CHECKS_TOOL] as const;
 const WRITABLE = /^(?:src\/(?!index\.ts$)[a-zA-Z0-9_./-]+\.ts|tests\/[a-zA-Z0-9_./-]+\.ts|package\.json)$/;
 
 /** Only the owning Node adapter supplies these bindings. Plugins never receive a raw Runtime. */
@@ -129,7 +131,7 @@ function mountSkills(sdk: Runtime, skills: Map<string, Skill>, request: BuilderA
     if (!skill) { skill = sdk.skills.register({ id: definition.id, version: definition.version, label: definition.name, shape: 'bounded', tools: [], body: definition.body, humanInvocable: false }); skills.set(key, skill); }
     const available = request.role === 'coder' ? [...TOOLS] : [];
     prepareSkillIntent({ registry: sdk.skills, skillRef: skill.ref, parameters: {}, mode: 'inline', parentTools: available, hostTools: available });
-    mounted.push('本阶段遵循的规范：' + definition.name + '（' + key + '）\n' + fillSkillBody({ body: skill.manifest.body!, parameters: {} }));
+    mounted.push('## ' + definition.name + ' (' + key + ')\n' + fillSkillBody({ body: skill.manifest.body!, parameters: {} }));
   }
   return mounted;
 }
@@ -189,7 +191,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
     async run(request: BuilderAgentRequest): Promise<BuilderAgentRecord> {
       if (closing || current) throw new Error('This build already has an active code/design run');
       request.signal?.throwIfAborted();
-      if (request.instruction.length > 64_000 || request.task.length > 180_000) throw new Error('Agent input exceeds the build context limit');
+      if (request.instruction.length > MAX_COMPOSED_INSTRUCTION_CHARS || request.task.length > 180_000) throw new Error('Agent input exceeds the build context limit');
       // Without a writable posture every write is denied mid-run; refuse up front instead of failing silently.
       if (request.role === 'coder' && !bindings.writable) throw new Error('代码 Agent 需要可写的 Agent 运行环境（宿主未装配审阅队列），本次未启动');
       const model = await options.modelConfiguration();
@@ -232,14 +234,12 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           const authorized = await sdk.workspace.authorize({ path: root });
           const credentialRef = await bindings.credentialRefFor(model.credential_ref);
           const mounted = mountSkills(sdk, skills, request);
-          const bytes = new TextEncoder().encode([request.instruction, ...mounted].join('\n\n'));
-          const stage = sdk.resources.stage({ mediaKind: 'text', byteLength: bytes.length, label: request.promptVersion });
-          stage.write(bytes); const instructions = await stage.publishDurable();
+          const instructionsRef = await stageInstructions(sdk, [request.instruction, ...mounted].join('\n\n'));
           await stageImages(sdk, authorized.ref, root, record, request, images);
           const tools = request.role === 'coder' ? [...TOOLS] : [];
           const character = sdk.characters.publish(sdk.characters.create({ id: 'builder-' + record.id, version: 1,
             name: request.role === 'coder' ? 'Plugin Code Agent' : 'Plugin Designer', role: 'builder-' + request.role,
-            instructionsRef: instructions.ref, tools }).ref);
+            instructionsRef, tools }).ref);
           abort.signal.throwIfAborted();
           const started = await sdk.startAgentRun({ session, rootRef: authorized.ref, grants: { toolNames: tools, paths: request.role === 'coder' ? ['.'] : [] },
             start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: MAX_OUTPUT_TOKENS[request.role] },

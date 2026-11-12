@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { collapsePage } from "./view.js";
 import { accountTransition } from "../account-transition.js";
 import { pagePlacement } from "./placement.js";
@@ -28,7 +29,10 @@ import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
-import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
+import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
+import { frameEnvironment } from "./appearance.js";
+import { forOpeningFrame, frameStageWords, openingFrameLanguage, openingFrameTemplate, pageLanguage, trackFrameLanguage } from "./language.js";
+import { barTakes, pageComposer } from "./composer-parent.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
   const storage: FrameConfig["storage"] = { localStorage: {}, sessionStorage: {} };
@@ -71,6 +75,25 @@ function openPlugin(host: FrameHost, surface: unknown, prefix: string, view?: un
   else location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
 }
 
+/** D0124/D0335: one typed UI boundary, after the live/visible frame check. */
+function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { type: "ui" }>, prefix: string, tabId: string | undefined): void {
+  const args = message.args;
+  if (!Array.isArray(args) || args.length > 3) return;
+  const text = (value: unknown, limit = 1000): value is string => typeof value === "string" && value.length <= limit;
+  if (message.name === "showToast") {
+    if (text(args[0], 4000) && (args[1] === undefined || typeof args[1] === "boolean")) host.showToast?.(args[0], args[1] === true);
+  } else if (message.name === "openPlugin") {
+    if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) openPlugin(host, args[0], prefix, args[1], args[2]);
+  } else if (message.name === "openItem" || message.name === "openBeside") {
+    if (!text(args[0], 101) || !/^[a-z][a-z0-9-]{0,100}$/u.test(args[0]) || !text(args[1]) || !args[1] || (args[2] !== undefined && !text(args[2]))) return;
+    if (message.itemTabId !== undefined) {
+      if (message.name !== "openItem" || message.itemTabId !== tabId) return;
+      host.openItem?.(pack.id, args[1], args[2]);
+    } else host[message.name]?.(args[0], args[1], args[2]);
+  } else if (message.name === "hideDirectory" && !args.length) host.hideDirectory?.();
+  else if (message.name === "status" && args.length === 1 && (args[0] === null || text(args[0], 4000))) host.status?.(args[0]);
+}
+
 /** The current item belongs to this surface's own pane, including a pane with its own local strip. */
 function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] {
   const pane = root.closest<HTMLElement>("[data-tab-pane]");
@@ -83,6 +106,63 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
     ? { tabId: tab.dataset.tabId, itemId: tab.dataset.itemId } : null;
 }
 
+/** A WindowProxy can survive navigation. Only the document that knows this mount and holds its hello port gets the business channel. */
+function bindFrameDocument(frame: HTMLIFrameElement, root: HTMLElement, scope: FrameScope, documentFor: (challenge: string) => string,
+  port: MessagePort, config: () => Promise<FrameConfig>, fail: (error: Error) => void): void {
+  let loaded = false;
+  const reject = (error: Error) => { fail(error); scope.dispose(); };
+  frame.onload = () => {
+    if (loaded) { reject(new Error("Plugin page navigated")); return; }
+    loaded = true;
+  };
+  const challenge = crypto.randomUUID(), original = openingFrameTemplate(root);
+  const unlisten = scope.listen(window, "message", incoming => {
+    const event = incoming as MessageEvent<{ type?: string; challenge?: string }>;
+    if (!event.isTrusted || event.source !== frame.contentWindow || event.origin !== "null" || event.data?.type !== "molis:plugin-mount"
+      || event.data.challenge !== challenge || event.ports.length !== 1) return;
+    unlisten();
+    const reply = event.ports[0]!;
+    void config().then(prepared => {
+      scope.assertCurrent();
+      if (!frame.isConnected || prepared.text.language.tag !== pageLanguage()) throw new Error("View closed or language changed");
+      reply.postMessage({ type: "molis:plugin-connect", config: { ...prepared, text: forOpeningFrame(root, original, prepared.text) } }, [port]);
+    }).catch(error => reject(error instanceof Error ? error : new Error(String(error)))).finally(() => reply.close());
+  });
+  frame.srcdoc = documentFor(challenge);
+}
+
+async function openFrameGrant(root: HTMLElement, pack: FramePack, scope: FrameScope, route: (path: string) => string,
+  mount: import("@molis-ai/molis-work-contracts/platform/ui").UiClientMount | null, leaving: () => Extract<FrameUp, {type: "on-closing"}>["action"]) {
+  const projected = pack.projection ? await molisWorkRequest<{ authorization: NonNullable<FramePack["authorization"]>; page: { mode: string; plugin_id: string } }>(
+    pack.projection, { control: true, headers: { accept: "application/json" }, signal: scope.signal }) : null;
+  if (pack.projection && (!projected?.authorization?.page_id || !projected.authorization.storage_scope
+    || projected.page?.mode !== "installed" || projected.page.plugin_id !== pack.plugin_id)) throw new Error("Invalid installed view");
+  const grant = pack.authorization ?? projected?.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
+  scope.own(() => {
+    const closing = leaving();
+    void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
+  });
+  return { grant, page: projected?.page };
+}
+
+/** Structured surfaces follow the Runtime's display revision only while their frame is visible. */
+function observeFrameRevision(scope: FrameScope, route: (path: string) => string, pluginId: string, pageId: string, invalidate: () => void): void {
+  let revision: string | undefined;
+  scope.whenVisible(() => {
+    const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      try {
+        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pluginId + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": pageId } });
+        scope.assertCurrent(); if (controller.signal.aborted) return;
+        if (revision !== undefined && revision !== value.revision) invalidate();
+        revision = value.revision;
+      } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
+      if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);
+    };
+    void read(); return () => { controller.abort(); clearTimeout(timer); };
+  });
+}
+
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   if (accountTransition().preparing) throw new Error("Account is switching");
@@ -93,9 +173,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   try {
   const mount = root.dataset.pluginContribution && root.dataset.pluginSurface && root.dataset.pluginSlot
     ? { contribution_id: root.dataset.pluginContribution, surface: root.dataset.pluginSurface, target_slot_id: root.dataset.pluginSlot } : null;
+  const clientMount = root.hasAttribute("data-plugin-integrated") ? null : mount;
   if (mount && root.dataset.pluginOwner !== pack.plugin_id) throw new Error("View owner changed");
   directoryLayout(root);
-  const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
+  let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
+  const { grant, page } = await openFrameGrant(root, pack, scope, route, mount, () => closing);
   const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
   if (accountTransition().preparing) throw new Error("Account is switching");
@@ -117,7 +199,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const flushes = new Map<number, {resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}>();
   const flush = () => new Promise<void>((resolve, reject) => {
     scope.assertCurrent(); draftsPrepared = false; const id = ++flushSequence;
-    const timer = setTimeout(() => { flushes.delete(id); reject(new Error(host.translate("草稿保存未完成，请返回原页面重试"))); }, 10000);
+    const timer = setTimeout(() => { flushes.delete(id); reject(new Error(uiText.text("common.parent.draft-could-not-be-saved-return-page-try"))); }, 10000);
     flushes.set(id, {resolve, reject, timer}); port.postMessage({type: "draft-flush", id});
   });
   scope.own(transition.page(root, flush, () => scope.dispose(), () => { draftsPrepared = false; port.postMessage({type: "draft-resume"}); }));
@@ -135,57 +217,43 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const modal = pageModal(scope, frame);
   const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host);
   const embed = pageEmbeds(port, scope, root, frame, grant.page_id, route);
-  const workspaces = pageWorkspaces(port, scope, grant.page_id, route, host.translate, frame.title, host.projectTitle?.() ?? "");
+  const workspaces = pageWorkspaces(port, scope, grant.page_id, route, uiText.text, frame.title, host.projectTitle?.() ?? "");
   let childExpanded: string | null = null;
-  let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
-  const deadline = setTimeout(() => readyReject(new Error(host.translate("无法加载界面，请重试"))), 10000);
+  const deadline = setTimeout(() => readyReject(new Error(uiText.text("common.parent.could-not-load-view-retry"))), 10000);
   scope.own(() => {
     if (closing) collapsePage(root);
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
-    void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
   });
-  let invalidated = false;
-  const visible = () => {
-    if (frame.hidden) return false;
-    for (let node: Element | null = root; node; node = node.ownerDocument.defaultView?.frameElement ?? null)
-      if (!node.checkVisibility({ visibilityProperty: true })) return false;
-    return scope.visible;
-  };
+  let invalidated = false, shellRefreshed = false;
+  const environment = frameEnvironment(port, scope, root, frame);
+  const { visible } = environment;
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
-  const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
+  const areas = pageFramedAreas(scope, root, frame, visible), owner = frame.title;
   const surfaceSlot = pageSurfaceSlots(port, scope, areas, grant.page_id, JSON.stringify([grant.storage_scope, mount ?? pack.id]), route, host, root);
-  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
-  const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner, returns.connection);
-  const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
-    theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
-  scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
-  scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
-  scope.observe(new MutationObserver(state), frame, { attributes: true, attributeFilter: ["hidden"] });
+  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, () => frame.title);
+  const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, uiText.text, owner, returns.connection);
+  const state = () => {
+    const shown = visible();
+    if (shown && invalidated) {
+      invalidated = false;
+      port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
+    }
+    environment.publishState(shown);
+  };
+  environment.observeState(state);
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
-  // Structured surfaces follow the Runtime's existing display revision; each read is cancelled on hiding.
-  let revision: string | undefined;
-  if (mount) scope.whenVisible(() => {
-    const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
-    const read = async () => {
-      try {
-        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pack.plugin_id + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": grant.page_id } });
-        scope.assertCurrent(); if (controller.signal.aborted) return;
-        if (revision !== undefined && revision !== value.revision) port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
-        revision = value.revision;
-      } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
-      if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);
-    };
-    void read(); return () => { controller.abort(); clearTimeout(timer); };
-  });
+  if (clientMount) observeFrameRevision(scope, route, pack.plugin_id, grant.page_id,
+    () => port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }));
   const fail = (error: Error) => {
     clearTimeout(deadline);
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
     readyReject(error);
   };
-  const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
-  const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
+  const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, uiText.text);
+  const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
+  const composer = pageComposer(port, scope, root, frame, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -193,7 +261,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       const pending = flushes.get(message.id); if (!pending) return;
       flushes.delete(message.id); clearTimeout(pending.timer);
       draftsPrepared = true;
-      if (message.error) pending.reject(new Error(host.translate("草稿保存未完成，请返回原页面重试")));
+      if (message.error) pending.reject(new Error(uiText.text("common.parent.draft-could-not-be-saved-return-page-try")));
       else void Promise.all([...draftWork]).then(() => pending.resolve(), error => pending.reject(error));
       return;
     }
@@ -241,12 +309,23 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "terminal") { void terminal(message); return; }
     if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
-    if (message.type === "native-file-pick") { void pickFile(message); return; }
-    if (message.type === "refresh-shell") { location.reload(); return; }
+    if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
+    if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
+    if (message.type === "refresh-shell") {
+      if (shellRefreshed) return;
+      // Parent-only key survives document reload; plugin storage cannot write outside its own prefix.
+      const key = "molis-shell-refresh:" + grant.storage_scope + ":" + location.pathname;
+      try {
+        const last = Number(sessionStorage.getItem(key) ?? 0), now = Date.now();
+        if (!Number.isFinite(last) || now - last < 5000) return;
+        sessionStorage.setItem(key, String(now));
+      } catch { return; /* Storage unavailable: fail closed instead of entering a reload loop. */ }
+      shellRefreshed = true; location.reload(); return;
+    }
     if (message.type === "read-document") {
       if (!Number.isSafeInteger(message.id) || message.id <= 0 || documentReads.has(message.id)) return;
       const controller = new AbortController(); documentReads.set(message.id, controller);
-      void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope, message.object, controller.signal)
+      void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope, message.object, controller.signal, message.input)
         .finally(() => { if (documentReads.get(message.id) === controller) documentReads.delete(message.id); });
       return;
     }
@@ -258,19 +337,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "ready") {
         clearTimeout(deadline);
         if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
-        root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve();
+        root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); readyResolve();
       }
       else if (message.type === "failed") fail(new Error(message.message));
-      else if (message.type === "ui" && Array.isArray(message.args)) {
-        if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
-        else if (message.name === "openPlugin") openPlugin(host, message.args[0], route(""), message.args[1], message.args[2]);
-        else if (message.name === "openItem" && message.itemTabId !== undefined) {
-          if (!root.isConnected || !visible() || typeof message.itemTabId !== "string" || ownItemTab(root, pack)?.tabId !== message.itemTabId) return;
-          const [, id, title] = message.args;
-          if (typeof id !== "string" || !id || id.length > 1000 || typeof title !== "string") return;
-          host.openItem?.(pack.id, id, title.slice(0, 1000));
-        }
-        else if (["openItem", "openBeside", "hideDirectory", "status"].includes(message.name)) host[message.name as "openItem"]?.(...message.args);
+      else if (message.type === "ui") {
+        frameUi(host, pack, message, route(""), ownItemTab(root, pack)?.tabId);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
         else navigate(root, message, route(""), returns.link);
@@ -292,18 +363,15 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => { state(); port.postMessage({ type: "model-ready" }); });
-  let loaded = false;
-  frame.onload = () => {
-    if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
-    loaded = true;
-    const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
-      stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
-      nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
-      projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
-      messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
-    frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);
-  };
-  frame.srcdoc = frameDocument(root, pack);
+  bindFrameDocument(frame, root, businessScope, challenge => frameDocument(root, pack, challenge, environment.initial), channel.port2, async () => ({
+    mount: clientMount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
+    pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
+    searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
+    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, bar: barTakes(Boolean(host.side), mount?.target_slot_id), appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
+    stage: frameStageWords(root, pack.id),
+    projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: page ?? host.page?.() ?? null,
+    storage,
+  }), fail);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
   frame.hidden = Boolean(root.dataset.previewTab);

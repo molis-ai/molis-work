@@ -6,7 +6,7 @@ import {
   createEvidenceContentStore, createFileSecretStore,
   type EvidenceContentStore, type SecretStore, type SqliteDatabase,
 } from "@molis-ai/molis-work-storage";
-import { createFeedExactRouteResolver } from "@molis-ai/molis-work-plugin-feed";
+import { createRssExactRouteResolver } from "@molis-ai/molis-work-integration-rss";
 import {
   listFeedUrls, listRegisterableFeeds, readRssHttpState, type RssFetchReceipt,
   CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isCustomRssFeedUrl,
@@ -73,7 +73,7 @@ export function createSourcePullRuntime(options: {
     db: options.db, secretStore, content, assertCurrent: options.assertCurrent, beforeDispatch: options.beforeDispatch, beforeContentWrite: options.beforeContentWrite,
     source: {
       runtime: rssRuntime,
-      routeResolver: createFeedExactRouteResolver({
+      routeResolver: createRssExactRouteResolver({
         listCatalog: listRegisterableFeeds,
         customRss: { id: CUSTOM_RSS_DEFINITION_ID, acceptsUrl: isCustomRssFeedUrl, host: customRssFeedHost },
         youtube: { id: YOUTUBE_CHANNEL_DEFINITION_ID, host: YOUTUBE_PUBLIC_FEED_HOST, acceptsUrl: isYouTubePublicFeedUrl },

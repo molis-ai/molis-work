@@ -14,6 +14,7 @@ import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js"
 export interface ProviderDeclaration {
   readonly description?: string;
   readonly read_groups?: readonly PluginReadGroupDeclaration[];
+  display?(group?: PluginReadGroupDeclaration): { title?: string; description?: string };
 }
 /**
  * A provider's declaration now. `null`: it is a plugin whose Manifest cannot be read, so whether it declares groups is not known and it
@@ -67,12 +68,14 @@ function byProvider(views: readonly ActionView[]): Map<string, ActionView[]> {
 /** A provider's own words: its Manifest's summary, or (a provider without one) what its readable actions are called. */
 function providerCategory(providerId: string, views: readonly ActionView[], declaration: ProviderDeclaration | null): TaskGrantCategory {
   const provider = views[0]?.provider;
-  const description = declaration?.description ?? [...new Set(views.filter(readableByTask).map(view => view.action.title))].join("、");
-  return { provider_id: providerId, ...(provider?.plugin_id ? { plugin_id: provider.plugin_id } : {}), title: words(provider?.title ?? providerId), description: words(description) };
+  const display = declaration?.display?.();
+  const description = display?.description ?? declaration?.description ?? [...new Set(views.filter(readableByTask).map(view => view.action.title))].join("、");
+  return { provider_id: providerId, ...(provider?.plugin_id ? { plugin_id: provider.plugin_id } : {}), title: words(display?.title ?? provider?.title ?? providerId), description: words(description) };
 }
 
-function groupCategory(whole: TaskGrantCategory, group: PluginReadGroupDeclaration): TaskGrantCategory {
-  return { provider_id: whole.provider_id, group_id: group.group_id, ...(whole.plugin_id ? { plugin_id: whole.plugin_id } : {}), title: words(group.title), description: words(group.description) };
+function groupCategory(whole: TaskGrantCategory, group: PluginReadGroupDeclaration, declaration: ProviderDeclaration | null): TaskGrantCategory {
+  const display = declaration?.display?.(group);
+  return { provider_id: whole.provider_id, group_id: group.group_id, ...(whole.plugin_id ? { plugin_id: whole.plugin_id } : {}), title: words(display?.title ?? group.title), description: words(display?.description ?? group.description) };
 }
 
 /** The categories this project offers now, each with its readable actions; a group none of whose actions is registered now is not offered. */
@@ -85,7 +88,7 @@ export function offeredCategories(views: readonly ActionView[], declarationOf: D
     if (!groups?.length) { offered.push({ category: whole, members: readable }); continue; }
     for (const group of groups) {
       const members = readable.filter(view => group.actions.includes(view.capability_id));
-      if (members.length) offered.push({ category: groupCategory(whole, group), members });
+      if (members.length) offered.push({ category: groupCategory(whole, group, declaration), members });
     }
   }
   return offered;
@@ -154,7 +157,7 @@ export function subjectCategories(records: readonly McpActionGrant[], views: rea
       const matched = members.filter(view => held.some(grant => recordMatches(grant, view, projectId)));
       const status = !members.length || matched.some(view => !view.availability.available) ? "unavailable"
         : matched.length < members.length ? "needs_confirmation" : "granted";
-      states.push({ ...(declared ? groupCategory(whole, declared) : whole), status });
+      states.push({ ...(declared ? groupCategory(whole, declared, declaration) : whole), status });
     }
   }
   return states;

@@ -21,6 +21,8 @@ export function inPluginInstance(scope: PluginInstance | undefined, instance: Pl
  * cannot be made to look like it comes from an action it does not run in.
  */
 export interface PluginActionScope extends PluginInstance {
+  /** The original activation object, distinct even if two restored Homes have the same stored installation identifiers. */
+  readonly activation?: PluginInstance;
   readonly definition: ActionDefinition;
   readonly caller: ActionExecutionContext;
   /** Where this call stands in the order this process began calls in (`lastBegunPluginInvocation`). */
@@ -33,6 +35,7 @@ export interface PluginActionScope extends PluginInstance {
 }
 
 interface PluginSceneScope extends PluginInstance {
+  readonly activation: PluginInstance;
   readonly scene: ActionSceneDefinition;
   readonly read_only: boolean;
   readonly caller: ActionCallContext;
@@ -50,6 +53,7 @@ interface PluginSceneScope extends PluginInstance {
  * job's own lifetime and checks: it names neither the call that kept the job nor that call's audience.
  */
 interface PluginJobScope extends PluginInstance {
+  readonly activation?: PluginInstance;
   readonly job: string;
   readonly caller: ActionCallContext;
   readonly begun: number;
@@ -80,12 +84,38 @@ const place = (begun: number | undefined) => begun ?? running.getStore()?.begun 
 export interface PluginRouteCall {
   readonly route_id: string;
   readonly instance?: PluginInstance;
+  readonly caller?: { readonly locale?: string; readonly signal?: AbortSignal };
+  readonly parent?: PluginInvocationScope;
 }
 const routes = new AsyncLocalStorage<PluginRouteCall>();
 const permissionCalls = new AsyncLocalStorage<PluginInstance>();
 
 /** Calls whose handler has returned, thrown or settled (`pluginInvocationOpen`), and routes ended before theirs did. */
 const ended = new WeakSet<object>();
+
+/** A persisted installation can have several successive activations. This check belongs to the original object. */
+export function pluginActivationOpen(activation: PluginInstance): boolean {
+  return !ended.has(activation);
+}
+
+export function endPluginActivation(activation: PluginInstance): void {
+  ended.add(activation);
+}
+
+/** Text reads follow the innermost plugin call; an ended call still marks the boundary of an inherited page language. */
+export function currentPluginTextCall() {
+  const action = running.getStore(), route = routes.getStore();
+  if (route && route.parent === action) {
+    return pluginTextCall(route, route.instance, route.caller);
+  }
+  return action ? pluginTextCall(action, action.activation, action.caller) : undefined;
+}
+
+function pluginTextCall(token: object, activation: PluginInstance | undefined, caller: PluginRouteCall["caller"]) {
+  const available = !caller?.signal?.aborted && (!activation || pluginActivationOpen(activation));
+  const live = available && !ended.has(token);
+  return { token, activation: available ? activation : undefined, available, live, locale: live ? caller?.locale : undefined };
+}
 
 /** Runs `handle` in `scope`; once what it returned settles, the call is over for whatever it left running. */
 function runOpen<S extends object, T>(store: AsyncLocalStorage<S>, scope: S, handle: () => T): T {

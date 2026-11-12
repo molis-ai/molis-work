@@ -1,6 +1,7 @@
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CHARACTER_IMPORT_RUNTIMES, characterErrors, type CharacterImportRuntimeId } from "@molis-ai/molis-work-contracts/modules/characters";
+import { externalTool, type ExternalToolPath } from "@molis-ai/molis-work-contracts/platform/external-tools";
 
 export interface CharacterDiscoveryInput { runtime_id?: CharacterImportRuntimeId; config_root?: string; project_root?: string }
 
@@ -22,13 +23,19 @@ export interface DiscoveryRoots {
   roots: Record<CharacterImportRuntimeId, string>;
 }
 
+/** A register path on this machine. An environment value counts only when it is absolute. */
+function expandedPath(path: ExternalToolPath, home: string, env: NodeJS.ProcessEnv): string {
+  const override = path.env === undefined ? undefined : env[path.env];
+  if (override && isAbsolute(override)) return resolve(override);
+  const configHome = env.XDG_CONFIG_HOME && isAbsolute(env.XDG_CONFIG_HOME) ? resolve(env.XDG_CONFIG_HOME) : join(home, ".config");
+  return join(path.base === "home" ? home : configHome, ...path.segments);
+}
+
 export function discoveryRoots(home: string, env: NodeJS.ProcessEnv, input: CharacterDiscoveryInput): DiscoveryRoots {
   if (input.runtime_id !== undefined && !CHARACTER_IMPORT_RUNTIMES.includes(input.runtime_id)) throw characterErrors.invalid("不支持的 Agent 来源");
   if (input.config_root !== undefined && !input.runtime_id) throw characterErrors.invalid("手动目录必须指定对应 Agent");
   const manualRoot = input.config_root === undefined ? undefined : confirmedDirectory(input.config_root, "配置目录");
   const projectRoot = input.project_root === undefined ? undefined : confirmedDirectory(input.project_root, "项目目录");
-  const codexHome = env.CODEX_HOME && isAbsolute(env.CODEX_HOME) ? resolve(env.CODEX_HOME) : join(home, ".codex");
-  const configHome = env.XDG_CONFIG_HOME && isAbsolute(env.XDG_CONFIG_HOME) ? resolve(env.XDG_CONFIG_HOME) : join(home, ".config");
-  const roots = { codex: codexHome, "claude-code": join(home, ".claude"), cursor: join(home, ".cursor"), opencode: join(configHome, "opencode"), "grok-build": join(home, ".grok") };
+  const roots = Object.fromEntries(CHARACTER_IMPORT_RUNTIMES.map(id => [id, expandedPath(externalTool(id).character_import.config_root, home, env)])) as Record<CharacterImportRuntimeId, string>;
   return { manualRoot, projectRoot, runtimes: input.runtime_id ? [input.runtime_id] : CHARACTER_IMPORT_RUNTIMES, roots };
 }

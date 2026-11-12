@@ -590,7 +590,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
     // input; at the right the person's own tray (07-1 S4b: no side button; the side opens from its glyphs in the titlebar), then
     // the project, whose menu holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">\s*<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="你自己的"><\/div>[\s\S]*id="side-panel"[\s\S]*data-project-menu/);
+    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-composer[\s\S]*class="mw-composer__input"[\s\S]*<div class="bar-end">\s*<div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="你自己的"><\/div>[\s\S]*id="side-panel"[\s\S]*data-project-menu/);
     assert.doesNotMatch(browser, /data-side-toggle/, "the bar has no side button (07-1 S4b)");
     assert.doesNotMatch(browser, /data-bar-resident|data-dock-toggle|data-dock-window|dock-window-im/, "the side panel has one button and no group-chat names (side-shelf §7)");
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);

@@ -1,3 +1,5 @@
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
@@ -65,7 +67,7 @@ const heading = (panel: Panel, child: Child) => (panel.ports.roleName(child.role
 const resultBox = (child: Child) => {
   const body = el("div");
   body.className = "coding-turn";
-  if (child.result_html) body.innerHTML = child.result_html;
+  if (child.result_html) setContentHtml(body, child.result_html);
   else body.textContent = child.result ?? "";
   return body;
 };
@@ -80,28 +82,27 @@ const button = (panel: Panel, label: string, action: () => unknown, disabled?: b
 };
 
 const column = (panel: Panel, child: Child) => {
-  const L = panel.ports.translate;
   const box = el("article");
   box.className = "coding-compare-column";
   box.append(el("h4", heading(panel, child)), el("p", panel.states[child.state] || child.state));
   const files = edits(child);
-  box.append(el("p", files.length ? L("coding.sub.files", { files: files.join(L("coding.list.joiner")) }) : L("coding.sub.no-files")));
+  box.append(el("p", files.length ? uiText.text("coding.sub.files", { files: files.join(uiText.text("coding.list.joiner")) }) : uiText.text("coding.sub.no-files")));
   const tokens = child.usage?.tokens;
-  if (tokens) box.append(el("p", L("coding.sub.usage", { tokens: ((tokens.input || 0) + (tokens.output || 0)).toLocaleString() })));
+  if (tokens) box.append(el("p", uiText.text("coding.sub.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) })));
   if (child.result) box.append(resultBox(child));
-  if (child.error) box.append(el("p", L("coding.sub.error", { error: child.error })));
+  if (child.error) box.append(el("p", uiText.text("coding.sub.error", { error: child.error })));
   return box;
 };
 
 /** Two results side by side, as Cursor compares attempts: retries of one subtask, or two takes on the same question. */
 const compareView = (panel: Panel, all: readonly Child[]) => {
-  const L = panel.ports.translate, { compare } = panel;
+  const { compare } = panel;
   const view = el("section");
   view.className = "coding-compare";
-  view.setAttribute("aria-label", L("coding.sub.compare-label"));
+  view.setAttribute("aria-label", uiText.text("coding.sub.compare-label"));
   const head = el("div");
   head.className = "coding-compare-head";
-  head.append(el("strong", L("coding.sub.compare")), button(panel, L("coding.sub.compare-clear"), () => {
+  head.append(el("strong", uiText.text("coding.sub.compare")), button(panel, uiText.text("coding.sub.compare-clear"), () => {
     compare.length = 0;
     panel.stale();
     panel.redraw();
@@ -128,24 +129,23 @@ const compareToggle = (panel: Panel, child: Child) => {
     panel.stale();
     panel.redraw();
   });
-  pick.append(box, el("span", panel.ports.translate("coding.sub.compare-add")));
+  pick.append(box, el("span", uiText.text("coding.sub.compare-add")));
   return pick;
 };
 
 /** The task, the directory and the tools the subagent was given. */
-const assignment = (panel: Panel, child: Child, opened: ReadonlySet<string | undefined>) => {
-  const L = panel.ports.translate;
+const assignment = (_panel: Panel, child: Child, opened: ReadonlySet<string | undefined>) => {
   const box = el("details");
   box.className = "coding-material";
   box.dataset.child = child.subagent_id + ":assignment";
   box.open = opened.has(box.dataset.child);
-  box.append(el("summary", L("coding.sub.assignment")), el("p", child.task), el("p", L("coding.sub.workspace", { path: child.workspace_path || L("coding.sub.unknown") })), el("p", L("coding.sub.tools", { tools: (child.host_tools || []).join(L("coding.list.joiner")) })));
+  box.append(el("summary", uiText.text("coding.sub.assignment")), el("p", child.task), el("p", uiText.text("coding.sub.workspace", { path: child.workspace_path || uiText.text("coding.sub.unknown") })), el("p", uiText.text("coding.sub.tools", { tools: (child.host_tools || []).join(uiText.text("coding.list.joiner")) })));
   return box;
 };
 
 /** The person's verdict on a subagent, or a request to stop it, then the session read again. */
 const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child, action: "stop" | "accepted" | "needs-work", notes = "") => {
-  const { ports, pending } = panel, { translate: L, lifetime, api, current, status, refresh } = ports;
+  const { ports, pending } = panel, { lifetime, api, current, status, refresh } = ports;
   if (pending.has(child.subagent_id)) return;
   pending.add(child.subagent_id);
   panel.stale();
@@ -156,7 +156,7 @@ const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child,
     }
     if (action === "needs-work") await ports.prepareRework(id, group.run_id, child, notes);
     if (current() === id) {
-      status(action === "needs-work" ? L("coding.sub.rework-saved") : action === "stop" ? L("coding.sub.stop-asked") : L("coding.sub.verdict-saved"));
+      status(action === "needs-work" ? uiText.text("coding.sub.rework-saved") : action === "stop" ? uiText.text("coding.sub.stop-asked") : uiText.text("coding.sub.verdict-saved"));
       await refresh();
     }
   } catch (error) {
@@ -172,7 +172,7 @@ const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child,
 const feedback = (panel: Panel, child: Child) => {
   const label = el("label"), input = el("textarea");
   label.className = "mw-field";
-  label.append(el("span", panel.ports.translate("coding.sub.feedback")));
+  label.append(el("span", uiText.text("coding.sub.feedback")));
   input.className = "mw-input";
   input.rows = 2;
   input.maxLength = 4000;
@@ -187,36 +187,34 @@ const feedback = (panel: Panel, child: Child) => {
 
 /** The buttons a subagent in its state is offered. */
 function offers(panel: Panel, row: HTMLElement, id: string, group: SubagentGroup, child: Child) {
-  const { ports, pending } = panel, L = ports.translate, busy = pending.has(child.subagent_id);
-  if (child.state === "running") row.append(button(panel, L("coding.sub.stop"), () => act(panel, id, group, child, "stop"), busy));
+  const { ports, pending } = panel, busy = pending.has(child.subagent_id);
+  if (child.state === "running") row.append(button(panel, uiText.text("coding.sub.stop"), () => act(panel, id, group, child, "stop"), busy));
   // Ended badly but wrote files in its own directory: the work may be whole or partial, so it is shown, never assumed.
   if (["failed", "cancelled"].includes(child.state) && child.integration_available && (child.activity || []).some(item => WRITES.includes(item.name) && item.state === "completed")) {
-    row.append(el("p", L("coding.sub.partial")));
-    row.append(button(panel, L("coding.sub.look"), () => ports.openIntegration(id, group.run_id, child), busy));
+    row.append(el("p", uiText.text("coding.sub.partial")));
+    row.append(button(panel, uiText.text("coding.sub.look"), () => ports.openIntegration(id, group.run_id, child), busy));
   }
   if (child.state !== "completed") return;
-  if (child.integration_available) row.append(button(panel, L("coding.sub.integrate"), () => ports.openIntegration(id, group.run_id, child), busy));
+  if (child.integration_available) row.append(button(panel, uiText.text("coding.sub.integrate"), () => ports.openIntegration(id, group.run_id, child), busy));
   const { label, input } = feedback(panel, child);
   row.append(label);
-  row.append(button(panel, L("coding.sub.accept"), () => act(panel, id, group, child, "accepted", input.value), busy), button(panel, L("coding.sub.rework"), () => act(panel, id, group, child, "needs-work", input.value), busy));
+  row.append(button(panel, uiText.text("coding.sub.accept"), () => act(panel, id, group, child, "accepted", input.value), busy), button(panel, uiText.text("coding.sub.rework"), () => act(panel, id, group, child, "needs-work", input.value), busy));
 }
 
 /** What the subagent reported, then what it did and used. */
 function outcome(panel: Panel, row: HTMLElement, child: Child) {
-  const L = panel.ports.translate;
   if (child.result) row.append(resultBox(child));
-  if (child.error) row.append(el("p", L("coding.sub.error", { error: child.error })));
+  if (child.error) row.append(el("p", uiText.text("coding.sub.error", { error: child.error })));
   for (const activity of child.activity || []) row.append(el("p", activity.name + " · " + activity.state));
-  if (child.usage) row.append(el("p", L("coding.sub.own-usage", { usage: panel.ports.usageSummary(child.usage) })));
+  if (child.usage) row.append(el("p", uiText.text("coding.sub.own-usage", { usage: panel.ports.usageSummary(child.usage) })));
   if (child.verdict) {
-    const notes = child.verdict.notes || L("coding.sub.verdict.no-notes");
-    row.append(el("p", child.verdict.status === "accepted" ? L("coding.sub.verdict.accepted", { notes }) : L("coding.sub.verdict.needs-work", { notes })));
+    const notes = child.verdict.notes || uiText.text("coding.sub.verdict.no-notes");
+    row.append(el("p", child.verdict.status === "accepted" ? uiText.text("coding.sub.verdict.accepted", { notes }) : uiText.text("coding.sub.verdict.needs-work", { notes })));
   }
 }
 
 function childRow(panel: Panel, id: string, group: SubagentGroup, child: Child, opened: ReadonlySet<string | undefined>) {
-  const L = panel.ports.translate;
-  const resultState = child.state === "completed" && child.verdict ? (child.verdict.status === "accepted" ? L("coding.sub.state.accepted") : L("coding.sub.state.needs-work")) : panel.states[child.state];
+  const resultState = child.state === "completed" && child.verdict ? (child.verdict.status === "accepted" ? uiText.text("coding.sub.state.accepted") : uiText.text("coding.sub.state.needs-work")) : panel.states[child.state];
   const row = el("details"), summary = el("summary", heading(panel, child) + " · " + resultState);
   row.dataset.child = child.subagent_id;
   row.open = opened.has(child.subagent_id);
@@ -229,10 +227,10 @@ function childRow(panel: Panel, id: string, group: SubagentGroup, child: Child, 
 
 /** UI projections never turn a runtime completion into user acceptance. */
 export function subagentGroups(ports: SubagentPorts): SubagentGroups {
-  const { translate: L, q } = ports, region = q("[data-coding-subagents]");
+  const { q } = ports, region = q("[data-coding-subagents]");
   let key = "", lastGroups: readonly SubagentGroup[] = [], lastId = "";
   const compare: string[] = [], pending = new Set<string>();
-  const states = { running: L("coding.state.running"), completed: L("coding.sub.state.completed"), failed: L("coding.phase.failed"), cancelled: L("coding.phase.stopped"), "reconcile-required": L("coding.plan.run.reconcile") };
+  const states = { running: uiText.text("coding.state.running"), completed: uiText.text("coding.sub.state.completed"), failed: uiText.text("coding.phase.failed"), cancelled: uiText.text("coding.phase.stopped"), "reconcile-required": uiText.text("coding.plan.run.reconcile") };
   const panel: Panel = { ports, region, compare, pending, states, redraw: () => update(lastId, lastGroups), stale: () => { key = ""; } };
   const update = (id: string, groups: readonly SubagentGroup[]) => {
     lastGroups = groups;
@@ -246,16 +244,16 @@ export function subagentGroups(ports: SubagentPorts): SubagentGroups {
     region.replaceChildren();
     region.hidden = !groups.length;
     if (!groups.length) return;
-    region.append(el("h3", L("coding.sub.title")), el("p", L("coding.sub.note")));
+    region.append(el("h3", uiText.text("coding.sub.title")), el("p", uiText.text("coding.sub.note")));
     const all = groups.flatMap(group => group.children || []);
     for (let index = compare.length - 1; index >= 0; index--) {
       if (!all.some(child => child.subagent_id === compare[index])) compare.splice(index, 1);
     }
     if (compare.length === 2) region.append(compareView(panel, all));
-    else if (all.filter(child => child.state !== "running").length > 1) region.append(el("p", L("coding.sub.compare-hint")));
+    else if (all.filter(child => child.state !== "running").length > 1) region.append(el("p", uiText.text("coding.sub.compare-hint")));
     for (const group of groups) {
-      if (group.error) { region.append(el("p", L("coding.sub.unreadable", { reason: group.error }))); continue; }
-      if (!group.children.length) { region.append(el("p", L("coding.sub.none"))); continue; }
+      if (group.error) { region.append(el("p", uiText.text("coding.sub.unreadable", { reason: group.error }))); continue; }
+      if (!group.children.length) { region.append(el("p", uiText.text("coding.sub.none"))); continue; }
       for (const child of group.children) region.append(childRow(panel, id, group, child, opened));
     }
     if (!focusId) return;

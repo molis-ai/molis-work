@@ -3,7 +3,7 @@ import test from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { COSS_CONTROL_STYLES, INTERACTION_QUESTION_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
+import { COSS_CONTROL_STYLES, INTERACTION_QUESTION_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES } from "@molis-ai/molis-work-design-system";
 import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
   renderMolisWorkArrivalStylesheet,
@@ -90,11 +90,12 @@ test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
 
 // Soft Workbench (DESIGN.md → Shapes): 10px control corners, 14px surfaces, 32px controls from the shared helpers.
 test("shared tokens describe control radius, height, and translucent borders", () => {
-  assert.match(COSS_CONTROL_STYLES, /--radius-control: 10px;/);
-  assert.match(COSS_CONTROL_STYLES, /--radius-item: 8px;/);
-  assert.match(COSS_CONTROL_STYLES, /--radius-surface: 14px;/);
-  assert.match(COSS_CONTROL_STYLES, /--control-h: 32px;/);
-  assert.match(COSS_CONTROL_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-control: 10px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-item: 8px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--control-h: 32px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
+  assert.match(COSS_CONTROL_STYLES, /border-radius: var\(--radius-control\);/);
 });
 
 test("workbench, settings, and the way in keep the Coss control layer after later surface CSS", () => {
@@ -198,21 +199,19 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(css, /--dock-btn: 38px;/, "the desktop bar keeps its 38px Dock buttons");
   const touch = css.match(/@media \(max-width: 600px\), \(pointer: coarse\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{ --dock-btn: 44px; --menu-row: 44px; \}[\s\S]*?\n  \}\n/)?.[0] ?? "";
   assert.ok(touch, "a phone's width or a coarse pointer makes the Dock, resident, discussion and directory buttons 44px");
-  assert.match(touch, /\[data-assistant-send\] \{ width: 44px; height: 44px; min-height: 44px; \}/, "send is 44px on touch");
-  assert.match(touch, /\.bar-composer \.bar-composer-attach \{[^}]*min-width: 44px; height: 44px;/, "attach is 44px on touch");
-  assert.match(touch, /\.bar-composer \.assistant-composer-input \{ min-height: 44px;/, "the input is 44px tall on touch");
+  // K3: the Dock's input is the unified composer, whose own sheet (in this stylesheet) gives its bottom row 44px targets on touch.
+  const composerTouch = css.match(/@media \(max-width: 600px\), \(pointer: coarse\) \{\s*\.mw-composer__text[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.match(composerTouch, /\.mw-composer__foot \.mw-btn--icon-only \{ width: 44px; min-width: 44px; \}/, "send and add are 44px on touch");
+  assert.match(composerTouch, /\.mw-composer__foot \.mw-btn--sm, \.mw-composer__foot \.mw-btn--icon \{ min-height: 44px; \}/, "and 44px tall");
+  assert.match(composerTouch, /\.mw-composer__input:not\(#mw-composer\) \{ font-size: 16px; line-height: 22px; \}/, "the input's text is 16px on touch, so the page does not zoom, on 22px lines, so its two lines stay a 44px target");
+  assert.match(css, /\.mw-composer__text > \.mw-composer__input:not\(#mw-composer\) \{[^}]*min-height: 2lh;[^}]*line-height: 20px;/, "the input is two 20px lines, 40px, tall");
   assert.match(touch, /\.navigator-project-selector \{ grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; \}/, "the project mark is 44px on touch");
   assert.match(touch, /\.plugin-picker-trigger \{[^}]*min-width: 44px;/, "the plugin switcher is 44px wide on touch");
-  // The 「材料」 chip left the line for the strip above it (context-program §21.2 point 1); the rest keep their sizes.
-  assert.match(touch, /\.assistant-target-main, \.assistant-target-clear, \.assistant-executor, \.assistant-attention\) \{ height: 44px; \}/, "the Assistant line's chips are 44px tall on touch");
-  assert.match(touch, /\.bar-composer :is\(\.assistant-executor, \.assistant-attention, \.assistant-target-clear\) \{ min-width: 44px; \}/, "and 44px wide: no chip is squeezed under it");
+  // The 「材料」 chip left the line for the strip above it (context-program §21.2 point 1); the bell on the receiver row reaches 44px.
+  assert.match(touch, /\.assistant-attention \{ min-width: 44px; \} body\.immersive-workbench:not\(\[data-pane-embedded\]\) \.assistant-attention::after \{ content: ""; position: absolute; inset: -12px 0; \}/, "the bell is a 44px target past its one-line row");
   assert.match(touch, /\.assistant-strip-chip \{ height: 44px; \}/, "and the strip's chips are 44px tall");
-  assert.match(touch, /\.bar-composer\[data-fit="narrow"\] \.assistant-executor:not\(\[data-chosen\]\) \{ min-width: 44px; \}/, "a narrowed line does not squeeze the choosers nobody changed to a sliver either");
-  assert.match(touch, /\.bar-composer \.assistant-target\[data-mode="work"\] \{ min-width: 88px; \}/, "and the work chip keeps room for both its buttons");
-  assert.match(touch, /\.bar-composer\[data-crowded\] :is\(\[data-assistant-character\], \[data-assistant-executor\], \[data-assistant-mode\]\) \{ display: none; \}/, "a crowded line lets the choosers go instead of overflowing its pill");
-  assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target-clear \{ display: none; \}/, "a line still over its edge then lets the work chip's mark go");
-  assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target\[data-mode="work"\] \{ min-width: 44px; \}/, "and the work chip then needs room for one button");
-  assert.match(touch, /\.bar-composer\[data-crowded="chips"\] \.assistant-attention \{ display: none; \}/, "and last the notice, which the \"+\" menu then lists");
+  // A crowded line no longer drops parts in steps: the composer folds its scene controls behind 更多 on a narrow box.
+  assert.match(css, /@container mw-composer \(max-width: 480px\) \{[\s\S]*?\.mw-composer__more \{ display: block; \}/, "a narrow composer folds its controls behind 更多 instead of overflowing");
   assert.match(touch, /\) :is\(\.assistant-popover, \.assistant-next-row, \.assistant-context-strip, \.plugin-picker-popover, \.dock-overflow, \.navigator-project-menu-popover, \.assistant-panel\) :is\(button:not\(\.assistant-inline-object\), summary, a\[href\]:not\(\.assistant-link\), input:not\(\[type=checkbox\], \[type=radio\]\), select, textarea\) \{ min-width: 44px; min-height: 44px; \}/, "what the bar opens (the \"+\" menu's rows, the choosers, the notices, the strip's chips, the switcher's buttons, the Dock's list, the project menu, the whole opened panel: its tab bar, the list of works, the details and the conversation) is 44px on touch, and only what sits inside a sentence is left to the two rules below");
   assert.match(touch, /\.assistant-works \{ top: 52px; \}/, "the list of all works hangs below the panel's 50px tab bar");
   assert.match(touch, /\.assistant-code-head \{ min-height: 44px; \}/, "a code block's head is 44px");
@@ -225,21 +224,15 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(touch, /\.assistant-tabbar \{ height: 50px; gap: 0; \}\s*body\.immersive-workbench:not\(\[data-pane-embedded\]\) :is\(\.assistant-tab, \.assistant-tab-new\) \{ height: 44px; margin-bottom: 0; \}/, "and the panel's tab bar holds its 44px targets: a 50px bar, 44px tabs and a new-work button that sits on the bar's floor");
   assert.match(css, /@media\(max-width:760px\),\(pointer:coarse\) \{\s*\.workspace-layout-menu \.mw-menu__item, \.workspace-tab-menu input \{ min-height:44px; \}\s*\.workspace-tab-menu-colors \{ --swatch: 44px; \}/, "the strip's menus (the layout and tab rows, a group's name field and its colour swatches, drawn small inside their target) are 44px where the strip is");
   assert.match(css, /\.workspace-tab-menu-colors \{ --swatch: 32px; display:grid; grid-template-columns:repeat\(4, var\(--swatch\)\);[^}]*\}\s*\.workspace-tab-menu-colors button \{ position:relative; width:var\(--swatch\); height:var\(--swatch\); min-width:var\(--swatch\); min-height:var\(--swatch\);[^}]*\}\s*\.workspace-tab-menu-colors button::before \{ content:""; position:absolute; inset:calc\(\(var\(--swatch\) - 18px\) \/ 2\);/, "and with a fine pointer a colour swatch is a 32px target with the 18px dot drawn inside it, not an 18px button");
-  assert.match(touch, /\.bar-composer\[data-crowded="chips"\]:has\(\.assistant-attention:not\(\[hidden\]\)\) \.bar-composer-attach::after \{[^}]*content: ""; position: absolute;[^}]*width: 8px; height: 8px; border-radius: 50%; background: var\(--accent\);/, "and a dot on the \"+\" points to the folded chip");
-  // The phone hides the chips while the input has focus; the island measures the line with them on it (`data-measuring`), so the steps do not follow focus.
-  const typingRules = css.match(/\.bar-composer:has\(\.assistant-composer-input:focus\)[^{]*\{ display: none; \}/g) ?? [];
-  assert.equal(typingRules.length, 2, "the narrow column and the phone each hide the chips while typing");
-  assert.deepEqual(typingRules.filter(rule => !rule.includes(":not([data-measuring])")), [], "and neither applies while the island measures the line");
   assert.match(css, /@media \(max-width: 374px\) \{ [^\n]*\.workbench-bar \{ column-gap: 0; padding-inline: 0; \} [^\n]*\.bar-center \{ margin-inline: 8px; \} \}/, "below 375px (eight 44px targets and the bar's padding) the bar's gap and side padding give way, so the phone's second row fits 360 and 320px and the Assistant line above it keeps its place");
-  assert.match(css, /@media \(pointer: coarse\) and \(max-height: 560px\) and \(min-width: 601px\) \{[^}]*--dock-h: 60px; --composer-h: 50px;/, "a coarse-pointer short window keeps 44px buttons and a full composer");
+  assert.match(css, /@media \(pointer: coarse\) and \(max-height: 560px\) and \(min-width: 601px\) \{[^}]*--dock-min: 60px;/, "a coarse-pointer short window keeps 44px buttons and a full composer: its bar rests at 60px and grows with the composer");
   assert.doesNotMatch(css, /@media \(max-width: 600px\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{[^}]*--dock-btn: 44px;/, "the phone layout block no longer owns the 44px sizing");
   assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the cover chip is 44px where the tabs are");
   assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*body\.immersive-workbench \.tab-view-chip-close \{ width: 44px; height: 44px; \}/, "and so is its close mark");
-  assert.match(css, /\.assistant-target-clear \{[^}]*width: 28px; height: 28px;/, "the mark that starts a new work is 28px on a desktop bar, the bar's floor");
   const design = readFileSync(join(process.cwd(), "DESIGN.md"), "utf8");
   assert.match(design, /\*\*Exception: the desktop window's chrome\.\*\*[^\n]*fine-pointer window[^\n]*touch sizing goes by the input, not by the width/, "DESIGN.md writes the exception for fine-pointer windows only");
-  assert.match(design, /`data-crowded`/, "and says what a crowded line does");
-  assert.match(design, /\*\*Touch windows\.\*\*[^\n]*44px target[^\n]*\n\nIn a touch window the Assistant line holds inside its pill from 320px/, "and where the touch rules hold");
+  assert.match(design, /fold behind 更多 when the composer is narrower than 480px/, "and says what a narrow composer does");
+  assert.match(design, /\*\*Touch windows\.\*\*[^\n]*44px target[^\n]*\n\nIn a touch window the Assistant's composer[^\n]*holds inside the bar from 320px/, "and where the touch rules hold");
   assert.match(design, /tests\/touch-targets\.e2e\.test\.ts/, "and names the test that holds it");
   assert.doesNotMatch(design, /Known gap: the coarse-pointer bar/, "no coarse-pointer gap is left open");
 });

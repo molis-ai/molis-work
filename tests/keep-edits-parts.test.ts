@@ -1,7 +1,9 @@
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { renderAlert, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { KEEP_EDITS_BOARD_EN, KEEP_EDITS_STYLES, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { KEEP_EDITS_STYLES, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // The parts for keeping someone's edits (docs/design/rule-stale-reload/README.md「组件板新增」): the alert's action slot, the kept
@@ -86,12 +88,12 @@ test("RAC-551: every class these parts write has a rule in the host's sheets, th
   assert.deepEqual(waiting, UNTIL_N14);
   // The board's page links the settings sheet, so its specimens wear the same rules as the product.
   for (const token of written) if (!token.startsWith("is-")) assert.ok(defined(renderMolisWorkSettingsStylesheet(), token), `the settings sheet defines .${token}`);
-  const board = renderPrimitiveCatalog();
+  const board = runWithLocale("zh", renderPrimitiveCatalog);
   assert.doesNotMatch(board.slice(board.indexOf("<style>"), board.indexOf("</style>")), /\.mw-kept \{|\.mw-alert__actions \{/u, "the board no longer keeps a copy of the parts' rules");
 });
 
 test("the board's words all have English, and the motion takes only tokens", () => {
-  const english = renderPrimitiveCatalog({ say: (text, values = {}) => (KEEP_EDITS_BOARD_EN[text] ?? text).replace(/\{(\w+)\}/gu, (whole, name: string) => String(values[name] ?? whole)) });
+  const english = runWithLocale("en", renderPrimitiveCatalog);
   const start = english.indexOf('id="alert-actions"');
   const sections = english.slice(start, english.indexOf("</section>", english.indexOf('id="field-wash"')));
   assert.deepEqual(sections.match(/[㐀-鿿]+/gu) ?? [], [], "no Chinese is left in English");

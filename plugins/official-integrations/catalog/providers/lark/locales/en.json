@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.lark",
+  "locale": "en",
+  "messages": {
+    "lark.connection.auth-help": "Use a custom Lark app with credentials in app_id:app_secret format. Lark credentials are stored separately from Feishu credentials. To import document content, grant read access and share the document with the app. Wiki links also require wiki read access. Feed requires im access to read chats.",
+    "lark.connection.inbound": "Feed reads chats; Artifacts imports documents",
+    "lark.connection.summary": "Messages and documents from Lark.",
+    "lark.connection.token-label": "Lark app credentials",
+    "lark.guide.cli-link": "View the official Lark CLI",
+    "lark.guide.cli-note": "The same official CLI supports Lark. The Molis Work Lark connector does not yet use its sign-in.",
+    "lark.guide.mcp-link": "View the official Lark MCP",
+    "lark.guide.oauth-link": "View Lark user authorization",
+    "lark.guide.token-note": "For a custom Lark app, use app_id:app_secret.",
+    "lark.setup.open-lark-open-platform": "Open Lark Open Platform"
+  }
+}

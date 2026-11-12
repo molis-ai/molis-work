@@ -4,6 +4,7 @@ import test, { type TestContext } from "node:test";
 import { PAGES_CLIENT_FACTORY_SCRIPT, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
 import { pagesHost } from "./fixtures/pages-host.js";
+import { chinesePagePacks, installPageClientText } from "./fixtures/page-text-packs.js";
 
 // W2-18 decision 6: a 「新建文档」 left with nothing written is taken back with the existing pages.discard when the
 // person leaves it (back to the list, another document, another new document, the workbench hiding the page for another
@@ -142,6 +143,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     return json({ document: current });
   }) as typeof fetch;
+  const restoreText = installPageClientText("zh", chinesePagePacks("pages"));
   const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: ReturnType<typeof pagesHost>) => void;
   // The frame's shared confirmation box, answering yes: its request (when it has one) runs first, as in the page.
   factory(pagesHost(lifetime, { confirmBox: async (_dialog: unknown, _ok: unknown, run?: () => Promise<unknown>) => { await run?.(); return true; } }));
@@ -175,7 +177,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
       await flush();
     },
     discards: () => calls.filter(call => call.path.endsWith("/discard")),
-    restore() { t.mock.timers.reset(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window }); },
+    restore() { restoreText(); t.mock.timers.reset(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window }); },
     editorOpen: () => parts.get("[data-pages-stage-workspace]")?.hidden === false,
     expanded: () => attributes.get("data-expanded"),
     /** What the surface tells the Assistant and the placement bar it has in hand (null before the page has said anything). */

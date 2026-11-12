@@ -5,6 +5,8 @@ import { questionsFromDom } from "./questions.js";
 import { paintStatus, showNote } from "./status.js";
 import type { FormFailure } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Saving the editor: every edit bumps a revision; one save at a time sends the newest, until the Host has them all. */
 const draftFromDom = (page: FormPage) => ({ title: page.titleInput.value, description: page.descriptionInput.value, questions: questionsFromDom(page) });
 
@@ -46,5 +48,5 @@ export const queueSave = (page: FormPage) => {
   page.editRev += 1;
   if (page.sel) paintStatus(page, page.sel);
   clearTimeout(page.saveTimer);
-  if (!page.saveError) page.saveTimer = setTimeout(() => { void save(page).catch((error: Error) => showNote(page, error.message || page.L("form.save.failed"), true, "save")); }, 400);
+  if (!page.saveError) page.saveTimer = setTimeout(() => { void save(page).catch((error: Error) => showNote(page, error.message || uiText.text("form.save.failed"), true, "save")); }, 400);
 };

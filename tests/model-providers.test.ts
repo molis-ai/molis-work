@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withPageText } from "./fixtures/page-text.js";
 
 import {
   modelRequestShape,
@@ -9,12 +10,14 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import {
   formatContext,
-  renderModelSettingsDocument,
+  renderModelSettingsDocument as drawModelSettingsDocument,
   type ModelSettingsPrimitives,
 } from "@molis-ai/molis-work-app-workbench";
 
+const renderModelSettingsDocument: typeof drawModelSettingsDocument = (...args) => withPageText("zh", [], () => drawModelSettingsDocument(...args));
+
 const p: ModelSettingsPrimitives = {
-  L: (text) => text,
+  readText: value => value,
   escape: (value) => String(value)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
@@ -176,15 +179,13 @@ test("供应商模板的选项来自页面数据：页面没有自己的目录�
     { template_id: "beta", display_name: "Beta 兼容", fills_base_url: false, fills_model: false },
   ];
   const choiceIds = (html: string) => [...html.matchAll(/data-model-template="([^"]+)"/g)].map((match) => match[1]);
-  // The page fills `{name}` through the translator; the shared stub returns the key as is, so this test fills it.
-  const filling: ModelSettingsPrimitives = { ...p, L: (text, values) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values?.[key] ?? "")) };
-  const empty = renderModelSettingsDocument({ providers: [], health: [], selected_provider_id: null, templates, primitives: filling });
+  const empty = renderModelSettingsDocument({ providers: [], health: [], selected_provider_id: null, templates, primitives: p });
   assert.deepEqual(choiceIds(empty), ["alpha", "middle", "beta"], "空状态只画页面数据给的选项，一个不多，一个不少");
   assert.match(empty, /class="mw-choice__label">Beta 兼容</);
-  assert.deepEqual(choiceIds(renderModelSettingsDocument({ providers: [], health: [], selected_provider_id: null, templates: [], primitives: filling })), [], "页面数据里没有就一个也不画");
+  assert.deepEqual(choiceIds(renderModelSettingsDocument({ providers: [], health: [], selected_provider_id: null, templates: [], primitives: p })), [], "页面数据里没有就一个也不画");
 
   const draftOf = (draftTemplateId: string | null) => renderModelSettingsDocument({
-    providers: [], health: [], selected_provider_id: null, templates, primitives: filling,
+    providers: [], health: [], selected_provider_id: null, templates, primitives: p,
     draft_provider: provider({ provider_id: "draft-1", display_name: "草稿" }), draft_template_id: draftTemplateId,
   });
   assert.doesNotMatch(draftOf("alpha"), /model-settings-panes/, "还没有供应商时，第一张草稿也在标题那一栏");

@@ -17,6 +17,10 @@ CREATE TABLE install_declarations (
 /** This store in the Home's store registry (W4-11). */
 export const AGENT_DECLARATIONS_HOME_STORE: HomeStoreDeclaration = { path: AGENT_DECLARATIONS_STORE, library: { baseline: AGENT_DECLARATIONS_BASELINE } };
 
+function shippedDefault<T extends { body_by_locale?: Readonly<Record<string, string>> }>({ body_by_locale, ...declaration }: T): Omit<T, "body_by_locale"> {
+  return declaration;
+}
+
 export class AgentDeclarations {
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, AGENT_DECLARATIONS_STORE, AGENT_DECLARATIONS_BASELINE);
@@ -28,9 +32,10 @@ export class AgentDeclarations {
 
   /** The installation's declaration for an owner, whole: a new version replaces the earlier one, nothing of it is kept. */
   remember(installId: string, registration: AgentDefinitionRegistration): void {
+    const { prompts, methods, ...owner } = registration;
     this.db.prepare(`INSERT INTO install_declarations (install_id, owner_id, registration, updated_at) VALUES (?, ?, ?, ?)
       ON CONFLICT (install_id, owner_id) DO UPDATE SET registration = excluded.registration, updated_at = excluded.updated_at`)
-      .run(installId, registration.owner_id, JSON.stringify(registration), this.now().toISOString());
+      .run(installId, registration.owner_id, JSON.stringify({ ...owner, prompts: prompts.map(shippedDefault), ...(methods ? { methods: methods.map(shippedDefault) } : {}) }), this.now().toISOString());
   }
 
   /** Whether the installation has a declaration remembered for an owner. */

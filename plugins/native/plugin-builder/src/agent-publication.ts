@@ -1,3 +1,4 @@
+import { studioProblem } from "./studio-problem.js";
 import type { PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import type { AgentBuild, AgentPublicationControl, AgentRelease } from './agent-model.js';
@@ -10,7 +11,7 @@ export const releaseScope = (release: AgentRelease): 'project' | 'home' => relea
 /** Qualification is checked again inside the store's single read/CAS, not only before publishing awaits. */
 export function assertPublicationReady(build: AgentBuild): void {
   if (build.phase !== 'ready' || build.active || build.scopeCheckPending || !build.design || !build.browserResult?.passed || !build.checks.global?.passed
-    || !build.checks.global.bundlePath || build.checksScope !== build.runtimeScope) throw new Error('目标范围的功能检查和浏览器验收全部通过后才能发布');
+    || !build.checks.global.bundlePath || build.checksScope !== build.runtimeScope) throw studioProblem("plugin-builder.request.publication-needs-checks", '目标范围的功能检查和浏览器验收全部通过后才能发布');
 }
 
 export async function publishAgentBuild(store: AgentBuilderStore, ports: AgentBuilderPorts, build: AgentBuild,
@@ -19,7 +20,7 @@ export async function publishAgentBuild(store: AgentBuilderStore, ports: AgentBu
   const signal = authority.signal;
   assertPublicationReady(build);
   const versions = store.versions(build.id), latest = versions[0], scope = buildScope(build);
-  if (versions.some(item => releaseScope(item) !== scope)) throw new Error('已发布草稿的范围不能改变，请创建新的草稿');
+  if (versions.some(item => releaseScope(item) !== scope)) throw studioProblem("plugin-builder.request.published-scope-fixed", '已发布草稿的范围不能改变，请创建新的草稿');
   if (latest && latest.design.contract.revision === build.design!.contract.revision && JSON.stringify(latest.nodes) === JSON.stringify(build.nodes)
     && JSON.stringify(latest.design.presentation) === JSON.stringify(build.design!.presentation)
     && JSON.stringify(latest.design.ui) === JSON.stringify(build.design!.ui)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
@@ -29,7 +30,7 @@ export async function publishAgentBuild(store: AgentBuilderStore, ports: AgentBu
     assertOpen(); signal.throwIfAborted(); authority.assert_authority_current!();
     const current = store.require(build.id);
     if (current.revision !== build.revision || buildScope(current) !== scope) throw new Error('发布候选已改变，请重新检查');
-    if (store.versions(build.id).some(item => item.version >= version)) throw new Error('发布版本已存在');
+    if (store.versions(build.id).some(item => item.version >= version)) throw studioProblem("plugin-builder.request.version-already-published", '发布版本已存在');
     assertPublicationReady(current);
   };
   const control: AgentPublicationControl = {

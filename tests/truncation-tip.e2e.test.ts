@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { TRUNCATION_AUDIT, TRUNCATION_STRESS, type TruncationHeld, type TruncationIssue } from "./fixtures/truncation-audit.js";
 
 // specs/visual-ui-experience §type-optics (VUX-05): a name, path or summary cut short by an ellipsis or a line clamp on the

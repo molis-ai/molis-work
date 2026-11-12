@@ -17,7 +17,6 @@ export interface TerminalConnectionOptions {
 
 /** Own the authenticated browser channel and reconnect timer, never Session/Goal state. */
 export function createTerminalConnection(options: TerminalConnectionOptions) {
-  const L = options.text;
   let socket: WebSocket | null = null;
   let socketReady: Promise<WebSocket> | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -30,7 +29,7 @@ export function createTerminalConnection(options: TerminalConnectionOptions) {
       const token = options.controlToken();
       if (!token) {
         socketReady = null;
-        reject(new Error(L("终端通道连接失败")));
+        reject(new Error(options.text("workbench.connection.could-not-connect-terminal")));
         return;
       }
       const ws = new WebSocket(options.url());
@@ -61,15 +60,15 @@ export function createTerminalConnection(options: TerminalConnectionOptions) {
         }
         options.onMessage(value);
       });
-      ws.addEventListener("error", () => fail(new Error(L("终端通道连接失败"))));
+      ws.addEventListener("error", () => fail(new Error(options.text("workbench.connection.could-not-connect-terminal"))));
       ws.addEventListener("close", () => {
         if (socket === ws) socket = null;
         socketReady = null;
         if (!settled) {
-          fail(new Error(L("终端通道已断开")));
+          fail(new Error(options.text("workbench.connection.terminal-connection-dropped")));
           return;
         }
-        options.onDisconnected(new Error(L("终端通道已断开")));
+        options.onDisconnected(new Error(options.text("workbench.connection.terminal-connection-dropped")));
         scheduleReconnect();
       });
     });

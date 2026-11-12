@@ -22,6 +22,11 @@ const READERS = new Map([
   // (`lastUsedLocale`, say) would pass here without reading anything.
   ["config/ui-locale.json", [({ home }) => readUiLocale(home), "zh"]],
   ["feed/secrets.json", [({ http }) => http("/api/settings/models", GET), "present"]],
+  ["interface/state.json", [async ({ call }) => {
+    const { selection, selection_revision, recovery } = await call("appearance.selection.get", { request_id: "appearance-seed" });
+    return [selection_revision, selection?.skin.id, selection?.skin.revision, selection?.font.policy,
+      selection?.mono?.id, selection?.mono?.revision, recovery?.applied.request_id];
+  }, '[1,"folio",1,"follow-skin","system-menlo",1,"appearance-seed"]']],
   ["jelly/preferences.json", [({ call }) => call("jelly.model.settings"), "golden-model-seed"]],
   ["shelf/catalog.json", [({ call }) => call("shelf.snapshot"), "金样"]],
 ]);

@@ -1,3 +1,4 @@
+import type { FeedItemPage } from "./feed-page.js";
 import type { AttentionApi, AttentionReason } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -82,8 +83,11 @@ export interface IngestFeedItemInput {
 }
 
 export interface FeedQuery {
-  list(projectId: string): FeedItemRecord[];
-  get(projectId: string, itemId: string): FeedItemRecord;
+  list(projectId: string, page: FeedItemPage): FeedItemRecord[];
+  get(projectId: string, itemId: string, materials?: { offset: number; limit: number }): FeedItemRecord;
+  materials(projectId: string, itemId: string, offset: number, limit: number): FeedMaterialRecord[];
+  hasPackage(projectId: string, sourceId: string, externalId: string, hash: string): boolean;
+  facets(projectId: string): { source_id: string; label: string; count: number }[];
   exists(projectId: string, itemId: string): boolean;
   countBySource(projectId: string, sourceId: string): number;
   findByLinkedGoal(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null;
@@ -106,7 +110,7 @@ export interface FeedCommands {
     goalId: string,
     disposition: "promoted",
   ): FeedItemRecord;
-  deleteBySource(projectId: string, sourceId: string): string[];
+  deleteBySource(projectId: string, sourceId: string): number;
 }
 
 export interface FeedEvent {

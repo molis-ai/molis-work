@@ -1,28 +1,57 @@
-import { FOLLOW_STYLES, renderIconSprite, PLUGIN_COMPONENT_STYLES, SCROLL_FOLLOW_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
-import { AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT, renderAgentStudio } from '@molis-ai/molis-work-plugin-builder';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_STYLES } from '@molis-ai/molis-work-design-system';
+import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plugin-builder';
+import { authorizeLocalWebRequest, installHostUiText, pluginPagesFor, registeredBuiltinText, runWithLocale, runWithRegisteredText, readText, htmlLang, handlePageLocales, WebSessions, webPageToken, withWebSessionRequest, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
+import { handleLanguagePreference, languagePreview, requestLanguage } from '../apps/local-host/dist/web-ui-preference.js';
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderPluginDocumentShell, workbenchLanguageResource,
+  BUILTIN_PLUGIN_CATALOG, STYLES, MORE_STYLES, RESPONSIVE_STYLES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
 
-/**
- * The studio mounted the way the workbench mounts it — its stage, its plugin pack's styles and client — for the
- * studio's own preview server and browser test, which run the studio's routes without the whole workbench. Not a
- * product page: the product draws the studio only in the workbench (specs/artifact-positioning S4).
- */
+/** The isolated harness exercises the workbench's opaque frame; only the outer application and model are fixtures. */
 export const STUDIO_HARNESS_PATH = '/studio';
 
-/** What the page needs to be drawn in another language: the host translator (server side), and the browser's `L` with its catalog. */
-export interface StudioHarnessLocale { readonly lang: string; translate(zh: string, values?: Record<string, string | number>): string; readonly clientScript: string }
+export function studioFrameAsset(response: ServerResponse, path: string): boolean {
+  const body = path === "/assets/molis-work-plugin-frame.js" ? renderPluginFrameClientScript()
+    : path === "/assets/molis-work-plugins/plugin-builder.js" ? pluginWorkbenchClientAsset("plugin-builder")
+    : path === "/assets/molis-work-workbench.css" ? STYLES + MORE_STYLES + RESPONSIVE_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES
+    : path === "/assets/molis-work-settings.css" ? VISUAL_FOUNDATION_STYLES
+    : workbenchLanguageResource(path)?.body ?? null;
+  if (body === null) return false;
+  response.writeHead(200, { "content-type": path.endsWith(".css") ? "text/css" : "text/javascript" }); response.end(body); return true;
+}
 
-export function studioHarnessPage(controlToken: string, locale?: StudioHarnessLocale): string {
-  const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
-  return '<!doctype html><html lang="' + (locale?.lang ?? 'zh-CN') + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>插件创作工作台</title>'
-    + '<script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-settings.css">'
-    + '<style>html,body{margin:0;height:100%}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}[data-work-surface="plugin-builder"]{display:block;height:100vh}'
-    + SELECT_MENU_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES + FOLLOW_STYLES + '</style></head><body>' + renderIconSprite()
-    + '<section data-work-surface="plugin-builder">' + renderAgentStudio(locale && ((zh, values) => locale.translate(zh, values))) + '</section>'
-    + (locale ? '<script>' + locale.clientScript + '</script>' : '')
-    // The page mechanisms the workbench carries for every surface: the conversation's one scroll owner.
-    + '<script>' + SCROLL_FOLLOW_CLIENT_SCRIPT + '</script>'
-    + '<script>globalThis.molisWorkControlHeaders=()=>({"content-type":"application/json","x-molis-work-control-token":' + literal(controlToken) + ',"x-molis-work-idempotency-key":crypto.randomUUID()});'
-    + '(' + AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),route:p=>p,root:document.querySelector("[data-work-surface=plugin-builder]")' + (locale ? ',translate:globalThis.L' : '') + '});</script>'
-    + '<script>' + SELECT_MENU_CLIENT_SCRIPT + '</script></body></html>';
+export function studioHarnessPage(home: string, projectId: string, routePrefix: string, proof: string, locale: WebLocale, preview = false): string {
+  const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
+  const reader = registeredBuiltinText(entry.manifest)!;
+  const authorization = preview ? { page_id: "studio-language-preview", storage_scope: "studio-language-preview" } : pluginPagesFor(home).open(entry.manifest.plugin_id, projectId, "web-user", undefined, {
+    manifest: entry.manifest, install_id: null, project_id: projectId, actor_id: "web-user", assertCurrent() {}, registeredText: reader,
+    requestAllowed: (method, path) => entry.workbench.pageRequests!.some(route => route.method === method && new RegExp("^" + route.path.replace(/:[a-z]+/gu, "[^/]+") + "$", "u").test(path)),
+  });
+  return runWithLocale(locale, () => runWithRegisteredText(reader, () => renderPluginDocumentShell({ id: "plugin-builder", plugin_id: entry.manifest.plugin_id, bundle: "plugin-builder",
+    title: readText("plugin-builder.workbench.plugin-studio"), html: renderAgentStudio(readText),
+    lang: htmlLang(), project_id: projectId, route_prefix: routePrefix, page: {}, control_token: proof, authorization })));
+}
+
+/** `sessions` lets a test share the page sessions with a real Host gateway that answers some of the page's requests. */
+export function studioHarnessRequests(home: string, projectId: string, token: string, languageMutations?: Map<string, LocalMutationState>, sessions = new WebSessions(home)) {
+  installHostUiText();
+  return { close: () => sessions.close(),
+    handle(request: IncomingMessage, response: ServerResponse, url: URL, prefix: string, next: (local: URL, proof: string, locale: WebLocale, preview: boolean) => void | Promise<void>) {
+      if (studioFrameAsset(response, url.pathname)) return;
+      sessions.bind(request, token, response);
+      const local = new URL(url);
+      if (prefix && local.pathname.startsWith(prefix + '/')) local.pathname = local.pathname.slice(prefix.length);
+      return withWebSessionRequest(request, () => {
+        const preview = languageMutations ? languagePreview(request, response, local, token) : null;
+        if (preview === false) return;
+        const { tag, source } = requestLanguage(request, local, preview);
+        return runWithLocale(tag, () => {
+          if (languageMutations && local.pathname === "/api/ui/locale") {
+            if (!authorizeLocalWebRequest(request, response, url, token, languageMutations)) return;
+            return handleLanguagePreference(request, response, local, token, () => {});
+          }
+          if (local.pathname === "/api/ui/locales") return handlePageLocales({ request, response, url: local, serverOptions: { homeDirectory: home } }, projectId);
+          return next(local, webPageToken(request) || token, tag, preview !== null);
+        }, source, preview !== null);
+      });
+    } };
 }

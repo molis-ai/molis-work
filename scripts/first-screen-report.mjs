@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // First-screen report (batch 14): what the real Host sends for the first screen of each page, in Chinese and in English,
 // including what scripts/gates/page-assets.mjs does not see (the HTML and what is inlined in it, /api, pty-client).
-// It reports and never judges: it exits 0 whatever the numbers are and is not part of CI.
+// Byte counts are informational. Failed or incomplete measurements exit nonzero.
 //
 //   node scripts/first-screen-report.mjs [--out <dir>] [--port <n>] [--runs <n>] [--pages <id,id>] [--http-only | --reads-only]
 //   node scripts/first-screen-report.mjs --summarize <dir>     prints a saved run, median of the runs, without a Host or a browser
@@ -14,38 +14,35 @@
 //
 //   node scripts/machine-slot.mjs run browser --label "first-screen" -- node scripts/first-screen-report.mjs --out <dir>
 //
-// Out (default .impeccable/qa/review/first-screen, ignored): http.json, the page bytes read without a browser, with each page's
-// HTML beside it; browser.json, every request of every run, cold (a new Chrome with an empty profile) and warm (a new tab in that
-// Chrome); catalog-use.json, which language entries the code of every frame of the first screen read.
+// Out (default .impeccable/qa/review/first-screen, ignored): http.json and the measured HTML; browser.json, every
+// request of each cold (fresh profile) and warm (new tab) run; audit.json, the differences between observed and measured
+// requests; catalog-use.json, which language entries the code of every frame of the first screen read.
+// http.json counts the first data event of each registered stream. The browser's still-open streams have no final wire count.
 //
-// `--http-only` needs no slot, but it is not the page's total: it reads the document and the files the document names, and misses
-// the hidden side document, whatever a script loads and all startup JSON, so `--summarize` has nothing to print for it.
+// `--http-only` reads the same paths as the budget checker without running a browser. `--summarize` reads browser.json.
 // `--reads-only` skips the timed visits and only writes catalog-use.json (still a browser, still the slot).
 // `--resources` reads packages/design-system/resources/registry.json (what ships with the product and has a path in a package,
 // specs/font-and-skin-system/resource-budget.md §6.1), one line a file: a language directory is one line a language. Nothing is
 // stored, so the numbers are always the files' own; a font whose bytes no longer match the sha256 the registry pins says so.
 
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { createServer } from "node:net";
-import { homedir, loadavg, tmpdir } from "node:os";
+import { homedir, loadavg } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { LOCALES, LOCALE_COOKIE, withFirstScreenHost } from "./first-screen/host.mjs";
+import { auditFirstScreen } from "./first-screen/audit.mjs";
+import { pageSessionRedactor, sampleFirstScreen } from "./first-screen/http.mjs";
+import { currentRows, readManifest, registeredPaths } from "./first-screen/manifest.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SERVER = join(ROOT, "scripts/visual/selected-home-server.mjs");
-const LOCALES = ["zh", "en"];
-const COOKIE = "molis_work_locale";
-const RESERVED_PORTS = new Set([4207, 4208]);
 const QUIET_MS = 1_500;
 const SETTLE_LIMIT_MS = 8_000;
+const UI_TEXT_CONTEXT = /* @version protocol.ui.text-context "molis.work.ui-text.v{version}" */ "molis.work.ui-text.v1";
 
 const bytes = (text) => Buffer.byteLength(text, "utf8");
 const gzip = (text) => gzipSync(text, { level: 9 }).length;
@@ -71,78 +68,11 @@ function parse(argv) {
     else if (flag === "--resources") options.resources = true;
     else throw new Error(`unknown argument ${flag}`);
   }
-  if (RESERVED_PORTS.has(options.port)) throw new Error(`port ${options.port} belongs to the real Home`);
   if (options.httpOnly && options.readsOnly) throw new Error("--http-only and --reads-only exclude each other");
   return options;
 }
 
-async function freePort(requested) {
-  if (requested) return requested;
-  const probe = createServer();
-  probe.listen(0, "127.0.0.1");
-  await once(probe, "listening");
-  const { port } = probe.address();
-  probe.close();
-  await once(probe, "close");
-  return RESERVED_PORTS.has(port) ? freePort(0) : port;
-}
-
-/**
- * Three projects: a new one (the emptier case), one with every project-scoped plugin (the crowded case) and the demo (sample data).
- * The ids are fixed because the page derives bytes from them (`data-hue`, and every route that names the project).
- */
-async function seed(home) {
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  try {
-    const plain = await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000001", display_name: "默认项目", actor_id: "first-screen-report" });
-    const crowded = await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000002", display_name: "全部插件", actor_id: "first-screen-report" });
-    for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: crowded.project_id, plugin_id, actor_id: "first-screen-report" });
-    const demo = (await catalog.ensureDemoProject({ actor_id: "first-screen-report", user_confirmed: true })).project;
-    return { plain: plain.project_id, crowded: crowded.project_id, demo: demo.project_id };
-  } finally { catalog.close(); }
-}
-
-async function startHost(home, port) {
-  const host = spawn(process.execPath, [SERVER, home, String(port)], {
-    cwd: ROOT, stdio: "ignore", env: { ...process.env, MOLIS_WORK_HOME: home },
-  });
-  running.host = host;
-  const origin = `http://127.0.0.1:${port}`;
-  for (let attempt = 0; attempt < 150; attempt += 1) {
-    if (host.exitCode !== null) throw new Error(`the Host exited with ${host.exitCode}`);
-    const answer = await fetch(`${origin}/health`).catch(() => null);
-    if (answer?.ok) return { host, origin };
-    await new Promise((done) => { setTimeout(done, 200); });
-  }
-  host.kill();
-  throw new Error("the Host did not answer /health");
-}
-
-async function stopHost(host) {
-  if (host.exitCode !== null || host.signalCode !== null) return;
-  const gone = once(host, "exit");
-  host.kill("SIGTERM");
-  await gone;
-}
-
 // ---- the page's own bytes -------------------------------------------------------------------------------------------
-
-/** The parts of the i18n script: each `globalThis.NAME = <json>;` is told apart so a catalog is not hidden in "script". */
-function splitI18n(body) {
-  const parts = [];
-  let rest = body;
-  for (const name of ["MOLIS_WORK_MESSAGES", "MOLIS_WORK_PLUGIN_TITLES", "MOLIS_WORK_PLUGIN_WORDS"]) {
-    const start = rest.indexOf(`globalThis.${name} = `);
-    if (start < 0) continue;
-    const from = start + `globalThis.${name} = `.length;
-    const end = rest.indexOf(";\n", from);
-    const value = rest.slice(from, end);
-    parts.push({ label: name, ...sized(value), entries: Object.keys(JSON.parse(value)).length });
-    rest = rest.slice(0, start) + rest.slice(end + 2);
-  }
-  parts.push({ label: "script (rest of the block)", ...sized(rest) });
-  return parts;
-}
 
 function blockLabel(tag, attributes, body) {
   if (tag === "style") return "<style>";
@@ -151,45 +81,47 @@ function blockLabel(tag, attributes, body) {
   return attributes.trim() ? `script ${attributes.trim()}` : "script";
 }
 
-/** Every inline block of the HTML, largest first; a block holding the catalog is split into its parts. */
+/** Every inline block of the HTML, largest first. Language assets are measured by the HTTP and browser reports. */
 function inlineBlocks(html) {
   const blocks = [];
   for (const match of html.matchAll(/<(script|style)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
     const [, tag, attributes, body] = match;
     if (!body) continue;
-    const parts = body.includes("globalThis.MOLIS_WORK_MESSAGES = ") ? splitI18n(body) : null;
-    blocks.push({ label: parts ? "i18n + page script" : blockLabel(tag, attributes, body), ...sized(body), ...(parts ? { parts } : {}) });
+    blocks.push({ label: blockLabel(tag, attributes, body), ...sized(body) });
   }
   return blocks.sort((a, b) => b.raw - a.raw);
 }
 
-/** What the page links, read without a browser. */
-function linkedAssets(html) {
-  const found = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="(\/[^"]+)"/g)].map((match) => match[1]);
-  return [...new Set(found)];
-}
-
-async function readHttp(origin, pages, out) {
+async function readHttp(host, pages) {
   const report = {};
+  const documents = {};
+  const rows = currentRows(readManifest(ROOT));
   for (const page of pages) {
     for (const locale of LOCALES) {
-      const answer = await fetch(origin + page.path, { headers: { cookie: `${COOKIE}=${locale}`, "accept-encoding": "gzip, br" } });
-      const html = await answer.text();
-      writeFileSync(join(out, `${page.id}.${locale}.html`), html);
-      const inline = inlineBlocks(html);
+      const paths = registeredPaths(rows, page, locale);
+      const samples = await sampleFirstScreen(host.origin, page, locale, paths, { signal: host.signal, inspect: true });
+      const { cold, links } = samples.get(page.path);
+      const html = cold.body.toString("utf8");
+      const htmlSize = { raw: cold.body.length, gzip: gzipSync(cold.body, { level: 9 }).length };
+      const redact = pageSessionRedactor(html);
+      documents[`${page.id}.${locale}.html`] = redact(html);
+      const inline = inlineBlocks(html).map(block => ({ ...block, label: redact(block.label) }));
       const assets = {};
-      for (const asset of linkedAssets(html)) {
-        const response = await fetch(origin + asset, { headers: { cookie: `${COOKIE}=${locale}`, "accept-encoding": "gzip, br" } });
-        const body = Buffer.from(await response.arrayBuffer());
-        assets[asset] = { status: response.status, raw: body.length, gzip: gzipSync(body, { level: 9 }).length, encoding: response.headers.get("content-encoding"), cache: response.headers.get("cache-control") };
+      for (const link of links) {
+        const { status, headers, body } = samples.get(link).cold;
+        assets[link] = { status, raw: body.length, gzip: gzipSync(body, { level: 9 }).length, encoding: headers["content-encoding"] ?? null, cache: headers["cache-control"] ?? null };
       }
+      const responses = Object.fromEntries([...samples].map(([key, sample]) => [key, {
+        cold: sample.cold.wire, warm: sample.warm.wire,
+        ...(sample.document ? { path: sample.path, document: sample.document, response: sample.response } : {}),
+      }]));
       report[`${page.id}/${locale}`] = {
-        status: answer.status, encoding: answer.headers.get("content-encoding"), cache: answer.headers.get("cache-control"),
-        html: sized(html), inline, inline_total: inline.reduce((sum, block) => sum + block.raw, 0), assets,
+        status: cold.status, encoding: cold.headers["content-encoding"] ?? null, cache: cold.headers["cache-control"] ?? null,
+        html: htmlSize, inline, inline_total: inline.reduce((sum, block) => sum + block.raw, 0), assets, responses,
       };
     }
   }
-  return report;
+  return { report, documents };
 }
 
 // ---- the browser ----------------------------------------------------------------------------------------------------
@@ -206,42 +138,81 @@ const kindOf = (url, type) => {
 };
 
 /** One visit: navigates, waits for load and for the network to go quiet, and returns every request with its bytes. */
-async function visit(browser, session, url) {
+async function visit(browser, session, url, { signal, mayRedirect }) {
   const requests = new Map();
+  const frameDocuments = new Map();
+  const redirects = [];
   let loadFired = false;
   let lastActivity = Date.now();
   const touch = () => { lastActivity = Date.now(); };
-  const own = (listener) => (params, from) => { if (from === session.sessionId) { touch(); listener(params); } };
+  const own = (listener) => (params, from) => { if (from === session.sessionId) listener(params); };
   const stops = [
     browser.on("Network.requestWillBeSent", own((params) => {
-      if (params.redirectResponse) requests.delete(params.requestId);
-      requests.set(params.requestId, { url: params.request.url, type: params.type, method: params.request.method, status: 0, wire: 0, body: 0, finished: false, after_load: loadFired });
+      touch();
+      const previous = requests.get(params.requestId);
+      if (previous && params.redirectResponse) {
+        redirects.push({ ...previous, status: params.redirectResponse.status, wire: params.redirectResponse.encodedDataLength, finished: true });
+      }
+      const { frameId, loaderId, requestId, request, type } = params;
+      if (frameId && type === "Document") frameDocuments.set(frameId, { url: request.url, loaderId, requestId });
+      const accept = Object.entries(request.headers).find(([name]) => name.toLowerCase() === "accept")?.[1] ?? "";
+      const requested_stream = String(accept).split(",").some(value => /^text\/event-stream(?:\s*;|\s*$)/i.test(value.trim()));
+      requests.set(requestId, { url: request.url, type, method: request.method, status: 0, wire: 0, body: 0,
+        frame_id: frameId, document: params.documentURL || frameDocuments.get(frameId)?.url, requested_stream, finished: false, after_load: loadFired });
     })),
     browser.on("Network.responseReceived", own((params) => {
+      touch();
       const entry = requests.get(params.requestId);
       if (entry) Object.assign(entry, { status: params.response.status, cached: params.response.fromDiskCache === true, encoding: params.response.headers?.["content-encoding"] ?? null, stream: /event-stream/.test(params.response.mimeType ?? "") });
     })),
-    browser.on("Network.dataReceived", own((params) => { const entry = requests.get(params.requestId); if (entry) entry.body += params.dataLength; })),
-    browser.on("Network.loadingFinished", own((params) => { const entry = requests.get(params.requestId); if (entry) Object.assign(entry, { wire: params.encodedDataLength, finished: true }); })),
-    browser.on("Network.loadingFailed", own((params) => { const entry = requests.get(params.requestId); if (entry) Object.assign(entry, { failed: params.canceled ? "canceled" : params.errorText, finished: true }); })),
+    browser.on("Network.dataReceived", own((params) => {
+      const entry = requests.get(params.requestId);
+      if (entry) { if (!entry.stream) touch(); entry.body += params.dataLength; }
+    })),
+    browser.on("Network.loadingFinished", own((params) => { touch(); const entry = requests.get(params.requestId); if (entry) Object.assign(entry, { wire: params.encodedDataLength, finished: true }); })),
+    browser.on("Network.loadingFailed", own((params) => { touch(); const entry = requests.get(params.requestId); if (entry) Object.assign(entry, { failed: params.canceled ? "canceled" : params.errorText, finished: true }); })),
   ];
   try {
     const loaded = browser.event("Page.loadEventFired", () => true, 45_000);
-    await session.command("Page.navigate", { url }, 45_000);
-    await loaded;
+    const [, navigation] = await Promise.all([loaded, session.command("Page.navigate", { url }, 45_000)]);
+    if (navigation.errorText) throw new Error(`${url}: ${navigation.errorText}`);
     loadFired = true;
+    const pending = () => [...requests.values()].filter(entry => !entry.finished && !entry.stream);
     const started = Date.now();
     while (Date.now() - started < SETTLE_LIMIT_MS) {
-      const busy = [...requests.values()].some((entry) => !entry.finished && !entry.stream);
-      if (!busy && Date.now() - lastActivity >= QUIET_MS) break;
-      await new Promise((done) => { setTimeout(done, 100); });
+      if (!pending().length && Date.now() - lastActivity >= QUIET_MS) break;
+      await delay(100, undefined, { signal });
+    }
+    if (pending().length) throw new Error(`${url}: browser sample has unfinished requests`);
+    // History can change the visible address without fetching another document.
+    const main = frameDocuments.get(navigation.frameId);
+    const document = main && main.loaderId === navigation.loaderId ? requests.get(main.requestId) : undefined;
+    if (!document || document.failed || document.status < 200 || document.status >= 300 && document.status !== 304) {
+      throw new Error(`${url}: browser document did not load (HTTP ${document?.status ?? "missing"})`);
+    }
+    const { frameTree: { frame } } = await session.command("Page.getFrameTree");
+    if (frame.id !== navigation.frameId || frame.loaderId !== navigation.loaderId) {
+      throw new Error(`${url}: browser document changed before sampling finished`);
+    }
+    const origin = new URL(url).origin;
+    if (document.url !== url && (!mayRedirect || new URL(document.url).origin !== origin)) {
+      throw new Error(`${url}: unexpected browser document redirect`);
     }
     const timing = await session.evaluate(`(() => {
       const nav = performance.getEntriesByType("navigation")[0];
       const fcp = performance.getEntriesByType("paint").find((entry) => entry.name === "first-contentful-paint");
       return { dcl: Math.round(nav.domContentLoadedEventEnd), load: Math.round(nav.loadEventEnd), fcp: fcp ? Math.round(fcp.startTime) : null };
     })()`);
-    const list = [...requests.values()].map((entry) => ({ ...entry, kind: kindOf(entry.url, entry.type), url: new URL(entry.url).pathname + new URL(entry.url).search }));
+    const list = [...redirects, ...requests.values()].flatMap(entry => {
+      const target = new URL(entry.url);
+      if (target.protocol !== "http:" && target.protocol !== "https:") return [];
+      const same_origin = target.origin === origin;
+      const path = target.pathname + target.search;
+      const source = entry.document ? new URL(entry.document) : null;
+      const document = source?.origin === origin ? source.pathname + source.search : undefined;
+      return [{ ...entry, document, kind: kindOf(entry.url, entry.type), same_origin, url: same_origin ? path : target.origin + path,
+        wire: entry.stream && !entry.finished ? null : entry.wire }];
+    });
     return { timing, requests: list, load_average: loadavg()[0] };
   } finally { for (const stop of stops) stop(); }
 }
@@ -254,129 +225,124 @@ async function openTab(browser) {
   return session;
 }
 
-/** A new Chrome with an empty profile is what "cold" means here: no disk cache, no memory cache, only the language cookie. */
-async function openFresh(home, label, origin, locale) {
-  if (stopped) throw new Error("interrupted");
-  const starting = ChromeHarness.start(join(home, "chrome", label), { executable: locateTestChrome(), commandTimeoutMs: 45_000 });
-  running.starting.add(starting);
-  const browser = await starting;
-  running.starting.delete(starting);
-  running.browsers.add(browser);
-  const session = await openTab(browser);
-  await session.command("Network.setCookie", { name: COOKIE, value: locale, url: origin });
-  return { browser, session };
+// The test-kit has a desktop Chrome fallback for legacy callers. This report requires the separate test browser.
+function testExecutable() {
+  const wrapper = join(homedir(), ".local/bin/molis-test-browser");
+  const executable = locateTestChrome({ ...process.env, MOLIS_WORK_TEST_CHROME: process.env.MOLIS_WORK_TEST_CHROME || wrapper },
+    path => existsSync(path) && !realpathSync(path).startsWith("/Applications/Google Chrome.app/"));
+  if (!executable) throw new Error("no isolated Chrome found; set MOLIS_WORK_TEST_CHROME");
+  return executable;
 }
 
-async function readBrowser(origin, pages, runs, home, out) {
-  if (!locateTestChrome()) throw new Error("no test Chrome on this machine");
+async function withFreshBrowser(host, executable, label, locale, operation) {
+  const { home, origin, signal } = host;
+  signal.throwIfAborted();
+  const browser = await ChromeHarness.start(join(home, "chrome", label), { executable, commandTimeoutMs: 45_000 });
+  let interrupted;
+  const aborted = new Promise((_, reject) => { interrupted = () => reject(signal.reason); });
+  signal.addEventListener("abort", interrupted, { once: true });
+  try {
+    signal.throwIfAborted();
+    const run = async () => {
+      const session = await openTab(browser);
+      await session.command("Network.setCookie", { name: LOCALE_COOKIE, value: locale, url: origin });
+      return operation(browser, session);
+    };
+    return await Promise.race([run(), aborted]);
+  } finally {
+    signal.removeEventListener("abort", interrupted);
+    await browser.close();
+  }
+}
+
+async function readBrowser(host, executable, pages, runs) {
   const report = {};
   for (const page of pages) {
     for (const locale of LOCALES) {
       const samples = [];
       for (let run = 0; run < runs; run += 1) {
-        const { browser, session } = await openFresh(home, `${page.id}-${locale}-${run}`, origin, locale);
-        try {
-          const cold = await visit(browser, session, origin + page.path);
+        const sample = await withFreshBrowser(host, executable, `${page.id}-${locale}-${run}`, locale, async (browser, session) => {
+          const url = host.origin + page.path;
+          const options = { signal: host.signal, mayRedirect: page.id === "settings" };
+          const cold = await visit(browser, session, url, options);
           // Warm is the page opened again in a new tab: the HTTP cache stays, the first tab's open connections do not.
           await browser.command("Target.closeTarget", { targetId: session.targetId });
-          const warm = await visit(browser, await openTab(browser), origin + page.path);
-          samples.push({ cold, warm });
-        } finally { await closeBrowser(browser); }
+          const warm = await visit(browser, await openTab(browser), url, options);
+          return { cold, warm };
+        });
+        samples.push(sample);
       }
       report[`${page.id}/${locale}`] = samples;
-      writeFileSync(join(out, "browser.json"), `${JSON.stringify(report, null, 1)}\n`);
-      process.stdout.write(`${page.id}/${locale}: ${samples.map((sample) => `${sample.cold.timing.fcp}/${sample.warm.timing.fcp}`).join(" ")} (fcp cold/warm, ms)\n`);
     }
   }
+  return report;
 }
 
-/**
- * Stands behind the globals the i18n script assigns, in every frame, and reports through a binding (a frame's own variable would be
- * lost with the frame and cannot be read from a sandboxed one). A key is reported once per frame. A whole-catalog copy (parent.ts
- * spreads the catalog into a frame's config) is reported as a copy, not as thousands of reads: it is the entries that follow an
- * `ownKeys`, in that order. Not seen: a sandboxed plugin frame, whose `L` reads the copy it was handed (child.ts). It reported nothing
- * here, also when attached to as a target of its own; `all_frames` lists it, so frames without a record stay visible.
- */
+/** Observes successful SDK message lookups in each document. The tool records keys, never substituted words or values. */
 const RECORD_CATALOG_READS = `(() => {
   const send = globalThis.__firstScreenRead;
   if (typeof send !== "function") return;
-  const frame = location.protocol === "about:" ? location.href : location.pathname + location.search;
-  const seen = new Set();
-  const report = (kind, catalog, key) => {
-    const id = kind + "/" + catalog + "/" + key;
-    if (seen.has(id)) return;
-    seen.add(id);
-    send(JSON.stringify({ frame, kind, catalog, key }));
-  };
-  const watched = (target, catalog) => {
-    let copying = null;
-    let at = 0;
-    return new Proxy(target, {
-      ownKeys(from) {
-        copying = Reflect.ownKeys(from);
-        at = 0;
-        report("copy", catalog, copying.length);
-        return copying;
-      },
-      get(from, key) {
-        if (typeof key !== "string" || !Object.hasOwn(from, key)) return from[key];
-        if (copying && copying[at] === key) { at += 1; if (at === copying.length) copying = null; return from[key]; }
-        copying = null;
-        report("read", catalog, key);
-        return from[key];
-      },
-    });
-  };
-  const stand = (name, wrap) => {
-    let held;
-    Object.defineProperty(globalThis, name, { configurable: true, get: () => held, set: (value) => { report("catalog", name, Object.keys(value ?? {}).length); held = wrap(value); } });
-  };
-  stand("MOLIS_WORK_MESSAGES", (value) => watched(value, "messages"));
-  stand("MOLIS_WORK_PLUGIN_WORDS", (value) => {
-    const inner = new Map();
-    return new Proxy(value, {
-      get(from, plugin) {
-        const words = from[plugin];
-        if (typeof plugin !== "string" || !words || typeof words !== "object") return words;
-        if (!inner.has(plugin)) inner.set(plugin, watched(words, plugin));
-        return inner.get(plugin);
-      },
-    });
-  });
+  const slot = Symbol.for(${JSON.stringify(UI_TEXT_CONTEXT)}), seen = new Set();
+  const frame = location.protocol === "about:" ? location.href : location.pathname;
+  let held;
+  Object.defineProperty(globalThis, slot, { configurable: true, get: () => held, set(value) {
+    if (held === value) return;
+    held = value;
+    const message = value.message;
+    value.message = function(owner, key, locale) {
+      const result = message.call(this, owner, key, locale), catalog = owner + "/" + locale, id = catalog + "/" + key;
+      if (result !== null && !seen.has(id)) { seen.add(id); send(JSON.stringify({ frame, catalog, key })); }
+      return result;
+    };
+  } });
 })();`;
 
 const framesOf = (tree) => [tree.frame.url, ...(tree.childFrames ?? []).flatMap(framesOf)];
 
 /** One more visit per page and language, after the timed ones: how much of the catalogs the first screen's code really reads, frame by frame. */
-async function readCatalogUse(origin, pages, home, out) {
+async function readCatalogUse(host, executable, pages) {
   const report = {};
   for (const page of pages) {
     for (const locale of LOCALES) {
-      const { browser, session } = await openFresh(home, `use-${page.id}-${locale}`, origin, locale);
-      const frames = {};
-      let exceptions = 0;
-      const stops = [
-        browser.on("Runtime.bindingCalled", (params, from) => {
-          if (from !== session.sessionId || params.name !== "__firstScreenRead") return;
-          const { frame, kind, catalog, key } = JSON.parse(params.payload);
-          const entry = (frames[frame] ??= { catalogs: {}, reads: {}, copies: [] });
-          if (kind === "catalog") entry.catalogs[catalog] = key;
-          else if (kind === "copy") entry.copies.push({ catalog, entries: key });
-          else (entry.reads[catalog] ??= []).push(key);
-        }),
-        browser.on("Runtime.exceptionThrown", (_params, from) => { if (from === session.sessionId) exceptions += 1; }),
-      ];
-      try {
-        await session.command("Runtime.enable");
-        await session.command("Runtime.addBinding", { name: "__firstScreenRead" });
-        await session.command("Page.addScriptToEvaluateOnNewDocument", { source: RECORD_CATALOG_READS });
-        await visit(browser, session, origin + page.path);
-        const { frameTree } = await session.command("Page.getFrameTree");
-        report[`${page.id}/${locale}`] = { frames, all_frames: framesOf(frameTree), exceptions };
-      } finally { for (const stop of stops) stop(); await closeBrowser(browser); }
+      report[`${page.id}/${locale}`] = await withFreshBrowser(host, executable, `use-${page.id}-${locale}`, locale, async (browser, session) => {
+        const frames = {}, initialized = new Set([session.sessionId]), pending = [];
+        let exceptions = 0;
+        const attach = async (id) => {
+          await browser.command("Runtime.enable", {}, id);
+          await browser.command("Runtime.addBinding", { name: "__firstScreenRead" }, id);
+          await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: RECORD_CATALOG_READS }, id);
+        };
+        const stops = [
+          browser.on("Target.attachedToTarget", (params, from) => {
+            if (!initialized.has(from)) return;
+            const id = params.sessionId;
+            if (params.targetInfo.type === "iframe") initialized.add(id);
+            pending.push((async () => {
+              try { if (initialized.has(id)) await attach(id); }
+              finally { await browser.command("Runtime.runIfWaitingForDebugger", {}, id); }
+            })().catch(error => error));
+          }),
+          browser.on("Runtime.bindingCalled", (params, from) => {
+            if (!initialized.has(from) || params.name !== "__firstScreenRead") return;
+            const { frame, catalog, key } = JSON.parse(params.payload);
+            const entry = (frames[from + "/" + params.executionContextId] ??= { frame, reads: {} });
+            (entry.reads[catalog] ??= []).push(key);
+          }),
+          browser.on("Runtime.exceptionThrown", (_params, from) => { if (initialized.has(from)) exceptions += 1; }),
+        ];
+        try {
+          await attach(session.sessionId);
+          await session.command("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+          await visit(browser, session, host.origin + page.path, { signal: host.signal, mayRedirect: page.id === "settings" });
+          const failures = (await Promise.all(pending)).filter(Boolean);
+          if (failures.length) throw new AggregateError(failures, "Could not observe the browser frame's word lookups");
+          const { frameTree } = await session.command("Page.getFrameTree");
+          return { frames, all_frames: framesOf(frameTree), exceptions };
+        } finally { for (const stop of stops) stop(); }
+      });
     }
   }
-  writeFileSync(join(out, "catalog-use.json"), `${JSON.stringify(report, null, 1)}\n`);
+  return report;
 }
 
 // ---- the summary ----------------------------------------------------------------------------------------------------
@@ -391,11 +357,12 @@ function summarize(dir) {
   for (const [page, samples] of Object.entries(report)) {
     for (const state of ["cold", "warm"]) {
       const visits = samples.map((sample) => sample[state]);
-      const wire = (keep) => median(visits.map((visited) => visited.requests.filter(keep).reduce((sum, request) => sum + request.wire, 0)));
+      const total = requests => requests.reduce((sum, request) => sum + (request.wire ?? 0), 0);
+      const wire = (keep) => median(visits.map((visited) => total(visited.requests.filter(keep))));
       const count = (keep) => median(visits.map((visited) => visited.requests.filter(keep).length));
       const parts = KINDS.map((kind) => `${kind} ${wire((request) => request.kind === kind)}/${count((request) => request.kind === kind)}`);
       const times = ["dcl", "fcp", "load"].map((name) => `${name} ${median(visits.map((visited) => visited.timing[name]))}`);
-      const shares = visits.map((visited) => visited.requests.filter(GATED).reduce((sum, request) => sum + request.wire, 0) / visited.requests.reduce((sum, request) => sum + request.wire, 0));
+      const shares = visits.map((visited) => total(visited.requests.filter(GATED)) / total(visited.requests));
       process.stdout.write(`${page} ${state}: total ${wire(() => true)}/${count(() => true)} | page-assets ${(median(shares) * 100).toFixed(1)}% | ${parts.join(" ")} | ${times.join(" ")} ms | load average ${median(visits.map((visited) => visited.load_average)).toFixed(1)}\n`);
     }
   }
@@ -431,63 +398,37 @@ function reportResources() {
 
 // ---- main -----------------------------------------------------------------------------------------------------------
 
-/** What this run started, and nothing else: an interrupted run stops these by the handles it holds and removes its own Home. */
-const running = { host: null, browsers: new Set(), starting: new Set(), home: null };
-let stopped = null;
-
-async function closeBrowser(browser) {
-  // Stays on the list until it has closed, so an interrupt during a normal close still waits for it.
-  try { await browser.close(); } finally { running.browsers.delete(browser); }
-}
-
-/** One cleanup per run, shared by both signals and main: a second caller waits for it rather than racing it, and the first signal's exit code stands. */
-function stopEverything() {
-  stopped ??= stopRun();
-  return stopped;
-}
-
-async function stopRun() {
-  // A Chrome still starting has no handle yet: wait for it, or it outlives this run and writes into the Home removed below.
-  await Promise.allSettled([...running.starting, ...running.browsers].map(async (browser) => closeBrowser(await browser)));
-  if (running.host) await stopHost(running.host);
-  running.host = null;
-  if (running.home) rmSync(running.home, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-  running.home = null;
-}
-
-async function main() {
+async function main(signal) {
   const options = parse(process.argv.slice(2));
   if (options.summarize) { summarize(options.summarize); return; }
   if (options.resources) { reportResources(); return; }
-  if (!existsSync(join(ROOT, 'dist/web/server.js'))) throw new Error("dist/web/server.js is missing; run pnpm build first");
-  const home = mkdtempSync(join(tmpdir(), "molis-first-screen-"));
-  if (resolve(home) === join(homedir(), ".molis-work")) throw new Error("refusing the real Home");
-  running.home = home;
-  // `on`, not `once`: with no listener a repeated signal would kill this process mid-cleanup and leave the Host, Chrome and Home behind.
-  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
-    process.on(signal, () => { void stopEverything().finally(() => process.exit(code)); });
-  }
+  const executable = options.httpOnly ? null : testExecutable();
+  const { report, documents, browser, audit, catalogs } = await withFirstScreenHost(ROOT, { signal, port: options.port }, async (host) => {
+    const pages = options.pages ? host.pages.filter(page => options.pages.includes(page.id)) : host.pages;
+    if (options.pages && pages.length !== options.pages.length) throw new Error("--pages needs distinct known page IDs");
+    const http = await readHttp(host, pages);
+    const browser = options.httpOnly || options.readsOnly ? null : await readBrowser(host, executable, pages, options.runs);
+    const audit = browser ? auditFirstScreen(http.report, browser) : null;
+    const catalogs = options.httpOnly ? null : await readCatalogUse(host, executable, pages);
+    return { ...http, browser, audit, catalogs };
+  });
+  signal.throwIfAborted();
   mkdirSync(options.out, { recursive: true });
-  try {
-    const port = await freePort(options.port);
-    const projects = await seed(home);
-    const started = await startHost(home, port);
-    const pages = [
-      { id: "arrival-empty", path: "/onboarding" },
-      { id: "chooser", path: "/" },
-      { id: "workbench-default", path: `/projects/${projects.plain}/` },
-      { id: "workbench-all-plugins", path: `/projects/${projects.crowded}/` },
-      { id: "workbench-demo", path: `/projects/${projects.demo}/` },
-      { id: "settings", path: "/settings/appearance" },
-      { id: "catalog", path: "/__ui/catalog" },
-    ];
-    const chosen = options.pages ? pages.filter((page) => options.pages.includes(page.id)) : pages;
-    const http = await readHttp(started.origin, chosen, options.out);
-    writeFileSync(join(options.out, "http.json"), `${JSON.stringify(http, null, 1)}\n`);
-    if (!options.httpOnly && !options.readsOnly) await readBrowser(started.origin, chosen, options.runs, home, options.out);
-    if (!options.httpOnly) await readCatalogUse(started.origin, chosen, home, options.out);
-    process.stdout.write(`written to ${options.out}\n`);
-  } finally { await stopEverything(); }
+  for (const [file, html] of Object.entries(documents)) writeFileSync(join(options.out, file), html);
+  for (const [name, data] of [["http", report], ["browser", browser], ["audit", audit], ["catalog-use", catalogs]]) {
+    if (data) writeFileSync(join(options.out, `${name}.json`), `${JSON.stringify(data, null, 1)}\n`);
+  }
+  process.stdout.write(`written to ${options.out}\n`);
 }
 
-await main();
+const stop = new AbortController();
+const interrupt = () => { process.exitCode ||= 130; stop.abort(new Error("first-screen report interrupted")); };
+const terminate = () => { process.exitCode ||= 143; stop.abort(new Error("first-screen report terminated")); };
+process.on("SIGINT", interrupt);
+process.on("SIGTERM", terminate);
+try { await main(stop.signal); }
+catch (error) { console.error(error.message); process.exitCode ||= 1; }
+finally {
+  process.off("SIGINT", interrupt);
+  process.off("SIGTERM", terminate);
+}

@@ -74,7 +74,7 @@ export async function connectPreparedCli(home: string, id: string, control: Tool
   const previous = connectorAuthorizationStatus(home, id);
   if (previous?.setup?.method !== "cli" || service && previous.setup.service_id !== service) throw connectorErrors["connector.connection.invalid"]("CLI 账号与本次接入请求不同");
   await control.beforeEffect(); control.signal?.throwIfAborted();
-  if (previous.status === "connected") return { status: "connected", connection: withConnectorConnections(home, store => store.view(store.require(previous.connection_id))) };
+  if (previous.status === "connected") return { status: "connected", connection: withConnectorConnections(home, store => store.view(store.require(previous.connection_id)), "required") };
   const { request, setup } = preparedCliRequest(home, id), installationId = cliRequestInstallation(home, id, setup.service_id);
   await control.beforeEffect(); control.signal?.throwIfAborted();
   if (request.status === "failed") retryLocalConnectorAuthorization(home, id);

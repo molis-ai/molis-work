@@ -46,7 +46,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     let documentReplaceGeneration = 0;
     const { loadGoalDocument } = (${GOALS_PAGE.goalsDocument})({
-      documentPane, documentCollection, route, translate: LFor("io.molis.work.goals"), isAbortError,
+      documentPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
       showError: (message) => showToast(message, true),
       afterReplace: () => {
         documentReplaceGeneration += 1;
@@ -75,11 +75,11 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
       handleTreeStatusChange, handleTreeDisclosureClick,
       handleTreeKeyboard } = (${GOALS_PAGE.goalsTree})({
-        treeFilter, treeFilterTrigger, treeScroll, globalSearch, translate: LFor("io.molis.work.goals"),
+        treeFilter, treeFilterTrigger, treeScroll, globalSearch, translate: globalThis.t.text,
         updateGraphVisibility, queueSave, saveUiState,
       });
     const { prepareGoalRefresh } = (${GOALS_PAGE.goalsRefresh})({
-      treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: LFor("io.molis.work.goals"),
+      treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: globalThis.t.text,
     });
     const searchInteractionActive = () => globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
 
@@ -237,15 +237,15 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       receipt.setAttribute("tabindex", "-1");
       const copy = document.createElement("div");
       const title = document.createElement("strong");
-      title.textContent = L("已记录你的决定");
+      title.textContent = globalThis.t.text("workbench.refresh-decisions.decision-was-saved");
       const detail = document.createElement("span");
-      detail.textContent = message + " " + (receiptHost.querySelector(".decision-record") ? L("下一步：继续处理下面的待决定事项。") : L("下一步：返回 Goal 查看结果。"));
+      detail.textContent = message + " " + (receiptHost.querySelector(".decision-record") ? globalThis.t.text("workbench.refresh-decisions.next-continue-remaining-decisions-below") : globalThis.t.text("workbench.refresh-decisions.next-return-goal-review-result"));
       copy.append(title, detail);
       receipt.append(copy);
       if (context?.goalHref) {
         const link = document.createElement("a");
         link.href = context.goalHref;
-        link.textContent = context.goalTitle ? L("返回「{title}」", { title: context.goalTitle }) : L("返回 Goal");
+        link.textContent = context.goalTitle ? globalThis.t.text("workbench.refresh-decisions.return-title", { title: context.goalTitle }) : globalThis.t.text("workbench.refresh-decisions.return-goal");
         receipt.append(link);
       }
       const receiptAnchor = receiptHost.querySelector(".feed-detail-header, .goal-workspace-hero");
@@ -291,7 +291,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const { handleGoalProposalSubmit, requireDecisionText, humanDecisionError } = (${GOALS_PAGE.goalsProposal})({
-      translate: LFor("io.molis.work.goals"), route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
+      translate: globalThis.t.text, route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
     });
 
     if (goalData) {

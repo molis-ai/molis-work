@@ -1,4 +1,7 @@
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
+import { agentDisplayModel } from "./agent-definitions/display-words.js";
+import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
+import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
@@ -15,12 +18,12 @@ import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { renderGoalArtifactContext } from "./artifact-library-http.js";
+import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions, type GoalsWebView } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L } from "./web-locale.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
@@ -29,7 +32,7 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "grants", "rules", "planning", "general"] as const)
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
@@ -47,11 +50,14 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
+  const directory = record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [];
+  const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory(ports.homeDirectory)) };
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
-    drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
-  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
+    drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins) });
+  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
+    ...(ports.homeDirectory && inLanguagePreview() ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(ports.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined, "role") } : {}) });
   return { html: [characters, ...runtime.html], panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
-    directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
+    directory };
 }
 /**
  * The project page with what its plugins draw and declare: the stages of the plugins its Runtime runs, the unavailable shell for one
@@ -131,6 +137,7 @@ export function createLocalGoalsReadHttp(ports: {
   }
   async function fragments(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => GoalsWebView | Promise<GoalsWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
+    readArtifactDisplay: ReadArtifactDisplay,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
     const match = matchPageRoute(url);
@@ -138,7 +145,7 @@ export function createLocalGoalsReadHttp(ports: {
       const shell = await readWebView(), stage = shell.stage_data?.goals as GoalsStageData | undefined;
       const view = stage ? { ...shell, ...stage.collection, snapshot: { ...stage.collection.snapshot,
         board: { ...stage.collection.snapshot.board, project_id: shell.snapshot.board.project_id } } } : shell;
-      return { view, stage, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
+      return { view, stage, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, readArtifactDisplay, route.collection) };
     }, ({ view, stage, selected }) => {
       const stageData = (data: GoalsWebView, selection: GoalsStageData["selection"]): GoalsStageData | undefined =>
         stage && { ...stage, collection: data, selection, selected: null };
@@ -169,6 +176,7 @@ export function createLocalGoalsReadHttp(ports: {
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, _goalActions: BoundActionClient, artifactActions: BoundActionClient,
+    readArtifactDisplay: ReadArtifactDisplay,
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
@@ -188,7 +196,7 @@ export function createLocalGoalsReadHttp(ports: {
           const stage = view.stage_data?.goals as GoalsStageData | undefined;
           if (stage) {
             const decorated = stage.selected
-              ? await withGoalArtifactContext({ ...view, ...stage.collection }, stage.selected.goal_id, artifactActions, stage.selection)
+              ? await withGoalArtifactContext({ ...view, ...stage.collection }, stage.selected.goal_id, artifactActions, readArtifactDisplay, stage.selection)
               : { ...view, ...stage.collection };
             view = { ...view, stage_data: { ...view.stage_data, goals: { ...stage, collection: { ...stage.collection,
               snapshot: { ...stage.collection.snapshot, board: { ...stage.collection.snapshot.board, project_id: view.snapshot.board.project_id } },
@@ -230,6 +238,7 @@ async function withSelectedGoalDocument(
   goalId: string | undefined,
   goalActions: BoundActionClient,
   actions: BoundActionClient,
+  readArtifactDisplay: ReadArtifactDisplay,
   collection: "current" | "archive" | "trash" = "current",
 ): Promise<GoalsWebView> {
   const eventView = await withSelectedEventDocument(view, goalId, goalActions);
@@ -245,11 +254,11 @@ async function withSelectedGoalDocument(
   const decorate = (item: GoalsWebView["goals"][number]) => item.goal.goal_id === goalId
     ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy } : item;
   return withGoalArtifactContext({ ...eventView, goals: eventView.goals.map(decorate), archived_goals: eventView.archived_goals.map(decorate),
-    trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, collection);
+    trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, readArtifactDisplay, collection);
 }
 
 async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, actions: BoundActionClient,
-  collection: "current" | "archive" | "trash"): Promise<GoalsWebView> {
+  readArtifactDisplay: ReadArtifactDisplay, collection: "current" | "archive" | "trash"): Promise<GoalsWebView> {
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
@@ -257,7 +266,7 @@ async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, 
     const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() }));
     // The card under 「完成要求」 is what the Goal hands in; its fixed inputs are listed with the rest of its inputs (五.1).
     const delivered = embeds.filter(embed => embed.relationship === "output");
-    html = renderGoalArtifactContext(delivered);
+    html = await renderGoalArtifactContext(delivered, readArtifactDisplay);
     // What the Goal hands in shows on its overview too (F6), not only under 「完成要求」.
     outputs = delivered.length;
     inputs = embeds.filter(embed => embed.relationship === "input" && embed.view.requested).map(embed => {
@@ -270,7 +279,7 @@ async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, 
     if (!(error instanceof ActionError) || !["actions.plugin_disabled", "actions.forbidden", "actions.missing"].includes(error.code)) throw error;
     // An unavailable optional reader must not prevent opening the Goal itself.
     // Keep the relation data untouched and show why its contents cannot be read.
-    html = `<p class="empty-state" data-artifact-unavailable>${escapeHtml(L(error.message))}</p>`;
+    html = `<p class="empty-state" data-artifact-unavailable>${escapeHtml(error.message)}</p>`;
   }
   const decorate = (item: GoalsWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item,

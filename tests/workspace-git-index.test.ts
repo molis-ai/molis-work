@@ -93,6 +93,13 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     assert.equal(initial.observation?.matches_before, !applied);
     assert.equal(initial.observation?.matches_after, applied);
     assert.equal(initial.can_confirm_not_happened, !applied);
+    assert.deepEqual(initial.message, { owner: "workbench", key: applied ? "workbench.agent-review.recovery-matches-after" : "workbench.agent-review.recovery-matches-before" });
+    const original = "fatal: " + "原始错误 ".repeat(400) + "<tail>";
+    const failedRead = await queue.inspectRecovery(id, async () => { throw new Error(original); });
+    assert.equal(failedRead.message, original);
+    assert.equal(failedRead.can_confirm_not_happened, false);
+    const otherFailure = await queue.inspectRecovery(id, async () => { throw null; });
+    assert.deepEqual(otherFailure.message, { owner: "workbench", key: "workbench.agent-review.recovery-index-unreadable" });
     const refresh = await queue.recover({ review_id: id, action: 'refresh', actor_id: 'tester' }, observe);
     assert.ok(refresh.receipt.effect_uncertain); assert.equal(refresh.receipt.effect_settled, false); assert.equal(calls, 1);
     const input = { review_id: id, action: 'not-happened' as const, actor_id: 'tester', revision: initial.observation!.revision, reason: 'The fixture interrupted the execution before the index writer was called.' };

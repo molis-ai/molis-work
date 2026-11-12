@@ -296,7 +296,9 @@ impl Drop for IoJob {
 
 /// Only AppKit/foreground snapshots happen here; blocking work never runs in Carbon's main-thread handler.
 fn start_io(
-    work: impl FnOnce(&AppHandle) -> Result<Option<&'static str>, String> + Send + 'static,
+    work: impl FnOnce(&AppHandle) -> Result<Option<shelf_http::AdmissionFeedback>, String>
+        + Send
+        + 'static,
 ) {
     let Some(host) = host() else { return };
     if IO_RUNNING.swap(true, Ordering::AcqRel) {
@@ -309,7 +311,11 @@ fn start_io(
         let result = work(&app);
         let _ = app.run_on_main_thread(move || match result {
             Ok(None) => show_shelf_refresh(),
-            Ok(Some(message)) => show_notice(message, true),
+            Ok(Some(feedback)) => {
+                if !feedback.notify(show_notice) {
+                    show_shelf_refresh();
+                }
+            }
             Err(error) => notice(&error),
         });
     });
@@ -378,7 +384,9 @@ fn on_files() {
             };
             return Err(failure.message(&capture_label));
         }
-        shelf_http::collect_admissions(paths.iter().map(|path| shelf_http::admit_file(path))).1
+        let (_, feedback) =
+            shelf_http::collect_admissions(paths.iter().map(|path| shelf_http::admit_file(path)));
+        Ok(Some(feedback))
     });
 }
 
@@ -643,16 +651,16 @@ fn show_shelf_refresh() {
 }
 
 fn notice(message: &str) {
-    show_notice(message, false);
+    show_notice(message, false, None);
 }
 
-fn show_notice(message: &str, partial: bool) {
+fn show_notice(message: &str, partial: bool, warning: Option<&str>) {
     let Some(host) = host() else { return };
     let Some(window) = host.app.get_webview_window("main") else {
         return;
     };
     show_shelf(&window);
-    crate::shelf_notice(&host.app, message, partial, 80);
+    crate::shelf_notice(&host.app, message, partial, warning, 80);
 }
 
 #[allow(dead_code)]
@@ -673,5 +681,21 @@ fn unregister() {
             let _ = UnregisterEventHotKey(host.files_ref);
             host.files_ref = ptr::null_mut();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{register_chord, HotKeyChord};
+    use std::ptr;
+    #[test]
+    fn d0061_unmodified_hotkey_is_refused_before_calling_carbon() {
+        let chord = HotKeyChord {
+            key_code: 2,
+            carbon_modifiers: 0,
+        };
+        let (registered, reference) = register_chord(ptr::null_mut(), chord, 0, 1);
+        assert!(!registered);
+        assert!(reference.is_null());
     }
 }

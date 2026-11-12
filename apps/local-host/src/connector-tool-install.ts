@@ -78,8 +78,8 @@ export async function installManagedConnectorTool(home: string, input: ManagedTo
 /** Only our unreferenced installation directory is removable. Working data and shared runtimes live elsewhere. */
 export function removeManagedConnectorTool(home: string, id: string): "in-use" | "absent" | "removed" {
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(id)) throw toolInstallErrors.invalid("受管理安装标识无效");
-  const referenced = withConnectorConnections(home, store => store.list()).some(row =>
-    withConnectorProtocols(home, store => store.get<LocalMcpConfiguration>(row.connection_id))?.installation_id === id);
+  const referenced = (withConnectorConnections(home, store => store.list(), true) ?? []).some(row =>
+    withConnectorProtocols(home, store => store.get<LocalMcpConfiguration>(row.connection_id), true)?.installation_id === id);
   if (referenced) return "in-use";
   const directory = join(realpathSync(home), "runtime", "connectors", "installs", id);
   if (!existsSync(directory)) return "absent";

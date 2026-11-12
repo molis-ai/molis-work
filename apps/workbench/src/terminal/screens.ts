@@ -1,6 +1,7 @@
 import * as xterm from "@xterm/xterm";
 import * as xtermFit from "@xterm/addon-fit";
 import { terminalPalette } from "../terminal-theme.js";
+import { terminalTypography } from "../terminal-type.js";
 
 // The bundler reads these packages' ES modules; Node reads their UMD main, whose named exports sit on `default`.
 // Either way the same classes are used, so the controllers can also be exercised outside a browser.
@@ -41,11 +42,9 @@ export function createTerminalScreens(options: TerminalScreensOptions) {
     terminalHost.appendChild(wrapper);
     const term = new Terminal({
       convertEol: false,
-      fontSize: 13,
-      lineHeight: 1.3,
+      ...terminalTypography(wrapper),
       scrollback: 8000,
       macOptionIsMeta: true,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono", Consolas, "Liberation Mono", "Courier New", monospace',
       cursorBlink: true,
       theme: terminalPalette(),
     });
@@ -64,6 +63,7 @@ export function createTerminalScreens(options: TerminalScreensOptions) {
     has: (panelId: string) => sessions.has(panelId),
     entries: () => sessions.entries(),
     ensure: ensureSession,
+    remeasure() { sessions.forEach(({ term, wrapper }) => Object.assign(term.options, terminalTypography(wrapper))); },
     remove(panelId: string) {
       sessions.get(panelId)?.term.dispose();
       sessions.get(panelId)?.wrapper.remove();

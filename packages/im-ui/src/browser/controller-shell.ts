@@ -1,3 +1,4 @@
+import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { StreamKind } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** Small shared helpers: element lookup by stream, paths, status lines and the composer's enabled state. */
@@ -24,7 +25,7 @@ export function createImShell(c: ImBaseCtx): Pick<ImCtx, 'key' | 'target' | 'for
   // The field grows with what is written (data-fit, the shared intrinsic sizing); a value set here sends no input event.
   const resizeInput = (kind: StreamKind) => window.molisFit?.(inputFor(kind));
   const activeKind = (): StreamKind => s.threadId || s.threadDraft ? 'thread' : 'group';
-  const actions = (label: string) => '<p class="im-form-error" data-form-error role="alert"></p><div class="im-form-actions"><button class="im-secondary" type="button" data-action="close-dialog">取消</button><button class="im-primary" type="submit">' + label + '</button></div>';
+  const actions = (label: string) => ("<p class=\"im-form-error\" data-form-error role=\"alert\"></p><div class=\"im-form-actions\"><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"close-dialog\">" + escapeImText(uiText.text("im-ui.control.cancel")) + "</button><button class=\"mw-btn mw-btn--primary mw-btn--sm\" type=\"submit\">") + escapeImText(label) + '</button></div>';
   function parseInvite(value: unknown) {
     const raw = String(value || '').trim();
     try {

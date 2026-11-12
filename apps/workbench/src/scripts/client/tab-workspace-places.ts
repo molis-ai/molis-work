@@ -1,5 +1,5 @@
 /** Places and the way back: each pane's history, covers over the panes, leaving a plugin, closing a tab back, announcing the place, and stepping back from the keyboard and mouse. A part of TAB_WORKSPACE_FACTORY_SCRIPT, joined in place. */
-export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : ops.pluginTitle(kind);
+export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind === "market" ? globalThis.t.text("workbench.tab-workspace-places.plugin-market") : kind === "project-settings" ? globalThis.t.text("workbench.tab-workspace-places.project-settings") : kind === "settings" ? globalThis.t.text("workbench.tab-workspace-places.settings") : ops.pluginTitle(kind);
   // The glyph comes from the entry that opened the cover.
   const coverGlyph = (kind) => document.querySelector((COVER_OPENERS[kind] || '[data-plugin-id="' + CSS.escape(kind) + '"]') + " svg")?.cloneNode(true) || null;
   const coverKindOf = (element) => Object.keys(COVER_OPENERS).find((kind) => element.closest(COVER_OPENERS[kind])) || null;

@@ -12,6 +12,7 @@ import { homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 // own instance have the same switch behind the Host settings door (BL-700); RAC-959 the page lists them and sends their switch to that door.
 
 const SET = "/api/plugin-trust/permissions/set";
+const HOME_ROWS = /^draw\(\$\("home"\), globalThis\.t\.text\("workbench\.settings-plugins\.no-plugins-personal-space"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m;
 interface Overview { plugins: PluginInstalledView[] }
 const timeout = 90_000;
 
@@ -92,14 +93,17 @@ test("RAC-951 RAC-952 the 插件 page gives each requested optional permission a
   const wide = new Function(`${script.match(/const WIDE = [^\n]*;/)![0]}; return WIDE;`)() as (permission: string) => boolean;
   for (const permission of ["actions:delegate", "model:invoke", "network:api.example.com", "secret:weather-key"]) assert.equal(wide(permission), true, `${permission} is confirmed`);
   for (const permission of ["storage:private", "model:read", "surface:browser", "issues:write", "networkx", "secretly"]) assert.equal(wide(permission), false, `${permission} takes one click`);
-  const grants = script.slice(script.indexOf("const grants = "), script.indexOf("const draw = "));
+  const grantsStart = script.indexOf("const grants = "), grantsEnd = script.indexOf("const draw = ", grantsStart);
+  assert.ok(grantsStart >= 0 && grantsEnd > grantsStart, "the permission renderer has both boundaries after the install preview");
+  const grants = script.slice(grantsStart, grantsEnd);
   assert.match(grants, /setAttribute\("role", "switch"\)/, "a switch per permission");
   assert.match(grants, /if \(item\.required \|\| !item\.requested\) return line;/, "required and shape-only permissions have none");
-  assert.ok(grants.indexOf("WIDE(item.permission) && !await ask(") < grants.indexOf("await send("), "the confirmation comes before the call");
+  const confirmation = grants.indexOf("WIDE(item.permission) && !await ask("), sending = grants.indexOf("await send(");
+  assert.ok(confirmation >= 0 && sending >= 0 && confirmation < sending, "the confirmation comes before the call");
   assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");
   assert.match(script, /!view\.granted && item\.permissions\.includes\(view\.permission\)/, "a job is paused by a permission that is off");
-  assert.match(script, /L\("已暂停：缺少 \{permissions\} 的授权"/);
+  assert.match(script, /off\.length \? globalThis\.t\.text\("workbench\.settings-plugins\.paused-permissions-switched-off", \{ permissions: off\.join\("、"\) \}\) : ""/, "the paused message names exactly the missing grants");
 });
 
 const HOME_SET = "/api/settings/plugin-permissions/set";
@@ -161,7 +165,7 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   assert.match(script, /^const homeData = \(await homeApi\("list"\)\)\.plugins;$/m, "the Home rows come from that door's list");
   assert.match(script, /^current = data\.plugins; personal = homeData;/m, "the latest complete response supplies those Home rows");
   assert.match(script, /^const homeSend = \(payload\) => homeApi\("set", payload\);$/m, "the permission switch forwards its payload through that door's set");
-  assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
+  assert.match(script, HOME_ROWS, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
   assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act, managed\)/, "a project's rows keep their own route; trusted dual rows separately have a read-only Home location");
 });
 
@@ -202,17 +206,19 @@ test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and unin
   const f = await setup(t);
   const html = await (await f.request(f.prefix + "/settings/plugins")).text();
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
-  assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "a Home row is given the revoked publishers and the shared Home door's act");
+  assert.match(script, HOME_ROWS, "a Home row is given the revoked publishers and the shared Home door's act");
   assert.match(script, /^const homeApi = \(name, payload = \{\}\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\);$/m, "its act goes to the absolute Host settings door with its payload");
   assert.match(script, /act = \(name, payload\) => api\("\/installed\/" \+ name, payload\)/, "a project row's act defaults to the project's route");
   assert.match(script, /body\.append\(controls\(plugin, revoked, act\)\)/, "the row hands its act to the buttons");
-  assert.match(script, /el\("span", "settings-form-error", L\("没能启动：\{error\}"/, "the recovery error is drawn by el");
-  assert.match(script, /el\("span", "settings-muted", L\("发布者的信任已撤销：它不再运行，只能卸载"\)\)/, "so is the revoked publisher");
-  // A publisher taken back stops the package and the Host puts its own sentence into recovery_error: the row says the revoked sentence only, not it twice and not "没能启动".
-  assert.match(script, /if \(revoked && revoked\.has\(plugin\.publisher_signature\)\) body\.append\([^\n]*\);\s*else if \(plugin\.recovery_error\) body\.append\(el\("span", "settings-form-error"/, "the revoked sentence is chosen first, the recovery error only when the publisher stands");
+  // Revocation comes from the Host's trusted publisher pins, independently of the installation's recovery code.
+  assert.match(script, /^const revoked = new Set\(data\.publishers\.filter\(\(pin\) => pin\.revoked_at\)\.map\(\(pin\) => pin\.key_id\)\);$/m);
+  const revoked = 'if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", globalThis.t.text("workbench.settings-plugins.trust-its-publisher-was-revoked-no-longer-runs")));';
+  const recovery = 'else if (plugin.recovery_error) body.append(el("span", "settings-form-error", globalThis.t.text("workbench.settings-plugins.could-not-start-error", { error: readText(({ "plugin.publisher_revoked": "workbench.settings-plugins.publisher-revoked", "plugin.manifest_version_invalid": "workbench.settings-plugins.platform-version-mismatch" })[plugin.recovery_error] ?? "workbench.settings-plugins.retry-start") })));';
+  assert.ok(script.includes(`${revoked}\n${recovery}`), "the revoked sentence wins, and recovery uses the stable code or the retry message");
   // The page's script carries the shared workbench code too, which writes markup elsewhere; this program is the one that draws the rows: from its binder (found by the flag only it sets) to the end of its closure.
   const begin = script.lastIndexOf("const bind = (root) => {", script.indexOf("root.dataset.pluginTrustBound"));
   const program = script.slice(begin, script.indexOf("})();", script.indexOf("molisWorkBindPluginTrustSettings(document)", begin)));
   assert.ok(program.includes("const controls = ") && program.includes("const load = "), "the slice holds the rows, their buttons and the loader");
+  assert.match(program, /^const el = \(tag, className, text\) => \{ const node = document\.createElement\(tag\); if \(className\) node\.className = className; if \(text !== undefined && text !== null\) node\.textContent = text; return node; \};$/m, "row messages are assigned as textContent");
   assert.doesNotMatch(program, /innerHTML/);
 });

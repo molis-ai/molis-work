@@ -17,6 +17,9 @@ import { isMcpToolCapability } from '../mcp-tool-actions.js';
 import { issuePluginCaller } from '../plugin-callers.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
 import { projectReachSubject } from '../plugin-project-reach-subject.js';
+import { activeLocale, runBackgroundWork } from '../web-locale.js';
+import { lastUsedLocale } from '../ui-locale-memory.js';
+import { outsidePluginAction } from '@molis-ai/molis-work-plugin-runtime';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */
 export const CATALOG_VERSION = /* @version format.plugin-builder.action-catalog "actions/{version}" */ "actions/1";
@@ -86,8 +89,9 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
 /** Everything a generated plugin may be granted in this project, and the agent-facing actions it may not, with the reason. */
 export async function capabilityCatalog(actions: ProjectActions, actorId: string): Promise<CatalogCapability[]> {
   const client = actions.client as ActionClient & { inspect?(context: ActionCallContext): ActionView[] };
+  const locale = activeLocale();
   // Metadata inspection when the composition offers it; otherwise what the caller can discover, never an empty board.
-  const ask = async (audience: 'plugin' | 'agent', permissions: string[]) => { const caller: ActionCallContext = { actor_id: actorId, project_id: actions.project_id, audience, permissions };
+  const ask = async (audience: 'plugin' | 'agent', permissions: string[]) => { const caller: ActionCallContext = { actor_id: actorId, project_id: actions.project_id, audience, permissions, ...(locale === null ? {} : { locale }) };
     return [...(actions.inspect ? await actions.inspect(caller) : client.inspect ? client.inspect(caller) : await client.discover(caller))]; };
   // Asked again holding every permission the actions need (an installation's grant brings them), so what is still
   // unavailable says why for real: its plugin is not enabled here, or it only answers its own installation.
@@ -120,6 +124,19 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
       execution: { ...view.action.execution, cost: view.action.execution?.cost ?? 'unknown' } };
   };
   return [...offered.map(view => entry(view, true)), ...agents.filter(view => !offeredKeys.has(key(view))).map(view => entry(view, false))];
+}
+
+/** Installed capability reads coalesce only in the same language and for this owner. A refresh without a page uses this Home. */
+export function installedCapabilityCatalog(home: string, read: () => Promise<CatalogCapability[]>): () => Promise<CatalogCapability[]> {
+  const pending = new Map<string, Promise<CatalogCapability[]>>();
+  return () => {
+    const page = activeLocale(), locale = page ?? lastUsedLocale(home);
+    const existing = pending.get(locale);
+    if (existing) return existing;
+    const next = (page === null ? outsidePluginAction(() => runBackgroundWork(locale, read)) : read()).finally(() => pending.delete(locale));
+    pending.set(locale, next);
+    return next;
+  };
 }
 
 /**

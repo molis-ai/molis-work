@@ -97,7 +97,9 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
 }
 
 /** The round's Prologue system tools. Suggesting is the round's own action pack tool (prologue-action-tools.ts), not one of them. */
-const systemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL).map(prologueToolName);
+/** The role's own tools in the Host's words, and as Prologue names them. */
+const hostSystemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL);
+const systemTools = (input: PrologueStartInput) => hostSystemTools(input).map(prologueToolName);
 
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
@@ -596,7 +598,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], systemTools(input), prologueToolName);
+  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], hostSystemTools(input), prologueToolName);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);

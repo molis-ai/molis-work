@@ -133,7 +133,7 @@ test("PMAT-32 a grep over the whole project finds a wording past what the index 
   const filler = Array.from({ length: 2400 }, (_, index) => `第 ${index + 1} 次例会：库存与排班照常。`).join("\n");
   f.pages.set("p9", { id: "p9", title: "例会纪要汇编", body: `${filler}\n第 2401 次例会：地钉换成 7075 铝合金，每枚加 1.2 元。`, version: 1 });
   await f.indexAll();
-  assert.ok(f.index.documents("a").some(document => document.object_id === "p9" && document.content.length === 32_000), "the index holds only the start");
+  assert.ok(f.index.catalog("a").entries.some(document => document.object_id === "p9" && document.content_chars === 32_000), "the index holds only the start");
   const plain = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards: f.cards });
   assert.deepEqual((await plain.grep(f.access(agent()), { pattern: "7075" })).matches, [], "without the long pieces, the index alone never makes p9 a candidate");
 

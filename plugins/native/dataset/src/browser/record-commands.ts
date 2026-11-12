@@ -1,14 +1,16 @@
 import type { Dataset, DatasetPage, Failure, Version } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Reply = { dataset: Dataset };
 const urlOf = (page: DatasetPage, id: string, tail = "") => `${page.api}/${encodeURIComponent(id)}${tail}`;
 
 /** Reads the table again, asking first when what is typed would be lost. */
 export async function reload(page: DatasetPage): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   clearTimeout(s.saveTimer);
   if (s.saveRun) await s.saveRun.catch(() => {});
-  if ((s.saveError || s.editRev > s.savedRev) && !await page.ask(L("dataset.dialog.reload-confirm"), L("dataset.action.reload"))) return;
+  if ((s.saveError || s.editRev > s.savedRev) && !await page.ask(uiText.text("dataset.dialog.reload-confirm"), uiText.text("dataset.action.reload"))) return;
   if (!s.selected) return;
   const payload = await page.request<Reply>("GET", urlOf(page, s.selected.id));
   await page.fillEditor(payload.dataset);
@@ -37,7 +39,7 @@ export async function backToList(page: DatasetPage): Promise<void> {
 
 /** Pins the table as a fixed version. Publication may have reached Artifact storage before association failed. */
 export async function pinFixed(page: DatasetPage, wanted: string): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   const id = wanted || s.selected?.id;
   if (!id) return;
   if (s.selected && s.selected.id === id) await page.save();
@@ -55,7 +57,7 @@ export async function pinFixed(page: DatasetPage, wanted: string): Promise<void>
     throw error;
   }
   page.placed({ verb: "versioned", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id }, artifact: payload.artifact,
-    note: L("dataset.fixed.done-note", { version: payload.artifact.version }) });
+    note: uiText.text("dataset.fixed.done-note", { version: payload.artifact.version }) });
   await page.loadList();
   if (payload.dataset && s.selected && s.selected.id === payload.dataset.id) page.remember(payload.dataset, false);
 }
@@ -74,8 +76,8 @@ export async function generateColumn(page: DatasetPage, withModel: boolean): Pro
 }
 
 export async function importPasted(page: DatasetPage): Promise<void> {
-  const { L, el, s } = page;
-  if (!await page.ask(L("dataset.import.confirm"), L("dataset.import.action"))) return;
+  const { el, s } = page;
+  if (!await page.ask(uiText.text("dataset.import.confirm"), uiText.text("dataset.import.action"))) return;
   await page.save();
   if (!s.selected) return;
   const payload = await page.request<Reply>("POST", urlOf(page, s.selected.id, "/import-csv"), { csv: el.csvInput.value, expected_version: s.selected.version });
@@ -94,46 +96,46 @@ export function chooseImportFile(page: DatasetPage): void {
 const download = (page: DatasetPage, filename: string, text: string, type: string) => page.host.download(new Blob([text], { type }), filename);
 
 export async function exportCsv(page: DatasetPage): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   await page.save();
   if (!s.selected) return;
   const payload = await page.request<{ csv?: string }>("GET", urlOf(page, s.selected.id, "/export"));
   await download(page, (s.selected.title || "dataset") + ".csv", "﻿" + (payload.csv || ""), "text/csv;charset=utf-8");
-  page.placed({ verb: "exported", title: s.selected.title, file: { name: (s.selected.title || "dataset") + ".csv", format: L("dataset.export.csv-format", { count: (s.selected.rows || []).length }) } });
+  page.placed({ verb: "exported", title: s.selected.title, file: { name: (s.selected.title || "dataset") + ".csv", format: uiText.text("dataset.export.csv-format", { count: (s.selected.rows || []).length }) } });
 }
 
 export async function exportJson(page: DatasetPage): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   await page.save();
   if (!s.selected) return;
   await download(page, (s.selected.title || "dataset") + ".json", JSON.stringify(s.selected, null, 2), "application/json");
-  page.placed({ verb: "exported", title: s.selected.title, file: { name: (s.selected.title || "dataset") + ".json", format: L("dataset.export.json-format") } });
+  page.placed({ verb: "exported", title: s.selected.title, file: { name: (s.selected.title || "dataset") + ".json", format: uiText.text("dataset.export.json-format") } });
 }
 
 export async function saveVersion(page: DatasetPage): Promise<void> {
-  const { L, el, s } = page;
+  const { el, s } = page;
   await page.save();
   if (!s.selected) return;
   await page.request("POST", urlOf(page, s.selected.id, "/versions"), { note: el.versionNote.value, expected_version: s.selected.version });
   el.versionNote.value = "";
   const payload = await page.request<{ versions?: Version[] }>("GET", urlOf(page, s.selected.id, "/versions"));
   page.renderVersions(payload.versions || []);
-  page.showNote(L("dataset.version.saved"), false);
+  page.showNote(uiText.text("dataset.version.saved"), false);
 }
 
 export async function rollBack(page: DatasetPage, versionId: string | undefined): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   await page.save();
   if (!s.selected) return;
   const payload = await page.request<Reply>("POST", urlOf(page, s.selected.id, "/rollback"), { version_id: versionId, expected_version: s.selected.version });
   await page.fillEditor(payload.dataset);
-  page.showNote(L("dataset.version.rolled-back"), false);
+  page.showNote(uiText.text("dataset.version.rolled-back"), false);
   await page.loadList();
 }
 
 export async function deleteTable(page: DatasetPage): Promise<void> {
-  const { L, s } = page;
-  if (!await page.ask(L("dataset.dialog.delete-confirm"), L("dataset.action.delete"))) return;
+  const { s } = page;
+  if (!await page.ask(uiText.text("dataset.dialog.delete-confirm"), uiText.text("dataset.action.delete"))) return;
   await page.save();
   if (!s.selected) return;
   await page.request("POST", urlOf(page, s.selected.id, "/delete"), { expected_version: s.selected.version });

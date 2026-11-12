@@ -17,6 +17,13 @@ export function sameRef(a: ObjectRef, b: ObjectRef): boolean {
     && (a.project_id ?? null) === (b.project_id ?? null) && a.object_type === b.object_type;
 }
 
+/** Shared owner validation before a caller namespaces keys or issues SQL. */
+export function contextEdgeQueryKeys(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 200 || value.some(key => typeof key !== "string" || !key || key.length > 512)) throw ledgerErrors.invalid_reference("引用键必须是不超过 200 个的非空字符串");
+  return value;
+}
+
 /** Knows reference integrity, not the business meaning of a Feed or Session transition. */
 export class ContextLedgerService implements ContextLedgerApi, ContextLedgerRelationReader {
   readonly query = {
@@ -27,6 +34,7 @@ export class ContextLedgerService implements ContextLedgerApi, ContextLedgerRela
     },
     list: (access: ContextAccess, query: ContextEdgeQuery = {}) => {
       this.checkAccess(access, "read");
+      contextEdgeQueryKeys(query.keys);
       if (query.source) this.checkRef(access, query.source);
       if (query.target) this.checkRef(access, query.target);
       return this.repository.list(access.scope, query).filter((value) =>

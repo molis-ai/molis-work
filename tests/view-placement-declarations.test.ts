@@ -311,10 +311,10 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
 test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views that declare it, directory views by order, then islands", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(creatableKinds(all), [
-    { id: "pages", plugin_id: pluginIdOf("pages"), station: "pages", title: "文档" },
-    { id: "form", plugin_id: pluginIdOf("form"), station: "form", title: "问卷" },
-    { id: "dataset", plugin_id: pluginIdOf("dataset"), station: "dataset", title: "数据表" },
-    { id: "ppt", plugin_id: pluginIdOf("ppt"), station: "ppt", title: "演示稿" },
+    { id: "pages", plugin_id: pluginIdOf("pages"), station: "pages", title: "文档", label: "文档" },
+    { id: "form", plugin_id: pluginIdOf("form"), station: "form", title: "问卷", label: "问卷" },
+    { id: "dataset", plugin_id: pluginIdOf("dataset"), station: "dataset", title: "数据表", label: "数据表" },
+    { id: "ppt", plugin_id: pluginIdOf("ppt"), station: "ppt", title: "演示稿", label: "演示稿" },
   ]);
   assert.deepEqual(creatableKinds(["goals", "ppt"]).map(kind => kind.id), ["ppt"], "only the plugins the project shows");
   assert.deepEqual(creatableKinds(["goals"]), []);

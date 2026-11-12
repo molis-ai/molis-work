@@ -12,9 +12,28 @@ import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
 /** A tool as the server listed it the last time the person looked; no credentials. */
 export interface ConnectorMcpTool { name: string; description?: string; inputSchema?: Record<string, unknown> }
-type Seen = Record<string, { tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>; resources?: boolean }>;
+/** What one listing changed against the one before it: the AI kit's 「发现差异」 (§4.8). `at` is when this listing was seen. */
+export interface ConnectorMcpListingChange { added: number; removed: number; changed: number; at: string }
+/** What each MCP connection's server last listed (no secrets), kept so a restart registers it again; the AI kit reads it too. */
+export type ConnectorMcpSeen = Record<string, { tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>; resources?: boolean;
+  /** The last listing that differed from the one before it; absent in an older file, and while every listing says the same. */
+  change?: ConnectorMcpListingChange }>;
 
-const SEEN_PATH = "config/connector-mcp-tools.json";
+/** What this listing changed against the previous one; same names with a different description or input shape count as changed. */
+function listingChange(previous: ConnectorMcpSeen[string]["tools"], next: ConnectorMcpSeen[string]["tools"]): Omit<ConnectorMcpListingChange, "at"> | undefined {
+  const before = new Map(previous.map(tool => [tool.name, tool]));
+  let added = 0, changed = 0;
+  for (const tool of next) {
+    const earlier = before.get(tool.name);
+    if (!earlier) added++;
+    else if (earlier.description !== tool.description || JSON.stringify(earlier.input_schema) !== JSON.stringify(tool.input_schema)) changed++;
+    before.delete(tool.name);
+  }
+  const removed = before.size;
+  return added || removed || changed ? { added, removed, changed } : undefined;
+}
+
+export const CONNECTOR_MCP_SEEN_PATH = "config/connector-mcp-tools.json";
 const VERSIONS_PATH = "config/connector-mcp-actions.json";
 const PROVIDER = "system.connectors#mcp:";
 export const connectorMcpProviderId = (connectionId: string) => `${PROVIDER}${connectionId}`;
@@ -32,16 +51,16 @@ export const connectorMcpResourceCapabilityId = (connectionId: string) => `${CON
  */
 export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocalHost; homeDirectory: string; call?: typeof callMcpConnectionTool; read?: typeof readMcpConnectionResource }) {
   const call = options.call ?? callMcpConnectionTool, read = options.read ?? readMcpConnectionResource;
-  const seenFile = path.join(options.homeDirectory, SEEN_PATH);
+  const seenFile = path.join(options.homeDirectory, CONNECTOR_MCP_SEEN_PATH);
   const versions = createMcpVersionBook(path.join(options.homeDirectory, VERSIONS_PATH));
   /** Per connection: its registrations (one per tool, so an unchanged tool is never re-registered), and the exact reference of each, for callers that know the tool by name. */
   const registered = new Map<string, { set: ReturnType<typeof createRegistrationSet>; references: Map<string, ActionReference> }>();
-  const connection = (id: string) => withConnectorConnections(options.homeDirectory, store => store.get(id));
+  const connection = (id: string) => withConnectorConnections(options.homeDirectory, store => store.get(id), true);
   const withdraw = (connectionId: string) => { registered.get(connectionId)?.set.clear(); registered.delete(connectionId); };
 
   const failure = (error: unknown) => (error instanceof ActionError && ["connector.mcp.configuration","connector.mcp.authorization","connector.mcp.disconnected","connector.mcp.provider"].includes(error.code))
     ? new ActionError(error.code === "connector.mcp.authorization" ? "actions.reauthorize" : "actions.connection_unavailable", error.message) : error;
-  function register(connectionId: string, tools: Seen[string]["tools"], resources = false) {
+  function register(connectionId: string, tools: ConnectorMcpSeen[string]["tools"], resources = false) {
     const row = connection(connectionId);
     if (!row || row.auth_method !== "mcp" || (!tools.length && !resources)) { withdraw(connectionId); return; }
     const label = row.display_name;
@@ -97,13 +116,19 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   }
 
   function remember(connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) {
-    const row = connection(connectionId), config = withConnectorProtocols(options.homeDirectory, store => store.get<StoredMcpConfiguration>(connectionId));
+    const row = connection(connectionId), config = withConnectorProtocols(options.homeDirectory, store => store.get<StoredMcpConfiguration>(connectionId), true);
     // The listing a call makes before it ends no run of failed calls but `reauth` (ASC-58 §13.2 ⑫); a check writes its own result first.
     if (row) rememberConnectorCheck(options.homeDirectory, connectionId, { at: new Date().toISOString(), revision: row.updated_at,
       outcome: "connected", authorization: config?.mode === "none" ? "not-required" : "verified" }, { listedBeforeCall: true });
-    const seen = readJsonFile<Seen>(seenFile, {});
-    const next = { tools: tools.map(tool => ({ name: tool.name, description: tool.description ?? "", input_schema: tool.inputSchema ?? { type: "object" } })),
-      ...(resources?.length ? { resources: true } : {}) };
+    const seen = readJsonFile<ConnectorMcpSeen>(seenFile, {});
+    const listed = tools.map(tool => ({ name: tool.name, description: tool.description ?? "", input_schema: tool.inputSchema ?? { type: "object" } }));
+    const previous = seen[connectionId];
+    // A first listing says everything it found is new; a later one says what it added, removed or changed. The kit shows the last
+    // difference the server made, so an unchanged listing keeps the one before it and never rewrites the file (§4.8).
+    const difference = previous ? listingChange(previous.tools, listed) : listed.length ? { added: listed.length, removed: 0, changed: 0 } : undefined;
+    const next = { tools: listed,
+      ...(resources?.length ? { resources: true } : {}),
+      ...(difference ? { change: { ...difference, at: new Date().toISOString() } } : previous?.change ? { change: previous.change } : {}) };
     if (JSON.stringify(seen[connectionId]) !== JSON.stringify(next)) { seen[connectionId] = next; writeJsonFile(seenFile, seen); }
     register(connectionId, next.tools, next.resources);
   }
@@ -111,7 +136,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   return {
     /** Registers what every existing MCP connection last offered; connections that were removed are dropped. */
     sync() {
-      const seen = readJsonFile<Seen>(seenFile, {});
+      const seen = readJsonFile<ConnectorMcpSeen>(seenFile, {});
       for (const id of [...registered.keys()]) if (!(id in seen)) withdraw(id);
       for (const [id, entry] of Object.entries(seen)) {
         // One unreadable connection must not hide the others; it is written, by its id, so it is not missing without a word.

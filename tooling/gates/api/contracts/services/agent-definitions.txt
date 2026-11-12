@@ -41,12 +41,11 @@ export interface AgentDefinitionsDiagnostics {
             text: string;
         }>;
     }>;
-    unregistered: AgentUnregisteredCall[];
 }
 
 export type AgentPromptKind = "agent" | "instruction";
 
-export interface AgentPromptRegistration {
+export interface AgentPromptRegistration extends LocalizedAgentBody {
     default_ref?: SignedAgentReference;
     prompt_id: string;
     version: number;
@@ -55,6 +54,7 @@ export interface AgentPromptRegistration {
     title: string;
     purpose: string;
     used_by: string[];
+    role_id?: string;
     body: string;
 }
 
@@ -134,7 +134,7 @@ export interface AgentRoleView {
     edited: boolean;
 }
 
-export interface AgentSkillRegistration {
+export interface AgentSkillRegistration extends LocalizedAgentBody {
     skill_id: string;
     version: number;
     name: string;
@@ -144,8 +144,6 @@ export interface AgentSkillRegistration {
 }
 
 export interface AgentSkillView {
-    kind?: "role" | "method";
-    default_ref?: SignedAgentReference;
     install_id?: string;
     key: string;
     owner_id: string;
@@ -157,10 +155,19 @@ export interface AgentSkillView {
     tools: string[];
 }
 
-export interface AgentUnregisteredCall {
-    owner_id: string;
-    title: string;
-    reason: string;
+export declare const PROMPT_OVERRIDES_FILE_MAX_ROWS = 200;
+
+export interface PromptOverridesFile {
+    format: "molis.prompt-overrides";
+    format_version: 1;
+    exported_at: string;
+    overrides: Array<{
+        owner_id: string;
+        prompt_id: string;
+        title: string;
+        base_version: number;
+        body: string;
+    }>;
 }
 
 export interface SignedAgentInstallation {
@@ -183,7 +190,7 @@ export interface SignedAgentReference {
         plugin_version: string;
         publisher_signature: string;
     };
-    kind: "role" | "method";
+    kind: "role";
     entry_id: string;
 }
 
@@ -199,6 +206,12 @@ export interface SkillRef {
     install_id: string;
     installation_generation: string;
 }
+
+export declare const agentDefinitionErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly overrides_preview_unknown: "not_found";
+    readonly overrides_row_not_applicable: "conflict";
+    readonly instruction_role_unknown: "invalid";
+}>;
 
 export declare const servicesAgentDefinitionsContract: {
     readonly contractId: "io.molis.work.service.agent-definitions.v1";

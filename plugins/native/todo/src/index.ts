@@ -1,8 +1,6 @@
 export { TODO_UI_CONTRIBUTION_ID, todoUiContribution, todoUiDescriptor, renderTodoWorkbench } from "./ui.js";
 export type { TodoUiModel, TodoUiPrimitives, TodoUiSurface } from "./ui.js";
 export { TODO_STYLES } from "./styles.js";
-export { TODO_EN } from "./en.js";
-export { TODO_MESSAGES } from "./messages.js";
 export { TODO_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createTodoPlugin } from "./plugin.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoManifest } from "./manifest.js";
@@ -12,7 +10,7 @@ export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLink
 export { todoErrors } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";
 export type { TodoActionPorts, TodoListItem, TodoListResult } from "./actions.js";
-export { todoSearchActions, todoText } from "./search.js";
+export { todoPicks, todoSearchActions, todoText } from "./search.js";
 export { todoHomeEventsAction, todoHomeEvents } from "./home-events.js";
 export { TODO_INSTRUCTIONS, TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 export { TODO_ORGANIZER_ROLE, todoAgentManifest, todoSkills, todoPrompts } from "./roles.js";

@@ -119,7 +119,7 @@ export const MICRO_INTERACTION_STYLES = `
   /* A stage arrives once with the shared rise; menus grow from their control (keyframes: styles/motion.ts). */
   .plugin-stage-workspace.is-arriving,
   .is-arriving { animation: craft-rise var(--dur-arrive, 420ms) var(--ease-quint) both; }
-  :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
+  :is(.mw-menu, .mw-select-picker__menu):popover-open,
   .mw-select-picker__menu.is-open {
     animation: craft-drop var(--dur-move, 250ms) var(--ease-quint) both;
   }
@@ -129,7 +129,7 @@ export const MICRO_INTERACTION_STYLES = `
     body .global-search-body[data-search-glide][data-search-ready]::before { transition: none; }
     body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
     .plugin-stage-workspace.is-arriving, .is-arriving,
-    :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
+    :is(.mw-menu, .mw-select-picker__menu):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }
   }
 ${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${FOLLOW_STYLES}${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${STREAM_TEXT_STYLES}${FIELD_FIT_STYLES}`;
@@ -228,9 +228,13 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     });
   };
 
-  /** Creation modals commit from the keyboard: the platform's Enter-with-modifier submits the form. */
+  /**
+   * Creation modals commit from the keyboard: the platform's Enter-with-modifier submits the form. Not while an input method is
+   * composing (Safari ends a composition with a keydown whose keyCode is 229 and isComposing already false), and not when a part of
+   * the dialog (a composer) took the keys itself: one key press, one submit.
+   */
   addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return;
     const dialog = event.target instanceof Element && event.target.closest("dialog[open]");
     if (!dialog) return;
     const form = (event.target instanceof Element && event.target.closest("form")) || dialog.querySelector("form");

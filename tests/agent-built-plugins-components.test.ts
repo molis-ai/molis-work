@@ -4,12 +4,19 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
+import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-packs.js';
 import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { packageContract } from './fixtures/sandbox-package.js';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
 const loadDriver = () => import('../apps/local-host/src/plugin-builder/browser.js');
+const pageWords = () => pageTextScriptForPacks('zh', chinesePagePacks());
+async function componentPage(browser: NonNullable<Awaited<ReturnType<typeof openStudioChrome>>>) {
+  const page = await browser.page();
+  await page.evaluate(`(() => { ${pageWords()} })()`);
+  return page;
+}
 const contract: SandboxPluginContract = {
   version: 1, pluginId: 'test.components', revision: 'one', entities: [], acceptance: [],
   operations: [{ id: 'save', kind: 'command', input: { type: 'object', properties: { text: { type: 'string', maxLength: 100 }, enabled: { type: 'boolean' }, choice: { type: 'boolean', enum: [true, false] } }, required: ['text', 'enabled', 'choice'], additionalProperties: false }, output: { type: 'string' }, errors: [], effects: {}, examples: [{ input: { text: 'hello', enabled: false, choice: false }, output: 'saved' }] }],
@@ -53,7 +60,7 @@ test('real browser retains forms and focus, refreshes changed schemas, preserves
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`document.head.innerHTML='<meta name="viewport" content="width=device-width,initial-scale=1">';`);
     await page.evaluate(`(async()=>{document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES)}+'</style><div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.payloads=[]; globalThis.fail=false; globalThis.view=${JSON.stringify({ contract, nodes: [{ ...plan, kind: 'form' }], connected: ['save'] })}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async(id,binding,payload)=>{if(globalThis.fail)throw Error('保存失败');payloads.push(payload);return 'saved'}}); await app.update(view);\n})()`);
     await page.fill('[name=text]', 'unfinished text');
@@ -91,11 +98,11 @@ test('real browser puts an action on each record it acts on, follows the view or
   ];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES)}+'</style><div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.notes=[{id:'a',text:'第一条'},{id:'b',text:'写错了'}]; globalThis.view=${JSON.stringify({ contract: records, nodes, connected: ['notes.list', 'notes.remove'] })}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async(id,binding,payload)=>{if(binding==='read')return notes;notes=notes.filter(n=>n.id!==payload.selection.notes.id);return true}}); await app.update(view);\n})()`);
     assert.equal(await page.evaluate(`getComputedStyle(document.querySelector('.pc-tabs')).display`), 'none', 'one page needs no page switcher');
     assert.equal(await page.evaluate(`document.querySelector('[data-component-id=remove]').getClientRects().length`), 0, 'the action has no block of its own');
-    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id] [data-pc-action=remove]')].map(b=>b.textContent)`), ['删除', '删除']);
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id] [data-pc-action=remove]')].map(b=>b.textContent)`), ['删除选中', '删除选中']);
     assert.equal(await page.evaluate(`document.querySelector('[data-pc-select]')`), null, 'nothing else consumes the selection, so there is no separate "choose"');
     await page.click('[data-record-id="b"] [data-pc-action=remove]');
     await page.wait(`document.querySelectorAll('[data-record-id]').length===1`);
@@ -114,7 +121,7 @@ test('real browser shows a model answer\'s emphasis without ever treating it as 
   const nodes = [{ id: 'answers', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '回答', props: { idField: 'id', titleField: 'title', textField: 'text' }, read: { operationId: 'answers.list', input: {} }, kind: 'directory' }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>[{id:'a',title:'提取练习',text:'## 方向\\n1. **关于目的** 为什么？\\n**<img src=x onerror="globalThis.injected=true">**'}]}); await app.update(${JSON.stringify({ contract: records, nodes, connected: ['answers.list'] })});\n})()`);
     await page.wait(`document.querySelector('[data-record-id="a"] p')`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id="a"] p strong')].map(e=>e.textContent)`), ['关于目的', '<img src=x onerror="globalThis.injected=true">']);
@@ -133,7 +140,7 @@ test('real browser: a table chosen for a titled list still shows the title, name
   const nodes = [{ id: 'books', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '书单', kind: 'table', props: { idField: 'id', titleField: 'title', columns: [{ field: 'author', label: '作者' }] }, read: { operationId: 'books.list', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>[{id:'a',title:'人月神话',author:'Brooks'}]}); await app.update(${JSON.stringify({ contract: books, nodes, connected: ['books.list'] })});\n})()`);
     await page.wait(`document.querySelector('[data-record-id="a"]')`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('thead th')].slice(0,2).map(th=>th.textContent)`), ['书名', '作者']);
@@ -151,7 +158,7 @@ test('real browser: an error an earlier read left goes away once a read succeeds
   const nodes = [{ id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '笔记', kind: 'directory', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.broken=true; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>{if(broken)throw Error('还没有接通的功能可以试用');return [{id:'a',text:'第一条'}]}}); await app.update(${JSON.stringify({ contract, nodes, connected: ['notes.list'] })});\n})()`);
     await page.wait(`document.querySelector('[data-pc-feedback=notes]').textContent.includes('读取失败，请重试：还没有接通的功能可以试用')&&document.querySelector('[data-pc-retry=notes]')`);
     await page.evaluate(`broken=false`); await page.click('[data-pc-retry=notes]');
@@ -171,7 +178,7 @@ test('real browser shows a total and its breakdown as labelled figures, named fr
   const nodes = [{ id: 'summary', pageId: 'home', regionId: 'main', intent: 'description', purpose: '本月合计', kind: 'card', props: {}, read: { operationId: 'summary.read', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>({total:86.5,byCategory:[{category:'餐饮',amount:56.5},{category:'交通',amount:30}]})}); await app.update(${JSON.stringify({ contract, nodes, connected: ['summary.read'] })});\n})()`);
     await page.wait(`document.querySelector('.pc-figures')`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-figures dt')].map(e=>e.textContent)`), ['本月总支出', '各分类合计']);
@@ -196,7 +203,7 @@ test('real browser filters a collection by its read\'s own fields: 全部 first,
     read: { operationId: 'books.list', input: { status: { source: 'form', field: 'status' }, keyword: { source: 'form', field: 'keyword' } } } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES)}+'</style><div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.asked=[]; const all=[{id:'a',title:'代码大全',status:'想读'},{id:'b',title:'人月神话',status:'在读'}]; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async(id,binding,payload)=>{asked.push(payload.form);return all.filter(b=>(!payload.form.status||b.status===payload.form.status)&&(!payload.form.keyword||b.title.includes(payload.form.keyword)))}}); await app.update(${JSON.stringify({ contract: books, nodes, connected: ['books.list'] })});\n})()`);
     await page.wait(`document.querySelectorAll('[data-record-id]').length===2`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-filter [data-pc-value]')].map(o=>o.textContent)`), ['全部', '想读', '在读', '读完'], 'a short set of choices shows as chips');
@@ -222,7 +229,7 @@ test('real browser shows a field in the column\'s own words, and a plain boolean
   const node = (kind: string) => ({ id: 'habits', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '习惯', props: { idField: 'id', titleField: 'name', columns }, read: { operationId: 'habits.list', input: {} }, kind });
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>[{id:'a',name:'早起',checkedToday:false,archived:false}]}); await app.update(${JSON.stringify({ contract: habits, nodes: [node('table')], connected: ['habits.list'] })});\n})()`);
     await page.wait(`document.querySelector('[data-record-id="a"]')`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id="a"] td')].slice(0,3).map(td=>td.textContent)`), ['早起', '未打卡', '否']);
@@ -253,7 +260,8 @@ test('the acceptance driver works through catalog overlays: a sheet form, choice
     { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: '删除选中的灵感', props: { submitLabel: '删除' }, kind: 'alert-dialog', submit: { operationId: 'ideas.remove', input: { id: { source: 'selection', componentId: 'ideas', field: 'id' } } } },
   ];
   const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-  const html = `<!doctype html><meta charset="utf-8"><style>${PLUGIN_COMPONENT_STYLES}</style><div id="root"></div><script>${compiled.outputFiles[0]!.text}
+  const html = `<!doctype html><meta charset="utf-8"><style>${PLUGIN_COMPONENT_STYLES}</style><div id="root"></div><script>${pageWords()}
+${compiled.outputFiles[0]!.text}
     let ideas=[],next=0;globalThis.__molisPluginPending=0;
     const call=async(id,binding,payload)=>{if(binding==='read')return ideas.filter(i=>!payload.form.tag||i.tag===payload.form.tag);
       if(id==='editor'){const idea={id:'i'+(++next),...payload.form};ideas=[idea,...ideas];return idea}
@@ -302,7 +310,7 @@ test('real browser fills a sentence the design wrote around a result, and never 
   const nodes = [{ id: 'count', pageId: 'home', regionId: 'main', intent: 'description', purpose: '杯数', kind: 'card', props: { description: '今天已经喝了 {{count}} 杯' }, read: { operationId: 'water.today', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
-    const page = await browser.page();
+    const page = await componentPage(browser);
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>({count:3})}); await app.update(${JSON.stringify({ contract, nodes, connected: ['water.today'] })});\n})()`);
     await page.wait(`document.querySelector('.pc-filled')`);
     assert.equal(await page.evaluate(`document.querySelector('[data-component-id=count]').innerText.replace(/\\s+/g,' ').trim()`), '今天已经喝了 3 杯');
@@ -322,7 +330,7 @@ async function queryCounterPage(t: import('node:test').TestContext) {
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
   browser = await openStudioChrome(directory);
   assert.ok(browser, 'dedicated Chrome is required');
-  const page = await browser.page();
+  const page = await componentPage(browser);
   await page.evaluate(`(async()=>{document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES)}+'</style><main id="root"></main>';globalThis.view=${JSON.stringify({ contract: countContract, nodes: [countNode], connected: ['text.count'] })};globalThis.requests=[];globalThis.app=(${PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT})({root:document.querySelector('#root'),call:(id,binding,payload)=>{requests.push({id,binding,payload});return new Promise((resolve,reject)=>{globalThis.deliver=resolve;globalThis.refuse=reject})}});await app.update(view)})()`);
   return page;
 }

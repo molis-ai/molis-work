@@ -4,6 +4,7 @@
   "plugin_id": "io.molis.work.example.notes",
   "version": "2.0.0",
   "name": "Local Plugin Sample",
+  "name_text": { "key": "notes.main.title" },
   "kind": "integration",
   "publisher": {
     "publisher_id": "local-developer",

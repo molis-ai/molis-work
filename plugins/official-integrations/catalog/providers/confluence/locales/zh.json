@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.confluence",
+  "locale": "zh",
+  "messages": {
+    "confluence.connection.auth-help": "与 Jira 相同的 Atlassian API token，格式 站点|邮箱|token。",
+    "confluence.connection.inbound": "Feed 拉知识库页面",
+    "confluence.connection.summary": "知识库与页面。",
+    "confluence.connection.token-label": "Confluence 站点、邮箱与 API token",
+    "confluence.guide.mcp-link": "查看 Atlassian Rovo MCP",
+    "confluence.guide.oauth-link": "查看 Atlassian OAuth 2.0",
+    "confluence.oauth.site-url": "Atlassian 站点",
+    "confluence.setup.create-atlassian-api-token": "创建 Atlassian API Token",
+    "confluence.setup.view-confluence-authentication-guide": "查看 Confluence 认证说明"
+  }
+}

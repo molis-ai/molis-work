@@ -1,3 +1,4 @@
+import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 /**
  * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
  * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle and the same sandboxed definition, over the Home's Runtime
@@ -7,7 +8,7 @@
  */
 import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { CallConnectionsPort, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import type { CallConnectionsPort, PluginLocaleReader, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
@@ -16,11 +17,11 @@ import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from '
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
-import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
+import { declaredOnlyHolds, pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { pluginHomeFor } from './home-side.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
@@ -38,7 +39,7 @@ export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatfor
 
 /** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
 export interface HomeIntegrationsPort {
-  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean, reader?: PluginLocaleReader | null): Promise<boolean>;
   detach(pluginId: string): Promise<void>;
 }
 
@@ -67,9 +68,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const { home, platform, integrations } = options;
   const actions: ProjectActions = { ...options.actions, project_id: null };
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
-  const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>();
+  const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
-  let closed = false, exposureRevision = 0, catalogPending: Promise<CatalogCapability[]> | undefined;
+  let closed = false, exposureRevision = 0;
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
@@ -104,25 +105,21 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     }
   };
   const reach = platform.consents ? projectReachConsents({ ledger: platform.consents, records, releaseFor, assertInstalled }) : undefined;
-  const catalog = (): Promise<CatalogCapability[]> => {
-    if (catalogPending) return catalogPending;
-    catalogPending = (async () => {
-      // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-      let snapshot: CatalogCapability[], revision: number;
-      for (;;) {
-        revision = exposureRevision;
-        try { snapshot = await capabilityCatalog(actions, options.actorId); }
-        catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
-        if (isClosed()) return [];
-        if (revision !== exposureRevision) continue;
-        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-        let changed = false;
-        for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-        if (!changed) return snapshot;
-      }
-    })().finally(() => { catalogPending = undefined; });
-    return catalogPending;
-  };
+  const catalog = installedCapabilityCatalog(home, async () => {
+    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
+    let snapshot: CatalogCapability[], revision: number;
+    for (;;) {
+      revision = exposureRevision;
+      try { snapshot = await capabilityCatalog(actions, options.actorId); }
+      catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
+      if (isClosed()) return [];
+      if (revision !== exposureRevision) continue;
+      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
+      let changed = false;
+      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
+      if (!changed) return snapshot;
+    }
+  });
   const resolveCall = async (context: SandboxServiceContext) => {
     context.signal.throwIfAborted(); assertInstalled(context.identity);
     if (context.projectReach) reach?.captureCall(context.projectReach, context.identity);
@@ -163,8 +160,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     },
     declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
     granted: grantedCapabilities });
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, grantedCapabilities, earlier: () => [],
-    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { connections: integrations.connections, assertLive }) } : {} });
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, grantedCapabilities, earlier: () => [],
+    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });
   // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
   const attached = new Map<string, symbol>();
   let registry: ReturnType<NonNullable<typeof integrations>['registry']> | undefined;
@@ -178,26 +175,28 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     changed: () => { exposureRevision++; }, catalog });
   const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
     if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);
-    const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
+    const pluginId = release.pluginId, record = recordFor(pluginId), installId = record?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
-    const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
+    const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.state === 'running' && now.install_id === installId
+      && now.installation_generation === record?.installation_generation && now.version === release.packaged!.manifest.version && now.publisher_signature === release.packaged!.manifest.publisher.signature; };
     if (!active() || !installId) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
-    const token = Symbol(); attached.set(pluginId, token);
+    const prior = attached.get(pluginId), token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
-    const forget = () => { if (attached.get(pluginId) === token) attached.delete(pluginId); };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
+    const forget = () => { if (attached.get(pluginId) === token) { if (prior) attached.set(pluginId, prior); else attached.delete(pluginId); } };
+    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live, release.packaged.localePacks)) forget(); }
     catch (error) { forget(); throw error; }
   };
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
-    updatePluginAgentDefinitions(pluginHomeFor(home), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
+    const value = definition(release, approvedFor(release.pluginId) ?? release.permissions); declared.set(value, record.install_id, state);
+    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
-  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
+  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
   const lifecycle = installedLifecycle({ platform, projectId: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    async forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
-  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
+    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
+  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); declared.releaseAll(); };
 
   try {
     // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).

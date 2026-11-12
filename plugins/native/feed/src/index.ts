@@ -29,7 +29,6 @@ export {
 } from "./out-rules.js";
 export type { FeedArtifactProducer, FeedOutRuleWrite } from "./out-rules.js";
 
-export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from "./exact-source-routes.js";
 
 export { FeedSourceService } from "./source-service.js";
 export { syncResearchLibrary, type ResearchLibraryEntry, type ResearchLibrarySyncPorts } from "./research-library-sync.js";
@@ -57,7 +56,6 @@ export { FEED_ACTION_PERMISSIONS } from "./runtime-actions.js";
 
 export { FEED_STYLES } from "./styles.js";
 
-export { FEED_EN } from "./en.js";
 
 export { feedContentActions, createFeedContentHandlers } from "./content-actions.js";
 

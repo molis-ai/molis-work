@@ -72,7 +72,7 @@ export function formClient(host: FormClientHost): void {
   if (!bench) return;
   const request = formRequest(host);
   const page = formPage(host, request, bench);
-  page.draft = formDraft({ host, request, L: page.L, ask: page.one("[data-form-draft-ask]")!, prompt: page.aiPrompt,
+  page.draft = formDraft({ host, request, readText: page.readText, ask: page.one("[data-form-draft-ask]")!, prompt: page.aiPrompt,
     button: page.one<HTMLButtonElement>("[data-form-generate-ai]")!, form: () => page.sel, done: (record) => generated(page, record),
     note: (text, isError) => draftNote(page, text, isError) });
   listen(page);

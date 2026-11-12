@@ -1,3 +1,5 @@
+import { releaseHistoryPages } from "./history-pages.js";
+import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
 import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -28,7 +30,7 @@ import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./ru
 import { createRuntimePublicFeed } from "./runtime-source-pull.js";
 import { keepFeedWakeup } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
-import { holdingsOfSnapshot, releaseHeldHistory, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
+import { type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
@@ -46,7 +48,7 @@ const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, fe
 
 /**
  * Feed as a Plugin Runtime plugin, one instance per project (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
- * The application is the same one the Host builds; what changes is what it stands on. Its tables are the plugin's own library, its Inbox
+ * The application owns its runtime and demo facts. Its tables are the plugin's own library, its Inbox
  * entries are Attention's (`services.attention`), its links to Goals the Context Ledger's, what its out rules capture the 成果库's
  * (`services.artifacts.join`, in the same commit), its journal the project's, and its retained
  * bodies are read through the platform (`services.sourcePull.evidence`). Writes happen only inside `createFeedWriter`'s commit.
@@ -129,7 +131,7 @@ export function createFeedPlugin(): PluginDefinition {
       },
       holdContent: async (source, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: source.source_id, content_refs: [...contentRefs] }); },
       // A release that fails throws before anything is committed: the source stays with what it holds, and deleting it again finishes.
-      releaseHistory: input => releaseHeldHistory(holdingsOfSnapshot(feed.snapshot(input.project_id), input.source_id), {
+      releaseHistory: input => releaseHistoryPages(feed, input.project_id, input.source_id, {
         reclaim: unreferenced => ledger<FeedContentRelease>(feedContentLedgerActions.reclaim, { source_id: input.source_id, unreferenced }),
         release: candidates => ledger<FeedContentRelease>(feedContentLedgerActions.release, { source_id: input.source_id, candidates }),
         forget: forget ? operationIds => forget(operationIds) : null }) }, projectId);
@@ -152,6 +154,7 @@ export function createFeedPlugin(): PluginDefinition {
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql, projectId), new SourcesModule(ports.sql).query),
+      { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
         stage: { sourceCatalog: vocabulary ? () => feedSourceCatalog(vocabulary) : noVocabulary, recommendations: sceneRuntime.selection.recommendations,

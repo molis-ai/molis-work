@@ -1,9 +1,12 @@
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { button } from "./dom.js";
 import { OWN_SOURCES, ROLE_KEY } from "./labels.js";
 import { filterValue, maybe, notice, q, tx, type CogniaPage } from "./page.js";
 import type { Domain, Source, Workspace } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** `<option>`s for a select: the first choice (a key) and then each value by name. */
 export function options(page: CogniaPage, values: readonly (Domain | Source)[], first: string): string {
@@ -16,22 +19,22 @@ export const domainSelect = (page: CogniaPage): string => `<select class="mw-sel
 const filtering = (page: CogniaPage): boolean => Boolean(filterValue(page, "search") || filterValue(page, "domain") || filterValue(page, "source"));
 
 function materialRow(page: CogniaPage, m: Workspace["materials"][number]): string {
-  const domain = page.state.domains.find((d) => d.id === m.domain_id)?.name || page.L("cognia.domain.unfiled");
+  const domain = page.state.domains.find((d) => d.id === m.domain_id)?.name || uiText.text("cognia.domain.unfiled");
   return `<article class="cognia-row"><input type="checkbox" class="mw-check" data-cognia-select="${esc(m.id)}" aria-label="${tx(page, "cognia.list.select-material")} ${esc(m.title)}" ${page.selected.has(m.id) ? "checked" : ""} ${m.role === "attachment" ? "disabled" : ""}>`
     + `<button type="button" class="cognia-entry" data-cognia-id="${esc(m.id)}"><div><strong>${esc(m.title)}</strong><small>${esc(m.path)}</small>${m.excerpt ? `<small>${esc(m.excerpt)}</small>` : ""}</div>`
-    + `<span>${tx(page, ROLE_KEY[m.role])}</span><span>${esc(domain)}</span><span>${esc(new Date(m.updated_at).toLocaleDateString())}</span></button></article>`;
+    + `<span>${tx(page, ROLE_KEY[m.role])}</span><span>${esc(domain)}</span><span>${esc(uiText.text("common.generated.formatted", { value: dateArg(m.updated_at, "date") }))}</span></button></article>`;
 }
 
 function emptyList(page: CogniaPage): string {
   if (filtering(page)) {
-    return `<div class="cognia-empty"><strong>${tx(page, "cognia.list.no-match")}</strong><p>${tx(page, "cognia.list.no-match-hint")}</p>${button(page.L("cognia.list.clear-filters"), "clear-filters")}</div>`;
+    return `<div class="cognia-empty"><strong>${tx(page, "cognia.list.no-match")}</strong><p>${tx(page, "cognia.list.no-match-hint")}</p>${button(uiText.text("cognia.list.clear-filters"), "clear-filters")}</div>`;
   }
   return `<div class="cognia-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-book"></use></svg></span><strong>${tx(page, "cognia.list.empty-title")}</strong><p>${tx(page, "cognia.list.empty-hint")}</p>`
-    + `${button(page.L("cognia.action.import"), "import")}${button(page.L("cognia.action.add"), "add")}</div>`;
+    + `${button(uiText.text("cognia.action.import"), "import")}${button(uiText.text("cognia.action.add"), "add")}</div>`;
 }
 
 export function countSelected(page: CogniaPage): void {
-  q(page, "[data-cognia-selected]").textContent = page.L("cognia.selection.count", { count: page.selected.size });
+  q(page, "[data-cognia-selected]").textContent = uiText.text("cognia.selection.count", { count: page.selected.size });
 }
 
 export function renderRows(page: CogniaPage): void {
@@ -62,12 +65,13 @@ function paintModel(page: CogniaPage): void {
   const { state } = page;
   const model = q(page, "[data-cognia-model]");
   model.hidden = false;
-  model.textContent = state.ai_unavailable_reason ? page.L(state.ai_unavailable_reason) : state.ai_runtime || page.L("cognia.model.none");
+  const reason = state.ai_unavailable_reason || uiText.text("cognia.model.none");
+  model.textContent = state.ai_unavailable_reason || state.ai_runtime || reason;
   q(page, "[data-cognia-action=model-settings]").hidden = Boolean(state.ai_available);
   for (const action of ["synthesize", "query", "synthesize-current"]) {
     const control = q<HTMLButtonElement>(page, `[data-cognia-action="${action}"]`);
     control.disabled = !state.ai_available;
-    control.title = state.ai_available ? "" : page.L(state.ai_unavailable_reason || "cognia.model.none");
+    control.title = state.ai_available ? "" : reason;
   }
   page.modelRead?.();
 }

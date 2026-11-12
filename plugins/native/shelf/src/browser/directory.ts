@@ -12,6 +12,8 @@ import { selectChild, selectClip, selectItem } from "./select.js";
 import { applySnapshot } from "./snapshot.js";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** The directory's own menu and list controls; true when the click was one of them. */
 async function controlClick(page: ShelfPage, event: Event, sideMenu: HTMLElement | null): Promise<boolean> {
   const hideMenu = () => { if (sideMenu) sideMenu.hidden = true; };
@@ -69,7 +71,7 @@ async function rowOperation(page: ShelfPage, event: Event, action: HTMLElement, 
     else if (what === "join" && shelfClip) await joinClips(page, page.clipSelection.has(id) && page.clipSelection.size > 1 ? [...page.clipSelection] : [id]);
     else if (what === "copy") await (shelfItem ? copyShelfItem(page, id) : makeClipCurrent(page, id));
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 
@@ -123,7 +125,7 @@ async function directoryDoubleClick(page: ShelfPage, event: Event): Promise<void
   try {
     await makeClipCurrent(page, row.dataset.shelfClip);
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 

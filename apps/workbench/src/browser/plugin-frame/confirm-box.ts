@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FrameScope, Translate } from "./types.js";
 
 /** What a plugin page gives the shared box: its own `<dialog>` with a form, and the button that confirms. */
@@ -10,7 +11,7 @@ export type ConfirmBox = (dialog: HTMLDialogElement, ok: HTMLElement, run?: () =
  * or a cancel, and only success closes it. Without `run` it is a plain yes/no. Resolves true only after a confirmed (and, with
  * `run`, successful) press; closing the frame answers false.
  */
-export function pageConfirmBox(scope: FrameScope, L: Translate): ConfirmBox {
+export function pageConfirmBox(scope: FrameScope, _L: Translate): ConfirmBox {
   return (dialog, ok, run) => new Promise<boolean>(resolve => {
     const form = dialog.querySelector("form");
     if (dialog.open || !scope.alive || !form) { resolve(false); return; }
@@ -36,7 +37,7 @@ export function pageConfirmBox(scope: FrameScope, L: Translate): ConfirmBox {
       try { await run(); if (scope.alive) dialog.close(accepted); }
       catch (error) {
         if (signal.aborted) return;
-        bad.textContent = error instanceof Error && error.message ? error.message : L("操作失败");
+        bad.textContent = error instanceof Error && error.message ? error.message : uiText.text("common.confirm-box.action-failed");
         bad.hidden = false; ok.focus();
       } finally { if (!signal.aborted) working(false); }
     }, { signal });

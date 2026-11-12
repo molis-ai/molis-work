@@ -118,7 +118,7 @@ test("RAC-2922 real AgentHost registration accepts ordinary/fixed starts and ref
       starts.push(structuredClone(request));
       view = run(); view.phase = "completed"; view.ended_at = view.started_at;
       view.frozen = { ...view.frozen, directory, role_id: request.role_id, role_version: request.role!.version, execution: request.role!.execution,
-        text_materials: (request.text_materials ?? []).map(({ text: _text, ...metadata }) => metadata) };
+        text_materials: (request.text_materials ?? []).map(({ text: _text, ...metadata }) => metadata), ...(request.role!.reply_locale ? { reply_locale: request.role!.reply_locale } : {}) };
       whole.runs = [view.ref]; whole.latest_run = view;
       return { ref: view.ref, frozen: view.frozen };
     },

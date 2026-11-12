@@ -1,6 +1,6 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isTerminalAgentPhase, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { L } from "../web-locale.js";
 import { assistantFailure } from "./assistant-error.js";
 
 /**
@@ -17,13 +17,13 @@ export const answerablePhase = (question: { parked?: true }) => question.parked 
 
 /** What the person does about a session held for checking: answer the parked question it shows, or check the last round. */
 export const recoveryAction = (runs: ReadonlyArray<{ awaiting_input: ReadonlyArray<{ parked?: true }> } | null>) =>
-  runs.some(run => run?.awaiting_input.some(question => question.parked)) ? "回答上面的问题" : "核对上一轮的实际结果后再继续";
+  runs.some(run => run?.awaiting_input.some(question => question.parked)) ? uiText.text("workbench.assistant-parked-answer.answer-question") : uiText.text("workbench.assistant-parked-answer.check-last-turn");
 
 /** A work's problem from its session: held for checking, or an answer still waiting for the round that takes it. */
 export function sessionProblem(recovery: AgentSessionView["recovery"], runs: Parameters<typeof recoveryAction>[0], session: AgentSessionView | null | undefined) {
   if (recovery) return { problem: { message: recovery.reason, action: recoveryAction(runs) } };
   const waiting = session?.queued_inputs?.some(input => input.key?.startsWith("answer.")) && (!session.latest_run || isTerminalAgentPhase(session.latest_run.phase));
-  return waiting ? { problem: { message: "已回答，下一轮还没开始；回答留在排队里", action: "说“继续”接着做" } } : {};
+  return waiting ? { problem: { message: uiText.text("workbench.assistant-parked-answer.queued"), action: uiText.text("workbench.assistant-parked-answer.continue") } } : {};
 }
 
 /**
@@ -41,7 +41,7 @@ export async function roundAfterParkedAnswer(start: () => Promise<unknown>, look
 
 /**
  * The work after the answer (read once the next round was tried): it says so when that round did not start. The reason is
- * already in the page's language, so the words around it are too (QA-001); the action stays the key the page translates.
+ * already in the page's language, so the words around it are too (QA-001); the action is projected with the current view.
  */
 export const afterParkedAnswer = (refused: string | undefined, view: AssistantWorkView): AssistantWorkView =>
-  refused ? { ...view, problem: { message: `${L("已回答，下一轮没能开始：")}${refused}`, action: "说“继续”接着做" } } : view;
+  refused ? { ...view, problem: { message: `${uiText.text("workbench.assistant-parked-answer.answered-but-next-turn-couldn-t-start")}${refused}`, action: uiText.text("workbench.assistant-parked-answer.continue") } } : view;

@@ -1,3 +1,4 @@
+import { feedPageSchema, feedPageInput, feedPageOffset } from "./page-input.js";
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
@@ -18,7 +19,7 @@ function define<I, O>(id: string, version: number, title: string, description: s
     audiences: ["user"], permissions: [...permissions], subject_kinds: ["feed_item"], input_schema: input, output_schema: output }, version);
 }
 
-export type FeedDirectorySnapshot = Omit<FeedSnapshot, "inbox_entries">;
+export type FeedDirectorySnapshot = Omit<FeedSnapshot, "inbox_entries"> & { offset: number; next_offset: number | null; facets: { source_id: string; label: string; count: number }[] };
 /** Data for Feed's own stage; Inbox's attention facts arrive through its public read. */
 export interface FeedStageData {
   readonly snapshot: FeedDirectorySnapshot;
@@ -28,13 +29,15 @@ export interface FeedStageData {
   readonly source_presentations: Readonly<Record<string, SourcePresentation>>;
 }
 export interface FeedReaderData {
+  readonly material_offset: number;
+  readonly material_next_offset: number | null;
   readonly item: FeedItemRecord;
   readonly inbox_active: boolean;
   readonly promote_available: boolean;
 }
 export const FEED_STAGE_INBOX_READ = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1, provider_id: "io.molis.work.inbox" } as const;
 const snapshotSchema = { type: "object", properties: { sources: rows(["source_id"]), feed_items: { type: "array", items: item },
-  runs: rows(["run_id"]), out_rules: rows(["rule_id"]) }, required: ["sources", "feed_items", "runs", "out_rules"], additionalProperties: false };
+  facets: rows(["source_id", "label", "count"]), offset: { type: "integer", minimum: 0 }, next_offset: { type: ["integer", "null"], minimum: 0 }, runs: rows(["run_id"]), out_rules: rows(["rule_id"]) }, required: ["sources", "feed_items", "runs", "out_rules", "offset", "next_offset", "facets"], additionalProperties: false };
 const connectionsSchema = { type: "object", properties: {
   github: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] },
   gmail: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] } }, required: ["github", "gmail"] };
@@ -45,20 +48,20 @@ const linkedContext = define<{ goal_id: string; item_id?: string }, { source_con
   { anyOf: [{ type: "object", properties: { source_context: { type: "string" } }, required: ["source_context"], additionalProperties: false }, { type: "null" }] });
 
 export const feedQueryActions = {
-  stage: define<Record<string, never>, FeedStageData>("feed.stage.read", /* @version action.feed.stage.read */ 1, "读取 Feed 舞台", "读取本实例的来源目录、消息、捕捉建议、连接与 Inbox 活跃事实", empty,
+  stage: define<Record<string, string>, FeedStageData>("feed.stage.read", /* @version action.feed.stage.read */ 1, "读取 Feed 舞台", "分页读取本实例的来源目录、消息、捕捉建议、连接与 Inbox 活跃事实", feedPageSchema,
     { type: "object", properties: { snapshot: snapshotSchema, source_catalog: rows(["id", "name", "feed_url", "category", "category_label", "limitations"]),
       connector_auth: connectionsSchema, inbox_entries: rows(["entry_id", "subject_type", "subject_id", "status"]), source_presentations: { type: "object" } },
       required: ["snapshot", "source_catalog", "connector_auth", "inbox_entries", "source_presentations"], additionalProperties: false },
     ["feed:read", "inbox:read", "evidence:read", "sources:pull_feed", "sources:pull_connector"]),
-  reader: define<{ object_id: string }, FeedReaderData>("feed.items.reader", /* @version action.feed.items.reader */ 1, "读取 Feed 阅读器", "读取一条消息的正文、有效捕捉建议及当前可用的处置",
-    { ...empty, properties: { object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
-    { type: "object", properties: { item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },
-      required: ["item", "inbox_active", "promote_available"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"]),
+  reader: define<{ object_id: string; material_offset?: string }, FeedReaderData>("feed.items.reader", /* @version action.feed.items.reader */ 1, "读取 Feed 阅读器", "读取一条消息的正文、有效捕捉建议及当前可用的处置",
+    { ...empty, properties: { material_offset: { type: "string", pattern: "^(0|[1-9][0-9]*)$" }, object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
+    { type: "object", properties: { material_offset: { type: "integer" }, material_next_offset: { type: ["integer", "null"] }, item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },
+      required: ["item", "inbox_active", "promote_available", "material_offset", "material_next_offset"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"]),
   linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
     required_actions: [{ capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1, provider_id: "io.molis.work.goals" }] } },
-  snapshot: define<{ include_contents?: boolean }, FeedDirectorySnapshot>("feed.snapshot", /* @version action.feed.snapshot */ 1, "读取 Feed 面板",
-    "读取当前项目的来源、消息与拉取记录；默认省略正文，Inbox 事项由 Inbox 自己授权读取",
-    { ...empty, properties: { include_contents: { type: "boolean" } } },
+  snapshot: define<Record<string, string>, FeedDirectorySnapshot>("feed.snapshot", /* @version action.feed.snapshot */ 1, "读取 Feed 面板",
+    "分页读取当前项目的消息元数据；正文与材料经单项读取，Inbox 事项由 Inbox 自己授权读取",
+    feedPageSchema,
     snapshotSchema),
   item: define<{ item_id: string }, { item: FeedItemRecord }>("feed.items.get", /* @version action.feed.items.get */ 1, "读取 Feed 消息",
     "读取一条消息的当前内容，包含仍可读取的原始材料正文",
@@ -85,16 +88,16 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
     capability_id: definition.capability_id, version: definition.version,
     handle: (caller, input) => run(input as I, caller),
   });
-  const snapshot = async (contents = false): Promise<FeedDirectorySnapshot> => {
-    const { inbox_entries: _inbox, ...current } = feed.snapshot(projectId);
-    return { ...current, feed_items: await Promise.all(current.feed_items.map(async entry => ({ ...(contents ? await ports.hydrate(entry)
-      : { ...entry, body: null, materials: entry.materials.map(material => ({ ...material, content: undefined })) }), suggested_behavior_ids: [] }))) };
+  const snapshot = (input: Readonly<Record<string, string>>): FeedDirectorySnapshot => {
+    const page = feedPageInput(input);
+    const current = feed.directory(projectId, page);
+    return { ...current, facets: feed.reads.facets(projectId), offset: page.offset, next_offset: current.feed_items.length === page.limit ? page.offset + page.limit : null };
   };
   return [
-    bind(feedQueryActions.stage, async (_input, caller) => {
+    bind(feedQueryActions.stage, async (input, caller) => {
       const source_catalog = ports.stage.sourceCatalog();
       const [current, connector_auth, { recommendations }, inbox_entries] = await Promise.all([
-        snapshot(), ports.authStatus(), ports.stage.recommendations(caller), ports.stage.inboxEntries(caller),
+        snapshot({ filter: JSON.stringify({ status: "active" }), ...input }), ports.authStatus(), ports.stage.recommendations(caller), ports.stage.inboxEntries(caller),
       ]);
       const source_presentations = await ports.stage.sourcePresentations?.(current.sources) ?? {};
       await caller.beforeEffect();
@@ -103,15 +106,16 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
         source_catalog, connector_auth, inbox_entries, source_presentations };
     }),
     bind(feedQueryActions.reader, async (input, caller) => {
+      const material_offset = feedPageOffset(input.material_offset);
       const [item, { recommendations }, entries, promote_available] = await Promise.all([
-        ports.hydrate(feed.getFeedItem(projectId, input.object_id)), ports.stage.recommendations(caller), ports.stage.inboxEntries(caller), ports.stage.promoteAvailable(caller),
+        ports.hydrate(feed.reads.detail(projectId, input.object_id, material_offset)), ports.stage.recommendations(caller), ports.stage.inboxEntries(caller), ports.stage.promoteAvailable(caller),
       ]);
       await caller.beforeEffect();
-      return { item: { ...item, suggested_behavior_ids: recommendations.find(row => row.item_id === item.item_id)?.suggested_behavior_ids ?? [] },
+      return { material_offset, material_next_offset: item.materials.length === 200 ? material_offset + 200 : null, item: { ...item, suggested_behavior_ids: recommendations.find(row => row.item_id === item.item_id)?.suggested_behavior_ids ?? [] },
         inbox_active: entries.some(entry => entry.subject_type === "feed_item" && entry.subject_id === item.item_id && (entry.status === "open" || entry.status === "in_progress")), promote_available };
     }),
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),
-    bind(feedQueryActions.snapshot, input => snapshot(input.include_contents)),
+    bind(feedQueryActions.snapshot, input => snapshot(input)),
     bind(feedQueryActions.item, async input => ({ item: await ports.hydrate(feed.getFeedItem(projectId, input.item_id)) })),
     bind(feedQueryActions.connections, () => ports.authStatus()),
   ];

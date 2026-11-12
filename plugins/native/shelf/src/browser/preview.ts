@@ -1,3 +1,4 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escText, escapeAttr } from "./dom.js";
 import { renderBar } from "./bar.js";
 import { focusEditor } from "./edit.js";
@@ -7,6 +8,8 @@ import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { readText } from "./request.js";
 import type { Item, ShelfPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Opens the item's copy as a download in a browser, where the desktop would hand the file over. */
 export const download = (page: ShelfPage, item: Item): void => {
   Object.assign(document.createElement("a"), { href: fileUrl(page, item.item_id), download: item.name || "" }).click();
@@ -15,7 +18,7 @@ export const download = (page: ShelfPage, item: Item): void => {
 /** The whole copy as text. A copy that cannot be read is said in Shelf's own words, whatever the Host answered. */
 export async function readFullText(page: ShelfPage, item: Item, beginEdit = false): Promise<string> {
   const version = page.textVersion;
-  const fallback = page.L("shelf.preview.could-not-read-this-copy");
+  const fallback = uiText.text("shelf.preview.could-not-read-this-copy");
   const response = await molisWorkRequest<Response>(fileUrl(page, item.item_id), { as: "response", scope: page.lifetime, fallback });
   if (!response.ok) throw new Error(fallback);
   const text = await response.text();
@@ -40,7 +43,7 @@ export function fillReading(page: ShelfPage): void {
     readFullText(page, item).then((text) => {
       // Same text as the preview shown: re-rendering would only wipe a selection made meanwhile.
       const body = node.querySelector(".shelf-reading");
-      if (node.isConnected && body && text !== item.preview_text) body.innerHTML = reading.render(item, text);
+      if (node.isConnected && body && text !== item.preview_text) setContentHtml(body, reading.render(item, text));
     }).catch((error: Error) => {
       if (error.name === "AbortError" || !node.isConnected) return;
       const line = document.createElement("p");
@@ -60,7 +63,7 @@ function fillChildDoc(page: ShelfPage): void {
     const relative = doc.dataset.shelfChildDoc ?? "";
     const child = selected?.children?.find((entry) => entry.relative === relative);
     const holder = document.createElement("div");
-    holder.innerHTML = reading.render(child || { name: relative }, text);
+    setContentHtml(holder, reading.render(child || { name: relative }, text));
     doc.querySelectorAll("p.muted").forEach((node) => node.remove());
     doc.append(...holder.childNodes);
   }).catch(() => undefined);
@@ -74,26 +77,26 @@ export const syncShelfStage = (page: ShelfPage): void => expandShelfStage(page, 
 
 /** The title strip above the preview. */
 function syncChrome(page: ShelfPage): void {
-  const { bench, L, selected, selClip } = page;
+  const { bench, selected, selClip } = page;
   const chrome = bench.querySelector<HTMLElement>("[data-shelf-chrome]");
   const title = bench.querySelector("[data-shelf-chrome-title]");
   const tag = bench.querySelector("[data-shelf-chrome-tag]");
   if (chrome) chrome.hidden = !(selected || selClip);
   if (title) title.textContent = selClip ? selClip.title : (selected ? selected.name : "");
   if (!tag) return;
-  const group = selected?.group === "result" ? L("shelf.preview.result") : L("shelf.preview.material");
-  tag.textContent = selClip ? L("shelf.preview.clipboard") : (selected ? group + " · " + cap(selected.kind) : "");
+  const group = selected?.group === "result" ? uiText.text("shelf.preview.result") : uiText.text("shelf.preview.material");
+  tag.textContent = selClip ? uiText.text("shelf.preview.clipboard") : (selected ? group + " · " + cap(selected.kind) : "");
 }
 
 /** Which of the strip's buttons the chosen item has use for. */
 function syncButtons(page: ShelfPage): void {
-  const { bench, host, L, selected, selClip, projectPrefix, editing } = page;
+  const { bench, host, selected, selClip, projectPrefix, editing } = page;
   const busy = stageBusy(page);
   const on = (selector: string) => bench.querySelector<HTMLElement>(selector);
   const copyBtn = on("[data-shelf-copy-file]");
   if (copyBtn) {
     copyBtn.hidden = !hasFile(selected) || Boolean(selClip);
-    copyBtn.textContent = host.nativeFiles ? L("shelf.preview.copy-file") : L("shelf.preview.download-file");
+    copyBtn.textContent = host.nativeFiles ? uiText.text("shelf.preview.copy-file") : uiText.text("shelf.preview.download-file");
   }
   const useBtn = on("[data-shelf-use-material]");
   if (useBtn) useBtn.hidden = !(selected?.group === "result" && hasFile(selected)) || Boolean(selClip);
@@ -113,7 +116,7 @@ function syncButtons(page: ShelfPage): void {
   const editBtn = on("[data-shelf-edit]");
   if (editBtn) {
     editBtn.hidden = !(selected && !selClip && hasFile(selected) && isEditable(selected) && !busy);
-    editBtn.textContent = editing ? L("shelf.preview.done-editing") : L("shelf.preview.edit-copy");
+    editBtn.textContent = editing ? uiText.text("shelf.preview.done-editing") : uiText.text("shelf.preview.edit-copy");
     editBtn.classList.toggle("is-on", editing);
     editBtn.setAttribute("aria-pressed", editing ? "true" : "false");
   }
@@ -139,7 +142,7 @@ export function syncStage(page: ShelfPage): void {
 
 /** The preview while the person compares a result with the materials it came from. */
 function paintComparison(page: ShelfPage, selected: Item): void {
-  const { L, preview } = page;
+  const { preview } = page;
   const sources = comparisonSources(page);
   if (!page.compareSourceId || !sources.some((item) => item.item_id === page.compareSourceId)) page.compareSourceId = sources[0]?.item_id ?? null;
   const source = sources.find((item) => item.item_id === page.compareSourceId) || null;
@@ -147,9 +150,9 @@ function paintComparison(page: ShelfPage, selected: Item): void {
     ? '<div class="shelf-compare-nav">' + sources.map((item) => '<button type="button" class="shelf-source' + (item.item_id === source?.item_id ? " is-on" : "") + '" data-shelf-source="' + escapeAttr(item.item_id) + '">' + escText(item.name) + "</button>").join("") + "</div>"
     : "";
   preview.innerHTML = '<div class="shelf-compare" data-shelf-compare-layout>'
-    + '<div data-shelf-compare-pane="source">' + nav + previewPane(page, source, L("shelf.panes.source") + (source ? " · " + source.name : "")) + "</div>"
+    + '<div data-shelf-compare-pane="source">' + nav + previewPane(page, source, uiText.text("shelf.panes.source") + (source ? " · " + source.name : "")) + "</div>"
     + '<div class="shelf-rule"></div>'
-    + '<div data-shelf-compare-pane="result">' + (page.editing ? editorHtml(page, selected) : previewPane(page, selected, L("shelf.preview.result") + " · " + selected.name)) + "</div>"
+    + '<div data-shelf-compare-pane="result">' + (page.editing ? editorHtml(page, selected) : previewPane(page, selected, uiText.text("shelf.preview.result") + " · " + selected.name)) + "</div>"
     + "</div>";
   renderBar(page, "result");
   focusEditor(page);
@@ -157,7 +160,7 @@ function paintComparison(page: ShelfPage, selected: Item): void {
 }
 
 export function paintPreview(page: ShelfPage): void {
-  const { L, stage, bench, preview, snapshot, selected, selClip } = page;
+  const { stage, bench, preview, snapshot, selected, selClip } = page;
   if (!page.lifetime.alive || page.composingAction) return;
   stage.classList.remove("is-confirm", "is-run", "is-fail");
   const line = bench.querySelector<HTMLElement>("[data-shelf-run-line]");
@@ -165,7 +168,7 @@ export function paintPreview(page: ShelfPage): void {
   syncStage(page);
   if (page.compare && selected?.group === "result") { paintComparison(page, selected); return; }
   if (selClip) {
-    preview.innerHTML = docHtml(L("shelf.preview.selecting-only-previews"), selClip.title, selClip.body) + '<p class="shelf-clip-foot">' + escText(L("shelf.preview.previewing-a-saved-clip-add")) + "</p>";
+    preview.innerHTML = docHtml(uiText.text("shelf.preview.selecting-only-previews"), selClip.title, selClip.body) + '<p class="shelf-clip-foot">' + escText(uiText.text("shelf.preview.previewing-a-saved-clip-add")) + "</p>";
     renderBar(page, "clipboard");
     return;
   }

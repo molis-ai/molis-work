@@ -1,3 +1,6 @@
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
+import { renderLanguageHead } from "./language-resource.js";
 import { escapeHtml, icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
@@ -25,6 +28,7 @@ import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./i
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
+import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
  * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
@@ -56,7 +60,7 @@ function iconInventoryPlugins(): CatalogPluginIcon[] {
  * the way the workbench client fills them; the switcher opens with the same popover.
  */
 function renderBarSpecimen(): string {
-  const primitives = { L: (text: string) => text, escapeHtml, icon, htmlLang: () => "zh-CN" };
+  const primitives = { readText: (text: string) => text, escapeHtml, icon, htmlLang: () => "zh-CN" };
   const project = { project_id: "project-demo", display_name: "Molis Work 示例项目" };
   const monogram = renderProjectMonogram(project.display_name, project.project_id, escapeHtml);
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
@@ -101,12 +105,12 @@ const BAR_SPECIMEN_SCRIPT = `
   if (!stage) return;
   const toggle = stage.querySelector("[data-plugin-picker-toggle]");
   const popover = stage.querySelector("[data-plugin-picker-popover]");
-  const input = stage.querySelector("[data-assistant-input]");
-  const send = stage.querySelector("[data-assistant-send]");
+  // The composer is its first screen only (nothing is sent from the board): typing just wakes the send button.
+  const input = stage.querySelector("[data-assistant-composer] .mw-composer__input");
+  const send = stage.querySelector("[data-assistant-composer] [data-composer-send]");
   const setPicker = (open) => { if (!toggle || !popover) return; popover.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); };
   toggle?.addEventListener("click", () => setPicker(popover.hidden));
   input?.addEventListener("input", () => { if (send) send.disabled = !input.value.trim(); });
-  stage.querySelector("[data-assistant-composer]")?.addEventListener("submit", (event) => event.preventDefault());
   stage.addEventListener("click", (event) => {
     // The switcher's two buttons answer here the way the workbench's do (the specimen holds no project, so nothing is kept).
     const keep = event.target.closest("[data-dock-choice]");
@@ -144,9 +148,12 @@ const BAR_SPECIMEN_SCRIPT = `
  * wordmark types again on demand and the caption cycles its words. */
 const SPECIMEN_SCRIPT = `
 (() => {
+  document.addEventListener("molis-work:language-changed", event => {
+    for (const frame of document.querySelectorAll('iframe[src^="/__ui/catalog/"]')) {
+      frame.contentWindow?.molisWorkSelectLocalLanguage?.(event.detail.tag);
+    }
+  });
   document.addEventListener("click", (event) => {
-    const language = event.target.closest("[data-board-lang]");
-    if (language && !language.classList.contains("is-current")) { const url = new URL(location.href); url.searchParams.set("lang", language.dataset.boardLang); location.assign(url.href); return; }
     const copy = event.target.closest("[data-catalog-copy]");
     if (copy) window.molisCopy?.(copy, () => copy.dataset.catalogCopy === "ok" ? "Molis Work" : Promise.reject(new Error("refused")));
   });
@@ -175,7 +182,9 @@ const SPECIMEN_SCRIPT = `
   if (streams.length) play();
   // The media zoom: the button says what it does next, as a preview's own control would.
   const media = document.querySelector("[data-catalog-media]"), button = document.querySelector("[data-catalog-media-zoom]");
-  const zoom = media && window.molisMediaZoom?.(media, media.querySelector("img"), { onChange: (state) => { button.textContent = state === "fit" ? "原始尺寸" : "适应窗口"; } });
+  const paintZoom = (state) => { if (button) button.textContent = globalThis.t.text(state === "fit" ? "workbench.primitive-catalog.actual-size" : "workbench.primitive-catalog.fit-window"); };
+  const zoom = media && window.molisMediaZoom?.(media, media.querySelector("img"), { onChange: paintZoom });
+  document.addEventListener("molis-work:language-changed", () => { if (zoom) paintZoom(zoom.state()); });
   button?.addEventListener("click", () => { if (zoom) zoom.state() === "fit" ? zoom.actual() : zoom.fit(); });
 })();
 (() => {
@@ -201,58 +210,52 @@ const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;co
 
 /**
  * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and
- * plugin-row sections are written through it and their frames start in it (the older sections are Chinese only). `environment` is the
- * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host. This entry also supplies the text environment for the presentation forms.
+ * plugin-row sections are written through it and their frames start in it (the sections keep the same sample structure). `environment` is the
+ * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none. This entry also supplies the text environment for the presentation forms.
  */
-export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text, lang: "zh" | "en" = "zh", environment = ""): string {
+export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: WebLocale = DEFAULT_WEB_LOCALE, environment = "", appearance?: WorkbenchAppearance, delivery?: string): string {
   const languages = renderToggleGroup({
-    label: say("界面语言"),
-    items: [["zh", "中文"], ["en", "English"]].map(([value, label]) => ({ value: value!, label: label!, current: value === lang, attrs: { "data-board-lang": value! } })),
+    label: say("workbench.primitive-catalog.language"),
+    items: WORKBENCH_LANGUAGES.languages.map(({ tag, name }) => ({ value: tag, label: name, current: tag === lang, attrs: { "data-board-lang": tag } })),
   });
   const themes = renderToggleGroup({
-    label: "主题",
+    label: t.text("workbench.primitive-catalog.theme"),
     items: [
-      { value: "light", label: "浅色", attrs: { "data-theme-option": "light" } },
-      { value: "dark", label: "深色", attrs: { "data-theme-option": "dark" } },
-      { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
+      { value: "light", label: t.text("workbench.context-onboarding.light"), attrs: { "data-theme-option": "light" } },
+      { value: "dark", label: t.text("workbench.context-onboarding.dark"), attrs: { "data-theme-option": "dark" } },
+      { value: "system", label: t.text("workbench.client-render.system"), current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const skins = renderToggleGroup({
-    label: "皮肤",
-    items: [
-      { value: "soft", label: "默认", current: true, attrs: { "data-skin-option": "soft" } },
-      { value: "tray", label: "托盘", attrs: { "data-skin-option": "tray" } },
-      { value: "pill", label: "圆润", attrs: { "data-skin-option": "pill" } },
-    ],
-  });
+  const directory = builtinPluginDirectory();
   const catalog = renderPrimitiveCatalog({
-    plugins: iconInventoryPlugins(), say,
+    plugins: iconInventoryPlugins(), say, delivery,
     ...(environment ? {
       presentationLocale: lang,
       presentationPlugins: BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
         id: manifest.plugin_id,
-        name: lang === "en" ? manifest.name_en ?? manifest.name : manifest.name,
+        name: directory.find(entry => entry.plugin_id === manifest.plugin_id)?.name ?? manifest.name,
         declared: (manifest.presentation?.objects.length ?? 0) > 0,
       })),
     } : {}),
   })
-    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#service-connections" title="${say("服务连接")}">${say("服务连接")}</a><a href="#return-trips" title="${say("回到原处")}">${say("回到原处")}</a><a href="#platform-area" title="${say("平台区域")}">${say("平台区域")}</a><a href="#connection-need" title="${say("原处的连接卡 · 平台区域版")}">${say("原处的连接卡 · 平台区域版")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="${say("协作零件")}">${say("协作零件")}</a><a href="#navigation" title="${say("工作台导航")}">${say("工作台导航")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
+    .replace("</nav>", `<a href="#foundation" title="${t("workbench.primitive-catalog.foundation")}">${t("workbench.primitive-catalog.foundation")}</a><a href="#conditions" title="${say("workbench.primitive-catalog.conditions-states")}">${say("workbench.primitive-catalog.conditions-states")}</a><a href="#assistant" title="${say("workbench.primitive-catalog.assistant-information-works")}">${say("workbench.primitive-catalog.assistant-information-works")}</a><a href="#plugin-rows" title="${say("workbench.primitive-catalog.plugin-rows")}">${say("workbench.primitive-catalog.plugin-rows")}</a><a href="#service-connections" title="${say("workbench.primitive-catalog.service-connections")}">${say("workbench.primitive-catalog.service-connections")}</a><a href="#return-trips" title="${say("workbench.primitive-catalog.back-where-were")}">${say("workbench.primitive-catalog.back-where-were")}</a><a href="#platform-area" title="${say("workbench.primitive-catalog.platform-area")}">${say("workbench.primitive-catalog.platform-area")}</a><a href="#connection-need" title="${say("workbench.primitive-catalog.connection-card-place-platform-area")}">${say("workbench.primitive-catalog.connection-card-place-platform-area")}</a><a href="#bar" title="${t("workbench.primitive-catalog.bar-and-overlays")}">${t("workbench.primitive-catalog.bar-and-overlays")}</a><a href="#collab" title="${say("workbench.primitive-catalog.collaboration-parts")}">${say("workbench.primitive-catalog.collaboration-parts")}</a><a href="#navigation" title="${say("workbench.primitive-catalog.workbench-navigation")}">${say("workbench.primitive-catalog.workbench-navigation")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection(say)}\n    ${renderNavigationSection(say, lang)}\n    ${environment}\n  </div>\n  <script>`);
   return `<!doctype html>
-<html lang="${lang === "en" ? "en" : "zh-CN"}">
+<html lang="${WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang)?.html_lang ?? DEFAULT_WEB_LOCALE}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>组件板 · Molis Work</title>
+  <title>${t("workbench.primitive-catalog.component-board")} · Molis Work</title>
+  ${renderLanguageHead(lang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <link rel="stylesheet" href="/assets/molis-work-settings.css">
+  <link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}
   <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${RETURN_TRIP_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}${CONNECTION_NEED_SECTION_STYLES}${environment ? ENVIRONMENT_SECTION_STYLES : ""}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
   <header class="mw-catalog-top">
-    <h1>Molis Work 组件板</h1>
-    <div class="mw-catalog-top__tools">${languages}${themes}${skins}</div>
+    <h1>Molis Work ${t("workbench.primitive-catalog.component-board")}</h1>
+    <div class="mw-catalog-top__tools">${languages}${themes}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>

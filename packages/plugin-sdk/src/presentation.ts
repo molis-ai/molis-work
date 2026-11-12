@@ -5,7 +5,7 @@ import { PRESENTATION_FORM_KINDS, type FieldRole, type FormKind, type OwnedPrese
   type PresentationOverviewDeclaration, type PresentationValueItem, type PresentationValues, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef, TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isRecord } from "./json-value.js";
-import { PLATFORM_TEXT_OWNER } from "./message-declarations.js";
+import { PLATFORM_TEXT_OWNER } from "./ui/text-keys.js";
 import { say } from "./ui/text.js";
 import { tryOwnedTextRef } from "./ui/text-ref.js";
 

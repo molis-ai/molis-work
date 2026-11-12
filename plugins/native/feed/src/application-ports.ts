@@ -1,4 +1,5 @@
 import type { SourcesApi } from "./contract/sources.js";
+import type { SignalCommands } from "./contract/signals.js";
 import type { FeedApi } from "./contract/feed.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ListenerCheckpoint, ListenerRunRecord } from "./contract/listener.js";
@@ -7,7 +8,12 @@ import type { FeedSourceHistory } from "./source-history.js";
 import type { FeedAttentionPort } from "./store/items/types.js";
 
 export interface FeedApplicationPorts {
+  readonly historyReads: {
+    refs(projectId: string, sourceId: string, after: string): string[];
+    operations(projectId: string, sourceId: string, after: string): string[];
+  };
   readonly sources: SourcesApi;
+  readonly signals: Pick<SignalCommands, "deleteBySource">;
   readonly attention: FeedAttentionPort;
   readonly feed: FeedApi;
   readonly outRules?: FeedOutRuleStore;
@@ -19,7 +25,7 @@ export interface FeedApplicationPorts {
   readonly homeJudgment?: (subject: { kind: "feed_item" | "inbox_entry"; id: string; project_id: string }, caller?: ActionCallContext) => Promise<void>;
   readonly inboxJudgment?: (entry: { project_id: string; entry_id: string }, caller?: ActionCallContext) => Promise<void>;
   readonly listener: {
-    listRuns(projectId: string): ListenerRunRecord[];
+    listRuns(projectId: string, page?: { source_id?: string; after_id?: string; limit: number; summaries?: boolean }): ListenerRunRecord[];
     getRunByOperationId(projectId: string, operationId: string): ListenerRunRecord | null;
     saveRun(run: ListenerRunRecord): ListenerRunRecord;
     recoverInterruptedRuns(projectId: string): number;

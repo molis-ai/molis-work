@@ -1,27 +1,28 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 /** Kept in the existing connection detail; the four dimensions are never collapsed into one success badge. */
-export function renderConnectionStatus(status: ConnectorConnectionStatus | undefined, p: { L(text: string, values?: Record<string, string | number>): string; escapeHtml(value: unknown): string }): string {
+export function renderConnectionStatus(status: ConnectorConnectionStatus | undefined, p: { readText(text: string, values?: Record<string, string | number>): string; escapeHtml(value: unknown): string }): string {
   if (!status) return "";
-  const { L, escapeHtml: e } = p;
-  const connectivity = { disconnected: L("已断开"), unchecked: L("未检查"), connected: L("连通检查通过"), failed: L("检查失败"), unknown: L("结果未确认") };
-  const authorization = { "not-required": L("无需服务端登录"), verified: L("账号已验证"), unknown: L("授权尚未验证"), required: L("需重新授权") };
-  const work = { allowed: L("当前调用者已获准"), partial: L("当前调用者仅获部分权限"), blocked: L("当前调用者未获准"), unknown: L("尚无能力可核对权限") };
-  const capabilities = { "none-discovered": L("未发现可用能力"), callable: L("当前可调用"), partial: L("部分可调用"), blocked: L("暂不可调用") };
+  const { escapeHtml: e } = p;
+  const connectivity = { disconnected: uiText.text("workbench.settings-connection-status.disconnected"), unchecked: uiText.text("workbench.settings-connection-status.not-checked"), connected: uiText.text("workbench.settings-connection-status.connectivity-verified"), failed: uiText.text("workbench.settings-connection-status.check-failed"), unknown: uiText.text("workbench.settings-connection-status.result-unconfirmed") };
+  const authorization = { "not-required": uiText.text("workbench.settings-connection-status.no-service-sign-required"), verified: uiText.text("workbench.settings-connection-status.account-verified"), unknown: uiText.text("workbench.settings-connection-status.authorization-not-yet-verified"), required: uiText.text("workbench.settings-connection-status.reauthorization-required") };
+  const work = { allowed: uiText.text("workbench.settings-connection-status.current-caller-authorized"), partial: uiText.text("workbench.settings-connection-status.current-caller-partly-authorized"), blocked: uiText.text("workbench.settings-connection-status.current-caller-not-authorized"), unknown: uiText.text("workbench.settings-connection-status.no-capabilities-available-assess-permissions") };
+  const capabilities = { "none-discovered": uiText.text("workbench.settings-connection-status.no-capabilities-discovered"), callable: uiText.text("workbench.settings-connection-status.callable-now"), partial: uiText.text("workbench.settings-connection-status.partly-callable"), blocked: uiText.text("workbench.settings-connection-status.currently-unavailable") };
   const last = status.last_call;
-  const outcome = { succeeded: L("调用成功"), failed: L("调用失败"), unknown: L("结果未确认") };
+  const outcome = { succeeded: uiText.text("workbench.settings-connection-status.call-succeeded"), failed: uiText.text("workbench.settings-connection-status.call-failed"), unknown: uiText.text("workbench.settings-connection-status.result-unconfirmed") };
   // ASC-58: what a run of failed calls found, in the words of the notice that brought the person here.
-  const failures = { reauth: L("登录已失效"), denied: L("密钥或权限被拒"), unavailable: L("连不上服务") };
-  const run = last?.current_revision && last.failures && last.failure_class ? ` · ${e(failures[last.failure_class])} · ${e(L("连续 {count} 次", { count: last.failures }))}` : "";
+  const failures = { reauth: uiText.text("workbench.settings-connection-status.sign-expired"), denied: uiText.text("workbench.settings-connection-status.key-permission-refused"), unavailable: uiText.text("workbench.settings-connection-status.service-unreachable") };
+  const run = last?.current_revision && last.failures && last.failure_class ? ` · ${e(failures[last.failure_class])} · ${e(uiText.text("workbench.settings-connection-status.count-row", { count: last.failures }))}` : "";
   // What calls found is said as theirs, not as a check's result; a refused authorization outranks either in the summary.
-  const byCalls = status.connectivity.source === "business-call" ? { connected: L("调用已到达服务"), failed: L("调用连不上服务") } : {};
+  const byCalls = status.connectivity.source === "business-call" ? { connected: uiText.text("workbench.settings-connection-status.calls-reach-service"), failed: uiText.text("workbench.settings-connection-status.calls-cannot-reach-service") } : {};
   const reached = byCalls[status.connectivity.state as keyof typeof byCalls] ?? connectivity[status.connectivity.state];
   const summary = status.authorization.service.state === "required" ? authorization.required : reached;
-  return `<details class="settings-connection-tool settings-connection-inline" data-connection-status><summary>${e(L("连接、授权与能力"))} · ${e(summary)}</summary><dl>
-    <dt>${e(L("配置"))}</dt><dd>${e(status.configuration.state === "complete" ? L("配置完整") : L("配置不完整"))} · ${e(status.configuration.enabled ? L("已启用") : L("已停用"))}</dd>
-    <dt>${e(L("连通性"))}</dt><dd>${e(reached)}${status.connectivity.observed_at ? ` · <time>${e(status.connectivity.observed_at)}</time>` : ""}${status.connectivity.current === false ? ` · ${e(L("旧检查不代表当前配置"))}` : ""}</dd>
-    <dt>${e(L("授权"))}</dt><dd>${e(authorization[status.authorization.service.state])} · ${e(status.authorization.service.scopes?.join(", ") || L("服务端授权范围未知"))}<br>${e(work[status.authorization.work.state])}${status.authorization.work.source === "current-project" ? ` · ${e(L("请在所属项目中核对调用权限"))}` : ""}</dd>
-    <dt>${e(L("能力"))}</dt><dd>${e(capabilities[status.capabilities.state])}${status.capabilities.entries.length ? `<ul>${status.capabilities.entries.map(entry => `<li>${e(entry.title)} · ${e(entry.available ? L("当前可调用") : entry.reason || L("暂不可调用"))}</li>`).join("")}</ul>` : ""}</dd>
-    <dt>${e(L("最近实际调用"))}</dt><dd>${last ? `${e(outcome[last.outcome])}${run} · <time>${e(last.at)}</time>${last.current_revision ? "" : ` · ${e(L("来自旧配置"))}`}` : e(L("尚无调用记录"))}</dd>
-  </dl><small>${e(L("依据连接配置、当前权限、能力目录和实际回执；每次调用仍会复核。"))}</small></details>`;
+  return `<details class="settings-connection-tool settings-connection-inline" data-connection-status><summary>${e(uiText.text("workbench.settings-connection-status.connection-authorization-capabilities"))} · ${e(summary)}</summary><dl>
+    <dt>${e(uiText.text("workbench.settings-connection-status.config"))}</dt><dd>${e(status.configuration.state === "complete" ? uiText.text("workbench.settings-connection-status.configuration-complete") : uiText.text("workbench.settings-connection-status.configuration-incomplete"))} · ${e(status.configuration.enabled ? uiText.text("workbench.settings-connection-status.enabled") : uiText.text("workbench.settings-connection-status.switched-off"))}</dd>
+    <dt>${e(uiText.text("workbench.settings-connection-status.connectivity"))}</dt><dd>${e(reached)}${status.connectivity.observed_at ? ` · <time>${e(status.connectivity.observed_at)}</time>` : ""}${status.connectivity.current === false ? ` · ${e(uiText.text("workbench.settings-connection-status.previous-check-applies-older-configuration"))}` : ""}</dd>
+    <dt>${e(uiText.text("workbench.settings-connection-status.authorization"))}</dt><dd>${e(authorization[status.authorization.service.state])} · ${e(status.authorization.service.scopes?.join(", ") || uiText.text("workbench.settings-connection-status.service-permission-scope-unknown"))}<br>${e(work[status.authorization.work.state])}${status.authorization.work.source === "current-project" ? ` · ${e(uiText.text("workbench.settings-connection-status.check-calling-permissions-connection-s-project"))}` : ""}</dd>
+    <dt>${e(uiText.text("workbench.settings-connection-status.capabilities"))}</dt><dd>${e(capabilities[status.capabilities.state])}${status.capabilities.entries.length ? `<ul>${status.capabilities.entries.map(entry => `<li>${e(entry.title)} · ${e(entry.available ? uiText.text("workbench.settings-connection-status.callable-now") : entry.reason || uiText.text("workbench.settings-connection-status.currently-unavailable"))}</li>`).join("")}</ul>` : ""}</dd>
+    <dt>${e(uiText.text("workbench.settings-connection-status.latest-actual-call"))}</dt><dd>${last ? `${e(outcome[last.outcome])}${run} · <time>${e(last.at)}</time>${last.current_revision ? "" : ` · ${e(uiText.text("workbench.settings-connection-status.older-configuration"))}`}` : e(uiText.text("workbench.settings-connection-status.no-calls-recorded"))}</dd>
+  </dl><small>${e(uiText.text("workbench.settings-connection-status.based-configuration-current-permissions-capabilities-actual-resu"))}</small></details>`;
 }

@@ -25,6 +25,7 @@ function fixture() {
     async start(input) {
       captured.push(input); const role = input.role!;
       return { ref: { run_id: "r", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "fixture",
+        ...(role.reply_locale === undefined ? {} : { reply_locale: role.reply_locale }),
         ...(input.action_tools === undefined ? {} : { action_tools: structuredClone(input.action_tools) }),
         ...(role.character ? { character: structuredClone(role.character) } : {}), ...(role.character_skill_ids === undefined ? {} : {character_skill_ids: [...role.character_skill_ids]}), prompts: role.prompts.map(p => ({ prompt_id: p.prompt_id, version: p.version, layer: promptLayerOf(p) })),
         host_tools: widen ? ["read-file", "run-command"] : [...role.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null,
@@ -86,7 +87,8 @@ test("Character declaration cannot name undeclared roles or imply latest-version
 test("a selected method cannot restore a tool removed by the Character", async () => {
   const f = fixture(), method = { skill_id: "needs-search", version: 1, name: "Search method", tools: ["search"] };
   f.authority.manifest.skills = [method]; f.authority.skills = [{ ...method, body: "Search the repository." }];
-  f.request.skills = [{ skill_id: method.skill_id, version: 1 }];
+  const source = { source: { kind: "plugin" as const, plugin_id: "caller", plugin_version: "1.0.0", publisher_signature: "fixture" }, install_id: "i", installation_generation: "g1" };
+  f.authority.skill_source = source; f.request.skills = [{ ...source, skill_id: method.skill_id, version: 1 }];
   await assert.rejects(f.host.start("probe", f.request, f.authority), /未开放的工具/);
   assert.equal(f.captured.length, 0);
 });
@@ -166,8 +168,11 @@ test("Host rejects wrong source, missing grant, non-Agent audience, duplicate se
 
 test("original Character guard is carried to dispatch and rejects late disable without changing frozen history", async () => {
   const f = fixture(); f.request.action_tools = [actionRef]; let dispatchGuard: (() => void | Promise<void>) | undefined;
+  f.authority.reply_language = { locale: "en", prompt: { prompt_id: "reply-language", version: 1, body: "Use English." } };
+  f.authority.prompts = f.authority.prompts?.map(prompt => prompt.prompt_id === "reader" ? { ...prompt, body_by_locale: { en: "Read only." } } : prompt);
   f.authority.actions = async (_runtime, validate) => { dispatchGuard = validate; return { discover: async () => [actionView], invoke: async () => ({}) }; };
   const result = await f.host.start("probe", f.request, f.authority), history = structuredClone(result.frozen);
+  assert.equal(f.captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "reader")?.body, "Read only.");
   assert.ok(dispatchGuard); await dispatchGuard();
   f.authority.resolveCharacter = () => { throw new Error("Character disabled"); };
   await assert.rejects(f.captured[0]!.role!.actions!.client.invoke(actionRef, {}), /Character disabled/);

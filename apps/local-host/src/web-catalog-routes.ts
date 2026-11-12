@@ -1,11 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
-import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
+import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { bindLocalWebActions, invokeLocalWebCatalogAction } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -27,9 +28,11 @@ import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { createProjectArrivalHttp } from "./project-arrival-http.js";
 import { pruneProjectArrival } from "./project-arrival.js";
+import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { dispatchWebRoutes, type WebRoute } from "./web-route-table.js";
 import { handlePluginSettingsPage, handleSettingsPage } from "./web-catalog-settings.js";
+import type { SetProjectPluginFromWeb } from "./web-project-settings.js";
 
 /** What every catalog request carries: the request, and the Host's parts a page of the catalog (no project open) is built from. */
 export interface CatalogRequestContext {
@@ -60,6 +63,15 @@ const settingsProjectReference = (projectSettings: { settingsProjects(home: stri
 const homeActions = (localHost: MolisWorkLocalHost) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS);
 const noStore = { "cache-control": "no-store" };
 
+/** The person's one Catalog command; resolving its caller does not inspect or start project plugins. */
+function projectPluginSetter({ localHost, composition, serverOptions }: CatalogRequestContext): SetProjectPluginFromWeb {
+  const action = { ...projectPluginActions.set, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  return (projectId, input, signal, sessionCurrent) => invokeLocalWebCatalogAction(localHost, async () => {
+    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
+    return molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  }, action, input, { signal, sessionCurrent, accountCurrent: serverOptions.assertAccountCurrent });
+}
+
 /** The catalog's addresses, in the order they are tried; an entry answers the request or says false and the next one tries. */
 export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "settings-address", handle: ({ request, response, url, serverOptions, composition }) => redirectSettingsAddress(request, response, url, serverOptions.homeDirectory,
@@ -79,6 +91,12 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   } },
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
+  // Outside a project the unified input lists the Home sources only (S-composer-source-call).
+  { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
+    (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
+  // The unified input's start-up sweep (UIC-10): which of this machine's draft places are for a project or plugin now gone.
+  { id: "composer-drafts", handle: ({ request, response, url, localHost, projects }) => handleComposerDraftsHttp(request, response, url,
+    { projects: () => projects.map((project) => project.project_id), reach: (project) => localHost.projectPluginReach(project) }) },
   { id: "placement", handle: ({ request, response, url, localHost }) => handlePlacementHttp(request, response, url, () => homeActions(localHost)) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
@@ -90,7 +108,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     response.end(composition.renderCapsuleShell(projects));
     return true;
   } },
-  { id: "component-board", handle: ({ request, response, url, composition }) => handleComponentBoardHttp(request, response, url, composition.PAGE_CSP) },
+  { id: "component-board", handle: ({ request, response, url, composition }) => handleComponentBoardHttp(request, response, url, composition.PAGE_CSP, composition.appearance) },
   { id: "settings-home", handle: ({ request, response, url, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/settings")) return false;
     response.writeHead(302, { location: composition.isDesktopShellRequest(request, url) ? "/settings/appearance?desktop=1" : "/settings/appearance", ...noStore });
@@ -109,9 +127,11 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "connectors-settings", handle: ({ request, response, url, serverOptions }) => handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory) },
   { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog) },
   { id: "runtime-settings", handle: ({ request, response, url, runtimeIntegrations, webService, serverOptions }) => handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService, serverOptions.assertAccountCurrent) },
-  { id: "project-settings", handle: ({ request, response, url, serverOptions, projects, deletionPorts, localHost, composition }) =>
-    composition.projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId),
-      () => seedDemoHomeSamples(homeActions(localHost))) },
+  { id: "project-settings", handle: context => {
+    const { request, response, url, serverOptions, projects, deletionPorts, localHost, composition } = context;
+    return composition.projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectPluginSetter(context),
+      () => seedDemoHomeSamples(homeActions(localHost)));
+  } },
   { id: "pty-client", handle: ({ request, response, url, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/desktop/pty-client.js")) return false;
     composition.servePtyClient(request, response);
@@ -134,7 +154,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       return true;
     }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...noStore, "content-security-policy": composition.PAGE_CSP });
-    const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)));
+    const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)), request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined);
     response.end(composition.workbenchRenderer.renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),

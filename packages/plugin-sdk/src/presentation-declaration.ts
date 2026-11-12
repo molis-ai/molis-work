@@ -79,7 +79,8 @@ export function validatePresentationDeclaration(manifest: { readonly presentatio
 /**
  * The words a declaration writes (`label`, `note`), with the text tools of `/ui` (a-section §2.3, §2.4): never a `literal`, so no word of
  * the interface is written past translation, and a key under this plugin's own prefix or `common.`, so a plugin cannot show its words as
- * another owner's. One that is not a text reference at all is reported where it is written.
+ * another owner's. One that is not a text reference at all is reported where it is written. That prefix is checked against the Manifest's
+ * `plugin_id`: a declaration that writes words without one is refused saying so, never passed silently.
  */
 function wordProblems(declaration: Record<string, unknown>, pluginId: unknown): string[] {
   const words: Array<readonly [string, Record<string, unknown>]> = [];
@@ -97,7 +98,8 @@ function wordProblems(declaration: Record<string, unknown>, pluginId: unknown): 
   return words.flatMap(([at, ref]) => {
     const problems = textRefProblems(ref, { literal: false });
     if (problems.length > 0) return problems.map(problem => `${at}：${problem}`);
-    return typeof pluginId === "string" && tryOwnedTextRef(ref as TextRef, pluginId) === null ? [`${at} 的键要用本插件自己的文字前缀，或平台共有的 common.`] : [];
+    if (typeof pluginId !== "string") return [`${at}：plugin_id 缺失，无法核对文字前缀`];
+    return tryOwnedTextRef(ref as TextRef, pluginId) === null ? [`${at} 的键要用本插件自己的文字前缀，或平台共有的 common.`] : [];
   });
 }
 

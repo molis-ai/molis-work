@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pageTextReaderScript } from "./fixtures/page-text.js";
 
 // specs/visual-ui-experience VUX-06 and VUX-23 (a keyboard equivalent for what a pointer does by dragging): Pages sizes a
 // selected image, a table column and a layout column from the keyboard with Mod-Alt-Shift-← and →, through the same
@@ -27,10 +28,11 @@ async function mount(t: TestContext) {
     { type: "image", attrs: { src, width: 0 } },
     paragraph("结尾"),
   ] };
+  await b.evaluate(pageTextReaderScript("zh", "pages"));
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='size-fixture';root.className='pages-editor-host';
     root.style.cssText='width:640px;margin:48px auto';document.body.replaceChildren(root);
-    window.sizeEditor=window.MolisWorkPagesEditor.mount(root,{doc:${JSON.stringify(doc)},onChange:()=>{}});sizeEditor.view.focus();
+    window.sizeEditor=window.MolisWorkPagesEditor.mount(root,{doc:${JSON.stringify(doc)},onChange:()=>{},translate:isolatedEditorText});sizeEditor.view.focus();
     window.SizeSelection=sizeEditor.view.state.selection.constructor;
   })()`);
   return b;

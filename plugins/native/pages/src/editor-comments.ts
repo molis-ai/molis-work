@@ -1,3 +1,4 @@
+import { t } from "./editor-view-ui.js";
 import type { EditorView } from "prosemirror-view";
 import { TextSelection } from "prosemirror-state";
 import { pagesSchema } from "./schema.js";
@@ -28,13 +29,14 @@ export function openEditorComment(view: EditorView, options: CommentPopupPorts):
     const area = document.createElement("textarea");
     area.className = "mw-input";
     area.rows = 3;
-    area.placeholder = options.translate?.("评论") ?? "评论";
+    const label = t(options.translate, "pages.comments.comments");
+    area.placeholder = label;
     area.value = found.text;
     options.pop.append(area, options.actions(options.translate, () => {
       const at = anchor(); if (!at?.intact) return;
       options.applyComment(view, at.from, at.to, area.value, found.id); options.hidePop();
     }, options.hidePop));
-    options.placePop(view.coordsAtPos(found.from), "below", options.translate?.("评论") ?? "评论"); area.focus();
+    options.placePop(view.coordsAtPos(found.from), "below", label); area.focus();
   }
 
 /** Keep an existing annotation intact; ambiguous or empty blocks need an explicit text selection. */

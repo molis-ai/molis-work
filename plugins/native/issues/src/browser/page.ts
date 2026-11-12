@@ -2,7 +2,9 @@ import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { isAbort, required } from "./dom.js";
 import { issuesRequest } from "./request.js";
-import type { Current, EditorData, Issue, IssuesHost, IssuesPage, IssuesState, Pending, Translate } from "./types.js";
+import type { Current, EditorData, Issue, IssuesHost, IssuesPage, IssuesState, Pending } from "./types.js";
+
+const t = globalThis.t;
 
 /** The style sheet, minified: the package's build script defines it (`--define:ISSUES_CSS`, from src/styles.ts). */
 declare const ISSUES_CSS: string;
@@ -28,7 +30,6 @@ export function issuesPage(host: IssuesHost): IssuesPage | null {
   style.textContent = ISSUES_CSS;
   root.appendChild(style);
   scope.own(() => { style.remove(); delete root.dataset.ready; });
-  const L: Translate = host.translate ?? ((key) => key);
   const $ = <T extends HTMLElement = HTMLElement>(key: string): T => required<T>(root, `[data-issue-${key}]`);
   const composer = $<HTMLFormElement>("composer");
   const editor = $<HTMLFormElement>("editor");
@@ -39,7 +40,7 @@ export function issuesPage(host: IssuesHost): IssuesPage | null {
     detailInput: required<HTMLTextAreaElement>(editor, 'textarea[name="description"]'),
   };
   const state = initialState();
-  const api = issuesRequest(host, scope, L);
+  const api = issuesRequest(host, scope);
 
   const toast = (text: string, action = "", then: (() => Promise<void>) | null = null, failed = false) => {
     scope.clearTimeout(state.toastTimer);
@@ -61,7 +62,7 @@ export function issuesPage(host: IssuesHost): IssuesPage | null {
   };
 
   const page = {
-    host, scope, L, el, state, $, api, mac: /Mac|iP/.test(navigator.platform), storageKey: "molis:issue-draft", toast, values, changed,
+    host, scope, el, state, $, api, mac: /Mac|iP/.test(navigator.platform), storageKey: "molis:issue-draft", toast, values, changed,
     read: (id: string) => api<Issue>("read?id=" + encodeURIComponent(id)),
     run: (work: () => Promise<unknown>) => { void Promise.resolve().then(work).catch((error: unknown) => { if (!isAbort(error)) toast(messageOf(error), "", null, true); }); },
     primary: (key: string, yes = true) => { $(key).className = "mw-btn mw-btn--sm mw-btn--" + (yes ? "primary" : "secondary"); },
@@ -74,11 +75,11 @@ export function issuesPage(host: IssuesHost): IssuesPage | null {
       ok.textContent = label;
       return host.confirmBox(dialog, ok, run);
     },
-    flag: (text = "") => {
+    flag: (text = "", models = false) => {
       const box = $("flag");
       box.hidden = !text;
       box.textContent = text;
-      if (/模型|model/i.test(text)) box.insertAdjacentHTML("beforeend", ` <a href="/settings/models">${esc(L("issues.models-link"))}</a>`);
+      if (models) box.insertAdjacentHTML("beforeend", ` <a href="/settings/models">${esc(t.text("issues.models-link"))}</a>`);
     },
     pick: (type = "") => {
       editor.dataset.type = type;

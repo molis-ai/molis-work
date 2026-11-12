@@ -71,6 +71,11 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly signal?: AbortSignal;
   readonly plugin?: HostPluginCaller;
   readonly consumer?: "plugin";
+  /**
+   * The session the authenticated Host bound the caller to (`ActionCallContext.runtime_session_id`): an agent round's own session,
+   * also when another plugin's running action hands the call on for it. Absent for every other caller. Never business input.
+   */
+  readonly runtime_session_id?: string;
   /** Recheck original authority and live project policy immediately before a side effect. */
   beforeEffect(): Promise<void>;
   /** Final synchronous fence after the last await and immediately before the owner's effect. */

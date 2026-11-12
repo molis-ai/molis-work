@@ -1,3 +1,4 @@
+import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
@@ -9,6 +10,9 @@ import type {
   AgentPromptText,
   AgentSkillDefinition,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/actions";
+import { freezeRoundSkills, type AgentRoundSkillCatalog, type AgentSkillSource } from "./round-skills.js";
 import type {
   AgentActionClient,
   AgentHostApi,
@@ -18,10 +22,7 @@ import type {
   AgentRuntimeCapabilityMatrix,
   AgentRuntimeDescriptor,
   AgentStartRequest,
-  AgentSkillCatalogEntry,
-  AgentSkillRef,
   AgentSkillOwner,
-  AgentWorkingDirectory,
   AgentFrozenCharacter,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -29,14 +30,17 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
 import {
-  assertBusinessRole, assertInferenceRole, assertMaySuggest, checkStartRole, checkStartSession, composeRolePrompts, EXECUTION_CAPABILITIES,
+  assertBusinessRole, assertInferenceRole, assertKnownRoleTools, assertMaySuggest, checkStartRole, checkStartSession, composeRolePrompts, EXECUTION_CAPABILITIES,
   frozenActions, frozenGateway, frozenMcp, frozenSidePrompts, frozenSubagents, placeOf, roleExecution, runDirectoriesOf, selectStartCharacter, startGuards, widensFrozen, worktreesFor,
   type AgentHostWorktree,
 } from "./run-start.js";
 
 export { AgentReviewQueue } from "./reviews.js";
+export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
+export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
 export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
+export { AGENT_RUNTIME, AGENT_TOOLS, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED, type AgentToolEntry } from "./tool-catalog.js";
 export {
   PrologueCredentialBridge,
   prologueAcceptsProtocol,
@@ -136,7 +140,12 @@ export interface AgentStartAuthority {
   beforeDispatch?(): void | Promise<void>;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef): Promise<AgentActionClient>;
+  /**
+   * The round's actions. `skillRound` is the round's frozen consumer and named list, written on the Host's own calls to `system.skills`
+   * for this round (`ActionCallContext.skill_round`, specs/capability-pack/contract-design.md §2.3) — `frozenActions`/`frozenGateway`
+   * hand it on, and the Host must not write it on any other action's call.
+   */
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, skillRound?: ActionSkillRound): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -165,8 +174,14 @@ export interface AgentStartAuthority {
    * prompts from these; an adapter never invents one.
    */
   prompts?: readonly AgentPromptText[];
+  /** The Plugin's own `agent.skills` bodies, registered with its installation; a round reads them without any I/O. */
   skills?: readonly AgentSkillDefinition[];
-  skill_owner?: AgentSkillOwner;
+  /** The Plugin's own installation as a `SkillRef` names it: a reference with these parts and a declared `agent.skills` entry is its own. */
+  skill_source?: AgentSkillSource;
+  /** The shared Skill catalog for this round, bound by the Host (`system.skills`); absent, only the Plugin's own Skills can be frozen. */
+  skillCatalog?: AgentRoundSkillCatalog;
+  /** Whose MCP servers a round of this Plugin may use: this project's, this Plugin's. */
+  mcp_owner?: AgentSkillOwner;
   /**
    * The project's own instructions, from a source the Host owns — today the
    * confirmed project guidance. Absent means this project has stated none,
@@ -174,10 +189,11 @@ export interface AgentStartAuthority {
    */
   project_prompts?: readonly AgentPromptText[];
   /**
-   * The language this round replies in, in the words the Host chose. Only the Host gives it, like `call_id`: no start request carries a
-   * language, so a Plugin cannot set it. Composed with the role's prompts, so the round's frozen record names it.
+   * The language this round replies in, and the words the Host chose to say so. Only the Host gives it, like `call_id`: no start request
+   * carries a language, so a Plugin cannot set it. The words are composed with the role's prompts, and the language is written into the
+   * round's frozen record (`frozen.reply_locale`), so the record names both.
    */
-  reply_language?: AgentPromptText;
+  reply_language?: { locale: UiLanguageTag; prompt: AgentPromptText };
   /**
    * The platform memory for this run, recalled by the Host for this consumer (the switches and scopes are the Host's).
    * Absent or null: the run is given no memory.
@@ -195,7 +211,7 @@ export interface AgentStartAuthority {
  */
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
-  effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+  effective(ownerId: string, prompt: AgentPromptText, locale?: string): AgentPromptText;
 }
 
 export class AgentHost implements AgentHostApi {
@@ -253,6 +269,7 @@ export class AgentHost implements AgentHostApi {
   }> {
     const capabilities = this.adapter(runtimeId).descriptor.capabilities;
     return manifest.roles.map((role) => {
+      try { assertKnownRoleTools(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
       if (role.workspace === "none") {
         try { assertInferenceRole(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
         if (!this.adapter(runtimeId).descriptor.supports_workspace_none) return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通无工作区推理" };
@@ -285,52 +302,16 @@ export class AgentHost implements AgentHostApi {
     return adapter.createSession(input, { beforeStart: authority.beforeStart, assertBeforeStart: authority.assertBeforeStart });
   }
 
+  mcpLibrary(runtimeId: string, authority: AgentStartAuthority) {
+    const library = this.adapter(runtimeId).mcpLibrary;
+    if (!authority.manifest.mcp || !authority.mcp_owner || !library) throw agentErrors.capability_unavailable("当前插件或运行时尚未接通 MCP");
+    return { library, owner: authority.mcp_owner };
+  }
+
   /**
    * Check the Host's own preconditions, then hand the request to the Runtime.
    * Nothing reaches an adapter until the role, capability and directory all pass.
    */
-  async skillCatalog(runtimeId: string, authority: AgentStartAuthority): Promise<AgentSkillCatalogEntry[]> {
-    const supported = this.adapter(runtimeId).descriptor.capabilities.skills !== "unsupported";
-    const builtins = (authority.manifest.skills ?? []).map(declared => ({ ...declared, tools: [...declared.tools],
-      source: "builtin" as const, enabled: supported && Boolean(authority.skills?.some(skill => skill.skill_id === declared.skill_id && skill.version === declared.version && skill.body.trim())) }));
-    const library = this.adapter(runtimeId).skillLibrary;
-    return [...builtins, ...(library && authority.skill_owner ? await library.list(authority.skill_owner) : [])];
-  }
-
-  async readSkill(runtimeId: string, authority: AgentStartAuthority, ref: AgentSkillRef): Promise<AgentSkillDefinition> {
-    const entry = (await this.skillCatalog(runtimeId, authority)).find(item => item.skill_id === ref.skill_id && item.version === ref.version);
-    const definition = authority.skills?.find(item => item.skill_id === ref.skill_id && item.version === ref.version);
-    if (entry?.source === "installed" && authority.skill_owner) return this.adapter(runtimeId).skillLibrary!.read(authority.skill_owner, ref);
-    if (!entry?.enabled || !definition) throw agentErrors.capability_unavailable("这个方法版本不可用，请重新选择");
-    if (definition.body.length > 20_000 || JSON.stringify(definition.tools) !== JSON.stringify(entry.tools)) {
-      throw agentErrors.capability_unavailable("方法正文或工具声明与发布版本不一致");
-    }
-    return { skill_id: entry.skill_id, version: entry.version, name: entry.name, summary: entry.summary, tools: [...entry.tools], body: definition.body };
-  }
-
-  async discoverSkills(runtimeId: string, authority: AgentStartAuthority, directory: AgentWorkingDirectory, path: string) {
-    // Finding methods only reads the folder, so an input of the project is read as well as the output (SSC-15 refuses writing, not reading).
-    const readable = authority.authorizedDirectories.includes(directory.canonical_path) || authority.directories?.inputs.some(item => item.canonical_path === directory.canonical_path);
-    if (!directory.realpath_verified || !readable) {
-      throw agentErrors.directory_unauthorized("这个方法目录不属于当前项目的授权工作区");
-    }
-    const library = this.adapter(runtimeId).skillLibrary;
-    if (!library || !authority.skill_owner) throw agentErrors.capability_unavailable("此运行时尚未接通方法安装");
-    return library.discover(authority.skill_owner, directory, path);
-  }
-
-  async installSkill(runtimeId: string, authority: AgentStartAuthority, candidateId: string) {
-    const library = this.adapter(runtimeId).skillLibrary;
-    if (!library || !authority.skill_owner) throw agentErrors.capability_unavailable("此运行时尚未接通方法安装");
-    return library.install(authority.skill_owner, candidateId);
-  }
-
-  mcpLibrary(runtimeId: string, authority: AgentStartAuthority) {
-    const library = this.adapter(runtimeId).mcpLibrary;
-    if (!authority.manifest.mcp || !authority.skill_owner || !library) throw agentErrors.capability_unavailable("当前插件或运行时尚未接通 MCP");
-    return { library, owner: authority.skill_owner };
-  }
-
   async start(
     runtimeId: string,
     request: AgentStartRequest,
@@ -339,10 +320,12 @@ export class AgentHost implements AgentHostApi {
     request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
-    if (this.#prompts && authority.prompts?.length) {
-      const resolve = this.#prompts;
-      authority = { ...authority, prompts: authority.prompts.map(prompt => resolve.effective(request.plugin_id, prompt)) };
-    }
+    const locale = authority.reply_language?.locale, resolve = this.#prompts;
+    const promptAuthority = { manifest: authority.manifest, project_prompts: authority.project_prompts,
+      reply_language: authority.reply_language, prompts: authority.prompts?.map(({ body_by_locale, ...prompt }) => {
+        const declaration = { ...prompt, ...(body_by_locale ? { body_by_locale } : {}) };
+        return resolve ? resolve.effective(request.plugin_id, declaration, locale) : { ...prompt, body: agentBodyIn(declaration, locale) };
+      }) };
     const adapter = this.adapter(runtimeId);
     const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);
     const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
@@ -358,27 +341,26 @@ export class AgentHost implements AgentHostApi {
 
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.
-    const selected = request.skills ?? [];
-    if (!Array.isArray(selected) || selected.length > 20 || new Set(selected.map(ref => ref.skill_id)).size !== selected.length) {
-      throw agentErrors.capability_unavailable("方法选择重复或超过数量限制");
-    }
-    const skills = await Promise.all(selected.map(ref => this.readSkill(runtimeId, authority, ref)));
-    for (const skill of skills) if (skill.tools.some(tool => !hostTools.includes(tool))) {
-      throw agentErrors.role_execution_exceeded(`方法“${skill.name}”需要当前执行方式未开放的工具，请更换方式或取消选择`);
-    }
+    // The round's Skills, in one catalog read (§3.4); who reads them is the round's consumer, set by its role's workspace (§2.3).
+    const skills = await freezeRoundSkills({ selected: request.skills ?? [], manifest: authority.manifest, own: authority.skills ?? [],
+      locale: authority.reply_language?.locale, source: authority.skill_source, catalog: authority.skillCatalog, consumer: workspace === "required" ? "coding" : "agent", hostTools,
+      unsupported: adapter.descriptor.capabilities.skills === "unsupported" });
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
     assertMaySuggest(hostTools, execution);
-    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution };
+    // What the round's own tool calls to `system.skills` read as: the frozen consumer and named list (§2.3). Only the Host's calls carry it,
+    // and only where the composition asks for `system.skills`; a tool call into any other plugin's action never does (§2.6, S-skill-delegation).
+    const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []) };
+    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, skillRound };
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));
-    const { compaction, endingReview } = frozenSidePrompts(adapter, authority);
-    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, authority, hostTools, worktrees);
+    const { compaction, endingReview } = frozenSidePrompts(adapter, promptAuthority);
+    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, promptAuthority, hostTools, worktrees);
     const directories = runDirectoriesOf(authority, place);
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
-    const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
+    const prompts = composeRolePrompts(role, promptAuthority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     await beforeStart();
@@ -405,11 +387,12 @@ export class AgentHost implements AgentHostApi {
         prompts: prompts.map((prompt) => ({ ...prompt })),
         ...(memory ? { memory: structuredClone(memory) } : {}),
         skills,
+        ...(authority.reply_language ? { reply_locale: authority.reply_language.locale } : {}),
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
     }, { beforeStart, assertBeforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
-    if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills })) {
+    if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);
     }

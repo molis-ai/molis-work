@@ -9,6 +9,7 @@ import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { withPluginPermissionChecks } from "@molis-ai/molis-work-plugin-runtime";
 import type { installedComponentSubmit } from "./installed-action-registration.js";
+import { activeLocale } from "./web-locale.js";
 
 export type PageActionRequest = ({
   reference: ActionReference;
@@ -49,7 +50,7 @@ function submitComponent(request: Extract<PageActionRequest, { mode: "component_
     check();
     // The installation's own grants and exact capability approvals have both been proved. Only this action can use its exposure policy.
     const caller: ActionCallContext = { actor_id: options.caller.actor_id, project_id: request.project_id,
-      audience: "user", permissions, allowed_actions: [reference], signal: request.signal, assert_authority_current: check };
+      audience: "user", permissions, allowed_actions: [reference], signal: request.signal, locale: activeLocale() ?? undefined, assert_authority_current: check };
     const view = await pluginActionView(options.client, caller, reference);
     const scope = options.caller.project_id;
     if (view.provider.kind !== "plugin" || view.provider.plugin_id !== context.plugin_id || view.provider.plugin_install_id !== context.install_id
@@ -78,7 +79,7 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
       for (const permission of permissions) context.requireGrant(permission);
     };
     const caller: ActionCallContext = { actor_id: options.caller.actor_id, project_id: request.project_id, permissions: context.grants,
-      audience: own ? "user" : "plugin", signal: request.signal,
+      audience: own ? "user" : "plugin", signal: request.signal, locale: activeLocale() ?? undefined,
       ...(!own ? { host_plugin: routedPluginCaller(options.caller, request.project_id), plugin_install_id: context.install_id } : {}),
       ...(own ? { allowed_actions: [{ ...reference, provider_id: options.provider }, ...(own.action.required_actions ?? [])] }
         : { allowed_capability_ids: manifest.capabilities.consumes }),

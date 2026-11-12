@@ -1,6 +1,6 @@
 import { required } from "./dom.js";
 import { workflowsRequest } from "./request.js";
-import type { Edit, PendingEdit, Translate, Ui, Undo, WorkflowsHost, WorkflowsRequest } from "./types.js";
+import type { Edit, PendingEdit, Ui, Undo, WorkflowsHost, WorkflowsRequest } from "./types.js";
 
 export interface ToastAction { readonly label: string; readonly run: () => void }
 export type Dragging = { readonly plugin: string } | { readonly from: number };
@@ -11,7 +11,6 @@ export type Dragging = { readonly plugin: string } | { readonly from: number };
  */
 export interface WorkflowsPage {
   readonly host: WorkflowsHost;
-  readonly L: Translate;
   readonly api: WorkflowsRequest;
   readonly root: HTMLElement;
   readonly listEl: HTMLElement;
@@ -50,9 +49,8 @@ export interface WorkflowsPage {
 }
 
 export function createPage(host: WorkflowsHost, root: HTMLElement): WorkflowsPage {
-  const L = host.translate;
   return {
-    host, L, api: workflowsRequest(host, L), root,
+    host, api: workflowsRequest(host), root,
     listEl: required(root, "[data-wf-list]"),
     space: required(root, "[data-wf-workspace]"),
     view: required(root, "[data-wf-view]"),

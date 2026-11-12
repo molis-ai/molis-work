@@ -44,8 +44,12 @@ const SPEC: UiSpecFile = {
     { name: "control", tokens: { weight: "weight-control" } },
     { name: "title", tokens: { weight: "weight-title", tracking: "tracking-title" } },
     { name: "display", tokens: { tracking: "tracking-display" } },
+    { name: "reading", tokens: {} },
+    { name: "note", tokens: {} },
     { name: "code", tokens: { family: "font-mono" } },
   ],
+  components: [{ kind: "card", catalog: "Card", name: { literal: "卡片" }, description: { literal: "一张卡片" },
+    group: "版面", use: "part", intents: ["reading"], data: "value", icon: "grid" }],
 };
 
 const BASE: UiSkinFile = {
@@ -84,6 +88,8 @@ const FONT: UiFontSchemeFile = {
     control: { weight: 500 },
     title: { weight: 600, tracking_em: -0.02 },
     display: { tracking_em: -0.03 },
+    reading: {},
+    note: {},
     code: { families: [{ system: "ui-monospace" }, { system: "SFMono-Regular" }, { system: "monospace" }] },
   },
   faces: [

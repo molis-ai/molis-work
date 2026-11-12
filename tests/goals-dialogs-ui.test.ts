@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import type { GoalsDialogItem } from "@molis-ai/molis-work-plugin-goals";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.dialogs({ translate: L, escapeHtml, icon });
+const renderer = goalsRenderers.dialogs({ translate: t.text, escapeHtml, icon });
 const goal = (id: string, display_status: GoalsDialogItem["display_status"], priority: number): GoalsDialogItem => ({
   goal: { goal_id: id, title: 'Title "<safe> ' + id, created_at: "2026-09-05", priority }, status: "execution_pending", display_status,
 });
@@ -42,6 +40,6 @@ test("empty create and recoverable trash dialogs retain independent creation and
   assert.match(trash, /Goal 历史会保留/);
   assert.match(trash, /data-goal-trash-error role="alert" hidden/);
   for (const hook of ["data-goal-trash-form", "data-goal-trash-title", "data-goal-trash-description", "data-goal-trash-target-title", "data-goal-trash-target-id", "data-goal-trash-note", "data-goal-trash-reason-label", "data-goal-trash-submit", "data-close-goal-trash"]) assert.ok(trash.includes(hook));
-  const english = runWithLocale("en", () => renderer.renderCreateDialog([]));
+  const english = withGoalLocale("en", () => renderer.renderCreateDialog([]));
   assert.doesNotMatch(english, /创建 Goal|作为独立 Goal/);
 });

@@ -17,7 +17,9 @@ import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { readText, currentLocale, inLanguagePreview } from "./web-locale.js";
+import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
+import { agentDisplayModel } from "./agent-definitions/display-words.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
 
@@ -37,7 +39,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|memory|mcp|connectors|projects|diagnostics|sync)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|kit|memory|mcp|connectors|projects|diagnostics|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
@@ -68,7 +70,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
     // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
     const refs = modelConnections.length ? withConnectorConnections(serverOptions.homeDirectory!, (store) =>
-      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id]))) : new Map<string | null, string>();
+      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id])), "required") : new Map<string | null, string>();
     return {
       // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
       providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,
@@ -89,6 +91,8 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   });
   response.end(renderMolisWorkSettings({
     section,
+    ...(section === "prompts" && serverOptions.homeDirectory && inLanguagePreview()
+      ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(serverOptions.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined) } : {}),
     capabilities: capabilities ? { ...capabilities, rules } : undefined,
     ...(characters ? { plugin_settings_html: characters.html } : {}),
     ...(capabilitySection === "connections" && serverOptions.homeDirectory ? { functions_settings: {
@@ -133,7 +137,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   };
   const dataAction = pluginSettingsDataAction(pluginSettings.contribution_id);
   const data = dataAction ? await bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS).invoke(dataAction, {}) : undefined;
-  const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: L } };
+  const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: readText } };
   const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
   const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
   response.writeHead(200, {

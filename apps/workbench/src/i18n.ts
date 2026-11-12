@@ -1,46 +1,21 @@
+import { preferredUiLanguage, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
-import { EN } from "./i18n/en.js";
-import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
-import { pluginTextPack } from "./plugin-text.js";
-import { createPluginMessageStore } from "./plugin-messages.js";
-
-/** The words of the installed Plugins, from their Manifests: the built-in ones at start, the others as the Host installs them. */
-const pluginMessages = createPluginMessageStore();
-for (const entry of BUILTIN_PLUGIN_CATALOG) {
-  const problems = pluginMessages.register(entry.manifest);
-  if (problems.length > 0) throw new Error(`${entry.manifest.plugin_id}: ${problems.join("；")}`);
-}
-export const registerPluginMessages = pluginMessages.register;
-export const unregisterPluginMessages = pluginMessages.unregister;
-
-/** The English a Plugin keys by Chinese text, while the page draws that Plugin's contribution (see `withPluginWords`). */
-let drawingFor: Readonly<Record<string, string>> | null = null;
-
-/**
- * Runs `draw` with `pluginId`'s own `ui.translations` applied after the Host's English, so what the Plugin's contribution
- * draws can be shown in English without the same Chinese sentence changing anywhere else on the page. Synchronous on purpose:
- * the scope ends when `draw` returns, and nothing it awaits would still be inside it.
- */
-export function withPluginWords<T>(pluginId: string, draw: () => T): T {
-  const outer = drawingFor;
-  drawingFor = pluginMessages.translationsFor(pluginId);
-  try { return draw(); } finally { drawingFor = outer; }
-}
-
-
-/** `translate` for text a Plugin's own code draws: that Plugin's words after the page's, and no one else's. */
-export const inWordsOf = <A extends unknown[], R>(pluginId: string, translate: (...args: A) => R) => (...args: A): R => withPluginWords(pluginId, () => translate(...args));
-
-export { EN } from "./i18n/en.js";
-
-
-export type WebLocale = "zh" | "en";
+export type WebLocale = UiLanguageTag;
+export type WebLocalePreference = WebLocale | "system";
 
 
 export const LOCALE_COOKIE = "molis_work_locale";
 
-export const WEB_LOCALES = ["zh", "en"] as const;
+export const DEFAULT_WEB_LOCALE = WORKBENCH_LANGUAGES.default;
+export const WEB_LOCALES = Object.freeze([DEFAULT_WEB_LOCALE, ...WORKBENCH_LANGUAGES.languages.map(language => language.tag).filter(tag => tag !== DEFAULT_WEB_LOCALE)]);
+
+export function isWebLocale(value: unknown): value is WebLocale {
+  return WEB_LOCALES.some(tag => tag === value);
+}
+
+export const webLanguage = (tag: WebLocale) => WORKBENCH_LANGUAGES.languages.find(language => language.tag === tag);
 
 
 export const LOCALE_SWITCH_STYLES = `
@@ -57,20 +32,16 @@ export const LOCALE_SWITCH_STYLES = `
 /** Platform-independent locale behavior; the Host supplies request-local state. */
 export function createWorkbenchLocale(currentLocale: () => WebLocale) {
 
-function isWebLocale(value: unknown): value is WebLocale {
-  return value === "zh" || value === "en";
-}
-
 function htmlLang(locale: WebLocale = currentLocale()): string {
-  return locale === "en" ? "en" : "zh-CN";
+  return (webLanguage(locale) ?? webLanguage(DEFAULT_WEB_LOCALE)!).html_lang;
 }
 
 function dateTimeLocale(locale: WebLocale = currentLocale()): string {
-  return locale === "en" ? "en-US" : "zh-CN";
+  return (webLanguage(locale) ?? webLanguage(DEFAULT_WEB_LOCALE)!).intl;
 }
 
 function listJoin(values: readonly string[], locale: WebLocale = currentLocale()): string {
-  return values.join(locale === "en" ? ", " : "、");
+  return new Intl.ListFormat(dateTimeLocale(locale), { style: "short", type: "unit" }).format(values);
 }
 
 
@@ -84,23 +55,25 @@ function cookieValue(header: string | undefined, name: string): string | undefin
   return undefined;
 }
 
-function resolveWebLocale(
+function resolveWebLocaleChoice(
   cookieHeader?: string | string[] | null,
   acceptLanguage?: string | string[] | null,
-): WebLocale {
+): { tag: WebLocale; source: "explicit" | "system" | "default" } {
   const cookie = Array.isArray(cookieHeader) ? cookieHeader.join("; ") : cookieHeader;
   const fromCookie = cookieValue(cookie ?? undefined, LOCALE_COOKIE);
-  if (isWebLocale(fromCookie)) return fromCookie;
+  if (isWebLocale(fromCookie)) return { tag: fromCookie, source: "explicit" };
 
   const accept = Array.isArray(acceptLanguage) ? acceptLanguage.join(",") : acceptLanguage;
-  for (const part of String(accept ?? "").split(",")) {
-    const tag = part.split(";")[0]?.trim().toLowerCase();
-    if (!tag) continue;
-    if (tag === "en" || tag.startsWith("en-")) return "en";
-    if (tag === "zh" || tag.startsWith("zh-")) return "zh";
-  }
-  return "zh";
+  const preferred = String(accept ?? "").split(",").flatMap(part => {
+    const [tag, weight] = part.trim().toLowerCase().split(";");
+    const q = weight === undefined ? 1 : Number(weight.trim().replace(/^q=/u, ""));
+    return tag && q > 0 && q <= 1 ? [{ tag, q }] : [];
+  }).sort((a, b) => b.q - a.q);
+  const match = preferredUiLanguage(WORKBENCH_LANGUAGES, preferred.map(({ tag }) => tag));
+  return match ? { tag: match.tag, source: "system" } : { tag: DEFAULT_WEB_LOCALE, source: "default" };
 }
+
+const resolveWebLocale = (...args: Parameters<typeof resolveWebLocaleChoice>): WebLocale => resolveWebLocaleChoice(...args).tag;
 
 function safeNextPath(raw: string | null | undefined): string {
   if (!raw) return "/";
@@ -116,60 +89,25 @@ function safeNextPath(raw: string | null | undefined): string {
   return value;
 }
 
-function localeSetCookie(locale: WebLocale): string {
+function localePreference(cookieHeader?: string | null): WebLocalePreference {
+  const preferred = cookieValue(cookieHeader ?? undefined, LOCALE_COOKIE);
+  return isWebLocale(preferred) ? preferred : "system";
+}
+
+function localeSetCookie(locale: WebLocalePreference): string {
   return `${LOCALE_COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
 
-function localeSwitchHref(locale: WebLocale, nextPath: string): string {
+function localeSwitchHref(locale: WebLocalePreference, nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(safeNextPath(nextPath))}`;
-}
-
-function L(key: string, vars?: Record<string, string | number>): string {
-  const locale = currentLocale();
-  return fillMessage(pluginMessages.messages()[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? drawingFor?.[key] ?? key) : key), vars);
 }
 
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
-  return `<nav class="locale-switch" aria-label="${escapeAttr(L("界面语言"))}">
-    <a href="${localeSwitchHref("zh", nextPath)}" hreflang="zh-CN" lang="zh-CN"${locale === "zh" ? ' aria-current="true"' : ""}>中文</a>
-    <a href="${localeSwitchHref("en", nextPath)}" hreflang="en" lang="en"${locale === "en" ? ' aria-current="true"' : ""}>EN</a>
+  return `<nav class="locale-switch" aria-label="${escapeAttr(uiText.text("workbench.i18n.language"))}">
+    ${WORKBENCH_LANGUAGES.languages.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${escapeAttr(language.name)}</a>`).join("")}
   </nav>`;
 }
-
-function catalogJson(locale: WebLocale): string {
-  const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
-  const home = Object.fromEntries(Object.entries(pluginTextPack("workbench", locale)?.messages ?? {}).filter(([key]) =>
-    key.startsWith("common.presentation.") || key.startsWith("workbench.home.") || key.startsWith("workbench.surfaces.") || key === "common.text.unavailable"));
-  return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages, ...home }).replaceAll("<", "\\u003c");
-}
-
-/** Each Plugin's own English by its id, for the frame that draws that Plugin and nothing else (`ui.translations` are not page-wide). */
-function pluginWordsJson(locale: WebLocale): string {
-  const words = locale === "en" ? Object.fromEntries(pluginMessages.translated()) : {};
-  return JSON.stringify(words).replaceAll("<", "\\u003c");
-}
-
-function englishCatalogJson(): string {
-  return catalogJson("en");
-}
-
-function clientI18nScript(): string {
-  const catalog = catalogJson(currentLocale());
-  // The built-in plugins' tab titles in this page's language, read by the workbench scripts (one copy, not one per script).
-  const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
-  return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
-  globalThis.MOLIS_WORK_MESSAGE_OWNERS = ${JSON.stringify(pluginMessages.owners()).replaceAll("<", "\\u003c")};
-  globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
-  globalThis.MOLIS_WORK_PLUGIN_WORDS = ${pluginWordsJson(currentLocale())};
-  (fill => {
-    globalThis.L = function L(key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? key, vars); };
-    // A Plugin's text drawn by the page: its own English after the page's, and nothing it declares reaches anything else.
-    globalThis.LF = function LF(pluginId, key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? globalThis.MOLIS_WORK_PLUGIN_WORDS[pluginId]?.[key] ?? key, vars); };
-    globalThis.LFor = function LFor(pluginId) { return function (key, vars) { return globalThis.LF(pluginId, key, vars); }; };
-  })(${fillMessage.toString()});`;
-}
-
 
 function escapeAttr(value: string): string {
   return value
@@ -179,5 +117,5 @@ function escapeAttr(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };
+  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch };
 }

@@ -1,3 +1,4 @@
+import { readGoalCapsuleMenu } from "./capsule-menu.js";
 import { syncBindings } from "./sync-binding.js";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -5,6 +6,10 @@ import type { GovernanceApplicationApi } from "./contract/governance-collaborati
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createGoalsPresentationHandlers } from "./presentation.js";
 import { createGoalsActionHandlers, goalsActions } from "./actions.js";
+import { confirmedGoalDeliverables } from "./deliverable-actions.js";
+import { goalsEventActions, type GoalReportTrust } from "./event-command-actions.js";
+import { goalActor } from "./action-contract.js";
+import { assessGoalReport, type GoalEvidenceArtifact, type GoalEvidenceRunCheck } from "./evidence-check.js";
 import { createGoalsTerminalActionHandlers, goalsTerminalActions } from "./terminal-actions.js";
 import { readMolisWorkSnapshot } from "./snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
@@ -20,6 +25,7 @@ import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
+const CHECK_EVIDENCE = { capability_id: "agent.evidence.check", version: /* @version action.agent.evidence.check */ 1 } as const;
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
@@ -59,7 +65,7 @@ export function createGoalsPlugin(): PluginDefinition {
       decisions: governanceModule.decisions, eventDecisions: governanceModule.eventDecisions };
     const inputs = new GoalInputBindings(sqlite, ledgerApi);
     const goals: GoalsModule = new GoalsModule(sqlite, journal, { validateRelationGraph: (project, input) => goals.planning.validateRelationAddition(project, input) },
-      { now: clock, personalPlanningMethodPacks: () => personal.read() });
+      { now: clock, personalPlanningMethodPacks: () => personal.read(), deliverables: (project, goalId) => confirmedGoalDeliverables(ledgerApi, project, goalId) });
     const application = createGoalsApplication({ goals: { commands: goals.commands, lifecycle: goals.lifecycle, planning: goals.planning, query: goals.query, events: goals.events },
       governance, attention: attentionPort, clock });
     // The board of a project is made when Goals first starts over its root row (the catch-up below), before anyone has asked for it, so a
@@ -86,7 +92,7 @@ export function createGoalsPlugin(): PluginDefinition {
       write: <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => database.transaction(() => caller.beforeEffect(), transaction => sqlite.write(transaction, body)),
     };
     const handlers = createGoalsActionHandlers({ events: application.goalEvents, acknowledgements: goals.acknowledgements, projectId,
-      board: { initializeBoard },
+      board: { initializeBoard }, capsuleMenu: () => readGoalCapsuleMenu(sqlite, projectId),
       collection: { snapshot, events, goals: application.goalQueries, inputs, eventWork: application.goalEvents },
       readGoal: goalId => application.goalQueries.getGoal(projectId, goalId),
       readContract: goalId => application.goalQueries.readGoalContract(projectId, goalId),
@@ -120,16 +126,39 @@ export function createGoalsPlugin(): PluginDefinition {
     const loadPersonal = async (caller: ActionExecutionContext) => (await actions.invoke(personalPlanningActions.list, {}, controlOf(caller))).methods
       .filter(method => method.scope === "personal");
     let ready: Promise<void> = Promise.resolve();
+    // What a call asks of other owners before its window opens (a window is synchronous). A report's cited evidence is looked up here.
+    // What it worked out is handed to the handler as its third argument.
+    const before = new Map<string, (caller: ActionExecutionContext, input: unknown) => Promise<unknown>>([[goalsEventActions.report.capability_id, async (caller, input): Promise<GoalReportTrust | undefined> => {
+      if (typeof input !== "object" || input === null) return undefined;
+      // A report already recorded under this key is answered from its record (or refused as a reused key): its evidence is not looked up again.
+      const key = (input as { idempotency_key?: unknown }).idempotency_key;
+      if (typeof key === "string" && window.read(() => goals.events.reportRecorded(projectId, goalActor(caller).actor_id, key))) return undefined;
+      return assessGoalReport({
+        deliverables: goalId => window.read(() => confirmedGoalDeliverables(ledgerApi, projectId, goalId)),
+        selfSupportingSessions: (goalId, requirementId) => window.read(() => goals.events.selfSupportingSessions(projectId, goalId, requirementId)),
+        readArtifact: async (as, reference) => (await directory.invoke<{ selected: GoalEvidenceArtifact | null }>(READ_ARTIFACT, { reference }, controlOf(as))).selected,
+        checkRun: async (as, run_id, command_call_ids) => {
+          try { return await directory.invoke<GoalEvidenceRunCheck>(CHECK_EVIDENCE, { run_id, command_call_ids }, controlOf(as)); } catch (error) {
+            if (error instanceof ActionError && error.code === "agent.run_unknown") return "none";
+            throw error;
+          }
+        },
+      }, caller, input as Parameters<typeof assessGoalReport>[2]);
+    }]]);
     const windowed = (binding: ActionHandlerBinding): ActionHandlerBinding => {
       if (SELF_WINDOWED.has(binding.capability_id)) return { ...binding, handle: async (caller, input) => { await ready; return binding.handle(caller, input); } };
       const definition = goalsManifest.actions!.find(entry => entry.capability_id === binding.capability_id && entry.version === binding.version);
       if (!definition) throw new ActionError("actions.unredeemed", `${binding.capability_id} 不在 Goals 的 Manifest 里`);
+      // Only a call with something prepared before its window gets a third argument; every other handler is called as the platform calls it.
+      const handle = (caller: ActionExecutionContext, input: unknown, prepared: unknown) => prepared === undefined
+        ? binding.handle(caller, input) : (binding.handle as (caller: ActionExecutionContext, input: unknown, prepared: unknown) => unknown)(caller, input, prepared);
       const run = definition.operation === "command"
-        ? (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
-          window.write(caller, () => personal.within(packs, () => binding.handle(caller, input)))
-        : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
-          window.read(() => personal.within(packs, () => binding.handle(caller, input)));
-      return { ...binding, handle: async (caller, input) => { await ready; return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs)); } };
+        ? (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
+          window.write(caller, () => personal.within(packs, () => handle(caller, input, prepared)))
+        : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
+          window.read(() => personal.within(packs, () => handle(caller, input, prepared)));
+      const prepare = before.get(binding.capability_id);
+      return { ...binding, handle: async (caller, input) => { await ready; const prepared = await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs, prepared)); } };
     };
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,

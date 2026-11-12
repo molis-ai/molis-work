@@ -22,17 +22,6 @@ export const inboxPresentation = {
   overview: { capability_id: overview.capability_id, version: overview.version },
 } as const satisfies PresentationDeclaration;
 
-export const INBOX_PRESENTATION_MESSAGES = {
-  "inbox.presentation.empty": { zh: "没有待处理的事项", en: "No pending items" },
-  "inbox.presentation.summary": { zh: "最近更新的待处理事项", en: "Recently updated pending items" },
-  "inbox.presentation.judgment": { zh: "有下一步建议", en: "Next step available" },
-  "inbox.presentation.manual": { zh: "手动加入", en: "Added manually" },
-  "inbox.presentation.source_rule": { zh: "来源规则加入", en: "Added by a source rule" },
-  "inbox.presentation.goal_decision": { zh: "目标待决定", en: "Goal decision pending" },
-  "inbox.presentation.source_fault": { zh: "来源故障", en: "Source problem" },
-  "inbox.presentation.artifact_out_failed": { zh: "成果发出失败", en: "Delivery failed" },
-} as const;
-
 type ContentEntry = ReturnType<InboxContentPorts["entry"]>;
 const isOpen = (entry: ContentEntry) => entry.status === "open" || entry.status === "in_progress";
 const originUnavailable = (error: unknown) => {

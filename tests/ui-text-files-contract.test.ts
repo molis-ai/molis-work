@@ -21,6 +21,7 @@ import {
   type UiSkinFile,
   type UiTokenValue,
 } from "@molis-ai/molis-work-contracts/platform/ui";
+import { parseUiLanguageCatalog } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 import { BROWSER_SNAPSHOT, FONT_SCHEME, LOCALE_EN, LOCALE_ZH, MINIMAL_SKIN, REGISTRY, SERVER_SNAPSHOT, SKIN, SPEC } from "./fixtures/ui-files-types.ts";
 
@@ -61,10 +62,14 @@ test("FSS-46 (types): the samples compile as an author's package, and every mark
 
 test("FSS-46 (types): each file has a current format version and a byte limit, and the limits are the ones the design names", () => {
   // Not the numbers themselves: moving a format on changes tooling/versions.json and the JSON files, and nothing here.
-  assert.deepEqual(Object.keys(UI_FORMAT_VERSIONS), ["spec", "skin", "font", "locale", "registry"]);
+  assert.deepEqual(Object.keys(UI_FORMAT_VERSIONS), ["spec", "skin", "font", "locale", "languages", "registry"]);
   for (const version of Object.values(UI_FORMAT_VERSIONS)) assert.ok(Number.isInteger(version) && version > 0, `format version ${version}`);
   assert.deepEqual(UI_FILE_LIMITS, { spec: 262_144, skin: 65_536, font: 65_536, locale: 1_048_576, registry: 65_536, depth: 12 });
-  for (const file of Object.keys(UI_FORMAT_VERSIONS)) assert.ok(file in UI_FILE_LIMITS, `${file} has no byte limit`);
+  for (const file of Object.keys(UI_FORMAT_VERSIONS)) assert.ok((file === "languages" ? "registry" : file) in UI_FILE_LIMITS, `${file} has no byte limit`);
+  const languages = JSON.stringify({ format_version: UI_FORMAT_VERSIONS.languages, default: "en", languages: [{ tag: "en", html_lang: "en", intl: "en", direction: "ltr", name: "English" }] });
+  assert.ok(parseUiLanguageCatalog(languages.padEnd(UI_FILE_LIMITS.registry)).ok);
+  const oversized = parseUiLanguageCatalog(languages.padEnd(UI_FILE_LIMITS.registry + 1));
+  assert.ok(!oversized.ok && oversized.problems.some(problem => problem.code === "ui.file_too_large"));
 });
 
 test("FSS-46 (types): only the kinds of file that ship are registry kinds, and the listed values are the types' values", () => {
@@ -72,9 +77,9 @@ test("FSS-46 (types): only the kinds of file that ship are registry kinds, and t
   assert.deepEqual(UI_RESOURCE_LOADS, ["startup", "first-screen", "fallback", "on-open", "on-select", "tool"]);
   assert.deepEqual(UI_ROLE_TYPES, ["color", "shadow", "length", "duration", "easing", "stroke", "number"]);
   assert.deepEqual(UI_ROLE_VARIES_BY, ["theme", "none", "terminal"]);
-  assert.deepEqual(UI_FONT_ROLE_NAMES, ["body", "control", "title", "display", "code"]);
+  assert.deepEqual(UI_FONT_ROLE_NAMES, ["body", "control", "title", "display", "reading", "note", "code"]);
   assert.deepEqual(TEXT_NUMBER_STYLES, ["decimal", "percent", "compact"]);
-  assert.deepEqual(TEXT_DATE_STYLES, ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"]);
+  assert.deepEqual(TEXT_DATE_STYLES, ["date", "time", "datetime", "time-with-seconds", "datetime-with-seconds", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"]);
 });
 
 const assertRef = ({ id, revision }: UiDefinitionRef) => {

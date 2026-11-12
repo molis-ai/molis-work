@@ -1,6 +1,7 @@
 /** Functions workbench, part of FUNCTIONS_CLIENT_FACTORY_SCRIPT joined in place: event wiring, preview, publish and the first load. */
 export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
+    if (event.detail?.invalidate && id === undefined) return;
     if (!id) { selectSeq++; openingId = null; return; }
     if (sel?.id === id) {
       bench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;
@@ -50,7 +51,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       await loadList();
       remember(payload.function);
     } catch (error) {
-      molisWorkRequest.show(createNote,error,L("保存失败"));
+      molisWorkRequest.show(createNote,error,globalThis.t.text("workbench.client-events.could-not-save"));
     } finally {
       creating = false;
       createForm.querySelectorAll("button").forEach((node) => { node.disabled = false; });
@@ -66,7 +67,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
   deleteBtn.addEventListener("click", async () => {
     if (!sel || sel.status === "published") return;
     const rec = sel;
-    if (!window.confirm(L("确定删除这个草稿？"))) return;
+    if (!window.confirm(globalThis.t.text("workbench.client-events.delete-draft"))) return;
     try {
       await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/delete", revisionOf(sel)));
       if (sel?.id === rec.id) closeEditor();
@@ -95,7 +96,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       await paintUses(sel);
       if (sel?.id !== rec.id) return;
       const status = document.createElement("p"); status.setAttribute("role", "alert");
-      molisWorkRequest.show(status,error,L("配置未保存，请重试。")); usagesEl.append(status);
+      molisWorkRequest.show(status,error,globalThis.t.text("workbench.client-events.settings-weren-t-saved-please-retry")); usagesEl.append(status);
     }
   });
   bench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
@@ -103,7 +104,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     if (!btnEl || !sel || sel.status === "published" || btnEl.disabled) return;
     const dst = btnEl.dataset.functionsDestination || "";
     if (prim(sel) === "score" && dst && dst !== "agent.mcp") {
-      showNote(L("Score 不能绑 Inbox、首页、Feed。"), true);
+      showNote(globalThis.t.text("workbench.client-events.score-cannot-bind-inbox-home-feed"), true);
       return;
     }
     const ref = destRef(btnEl);
@@ -160,7 +161,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const removeChoice = event.target.closest("[data-choice-remove]");
     if (removeChoice && sel?.status !== "published") {
       if (critEl.querySelectorAll("[data-choice-row]").length < 3) {
-        showNote(L("Choice 至少需要两个选项"), true);
+        showNote(globalThis.t.text("workbench.client-events.choice-needs-least-two-options"), true);
         return;
       }
       removeChoice.closest("[data-choice-row]").remove();
@@ -172,7 +173,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const removeScore = event.target.closest("[data-score-remove]");
     if (removeScore && sel?.status !== "published") {
       if (critEl.querySelectorAll("[data-score-level]").length < 3) {
-        showNote(L("Score 至少需要两个档位"), true);
+        showNote(globalThis.t.text("workbench.client-events.score-needs-least-two-levels"), true);
         return;
       }
       removeScore.closest(".functions-criterion").remove();
@@ -227,8 +228,8 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = true; });
     pubBtn.disabled = true;
     previewBtn.disabled = true;
-    previewBtn.textContent = L("正在试跑…");
-    showNote(L("正在请求判断，通常需要几秒。"), false);
+    previewBtn.textContent = globalThis.t.text("workbench.client-events.testing");
+    showNote(globalThis.t.text("workbench.client-events.requesting-judgment-usually-takes-few-seconds"), false);
     try {
       await saveDraft();
       if (sel?.id !== previewId) return;
@@ -250,7 +251,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
           const current = page.address();
           for (const key of ["project", "desktop"]) if (current.searchParams.has(key)) connection.searchParams.set(key, current.searchParams.get(key));
           link.href = connection.pathname + connection.search;
-          link.textContent = L("连接判断服务");
+          link.textContent = globalThis.t.text("workbench.client-events.connect-judgment-service");
           note.append(document.createTextNode(" "), link);
         }
       }
@@ -259,14 +260,14 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = false; });
       pubBtn.disabled = false;
       previewBtn.disabled = false;
-      previewBtn.textContent = L("试跑");
+      previewBtn.textContent = globalThis.t.text("workbench.client-events.preview");
     }
   });
   pubBtn.addEventListener("click", async () => {
     if (!sel || pubBtn.disabled || blocked()) return;
     if (destKey() && destKey() !== "agent.mcp" && !mappingReady({ ...sel, scene_id: destKey(), criteria: readCriteria(), scene_map: sceneMap() })) {
       setStep("fn", true);
-      showNote(L("还有结果未对应页面动作，请补齐后再发布。"), true);
+      showNote(globalThis.t.text("workbench.client-events.some-results-not-mapped-page-actions-complete-mapping"), true);
       return;
     }
     const publishId = sel.id;
@@ -286,13 +287,13 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
   });
   const load = () => loadCatalog().then(loadList).catch((error) => {
     empty.hidden = false;
-    molisWorkRequest.show(empty.querySelector("p"),error,L("Functions 请求失败"));
+    molisWorkRequest.show(empty.querySelector("p"),error,globalThis.t.text("workbench.client-events.request-failed"));
     let retry = empty.querySelector("button");
     if (!retry) {
       retry = document.createElement("button");
       retry.type = "button";
       retry.className = "mw-btn mw-btn--secondary";
-      retry.textContent = L("重新加载");
+      retry.textContent = globalThis.t.text("workbench.client-events.reload");
       retry.addEventListener("click", () => { retry.remove(); void load(); });
       empty.append(retry);
     }
@@ -306,7 +307,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const params = page.address().searchParams;
     const id = params.get("rule") || records.find(rec => rec.function_key === params.get("key"))?.id;
     if (id) bench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: id } }));
-    else if (params.get("key")) showNote(L("找不到这条判断规则，请从列表重新选择。"), true);
+    else if (params.get("key")) showNote(globalThis.t.text("workbench.client-events.judgment-rule-could-not-be-found-choose-another"), true);
   });
 }
 `;

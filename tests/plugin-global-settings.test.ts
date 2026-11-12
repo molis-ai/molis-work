@@ -15,11 +15,12 @@ import {
   defaultShelfHotKeys,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, registeredBuiltinText, runWithLocale, runWithRegisteredText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  renderShelfSettings,
+  renderShelfSettings as renderShelfSettingsDocument,
+  shelfManifest,
   shelfSettingsUiDescriptor,
 } from "@molis-ai/molis-work-plugin-shelf";
 import { feedUiContribution } from "@molis-ai/molis-work-plugin-feed";
@@ -41,6 +42,12 @@ import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
+import { pageText } from "./fixtures/page-text.js";
+
+const shelfWords = registeredBuiltinText(shelfManifest);
+assert.ok(shelfWords);
+const renderShelfSettings = (model: Parameters<typeof renderShelfSettingsDocument>[0]) =>
+  runWithLocale("zh", () => runWithRegisteredText(shelfWords, () => renderShelfSettingsDocument(model)));
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
@@ -273,13 +280,14 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {
+  const shelfPrimitives = { ...primitives, text: pageText("zh", "shelf") };
   const on = renderShelfSettings({
     settings: shelfSettings(),
-    primitives,
+    primitives: shelfPrimitives,
   });
   const off = renderShelfSettings({
     settings: shelfSettings({ drop_wheel_enabled: false }),
-    primitives,
+    primitives: shelfPrimitives,
   });
   assert.match(on, /data-shelf-settings/);
   assert.match(on, /data-settings-panel="shelf"/);
@@ -297,7 +305,7 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   assert.match(machine, /data-shelf-agent-line/);
   const withAgents = renderShelfSettings({
     settings: shelfSettings(),
-    primitives,
+    primitives: shelfPrimitives,
     runtime: {
       runtime_key: "grok",
       title: "Grok",
@@ -376,6 +384,8 @@ for (const declared of [true, false]) {
       else delete view.settings_address;
       const parsed = parsePluginManifest(manifest);
       registration.manifest = parsed;
+      const { installHostUiText } = await import("@molis-ai/molis-work-app-local-host");
+      installHostUiText();
       const { BUILTIN_PLUGIN_CATALOG, listPluginSettingsNavItems } = await import("@molis-ai/molis-work-app-workbench");
       const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "shelf");
       assert.equal(entry, registration, "the catalog consumes the original registration object");
@@ -432,8 +442,9 @@ test("workbench settings directory and standalone settings list the same grouped
   // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 (a Host page since CHR-1) after 助理,
   // other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
   // person's own (specs/archive/memory-system §10.1).
-  // 本机目录 (PG-049) is the platform's page of local-folder permissions, under 本机.
-  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
+  // 本机目录 (PG-049) is the platform's page of local-folder permissions, under 本机. The AI group is 模型设置 · 助理 · 角色 · 能力包
+  // (specs/capability-pack/spec.md decision 3): 技能 merged into 能力包, and 提示词 is opened from a prompt's detail there.
+  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
   assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
   assert.match(withGoals, />Goals</);
@@ -466,7 +477,7 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);
   const standaloneOrder = [...appearance.matchAll(/href="\/settings\/([a-z-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "diagnostics", "shelf"]);
+  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "kit", "runtimes", "diagnostics", "shelf"]);
   assert.doesNotMatch(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
@@ -605,8 +616,8 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
   const remappedPage = await (await fetch(`${origin}/settings/shelf`)).text();
-  assert.match(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset>/);
-  assert.doesNotMatch(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset hidden/);
+  assert.match(remappedPage, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset>/);
+  assert.doesNotMatch(remappedPage, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset hidden/);
 });
 
 test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare global chords", () => {
@@ -662,8 +673,8 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
     primitives,
   });
   assert.match(remapped, /⌃⌥E/);
-  assert.match(remapped, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset>/);
-  assert.doesNotMatch(remapped, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset hidden/);
+  assert.match(remapped, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset>/);
+  assert.doesNotMatch(remapped, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset hidden/);
 });
 
 test("Shelf store keeps the wheel when only a hotkey is patched and repairs a bare chord", async () => {

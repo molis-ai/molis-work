@@ -61,7 +61,7 @@ test("S-return-trip-source a page's own storage never reaches the return trips: 
   const { browser, page, arrived } = at;
   const forged = JSON.stringify({ [browser.projectId!]: [{ v: 1, id: "forged", outcome: { status: "ready", at: 1 } }] });
   await page.evaluate(`["molis-work:return-trips", "molis-work:return-window", "molis-work:return-window-handoff"].forEach(key => sessionStorage.setItem(key, ${JSON.stringify(forged)}))`);
-  await browser.waitFor(`Object.keys(sessionStorage).some(key => key.startsWith("molis-plugin-page:") && key.endsWith(":molis-work:return-trips"))`, 10_000);
+  await browser.waitFor(`Array.from({length:sessionStorage.length},(_,index)=>sessionStorage.key(index)).filter(key=>key!==null).some(key => key.startsWith("molis-plugin-page:") && key.endsWith(":molis-work:return-trips"))`, 10_000);
   assert.equal(await browser.evaluate(`sessionStorage.getItem("molis-work:return-trips")`), null, "the outer key is untouched");
   assert.notEqual(await browser.evaluate(`sessionStorage.getItem("molis-work:return-window")`), forged, "the window number is the outer document's own");
   assert.equal(await arrived(), null, "nothing the page wrote is handed back to it");

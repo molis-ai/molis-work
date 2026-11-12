@@ -5,23 +5,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, createLocalWebAssets, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
 
-const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+installHostUiText();
+const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+const assets = createLocalWebAssets({ renderer, ptyClientFilePath: () => "/unused" });
 
 // Production renderer + browser client + request helper over real HTTP. The server is a protocol fixture,
 // not a substitute for the Service/SDK authority and CAS tests, and never starts a Home or calls a model.
 interface Request { path: string; body: Record<string, unknown>; key: string }
 const entry = (id: string, version: number, state = "active") => ({ memory_id: id, version, state,
   text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z" });
-async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown } | Promise<{ status?: number; body: unknown }>) {
+async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown } | Promise<{ status?: number; body: unknown }>, guidanceFlow = false, section: "memory" | "plugins" = "memory") {
   const chrome = locateTestChrome(); if (!chrome) { t.skip("Chrome is required"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
+  const requests: Array<{method:string;url:string}> = [];
+  const visits: string[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
     candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
   const project = { project_id: "project", display_name: "测试项目" };
@@ -32,14 +36,18 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     counts: { waiting_for_human: 0, executing: 0, execution_blocked: 0, execution_pending: 0, satisfied: 0, invalidated: 0, trashed: 0, archived: 0 },
     input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   };
-  const html = renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, [], "", false, "memory");
+  const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
+  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, [], "", false, section));
+  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance, [])) : html;
   const server = createServer(async (request, response) => {
+    requests.push({ method: request.method ?? "GET", url: request.url ?? "/" }); visits.push(request.url ?? "/");
     const path = new URL(request.url!, "http://local").pathname;
-    if (path.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderMolisWorkSettingsStylesheet()); return; }
+    if (runWithLocale("zh", () => assets.serveWorkbenchAsset(request, response, path))) return;
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
-    if (!path.includes("/api/memory/")) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(html); return; }
+    if (!path.includes("/api/memory/") && !path.includes("/api/contextual/") && !(section === "plugins" && ["/api/plugin-trust/", "/api/settings/plugin-permissions/", "/api/settings/plugin-project-reach/"].some(prefix => path.includes(prefix)))) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(guidanceFlow && path.endsWith("/settings/guidance") ? guidanceHtml : html); return; }
     response.setHeader("content-type", "application/json");
-    if (path.endsWith("/overview")) { response.end(JSON.stringify(overview)); return; }
+    if (path.endsWith("/overview")) { response.end(JSON.stringify(section === "plugins" ? {plugins:[],publishers:[]} : overview)); return; }
+    if (section === "plugins" && path.endsWith("/list")) { response.end(JSON.stringify({ plugins: [], capabilities: [], refused: [], project_name: "测试项目" })); return; }
     if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
     let raw = ""; for await (const chunk of request) raw += chunk;
     const call = { path, body: JSON.parse(raw || "{}"), key: String(request.headers["x-molis-work-idempotency-key"] || "") }; calls.push(call);
@@ -51,9 +59,9 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const address = server.address(); assert.ok(address && typeof address === "object");
   browser = await ChromeHarness.start(directory, { executable: chrome });
   const page = await browser.page(); await page.viewport(1200, 1000);
-  const reset = async () => { await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${calls.length}` }); await page.wait("document.querySelector('[data-memory-id=active]')"); };
+  const reset = async () => { await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${calls.length}` }); await page.wait(section === "plugins" ? "document.querySelector('[data-plugin-trust-settings][data-plugin-trust-bound=\"1\"]')" : "document.querySelector('[data-memory-id=active]')"); };
   await reset();
-  return { page, calls, reset, overview, directory };
+  return { page, calls, reset, overview, directory, requests, browser, visits, origin: `http://127.0.0.1:${address.port}` };
 }
 const item = (id = "active") => `[data-memory-id=${id}]`;
 const textButton = (label: string) => `button[aria-label^="${label}："]`;
@@ -318,4 +326,102 @@ test("D0194/D0224 the confirm dialog returns focus: Escape to the row's more but
   f.overview.items = f.overview.items.filter(one => one.memory_id !== "disabled");
   second.release();
   await page.wait("document.activeElement?.hasAttribute('data-memory-add')");
+});
+
+
+test("D0225 memory promotion navigates with only an opaque reference, fills an unsaved guidance draft and removes the reference before reload", { timeout: 60_000 }, async t => {
+  const text = "PRIVATE_DRAFT_&?中文🧪".repeat(40), reference = "one-time-project-guidance-reference";
+  let held: string | undefined;
+  const f = await open(t, call => {
+    if (call.path.endsWith("/draft-reference/issue")) { assert.deepEqual(call.body, { purpose: "project-guidance", text: JSON.stringify(["active", 7]) }); held = String(call.body.text); return { body: { reference } }; }
+    if (call.path.endsWith("/draft-reference/take")) { assert.deepEqual(call.body, { purpose: "project-guidance", reference }); assert.equal(held, JSON.stringify(["active", 7])); const payload = held; held = undefined; return { body: { text: payload } }; }
+    return { status: 500, body: { error: "Unexpected mutation" } };
+  }, true);
+  if (!f) return;
+  await f.page.command("Page.enable");
+  f.overview.items[0]!.text = text;
+  await f.reset();
+  await f.page.click(item() + " summary[aria-label^=更多操作]");
+  await f.page.evaluate(`document.querySelector('${item()} .memory-menu').querySelectorAll('button').forEach(button=>{if(button.textContent==='升级为项目说明')button.dataset.promoteGuidance='1'})`);
+  const navigation = f.browser.event("Page.domContentEventFired");
+  await f.page.click("[data-promote-guidance]"); await navigation;
+  await f.page.wait("document.querySelector('[data-guidance-form] [name=content]')?.value.startsWith('PRIVATE_DRAFT_')");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form] [name=content]').value"), text);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form] [name=reason]').value"), "由项目记忆升级为项目说明");
+  assert.equal(await f.page.evaluate("location.search"), "", "one-time reference is removed from browser history");
+  const target = f.requests.find(request => request.method === "GET" && request.url.startsWith("/projects/project/settings/guidance"));
+  assert.ok(target);
+  const url = new URL(target.url, "http://fixture");
+  assert.deepEqual([...url.searchParams.keys()], ["draft_ref"]); assert.equal(url.searchParams.get("draft_ref"), reference);
+  assert.ok(f.requests.every(request => !request.url.includes("PRIVATE_DRAFT_") && !request.url.includes(encodeURIComponent(text))));
+  assert.deepEqual(f.calls.map(call => call.path), ["/projects/project/api/contextual/draft-reference/issue", "/projects/project/api/contextual/draft-reference/take"], "promotion never auto-saves guidance or mutates the original memory");
+  const reloaded = f.browser.event("Page.domContentEventFired"); await f.page.command("Page.reload"); await reloaded;
+  await f.page.wait("document.querySelector('[data-guidance-form]')");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form] [name=content]').value"), "");
+  assert.equal(f.calls.length, 2, "reload cannot consume or restore the one-time draft again");
+});
+
+// D0246/D0247: production settings renderer and client, with the install action response as a protocol fixture.
+test("D0246/D0247 installation review reveals the full signed body as inert text before confirmation", { timeout: 40_000 }, async t => {
+  const excerpt = "🙂".repeat(200);
+  const body = excerpt + '<img src="/injected" onerror="globalThis.installInjected=true"> signed tail';
+  const f = await open(t, call => {
+    assert.ok(call.path.endsWith("/install/preview"), `review must not confirm installation: ${call.path}`);
+    return { body: { preview_id: "review", name: "审阅测试", runtime_scope: "project", publisher: { key_id: "test-key", pinned_label: "测试发布者" },
+      preview: { plugin_id: "example.review", version: "1.0.0", permissions: [], jobs: [] }, skills: [], effects: {},
+      agent_bodies: [{ kind: "role", name: "签名角色", change: "changed", excerpt, body, truncated: true, total_chars: Array.from(body).length }] } };
+  }, false, "plugins");
+  if (!f) return;
+  const file = join(f.directory, "plugin.json"); await writeFile(file, JSON.stringify({ fixture: "signed package protocol" }));
+  const doc = await f.page.command<{root:{nodeId:number}}>("DOM.getDocument");
+  const input = await f.page.command<{nodeId:number}>("DOM.querySelector", {nodeId:doc.root.nodeId, selector:"[data-plugin-trust-pick]"});
+  await f.page.command("DOM.setFileInputFiles", {nodeId:input.nodeId, files:[file]});
+  await f.page.wait("document.querySelector('.plugin-trust-agent-body details')");
+  assert.equal(await f.page.evaluate("document.querySelector('.plugin-trust-agent-body > pre').textContent"), excerpt);
+  assert.match(await f.page.evaluate<string>("document.querySelector('.plugin-trust-agent-body').textContent"), /正文已截断/);
+  assert.equal(await f.page.evaluate("document.querySelector('.plugin-trust-agent-body details').open"), false);
+  await f.page.click(".plugin-trust-agent-body summary");
+  assert.equal(await f.page.evaluate("document.querySelector('.plugin-trust-agent-body details').open"), true);
+  assert.equal(await f.page.evaluate("document.querySelector('.plugin-trust-agent-body details pre').textContent"), body);
+  assert.equal(await f.page.evaluate("Boolean(document.querySelector('.plugin-trust-agent-body img') || globalThis.installInjected)"), false);
+  assert.equal(f.requests.some(r => r.url.includes("injected")), false);
+  assert.equal(f.calls.length, 1, "opening full text makes no install request");
+});
+
+// D0191 / D0225: the opaque one-time reference holds only the Memory identity/version; the owner refuses stale source content.
+test("D0191 D0225 Memory promotion resolves a one-time versioned reference and refuses a changed or deleted memory", { timeout: 60_000 }, async t => {
+  const pending = new Map<string, string>(); let sequence = 0;
+  const f = await open(t, call => {
+    if (call.path.endsWith("/draft-reference/issue")) { const reference = "memory-ref-" + ++sequence; pending.set(reference, String(call.body.text)); return { body: { reference } }; }
+    if (call.path.endsWith("/draft-reference/take")) { const reference = String(call.body.reference), text = pending.get(reference); pending.delete(reference); return { body: { text } }; }
+    return { status: 500, body: { error: "Unexpected mutation" } };
+  }, true); if (!f) return;
+  await f.page.command("Page.enable");
+  const text = "需要保密的项目约定🙂".repeat(200);
+  f.overview.items[0]!.text = text;
+  await f.reset();
+  await f.page.click(item() + " summary[aria-label^=更多操作]");
+  await f.page.evaluate("[...document.querySelectorAll('[data-memory-id=active] .mw-menu__item')].find(button => button.textContent === '升级为项目说明').dataset.promoteGuidance='1'");
+  const navigation = f.browser.event("Page.domContentEventFired");
+  await f.page.click("[data-promote-guidance]"); await navigation;
+  await f.page.wait("document.querySelector('[data-guidance-editor]')?.hidden === false");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), text);
+  const visit = f.visits.find(path => path.includes("draft_ref="))!;
+  assert.ok(visit); assert.ok(visit.length < 150);
+  assert.match(visit, /draft_ref=memory-ref-1/);
+  assert.doesNotMatch(visit, /需要保密|%E9%9C%80|text=|memory_id=/);
+  assert.ok(f.calls.every(call => call.path.includes("/draft-reference/")), "navigation cannot publish a project instruction");
+  assert.equal(await f.page.evaluate("location.search"), "", "resolved references leave the current history entry");
+  for (const version of [6, 7]) {
+    if (version === 7) f.overview.items = [];
+    const reference = "stale-" + version; pending.set(reference, JSON.stringify(["active", version]));
+    const loaded = f.browser.event("Page.domContentEventFired");
+    await f.page.command("Page.navigate", { url: f.origin + "/projects/project/settings/guidance?draft_ref=" + reference });
+    await loaded;
+    await f.page.wait("document.querySelector('[data-guidance-receipt]')?.checkVisibility() && document.querySelector('[data-guidance-receipt]').textContent.includes('这条记忆已变化或不可用')");
+    assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-editor]').hidden"), true);
+    assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), "");
+    assert.equal(pending.has(reference), false, "stale references are still consumed once");
+    assert.ok(f.calls.every(call => call.path.includes("/draft-reference/")));
+  }
 });

@@ -48,11 +48,11 @@ function modelReader() {
 }
 
 type DirectoryView = { descriptor: { contribution_id: string }; render(request: { surface: string; model: CodingUiHostModel }): string };
-/** The session directory Coding draws at once, as the Host asks for it (apps/local-host coding-surface.ts). */
+/** The session list Coding draws at once in its page's left column, as the Host asks for the page (apps/local-host coding-surface.ts). */
 function directoryHtml(platform: { supervisor: { contribution(pluginId: string): unknown } }): string {
   const views = (platform.supervisor.contribution(CODING_PLUGIN_ID) as { views?: DirectoryView[] } | null)?.views ?? [];
   const view = views.find(entry => entry.descriptor.contribution_id === CODING_UI_CONTRIBUTION_ID) ?? assert.fail("Coding registers its page");
-  return view.render({ surface: "directory", model: { route_prefix: "", face: "sessions", filter: "all", tools: [], workspace_path: null, companion_directory: "", companion_result: "",
+  return view.render({ surface: "workbench", model: { route_prefix: "", face: "sessions", filter: "all", tools: [], workspace_path: null, companion_directory: "", companion_result: "",
     primitives: { escape: value => String(value), icon: () => "", text: value => value, formatDate: value => value.slice(0, 10) } } });
 }
 const until = async (done: () => boolean, ms = 5_000) => { for (const end = Date.now() + ms; !done() && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50)); assert.ok(done(), "the awaited step happened"); };

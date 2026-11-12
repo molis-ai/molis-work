@@ -128,7 +128,7 @@ const withOverview = (part: Record<string, unknown>) => ({ ...declaration, overv
 test("SSC-06: a right declaration parses for every plugin alike, and an author's own check of it finds nothing; a Manifest without one is unchanged", () => {
   assert.equal(presenting(declaration), "");
   assert.deepEqual(parsePluginManifest(declarationManifest({ actions: ownActions, presentation: declaration })).presentation, declaration);
-  assert.deepEqual(validatePresentationDeclaration({ actions: ownActions, presentation: declaration }), []);
+  assert.deepEqual(validatePresentationDeclaration({ plugin_id: DECLARATION_PLUGIN_ID, actions: ownActions, presentation: declaration }), []);
   assert.equal(presenting({ objects: [] }), "");
   assert.equal(manifestProblems(declarationManifest()), "");
 });
@@ -212,7 +212,7 @@ test("the catalog answers present, absent or unknown: this Manifest's own action
   assert.deepEqual([own("notes.publish", 1), own("notes.publish", 2), own("goals.attach", 1)], ["present", "absent", "unknown"]);
   const directory = presentationCatalog(ownActions, true);
   assert.deepEqual([directory("notes.publish", 1), directory("goals.attach", 1)], ["present", "absent"]);
-  assert.deepEqual(validatePresentationDeclaration({ actions: ownActions, presentation: declaration }, directory),
+  assert.deepEqual(validatePresentationDeclaration({ plugin_id: DECLARATION_PLUGIN_ID, actions: ownActions, presentation: declaration }, directory),
     ["presentation.objects[0].actions[1].ref goals.attach@1 不在动作目录里（本插件的动作要写声明过的版本）"]);
 });
 

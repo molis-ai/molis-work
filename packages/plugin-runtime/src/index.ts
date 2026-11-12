@@ -6,7 +6,7 @@ export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
+import { abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
@@ -18,12 +18,14 @@ import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
-import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, startedInstall, validateManifest } from "./runtime-rules.js";
+import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, selectedEntrypoint, startedInstall, validateManifest } from "./runtime-rules.js";
 import { captureStartControl, createActivationContext, releaseRejectedActivation, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
+import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
+export { holdsInstalledEdition, type DeclarationOwner, type DeclarationOwners } from "./install-rules.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type {
@@ -122,13 +124,11 @@ export class PluginRuntime implements PluginRuntimeApi {
   private installRecord(input: PluginInstallInput, trust: PluginTrust): PluginLifecycleReceipt {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
-    validateInstalledManifest(manifest, this.options.declarationOwners);
-    assertPluginUpgradeStepsAdmitted(manifest, trust.level);
-    const entrypoint = manifest.entrypoints.find((candidate) => candidate.deployment === input.deployment);
-    if (!entrypoint) {
-      throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
-    }
+    validateManifest(manifest);
     const installId = installIdentity(manifest);
+    assertDeclarationsFree(manifest, installId, this.options.declarationOwners);
+    assertPluginUpgradeStepsAdmitted(manifest, trust.level);
+    const entrypoint = selectedEntrypoint(manifest, input.deployment);
     const current = this.repository.get(installId);
     if (current?.state === "uninstalled" && this.locks.busy(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
     if (input.definition.execution === "sandbox" && input.grants === undefined) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
@@ -137,6 +137,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     const digest = pluginManifestDigest(manifest);
     const follow = recordToFollow(current, manifest, digest, host);
     assertPresentationAdmitted(manifest, this.options.assertPresentation, { retained: follow ? undefined : current });
+    if (!follow && current && current.state !== "uninstalled" && manifest.settings_entries?.entries.length && current.manifest_digest !== digest) {
+      throw pluginErrors.upgrade_required("设置声明必须属于已安装的发行版本，请先确认升级");
+    }
     if (!follow && current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
@@ -157,7 +160,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     if (follow) {
       this.register(input.definition);
-      const moved = followHostBuild(follow, input.deployment, manifest, digest, entrypoint.entrypoint, this.now(), input.declared_before);
+      const moved = followHostBuild(follow, input.deployment, manifest, digest, entrypoint, this.now(), input.declared_before);
       this.repository.save(moved);
       return this.receipt("install", moved, false);
     }
@@ -202,7 +205,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       publisher_signature: manifest.publisher.signature,
       manifest_digest: digest,
       deployment: input.deployment,
-      selected_entrypoint: entrypoint.entrypoint,
+      selected_entrypoint: entrypoint,
       grants,
       execution: input.definition.execution ?? "host",
       publisher_trust: trust.level,
@@ -237,8 +240,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     const input = { ...given, definition: platformDefinition(given.definition) }; return this.locks.run(input.install_id, async () => {
       input.assertCurrent?.();
       const target = input.definition.manifest;
-      validateInstalledManifest(target, this.options.declarationOwners);
+      validateManifest(target);
       const current = requireInstall(this.repository, input.install_id);
+      assertDeclarationsFree(target, current.install_id, this.options.declarationOwners);
       assertPluginUpgradeStepsAdmitted(target, current.publisher_trust);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
@@ -269,8 +273,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const targetGrants = normalizeGrants(target, input.grants ?? (rollbackCode ? current.grants.filter(permission => declaredPermissions.has(permission)) : current.grants));
       assertRequiredGrants(target, targetGrants);
       const deployment = input.deployment ?? current.deployment;
-      const entrypoint = target.entrypoints.find(candidate => candidate.deployment === deployment);
-      if (!entrypoint) throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
+      const entrypoint = selectedEntrypoint(target, deployment);
       if (migratable && !input.definition.validateUpgrade) {
         throw pluginErrors.upgrade_validation_missing("此升级需要插件提供旧私有数据校验");
       }
@@ -280,7 +283,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
       let privateDataSnapshot: unknown;
-      let hasPrivateDataSnapshot = false;
+      let hasPrivateDataSnapshot = false, recoverable = stopped;
+      let releaseSettings: (() => void) | undefined;
       try {
         input.assertCurrent?.();
         if (current.execution !== "sandbox" && this.executor.capturePrivateData && this.executor.restorePrivateData) {
@@ -310,30 +314,19 @@ export class PluginRuntime implements PluginRuntimeApi {
 
         restoration?.beforeCommit();
         input.assertCurrent?.();
+        assertDeclarationsFree(target, current.install_id, this.options.declarationOwners, true);
+        const upgraded = versionChangeRecord(stopped, target, { deployment, entrypoint, grants: targetGrants, disabled: current.state === "disabled", at: this.now() });
+        if (current.state !== "disabled") releaseSettings = this.options.declarationOwners?.retainSettings?.(stopped, upgraded, target, oldDefinition?.manifest);
         this.register(input.definition);
-
-        const upgraded: PluginInstanceRecord = {
-          ...stopped,
-          version: target.version,
-          publisher_id: target.publisher.publisher_id,
-          publisher_signature: target.publisher.signature,
-          manifest_digest: pluginManifestDigest(target),
-          deployment,
-          selected_entrypoint: entrypoint.entrypoint,
-          grants: targetGrants,
-          state: current.state === "disabled" ? "disabled" : "installed", // a new version does not undo the person's disable
-          recovery_count: 0,
-          last_error_code: null,
-          updated_at: this.now(),
-          uninstalled_at: null,
-        };
         this.repository.save(upgraded);
+        recoverable = upgraded;
         const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false)
           : await this.startOnce(input.install_id, { assertCurrent: restoration?.assertRestored ?? input.assertCurrent });
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
         if (restoration && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
         const failed = this.repository.get(input.install_id);
+        if (!holdsInstalledEdition(failed, recoverable)) throw error;
         let dataRollbackError: unknown;
         if (hasPrivateDataSnapshot) {
           try { await this.executor.restorePrivateData!(input.install_id, privateDataSnapshot); }
@@ -347,6 +340,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           last_error_code: dataRollbackError ? "plugin.upgrade_rollback_failed" : safeErrorCode(error),
           updated_at: this.now(),
         };
+        if (!holdsInstalledEdition(this.repository.get(input.install_id), recoverable)) throw error;
         this.repository.save(rollback);
         if (oldDefinition && !dataRollbackError && current.state !== "disabled") {
           // Restore the pre-upgrade implementation after a failed candidate start (a switched-off install stays off).
@@ -360,6 +354,8 @@ export class PluginRuntime implements PluginRuntimeApi {
           throw pluginErrors.upgrade_rollback_failed(`升级失败且私有数据回滚失败，旧插件已停止：${safeErrorMessage(dataRollbackError)}`);
         }
         throw error;
+      } finally {
+        releaseSettings?.();
       }
     });
   }
@@ -424,25 +420,27 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能直接启动`);
     }
     const definition = requireDefinition(this.definitions, current);
-    assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
+    assertStartable(definition.manifest, current, this.options.declarationOwners);
     assertPresentationAdmitted(definition.manifest, this.options.assertPresentation, { retained: current });
     let startedContext: PluginStartContext | null = null;
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
-      const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
-      startedContext = this.liveContext(installId);
-      if (beforeEffect) await beforeEffect();
-      assertCurrent?.();
-      // Redemption owns cleanup if it rejects the contribution.
-      startedContext = null;
-      await this.redeem(definition, current, handle.contribution);
-      startedContext = this.liveContext(installId);
+      const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
+      if (handle) {
+        startedContext = this.liveContext(installId);
+        if (beforeEffect) await beforeEffect();
+        assertCurrent?.();
+        // Redemption owns cleanup if it rejects the contribution.
+        startedContext = null;
+        await this.redeem(definition, current, handle.contribution);
+        startedContext = this.liveContext(installId);
+      }
       if (beforeEffect) await beforeEffect();
       assertCurrent?.();
       const updated = startedInstall(current, this.now());
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution, definition.manifest);
+      if (handle) this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
     } catch (error) {
       // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
@@ -562,17 +560,17 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const definition = requireDefinition(this.definitions, current);
     assertPresentationAdmitted(definition.manifest, this.options.assertPresentation, { retained: current });
-    assertRequiredGrants(definition.manifest, current.grants);
+    assertStartable(definition.manifest, current, this.options.declarationOwners, true);
     const recoveryCount = current.recovery_count + 1;
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       // Explicit release admits this attempt's start-time jobs; a failed start below restores quarantine.
       if (releaseQuarantine) this.repository.save({ ...current, state: "crashed", updated_at: this.now() });
-      const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
-      await this.redeem(definition, current, handle.contribution);
+      const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
+      if (handle) await this.redeem(definition, current, handle.contribution);
       const updated = startedInstall(current, this.now(), releaseQuarantine ? 0 : recoveryCount);
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution, definition.manifest);
+      if (handle) this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);
     } catch (error) {
       // Interrupted by a stop, the recovery is cancelled: no attempt is counted, and a release puts the quarantine back as it was.
@@ -657,8 +655,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.repository.list();
   }
 
-  contribution(installId: string): PluginContribution | null {
-    return this.contributions.get(installId) ?? null;
+  contribution(installId: string, source?: (source: PluginContributionSource) => void): PluginContribution | null {
+    return this.contributions.get(installId, source) ?? null;
   }
 
   /** A started Plugin must deliver exactly what its Manifest declared (a partial half: nothing beyond it), or it does not run. */
@@ -671,9 +669,9 @@ export class PluginRuntime implements PluginRuntimeApi {
       assertContributionMatchesManifest(definition.manifest, contribution, redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id));
       const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
-        const actions = this.options.actions;
-        if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
-        const registration = pluginActionProvider(manifest, contribution, record,
+        const actions = this.options.actions, activation = this.liveContext(record.install_id);
+        if (!actions || !activation) throw pluginErrors.contribution_unredeemed("当前插件激活或宿主动作注册服务不可用");
+        const registration = pluginActionProvider(manifest, contribution, activation,
           actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
             bounded: Boolean(this.options.permissionBound?.(record, definition)),
             checkGrant: permission => { this.capturePermission(record.install_id, permission); }, capturePermissions: permissions => {

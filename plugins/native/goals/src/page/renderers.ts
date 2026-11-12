@@ -10,11 +10,11 @@ import type { GoalsRendererFactories } from "./factories.js";
 
 /** The Goals owners' renderers bound to this request's words: status, tree, momentum, relations, context, policy and proposals. */
 export function createGoalsRenderers<TView extends GoalsPageView>(
-  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "currentLocale" | "listJoin" | "formatDate" | "renderList" | "renderReference"> & { defaultPolicy: { human_approval: boolean } },
+  ports: Pick<GoalsPagePorts<TView>, "readText" | "goalsL" | "currentLocale" | "listJoin" | "formatDate" | "renderList" | "renderReference"> & { defaultPolicy: { human_approval: boolean } },
   factories: GoalsRendererFactories,
 ) {
-  const { L, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy } = ports;
-  const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createFocusSections({ L, escapeHtml });
+  const { readText, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy } = ports;
+  const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createFocusSections({ readText, escapeHtml });
   const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = factories.proposal({ translate: goalsL, escapeHtml, icon, renderList });
   const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(goalsL);
   function renderReference(value: string, label = value): string {

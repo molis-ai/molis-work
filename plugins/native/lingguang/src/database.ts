@@ -4,7 +4,7 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its sparks go with their
  * conversations, the messages in them and the request receipts.
  */
-const LINGGUANG_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "灵光里的想法与对话", order: 80, tables: [
+const LINGGUANG_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "lingguang.project-deletion.data" }, order: 80, tables: [
   { table: "messages", column: "conversation_id", parent: "conversations" },
   { table: "conversations", column: "project_id" },
   { table: "spark_requests", column: "project_id" },

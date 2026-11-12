@@ -1,8 +1,15 @@
 import type { BoardSnapshot, GoalPolicyHistoryRecord } from "@molis-ai/molis-work-plugin-goals/contract";
-import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContribution, UiLocalePack, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import type { PluginDirectory } from "./plugin-directory.js";
+/** A prepared contribution and its original producer, valid only while the Host composes this page. */
+export interface PreparedStageView extends UiContribution {
+  readonly producer?: string;
+  readonly textPacks?: () => readonly UiLocalePack[];
+  readonly drawText?: <T>(draw: () => T) => T;
+}
+
 export interface MolisWorkWebView {
   /** Matched Manifest owner and its successful presentation; scoped to this one page request. */
   page_owner?: string;
@@ -18,6 +25,8 @@ export interface MolisWorkWebView {
   hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /** The plugins the page shows (enabled ones, and personal ones the project did not hide), as the Host works it out (W5-02 B1). */
   shown_plugins?: readonly string[];
+  /** The Catalog observation used to draw the project's plugin picker. */
+  project_plugin_revision?: string;
   /**
    * Directory panels supplied by Plugins the Host is running, keyed by project
    * plugin id. Absent means the shell renders what it always rendered.
@@ -27,7 +36,7 @@ export interface MolisWorkWebView {
   /** Host-owned failures render as static text, without activating a plugin page. */
   unavailable_plugin_stages?: readonly UnavailablePluginStage[];
   /** Request-local views retain the actual running owner selected before its single data read. */
-  plugin_stage_views?: Readonly<Record<string, UiContribution | null>>;
+  plugin_stage_views?: Readonly<Record<string, PreparedStageView | null>>;
   plugin_stage_surfaces?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
   plugin_overlays?: readonly string[];
   /**

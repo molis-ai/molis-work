@@ -1,4 +1,3 @@
-import type { GitSentenceTable } from "../say.js";
 import { installDiff } from "./diff.js";
 import { refresh } from "./list.js";
 import { createPage, reading } from "./page.js";
@@ -6,11 +5,13 @@ import { installResults } from "./results.js";
 import { afterDecision, installSource } from "./source.js";
 import type { GitBrowser, GitHost } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Reads through the plugin's declared routes; no Git process or approval lives in the browser. */
-export function gitClient(host: GitHost, sentences: GitSentenceTable): GitBrowser | null {
-  const page = createPage(host, sentences);
+export function gitClient(host: GitHost): GitBrowser | null {
+  const page = createPage(host);
   if (!page) return null;
-  const { L, lifetime, refreshButton, notice, result, list } = page;
+  const { lifetime, refreshButton, notice, result, list } = page;
   installResults(page);
   installDiff(page);
   installSource(page);
@@ -19,7 +20,7 @@ export function gitClient(host: GitHost, sentences: GitSentenceTable): GitBrowse
     page.viewSignal = signal;
     page.initialRead = true;
     reading(page, true);
-    notice.textContent = L("git.list.reading-workspace");
+    notice.textContent = uiText.text("git.list.reading-workspace");
     return () => {
       page.generation++; page.ticket++; page.resultsTicket++; page.conflictTicket++;
       result.setAttribute("aria-busy", "false");

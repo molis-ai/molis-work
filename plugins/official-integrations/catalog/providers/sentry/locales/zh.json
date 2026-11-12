@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.sentry",
+  "locale": "zh",
+  "messages": {
+    "sentry.connection.auth-help": "Sentry User/Org Auth Token，需要 event:read、org:read。",
+    "sentry.connection.inbound": "Feed 读取错误列表",
+    "sentry.connection.summary": "错误与性能。",
+    "sentry.connection.token-label": "Sentry Auth Token",
+    "sentry.guide.cli-link": "Sentry CLI",
+    "sentry.guide.mcp-link": "查看 Sentry 官方 MCP",
+    "sentry.guide.oauth-link": "查看 Sentry OAuth 应用",
+    "sentry.setup.create-sentry-auth-token": "创建 Sentry Auth Token"
+  }
+}

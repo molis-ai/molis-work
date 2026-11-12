@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type {
-  GoalReportWorkEventRecord,
-  ReportGoalEventsInput,
-  ReportGoalEventsRecordedResult,
+import {
+  goalEventAssessmentKey,
+  type GoalReportWorkEventRecord,
+  type GoalWorkEventJudgment,
+  type ReportGoalEventsInput,
+  type ReportGoalEventsRecordedResult,
 } from "../contract/goals.js";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 import { goalErrors } from "./errors.js";
@@ -14,6 +16,9 @@ import type { StoredWorkEvent } from "./event-facts-work-event-records.js";
 import type { GoalEventState } from "./event-state.js";
 import { eventActorKind } from "./event-state-write.js";
 import { requireWritableGoal } from "./goal-writable.js";
+
+/** The idempotency operation a report is recorded under. */
+export const REPORT_GOAL_EVENTS_OPERATION = "report_goal_events";
 
 /** Recording the work events and requirement judgments an agent reports on a Goal, with the progress summary that may ride along. */
 export class GoalEventReporting {
@@ -34,7 +39,7 @@ export class GoalEventReporting {
     });
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<Omit<ReportGoalEventsRecordedResult, "replayed">>(
-        input.project_id, input.actor_id, "report_goal_events", input.idempotency_key, hash,
+        input.project_id, input.actor_id, REPORT_GOAL_EVENTS_OPERATION, input.idempotency_key, hash,
       );
       if (replay) return { ...replay, replayed: true };
 
@@ -49,7 +54,14 @@ export class GoalEventReporting {
       const at = this.context.now().toISOString();
       const actorKind = eventActorKind(input.actor_kind);
       const stored: GoalReportWorkEventRecord[] = [];
-      for (const item of prepared) {
+      for (const [index, item] of prepared.entries()) {
+        // How far each judgment is backed comes from Goals' own check of the call, never from the reporter; with no check, or no
+        // basis, a judgment is the reporter's own word.
+        const judgments: GoalWorkEventJudgment[] = item.judgments.map((judgment) => {
+          const basis = judgment.basis ? { ...judgment.basis, evidence: judgment.basis.evidence ?? [] } : null;
+          const assessed = basis ? input.trusted?.assessments.get(goalEventAssessmentKey(index, judgment.requirement_id)) : undefined;
+          return { requirement_id: judgment.requirement_id, verdict: judgment.verdict, basis, tier: assessed?.tier ?? "self_reported", gap: assessed?.gap ?? null };
+        });
         const eventId = `gevt-${randomUUID()}`;
         const cursor = this.context.repository.appendEvent({
           eventId,
@@ -63,7 +75,7 @@ export class GoalEventReporting {
             type_id: item.type.type_id,
             type_version: item.type.version,
             fields: item.fields,
-            judgments: item.judgments,
+            judgments,
           },
           at,
         });
@@ -83,7 +95,7 @@ export class GoalEventReporting {
           config_version: this.records.config.getConfig(goal.project_id, goal.goal_id)?.current_version ?? null,
         };
         this.records.workEvents.insertWorkEvent(event);
-        this.records.workEvents.insertJudgments(eventId, item.judgments);
+        this.records.workEvents.insertJudgments(eventId, judgments, input.trusted?.reporter_session ?? null);
         stored.push(mapReportEvent(this.records, event));
       }
       const judged = [...new Set(prepared.flatMap((item) => item.judgments.map((judgment) => judgment.requirement_id)))];
@@ -100,7 +112,7 @@ export class GoalEventReporting {
         events: stored,
         observed_event_cursor: this.context.repository.eventCursor(goal.project_id),
       };
-      this.context.remember(goal.project_id, input.actor_id, "report_goal_events", input.idempotency_key, hash, outcome, at);
+      this.context.remember(goal.project_id, input.actor_id, REPORT_GOAL_EVENTS_OPERATION, input.idempotency_key, hash, outcome, at);
       return { ...outcome, replayed: false };
     });
   }

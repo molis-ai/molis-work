@@ -217,7 +217,9 @@ async function replayHomeLibrary(manifest, [item]) {
 
 async function replayGolden(name) {
   const source = path.join(directory, name), restored = createTemporaryHome("golden-replay-");
-  const steps = {};
+  // UPG2-05: the restart is a step of its own. What ran is kept here, so a result cannot say `ok` for a replay whose second structure check
+  // and second read never happened; the failure path below still returns the step, position and code only (UPG2-03).
+  const steps = { restarts: [] };
   let step = "restore";
   try {
     const manifest = readManifest(source);
@@ -238,8 +240,8 @@ async function replayGolden(name) {
     step = "write"; steps.writes = await writeEverything(homes);
     step = "third-party"; steps.third_party = await replayThirdParty(manifest, homes);
     step = "home-library"; steps.home_library = await replayHomeLibrary(manifest, homes);
-    step = "restart-structure"; await assertStructure(homes);
-    step = "restart-read"; await readEverything(manifest, homes);
+    step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
+    step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
     step = "discussion-v1-retained"; for (const retained of retainedDiscussion.values()) retained.assertKept();
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
     return { golden: name, ok: true, steps, not_run: [["third-party", steps.third_party], ["home-library", steps.home_library]].filter(([, result]) => result === THIRD_PARTY_NOT_RUN).map(([what]) => what) };

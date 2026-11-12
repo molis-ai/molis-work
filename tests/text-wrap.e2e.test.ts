@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.js";
 
 // specs/visual-ui-experience §type-optics (VUX-04): headings balance, paragraphs do not end on a lone character, and long

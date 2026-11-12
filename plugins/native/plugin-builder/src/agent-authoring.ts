@@ -1,12 +1,9 @@
 import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
-/**
- * The designer writes a compact, forgiving authoring format; the host expands it into the strict contract,
- * component plans and browser acceptance that everything downstream checks. Normalization only maps known
- * variants of the same meaning and records what it dropped; it never invents behavior. The expanded result
- * still goes through the strict validators (`validateAgentDesign`, `assertContract`).
- */
-import type { SandboxEffects, SandboxJson, SandboxDataOperation, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { PLUGIN_COMPONENT_PROP_KEYS, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
+import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
+/** Expand the author's compact vocabulary for the strict validators. Map known variants and record dropped fields;
+ * never invent behavior. */
+import type { SandboxDataOperation, SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';
 import { STUDIO_CAPABILITIES, MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
@@ -313,7 +310,6 @@ const INTENTS: Record<string, PluginComponentIntent> = {
   卡片: 'collection', 阅读: 'reading', 原文: 'reading', 对话: 'conversation', 聊天: 'conversation', 证据: 'evidence', 日程: 'schedule', 日历: 'schedule',
   提示: 'feedback', 反馈: 'feedback', 状态: 'feedback',
 };
-const PROPS = PLUGIN_COMPONENT_PROP_KEYS;
 function intentOf(value: unknown, where: string): PluginComponentIntent {
   const intent = INTENTS[text(value).toLowerCase()];
   return intent ?? fail(where, `intent「${text(value)}」不在组件池里，可用 heading / description / input / action / collection / reading / conversation / evidence / schedule / feedback`);
@@ -361,13 +357,7 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxDataOper
   if (!object(raw)) return fail(`页面 ${pageId}`, '组件写成对象');
   const id = slug(pick(raw, 'id', 'componentId'), `页面 ${pageId} 的组件`), where = `组件 ${id}`;
   const intent = intentOf(pick(raw, 'intent', 'kind', 'type'), where);
-  const props: Json = {};
-  for (const [key, value] of Object.entries(object(raw.props) ? raw.props : {})) {
-    if (!(PROPS as readonly string[]).includes(key)) { dropped.push(`${where} 的 ${key}`); continue; }
-    if (key === 'requiredText' && typeof value !== 'string') return fail(where, 'requiredText 必须是文字');
-    if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).map(column => typeof column === 'string' ? { field: column, label: column } : object(column) ? { field: text(column.field), label: text(column.label) || text(column.field), ...(object(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([key, value]) => [key, text(value).slice(0, 60)])) } : {}) } : null).filter(Boolean);
-    else if (typeof value === 'string' && value.trim()) props[key] = value.slice(0, 2000);
-  }
+  const props = authoredPartWords(raw.props, where, dropped, fail);
   for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show', 'surfaceSlot'].includes(key)) dropped.push(`${where} 的 ${key}`);
   const uses = sketch ? text(raw.uses) : '';
   const usesOperation = uses ? operations.find(item => item.id === slug(uses, where)) : undefined;
@@ -380,7 +370,7 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxDataOper
   // "Show this field of the command's result" written beside the binding rather than inside it.
   const shown = raw.submitShow ?? raw.show, showField = typeof shown === 'string' ? shown : object(shown) ? text(pick(shown as Json, 'show', 'path', 'field', 'outputPath')) : '';
   if (submit && showField && !submit.outputPath) submit.outputPath = showField;
-  return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props: props as PluginComponentPlan['props'],
+  return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props,
     ...(read ? { read } : {}), ...(submit ? { submit } : {}), ...(object(mount) && typeof mount.slot_id === 'string' ? { surfaceSlot: { slot_id: mount.slot_id } } : {}) };
 }
 /** Pages carry their parts; a model that lists parts separately with a pageId gets them grouped the same way. */
@@ -438,8 +428,9 @@ function normalizePages(raw: unknown, operations: SandboxDataOperation[], droppe
       part.id = name;
     }
     parts.push(...pageParts);
-    const regions = [...new Set(pageParts.map(part => part.regionId))].map(regionId => ({ id: regionId, title: regionId === 'main' ? text((page as Json).title) || id : regionId, operationIds: [...new Set(pageParts.filter(part => part.regionId === regionId).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))] }));
-    pages.push({ id, title: text((page as Json).title) || id, regions });
+    const rawTitle = (page as Json).title, title = authoredWord(typeof rawTitle === 'string' ? rawTitle.trim() : rawTitle, '页面 ' + id, fail) ?? id;
+    const regions = [...new Set(pageParts.map(part => part.regionId))].map(regionId => ({ id: regionId, title: regionId === 'main' ? title : regionId, operationIds: [...new Set(pageParts.filter(part => part.regionId === regionId).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))] }));
+    pages.push({ id, title, regions });
   }
   if (new Set(parts.map(part => part.id)).size !== parts.length) fail('界面', '组件标识重复');
   return { pages, parts };
@@ -471,9 +462,14 @@ export function parseStep(raw: unknown, parts: PluginComponentPlan[], where: str
   }
   if (!object(raw)) return fail(where, '验收步骤写成一行文字，例如 "submit editor"');
   const action = text(raw.action), componentId = text(pick(raw, 'componentId', 'component'));
-  const explicit = { submitBlocked: ['action', 'componentId', 'field', 'reason'], faultRead: ['action', 'componentId'], retry: ['action', 'componentId'], expectValue: ['action', 'componentId', 'field', 'value'] };
+  const explicit = { expectWord: ['action', 'componentId', 'word'], submitBlocked: ['action', 'componentId', 'field', 'reason'], faultRead: ['action', 'componentId'], retry: ['action', 'componentId'], expectValue: ['action', 'componentId', 'field', 'value'] };
   if (Object.hasOwn(explicit, action)) {
     if (Object.keys(raw).some(key => !explicit[action as keyof typeof explicit].includes(key))) return fail(where, '浏览器步骤属性无效');
+    if (action === 'expectWord') {
+      const word = PLUGIN_COMPONENT_WORD_KEYS.find(key => key === raw.word);
+      if (!word || !parts.find(part => part.id === componentId)?.props[word]) return fail(where, 'expectWord 必须引用组件实际声明的文字属性');
+      return { action, componentId, word };
+    }
     if (action === 'submitBlocked') {
       if (raw.reason !== 'valueMissing') return fail(where, 'submitBlocked 仅支持 valueMissing');
       return { action, componentId, field: text(raw.field), reason: raw.reason };
@@ -517,6 +513,7 @@ function describeStep(step: BrowserAcceptance['steps'][number]): string {
     case 'retry': return '重试读取 ' + step.componentId;
     case 'select': return '在 ' + step.componentId + ' 选择 ' + (step.text ?? step.recordId);
     case 'expect': return `${step.componentId} 显示「${step.text}」`;
+    case 'expectWord': return `${step.componentId} 显示它声明的 ${step.word} 文案`;
     case 'expectAbsent': return `${step.componentId} 不再显示「${step.text}」`;
     case 'expectValue': return `${step.componentId}.${step.field} 为 ${String(step.value)}`;
     case 'expectOrder': return `${step.componentId} 中依次显示「${step.texts.join('」「')}」`;
@@ -630,7 +627,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   }
   // Examples written in the words the records show ("想读") mean the value those words stand for ("未读").
   const spoken = new Map<string, Map<string, string>>();
-  for (const part of parts) for (const column of part.props.columns ?? []) for (const [value, words] of Object.entries(column.values ?? {})) spoken.set(column.field, (spoken.get(column.field) ?? new Map()).set(words, value));
+  for (const part of parts) for (const column of part.props.columns ?? []) for (const [value, words] of Object.entries(column.values ?? {})) spoken.set(column.field, (spoken.get(column.field) ?? new Map()).set(literalPluginWord(words), value));
   for (const operation of operations) for (const example of operation.examples) if (object(example.input)) for (const [field, value] of Object.entries(example.input)) {
     const allowed = operation.input.properties?.[field]?.enum, meant = typeof value === 'string' ? spoken.get(field)?.get(value) : undefined;
     if (allowed && !allowed.includes(value as SandboxJson) && meant !== undefined && allowed.includes(meant)) { (example.input as Json)[field] = meant; dropped.push(`操作 ${operation.id} 示例的 ${field}「${value}」是显示用词，按取值「${meant}」核对`); }
@@ -708,7 +705,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   }
   // "显示最新一次的三条" written as "{{task1}}" over a list query: a sentence fills from one object, not a list of records.
   // When a command on the page returns those fields, the sentence meant that command's result (the rule below).
-  const templateFields = (part: PluginComponentPlan) => [part.props.title, part.props.description].flatMap(words => typeof words === 'string' ? [...words.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map(match => match[1]!) : []);
+  const templateFields = (part: PluginComponentPlan) => [part.props.title, part.props.description].flatMap(word => typeof word === 'string' ? pluginTemplatePaths(word) : []);
   for (const part of parts) {
     const fields = templateFields(part), read = part.read && operations.find(op => op.id === part.read!.operationId);
     if (!fields.length || !read || part.submit || part.read!.outputPath || read.output.type !== 'array') continue;
@@ -728,7 +725,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
       const runner = parts.find(item => item.submit && fields.some(field => operations.find(op => op.id === item.submit!.operationId)?.output.properties?.[field]));
       if (runner && !runner.submit!.outputPath && fields.length === 1) runner.submit!.outputPath = fields[0]!;
       const plain = words.replace(/\{\{\s*[\w.]+\s*\}\}/g, '').replace(/\s{2,}/g, ' ').trim();
-      (part.props as Record<string, unknown>)[key] = plain || part.purpose;
+      part.props[key] = plain || part.purpose;
       dropped.push(`组件 ${part.id} 不读取任何查询，文字里的 {{…}} 改为显示在执行命令的组件上`);
     }
   }
@@ -775,7 +772,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
       if (step.action === 'submit') { last = parts.find(part => part.id === step.componentId); continue; }
       if (step.action !== 'expect' || !last?.submit) continue;
       const shown = parts.find(part => part.id === step.componentId);
-      if (!shown || shown.read || shown.submit || [shown.props.title, shown.props.description].some(words => typeof words === 'string' && words.includes(step.text))) continue;
+      if (!shown || shown.read || shown.submit || [shown.props.title, shown.props.description].some(words => literalPluginWord(words).includes(step.text))) continue;
       const output = operations.find(item => item.id === last!.submit!.operationId)?.output;
       // Its text, or its one field besides ids and times; a result of several such fields shows whole, each with its label.
       const keys = Object.keys(output?.properties ?? {}).filter(key => !/^(?:id|at)$|(?:Id|_id|At|_at)$/.test(key));
@@ -804,7 +801,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
       if (!external.has((step as { componentId?: string }).componentId ?? '')) return true;
       // It never empties, and a write elsewhere never shows in it.
       return !(step.action === 'expectAbsent' || (step.action === 'expect' || step.action === 'expectOrder' || step.action === 'expectValue') && written
-        || step.action === 'expect' && step.text === parts.find(part => part.id === step.componentId)?.props.emptyText);
+        || step.action === 'expect' && step.text === literalPluginWord(parts.find(part => part.id === step.componentId)?.props.emptyText));
     });
     if (kept.length === test.steps.length) continue;
     dropped.push(`验收「${test.id}」期望别处的数据变化或为空；验收时别处的数据是固定替身（总有一条「示例」，不会变），这些步骤已去掉`);

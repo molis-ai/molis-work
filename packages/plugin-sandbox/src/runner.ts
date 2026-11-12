@@ -7,12 +7,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 import type { PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
+import type { UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { modelDeadlines } from './model.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { assertEffects, assertJson, checkSandboxContract, SandboxError } from './schema.js';
 import { seatbeltProfile } from './seatbelt.js';
+import { SANDBOX_TEXT_BYTES } from './worker-text.js';
 
 export interface SandboxLimits {
   operationTimeoutMs: number; startupTimeoutMs: number; serviceTimeoutMs: number;
@@ -27,6 +29,8 @@ export const DEFAULT_SANDBOX_LIMITS: Readonly<SandboxLimits> = Object.freeze({
 export interface SandboxRunnerOptions {
   bundlePath: string; contract: SandboxPluginContract; identity: SandboxIdentity;
   grants: SandboxEffects; services: SandboxServices; limits?: Partial<SandboxLimits>;
+  /** Trusted release words and common words for this runner. The worker never requests paths or owners. */
+  localePacks?(locale: string): readonly UiLocalePack[];
 }
 export interface SandboxRunner {
   readonly pid: number;
@@ -35,9 +39,11 @@ export interface SandboxRunner {
   call(operationId: string, input: SandboxJson, control?: SandboxCallControl): Promise<SandboxJson>;
   stop(): Promise<void>;
 }
-/** Host-only controls; the worker receives only the operation id and JSON input. */
+/** Host-only controls; only the operation, JSON input and the verified display locale cross the worker channel. */
 export interface SandboxCallControl {
   signal?: AbortSignal; beforeEffect?(): void | Promise<void>;
+  /** Taken from the live page/operation, or the job's own Home. */
+  locale?: string | null;
   /** The same retained Host authority's final synchronous check; never decoded from worker input. */
   assert_authority_current?(): void;
   /** Opaque Host-issued project subject for this invocation only; never sent to the worker. */
@@ -55,6 +61,35 @@ function assertInputMessageSize(input: SandboxJson, messageBytes: number) {
   if (Buffer.byteLength(JSON.stringify(input)) > messageBytes / 2) {
     throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
   }
+}
+
+type Send = (message: SandboxHostMessage, sent?: (error?: Error | null) => void) => void;
+function deferred() {
+  let resolve!: () => void, reject!: (error: unknown) => void;
+  const promise = new Promise<void>((done, refuse) => { resolve = done; reject = refuse; });
+  return { promise, resolve, reject };
+}
+
+function sandboxTextSender(packs: SandboxRunnerOptions['localePacks'], messageBytes: number, send: Send, shutdown: (error: SandboxError) => void) {
+  let sentLocale: string | undefined;
+  return async (locale: string | null, beforeEffect: () => Promise<void>): Promise<void> => {
+    if (!packs || locale === null || locale === sentLocale) return;
+    const projection = Buffer.from(JSON.stringify(packs(locale)));
+    if (projection.length > SANDBOX_TEXT_BYTES || messageBytes < 256) throw new SandboxError('sandbox.channel_limit', 'Language projection exceeds sandbox channel bounds');
+    const size = Math.min(128 * 1024, Math.floor(messageBytes / 2));
+    try {
+      for (let offset = 0; offset < projection.length; offset += size) {
+        const message: SandboxHostMessage = { type: 'locale-pack', part: projection.subarray(offset, offset + size).toString('base64') };
+        await new Promise<void>((resolve, reject) => { send(message, error => { if (error) reject(error); else resolve(); }); });
+      }
+      await beforeEffect();
+    } catch (error) {
+      // The next operation cannot borrow a partially staged projection.
+      shutdown(new SandboxError('sandbox.cancelled', 'Language projection lost its operation authority'));
+      throw error;
+    }
+    sentLocale = locale;
+  };
 }
 
 export async function createSandboxRunner(options: SandboxRunnerOptions): Promise<SandboxRunner> {
@@ -88,37 +123,36 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   let child: ChildProcessWithoutNullStreams;
   try {
     await fs.writeFile(bundlePath, bundle, { mode: 0o400 });
-    await fs.copyFile(fileURLToPath(new URL('./worker.js', import.meta.url)), workerPath);
+    await fs.copyFile(fileURLToPath(new URL('./worker.mjs', import.meta.url)), workerPath);
     await fs.chmod(workerPath, 0o400);
     const node = await fs.realpath(process.execPath);
     const profile = seatbeltProfile({ node, worker: workerPath, bundle: bundlePath });
-    child = spawn('/usr/bin/sandbox-exec', ['-p', profile, node, `--max-old-space-size=${limits.heapMb}`, '--disable-proto=throw', '--no-addons', workerPath, pathToFileURL(bundlePath).href], { cwd: directory, env: {}, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+    child = spawn('/usr/bin/sandbox-exec', ['-p', profile, node, `--max-old-space-size=${limits.heapMb}`, '--disable-proto=throw', '--no-addons', workerPath, pathToFileURL(bundlePath).href, identity.pluginId], { cwd: directory, env: {}, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
   } catch (error) { await fs.rm(directory, { recursive: true, force: true }); throw error; }
   const queue = new BoundedQueue(limits.operationQueue), calls = new RateBudget(limits.operationsPerMinute), wire = new RateBudget(limits.sdkPerMinute + limits.operationsPerMinute * 2);
   const broker = new SandboxBroker(identity, grants, options.services, limits);
   const shutdownControl = new AbortController();
   let stopped: SandboxError | undefined, ready = false, buffer = Buffer.alloc(0), stderrBytes = 0;
   let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; connections?: PluginConnectionsClient; projectReach?: object; outcome: { uncertain?: SandboxError }; controller: AbortController; beforeEffect(): Promise<void>; reenter<T>(run: () => T): T; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
-  let readyResolve: () => void, readyReject: (e: unknown) => void;
-  const started = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
-  let exitResolve: () => void;
-  const exited = new Promise<void>(resolve => { exitResolve = resolve; });
-  const cleanup = async () => { await exited; await fs.rm(directory, { recursive: true, force: true }); };
+  const started = deferred();
+  const exited = deferred();
+  const cleanup = async () => { await exited.promise; await fs.rm(directory, { recursive: true, force: true }); };
   const shutdown = (error: SandboxError) => {
     if (stopped) return;
     stopped = error; clearInterval(watchdog); clearTimeout(startup);
     shutdownControl.abort(error);
-    queue.close(error); broker.stop(error); readyReject(error);
+    queue.close(error); broker.stop(error); started.reject(error);
     if (active) { active.controller.abort(error); active.reject(error); active = undefined; }
     if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); } }
     child.stdin.destroy();
   };
-  const send = (message: SandboxHostMessage) => {
+  const send: Send = (message, sent) => {
     if (stopped) throw stopped;
     const json = JSON.stringify(message) + '\n';
     if (Buffer.byteLength(json) > limits.messageBytes || child.stdin.writableLength > limits.messageBytes * 2) throw new SandboxError('sandbox.channel_limit', 'Host channel buffer exceeded');
-    child.stdin.write(json);
+    child.stdin.write(json, sent);
   };
+  const sendLocale = sandboxTextSender(options.localePacks, limits.messageBytes, send, shutdown);
   const receive = (value: unknown) => {
     assertJson(value);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new SandboxError('sandbox.protocol_error', 'Invalid channel message');
@@ -128,7 +162,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
     if (message.type === 'ready') {
       exact(['type', 'operations']);
       if (ready || !Array.isArray(message.operations) || JSON.stringify(message.operations) !== JSON.stringify(contract.operations.map(o => o.id).sort())) throw new SandboxError('sandbox.contract_mismatch', 'Implemented operations differ from contract');
-      ready = true; clearTimeout(startup); readyResolve(); return;
+      ready = true; clearTimeout(startup); started.resolve(); return;
     }
     if (!ready || !active || typeof message.id !== 'string' || message.id.length > 128) throw new SandboxError('sandbox.protocol_error', 'Message has no active operation');
     const current = active;
@@ -172,8 +206,8 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   });
   child.stderr.on('data', (chunk: Buffer) => { stderrBytes += chunk.length; if (stderrBytes > limits.messageBytes) shutdown(new SandboxError('sandbox.channel_limit', 'Plugin stderr exceeded limit')); });
   child.stdin.on('error', () => shutdown(new SandboxError('sandbox.channel_error', 'Plugin channel closed')));
-  child.on('error', () => { exitResolve(); shutdown(new SandboxError('sandbox.start_failed', 'Could not start sandbox process')); });
-  child.on('exit', () => { exitResolve(); shutdown(new SandboxError('sandbox.process_exit', 'Sandbox process exited')); void cleanup().catch(() => {}); });
+  child.on('error', () => { exited.resolve(); shutdown(new SandboxError('sandbox.start_failed', 'Could not start sandbox process')); });
+  child.on('exit', () => { exited.resolve(); shutdown(new SandboxError('sandbox.process_exit', 'Sandbox process exited')); void cleanup().catch(() => {}); });
   const startup = setTimeout(() => shutdown(new SandboxError('sandbox.start_timeout', 'Sandbox startup timed out')), limits.startupTimeoutMs);
   let sampling = false;
   const watchdog = setInterval(() => {
@@ -188,7 +222,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       else if (seconds * 1000 > limits.cpuMs) shutdown(new SandboxError('sandbox.cpu_limit', 'Sandbox process CPU budget exceeded'));
     });
   }, 200);
-  try { await started; } catch (error) { await cleanup(); throw error; }
+  try { await started.promise; } catch (error) { await cleanup(); throw error; }
   return {
     pid: child.pid!,
     get stopped() { return stopped !== undefined; },
@@ -226,13 +260,14 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
           const abort = () => shutdown(execution.signal.reason instanceof SandboxError ? execution.signal.reason : new SandboxError('sandbox.cancelled', 'Sandbox invocation cancelled'));
           execution.signal.addEventListener('abort', abort, { once: true });
           try {
-            await execution.wait(beforeEffect());
+            const locale = control?.locale ?? null; await execution.wait(beforeEffect());
+            if (options.localePacks && locale) await execution.wait(sendLocale(locale, beforeEffect));
             const result = await execution.wait(new Promise<SandboxJson>((resolve, reject) => {
               if (stopped) { reject(stopped); return; }
               const id = randomUUID(), controller = new AbortController();
               active = { id, operation, serviceTimeoutMs, ...(control?.connections ? { connections: control.connections } : {}), projectReach: control?.projectReach, outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
               dispatched = true;
-              try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to start operation')); }
+              try { send({ type: 'call', id, operationId, input: snapshot, locale }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to start operation')); }
             }));
             await execution.wait(beforeEffect());
             return result;

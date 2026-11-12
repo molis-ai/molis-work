@@ -5,13 +5,27 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 import { UI_FORMAT_VERSIONS, type OwnedTextRef, type UiLocalePack, type UiMessage, type UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
-import { createTextReader, dateArg, escapeHtml, format, installTextForTest, installUiText, numberArg, say, t, UI_TEXT_UNAVAILABLE } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { createTextReader, dateArg, escapeHtml, format, installTextForTest, installUiText, numberArg, parseLocalePack, say, t, tryOwnedTextRef, UI_TEXT_UNAVAILABLE } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // `t`, `say`, `format` and the context behind them: FSS-44, FSS-69 and FSS-70 (specs/font-and-skin-system/spec.md §11). What needs a real Host and a
 // real page (requests, timers, a sandbox) is slice T8's; the bundled copy of the SDK reading the context is tests/ui-text-bundle.test.ts.
 
 const OWNER = "io.molis.work.example.notes";
 const pack = (owner: string, locale: string, messages: Readonly<Record<string, UiMessage>>): UiLocalePack => ({ format_version: UI_FORMAT_VERSIONS.locale, owner, locale, messages });
+
+test("FSS-74 FSS-52 a valid numeric owner keeps its full binding and no other key segment is widened", () => {
+  const owner = "io.molis.work.generated.294ae82b-b3fe-4dd6-8e65-28613de2a18e";
+  const key = "294ae82b-b3fe-4dd6-8e65-28613de2a18e.stage.title";
+  const words = pack(owner, "en", { [key]: "Reading excerpts" });
+  assert.ok(parseLocalePack(JSON.stringify(words)).ok);
+  assert.deepEqual(tryOwnedTextRef({ key }, owner), { owner, key });
+  assert.equal(tryOwnedTextRef({ key }, OWNER), null);
+  assert.equal(tryOwnedTextRef({ key: key.replace(".stage", ".2stage") }, owner), null);
+  assert.ok(!parseLocalePack(JSON.stringify({ ...words, owner: "io.molis.work.common", messages: { "common.stage.title": "Wrong owner" } })).ok);
+  const restore = installTextForTest({ packs: [words], locale: "en" });
+  try { assert.equal(t.text(key), "Reading excerpts"); }
+  finally { restore(); }
+});
 
 const NOTES_EN = pack(OWNER, "en", {
   "notes.main.title": "Notes",

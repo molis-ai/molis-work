@@ -1,19 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { accountErrors, createAccountSessionManager, createAccountAuthentication, parseAccountEnvironment, type AccountSessionManager } from "@molis-ai/molis-work-service-account";
+import type { AccountEnvironmentConfig, AccountCallControl, AccountView } from "@molis-ai/molis-work-contracts/services/account";
 
-export interface PersonalCloudConfig { authOrigin: string; clientId: string; desktopClientId?: string }
-export interface PersonalIdentity { userId: string; displayName: string; emails: string[]; applicationId: string }
-/** A task belongs to one login generation, even when the user logs back into the same account. */
-export interface PersonalAccountLease {
-  readonly userId: string;
-  readonly applicationId: string;
-  readonly authOrigin: string;
-  readonly signal: AbortSignal;
-  assertCurrent(): void;
-  accessToken(): Promise<string>;
-}
-interface Credentials { identity: PersonalIdentity; clientId?: string; access: string; refresh: string; expires: number }
-type SavedAccount = Credentials | { identity: PersonalIdentity; clientId?: string; offline: true };
 /**
  * Where the account's credentials are kept, and the question asked before anything is sent: can `feed/secrets.json` take this login's
  * write. A login whose credentials could not be kept does not start a transaction or spend an authorization code.
@@ -25,206 +14,127 @@ export function fileAccountSecrets(): AccountSecrets {
   const store=createFileSecretStore(),home=resolveMolisWorkHome();
   return {get:ref=>store.get(ref),put:(ref,value)=>store.put(ref,value),delete:ref=>store.delete(ref),assertWritable:()=>assertSecretStoreWritable(home)};
 }
-type HttpFetch = typeof fetch;
-const random = () => randomBytes(32).toString("base64url");
 
-export function personalCloudConfig(env: NodeJS.ProcessEnv = process.env): PersonalCloudConfig | null {
-  const authOrigin=env.MOLIS_WORK_AUTH_ORIGIN;
-  const clientId=env.MOLIS_WORK_AUTH_CLIENT_ID;
-  if (!authOrigin && !clientId) return null;
-  if (!authOrigin || !clientId) throw new Error("PERSONAL_CLOUD_CONFIG_INCOMPLETE");
-  for (const value of [authOrigin]) {
-    const url=new URL(value);
-    if (url.origin!==value || url.username || url.password
-      || (url.protocol!=="https:" && !(url.protocol==="http:" && url.hostname==="127.0.0.1"))) throw new Error("INVALID_CLOUD_ORIGIN");
-  }
-  return {authOrigin,clientId,...(env.MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID?{desktopClientId:env.MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID}:{})};
+export type PersonalCloudConfig = AccountEnvironmentConfig;
+export interface PersonalIdentity { userId: string; displayName: string; emails: string[]; applicationId: string }
+export interface PersonalAccountLease {
+  readonly userId: string; readonly applicationId: string; readonly authOrigin: string; readonly signal: AbortSignal;
+  assertCurrent(): void;
+  accessToken(): Promise<string>;
 }
-
-/** Credentials never enter page HTML, localStorage, sync payloads or logs. */
+export function personalCloudConfig(env: NodeJS.ProcessEnv = process.env): PersonalCloudConfig | null {
+  return env.MOLIS_WORK_ACCOUNT_CONFIG ? parseAccountEnvironment(env.MOLIS_WORK_ACCOUNT_CONFIG) : null;
+}
+type Authentication = ReturnType<typeof createAccountAuthentication>;
+interface SessionOwner { manager:AccountSessionManager; authentication:Authentication; record:unknown|null; persistent:boolean }
+/** The installation owns one active V2 session. A replacement has no Home authority until explicitly adopted. */
 export class PersonalAuth {
   private epoch=0;
-  private accountController=new AbortController();
-  private loginGeneration=0;
-  private refreshing: Promise<Credentials>|null=null;
-  private refreshingIdentity: PersonalIdentity|null=null;
-  private checkingIdentity: Promise<PersonalIdentity|null>|null=null;
-  private readonly key: string;
-  private pending: {state:string;verifier:string;redirect:string;expires:number;epoch:number;clientId:string;generation:number}|null=null;
-  private exchanging: PersonalAuth["pending"]=null;
-  constructor(readonly config: PersonalCloudConfig, private readonly secrets: AccountSecrets,
-    private readonly http: HttpFetch=fetch, private readonly now=()=>Date.now()) {
-    this.key=`personal-auth:${createHash("sha256").update(JSON.stringify(config)).digest("hex")}`;
+  private controller=new AbortController();
+  private pending:string|null=null;
+  private expires=0;
+  private user:PersonalIdentity|null=null;
+  private closed=false;
+  private offline=false;
+  private closing=new Set<Promise<void>>();
+  private active:SessionOwner;
+  private candidate:SessionOwner|undefined;
+  private readonly key:string;
+  readonly sessions:AccountSessionManager;
+  constructor(readonly config:PersonalCloudConfig, private readonly secrets:AccountSecrets, private readonly http:typeof fetch=fetch, private readonly now=()=>Date.now()) {
+    this.key=`molis.installation.account.v2:${createHash('sha256').update(JSON.stringify(config)).digest('hex')}`;
+    this.active=this.owner(true);
+    // Home borrows this stable port, while its original installation lease fences every operation.
+    this.sessions=new Proxy(this.active.manager,{get:(_target,key)=>{
+      const value=Reflect.get(this.active.manager,key);
+      return typeof value==='function'?value.bind(this.active.manager):value;
+    }});
   }
-  private saved(): SavedAccount|null {
-    const raw=this.secrets.get(this.key); return raw?JSON.parse(raw):null;
-  }
-  identity(): PersonalIdentity|null { return this.saved()?.identity ?? this.refreshingIdentity; }
-  accountLease(): PersonalAccountLease {
-    const identity=this.identity();
-    if (!identity) throw new Error('LOGIN_REQUIRED');
-    const epoch=this.epoch;
-    const signal=this.accountController.signal;
-    const assertCurrent=()=>{
-      if(signal.aborted || epoch!==this.epoch) throw new Error('REPLICA_ACCOUNT_MISMATCH');
-    };
-    return {
-      userId:identity.userId, applicationId:identity.applicationId, authOrigin:this.config.authOrigin, signal,
-      assertCurrent,
-      accessToken:async()=>{
-        assertCurrent();
-        const token=await this.accessToken();
-        assertCurrent();
-        return token;
+  private owner(persistent:boolean):SessionOwner {
+    const owner={} as SessionOwner;
+    owner.persistent=persistent;owner.record=null;
+    owner.manager=createAccountSessionManager(this.config,{fetch:this.http,now:this.now,storage:{
+      read:()=>{if(!owner.persistent)return owner.record;const raw=this.secrets.get(this.key);return raw?JSON.parse(raw):null;},
+      write:value=>{
+        if(owner.persistent){this.assertCurrent();this.secrets.put(this.key,JSON.stringify(value));this.accept(value);}
+        owner.record=value;
       },
-    };
+    }});
+    owner.authentication=createAccountAuthentication(this.config,owner.manager,this.http);
+    return owner;
   }
-  private invalidateAccount(): void {
-    this.epoch++;
-    this.accountController.abort();
-    this.accountController=new AbortController();
-    this.refreshing=null;
-    this.refreshingIdentity=null;
-    this.checkingIdentity=null;
+  private retire(owner:SessionOwner):void{
+    const pending=owner.manager.close();this.closing.add(pending);
+    void pending.finally(()=>this.closing.delete(pending)).catch(()=>undefined);
   }
-  accountGeneration(): number { return this.epoch; }
-  cancelLogin(): void { this.loginGeneration++;this.pending=null; }
-  callbackState(): string|null { if(this.pending&&this.pending.expires<this.now())this.cancelLogin();return this.pending?.state??null; }
-  loginPending():boolean { return [this.pending,this.exchanging].some(attempt=>!!attempt&&attempt.epoch===this.epoch&&attempt.generation===this.loginGeneration&&attempt.expires>=this.now()); }
-  /** Host shutdown cancels in-flight work without signing out persistent native credentials. */
-  suspend(): void { this.invalidateAccount();this.pending=null; }
-  dispose(): void { this.invalidateAccount();this.pending=null;this.secrets.delete(this.key); }
-  async currentIdentity(): Promise<PersonalIdentity|null> {
-    if(this.checkingIdentity)return this.checkingIdentity;
-    const check=this.checkIdentity();this.checkingIdentity=check;
-    try{return await check;}finally{if(this.checkingIdentity===check)this.checkingIdentity=null;}
-  }
-  private async checkIdentity(): Promise<PersonalIdentity|null> {
-    const epoch=this.epoch;
-    try {
-      if(this.refreshing)await this.refreshing;
-      const account=this.saved();
-      if(!account||epoch!==this.epoch)return null;
-      if('offline' in account)return account.identity;
-      const access=await this.accessToken();
-      const identity=await this.readIdentity(access, this.saved()?.clientId ?? this.config.clientId);
-      const saved=this.saved();
-      if(epoch!==this.epoch||!saved)return null;
-      if(identity.userId!==saved.identity.userId||identity.applicationId!==saved.identity.applicationId)throw new Error('LOGIN_REQUIRED');
-      this.secrets.put(this.key,JSON.stringify({...saved,identity}));
-      return identity;
-    }catch(error){
-      if(error instanceof Error && error.message==='LOGIN_REQUIRED'){
-        if(epoch===this.epoch){this.invalidateAccount();this.secrets.delete(this.key);}
-        return null;
-      }
-      throw error; // Network failure must not erase a still-usable offline identity.
+  async drained():Promise<void>{await Promise.allSettled([...this.closing]);}
+  private accept(value:unknown,replaceLogin=false):void {
+    const record=value as {user?:{userId:string;displayName:string}}|null;
+    const next=record?.user?{userId:record.user.userId,displayName:record.user.displayName,emails:[],applicationId:this.config.applicationId}:null;
+    if(replaceLogin||(next?.userId??null)!==(this.user?.userId??null)){
+      this.epoch++;this.controller.abort();this.controller=new AbortController();
     }
+    this.user=next;
   }
-  cancel(state:string): void {
-    const pending=this.pending;
-    if(!pending||pending.state!==state||pending.expires<this.now()||pending.epoch!==this.epoch)throw new Error('INVALID_LOGIN_CALLBACK');
-    this.pending=null;
+  assertCurrent():void{if(this.closed)throw new Error('ACCOUNT_HOST_CLOSED');}
+  private assertVaultWritable():void{try{this.secrets.assertWritable();}catch(error){this.cancelLogin();throw error;}}
+  private control():AccountCallControl{return {assertCurrent:()=>this.assertCurrent()};}
+  get authentication():Authentication{this.assertVaultWritable();return this.candidate?.authentication??this.active.authentication;}
+  offlineCached():boolean{return this.offline;}
+  identity():PersonalIdentity|null{return this.user;}
+  accountGeneration():number{return this.epoch;}
+  accountLease():PersonalAccountLease {
+    const identity=this.user;if(!identity)throw new Error('LOGIN_REQUIRED');
+    const epoch=this.epoch,signal=this.controller.signal;
+    const assertCurrent=()=>{if(signal.aborted||epoch!==this.epoch)throw new Error('REPLICA_ACCOUNT_MISMATCH');};
+    return {...identity,authOrigin:this.config.authOrigin,signal,assertCurrent,accessToken:async()=>{assertCurrent();const token=await this.sessions.accessToken({signal,assertCurrent});assertCurrent();return token;}};
   }
-  private async request(url:string, init:RequestInit): Promise<unknown> {
-    const response=await this.http(url,{...init,redirect:"error",signal:AbortSignal.timeout(15000)});
-    if (!response.ok) throw new Error(response.status===401||response.status===403?"LOGIN_REQUIRED":"AUTH_REQUEST_FAILED");
-    return response.json();
+  async currentIdentity():Promise<PersonalIdentity|null>{
+    const owner=this.active,view=await owner.manager.readSession(this.control());
+    if(owner!==this.active)throw new Error('REPLICA_ACCOUNT_MISMATCH');
+    this.offline=view.state==='OFFLINE_CACHED';
+    this.accept(view.state==='AUTHENTICATED'||view.state==='OFFLINE_CACHED'?{user:view.user}:null);
+    return this.user;
   }
-  private async readIdentity(access: string, clientId: string): Promise<PersonalIdentity> {
-    const result = await this.request(`${this.config.authOrigin}/api/v1/users/me`, {
-      headers: { Authorization: `Bearer ${access}` },
-    }) as { data?: PersonalIdentity & { clientId?: string } };
-    const identity = result.data;
-    if (!identity || typeof identity.userId !== 'string' || !identity.userId
-      || typeof identity.applicationId !== 'string' || !identity.applicationId
-      || identity.clientId !== clientId || typeof identity.displayName !== 'string'
-      || !Array.isArray(identity.emails) || !identity.emails.every(email => typeof email === 'string')) {
-      throw new Error('LOGIN_REQUIRED');
+  async accessToken():Promise<string>{return this.sessions.accessToken(this.control());}
+  callbackState():string|null{this.loginPending();return this.pending;}
+  loginPending():boolean{if(this.pending&&this.expires<=this.now())this.cancelLogin();return this.pending!==null;}
+  async begin(redirect:string,_desktop=false,_force=false):Promise<string>{
+    this.assertCurrent();this.assertVaultWritable();await this.currentIdentity();const url=new URL(redirect);
+    if(url.origin!==this.config.productOrigin||url.pathname!=='/account/callback'||url.search||url.hash)throw new Error('INVALID_LOGIN_CALLBACK');
+    this.cancelLogin();this.candidate=this.owner(false);this.pending=randomBytes(32).toString('base64url');this.expires=this.now()+600000;
+    return `${this.config.productOrigin}/?accountLogin=${encodeURIComponent(this.pending)}`;
+  }
+  /** Candidate tokens are validated by the V2 session owner before the installation receives them. */
+  async adoptLogin(attachOnly:boolean):Promise<void>{
+    this.assertVaultWritable();
+    const candidate=this.candidate,nonce=this.pending;
+    if(!candidate||!nonce||!this.loginPending())throw new Error('INVALID_LOGIN_CALLBACK');
+    const check=()=>{this.assertCurrent();if(this.candidate!==candidate||this.pending!==nonce||!this.loginPending())throw new Error('LOGIN_CANCELLED');};
+    const view=await candidate.manager.readSession({assertCurrent:check});check();
+    if(view.state!=='AUTHENTICATED')throw new Error('LOGIN_REQUIRED');
+    if(attachOnly){
+      const lease=this.accountLease();
+      try{if(view.user.userId!==lease.userId)throw accountErrors.forbidden('Browser verification belongs to another account');lease.assertCurrent();}
+      finally{await candidate.manager.logout('CURRENT_LOGIN',randomBytes(24).toString('hex'),{assertCurrent:check});}
+      check();candidate.authentication.close();await candidate.manager.close();this.candidate=undefined;return;
     }
-    return { userId: identity.userId, displayName: identity.displayName,
-      emails: identity.emails, applicationId: identity.applicationId };
+    const previous=this.active;
+    // Persist first. Failure leaves A authoritative and the candidate isolated.
+    this.secrets.put(this.key,JSON.stringify(candidate.record));check();
+    previous.persistent=false;candidate.persistent=true;this.active=candidate;this.candidate=undefined;
+    this.accept({user:view.user},true);previous.authentication.close();
+    await previous.manager.logout('CURRENT_LOGIN',randomBytes(24).toString('hex'),this.control()).catch(()=>undefined);
+    this.retire(previous);
   }
-  async begin(redirect: string, desktop = false, forceLogin = false): Promise<string> {
-    const callback=new URL(redirect);
-    if (callback.protocol!=="http:" || callback.hostname!=="127.0.0.1" || callback.pathname!=="/account/callback" || callback.search || callback.hash) throw new Error("INVALID_LOGIN_CALLBACK");
-    this.secrets.assertWritable();
-    const clientId=desktop?(this.config.desktopClientId??this.config.clientId):this.config.clientId;
-    const attempt={state:random(),verifier:random(),redirect,expires:this.now()+600000,epoch:this.epoch,clientId,generation:++this.loginGeneration};
-    this.pending=attempt;
-    const challenge=createHash("sha256").update(attempt.verifier).digest("base64url");
-    const result=await this.request(`${this.config.authOrigin}/api/v1/auth/transactions`,{
-      method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-        clientId,redirectUri:redirect,codeChallenge:challenge,codeChallengeMethod:"S256",
-        state:attempt.state,scopes:["account"],...(forceLogin?{forceLogin:true}:{}),
-      }),
-    }) as {data:{loginUrl:string}};
-    const login=new URL(result.data.loginUrl);
-    if (this.pending!==attempt || attempt.epoch!==this.epoch) throw new Error("LOGIN_CANCELLED");
-    if (login.origin!==this.config.authOrigin || login.pathname!=="/login") throw new Error("INVALID_LOGIN_URL");
-    return login.href;
+  cancel(state:string):void{if(state!==this.pending)throw new Error('INVALID_LOGIN_CALLBACK');this.cancelLogin();}
+  cancelLogin():void{
+    this.pending=null;const candidate=this.candidate;this.candidate=undefined;
+    candidate?.authentication.close();if(candidate)this.retire(candidate);
   }
-  async complete(code:string, state:string, attachOnly=false): Promise<PersonalIdentity> {
-    const pending=this.pending;
-    if (!pending || pending.state!==state || pending.expires<this.now() || pending.epoch!==this.epoch || !code || code.length>2048) throw new Error("INVALID_LOGIN_CALLBACK");
-    this.pending=null; // single use, including uncertain exchange results
-    // Before the code is spent: a refused vault leaves the remote side, the current account and its lease as they were.
-    this.secrets.assertWritable();
-    this.exchanging=pending;
-    try{
-    const tokens=await this.token({grant_type:"authorization_code",code,code_verifier:pending.verifier,redirect_uri:pending.redirect},pending.clientId);
-    // Auth confirms the opaque token belongs to the client used for this login.
-    const identity=await this.readIdentity(tokens.access_token, pending.clientId);
-    const current=attachOnly?this.identity():null;
-    if (!identity.userId || pending.epoch!==this.epoch || pending.generation!==this.loginGeneration || attachOnly&&(!current||identity.userId!==current.userId||identity.applicationId!==current.applicationId)) throw new Error("LOGIN_CANCELLED");
-    if(attachOnly)return identity; // A new browser proves the installed account without replacing its lease or persistent credentials.
-    // A status/refresh request started for the previous account must not overwrite
-    // or clear the newly authenticated identity when it eventually returns.
-    this.invalidateAccount();
-    this.secrets.put(this.key,JSON.stringify({identity,clientId:pending.clientId,access:tokens.access_token,refresh:tokens.refresh_token,expires:this.now()+tokens.expires_in*1000}));
-    return identity;
-    }finally{if(this.exchanging===pending)this.exchanging=null;}
-  }
-  private async token(fields:Record<string,string>,clientId=this.config.clientId): Promise<{access_token:string;refresh_token:string;expires_in:number}> {
-    const response=await this.request(`${this.config.authOrigin}/oauth2/token`,{method:"POST",
-      headers:{"content-type":"application/x-www-form-urlencoded"},
-      body:new URLSearchParams({...fields,client_id:clientId}).toString(),
-    }) as {access_token:string;refresh_token:string;expires_in:number};
-    if (!response.access_token || !response.refresh_token || !Number.isFinite(response.expires_in) || response.expires_in<=0) throw new Error("INVALID_TOKEN_RESPONSE");
-    return response;
-  }
-  async accessToken(): Promise<string> {
-    if (this.refreshing) return (await this.refreshing).access;
-    const saved=this.saved(); if (!saved || 'offline' in saved) throw new Error("LOGIN_REQUIRED");
-    if (saved.expires>this.now()+60000) return saved.access;
-    const epoch=this.epoch;
-    // Rotation is single-flight. Burn the old refresh BEFORE sending; never replay
-    // after a lost response or process restart (Auth revokes replayed families).
-    this.refreshingIdentity=saved.identity;
-    this.secrets.put(this.key,JSON.stringify({identity:saved.identity,clientId:saved.clientId,offline:true}));
-    const refreshing=(async()=>{
-      const tokens=await this.token({grant_type:"refresh_token",refresh_token:saved.refresh},saved.clientId??this.config.clientId);
-      if (epoch!==this.epoch) throw new Error("LOGIN_CANCELLED");
-      const next={...saved,access:tokens.access_token,refresh:tokens.refresh_token,expires:this.now()+tokens.expires_in*1000};
-      this.secrets.put(this.key,JSON.stringify(next)); return next;
-    })();
-    this.refreshing=refreshing;
-    try { return (await refreshing).access; }
-    catch(error) {
-      // An uncertain refresh is no longer safe for background tasks. A newer
-      // successful login must not be invalidated by this old request's failure.
-      if(epoch===this.epoch && error instanceof Error && error.message==='LOGIN_REQUIRED'){
-        this.invalidateAccount();this.secrets.delete(this.key);
-      }
-      throw error;
-    } finally { if(this.refreshing===refreshing){this.refreshing=null;this.refreshingIdentity=null;} }
-  }
-  async logout(): Promise<boolean> {
-    const saved=this.saved(); this.invalidateAccount(); this.pending=null; this.secrets.delete(this.key);
-    // Best-effort remote revocation. Offline sign-out always clears local credentials.
-    if (saved && !('offline' in saved)) return this.request(`${this.config.authOrigin}/api/v1/sessions/current/logout`,{
-      method:"POST",headers:{Authorization:`Bearer ${saved.access}`,"content-type":"application/json"},body:"{}",
-    }).then(()=>true,()=>false);
-    return true;
-  }
+  finishLogin():void{this.pending=null;}
+  async logout(scope:'CURRENT_LOGIN'|'ALL_MOLIS_PRODUCTS'='CURRENT_LOGIN'):Promise<boolean>{this.cancelLogin();this.active.authentication.close();const result=await this.sessions.logout(scope,randomBytes(24).toString('hex'),this.control());return result.remoteRevocation==='CONFIRMED';}
+  suspend():void{this.cancelLogin();this.closed=true;this.controller.abort();this.active.authentication.close();this.retire(this.active);}
+  dispose():void{this.suspend();}
+  async safeView(control:AccountCallControl):Promise<AccountView>{return this.sessions.readSession(control);}
 }

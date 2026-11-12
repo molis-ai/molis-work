@@ -1,3 +1,4 @@
+import type { TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import path from "node:path";
 import type { ProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { homeProjectOwners } from "./project-deleted-owners.js";
@@ -14,18 +15,10 @@ type CommittedDeletion = Readonly<Pick<ProjectDeletionRecord, "deletion_id" | "p
 export interface ProjectDeletedOwner {
   /** Stable name; the deletion receipt records one step under it. */
   readonly id: string;
-  /**
-   * What the confirmation dialog tells the person goes with the project (Chinese source text, translated when shown);
-   * null for an owner whose clean-up is only internal (a runtime to close, a cache).
-   */
-  readonly label: string | null;
-  /** Manifest names substituted when the confirmation is rendered in the person's language. */
-  readonly label_values?: Readonly<Record<string, string>>;
-  /**
-   * The plugin whose words translate `label` and its values: a plugin owner's text is its own, whoever published it, so the
-   * confirmation shows it in that plugin's English (`ui.translations`) and in no one else's. Absent for an owner of the Host's.
-   */
-  readonly words_of?: string;
+  /** What goes with the project; null for internal cleanup such as closing a runtime. */
+  readonly label: string | TextRef | null;
+  /** Projects the label from this owner's exact source in the request's language. */
+  readLabel?(): string;
   /** Owners run in ascending order of this (default 0), those with the same value in registration order. */
   readonly priority?: number;
   /**
@@ -55,7 +48,7 @@ export interface ProjectDeletedOwner {
 /** What the deletion needs from the owners: who is registered, and a way to run one of them. */
 export interface ProjectDeletedPort {
   /** The owners that clear data of a deleted project, in the order they run. */
-  owners(): ReadonlyArray<{ id: string; label: string | null }>;
+  owners(): ReadonlyArray<{ id: string; label: string | TextRef | null }>;
   /**
    * Runs one owner. False when no such owner is registered in this process: the step stays pending, with the error it
    * last had, for a process that has the owner.

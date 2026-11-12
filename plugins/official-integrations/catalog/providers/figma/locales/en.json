@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.figma",
+  "locale": "en",
+  "messages": {
+    "figma.connection.auth-help": "Use a Figma Personal Access Token to check the account. Connect the official MCP service to read design content.",
+    "figma.connection.inbound": "API checks identity; MCP reads designs",
+    "figma.connection.summary": "Designs and annotations.",
+    "figma.connection.token-label": "Figma Personal Access Token",
+    "figma.guide.mcp-link": "View the official Figma MCP",
+    "figma.guide.mcp-note": "Enable the desktop MCP service in Figma. The cloud service is limited to approved clients.",
+    "figma.guide.oauth-link": "View Figma OAuth app",
+    "figma.setup.open-figma-account-settings": "Open Figma account settings"
+  }
+}

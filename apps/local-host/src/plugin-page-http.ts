@@ -8,12 +8,14 @@ import { changePageWorkspace } from "./plugin-page-workspaces.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 import { runningProjectPlatform } from "./project-plugins.js";
-import { runtimeStageOwner } from "./project-plugin-stages.js";
+import { embeddedStageTextOwners, runtimeStageOwner } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 import { pageConnectionNeed } from "./plugin-connection-need-http.js";
 import { pageTaskGrants } from "./plugin-page-task-grants-http.js";
 import { stageObjectAction } from "@molis-ai/molis-work-app-workbench";
+import { registeredBuiltinText } from "./ui-text-provider.js";
+import { handlePageLocales } from "./web-ui-locales.js";
 
 /** Resolve the same running stage half as rendering; the request names a surface, never an installation. */
 async function stagePageSelection(context: WebRequestContext, project: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
@@ -38,7 +40,8 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
   if (body.producer !== undefined && body.producer !== owner.producer)
     throw new ActionError("actions.provider_changed", "原舞台实例已变化，请重新读取");
   const reader = stageObjectAction(owner.entry.manifest);
-  return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent,
+  return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation,
+    project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent, embedded: embeddedStageTextOwners(platform, owner),
     ...(typeof surface === "string" && typeof target_slot_id === "string" && owner.view.descriptor.slots.some(slot => slot.accepts_forms?.length)
       ? { surfaceSlotSource: { contribution_id: owner.view.descriptor.contribution_id, surface, target_slot_id, producer: owner.producer,
         slots: owner.view.descriptor.slots, installation: owner.installation } } : {}),
@@ -49,6 +52,7 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
 export async function handlePluginPageHttp(context: WebRequestContext, project?: LocalHostProjectReference,
   shown?: () => Promise<readonly string[]>): Promise<boolean> {
   const { request, response, url, localHost, serverOptions } = context;
+  if (url.pathname === "/api/ui/locales") { await handlePageLocales(context, project?.project_id ?? null, shown); return true; }
   const close = /^\/api\/host\/plugin-pages\/([^/]+)$/u.exec(url.pathname);
   const action = url.pathname === "/api/host/plugin-page-actions" && request.method === "POST";
   const files = url.pathname === "/api/host/plugin-page-files" && request.method === "POST";
@@ -116,15 +120,15 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id);
     const selected = await stagePageSelection(context, project, body);
     const key = selected?.project_key ?? entry?.project_plugin_id;
-    const assertScope = async () => {
-      if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+    const assertScope = async (readShown = shown) => {
+      if (readShown && key && !(await readShown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     };
     await assertScope();
     await localHost.homePlugins?.ready();
     if (project) await localHost.inspectActions({actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, permissions: [], audience: "user"}, project);
     const registered = entry?.workbench.pageRequests && project ? {
       manifest: entry.manifest, install_id: null, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
-      requestAllowed: registeredPageRoutes(entry.workbench.pageRequests),
+      requestAllowed: registeredPageRoutes(entry.workbench.pageRequests), registeredText: registeredBuiltinText(entry.manifest) ?? undefined,
       assertCurrent() { if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭"); },
     } : undefined;
     await assertScope();

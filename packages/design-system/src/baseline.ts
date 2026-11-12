@@ -21,20 +21,29 @@ function must<T>(result: UiFileResult<T>): T {
 }
 
 // `src/` and `dist/` are one level below the package root, so this reads the same file when run from source and when built.
-const readResource = (path: string): string => readFileSync(new URL(`../resources/${path}`, import.meta.url), "utf8");
+const readResource = (path: string): string => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const PACKAGE = "@molis-ai/molis-work-design-system";
+const specPath = "resources/ui-spec.json";
+const skinPath = "resources/skins/soft-workbench.json";
+const fontPath = "resources/fonts/system-sans.json";
+const registryPath = "resources/registry.json";
+const SPEC: UiSpecFile = must(parseUiSpecFile(readResource(specPath), { file: specPath }));
 
-const SPEC: UiSpecFile = must(parseUiSpecFile(readResource("ui-spec.json"), { file: "resources/ui-spec.json" }));
-const SKIN_FILE: UiSkinFile = must(parseSkinFile(readResource("skins/soft-workbench.json"), SPEC, { file: "resources/skins/soft-workbench.json" }));
-const FONT_FILE: UiFontSchemeFile = must(parseFontScheme(readResource("fonts/system-sans.json"), { file: "resources/fonts/system-sans.json" }));
+/** The original parsed files, identified by the same package-relative paths used in the registry. */
+export const BASELINE_DEFINITIONS = {
+  package: PACKAGE,
+  skin: { path: skinPath, definition: must<UiSkinFile>(parseSkinFile(readResource(skinPath), SPEC, { file: skinPath })) },
+  font: { path: fontPath, definition: must<UiFontSchemeFile>(parseFontScheme(readResource(fontPath), { file: fontPath })) },
+} as const;
 
 /** What ships with the product. */
-export const BASELINE_REGISTRY: UiResourceRegistry = must(parseResourceRegistry(readResource("registry.json"), { file: "resources/registry.json" }));
+export const BASELINE_REGISTRY: UiResourceRegistry = must(parseResourceRegistry(readResource(registryPath), { file: registryPath }));
 /** Every role, its type and what may vary. */
 export const BASELINE_SPEC: UiSpecFile = SPEC;
 /** The whole Soft Workbench skin, every role with a value on the axes it has. */
-export const BASELINE_SKIN: UiResolvedSkin = must(resolveSkin(SPEC, SKIN_FILE));
+export const BASELINE_SKIN: UiResolvedSkin = must(resolveSkin(SPEC, BASELINE_DEFINITIONS.skin.definition));
 /** The whole baseline font scheme. */
-export const BASELINE_FONT: UiResolvedFont = must(resolveFontScheme(SPEC, FONT_FILE));
+export const BASELINE_FONT: UiResolvedFont = must(resolveFontScheme(SPEC, BASELINE_DEFINITIONS.font.definition));
 /** The `@font-face` rules of the baseline's faces, with the `src` of each from its row in the registry. */
 export const BASELINE_FONT_FACES: string = must(fontFaceRules(BASELINE_FONT, BASELINE_REGISTRY));
 
@@ -64,7 +73,7 @@ export function baselineFontRoute(id: string): string {
  * written, as it is for the route. The same file from source and when built, since `src/` and `dist/` are one level below the root.
  */
 export function baselinePackageFile(id: string): string {
-  const row = BASELINE_REGISTRY.resources.find((item) => item.id === id && item.package === "@molis-ai/molis-work-design-system");
+  const row = BASELINE_REGISTRY.resources.find((item) => item.id === id && item.package === PACKAGE);
   if (row === undefined) return invalid([{ file: "resources/registry.json", path: "$.resources", code: "ui.baseline_invalid", reason: `本包没有登记资源 ${id}`, fix: "在登记表加这一行" }]);
   return fileURLToPath(new URL(`../${row.path}`, import.meta.url));
 }

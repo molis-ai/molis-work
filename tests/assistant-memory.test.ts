@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost, MolisWorkLocalHost, AssistantService } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, MolisWorkLocalHost, AssistantService, installHostUiText } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_STORE_NAME, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
@@ -17,6 +17,8 @@ import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } f
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
 import { answeringEndingReviews, endingReviewAnswer } from "./fixtures/ending-review.js";
+
+installHostUiText();
 
 const memoryToolControl = () => ({ operation_id: crypto.randomUUID(), signal: new AbortController().signal });
 

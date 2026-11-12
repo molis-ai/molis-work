@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 
 import { escapeHtml, renderAttrs, renderButton, renderDirectoryPanel, renderDirectoryRow, renderField, renderInput, renderSlider } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -14,6 +15,7 @@ import {
   PRIMITIVE_CATALOG_IDS,
   renderAlertDialog,
   renderHint,
+  renderPaletteTokens,
   renderPrimitiveCatalog,
   renderSheet,
 } from "@molis-ai/molis-work-design-system";
@@ -190,7 +192,7 @@ test("hint trigger escapes copy and keeps a popover tooltip", () => {
 });
 
 test("catalog renders every Coss primitive id", () => {
-  const html = renderPrimitiveCatalog();
+  const html = withPageText("zh", [], renderPrimitiveCatalog);
   for (const id of PRIMITIVE_CATALOG_IDS) {
     assert.match(html, new RegExp(`data-primitive="${id}"`));
   }
@@ -249,7 +251,10 @@ test("visual foundation ships primitive classes after the Coss control layer", (
 test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-btn \{[\s\S]*appearance: none/);
   assert.match(PRIMITIVE_STYLES, /\.mw-btn:focus-visible \{/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:active:not\(:disabled\)/);
+  // The pressed primary is one rule for :active and for an open ▾ (aria-expanded), so the split button's menu toggle stays pressed
+  // while its menu is open without a second copy of the fill (D-track review of #1850, item 5; #1872).
+  // Its fill is the skin's own --action-hover: mixing the action with its ink went grey in dark mode (batch 10, the ▾ at 390).
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\);/);
   // Soft Workbench (DESIGN.md → Buttons): links are copper.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[^}]*color: var\(--accent\);/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-btn:disabled \{[^}]*background: var\(--control-fill\)/);
@@ -271,9 +276,9 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(slider, /data-slot="slider"/);
   assert.match(slider, /--slider-progress: 20%/);
   assert.match(slider, /<output>28<\/output>/);
-  assert.match(renderPrimitiveCatalog(), /mw-slider-field/);
+  assert.match(withPageText("zh", [], renderPrimitiveCatalog), /mw-slider-field/);
   assert.match(PRIMITIVE_STYLES, /td\[aria-current="date"\]:not\(\.is-selected\)/);
-  const html = renderPrimitiveCatalog();
+  const html = withPageText("zh", [], renderPrimitiveCatalog);
   assert.match(html, /mw-catalog__specimen/);
   assert.match(html, /保存中/);
   assert.match(html, /次操作不可用/);
@@ -302,14 +307,16 @@ test("primitive controls keep authored states instead of a class dump", () => {
 
 // Soft Workbench (DESIGN.md → Plugin identity): plugins resolve to neutral ink; the reading surface aliases graphite.
 test("catalog ships the Soft Workbench palette and complete icon library", () => {
-  const html = renderPrimitiveCatalog();
+  const html = withPageText("zh", [], renderPrimitiveCatalog);
+  const palette = renderPaletteTokens("light");
   assert.match(html, /id="palette"/);
   assert.match(html, /id="typeface"/);
   assert.match(html, /id="icons"/);
   assert.match(html, /class="mw-swatch"/);
   assert.match(html, /class="mw-icon-lib"/);
   assert.match(html, /Noto Sans SC/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
+  assert.match(palette, /--hue-indigo:\s*#5e6ad2;/u);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /--hue-indigo:/u, "the texture layer leaves palette values to the skin");
   // RAC-704/705 (PG-075): one neutral tint for every plugin surface; no custom property or selector per plugin.
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /--plugin-goals/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface\], \[data-goal-canvas-shell\], \.tab-item\[data-plugin\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
@@ -329,8 +336,8 @@ test("catalog ships the Soft Workbench palette and complete icon library", () =>
   assert.match(html, /内容平面/);
   assert.match(html, /内容标记/);
   assert.match(html, /陶土/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);
+  assert.match(palette, /--content-accent:\s*var\(--action\)/u);
+  assert.match(palette, /--mark-clay:\s*#B27460;/u);
 });
 
 test("visible single-choice selects open an mw-menu instead of the OS picker", () => {
@@ -363,7 +370,9 @@ test("plugin rail reuses the segmented thumb and stages share the one arrival", 
   assert.doesNotMatch(MICRO_INTERACTION_STYLES, /assistant-island-card/, "RAC-1823: the island card left the rail, and its thumb rules with it");
   assert.match(MICRO_INTERACTION_STYLES, /aria-expanded="true"/);
   assert.match(MICRO_INTERACTION_STYLES, /\.is-arriving \{ animation: craft-rise var\(--dur-arrive, 420ms\)/);
-  assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
+  // K3 (UIV-12): the Assistant's composer sits in the bar, no longer a popover; menus and the select picker still arrive as popovers.
+  assert.match(MICRO_INTERACTION_STYLES, /:is\(\.mw-menu, \.mw-select-picker__menu\):popover-open/);
+  assert.doesNotMatch(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
   assert.match(MICRO_INTERACTION_STYLES, /prefers-reduced-motion: reduce[\s\S]*\.is-arriving[\s\S]*animation: none/);
 });
 

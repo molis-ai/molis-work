@@ -62,7 +62,7 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       if (!record.goal_id) return { goal_id: null, selected: null };
       try { return { goal_id: record.goal_id, selected: savedGoalContext(context, record.session_id) }; }
-      catch (error) { return { goal_id: record.goal_id, selected: null, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.goal-unreadable") }; }
+      catch (error) { return { goal_id: record.goal_id, selected: null, error: error instanceof Error ? error.message : codingText("coding.server.goal-unreadable") }; }
     });
   },
   (a) => {

@@ -301,7 +301,7 @@ export interface GoalsPlanningApi {
   validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
   proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
   wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean;
-  effectiveMethods(projectId: string): PlanningMethodPack[];
+  effectiveMethods(projectId: string, locale?: string): PlanningMethodPack[];
   projectComposition(projectId: string): PlanningMethodComposition;
   saveProjectMethod(input: SaveProjectPlanningMethodInput): {
     method: PlanningMethodPack;
@@ -667,6 +667,13 @@ export type {
   GoalEventFieldFormat,
   GoalEventFieldSource,
   GoalEventJudgmentInput,
+  GoalEventJudgmentBasis,
+  GoalEventJudgmentBasisInput,
+  GoalEventJudgmentAssessment,
+  GoalEventEvidenceRef,
+  GoalEventBasisTier,
+  GoalEventBasisGap,
+  GoalEventSatisfactionGround,
   GoalEventJudgmentVerdict,
   GoalEventLatestReports,
   GoalEventLatestReportsQuery,
@@ -741,6 +748,12 @@ export {
   goalEventDecisionPurposes,
   goalEventFieldFormats,
   goalEventJudgmentVerdicts,
+  goalEventBasisGaps,
+  goalEventBasisTiers,
+  goalEventEvidenceKinds,
+  goalEventSatisfactionGrounds,
+  goalEventAssessmentKey,
+  GOAL_EVENT_EVIDENCE_MAX,
   goalEventRequirementCurrentStatuses,
   goalEventSemanticFamilies,
   goalEventSystemOperations,

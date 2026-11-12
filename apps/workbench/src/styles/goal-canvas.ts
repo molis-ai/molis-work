@@ -147,7 +147,7 @@ export const GOAL_CANVAS_STYLES = `
   }
   body.immersive-workbench .goal-stage-list .tree-entry {
     display: grid;
-    grid-template-columns: minmax(12rem, 1fr) 6.25rem 4.75rem 8.5rem auto;
+    grid-template-columns: minmax(12rem, 1fr) minmax(6.25rem, .3fr) 4.75rem 8.5rem auto;
     grid-template-rows: var(--goal-row-h, 34px);
     column-gap: 12px;
     align-items: center;

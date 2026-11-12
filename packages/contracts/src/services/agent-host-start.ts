@@ -1,9 +1,11 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
+import type { UiLanguageTag } from "../platform/ui-text.js";
 import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
 import type { RunDirectories } from "../modules/projects.js";
-import type { AgentRoleExecution, AgentPromptLayer, AgentSkillDeclaration, AgentPromptText, AgentSkillDefinition } from "../platform/plugin-agent.js";
+import type { AgentRoleExecution, AgentPromptLayer, AgentPromptText } from "../platform/plugin-agent.js";
+import type { SkillRef } from "./agent-definitions.js";
 import type { AgentActionOffer } from "./agent-host-offers.js";
 import type { AgentRecalledMemory } from "./agent-host-memory.js";
 import type { AgentSessionRef } from "./agent-host-runtime.js";
@@ -69,9 +71,21 @@ export function agentTextMaterialContent(material: AgentTextMaterial): string {
   return content;
 }
 
-export interface AgentSkillRef {
-  skill_id: string;
-  version: number;
+/** A Skill a round was frozen with (`AgentRunView.frozen.skills`), without its body (specs/capability-pack/contract-design.md §2.5). */
+export interface AgentFrozenSkill {
+  ref: SkillRef;
+  /** `own`: the starting plugin's own `agent.skills`; `catalog`: another plugin's Manifest `methods`, read from `system.skills`. */
+  origin: "own" | "catalog";
+  name: string;
+  /** Declared. For `catalog`, only a description; what the round could use is `host_tools`. */
+  tools: string[];
+  /** It was in the round's frozen named list. */
+  named: boolean;
+}
+
+/** A frozen Skill with the exact body the Host read for the round. Host composition only; the body is never in the run's record. */
+export interface AgentRoundSkill extends AgentFrozenSkill {
+  body: string;
 }
 
 export interface AgentMcpToolRef {
@@ -184,7 +198,9 @@ interface AgentFrozenStartFields {
   prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer;
     /** Present when the run used the person's edit of this prompt (its revision) instead of the default. */
     user_revision?: number }>;
-  skills: AgentSkillDeclaration[];
+  skills: AgentFrozenSkill[];
+  /** The language the round was told to reply in (`AgentStartAuthority.reply_language`); absent when it was told none. */
+  reply_locale?: UiLanguageTag;
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
@@ -329,8 +345,10 @@ export interface AgentFrozenRole {
   ending_review?: { prompt: AgentPromptText };
   /** Prompt bodies in composition order. */
   prompts: AgentPromptText[];
-  /** Exact method bodies resolved by the Host, never accepted from the request. */
-  skills?: AgentSkillDefinition[];
+  /** Exact Skill bodies resolved by the Host, never accepted from the request. */
+  skills?: AgentRoundSkill[];
+  /** The language the Host told the round to reply in; its words are among `prompts`. */
+  reply_locale?: UiLanguageTag;
   /** Host tool names this role may call. */
   host_tools: string[];
 }
@@ -386,7 +404,12 @@ interface AgentStartInputFields {
   text_materials?: AgentTextMaterial[];
   /** Images for the model to see in this Run; refused when the selected model is marked as not seeing images. */
   image_materials?: AgentImageMaterial[];
-  skills?: AgentSkillRef[];
+  /**
+   * Exact references: the starting plugin's own `agent.skills`, or Skills of the shared catalog (`skills.catalog.list@1`), at most
+   * `SKILL_BODY_READ_MAX_REFS`. What to load, not who named them: a `manual` Skill is read only if the Host's frozen named list for
+   * this round has it (specs/capability-pack/contract-design.md §3.1).
+   */
+  skills?: SkillRef[];
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;

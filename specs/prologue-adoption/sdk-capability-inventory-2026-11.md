@@ -35,8 +35,8 @@
 | --- | --- | --- | --- |
 | A5：按 main 重核原 1–23 项、存储与预算（BL-309，PA-12、PA-15） | 第 1–23 项涉及的 SDK 能力都在（预算、状态事件、副作用分类、微压缩回执、推理力度、换模型、逐轮变更、流式、变化等待、sleep、会话条目等） | §6.0b 是 10-14 的结果，之后 P3、P4、A2 改过多处 | **有**。缺口全在 Molis：逐项重标采用、验证或按边界不做。不需要上游 |
 | 写后检查，主轮（A2-2，#822） | `checkAfterWrite`、`afterWriteCheckReceiptKey`，执行器只解析不执行 | `adapters/prologue-after-write.ts` 已接，回执在运行视图 `command_outputs` | **有**，已接 |
-| 写后检查进时间线（BL-301，PA-35） | 回执键已有 | 时间线还没读回执 | **有**；缺口在 Coding 时间线 |
-| 写后检查浏览器证据（BL-303，PA-29） | — | 审查卡截图未单独留 | **有**；缺口是 Molis 的浏览器验收 |
+| 写后检查进时间线（原 BL-301，PA-35） | 回执键已有 | 第 24 批接上：写入那一行读回执 | **有**；已用上 |
+| 写后检查浏览器证据（原 BL-303，PA-29） | — | 第 24 批补了审查卡与时间线的浏览器用例 | **有**；已补 |
 | 子任务目录里的写入也跑写后检查（BL-302） | 写后检查只在会话绑了带 `afterWriteCheck` 标记的包、且有执行器时才开（`agent-run-tool-runner`）；包只能经 `sessions.create`/`sessions.open` 绑定、对下一跑生效。子会话由 SDK 在派出时建，`SubagentRunOptions` 没有给子会话包或执行器的字段，`onStarted` 到时子 Run 已经开跑 | 子任务会话由 SDK 派出，不经 `startPrologueRun`，没接执行器 | **上游缺**（K-1 已核）：子 Run 要能承接写后检查的配置 |
 | 截图、进展进时间线 | `ScreenshotPolicy`、`surface-observe`/`surface-act`，`board-report` | `prologue-surfaces.ts`、`computer-driver.ts` 用 `surface-observe` | **有**；时间线呈现在 Molis（「既有呈现复用」） |
 | 输入回执：接收、放进上下文、读到、没读到 | `acknowledge-inputs`、`projectInputReceipts`、`InputReceiptState` | `prologue-inputs.ts`、`coding/report-inputs.ts` 已接 | **有**，已接 |
@@ -94,8 +94,8 @@
 
 ### 5.2 24 现在就能做、不等 SDK 的（缺口在 Molis）
 
-- A5 逐项重核（BL-309）；
-- 写后检查进时间线（BL-301）和浏览器证据（BL-303）；
+- A5 逐项重核（原 BL-309；2026-11-11 做完，见 [A5 重核](a5-recheck-2026-11.md)）；
+- 写后检查进时间线和浏览器证据（原 BL-301、BL-303；2026-11-11 做完）；
 - 输入回执阶段 4 后一半（BL-314）；
 - P5 协作与关联（BL-307）、P6 旧路径退出与恢复验收（BL-308）；
 - 子 Run 转话改用人作来源：Molis 给子代理转用户的话时不再一律记成 `app`（SAI-03）；

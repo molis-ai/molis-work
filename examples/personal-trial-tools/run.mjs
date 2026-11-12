@@ -2,7 +2,7 @@
 import {readFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {spawn} from 'node:child_process';
-import {createTrialAuthServer} from './mock-auth.mjs';
+import {createTrialAuthServer,trialAccountConfig} from './mock-auth.mjs';
 
 const index=process.argv.indexOf('--home');
 if(index<0||!process.argv[index+1])throw new Error('Use --home with the independently installed personal trial directory');
@@ -13,7 +13,7 @@ if(marker.format!==1||marker.mockUser!==true||marker.home!==home||marker.content
 const webOrigin='http://127.0.0.1:43217',authOrigin='http://127.0.0.1:43218';
 const auth=createTrialAuthServer({webOrigin,stateFile:join(home,'config','trial-auth-state.json')});
 await new Promise((resolve,reject)=>{auth.once('error',reject);auth.listen(43218,'127.0.0.1',resolve);});
-const env={...process.env,MOLIS_WORK_HOME:home,MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'molis-work-personal-trial',MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID:'molis-work-personal-trial-desktop',MOLIS_WORK_SECRET_BACKEND:'file'};
+const env={...process.env,MOLIS_WORK_HOME:home,MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify(trialAccountConfig(authOrigin,webOrigin)),MOLIS_WORK_SECRET_BACKEND:'file'};
 for(const name of ['MOLIS_WORK_SYNC_ORIGIN','MOLIS_WORK_SYNC_LOCAL','MOLIS_WORK_CLOUD_ORIGIN'])delete env[name];
 const child=spawn(join(home,'bin','molis-work-web'),['--home',home,'--port','43217'],{env,stdio:'inherit'});
 const stop=()=>{child.kill('SIGTERM');auth.close();};

@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.loom",
+  "locale": "en",
+  "messages": {
+    "loom.connection.auth-help": "Loom has no public REST API. Use official Rovo MCP.",
+    "loom.connection.inbound": "MCP reads recordings and comments",
+    "loom.connection.summary": "Read recordings from a linked site through Atlassian Rovo MCP.",
+    "loom.guide.mcp-link": "View Atlassian Rovo MCP",
+    "loom.guide.mcp-note": "Link the Loom workspace to an Atlassian site. Loom has no public REST API.",
+    "loom.setup.view-loom-api-guide": "View Loom API guide"
+  }
+}

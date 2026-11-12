@@ -1,3 +1,5 @@
+import { imFailureText } from "./error-text.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImMessage, ImMessagePage } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -32,7 +34,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     }
     catch (cause) {
       const error = cause as ApiError;
-      c.toast(error.message);
+      c.toast(imFailureText(error));
     }
   }
   async function send(kind: StreamKind) {
@@ -47,7 +49,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     const wasFocused = document.activeElement === c.inputFor(kind);
     s.busyTargets.add(id);
     c.syncComposer(kind);
-    c.status(kind, '正在发送…');
+    c.status(kind, (uiText.text("im-ui.message.sending")));
     try {
       const result = await api<{
         message: ImMessage;
@@ -61,9 +63,10 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
           c.refreshObjects?.();
           c.resizeInput(kind);
         }
-        c.status(kind, '已发送');
+        c.status(kind, (uiText.text("im-ui.message.sent")));
+        const status = q('[data-compose-status="' + kind + '"]'), sent = status.firstChild;
         setTimeout(() => {
-          if (id === c.target(kind) && q('[data-compose-status="' + kind + '"]').textContent === '已发送')
+          if (id === c.target(kind) && status.firstChild === sent)
             c.status(kind, '');
         }, 1800);
         if (kind === 'group')
@@ -77,7 +80,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     catch (cause) {
       const error = cause as ApiError;
       if (id === c.target(kind))
-        c.status(kind, error.uncertain ? '未能确认发送结果。原文已保留，再次发送不会重复。' : error.message, true);
+        c.status(kind, error.uncertain ? (uiText.text("im-ui.message.unconfirmed")) : imFailureText(error), true);
     }
     finally {
       s.busyTargets.delete(id);

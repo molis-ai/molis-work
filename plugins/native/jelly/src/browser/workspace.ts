@@ -4,6 +4,8 @@ import { renderView } from "./view.js";
 import { statusOf } from "./util.js";
 import type { JellyCommand, JellyPage, JellyWorkspace } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** A read asked before a command answered must not take the workspace back to an older revision (the next command would be refused as a conflict). */
 export function take(page: JellyPage, next: JellyWorkspace): void {
   if (!page.state || next.revision >= page.state.revision) page.state = next;
@@ -23,7 +25,7 @@ export function command(page: JellyPage, value: JellyCommand): Promise<JellyWork
         const fresh = await page.request<{ state: JellyWorkspace }>("GET", `${API}/`);
         take(page, fresh.state);
         await renderView(page);
-        showNote(page, page.L("jelly.sync.other-window"), true);
+        showNote(page, uiText.text("jelly.sync.other-window"), true);
       }
       throw error;
     }

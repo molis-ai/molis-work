@@ -6,7 +6,7 @@ import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platfo
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingUsageSummary } from "./usage.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
-import { codingZh } from "./words.js";
+import { codingText } from "./words.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
 
 import { codingChangeSetReference } from "./changeset.js";
@@ -99,7 +99,7 @@ export function createCodingExecutionReport(input: {
   const activity = run.activity.filter(item => item.name !== "reasoning").map(item => `${item.name} · ${item.target} · ${
     item.state === "completed" ? "已返回（不等于任务通过）" : item.state === "failed" ? "失败" : "结果未知，未收到结束回执"
   }`).join("\n");
-  const usage = codingUsageSummary(run.usage, codingZh);
+  const usage = codingUsageSummary(run.usage, codingText);
   const { directory: _directory, ...frozen } = run.frozen;
   return {
     title: `${input.title} · 执行报告`, run_id: run.ref.run_id,
@@ -114,7 +114,7 @@ export function createCodingExecutionReport(input: {
       `## 本轮任务\n${task || "任务正文未保存，不能补造。"}`,
       ...(input.steps ? [codingReportStepsMarkdown(run, input.steps, literal)] : []),
       ...(input.goal_source_error ? [`## 目标来源暂不可读\n本轮回答和执行证据仍已保留。无法确认原目标归属，不使用会话后来选择的目标替代，也不能据此回写 Goal 进展。\n${literal(`${input.goal_source_error.reason}\n原固定来源：${input.goal_source_error.references.map(ref => `${ref.artifact_id} v${ref.version}`).join("、")}`)}`] : []),
-      ...(input.goal ? [`## 本轮关联目标\n${literal(`${input.goal.title}\n目标：${input.goal.goal_id}\n${codingGoalVersionLabel(input.goal, codingZh)} · 目标事件 ${input.goal.goal_event_cursor}\n固定来源：${input.goal.reference.artifact_id} v${input.goal.reference.version}`)}\n这是开始本轮时固定的目标，不随会话改关联；本报告不代表目标验收。`] : []),
+      ...(input.goal ? [`## 本轮关联目标\n${literal(`${input.goal.title}\n目标：${input.goal.goal_id}\n${codingGoalVersionLabel(input.goal, codingText)} · 目标事件 ${input.goal.goal_event_cursor}\n固定来源：${input.goal.reference.artifact_id} v${input.goal.reference.version}`)}\n这是开始本轮时固定的目标，不随会话改关联；本报告不代表目标验收。`] : []),
       ...(supplemental ? [supplemental] : []),
       ...(run.awaiting_input.length ? [`## 遗留问题\n${run.awaiting_input.map(question => `${literal(question.prompt)}\n${question.unavailable_reason || "本轮已结束，问题不可再回答；不能据此推断已收到正式回答。"}`).join("\n\n")}`] : []),
       `## 模型答复\n以下是模型的表述；检查证据另列，不自动据此判定通过。\n\n${modelAnswer || "没有已保存的模型答复。"}`,
@@ -122,7 +122,7 @@ export function createCodingExecutionReport(input: {
       `## 工具活动\n${activity ? literal(activity) : "没有已记录的工具活动。"}`,
       `## 本轮 Character\n${frozen.character ? literal(`${frozen.character.title} · v${frozen.character.reference.version}\n固定来源：${frozen.character.reference.artifact_id}\n发布者：${frozen.character.producer.plugin_id} · ${frozen.character.producer.plugin_version}\n内容摘要：${frozen.character.content_digest}\n发布时间：${frozen.character.published_at}\n内置工具：${frozen.host_tools?.join("、") || "不使用内置工具"}\n\n${frozen.character.instructions}`) : "未使用 Character；沿用调用方角色。"}`,
       ...(frozen.subagent_workspaces?.length ? [`## 本轮独立目录\n${literal(frozen.subagent_workspaces.map(item => item.directory.canonical_path).join("\n"))}\n目录按本轮授权固定；子任务结果须在原子任务记录中核对，不代表已经整合到主工作区。`] : []),
-      `## 本轮配置\n${literal(`模型：${frozen.model_id}\n角色：${frozen.role_id} · v${frozen.role_version}\n提示：${frozen.prompts.map(p => `${p.layer}: ${p.prompt_id} v${p.version}`).join("、")}\n方法：${frozen.skills.map(s => `${s.name} v${s.version}`).join("、") || "未选择"}\nMCP：${frozen.mcp_tools.map(t => `${t.server}/${t.tool} ${t.version} 配置 ${t.configuration_version}`).join("、") || "未选择"}\nMCP 资料：${(frozen.mcp_sources ?? []).map(s => `${s.server} 配置 ${s.configuration_version}`).join("、") || "未选择"}\n材料：${frozen.text_materials.map(m => m.source_artifact_id === undefined ? m.title || m.material_id : `${m.title ?? m.source_artifact_id} v${m.source_version} (${m.source_artifact_id})`).join("、") || "未选择"}`)}`,
+      `## 本轮配置\n${literal(`模型：${frozen.model_id}\n角色：${frozen.role_id} · v${frozen.role_version}\n提示：${frozen.prompts.map(p => `${p.layer}: ${p.prompt_id} v${p.version}`).join("、")}\n方法：${frozen.skills.map(s => `${s.name} v${s.ref.version}`).join("、") || "未选择"}\nMCP：${frozen.mcp_tools.map(t => `${t.server}/${t.tool} ${t.version} 配置 ${t.configuration_version}`).join("、") || "未选择"}\nMCP 资料：${(frozen.mcp_sources ?? []).map(s => `${s.server} 配置 ${s.configuration_version}`).join("、") || "未选择"}\n材料：${frozen.text_materials.map(m => m.source_artifact_id === undefined ? m.title || m.material_id : `${m.title ?? m.source_artifact_id} v${m.source_version} (${m.source_artifact_id})`).join("、") || "未选择"}`)}`,
       `## 用量\n${usage}${!run.usage.compaction && run.activity.some(item => item.name === "上下文整理") ? "\n仅包含主执行请求；上下文整理的额外用量尚未计入。" : ""}`,
       "## 保存边界\n报告记录这一轮已有证据，不包含工作区当前差异的固定版本，不撤销先前操作，也不替代 Goal 验收。",
     ].join("\n\n"),

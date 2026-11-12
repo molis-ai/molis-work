@@ -1,6 +1,8 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { GitFactoryHost, GitHost } from "./types.js";
 
+const uiText = globalThis.t;
+
 const PAGE_ACTIONS = "/api/host/plugin-page-actions";
 
 /** One page action of the Host: the way a page asks a plugin that is not its own for something (the page names no route). */
@@ -27,7 +29,7 @@ export function gitRequests(host: GitFactoryHost, embedded: boolean): Pick<GitHo
       const input = method !== "GET" ? body ?? {} : { ...(operation === "conflict" ? { path: url.searchParams.get("path") ?? "" } : {}), ...(folder ? { workspace_id: folder } : {}) };
       return action(host, "git." + operation, input, signal);
     }
-    return molisWorkRequest(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("git.error.workspace-unreadable") });
+    return molisWorkRequest(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: uiText.text("git.error.workspace-unreadable") });
   };
   return { request, diffState: (reference, signal) => action(host, "diff.state", { reference }, signal) };
 }

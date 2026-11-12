@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.linkedin",
+  "locale": "en",
+  "messages": {
+    "linkedin.connection.auth-help": "Use a LinkedIn OpenID member token with openid and profile. Listing posts requires Community Management access and returns 403 for most developer apps. The connection is considered healthy when userinfo succeeds.",
+    "linkedin.connection.inbound": "API reads the OpenID member profile",
+    "linkedin.connection.summary": "Professional networking.",
+    "linkedin.connection.token-label": "LinkedIn access token",
+    "linkedin.guide.oauth-link": "View LinkedIn OAuth 2.0",
+    "linkedin.guide.token-note": "Use an OpenID member access token. Posts require separate approval.",
+    "linkedin.oauth.note": "Enable Sign In with LinkedIn in the app. Standard OIDC does not provide permission to read posts in Feed.",
+    "linkedin.setup.open-linkedin-developer-dashboard": "Open LinkedIn developer dashboard"
+  }
+}

@@ -2,6 +2,8 @@ import { required } from "./dom.js";
 import { pptRequest } from "./request.js";
 import type { Elements, Ppt, PptHost, PptPage, PptState } from "./types.js";
 
+const uiText = globalThis.t;
+
 const elementsOf = (bench: HTMLElement): Elements => {
   const optional = <T extends Element>(selector: string) => bench.querySelector<T>(selector);
   return {
@@ -40,9 +42,9 @@ const notInstalled = (name: string) => () => { throw new Error(`PPT page: ${name
 
 /** The page the parts share: what the server drew, the state, the requests. The parts install their operations on it. */
 export function createPage(host: PptHost, bench: HTMLElement): PptPage {
-  const L = host.translate, el = elementsOf(bench), s = initialState();
+  const readText = uiText.text, el = elementsOf(bench), s = initialState();
   const page: PptPage = {
-    host, L, el, s, request: pptRequest(host, L), api: "/ppt",
+    host, readText, el, s, request: pptRequest(host), api: "/ppt",
     showNote(text, isError) {
       const { note } = el;
       if (!note) return;

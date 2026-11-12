@@ -5,6 +5,8 @@ import { run, showNote } from "./page.js";
 import { above } from "./dom.js";
 import type { JellyBlock, JellyPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 const LIST_KINDS = new Set(["bullet", "numbered", "task"]);
 
 function indentBlock(page: JellyPage, textEl: HTMLElement, id: string, outdent: boolean): void {
@@ -43,7 +45,7 @@ function mergeBackward(page: JellyPage, textEl: HTMLElement, id: string, event: 
   const index = page.draftBlocks.findIndex((entry) => entry.id === id);
   if (range.toString().length !== 0 || index <= 0) return;
   event.preventDefault();
-  if (hasTaskLink(page, id)) { showNote(page, page.L("jelly.block.unlink-first-delete"), true); return; }
+  if (hasTaskLink(page, id)) { showNote(page, uiText.text("jelly.block.unlink-first-delete"), true); return; }
   page.draftBlocks = collectBlocks(page);
   const prior = page.draftBlocks[index - 1];
   const current = page.draftBlocks[index];

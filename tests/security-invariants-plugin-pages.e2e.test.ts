@@ -108,9 +108,10 @@ test("SYS-15 S-47 a page link never navigates the owner document: a settings add
   assert.deepEqual(await evaluate(owner), before, "the owner document did not navigate, reload or lose its frame");
   assert.equal(await evaluate<string>("window.__ownerMarker"), "owner-page", "no full page load happened");
   assert.equal(await child.evaluate<string>("location.href"), page, "the page itself did not follow the link");
-  // The message path without any click moves nothing either, for an owner address that opens no surface.
+  // D0124/D0335: settings hid the originating frame; its later link message is refused before forwarding to the shell.
   await child.evaluate(`molisWorkOpenExternalUrl(${JSON.stringify(`/projects/${browser.projectId}/desk`)})`);
-  await waitFor("window.__settingsAddresses.some(href=>href.endsWith('/desk'))");
+  await child.evaluate("new Promise(resolve=>setTimeout(resolve,100))");
+  assert.deepEqual(await evaluate<string[]>("window.__settingsAddresses"), [`${browser.origin}/settings/models`], "the hidden frame cannot forward a second link");
   assert.deepEqual(await evaluate(owner), before, "a host address that opens no surface still moves nothing");
 });
 
@@ -217,6 +218,8 @@ test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept t
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]')", 15_000);
   await b.click("[data-model-template=deepseek]");
   await b.waitFor("document.querySelector('[data-model-base-url]')");
+  assert.deepEqual(await b.evaluate("[...document.querySelectorAll('[data-model-prompt-cache] option')].map(one => [one.value, one.textContent])"),
+    [["off", "Off"], ["best-effort", "Best effort"]]);
   const draft = "https://example.invalid/unsaved-model";
   await b.evaluate(`(() => { const field = document.querySelector('[data-model-base-url]'); field.value = ${JSON.stringify(draft)}; field.dispatchEvent(new Event('input', {bubbles:true})); })()`);
   assert.deepEqual(await refuse(), { requests: [], open: true, address, draft, sameField: true }, "unsupported settings requests preserve the open settings draft");
@@ -227,6 +230,49 @@ test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept t
     assert.equal(await b.evaluate("location.href"), address);
     await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
   }
+});
+
+test("D0033-02 S-47 plugin printing reaches the trusted print document without executing supplied HTML", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    globalThis.molisWorkbenchPluginFactories = new Proxy({}, { set(target, name, factory) {
+      target[name] = host => { globalThis.__printDocument = html => host.printDocument(html); return factory(host); };
+      return true;
+    } });
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, browser.sessionId));
+  await browser.surfaceReady("cognia"); await child.waitFor("typeof __printDocument === 'function'");
+  const requests: string[] = [];
+  browser.server.on("request", request => { if (request.url?.includes("d0033-print-probe")) requests.push(request.url); });
+  await browser.evaluate(`(() => {
+    window.__printCalls = []; window.__printScriptExecuted = false;
+    document.addEventListener('load', event => {
+      const frame = event.target;
+      if (!(frame instanceof HTMLIFrameElement) || !frame.hasAttribute('srcdoc') || frame.getAttribute('aria-hidden') !== 'true') return;
+      // Observe the platform print call without opening a native print dialog. No code is injected into the document.
+      frame.contentWindow.print = () => window.__printCalls.push({
+        sandbox: frame.getAttribute('sandbox'), text: frame.contentDocument.body.textContent,
+        scriptRan: !!frame.contentWindow.__printScriptExecuted
+      });
+    }, true);
+  })()`);
+  const html = `<h1>Print probe</h1><p>Printable plugin content</p>
+    <script>window.__printScriptExecuted=true;parent.__printScriptExecuted=true;parent.__stolenPrintProof=parent.document.querySelector('meta[name=molis-work-page-session]').content;fetch('${browser.origin}/d0033-print-probe-script')</script>
+    <img src="${browser.origin}/d0033-print-probe-image" onerror="parent.__printScriptExecuted=true">
+    <form action="${browser.origin}/d0033-print-probe-form"><button>Submit</button></form>`;
+  await child.evaluate(`__printDocument(${JSON.stringify(html)})`);
+  await browser.waitFor("__printCalls.length === 1");
+  const calls = await browser.evaluate<Array<{ sandbox: string; text: string; scriptRan: boolean }>>("__printCalls");
+  assert.equal(calls[0]!.sandbox, "allow-same-origin allow-modals");
+  assert.match(calls[0]!.text, /Printable plugin content/);
+  assert.equal(calls[0]!.scriptRan, false, "inline script did not execute in the same-origin print document");
+  assert.deepEqual(await browser.evaluate("({ran:__printScriptExecuted,stolen:typeof __stolenPrintProof})"), { ran: false, stolen: "undefined" }, "print HTML cannot execute a handler or read the parent's session proof");
+  assert.deepEqual(requests, [], "supplied HTML cannot send network requests");
+  assert.equal(await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').getAttribute('sandbox')"), "allow-scripts allow-forms", "printing never grants the plugin frame same-origin access");
+  assert.equal(await child.evaluate("(()=>{try{return parent.document.title}catch(error){return error.name}})()"), "SecurityError");
+  await browser.evaluate("dispatchEvent(new Event('afterprint'))");
+  assert.equal(await browser.evaluate("document.querySelectorAll('iframe[aria-hidden=true][srcdoc]').length"), 0, "the print document is released after printing");
 });
 
 test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, its token or IPC and cannot use another owner's bridge", { timeout: 60_000 }, async t => {
@@ -249,4 +295,128 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
   // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
   await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");
+});
+
+test("S-ui-text-page FSS-08 a replacement document before first connection never receives the frame port", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
+  const { command, sessionId, origin, waitFor, evaluate, navigate } = browser;
+  const child = await pluginFrameBrowser(t, browser, "issues");
+  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues${search}` }, sessionId));
+  await open();
+  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const forged = `<!doctype html><title>Replacement frame</title><script>
+    const report = detail => parent.postMessage({ type: 'frame-handshake-test', detail }, ${JSON.stringify(origin)});
+    const attacker = new MessageChannel(); attacker.port1.onmessage = () => report('forged-port-received-config');
+    addEventListener('message', event => { if (event.data?.type === 'molis:plugin-connect') report('window-received-config'); });
+    parent.postMessage({ type: 'molis:plugin-mount', challenge: 'unverified' }, ${JSON.stringify(origin)}, [attacker.port2]);
+    addEventListener('load', () => report('replacement-loaded'));
+  </script>`;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `if (window===top) {
+    window.frameHandshakeTrace=[];
+    addEventListener('message', event => {
+      const frame = document.querySelector('iframe[data-plugin-frame=issues]');
+      if (event.source===frame?.contentWindow && event.origin==='null' && event.data?.type==='frame-handshake-test') frameHandshakeTrace.push(event.data.detail);
+    });
+    const actual = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc');
+    Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...actual, set(source) {
+      if (this.dataset.pluginFrame !== 'issues') { actual.set.call(this, source); return; }
+      this.src = URL.createObjectURL(new Blob([${JSON.stringify(forged)}], {type:'text/html'}));
+    } });
+  }` }, sessionId);
+  await open("?frame-handshake=replaced");
+  await waitFor("frameHandshakeTrace.includes('replacement-loaded')", 12_000);
+  await waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15_000);
+  assert.deepEqual(await evaluate("frameHandshakeTrace"), ["replacement-loaded"], "loading at the current frame window is insufficient to receive any config or port");
+});
+
+test("D0124 D0335 S-47 hidden plugin UI cannot navigate or open an object; visible typed requests still work", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    let factories;Object.defineProperty(globalThis,'molisWorkbenchPluginFactories',{configurable:true,get:()=>factories,set:value=>{
+      factories=new Proxy(value,{set:(target,key,factory)=>{target[key]=host=>{window.uiForTest=host;return factory(host)};return true}});
+    }});
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=cognia" }, browser.sessionId));
+  await child.waitFor("window.uiForTest && document.querySelector('[data-cognia-rows]')");
+  const state = () => browser.evaluate("JSON.stringify({surface:document.body.dataset.workSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>[p.dataset.tabPane,[...p.querySelectorAll('[data-tab-id]')].map(t=>[t.dataset.tabId,t.getAttribute('aria-selected'),t.hasAttribute('data-current')])]),frames:[...document.querySelectorAll('iframe[data-plugin-frame]')].map(f=>f.dataset.pluginFrame)})");
+  assert.ok(await browser.evaluate("document.querySelectorAll('[data-tab-pane]').length > 0"), "the actual workspace pane is observed");
+  const before = await state();
+  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').hidden=true");
+  await child.evaluate("uiForTest.view.refreshShell();uiForTest.openPlugin('todo');uiForTest.openItem('todo','fake','Fake');uiForTest.openBeside('todo','fake','Fake');new Promise(resolve=>setTimeout(resolve,100))");
+  assert.equal(await state(), before, "hidden messages do not change the active pane or create item tabs");
+  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').hidden=false");
+  await child.evaluate("uiForTest.openPlugin('todo',{},[]);uiForTest.openItem('todo',{},[]);uiForTest.openItem('todo','fake',{});new Promise(resolve=>setTimeout(resolve,100))");
+  assert.equal(await state(), before, "malformed arguments are ignored before the trusted UI is called");
+  await child.evaluate("uiForTest.openPlugin('todo')");
+  await browser.waitFor("document.querySelector('iframe[data-plugin-frame=todo]')");
+  await browser.click('[data-plugin-id=cognia]');
+  await browser.waitFor("document.body.dataset.desktopSurface==='cognia'");
+  await child.evaluate("uiForTest.openItem('todo','fake',undefined)");
+  await browser.waitFor("document.body.dataset.desktopSurface==='todo'");
+});
+
+test("D0124 S-47 refresh cooldown survives the document reload", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__refreshDocument=crypto.randomUUID()" }, browser.sessionId);
+  await pluginFrameInitScript(t, browser, `
+    window.__refreshDocument=crypto.randomUUID();
+    let factories;Object.defineProperty(globalThis,'molisWorkbenchPluginFactories',{configurable:true,get:()=>factories,set:value=>{
+      factories=new Proxy(value,{set:(target,key,factory)=>{target[key]=host=>{window.uiForTest=host;return factory(host)};return true}});
+    }});
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, browser.sessionId));
+  await child.waitFor("window.uiForTest");
+  const before = await browser.evaluate<string>("window.__refreshDocument");
+  await browser.navigate(() => child.evaluate("setTimeout(()=>uiForTest.view.refreshShell(),100);true"));
+  const fresh = child;
+  await fresh.waitFor("window.uiForTest");
+  const after = await browser.evaluate<string>("window.__refreshDocument");
+  assert.notEqual(after, before, "the first visible request actually reloads the shell");
+  const key = await browser.evaluate<string>("Object.keys(sessionStorage).find(key=>key.startsWith('molis-shell-refresh:'))");
+  assert.ok(key, "the limiter is retained outside the plugin's storage namespace");
+  // Keep this check independent of browser startup speed: the parent time is inside the just-opened cooldown window.
+  await browser.evaluate(`sessionStorage.setItem(${JSON.stringify(key)},String(Date.now()))`);
+  await fresh.evaluate("uiForTest.view.refreshShell();uiForTest.view.refreshShell();new Promise(resolve=>setTimeout(resolve,150))");
+  assert.equal(await browser.evaluate("window.__refreshDocument"), after, "the new document rejects a reload burst too");
+});
+
+// D0109 / S-47: use the actual child SDK and parent bridge, but keep the browser's print UI out of this lifecycle check.
+test("D0109 S-47 scriptless print frames release on timeout, afterprint and owner disposal", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    const factories = {};
+    globalThis.molisWorkbenchPluginFactories = new Proxy(factories, { set(target, name, factory) {
+      target[name] = host => { globalThis.__printHost = host; return factory(host); }; return true;
+    } });
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const schedule = window.setTimeout;
+    window.__printTimeouts = [];
+    window.setTimeout = (callback, ms, ...args) => { if (ms === 120000) window.__printTimeouts.push(callback); return schedule(callback, ms, ...args); };
+    document.addEventListener('load', event => { const frame = event.target;
+      if (frame instanceof HTMLIFrameElement && frame.hasAttribute('srcdoc') && frame.getAttribute('sandbox') === 'allow-same-origin allow-modals') frame.contentWindow.print = () => {};
+    }, true);
+  })()` }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=cognia" }, browser.sessionId));
+  await browser.surfaceReady("cognia");
+  await child.waitFor("Boolean(globalThis.__printHost)");
+  const frame = "document.querySelector('iframe[sandbox=\"allow-same-origin allow-modals\"]')";
+  const print = async () => {
+    await child.evaluate("globalThis.__printHost.printDocument('<p>Printable</p><script>parent.__printEscape=true</scr'+'ipt>')");
+    await browser.waitFor(frame + "?.isConnected");
+    assert.equal(await browser.evaluate("Boolean(globalThis.__printEscape)"), false);
+  };
+  await print();
+  await browser.evaluate("Object.defineProperty(" + frame + ", 'contentWindow', { get() { throw new DOMException('Opaque print window', 'SecurityError'); } });window.__printTimeouts.at(-1)()");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "a browser that omits afterprint still releases the frame");
+  await print();
+  await browser.evaluate("window.dispatchEvent(new Event('afterprint'))");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false);
+  await print();
+  await browser.evaluate("document.querySelector('[data-work-surface=cognia]').remove()");
+  await browser.waitFor("!(" + frame + ")");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "disposing the owner removes its still-pending print frame");
 });

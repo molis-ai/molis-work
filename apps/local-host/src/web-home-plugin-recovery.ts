@@ -1,19 +1,21 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginStoreUnavailablePage } from "@molis-ai/molis-work-app-workbench";
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { WebRequestContext } from "./web-route-table.js";
-import { htmlLang, L } from "./web-locale.js";
+import { htmlLang, readText } from "./web-locale.js";
 import { matchPageRoute } from "./page-routes.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 
 /** GET display projection only. Availability, commands and content routes must use the strict Catalog methods. */
 export function projectPluginMembershipForPage(catalog: MolisWorkProjectCatalog, projectId: string) {
-  try { return catalog.projectPluginMembership(projectId); }
+  try { return catalog.projectPluginMembershipWithRevision(projectId, () => readOnlyAlwaysOnProjectPlugins(catalog.homeDirectory)); }
   catch (error) {
     if (!isHomePluginStoreRefusal(error)) throw error;
-    return { ...catalog.storedProjectPluginMembership(projectId), unavailable: L("Home 插件运行库不可用") };
+    return { ...catalog.storedProjectPluginMembership(projectId), unavailable: uiText.text("workbench.home-plugin-recovery.home-plugin-store-unavailable") };
   }
 }
 
@@ -25,7 +27,7 @@ export async function withHomePluginStorePageRecovery(context: WebRequestContext
     if (!isHomePluginStoreRefusal(error) || request.method !== "GET"
       || !serverOptions.homeDirectory || response.headersSent) throw error;
     if (url.pathname.startsWith("/api/")) {
-      const failure = actionErrorResponse(new ActionError(error.code, L("Home 插件运行库不可用"), { kind: "unavailable", cause: error }));
+      const failure = actionErrorResponse(new ActionError(error.code, uiText.text("workbench.home-plugin-recovery.home-plugin-store-unavailable"), { kind: "unavailable", cause: error }));
       sendLocalWebJson(response, failure.status, failure.body);
       return;
     }
@@ -36,8 +38,8 @@ export async function withHomePluginStorePageRecovery(context: WebRequestContext
       project: catalog.getProject(selectedId), membership: catalog.storedProjectPluginMembership(selectedId),
     })) : { project: null, membership: { plugins: [], hidden: [] } };
     const prefix = projectId ? `/projects/${encodeURIComponent(projectId)}` : "";
-    const html = renderPluginStoreUnavailablePage({ ...projection, reason: error.message,
-      reloadHref: prefix + url.pathname + url.search, desktopShell: composition.isDesktopShellRequest(request, url) }, { L, htmlLang, desktop: composition.desktopRenderer });
+    const html = renderPluginStoreUnavailablePage({ ...projection, reason: error.message, code: error.code,
+      reloadHref: prefix + url.pathname + url.search, desktopShell: composition.isDesktopShellRequest(request, url) }, { readText, htmlLang, desktop: composition.desktopRenderer });
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": composition.PAGE_CSP });
     response.end(html);
   }

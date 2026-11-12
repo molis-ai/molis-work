@@ -1,5 +1,6 @@
 import { ActionError, searchEntriesPage, subjectContext, type ActionUsagesInput, type SearchEntriesInput, type SubjectContextRequest } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { KitReport, KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { characterErrors, parseCharacterContent, type CharacterContent, type CharacterDraft, type CharacterDraftPatch, type CharacterState, type CharactersCommand, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import { agentActionCatalog, validateDraftActions, type CharactersAgentCatalog } from "./agent-actions.js";
@@ -107,7 +108,24 @@ function importHandlers(drafts: CharactersQuery, imports: () => CharactersImport
       return { ...result, draft: characterBrowserPreview(result.draft) };
     },
     draftFile: (input: Record<string, unknown>) => characterFilePreview(drafts.get(String(input.id))?.import_snapshot, input),
+    kitReport: async (): Promise<KitReport> => ({ entries: await Promise.all(drafts.list().filter(draft => draft.state !== "tombstoned").map(draft => kitEntry(draft, imports))) }),
   };
+}
+
+/**
+ * One Character as an AI kit role (§4.8): who it is and the tools it declares, never how it works (its instructions are its own
+ * content, not a registered prompt). Runs are all kept, so the usage says only the last one.
+ */
+async function kitEntry(draft: CharacterDraft, imports: () => CharactersImportPorts): Promise<KitReportedEntry> {
+  const tools = (draft.host_tools ?? []).slice(0, 64), title = (draft.title || "未命名角色").slice(0, 200);
+  const last = (await imports().runs(draft.character_id))[0];
+  const role = { kind: "personal" as const, character_id: draft.character_id };
+  return { kind: "role", entry_id: draft.character_id, name: title, description: "", version: { label: `修订 ${draft.revision}` },
+    declares: { tools, permissions: [], connector_categories: [] }, scope: "home", where: [],
+    availability: draft.state === "active" ? { available: true } : { available: false, reason: draft.state },
+    usage: last ? { kind: "last_only", last_at: last.created_at } : { kind: "none" }, manage: { href: "/settings/characters", label: "角色" },
+    export: "reference", ref: role, role: { subagent: false, host_tools: tools },
+    source: { kind: "character", role, title, revision: draft.revision }, pack: "system:characters" };
 }
 
 /**

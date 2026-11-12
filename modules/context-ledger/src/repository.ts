@@ -67,6 +67,7 @@ export class ContextLedgerRepository {
     const conditions: string[] = [];
     const values: unknown[] = [];
     if (query.type) { conditions.push("relation_type = ?"); values.push(query.type); }
+    if (query.keys !== undefined) { conditions.push("edge_key IN (SELECT value FROM json_each(?))"); values.push(JSON.stringify(query.keys)); }
     for (const [column, ref] of [["source_json", query.source], ["target_json", query.target]] as const) {
       if (!ref) continue;
       conditions.push(`json_extract(${column}, '$.module') = ? AND json_extract(${column}, '$.id') = ?`);

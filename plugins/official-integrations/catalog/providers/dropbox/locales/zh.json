@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.dropbox",
+  "locale": "zh",
+  "messages": {
+    "dropbox.connection.auth-help": "Dropbox App 生成的 access token。只读列出根目录。",
+    "dropbox.connection.inbound": "项目资料可读 Dropbox 文件",
+    "dropbox.connection.summary": "云盘文件。",
+    "dropbox.connection.token-label": "Dropbox 访问令牌",
+    "dropbox.guide.mcp-connected-note": "Dropbox 官方远程 MCP 处于 Beta。",
+    "dropbox.guide.mcp-link": "查看 Dropbox 官方 MCP（Beta）",
+    "dropbox.guide.mcp-note": "Dropbox 官方远程 MCP 处于 Beta；Molis Work 尚未接入。",
+    "dropbox.guide.oauth-link": "查看 Dropbox OAuth 指南",
+    "dropbox.guide.token-note": "在 Dropbox App Console 创建应用并取得访问令牌后可粘贴。",
+    "dropbox.setup.open-dropbox-app-console": "打开 Dropbox App Console"
+  }
+}

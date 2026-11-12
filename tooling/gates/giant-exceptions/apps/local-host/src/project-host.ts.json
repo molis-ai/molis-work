@@ -4,11 +4,7 @@
       "kind": "cohesive-unit",
       "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
       "size": {
-<<<<<<< HEAD
-        "lines": 325,
-=======
-        "lines": 317,
->>>>>>> origin/main
+        "lines": 320,
         "methods": 26
       }
     }

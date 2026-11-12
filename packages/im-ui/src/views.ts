@@ -2,18 +2,6 @@ import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImMember, ImMessage, ImMessagePage, ImRoom, ImRoomState, ImThread } from "@molis-ai/molis-work-contracts/services/im";
 import type { createMessageFormat } from "./message-format.js";
 import type { StreamKind, ScrollAnchor } from "./browser/types.js";
-/** The two date labels a message row uses: the clock time, and 今天 or a month and day, in the page's language. */
-function dateLabels(locale: string) {
-  const clock = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
-  const monthDay = new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric' });
-  return {
-    time: (value: string) => clock.format(new Date(value)),
-    day: (value: string) => {
-      const date = new Date(value);
-      return date.toDateString() === new Date().toDateString() ? (L("今天")) : monthDay.format(date);
-    },
-  };
-}
 /** Typed browser view helpers; user/server strings are escaped before markup. */
 export function createViews(root: HTMLElement, createFormat: typeof createMessageFormat) {
   const q = <T extends HTMLElement = HTMLElement>(selector: string): T => root.querySelector<T>(selector)!;
@@ -24,15 +12,9 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
   const icon = (name: string) => '<svg aria-hidden="true"><use href="#icon-' + name + '"></use></svg>';
   const avatar = (member: ImMember | null) => {
     const name = member?.display_name || '?';
-<<<<<<< HEAD
-    return '<span class="im-avatar" title="' + escape(name) + '">' + escape([...name].slice(0, 1).join('')) + '</span>';
-  };
-  const { time, day } = dateLabels(root.ownerDocument?.documentElement?.lang || 'zh-CN');
-=======
     return '<span class="im-avatar" translate="no" title="' + escape(name) + '">' + escape([...name].slice(0, 1).join('')) + '</span>';
   };
   const time = (value: string) => uiText("im-ui.history.timestamp", { value: dateArg(value, "time") });
->>>>>>> origin/main
   // Skip unchanged chrome so SSE does not destroy the current keyboard target.
   const markup = updateViewMarkup.bind(undefined, htmlCache);
   const roomList = (rooms: ImRoom[], selected: string | null) => {

@@ -171,7 +171,7 @@ test("B1 B3 SKP-10: an Assistant round reads an auto assistant-only Skill throug
     await setState("auto", 0);
     const work = { work_id: "work-b1", session_id: null, project_ref: h.reference } as never;
     const readBody = async (named: readonly typeof offer.ref[]) => {
-      const ports = await assistantAuthority(h.host, work, () => new Set(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, named).actions?.("prologue");
+      const ports = await assistantAuthority(h.host, work, () => new Set(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, named).actions?.("prologue");
       assert.ok(ports);
       const read = await ports.invoke({ capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, provider_id: SKILLS_PROVIDER_ID },
         { refs: [offer.ref] }) as { results: Array<{ ok: boolean; reason?: string; body?: string }> };

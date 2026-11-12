@@ -14,14 +14,15 @@ test("B4: reading a prompt for a model call records no use; the dispatched call 
   try {
     const definitions = homeAgentDefinitions(home), key = "system:knowledge/knowledge.organize";
     assert.equal(definitions.prompt(key).last_used, undefined, "nothing used yet");
-    const read = definitions.instruction("system:knowledge", "knowledge.organize", "knowledge.organize", false);
+    let recordUse: (() => void) | undefined;
+    const read = definitions.instruction("system:knowledge", "knowledge.organize", "knowledge.organize", undefined, record => { recordUse = record; });
     assert.ok(read.body.length > 0, "the text is still read");
     assert.equal(definitions.prompt(key).last_used, undefined, "a read that no model call follows records no use");
-    assert.equal(typeof read.record, "function", "the caller gets the recording callback");
-    read.record!();
+    assert.equal(typeof recordUse, "function", "the caller gets the recording callback");
+    recordUse!();
     assert.ok(definitions.prompt(key).last_used, "a dispatched call records a use");
     // The dispatch hook may be asked more than once (a retried dispatch): one use, not one per attempt.
-    read.record!();
+    recordUse!();
     const db = new DatabaseSync(join(home, "agent-definitions", "agent-definitions.db"), { readOnly: true });
     try { assert.equal((db.prepare("SELECT COUNT(*) AS n FROM prompt_uses WHERE key = ?").get(key) as { n: number }).n, 1, "two calls of the hook record one row"); }
     finally { db.close(); }

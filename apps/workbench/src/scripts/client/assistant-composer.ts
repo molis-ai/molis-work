@@ -268,12 +268,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     // Its tag opens 「发给」; the page's own name and glyph, nothing else of what it said.
     options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
-<<<<<<< HEAD
-    target.bind(composer, input);
-=======
     target.bind(composer, input, refreshComposerWords);
-    keepGlyph(target);
->>>>>>> origin/main
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
@@ -326,7 +321,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   // the strip carries (a read file as a picture or a file, a pick as the object it is), told again by the composer's onMaterials.
   // While a page in front has the bar, its box is the page's and may take no files at all: say so instead of dropping them.
   function addFiles(chosen) {
-    if (boundPage) { host.showToast?.(L("文件没有加进去：现在底栏发给这一页，它不收文件。回到助理再添加。"), true); return; }
+    if (boundPage) { host.showToast?.(readText("workbench.assistant-composer.file-not-added-page-takes-no-files"), true); return; }
     composer?.attach(chosen);
   }
   globalThis.molisBarReceiverChanged = () => syncComposer();
@@ -337,7 +332,6 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
      platform's menu, risen from the tag. What is in the box stays with the receiver it was written for (each keeps its own draft). */
   const sendToGlyphs = ${JSON.stringify({ sparkles: icon("sparkles"), check: icon("check") })};
   const glyphOf = (html) => { const shell = document.createElement("template"); shell.innerHTML = html; return shell.content.firstElementChild; };
-<<<<<<< HEAD
   /* A page's glyph in 「发给」 comes from the same rendered sprite the side pane draws from (data-assistant-glyphs, the platform
      icons rendered once by SDK icon()): the page's icon name is checked by the frame bridge, so nothing the page wrote is drawn
      and the composer's own DOM is not read. A name the sprite does not hold gets no mark; the row still names the page. */
@@ -349,13 +343,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
     return holder.childElementCount ? holder : null;
   };
-  const sendTo = el("div", "mw-menu assistant-send-to"); sendTo.dataset.assistantSendTo = ""; sendTo.setAttribute("role", "menu"); sendTo.setAttribute("aria-label", L("发给"));
-=======
-  const pageGlyphs = new WeakMap();
-  // The page's glyph as its tag drew it (the composer draws only platform icons), kept for when the bar is the Assistant's.
-  const keepGlyph = (page) => { const drawn = compose.querySelector(".mw-composer__to svg"); if (drawn) pageGlyphs.set(page, drawn.cloneNode(true)); };
   const sendTo = el("div", "mw-menu assistant-send-to"); sendTo.dataset.assistantSendTo = ""; sendTo.setAttribute("role", "menu"); sendTo.setAttribute("aria-label", readText("workbench.assistant-composer.send-to"));
->>>>>>> origin/main
   if (typeof sendTo.showPopover === "function") sendTo.popover = "manual";
   island.append(sendTo);
   const sendToOpen = () => sendTo.matches(":popover-open");

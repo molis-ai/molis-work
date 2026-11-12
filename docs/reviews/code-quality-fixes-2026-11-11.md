@@ -12,6 +12,14 @@
 - **冗余清理（F）**：三个 socket 的授权绑定收进 `socket-authority.ts`；SDK 新增 `parseJson` 并替换 artifacts/feed 的 5 处副本；SDK `/ui` 导出 `escapeAttribute`，design-system 复用；plugin-runtime 两处事件失败包装合并；宿主/RSS 的 `routeUnavailable` 与两个官方集成的 `liveFailure` 收进合同单一工厂；connector-store 减到 298 行并删其巨大单元例外；其余跨插件重复列为 BL 候选。
 - **Lead**：AGENTS SDK 共用工具清单补 `hostBoundSession`/`parseJson`/`escapeAttribute`；`CHECKLIST` 第 3 节补 `config/ui-locale.json`；`tooling/gates/README.md` 补 `@version` 标记扫描口径；修复构建中发现的 String.raw 模板反引号、嵌入函数注释反引号、import 常量与更新路由快照；更新 `BL-golden-prompt-uses-flaky` 的部分修复状态。
 
+## 与 main 第 16 批（#2031）的合并说明（2026-11-11 晚）
+
+PR 期间 main 合入第 16 批「字体、皮肤和中英界面切换」（`206884b447`，2575 文件），把工作台/宿主/插件入口切到按主人取词的中英文文件，并改变了若干界面的文字与结构 API。本分支合并时按「新架构优先」处理冲突：
+
+- **本分支保留并适配到新文字系统的改动**：账号菜单邮箱显示（`uiText.text` 稳定键 + 合同 `email`）；发给菜单的 glyph sprite 与「页面不收文件」toast（改为 `readText` 稳定键，并在 `apps/workbench/resources/locales/{zh,en}.json` 补键）；成员 HTTP 的严格信封（错误文案改用新文字键）；升级链里的 `config/ui-locale.json` 注册移到新的属主 `horizontal/appearance`（`UI_LOCALE_FILE`），`platform-upgrade-stores.ts`/`golden/formats.mjs`/`CHECKLIST` 同步；`initial-versions` 的内联 `@version` 扫描保留，但 prompt/method/role 改按第 16 批的内容版本表（`tooling/versions.json` + `content-versions`）判定，不再按「必须为 1」误报；提示词的派发时记录改用第 16 批的 `deferUse` 接口（保留 once）。
+- **本分支放弃、由第 16 批取代的改动**：K5 的来源名英文翻译（新文字/语言包系统已覆盖，旧 `ui.translations` 字段已不存在）；composer 桥 `sources` 死字段清理（第 16 批重新使用该字段）；im-ui `dateLabels` 抽取（第 16 批改用 `uiText` 日期格式）；Coding 自动档（#2030 已独立补做）。
+- 合并后 `apps/workbench/src/i18n/renderer-gap-en.ts` 随第 16 批删除；本分支新增的 toast 译文进入新语言文件。
+
 ## 与 main #2030 的合并说明（2026-11-11 晚）
 
 PR 期间 main 合入 #2030「合后审计整改——补做 Coding 自动档、能力包 CPK 收口与记录落档」，其中 Coding「自动」档技能与 Host 侧 `skill_round` 的传递由 main 独立补做（`plugins/native/coding/src/skill-tools.ts`、`roundActions`、composition 只对 `system.skills` 写 `skill_round` 等）。本分支合并 main 时**采用其实现**，删除了本分支与之重复的 `skill-choices.ts` helper、`index.ts` 导出和 `tests/coding-automatic-skills.test.ts`；本 PR 实际保留的 Skill/Agent 侧改动是：助理 authority 的 `skill_round`（consumer=assistant、named）、manual 技能不再给模型列死指针、`prompt_uses` 派发时幂等记录、技能导入签名链不要求先开 Runtime、`skillRefKey`/活动动词/父工具名单等（这些 main 的 #2030 未覆盖）。合并后 `tests/coding-auto-skills.test.ts`（main 的用例）与 `tests/agent-host-skill-reads.test.ts` / `tests/assistant-methods.test.ts` 均通过。

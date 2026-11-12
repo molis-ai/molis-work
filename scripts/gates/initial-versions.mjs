@@ -1,28 +1,17 @@
 // N41: inspect the live first-party declarations used by this build. The unified origin is not a date inferred from this check.
-<<<<<<< HEAD
 // Two halves. The source versions and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
 // (versionOriginProblems, user 2026-11-07). A source version is either a `const …VERSION` declaration or any literal a `/* @version */`
 // marker names (property, return, type), so the same rule reaches the values `pnpm versions:generate` writes but no constant declares.
-// The registered actions, Manifests, prompts and roles, and the prompt and method entries, only
-// this script checks, and only when someone runs it: the rebuild window does (docs/releases/CHECKLIST.md §4.1). A prompt or method goes up
-// when its text changes (tests/prompt-registration.test.ts), so those stay out of the rule. tooling/gates/README.md has the rules.
-=======
-// Two halves. The source constants and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
-// (versionOriginProblems, user 2026-11-07). The registered actions, Manifests, prompts and roles, and the prompt and method entries, only
-// this script checks. Explicit origin checking stays strict; the everyday content check reads the current version table.
->>>>>>> origin/main
+// The registered content versions (actions, Manifests, prompts, roles, methods) are checked strictly in the explicit origin run; the
+// everyday content check (`--content-current`) compares them with `tooling/versions.json`, so a content change doesn't need the origin rule.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { CODE_FILE, isMainScript } from "../script-paths.mjs";
 import { isTestFile, isUnderSourceRoots, markerAtEnd, REPOSITORY, SOURCE_ROOTS, versionSource } from "../version-source.mjs";
-<<<<<<< HEAD
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
-=======
-import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
 import { contentVersionChanges } from "./content-versions.mjs";
->>>>>>> origin/main
 import { goldenManifests } from "../golden/formats.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
@@ -51,7 +40,6 @@ const PERSISTENT_CONSTANTS = new Map([
   ["apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION", "format.computer.record"],
   ["apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION", "format.model.preference"],
   // The last-used language (batch 14 T10, #1976): a small versioned file in the chain since the 2026-11-11 review found it had none.
-  ["apps/local-host/src/ui-locale-memory.ts#SCHEMA_VERSION", "format.ui.last-locale"],
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
@@ -268,6 +256,9 @@ export function sourceVersionProblems(file, source, chains = new Map(), exceptio
     if (definition !== undefined) {
       if (value !== 1) problems.push(...persistentVersionProblems(definition, value, chains));
     } else if (libraryEntry(entry)) return;
+    // Prompts, methods and roles are content versions: their text follows `tooling/versions.json` (the content check reads that table),
+    // so an inline marker above 1 there is not the persistent-format rule's business.
+    else if (/^(?:prompt|method|role)\./u.test(entry)) return;
     else if (value !== 1) problems.push(`${file}: /* @version ${entry} */ = ${value} (expected 1; only a registered persistent format may be above the unified origin)`);
   };
   const visitMarkers = (node) => {

@@ -154,26 +154,15 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     sessionCurrent();
     abort.signal.throwIfAborted();
     const body = await readBody(request);
-<<<<<<< HEAD
     // The transport owns `enabled` (POST enables, DELETE removes): a client value is not an input, and the old envelope refused
     // every field but `plugin_id`/`expected_revision`. The action schema alone would accept `enabled`, so refuse it here.
-    if (body !== null && typeof body === "object" && Object.hasOwn(body, "enabled")) throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
+    if (body !== null && typeof body === "object" && Object.hasOwn(body, "enabled")) throw new ActionError("actions.input_invalid", uiText.text("workbench.project-settings.invalid-plugin-membership"));
     const candidate = { ...body, ...(typeof body?.plugin_id === "string" ? { plugin_id: body.plugin_id.trim() } : {}), enabled: request.method === "POST" };
-    if (!isSetProjectPluginInput(candidate)) throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
-    let projectId: string;
-    try { projectId = decodeURIComponent(pluginMatch[1]); }
-    catch { throw hostErrors.request_path_invalid("项目地址无效"); }
-    const membership = await setProjectPlugin(projectId, candidate, abort.signal, sessionCurrent);
-=======
-    const pluginId = typeof body?.plugin_id === "string" ? body.plugin_id.trim() : "";
-    if (!pluginId || typeof body.expected_revision !== "string" || Object.keys(body).some(key => key !== "plugin_id" && key !== "expected_revision")) {
-      throw new ActionError("actions.input_invalid", uiText.text("workbench.project-settings.invalid-plugin-membership"));
-    }
+    if (!isSetProjectPluginInput(candidate)) throw new ActionError("actions.input_invalid", uiText.text("workbench.project-settings.invalid-plugin-membership"));
     let projectId: string;
     try { projectId = decodeURIComponent(pluginMatch[1]); }
     catch { throw hostErrors.request_path_invalid(uiText.text("workbench.project-settings.invalid-project-address")); }
-    const membership = await setProjectPlugin(projectId, { plugin_id: pluginId, enabled: request.method === "POST", expected_revision: body.expected_revision }, abort.signal, sessionCurrent);
->>>>>>> origin/main
+    const membership = await setProjectPlugin(projectId, candidate, abort.signal, sessionCurrent);
     sendJson(response, 200, { project_id: projectId, ...membership });
   } catch (error) {
     const failure = actionErrorResponse(error);

@@ -1,8 +1,6 @@
-<<<<<<< HEAD
 import type { AccountIdentity } from '../account-identity.js';
-=======
+
 const uiText = globalThis.t;
->>>>>>> origin/main
 
 export function requiredElement(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector<HTMLElement>(selector);
@@ -69,23 +67,13 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
   };
   const paint = () => {
     const {identity,space,busy,configured} = state();
-<<<<<<< HEAD
-    const name = identity?.displayName || L('未登录');
-    document.querySelectorAll('[data-personal-name]').forEach(el => { el.textContent = name; });
-    document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = L(space === 'account' ? '个人空间' : '本地空间'); });
-    document.querySelectorAll('[data-account-compact-label]').forEach(el => { el.textContent = L(identity ? '账号管理' : '登录'); });
-    links.forEach(a => { a.title = identity ? name + ' · ' + L('切换账号') + ' / ' + L('退出登录') : L('登录 / 注册 molis AI'); a.setAttribute('aria-label', a.title); });
-    requiredElement(menu,'[data-menu-name]').textContent = name;
-    requiredElement(menu,'[data-menu-email]').textContent = identity?.email || L('登录后可管理你的 molis 账号');
-=======
-    const name = identity?.displayName || identity?.emails?.[0] || uiText.text("workbench.account-menu.not-signed");
+    const name = identity?.displayName || identity?.email || uiText.text("workbench.account-menu.not-signed");
     document.querySelectorAll('[data-personal-name]').forEach(el => { el.textContent = name; el.setAttribute('translate', identity ? 'no' : 'yes'); });
     document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = uiText.text(space === 'account' ? "workbench.account-menu.personal-space" : "workbench.account-menu.local-space"); });
     document.querySelectorAll('[data-account-compact-label]').forEach(el => { el.textContent = uiText.text(identity ? "workbench.account-menu.account" : "workbench.account-menu.sign"); });
     links.forEach(a => { a.title = identity ? uiText.text("workbench.account-menu.manage-identity", { name }) : uiText.text("workbench.account-menu.sign-sign-up-molis-ai"); a.setAttribute('aria-label', a.title); });
     const menuName = requiredElement(menu,'[data-menu-name]'); menuName.textContent = name; menuName.translate = !identity;
-    requiredElement(menu,'[data-menu-email]').textContent = identity?.emails?.join(' · ') || uiText.text("workbench.account-menu.sign-manage-molis-account");
->>>>>>> origin/main
+    requiredElement(menu,'[data-menu-email]').textContent = identity?.email || uiText.text("workbench.account-menu.sign-manage-molis-account");
     requiredElement(menu,'[data-personal-action=login]').hidden = !!identity;
     requiredElement(menu,'[data-personal-action=switch]').hidden = !identity;
     requiredElement(menu,'[data-personal-action=logout]').hidden = !identity;

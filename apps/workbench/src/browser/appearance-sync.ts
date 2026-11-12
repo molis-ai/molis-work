@@ -67,6 +67,7 @@ interface InvalidationListener {
 const invalidations = Symbol.for("molis.work.appearance.invalidations");
 type RevisionListener = (selectionRevision: number) => void;
 type AppearanceDocument = Document & { [invalidations]?: (page: Document, signal: AbortSignal, receive: RevisionListener) => void };
+const withoutFragment = (url: string) => url.split("#", 1)[0];
 
 /** Bind an attached Workbench view to its current owner using the public part of the page proof. */
 function appearanceOwner(page: Document): AppearanceDocument | null {
@@ -80,7 +81,10 @@ function appearanceOwner(page: Document): AppearanceDocument | null {
   if (!source || !scope || scope !== viewScope(page)) return null;
   try {
     const route = new URL(source, owner.URL), location = owner.location;
-    if (!location || route.origin !== location.origin || route.href !== frame.src || route.href !== page.URL) return null;
+    // Compare the address that loaded this document. An in-page link can change its address without a navigation.
+    const loadedFrom = page.defaultView?.performance.getEntriesByType("navigation")[0]?.name ?? page.URL;
+    if (!location || route.origin !== location.origin || route.href !== frame.src
+      || withoutFragment(route.href) !== withoutFragment(loadedFrom)) return null;
     const parent = owner.body.dataset, child = page.body.dataset;
     // A retained tab can move to a different pane without navigating its document.
     if (pane && (!route.searchParams.get("workbenchPane") || route.pathname !== `${parent.routePrefix ?? ""}/`)) return null;

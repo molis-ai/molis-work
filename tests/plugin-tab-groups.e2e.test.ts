@@ -545,7 +545,8 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await defaultPage.click(`button[data-page-id="${c.id}"]`);
   await defaultPage.waitFor("document.querySelector('[data-pages-title]').value==='Item C'");
   assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, null, "a default plugin page still selects in place");
-  // FSS-07: the active and retained split documents update without taking more HTTP event connections.
+  // FSS-07: active and retained split documents update on the same connection, including after an in-page link.
+  await evaluate(`document.querySelector(${defaultOwner}).contentWindow.history.replaceState(null, '', '#pages')`);
   await evaluate(`molisWorkRequest('/api/ui/appearance', { body: { request_id: 'split-pages-folio', expected_revision: 0,
     choice: { kind: 'selection', selection: { skin: { id: 'folio', revision: 1 }, font: { policy: 'follow-skin' }, mono: null } } } })`);
   await waitFor(`document.querySelector(${defaultOwner}).contentDocument.documentElement.dataset.uiSkin==='folio@1'

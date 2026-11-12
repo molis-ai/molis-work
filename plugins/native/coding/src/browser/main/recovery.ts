@@ -43,8 +43,8 @@ export async function readRecovery(page: Page) {
     const list = q("[data-coding-recovery-list]");
     list.replaceChildren(...report.runs.map((run, index) => recoverySection(page, run, index)));
     // What waits in the session goes with the next round; the runtime's input record says what it is.
-    if (report.inputs?.length) list.append(el("p", uiText.text("coding.recovery.inputs", { count: report.inputs.length, inputs: report.inputs.map(input => input.text).join(uiText.text("coding.list.semicolon")) })));
-    q("[data-coding-recovery-status]").textContent = report.blockers.length ? report.blockers.join("；") : report.runs.length ? uiText.text("coding.recovery.checked") : uiText.text("coding.recovery.none");
+    if (report.inputs?.length) list.append(el("p", uiText.text("coding.recovery.inputs", { count: report.inputs.length, inputs: report.inputs.map(input => input.text).join(uiText.text("common.punctuation.semicolon")) })));
+    q("[data-coding-recovery-status]").textContent = report.blockers.length ? report.blockers.join(uiText.text("common.punctuation.semicolon")) : report.runs.length ? uiText.text("coding.recovery.checked") : uiText.text("coding.recovery.none");
   } catch (error) {
     if (!lifetime.alive) return;
     if (s.current === id && ticket === s.generation) {

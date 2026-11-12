@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "./session-title.js";
 import { el } from "./dom.js";
 import { keyLabel, matches } from "./matching.js";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -53,7 +54,7 @@ const LIMIT = 60;
 function entriesOf(palette: Palette): Entry[] {
   const { ports } = palette;
   const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: uiText.text("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
-  const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: uiText.text("coding.palette.session"), label: session.title, detail: session.state_label || "", run: () => ports.openSession(session.session_id, session.title), words: [] }));
+  const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: uiText.text("coding.palette.session"), label: sessionTitle(session.title), detail: session.state_label || "", run: () => ports.openSession(session.session_id, sessionTitle(session.title)), words: [] }));
   return [...commands, ...sessions];
 }
 

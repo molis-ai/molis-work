@@ -11,8 +11,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore, LocalHost, assistantAuthority, assistantServiceFor, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, AssistantService, AssistantStore, LocalHost, assistantAuthority, assistantServiceFor, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
 
 function reply(text: string): Response {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);

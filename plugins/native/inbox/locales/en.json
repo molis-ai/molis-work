@@ -4,6 +4,11 @@
   "locale": "en",
   "messages": {
     "inbox.directory.summary": "See only what needs your attention.",
+    "inbox.judgment.capability-bound": "A judgment rule is bound",
+    "inbox.judgment.rule-unbound": "No rule is bound yet",
+    "inbox.judgment.paused": "Paused",
+    "inbox.judgment.unavailable": "Not available right now",
+    "inbox.judgment.no-scene-access": "You don’t have access to this scene",
     "inbox.client.could-not-refresh-inbox-list": "Could not refresh the Inbox list",
     "inbox.client.draft-saved-can-keep-editing-retry": "Your draft is saved. You can keep editing or retry.",
     "inbox.client.generated": "Generated",

@@ -24,7 +24,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     });
     root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
       button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];
-      if (!object || !host.openItem) { button.replaceWith(document.createTextNode("「" + button.textContent + "」")); return; }
+      if (!object || !host.openItem) { button.replaceWith(document.createTextNode(globalThis.t.text("workbench.assistant-conversation.quoted", { text: button.textContent }))); return; }
       button.prepend(glyph(objectGlyph(object)));
       button.addEventListener("click", () => showObject(object));
     });
@@ -188,7 +188,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
       : readBack(material, title) || readImage(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
-    if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", globalThis.t.text("common.control.open") + "：" + title); }
+    if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", globalThis.t.text("workbench.assistant-conversation.open-named", { title })); }
     chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? globalThis.t.text("workbench.assistant-conversation.draft") : "") + (material.expired ? globalThis.t.text("workbench.assistant-conversation.no-longer-valid") : "")));
     if (MATERIAL_KIND[material.kind]) chip.title = globalThis.t.text(MATERIAL_KIND[material.kind]);
     if (material.expired) { chip.classList.add("is-expired"); chip.title = globalThis.t.text(EXPIRED_IMAGE); }
@@ -210,7 +210,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     entries.sort((a, b) => a.order - b.order);
     // Which Agent ran this round, when the work changed hands.
     if (round.executor === "plugin") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); const carrier = getWork(); setText(tag, carrier && carrier.executor.kind === "plugin" ? globalThis.t.text("workbench.assistant-conversation.carried-name", { name: carrier.executor.title }) : globalThis.t.text("workbench.assistant-conversation.carried-executor-plugin")); put(tag); }
-    else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, globalThis.t.text("workbench.assistant-conversation.carried") + "：" + round.character.title + " v" + round.character.version); put(tag); }
+    else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, globalThis.t.text("workbench.assistant-conversation.carried-named", { title: round.character.title, version: round.character.version })); put(tag); }
     // What this round carried reads as a line under the person's own message; the side pane keeps the full list.
     let carried = null;
     if (round.materials && round.materials.length) {
@@ -276,7 +276,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
     const retry = (phase === "running" || phase === "starting") && round.retry_wait ? round.retry_wait : null; retries.mark(status, retry);
     setText(status, retry ? retries.line(status) : phase === "running" || phase === "starting" || phase === "compacting" ? globalThis.t.text("workbench.assistant-conversation.working")
-      : phase === "failed" ? globalThis.t.text("workbench.assistant-conversation.turn-did-not-finish") + (round.stop_reason ? "：" + round.stop_reason : "")
+      : phase === "failed" ? (round.stop_reason ? globalThis.t.text("workbench.assistant-conversation.did-not-finish-reason", { reason: round.stop_reason }) : globalThis.t.text("workbench.assistant-conversation.turn-did-not-finish"))
       : phase === "stopped" || phase === "cancelled" ? (ownStop || globalThis.t.text("workbench.assistant-conversation.turn-was-stopped-anything-already-done-not-undone"))
       : phase === "paused" ? globalThis.t.text("workbench.assistant-conversation.paused-click-continue-go")
       : phase === "reconcile-required" ? globalThis.t.text("workbench.assistant-conversation.operation-s-outcome-unconfirmed-check-first")

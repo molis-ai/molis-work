@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { renderArtifacts } from "./artifacts.js";
 import { refreshState } from "./configuration.js";
 import { controls } from "./controls.js";
@@ -9,6 +10,7 @@ import { readCurrent } from "./read.js";
 import { closeReport, showReport } from "./report.js";
 import { api, sessionPath, status } from "./request.js";
 import { errorMessage } from "../dom.js";
+import { DEFAULT_SESSION_TITLE } from "../../session-title.js";
 import type { SessionData, SessionRecord } from "./shapes.js";
 
 /** Forgets what the last session on show was holding, so the next one is read from nothing. */
@@ -108,7 +110,7 @@ export async function openCodingItem(page: Page, itemId: string) {
  */
 async function untouched(page: Page): Promise<SessionRecord | null> {
   const { s } = page, { draft } = page.refs;
-  for (const session of s.state.sessions.filter(item => item.state === "idle" && item.title === uiText.text("coding.session.new-title") && !item.goal_id)) {
+  for (const session of s.state.sessions.filter(item => item.state === "idle" && item.title === DEFAULT_SESSION_TITLE && !item.goal_id)) {
     if (draft.local(session.session_id)) continue;
     try {
       const data = await api<SessionData>(page, sessionPath(session.session_id) + "?window=1");
@@ -123,9 +125,11 @@ async function untouched(page: Page): Promise<SessionRecord | null> {
 /** Starts a session, or reuses an untouched one, and puts the page on it. */
 export async function create(page: Page) {
   const { host } = page, reuse = await untouched(page);
-  const session = reuse || (await api<{ session: SessionRecord }>(page, "/sessions", "POST", { title: uiText.text("coding.session.new-title") })).session;
+  // No title: the session keeps the server's own untitled marker (`DEFAULT_SESSION_TITLE`, the same original value the first round
+  // replaces), so nothing translated is ever stored and the title can be read in whichever language comes next.
+  const session = reuse || (await api<{ session: SessionRecord }>(page, "/sessions", "POST")).session;
   if (!reuse) await refreshState(page);
-  host.openItem("coding", session.session_id, session.title);
+  host.openItem("coding", session.session_id, sessionTitle(session.title));
   await select(page, session.session_id);
 }
 

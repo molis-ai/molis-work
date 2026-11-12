@@ -81,9 +81,9 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: readText("workbench.assistant-materials.unsaved-edits"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
-      .forEach((row) => items.push({ key: "work:" + row.work_id, label: readText("workbench.assistant-materials.belongs-work") + "「" + row.title + "」", optional: true, work: row }));
-    if (sel && !removed.has("selection")) items.push({ key: "selection", label: readText("workbench.assistant-materials.selection") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.reference ? readText("workbench.assistant-materials.quote") + "：" : "") + file.title, auto: false, put: true }));
+      .forEach((row) => items.push({ key: "work:" + row.work_id, label: readText("workbench.assistant-materials.belongs-work-named", { title: row.title }), optional: true, work: row }));
+    if (sel && !removed.has("selection")) items.push({ key: "selection", label: readText("workbench.assistant-materials.selection-named", { text: clip(sel.text.replace(/\s+/g, " "), 28) }), auto: true });
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.reference ? readText("workbench.assistant-materials.quote-named", { title: file.title }) : file.title), auto: false, put: true }));
     return items;
   };
   /** Leaves an item out of this Send: a page object the person added goes back to optional; the rest are removed. */
@@ -128,7 +128,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
         source: { surface: ctx.plugin_id || "page", ...(ctx.plugin_id ? { plugin_id: ctx.plugin_id } : {}) } });
     }
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) {
-      list.unshift({ material_id: "draft", kind: "text", title: readText("workbench.assistant-materials.unsaved-edits") + "：" + ((ctx.object && ctx.object.title) || ""), text: ctx.draft_text,
+      list.unshift({ material_id: "draft", kind: "text", title: readText("workbench.assistant-materials.unsaved-edits-named", { title: (ctx.object && ctx.object.title) || "" }), text: ctx.draft_text,
         explicit: false, draft: true, source: { surface: ctx.plugin_id, plugin_id: ctx.plugin_id }, object: ctx.object });
     }
     return list;

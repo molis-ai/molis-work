@@ -94,13 +94,13 @@ action: { /* 写入动作的声明，入参里有 expected_version */
 
 ```js
 root.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id, groups: [
-  { id: "inline", items: [{ id: "bold", label: L("加粗"), glyph: "B", pressed: true, shortcut: "⌘B" }, { id: "link", label: L("链接"), icon: "link", opens: "panel" }] },
-  { id: "blocks", collapse: "overflow", items: [{ id: "h2", label: L("二级标题"), glyph: "H2" }] },
+  { id: "inline", items: [{ id: "bold", label: t.text("notes.context-toolbar.bold"), glyph: "B", pressed: true, shortcut: "⌘B" }, { id: "link", label: t.text("notes.context-toolbar.link"), icon: "link", opens: "panel" }] },
+  { id: "blocks", collapse: "overflow", items: [{ id: "h2", label: t.text("notes.context-toolbar.h2"), glyph: "H2" }] },
 ] } }));
 ```
 
 - `context_id` 必须是你刚报出的焦点的那个：别的上下文的工具，浮条直接丢掉。
-- 上限见 `CONTEXT_TOOL_LIMITS`（6 组、24 项、标签 24 字），超出的被丢掉；`label` 是已经翻译好的可读名字，也是悬停提示。外观用设计系统的图标名（`icon`）或几个字母（`glyph`：`B`、`I`、`U`、`S`、`H1`–`H3`、`A`）。
+- 上限见 `CONTEXT_TOOL_LIMITS`（6 组、24 项、标签 24 字），超出的被丢掉；`label` 是当前语言的可读名字（用 `t.text` 或 `say.text` 取自己的稳定键，旧 `L("中文")` 写法已随第 16 批删除），也是悬停提示。外观用设计系统的图标名（`icon`）或几个字母（`glyph`：`B`、`I`、`U`、`S`、`H1`–`H3`、`A`）。
 - `pressed` 表示当前状态（光标处已加粗），`disabled` 表示现在不能用；`collapse: "overflow"` 的组在浮条窄时可以收进一个菜单。
 - 状态变了（加粗切换、光标移进标题）就再发一次；内容没变时不要重复发（Pages 用 `context_id` 加分组内容做键）。
 

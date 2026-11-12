@@ -25,7 +25,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       if (id !== "new") wrap.addEventListener("auxclick", (event) => { if (event.button !== 1) return; event.preventDefault(); closeTab(id); });
       if (closable) {
         const close = el("button", "assistant-tab-close", "×"); close.type = "button"; close.tabIndex = -1;
-        close.setAttribute("aria-label", globalThis.t.text("workbench.assistant-tabs.close-tab") + "：" + title);
+        close.setAttribute("aria-label", globalThis.t.text("workbench.assistant-tabs.close-tab-named", { title }));
         close.title = globalThis.t.text("workbench.assistant-tabs.close-tab-work-stays-all-work");
         close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") void switchTo(tabs[tabs.length - 1] || null); else closeTab(id); });
         wrap.append(close);

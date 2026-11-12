@@ -123,6 +123,6 @@ export function showPermissions(_page: SettingsPage, scope: ParentNode): void {
     };
     line('[data-shelf-permission="accessibility"]', status.accessibility ? uiText.text("shelf.settings.accessibility-on") : uiText.text("shelf.settings.accessibility-off"));
     if (status.clipboard_readable === false) line('[data-shelf-permission="clipboard"]', uiText.text("shelf.settings.clipboard-blocked"));
-    if (Array.isArray(status.browsers)) line('[data-shelf-permission="browsers"]', status.browsers.length ? uiText.text("shelf.settings.browsers-found") + status.browsers.join("、") : uiText.text("shelf.settings.browsers-none"));
+    if (Array.isArray(status.browsers)) line('[data-shelf-permission="browsers"]', status.browsers.length ? uiText.text("shelf.settings.browsers-found") + status.browsers.join(uiText.text("common.list.separator")) : uiText.text("shelf.settings.browsers-none"));
   }).catch(() => undefined);
 }

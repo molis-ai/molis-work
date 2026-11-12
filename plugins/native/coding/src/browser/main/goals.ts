@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { codingGoalVersionLabel } from "../../goal-versions.js";
 import { el, errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
@@ -127,7 +128,7 @@ export function returnFromChange(page: Page) {
   const fromArtifact = s.changeItem;
   s.changeItem = "";
   renderArtifacts(page);
-  if (fromArtifact) host.openItem("coding", s.current, s.state.sessions.find(item => item.session_id === s.current)?.title);
+  if (fromArtifact) host.openItem("coding", s.current, sessionTitle(s.state.sessions.find(item => item.session_id === s.current)?.title));
 }
 
 /** The Goal face: the open session's Goal for the next round, with the way to change it and the way to it. */
@@ -150,14 +151,14 @@ export function renderGoalFace(page: Page) {
   open.disabled = false;
   if (session.goal_id) {
     line("strong", session.goal_title || uiText.text("coding.goal-face.unavailable"));
-    line("span", uiText.text("coding.goal-face.next", { session: session.title }));
+    line("span", uiText.text("coding.goal-face.next", { session: sessionTitle(session.title) }));
     if (label) label.textContent = uiText.text("coding.goal-face.change");
     visit.hidden = false;
     visit.dataset.goalId = session.goal_id;
     visit.dataset.goalTitle = session.goal_title || "";
   } else {
     line("strong", uiText.text("coding.goal-face.none"));
-    line("span", uiText.text("coding.goal-face.session", { session: session.title }));
+    line("span", uiText.text("coding.goal-face.session", { session: sessionTitle(session.title) }));
     if (label) label.textContent = uiText.text("coding.goal.link");
     visit.hidden = true;
   }

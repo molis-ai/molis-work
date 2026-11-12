@@ -109,7 +109,7 @@ row(item.permission + (item.requested ? (item.required ? "" : " · " + readText(
 // A job whose permission the person switched off is paused: its activation needs the grant at every step.
 const jobs = (items, held) => group(readText("workbench.settings-plugins.what-keeps-doing-background"), readText("workbench.settings-plugins.no-background-jobs"), items.map((item) => {
 const off = (held || []).filter((view) => !view.granted && item.permissions.includes(view.permission)).map((view) => view.permission);
-return row(item.job_id, item.reason, item.permissions.length ? readText("workbench.settings-plugins.uses-permissions", { permissions: item.permissions.join("、") }) : readText("workbench.settings-plugins.needs-no-extra-permission"), off.length ? readText("workbench.settings-plugins.paused-permissions-switched-off", { permissions: off.join("、") }) : "");
+return row(item.job_id, item.reason, item.permissions.length ? globalThis.t.text("workbench.settings-plugins.uses-permissions", { permissions: item.permissions.join(globalThis.t.text("common.list.separator")) }) : globalThis.t.text("workbench.settings-plugins.needs-no-extra-permission"), off.length ? globalThis.t.text("workbench.settings-plugins.paused-permissions-switched-off", { permissions: off.join(globalThis.t.text("common.list.separator")) }) : "");
 }));
 // The four that reach out of the project or spend money are confirmed before they are switched on; the rest take one click.
 const WIDE = (permission) => permission === "actions:delegate" || permission === "model:invoke" || /^(network|secret):/.test(permission);
@@ -321,7 +321,7 @@ bodies.append(body);
 }); panel.append(bodies);
 }
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);
-panel.append(group(readText("workbench.settings-plugins.what-its-code-may-do"), readText("workbench.settings-plugins.reads-writes-nothing"), effects.map((key) => row(readText(EFFECT[key] || key), shown.effects[key].join("、")))));
+panel.append(group(globalThis.t.text("workbench.settings-plugins.what-its-code-may-do"), globalThis.t.text("workbench.settings-plugins.reads-writes-nothing"), effects.map((key) => row(globalThis.t.text(EFFECT[key] || key), shown.effects[key].join(globalThis.t.text("common.list.separator"))))));
 let label = null;
 if (shown.publisher.pinned_label) panel.append(el("span", "settings-muted", readText("workbench.settings-plugins.pinned-publisher-name", { name: shown.publisher.pinned_label })));
 else {

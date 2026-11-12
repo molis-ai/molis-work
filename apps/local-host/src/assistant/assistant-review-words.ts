@@ -1,3 +1,4 @@
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { reviewPresentation, reviewText, type ReviewWords } from "@molis-ai/molis-work-service-agent-host";
@@ -6,6 +7,10 @@ import type { AssistantReviewDisplay, AssistantReviewField } from "@molis-ai/mol
 type Document = AgentReviewRequest["document"];
 type RawReview = { summary: string; fields: Array<{ label: string; value: string }> };
 const separator = { owner: "workbench", key: "common.list.separator" } as const;
+/** The shared quoting punctuation, in the page's language: it is part of the sentence, never a spliced code character. */
+const quoted = (value: string): OwnedTextRef => ({ owner: "workbench", key: "common.punctuation.quoted", args: [{ name: "value", kind: "text", text: value }] });
+/** Several values as one list, joined with the shared list separator (a `、` is not put into the code). */
+const listed = (values: readonly string[]): ReviewWords => values.flatMap((value, index) => index ? [separator, value] : [value]);
 
 function changedMiddle(before: string | null, after: string) {
   const a = (before ?? "").split("\n"), b = after.split("\n");
@@ -52,8 +57,7 @@ function displayReview(document: Document, raw: RawReview, change: ReturnType<ty
       const projection = own?.fields?.[index], label = projection?.label ?? [field.label];
       if (projection?.format) return { label, value: field.value, format: projection.format };
       const title = projection?.subject ? titleOf(field.value.trim()) : null;
-      if (title) field.value = "「" + title + "」";
-      return { label, value: projection?.value ?? [field.value] };
+      return { label, value: projection?.value ?? [title ? quoted(title) : field.value] };
     }) };
     case "command": return { summary: [reviewText(document.background ? "run-background" : "run-command")],
       fields: [code("command", raw.fields[0]!.value, "sh"), plain("directory", [document.cwd || "."]),
@@ -63,7 +67,7 @@ function displayReview(document: Document, raw: RawReview, change: ReturnType<ty
       const before = change!.head ? [reviewText("diff-from-line", { line: change!.head + 1 })] : [];
       const after = change!.clipped ? [reviewText("diff-more-in-coding")] : [];
       const fields: AssistantReviewField[] = [{ label: caption("diff"), value: change!.body, format: "diff", before, after }];
-      if (document.concurrent?.length) fields.push(plain("warning", [reviewText("overlap-warning"), " ", ...(own?.concurrent ?? [document.concurrent.join("、")])]));
+      if (document.concurrent?.length) fields.push(plain("warning", [reviewText("overlap-warning"), " ", ...(own?.concurrent ?? listed(document.concurrent))]));
       return { summary: [reviewText(document.exists ? "edit-file" : "create-file"), " ", document.target_path], fields };
     }
     case "mcp": return { summary: [raw.summary], fields: [code("arguments", document.arguments_json, "json")] };

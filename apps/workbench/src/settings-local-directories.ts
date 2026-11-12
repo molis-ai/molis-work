@@ -45,8 +45,8 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
     const changed = grant.directory_status === "changed";
     item.append(el("p", changed ? "settings-form-error" : "settings-muted", changed
       ? globalThis.t.text("workbench.settings-local-directories.no-longer-valid-original-folder-could-not-be") : globalThis.t.text("workbench.settings-local-directories.folder-verified")));
-    item.append(el("p", "settings-muted", (grant.project_id ? globalThis.t.text("workbench.settings-local-directories.project") + "：" + grant.project_name : globalThis.t.text("workbench.settings-local-directories.personal-space")) + " · " + globalThis.t.text("workbench.settings-local-directories.allowed") + " " + when(grant.granted_at)));
-    item.append(el("p", "settings-muted", grant.read_count ? globalThis.t.text("workbench.settings-local-directories.reads") + " " + grant.read_count + " · " + globalThis.t.text("workbench.settings-local-directories.last") + " " + when(grant.last_read_at) : globalThis.t.text("workbench.settings-local-directories.not-read-yet")));
+    item.append(el("p", "settings-muted", (grant.project_id ? globalThis.t.text("workbench.settings-local-directories.project-named", { name: grant.project_name }) : globalThis.t.text("workbench.settings-local-directories.personal-space")) + " · " + globalThis.t.text("workbench.settings-local-directories.allowed-at", { at: when(grant.granted_at) })));
+    item.append(el("p", "settings-muted", grant.read_count ? globalThis.t.text("workbench.settings-local-directories.reads-n", { n: grant.read_count }) + " · " + globalThis.t.text("workbench.settings-local-directories.last-at", { at: when(grant.last_read_at) }) : globalThis.t.text("workbench.settings-local-directories.not-read-yet")));
     if (grant.reads.length) {
       const details = el("details", "local-directory-reads");
       details.append(el("summary", "", globalThis.t.text("workbench.settings-local-directories.recent-reads")));
@@ -55,7 +55,7 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
       details.append(reads); item.append(details);
     }
     const take = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.settings-local-directories.withdraw")); take.type = "button";
-    take.setAttribute("aria-label", globalThis.t.text("workbench.settings-local-directories.withdraw") + "：" + grant.root);
+    take.setAttribute("aria-label", globalThis.t.text("workbench.settings-local-directories.withdraw-named", { path: grant.root }));
     take.addEventListener("click", () => revoke("grant/" + encodeURIComponent(grant.grant_id), globalThis.t.text("workbench.settings-local-directories.after-plugin-can-no-longer-read-folder-would")));
     item.append(take);
     return item;

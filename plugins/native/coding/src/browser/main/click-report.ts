@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { errorMessage } from "../dom.js";
 import { loadArtifacts, renderArtifacts } from "./artifacts.js";
 import type { ClickRule } from "./click-types.js";
@@ -47,7 +48,7 @@ export const REPORT_CLICKS: readonly ClickRule[] = [
     const { host, s } = page, fromArtifact = s.reportItem;
     s.reportItem = "";
     closeReport(page, true);
-    if (fromArtifact) host.openItem("coding", s.current, s.state.sessions.find(item => item.session_id === s.current)?.title);
+    if (fromArtifact) host.openItem("coding", s.current, sessionTitle(s.state.sessions.find(item => item.session_id === s.current)?.title));
   }],
   ["[data-coding-report-progress],[data-coding-progress-refresh]", page => openProgress(page)],
   ["[data-coding-progress-close]", page => closeProgress(page)],

@@ -18,7 +18,7 @@ export const ARTIFACT_HANDOFF_CLIENT_SCRIPT = String.raw`
     window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
       message_id: crypto.randomUUID(), purpose: "delegate", source: { surface: "artifacts", title: globalThis.t.text("workbench.handoff-client.result") },
       object: { kind: "artifact", id: row.dataset.artifactSubject, title, version },
-      materials: [{ title: globalThis.t.text("workbench.handoff-client.result-title-version-version").replace("{title}", title).replace("{version}", String(version)), text }],
+      materials: [{ title: globalThis.t.text("workbench.handoff-client.result-title-version-version", { title, version }), text }],
       ...(button.dataset.artifactHand === "coding" ? { executor: "io.molis.work.coding" } : {}),
     } }));
   });

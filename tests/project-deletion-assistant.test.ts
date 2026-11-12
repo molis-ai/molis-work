@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { ASSISTANT_STORE_NAME, AssistantService, AssistantStore, LocalHost, assistantAuthority, purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, ASSISTANT_STORE_NAME, AssistantService, AssistantStore, LocalHost, assistantAuthority, purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
 
 const ACTOR = "local-person";
 

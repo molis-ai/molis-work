@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantService, AssistantStore, LocalHost, MolisWorkLocalHost, assistantAuthority, hostQuestionTypes } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, AssistantService, AssistantStore, LocalHost, MolisWorkLocalHost, assistantAuthority, hostQuestionTypes } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { codingReaskMaterial } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";

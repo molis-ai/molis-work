@@ -76,7 +76,7 @@ const submissionCard = (_L: Translate, submission: FormSubmissionRecord, index: 
     const label = make("span", "", labels.get(questionId) || questionId);
     const value = document.createElement("span");
     label.translate = false; value.translate = false;
-    value.textContent = answer ? String(answer).replace(/\n/g, "、") : "—";
+    value.textContent = answer ? String(answer).replace(/\n/g, uiText.text("common.list.separator")) : "—";
     row.append(label, value);
     card.append(row);
   });
@@ -133,7 +133,10 @@ export const importAnswers = async (page: FormPage, input: HTMLInputElement) => 
     const result = await page.request<Imported>("POST", "/" + encodeURIComponent(sel.id) + "/answers", { files: contents });
     const parts = [uiText.text("form.import.done", { count: result.imported })];
     if (result.skipped) parts.push(uiText.text("form.import.skipped", { count: result.skipped }));
-    if (result.rejected.length) parts.push(uiText.text("form.import.rejected", { count: result.rejected.length }) + "：" + result.rejected.map((item) => item.name + "（" + item.reason + "）").join("；"));
+    if (result.rejected.length) {
+      const items = result.rejected.map((item) => uiText.text("form.import.rejected-item", { name: item.name, reason: item.reason })).join(uiText.text("common.list.separator"));
+      parts.push(uiText.text("form.import.rejected-detail", { count: result.rejected.length, items }));
+    }
     showNote(page, parts.join(" · "), result.rejected.length > 0);
     await loadResults(page);
   } catch (error) { showNote(page, (error as Error).message || uiText.text("form.import.failed"), true); }

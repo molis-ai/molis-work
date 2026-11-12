@@ -25,12 +25,13 @@ export function nativeLanguagePublisher(language: () => NativeDocumentLanguage) 
       syncing: t.text("workbench.native-tray.syncing"), syncing_tip: t.text("workbench.native-tray.syncing-tip"),
       open_goal: t.text("workbench.native-tray.open-goal"), quit: t.text("workbench.native-tray.quit"),
       quit_keep_service: t.text("workbench.native-tray.quit-keep-service"), restore_appearance: t.text("workbench.native-tray.restore-appearance"),
+      stopped: t.text("workbench.native-tray.stopped"), stopped_tip: t.text("workbench.native-tray.stopped-tip"),
     } };
     pending = pending.then(() => {
       if (generation === document && turn === sequence && alive()) return invoke("capsule_set_locale", { document, sequence: turn, projection });
     }).catch(() => undefined);
   };
-  if (invoke && window.top === window && location.origin === "http://127.0.0.1:4173" && location.pathname !== "/desktop/capsule") {
+  if (invoke && window.top === window && location.protocol === "http:" && location.hostname === "127.0.0.1" && location.pathname !== "/desktop/capsule") {
     globalThis.molisWorkPublishNativeLanguage = document => {
       if (!Number.isSafeInteger(document) || document <= generation) return;
       generation = document; sequence = 0; publish();

@@ -3,7 +3,7 @@
   "description": "Molis Work desktop workbench and live work capsule",
   "windows": ["main", "capsule"],
   "remote": {
-    "urls": ["http://127.0.0.1:4173/*", "http://localhost:4173/*"]
+    "urls": ["http://127.0.0.1:{port}/*", "http://localhost:{port}/*"]
   },
   "permissions": [
     "core:default",

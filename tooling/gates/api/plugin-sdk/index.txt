@@ -273,6 +273,7 @@ export type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services
 export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+export type { MissedRun } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PAGE_ROUTE_LIMITS: Readonly<{
     routes: 32;
@@ -418,12 +419,22 @@ export declare const QUESTION_REASK: Readonly<{
     maxTextChars: 8000;
 }>;
 
+export { RUN_MISSED_GRACE_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+
 export type RoleTemplateInspectionOptions = {
     readonly source: "draft";
 } | {
     readonly source: "package";
     readonly owner: string;
 };
+
+export type { RunDecided } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunDecision } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunDecisionChoice } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunNeed } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunsOverview } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunsOwnerScope } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const SANDBOX_IMAGE_PERMISSIONS: Readonly<{
     read: "image-api:read";
@@ -472,6 +483,7 @@ export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "s
 
 export type SandboxUiContribution = Pick<UiContributionDeclaration, "slots">;
 
+export type { ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -649,6 +661,8 @@ export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/a
 
 export declare function assertManifest(manifest: PluginManifest): void;
 
+export { assertRunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+
 export declare function assertSandboxAgentDefinition(definition: Pick<PluginDefinition, "manifest" | "agent_prompts" | "agent_prompt_names" | "agent_skills" | "methods">): void;
 
 export declare function assertJson(value: unknown, fail: SandboxSchemaFailure): asserts value is SandboxJson;
@@ -767,6 +781,8 @@ export declare function definePollingIntegrationPlugin(input: {
 
 export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
+export { defineRunDecisionAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineRunsOverviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function defineSettingsActions(options: SettingsActionsOptions): SettingsActions;
@@ -943,6 +959,7 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
     values: Record<string, string>;
 }, ports: ActionCardPorts<Card>): Promise<Card>;
 
+export { runIsMissed } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const sandboxActionId: (buildId: string, operationId: string) => string;
@@ -1061,6 +1078,7 @@ export declare function wallClockIn(at: number, zone: string | undefined): {
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+export { withinRunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // Declarations the exports above refer to, which no entry exports itself:
 

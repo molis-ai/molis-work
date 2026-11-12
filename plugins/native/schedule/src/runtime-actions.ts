@@ -13,6 +13,7 @@ import { scheduleErrors } from "./error.js";
 import type { scheduleRuntimeDatabase } from "./runtime-database.js";
 import { scheduleInstallations } from "./runtime-installations.js";
 import type { ScheduleTaskGrants } from "./task-grants.js";
+import { createScheduleRunsHandlers } from "./missed-runs.js";
 
 export type ScheduleRuntime = ReturnType<typeof scheduleRuntimeDatabase>;
 
@@ -59,5 +60,6 @@ export async function scheduleRuntimeActions(projectId: string, services: Plugin
     await caller.beforeEffect();
     return original(context, input);
   };
-  return [...createScheduleActionHandlers(projectId, ports, write), ...createReminderActionHandlers(projectId, { ...reminders, pluginId }, write), ...operationHandlers];
+  return [...createScheduleActionHandlers(projectId, ports, write), ...createReminderActionHandlers(projectId, { ...reminders, pluginId }, write), ...operationHandlers,
+    ...createScheduleRunsHandlers(projectId, { db, schedule, write })];
 }

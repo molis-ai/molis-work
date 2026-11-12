@@ -163,6 +163,8 @@
 | `projects/<project_id>/molis-work.db` | 2 → 3 | 第 15 批 S-1（2026-11-08 用户批准，实施中、尚未验证采用）。新建空 `surface_corrections`，保留 1→2；v2 金样 `0.1.1-dev.1` 已生成并复现，候选回放待本批验证；不操作真实 Home。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#2→3` |
 | `projects/<project_id>/molis-work.db#goals` | 1 → 2 | 第 24 批（逐项依据合同：判断记下所核对的版本、依据与可信层级，结论记下它针对的版本；只加列，旧行按「自述」读） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#1→2` |
 | `projects/catalog.db` | 2 → 3 | 2026-11-08 日报 A 类 D0057/D0273；删除退役空表，非空拒绝并保留原库 | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#2→3` |
+| `projects/<project_id>/molis-work.db#schedule` | 1 → 2 | 第 25 批第 1 项（错过的运行：晚过宽限的任务记一行错过、照常排下一次，加错过表） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#1→2` |
+| `projects/<project_id>/molis-work.db#feed` | 1 → 2 | 第 25 批第 1 项（错过的拉取：晚过宽限的来源不拉、记错过、推到下一时刻，加错过表） | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE#1→2` |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -264,3 +266,6 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **SDK 新增 `/skill-ref` 子路径**：导出 `skillRefKey(ref)`，一个精确引用的比对键（`source.kind`、`plugin_id`、`plugin_version`、`publisher_signature`、`install_id`、`installation_generation`、`skill_id`、`version` 全部带上，两个安装里同名技能因此不会混）。页面也能引（只依赖类型）。自己比较两个 `SkillRef` 的插件改用这一个键，不另写一套字段。
   - **其他同批形状**：`ActionCallContext` 加 `named_skills`（`ActionNamedSkills`，绑定安装与动作，只由路由信封与宿主委派写）与 `skill_round`（`ActionSkillRound`，`consumer` 与冻结的 `named`）；`frozen.skills` 每项由 `{ skill_id, version }` 改为带 `ref`（`SkillRef`）、`origin`、`name`、`tools`、`named`，冻结输出加 `frozen.reply_locale`；`assistant.methods.read` 只收角色（同版本 @1，方法（技能）的正文改用 `skills.body.read`）；`SignedAgentReference` 只剩角色；删 `AgentSkillRef`、方法库端口与 `AgentSkillsCapability`（Coding 旧的 `agent.skills.discover/install/list/read@1`、`skill-selection.ts` 与方法库存储一并删除）；SDK 拒绝同一个插件的 `agent.skills` 与 `methods` 重名。
   - **快照刷新**：`tooling/gates/actions/` 与 `tooling/gates/api/` 随本批更新（`skills.*`、`kit.*` 与 `plugins.package.export@1` 等动作，`services/skills`、`platform/action-named-skills`、`plugin-sdk/skill-ref` 等公开面）。仓库内调用方（助理、Coding、Agent Host、宿主组合）同批迁完，不留旧形状；没有读取兼容。
+
+- **按类型交出「接下来」与「错过」：`platform/actions` 新增 `scheduled-runs` 一组**（第 25 批第 1 项，`specs/proactive-assistant/resident-runtime-design.md` §2，2026-11-12）：四个类型 `molis.runs.window.v1`／`molis.runs.overview.v1`／`molis.runs.decision.v1`／`molis.runs.decided.v1`，声明助手 `defineRunsOverviewAction`、`defineRunDecisionAction`（作用域 `project` 或 `home`），宽限 `RUN_MISSED_GRACE_MS`（10 分钟）与上限 `RUNS_UPCOMING_LIMIT`、`RUNS_MISSED_LIMIT`。都是新增，已有的插件不用改；自己定时跑东西的插件同时声明这一对就会出现在菜单栏面板与首页的错过提示里，宿主按类型找到它、只调这两个动作，不读它的库。Schedule、Feed、助理定时三位主人同批接上（`schedule.runs.*`、`feed.runs.*`、`assistant.runs.*`，各 @1）。
+- **Runtime 配置读地址的顺序**（同上 §6，BL-108）：启动器、命令行与桌面找本机宿主时按 `MOLIS_WORK_WEB_URL` > Home 里的地址文件 `run/endpoint.json` > `127.0.0.1:4173`。Runtime 配置本身的形状不变；地址文件只指路，读的人照旧核身份，核不过就当没有。插件不读这个文件。

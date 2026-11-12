@@ -57,6 +57,15 @@ const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
   );
 `;
 
+/** What Schedule missed while Molis Work was not running, and the person's decision on each (missed-runs.ts). */
+const SCHEDULE_MISSED_RUNS_COLUMNS = `schedule_missed_runs (
+    project_id TEXT NOT NULL, run_id TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('task', 'operation', 'reminder')),
+    ref TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
+    decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
+    PRIMARY KEY (project_id, run_id)
+  )`;
+const SCHEDULE_MISSED_RUNS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${SCHEDULE_MISSED_RUNS_COLUMNS};`;
+
 /**
  * Schedule's own tables in each project's library (`databases.project`, PG-020): conversation tasks and their turns, plugin
  * reminders, scheduled operations and their occurrences. The jobs themselves are the Scheduler's, in the library's baseline. The
@@ -65,8 +74,11 @@ const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
  */
 export const SCHEDULE_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "schedule",
-  version: /* @version database.schedule_project_database */ 1,
-  schema: [SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL].join("\n"),
+  version: /* @version database.schedule_project_database */ 2,
+  // 1 → 2 (2026-11-11, resident runtime): the missed runs. A new table only; the step makes exactly what `schema` makes.
+  // A step names its table plainly (no IF NOT EXISTS: the platform knows the table is not there yet).
+  upgrades: [{ from: 1, sql: `CREATE TABLE ${SCHEDULE_MISSED_RUNS_COLUMNS};` }],
+  schema: [SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL, SCHEDULE_MISSED_RUNS_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",
 };

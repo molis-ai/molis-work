@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredStageContributionId, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage, type WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
+import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -392,7 +393,10 @@ function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform
   entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
   const install = platform ? host.installation(entry.manifest.plugin_id) : null;
   const state = platform?.supervisor.state(entry.manifest.plugin_id);
+  // A Home plugin stopped because its tables were not upgraded draws the upgrade card (U3 §2.4); restarting cannot upgrade them.
+  const code = state?.code, upgrade = code ? describePluginTablesRefusal(host.homeDirectory, entry.manifest.plugin_id, null, { code }) : undefined;
   return { ...(state ? { status: state.status === "running" ? undefined : state.status, code: state.code } : { code: failure?.code }), surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
+    ...(upgrade ? { upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(host.homeDirectory, upgrade.reason), reload_href: null } } : {}),
     reason: failure?.message ?? (state?.status === "starting" ? uiText.text("workbench.home-plugin-http.starting") : null) ?? host.packageError(entry.manifest.plugin_id) ?? state?.message
       ?? uiText.text(install?.state === "running" ? "workbench.home-plugin-http.plugin-page-not-registered" : "workbench.home-plugin-http.plugin-disabled") };
 }

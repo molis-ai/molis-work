@@ -8,6 +8,7 @@ import { inspectSource, safeReleaseName } from "./home-source.js";
 import { inspectRelease, createRelease, promoteRelease, rollbackPromotedRelease } from "./home-release.js";
 import { ensureDirectory, writeOwnedText, readInstalledRelease, replaceOwnedJson, pathState, rollbackTextMutations } from "./home-files.js";
 import { launcherSource } from "./home-launcher.js";
+import { keepPreviousRelease, liftRollbackHold } from "./home-rollback.js";
 import { resolveConfiguredHome } from "../product-home.js";
 import { prepareMemoryHome } from "../memory/memory-initialization.js";
 
@@ -98,9 +99,16 @@ export async function installMolisWorkHome(
       preservedPaths.push(installManifestPath);
     }
 
+    if (previousInstall && previousInstall.content_digest !== source.contentDigest && existingRelease !== "repairable") {
+      // U3 §5.1: the program this one replaces is kept to go back to. Its directory moved aside when this one took its name.
+      const moved = previousInstall.release_path === releasePath ? promoted?.backupDirectory ?? null : null;
+      try { await keepPreviousRelease(homeDirectory, previousInstall, moved); }
+      catch { /* Keeping it is a convenience: the install stands without it, and the settings page then says there is no version to go back to. */ }
+    }
     if (promoted?.backupDirectory) {
       await fs.rm(promoted.backupDirectory, { recursive: true, force: true });
     }
+    if ((releaseChanged || installChanged) && await liftRollbackHold(homeDirectory)) removedPaths.push(path.join(configDirectory, "rollback-hold.json"));
 
     const obsoletePostInstallSelections = path.join(configDirectory, "postinstall-project-selections");
     const obsoleteState = await pathState(obsoletePostInstallSelections);

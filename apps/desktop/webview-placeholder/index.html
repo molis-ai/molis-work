@@ -9,6 +9,11 @@
       main { max-inline-size: 48rem; margin: 12vh auto; padding: 2rem; }
       h1 { font: inherit; font-weight: 600; }
       p { color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+      /* The menu-bar popover's 「没在运行」 page (resident-runtime-design §4): its one 「打开」. */
+      main[data-stopped] { margin: 0; padding: 24px 20px; }
+      main[data-stopped] h1 { margin: 0 0 16px; font-size: 14px; }
+      button { font: inherit; font-size: 13px; min-height: 30px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); cursor: default; }
+      button:disabled { opacity: .55; }
     </style>
   </head>
   <body>

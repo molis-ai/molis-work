@@ -3,14 +3,12 @@ use crate::web_service::molis_work_home;
 use serde::Deserialize;
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const SHELF_ORIGIN: &str = "http://127.0.0.1:4173";
-const SHELF_HOST: &str = "127.0.0.1:4173";
 /// Shelf's routes on its Home instance, outside any project.
 const SHELF_API: &str = "/api/plugins/io.molis.work.shelf";
 /// The header that tells the Host the person chose this file here; the Host reads it, page script cannot send it.
@@ -386,10 +384,11 @@ pub(crate) fn post_json_with(
     let token = control_token()?;
     let encoded = body.to_string();
     let key = idempotency_key();
+    let (host, origin) = (crate::host_port::host(), crate::host_port::origin());
     let request = format!(
         "POST {path} HTTP/1.1\r\n\
-         Host: {SHELF_HOST}\r\n\
-         Origin: {SHELF_ORIGIN}\r\n\
+         Host: {host}\r\n\
+         Origin: {origin}\r\n\
          Content-Type: application/json\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\
@@ -420,21 +419,27 @@ fn percent_encode_path(path: &str) -> String {
     out
 }
 
-fn get_json(path: &str) -> Result<String, String> {
+pub(crate) fn get_json(path: &str) -> Result<String, String> {
+    get_json_within(path, Duration::from_secs(3))
+}
+
+/// A read the Host answers only after asking others (each owner has two seconds, `beforeDeadline`).
+pub(crate) fn get_json_within(path: &str, read: Duration) -> Result<String, String> {
     let token = control_token()?;
+    let (host, origin) = (crate::host_port::host(), crate::host_port::origin());
     let request = format!(
         "GET {path} HTTP/1.1\r\n\
-         Host: {SHELF_HOST}\r\n\
-         Origin: {SHELF_ORIGIN}\r\n\
+         Host: {host}\r\n\
+         Origin: {origin}\r\n\
          Connection: close\r\n\
          x-molis-work-control-token: {token}\r\n\
          \r\n"
     );
-    exchange_http(&request, Duration::from_millis(400), Duration::from_secs(3))
+    exchange_http(&request, Duration::from_millis(400), read)
 }
 
 fn exchange_http(request: &str, connect: Duration, read: Duration) -> Result<String, String> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 4173));
+    let addr = crate::host_port::address();
     let mut stream = TcpStream::connect_timeout(&addr, connect)
         .map_err(|error| format!("置物架服务连不上：{error}"))?;
     crate::web_identity::authenticate(&mut stream, &control_token()?)?;

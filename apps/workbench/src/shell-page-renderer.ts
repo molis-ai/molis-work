@@ -182,7 +182,7 @@ function renderMolisWorkWeb(
   const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface
     && directoryPanelIdentity(entry.id, directoryPanels[entry.id] ?? "").ids.includes(initialDesktopSurface))
     ? initialDesktopSurface : "root";
-  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
+  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, desktopShell)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
     appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface({ ...primitives, projectDeletionLabels: owners.projectDeletionLabels }, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(enabledPlugins, view, directory);

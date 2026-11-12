@@ -67,7 +67,7 @@ export function checkGoalsManagementWiring(source, mode) {
     const connectedWrites = writes.filter(node => text(node.left) === "connected"), homeWrites = writes.filter(node => text(node.left) === "home");
     const fallbackWrites = writes.filter(node => text(node.left) === "allowLocalFallback");
     if (!imports.has("./resident-account-connection.js:connectResidentAccount") || !origin
-      || !(origin.parent.flags & ts.NodeFlags.Const) || text(origin.initializer) !== 'options.actionServiceUrl??readProductEnv("WEB_URL")??DEFAULT_RESIDENT_HOST_URL'
+      || !(origin.parent.flags & ts.NodeFlags.Const) || text(origin.initializer) !== 'options.actionServiceUrl??readProductEnv("WEB_URL")??homeHostUrl(home)'
       || connection.length !== 1 || text(connection[0]) !== "connectResidentAccount(home,origin,options.signal,required)"
       || connectedWrites.length !== 1 || text(connectedWrites[0]) !== "connected=awaitconnectResidentAccount(home,origin,options.signal,required)"
       || homeWrites.length !== 1 || text(homeWrites[0]) !== "home=connected.homeDirectory" || homeWrites[0].pos <= connectedWrites[0].end

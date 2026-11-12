@@ -430,6 +430,14 @@
     "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
   },
   {
+    "entry": "action.assistant.runs.decide",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
+    "entry": "action.assistant.runs.overview",
+    "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
+  },
+  {
     "entry": "action.assistant.rules.add",
     "reason": "只在 Home 的助手服务上登记，动作快照读的是一个项目的目录，所以没有行；版本照样由这一条目维护。"
   },

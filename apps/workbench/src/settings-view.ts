@@ -70,6 +70,8 @@ export interface MolisWorkSettingsView {
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
+  /** 设置 › 更新: whether there is a version to go back to, and the hold after going back (U3 §5). */
+  update?: import("./settings-update.js").SettingsUpdateView;
   /** 设置 › 诊断: what this server does on a timer, from its one registry of periodic tasks. */
   periodic_tasks?: readonly WebPeriodicTask[];
   /** 设置 › 诊断: what was typed into the lookup by 诊断编号, the fewest characters it takes, and the rows it found (none when the text is too short to look for). */

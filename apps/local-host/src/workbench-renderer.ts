@@ -1,5 +1,6 @@
 import { installHostUiText, projectTextPacks, registeredBuiltinText } from "./ui-text-provider.js";
-import { createWorkbenchRenderer, renderPluginFrameSurface, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage,
+  type OwnerUnavailableCard, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { installedPluginBody } from "./installed-stage-section.js";
 import { installedStagePath } from "./installed-stage-identity.js";
@@ -29,3 +30,12 @@ export function installedStageSection(input: { pluginId: string; surface: string
     owner: input.pluginId, page: installedStagePath(input.prefix, input.pluginId, input.installation), icon: input.icon,
   });
 }
+
+/**
+ * The pages the Host draws outside a project's workbench (upgrade-continuity U3): the card for a part an upgrade stopped, the opening
+ * page the maintenance listener answers while a Home upgrades, and the arrival styles that page uses. Bound here, the one place the
+ * Host takes the workbench's renderers, so neither the listener nor the page recovery reaches into the workbench on its own.
+ */
+export const hostRecoveryPages = { ownerUnavailablePage: renderOwnerUnavailablePage, upgradeOpeningPage: renderUpgradeOpeningPage,
+  arrivalStylesheet: renderMolisWorkArrivalStylesheet, settingsSectionLabel: hostSettingsSectionLabel };
+export type { OwnerUnavailableCard };

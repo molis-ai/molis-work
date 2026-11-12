@@ -2,6 +2,8 @@ import { canonicalJsonText, isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,
   HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_COLLECTION_SCHEMA, HOME_EVENT_WINDOW_SCHEMA,
+  RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, RUNS_OVERVIEW_SCHEMA, RUNS_WINDOW_SCHEMA,
+  RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUN_DECISION_SCHEMA, RUN_DECIDED_SCHEMA,
   SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN,
   SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE,
   SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_TYPE,
@@ -172,6 +174,30 @@ function homeProtocolProblems(key: string, operation: unknown, a: ActionBody): s
       || canonicalSchema(a.input_schema) !== canonicalSchema(DUE_REMINDER_WINDOW_SCHEMA)
       || canonicalSchema(a.output_schema) !== canonicalSchema(DUE_REMINDER_COLLECTION_SCHEMA)) {
       problems.push(`${key} 到期提醒查询必须是 Home 范围、使用完整规范合同`);
+    }
+  }
+  problems.push(...runsProtocolProblems(key, operation, a));
+  return problems;
+}
+
+// The menu-bar panel's runs (scheduled-runs.ts): an owner's list is a Home query or a project `home_aggregate` query, its decision a command,
+// each in the one contract.
+function runsProtocolProblems(key: string, operation: unknown, a: ActionBody): string[] {
+  const problems: string[] = [];
+  if (a.input_type === RUNS_OVERVIEW_INPUT_TYPE || a.output_type === RUNS_OVERVIEW_OUTPUT_TYPE) {
+    if (operation !== "query" || a.kind !== "query" || !(a.scope === "home" ? a.home_aggregate === undefined : a.scope === "project" && a.home_aggregate === true)
+      || a.input_type !== RUNS_OVERVIEW_INPUT_TYPE || a.output_type !== RUNS_OVERVIEW_OUTPUT_TYPE
+      || canonicalSchema(a.input_schema) !== canonicalSchema(RUNS_WINDOW_SCHEMA)
+      || canonicalSchema(a.output_schema) !== canonicalSchema(RUNS_OVERVIEW_SCHEMA)) {
+      problems.push(`${key} 运行概况查询必须是 Home 范围，或项目范围的首页聚合查询，并使用完整规范合同`);
+    }
+  }
+  if (a.input_type === RUN_DECISION_INPUT_TYPE || a.output_type === RUN_DECISION_OUTPUT_TYPE) {
+    if (operation !== "command" || a.kind !== "operation" || (a.scope !== "home" && a.scope !== "project")
+      || a.input_type !== RUN_DECISION_INPUT_TYPE || a.output_type !== RUN_DECISION_OUTPUT_TYPE
+      || canonicalSchema(a.input_schema) !== canonicalSchema(RUN_DECISION_SCHEMA)
+      || canonicalSchema(a.output_schema) !== canonicalSchema(RUN_DECIDED_SCHEMA)) {
+      problems.push(`${key} 错过的事的处理必须是命令、使用完整规范合同`);
     }
   }
   return problems;

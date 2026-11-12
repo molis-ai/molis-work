@@ -1,8 +1,12 @@
+import { liftRollbackHold } from "./installer/home-rollback.js";
+import { hostErrors } from "./host-errors.js";
+import { dismissUpgradeNotice, upgradeNoticeFor } from "./home-unavailable-owners.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
+import { handleRuntimeOverviewHttp } from "./runtime-overview-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
@@ -18,7 +22,7 @@ import type { RuntimeIntegrationService } from "./installer/runtime-integration.
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
-import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { redirectSettingsAddress } from "./web-settings-arrival.js";
 import { handleComponentBoardHttp } from "./web-catalog-board.js";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
@@ -143,6 +147,22 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     sendJson(response, 200, { status: "ok", process_id: process.pid, service_process_id: serviceProcessId(), project_count: projects.length, desktop_tui: true });
     return true;
   } },
+  // What runs on its own here and what was missed, from every owner that declares the runs types (resident-runtime-design §2.2).
+  { id: "runtime-overview", handle: ({ request, response, url, serverOptions, localHost }) => handleRuntimeOverviewHttp(request, response, url, localHost, serverOptions.homeDirectory) },
+  // U3 §3: the person closed the notice that an interrupted upgrade was finished; it is gone for that round only.
+  { id: "upgrade-notice", handle: async ({ request, response, url, serverOptions }) => {
+    if (!(request.method === "POST" && url.pathname === "/api/upgrade/notice/dismiss" && serverOptions.homeDirectory)) return false;
+    const body = await readLocalWebBody(request) as { run_id?: unknown } | null;
+    if (typeof body?.run_id !== "string") throw hostErrors.upgrade_notice_invalid("关闭这条提示要带上它说的那一轮（run_id）");
+    sendJson(response, 200, { dismissed: dismissUpgradeNotice(serverOptions.homeDirectory, body.run_id) });
+    return true;
+  } },
+  // U3 §5.3: the person puts the version they went back from on again; the desktop installs it on its next start.
+  { id: "update-hold", handle: async ({ request, response, url, serverOptions }) => {
+    if (!(request.method === "POST" && url.pathname === "/api/update/hold/lift" && serverOptions.homeDirectory)) return false;
+    sendJson(response, 200, { lifted: await liftRollbackHold(serverOptions.homeDirectory) });
+    return true;
+  } },
   { id: "project-index", handle: async ({ request, response, url, serverOptions, projects, controlToken, composition, localHost }) => {
     if (!(request.method === "GET" && url.pathname === "/")) return false;
     const desktopShell = composition.isDesktopShellRequest(request, url);
@@ -155,10 +175,12 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       return true;
     }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...noStore, "content-security-policy": composition.PAGE_CSP });
+    const notice = serverOptions.homeDirectory ? upgradeNoticeFor(serverOptions.homeDirectory) : undefined;
     const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)), request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined);
     response.end(composition.workbenchRenderer.renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
+      ...(notice ? { upgrade_notice: notice } : {}),
       plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory),
     }));
     return true;

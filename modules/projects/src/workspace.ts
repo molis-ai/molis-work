@@ -20,7 +20,7 @@ import type { ProjectsRepository } from "./repository.js";
 import { toolBoundBy, type ProjectDirectoryRow } from "./workspace-repository.js";
 
 /** What a tool's unlink did: only `unlinked` changed anything. The output stays (SSC-17), and so does a relation the person made. */
-export type WorkspaceUnlinkOutcome = "unlinked" | "absent" | "output_kept" | "person_kept";
+type WorkspaceUnlinkOutcome = "unlinked" | "absent" | "output_kept" | "person_kept";
 
 /**
  * A folder a runtime context names, before it is matched to a row: its resolved path and whether `realpathSync.native` could resolve it.
@@ -142,19 +142,19 @@ export class ProjectWorkspaceService {
    * person made is left too: a tool cannot narrow what the person linked, they unlink it in the project's settings.
    */
   unlink(workspaceId: string, projectId: string, actorId: string): WorkspaceUnlinkOutcome {
+    // The relation is read once; one this project does not list is absent (a project in the recycle bin lists none).
     return this.repository.transaction(() => {
-      const own = this.repository.workspaces.projectDirectoryRows(this.requiredProjectId(projectId)).find(row => row.workspace_id === workspaceId);
-      if (own?.roles.includes("output")) return "output_kept";
-      if (this.repository.workspaces.isPersonMembership(this.requiredWorkspaceId(workspaceId), projectId)) return "person_kept";
-      const changes = this.repository.workspaces.removeWorkspaceMembership(
-        this.requiredWorkspaceId(workspaceId),
-        this.requiredProjectId(projectId),
-      );
-      if (changes === 0) return "absent";
-      this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
-      this.appendEvent(projectId, "project.workspace_unlinked", this.requiredActorId(actorId), {
-        workspace_id: workspaceId,
-      });
+      const project = this.requiredProjectId(projectId);
+      const workspace = this.requiredWorkspaceId(workspaceId);
+      const own = this.repository.workspaces.projectDirectoryRows(project).find(row => row.workspace_id === workspace);
+      if (!own) return "absent";
+      if (own.roles.includes("output")) return "output_kept";
+      if (this.repository.workspaces.isPersonMembership(workspace, project)) return "person_kept";
+      // Who acted is asked for only when something is recorded, as the event needs it.
+      const actor = this.requiredActorId(actorId);
+      this.repository.workspaces.removeWorkspaceMembership(workspace, project);
+      this.repository.workspaces.removeWorkspaceIfEmpty(workspace);
+      this.appendEvent(project, "project.workspace_unlinked", actor, { workspace_id: workspace });
       return "unlinked";
     });
   }
@@ -196,12 +196,11 @@ export class ProjectWorkspaceService {
     return this.member(workspaceId, projectId, actorId, boundBy, roles);
   }
 
-  /** `actorId` is who acted, as events record it; `boundBy` is who the relation is recorded as made by. */
+  /** `actorId` acted, as events record it; `boundBy` made the relation. An existing one is written again too, so the person can claim it; only a new one is announced. */
   private member(workspaceId: string, projectId: string, actorId: string, boundBy: string, roles: readonly DirectoryRole[]): { workspace_id: string; created: boolean } {
     const existing = this.repository.workspaces.projectDirectoryRows(projectId).some(row => row.workspace_id === workspaceId);
-    if (existing) this.repository.workspaces.claimMembership(workspaceId, projectId, boundBy);
+    this.repository.workspaces.upsertWorkspaceMembership({ membership_id: this.id("workspace-membership"), workspace_id: workspaceId, project_id: projectId, bound_by: boundBy, now: this.now(), roles });
     if (!existing) {
-      this.repository.workspaces.upsertWorkspaceMembership({ membership_id: this.id("workspace-membership"), workspace_id: workspaceId, project_id: projectId, bound_by: boundBy, now: this.now(), roles });
       // A folder that is this project's own is read as itself: a link that named it for another device's id goes.
       this.repository.workspaces.removeSourceLink(projectId, workspaceId);
       this.appendEvent(projectId, "project.workspace_member_bound", actorId, { workspace_id: workspaceId });

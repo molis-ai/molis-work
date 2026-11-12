@@ -308,8 +308,11 @@ test("SRB-14 writing a relation again never takes it from the person; the person
     assert.deepEqual(directoryAt(projects, broughtPath)?.person_project_ids, []);
     toolBinds(projects, second, broughtPath, "claude:session-2");
     assert.equal(boundBy(db, brought, second), "binding:codex:session-1", "an existing link is left as it is by a tool");
+    const relationOf = () => db.prepare("SELECT membership_id, role_input, role_output, created_at, updated_at FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ?").get(brought, second);
+    const beforeClaim = relationOf();
     personLinks(projects, second, broughtPath);
     assert.deepEqual(directoryAt(projects, broughtPath)?.person_project_ids, [second]);
+    assert.deepEqual(relationOf(), beforeClaim, "claiming changes who made it and nothing else: the id, roles and times stay");
     const olderPath = folder("older");
     toolBinds(projects, first, olderPath, "codex:session-1");
     setBoundBy(db, projects.query.workspaceIdAt(olderPath)!, first, "codex:session-1");

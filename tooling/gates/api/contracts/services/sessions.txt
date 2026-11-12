@@ -85,12 +85,12 @@ export interface ExternalSessionAttributionInput {
     decision: {
         kind: "project";
         project_id: string;
+        suggestion_accepted?: boolean;
     } | {
         kind: "leave_unfiled";
     } | {
         kind: "clear";
     };
-    suggestion_accepted: boolean;
     expected_revision: number;
 }
 

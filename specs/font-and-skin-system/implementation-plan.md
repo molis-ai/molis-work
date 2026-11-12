@@ -1,6 +1,6 @@
 # 字体、皮肤与语言系统实现方案
 
-状态：实现方案（2026-10-12 起草；2026-11-08 第 16 批接续；2026-11-12 合后审计整改）。A 段已随第 14 批落地；B/C 已随第 16 批 #2031 合入 main（2026-11-11，`206884b447`），首屏门禁与翻译门禁同批接入。整批回归、全量和原生主窗有结果记录，但原生主窗与 B2/C 原始证据未入库；胶囊 Web 外观未接入，见 [B/C 检查](bc-preflight.md) 与 `specs/BACKLOG.md`。D/E 段仍属第 70 批；真实 Home 不动。[需求书](spec.md)是唯一需求来源，本文件说明技术落点、接入与切换方案，不改变 FSS 验收标准。
+状态：实现方案（2026-10-12 起草；2026-11-08 第 16 批接续；2026-11-12 合后审计整改）。A 段已随第 14 批落地；B/C 已随第 16 批 #2031 合入 main（2026-11-11，`206884b447`），首屏门禁与翻译门禁同批接入。整批回归、全量和原生主窗有结果记录，但原生主窗与 B2/C 原始证据未入库；胶囊 Web 外观已随 2026-11-12 合后整改接入（同一 appearance owner，见 [B/C 检查](bc-preflight.md) 与 16.md 合后审计整改），原生窗口/菜单/剪贴板实操仍待验。D/E 段仍属第 70 批；真实 Home 不动。[需求书](spec.md)是唯一需求来源，本文件说明技术落点、接入与切换方案，不改变 FSS 验收标准。
 
 原方案的代码依据为 2026-10-12 本地 `main` 的 `9da1808334da`，当时与 `origin/main` 分叉。第 16 批以 `226ce892a8` 为开工基点，逐项核对本文点名的接口；类型、目录与动作名中的提案不自动成为现行事实，以实际代码及已落地的 A 段合同为准。
 
@@ -260,7 +260,7 @@ Cookie 保存明确语言或“跟随系统”策略；后者按入口提供的�
 
 ### 6.1 macOS 原生接点
 
-桌面覆盖不能只检查主 WebView。[胶囊](../../apps/desktop/src/capsule-shell.ts)仍内联固定字体/令牌，[Tauri 入口](../../apps/desktop/adapters/tauri/src/main.rs)的 `CapsuleLocale` 写死中文/英文提示，`sync_capsule_locale` 会重新 navigate 胶囊；这些都必须改到同一文件投影和无重载更新路径。**第 16 批未接此项**（`apps/desktop/src/capsule-shell.ts:2,25,30,36` 仍内联基线令牌与固定字体，`/desktop/capsule` 路由 `apps/local-host/src/web-catalog-routes.ts:105-110` 不传外观投影）；已记 BL-b16-capsule-appearance-unwired，不再写「胶囊视觉待验」。
+桌面覆盖不能只检查主 WebView。[胶囊](../../apps/desktop/src/capsule-shell.ts)的 Web 外观已接入同一展示投影（2026-11-12 合后整改：`apps/local-host/src/capsule.ts`/`web-composition.ts` 把既有 `appearanceForHome`→`createWorkbenchAppearancePorts` 传给胶囊，`apps/workbench/src/capsule.ts` 用同一 `appearanceHead` + `renderSkinScope(BASELINE_SKIN, true)`；不再内联 `renderShellTokens`/`FONT_STACK`）。仍未做：[Tauri 入口](../../apps/desktop/adapters/tauri/src/main.rs)的 `CapsuleLocale` 写死中文/英文提示、`sync_capsule_locale` 重新 navigate 胶囊——这两项与原生菜单/托盘/剪贴板权限的实操验一起记 BL-b16-capsule-native-verification，待用户验收。
 
 主窗口、胶囊及内容窗口各自消费同一入口偏好和 Host 展示快照。原生菜单、托盘 tooltip 与断线提示经受信 IPC 获得已翻译的有限字段，原地更新菜单项；校验发送窗口、字段、长度与版本，不接收任意脚本、动作或模型自称的窗口身份。Rust 只做系统菜单装配与当前投影缓存，不维护另一份翻译规则。
 
@@ -449,4 +449,4 @@ pnpm studio:replay smoke
 
 API/动作快照只为有意的合同变化刷新，不刷新健康阈值求绿。页面资源预算需符合 §12.2 后再跑；Builder 章节/设计校验变更须离线 replay 加隔离 Home smoke，Mock/录制数据只证明相应局部。实际产品、真实模型和视觉验收仍按需求书分别留证。
 
-第 16 批 B/C 已随 #2031 合入 main；阶段构建、定向工程验证、B2 真实浏览器定样、全量 32/32 与合并队列有记录。但真实模型（两份 MiniMax 结果）、胶囊 Web 外观（未接入）、四页逐页字节（artifact 不在树）与最终用户验收仍未完成；原生主窗只有 PR 自述。D/E 段及真实 Home 维护仍按各自批次与授权执行。
+第 16 批 B/C 已随 #2031 合入 main；阶段构建、定向工程验证、B2 真实浏览器定样、全量 32/32 与合并队列有记录。但真实模型（两份 MiniMax 结果）、胶囊原生窗口/菜单/剪贴板实操（Web 外观已接入）、四页逐页字节（artifact 不在树）与最终用户验收仍未完成；原生主窗只有 PR 自述。D/E 段及真实 Home 维护仍按各自批次与授权执行。

@@ -152,7 +152,7 @@ QA 构建复用正式流程的 Runtime 准备脚本与 Tauri 构建步骤，经 
 
 当前桌面启动会装配剪贴板监听。根据 [Apple 的按应用预览开关](https://developer.apple.com/documentation/updates/appkit)，可只给 QA bundle 启用剪贴板访问确认；正式启动获批后，由用户亲自先复制合成测试文本，QA 启动后再复制一次以触发提示，首次即拒绝，并核实该 QA 应用为 [Always Deny](https://developer.apple.com/documentation/appkit/nspasteboard/accessbehavior-swift.enum/alwaysdeny)。提示未出现、归到其他应用或合成首启条件无法保证时，不继续此路径；测试中不主动粘贴，因系统仍允许本人发起的粘贴。上述权限与剪贴板动作均尚未执行。
 
-这份 QA 包用于原生主窗、胶囊、启动失败反馈、菜单恢复，以及同窗口配置下的语言共享与重启实操。只在 QA Host 观察 `molis_work_locale` 这一项 Cookie，核主窗切换后胶囊的新请求及 App 完全退出重启后的首请求；胶囊还有 URL 语言参数和原生转发，不能只看它显示英文就宣称 Cookie 共享。PR #2031 正文记「实际原生主窗可切语言、换肤和重开，重开首次需账号重试」，原始证据未入库；胶囊 Web 外观未接入、菜单与剪贴板权限未验。界面实操不代替用户认可。详见文末「未验项与证据限制」。完成 QA 后先退出该 App，再停本次 Host，最后恢复原服务；只清理本次 QA 目录和已确认属于 QA 身份的数据，不读取或清理日用 WebKit 数据。
+这份 QA 包用于原生主窗、胶囊、启动失败反馈、菜单恢复，以及同窗口配置下的语言共享与重启实操。只在 QA Host 观察 `molis_work_locale` 这一项 Cookie，核主窗切换后胶囊的新请求及 App 完全退出重启后的首请求；胶囊还有 URL 语言参数和原生转发，不能只看它显示英文就宣称 Cookie 共享。PR #2031 正文记「实际原生主窗可切语言、换肤和重开，重开首次需账号重试」，原始证据未入库；胶囊 Web 外观已随 2026-11-12 合后整改接入（同一 appearance owner 投影），但真实胶囊窗口观感、菜单/托盘/剪贴板权限与语言切换重载仍未验。界面实操不代替用户认可。详见文末「未验项与证据限制」。完成 QA 后先退出该 App，再停本次 Host，最后恢复原服务；只清理本次 QA 目录和已确认属于 QA 身份的数据，不读取或清理日用 WebKit 数据。
 
 2026-11-10，候选 `c419cd9479` 已构建专用 QA App，核对 ad-hoc 签名、应用标识 `com.molis.work.qa.batch16`、内置 Node 24.15.0 与产品构建指纹。用成品带的 CLI 预装到新的独立 Home，确认版本 0.1.0 和两个启动器。只读复核 4173 仍由原 LaunchAgent 服务提供。准备结果与 2026-11-11 已批准的启动范围分别记录，实际启动时使用待验收成品并核对本人在场。
 
@@ -245,7 +245,7 @@ QA 构建复用正式流程的 Runtime 准备脚本与 Tauri 构建步骤，经 
 
 本节只记录事实与去处，不把自述当完成。
 
-- **原生主窗与胶囊。** PR #2031 正文记「实际原生主窗可切语言、换肤和重开，重开首次需账号重试」；结果只有 PR 与认领板自述，**原始证据未入库**。桌面胶囊 Web 外观**未接入**（`apps/desktop/src/capsule-shell.ts:2,25,30,36` 仍内联基线令牌与固定字体；`/desktop/capsule` 由 `apps/local-host/src/web-catalog-routes.ts:105-110` 直接渲染，不传外观投影），菜单与剪贴板权限未验；记 BL-b16-capsule-appearance-unwired，不再写「胶囊视觉待验」。
+- **原生主窗与胶囊。** PR #2031 正文记「实际原生主窗可切语言、换肤和重开，重开首次需账号重试」；结果只有 PR 与认领板自述，**原始证据未入库**。桌面胶囊此前 **Web 外观未接入**（审计发现：`apps/desktop/src/capsule-shell.ts` 内联基线令牌与固定字体、`/desktop/capsule` 不传外观投影）；2026-11-12 合后整改已接入（同一 appearance owner → 胶囊 head，见 16.md「合后审计整改」K7）。真实胶囊窗口视觉、菜单/托盘/剪贴板权限与 `sync_capsule_locale` 重载仍未验，记 BL-b16-capsule-native-verification。
 - **`pnpm studio:replay smoke` 无执行记录。** `CHAPTERS` 已改（`apps/local-host/src/plugin-builder/skill.ts:16`），AGENTS「构建与测试」要求跑；离线 `pnpm studio:replay --base 21faff5084` 有记录（401 份，见上文），smoke 在 PR、#1743 与本文件均无记录。记 BL-b16-verification-evidence。
 - **首次全量的复验只有自述。** run 43102594961（head `b581e98f40`）31/32 分片红；「118 个失败文件」按「失败过」口径成立（116 硬失败 + 2 flaky 重试后过），但「118 个文件各有定向复验」无逐文件清单/run；后续修复由最终普通 CI（43133399275）与全量（43133740927，32/32）证明。16.md 与此处已写清。
 - **B2/C 实操原始证据不可复核。** 证据原在已忽略目录与 `/tmp`；候选 `51897e9cba` 已不在任何 ref（仅 GitHub API 可按 SHA 查）；四页逐页字节 artifact 不在树，只有本文件 §6.7 与 PR 正文自述。

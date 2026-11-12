@@ -1135,7 +1135,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 
 只记不留死路要用的。
 
-**2026-11-12 合后审计整改：** 本节是第 16 批开工时的清单；除下列「仍余」外均已随 #2031 落地或被取代。**仍余：** 胶囊 Web 外观未接入（BL-b16-capsule-appearance-unwired）、写死日期语言/模型材料语言残余（BL-b16-language-hardcoding-residual）、给模型的动作说明 A/B 未执行（BL-b16-action-description-ab）、FSS-40/41 按用户决定缓（第 70 批）。逐项：门禁 PR→已随 #2031；字体方案与 `PLUGIN_COMPONENTS`→已落；`ActionLocale`/`WebLocale`/`WEB_LOCALES`→已由语言描述驱动；内置/沙箱语言文件、`FrameConfig`、动作网关→已接；§5.4 合并代码→已进工作台脚本与 iframe（事件改用 `language-changed`）；`/locale` 跳转→客户端原地，`/locale` 保留无 JS 入口；#1795 三条→按定样记录落地（`docs/design/appearance-selection/README.md:79`）。迁移三类、盘点、首屏写法、窄规矩存量、旧字段拒绝、后台通知、内容翻译、脚手架、手册→已随 C 段与手册改动落地；`DESIGN.md` 皮肤章节→本批写了现行描述，自定义制作章节归第 70 批。
+**2026-11-12 合后审计整改：** 本节是第 16 批开工时的清单；除下列「仍余」外均已随 #2031 落地或被取代。**仍余：** 胶囊 Web 外观已接入（2026-11-12 合后整改），原生窗口/菜单/剪贴板实操仍待（BL-b16-capsule-native-verification）、写死日期语言/模型材料语言残余（BL-b16-language-hardcoding-residual）、给模型的动作说明 A/B 未执行（BL-b16-action-description-ab）、FSS-40/41 按用户决定缓（第 70 批）。逐项：门禁 PR→已随 #2031；字体方案与 `PLUGIN_COMPONENTS`→已落；`ActionLocale`/`WebLocale`/`WEB_LOCALES`→已由语言描述驱动；内置/沙箱语言文件、`FrameConfig`、动作网关→已接；§5.4 合并代码→已进工作台脚本与 iframe（事件改用 `language-changed`）；`/locale` 跳转→客户端原地，`/locale` 保留无 JS 入口；#1795 三条→按定样记录落地（`docs/design/appearance-selection/README.md:79`）。迁移三类、盘点、首屏写法、窄规矩存量、旧字段拒绝、后台通知、内容翻译、脚手架、手册→已随 C 段与手册改动落地；`DESIGN.md` 皮肤章节→本批写了现行描述，自定义制作章节归第 70 批。
 
 - 门禁 PR：页面总数、第一屏清单、语言和皮肤的路由（第 4.4、9 节），开工前单开。
 - 字体方案加字号、行高、长文阅读、说明文字（第 3.4 节）；圆润字体第 16 批前定；`PLUGIN_COMPONENTS` 搬进共同规格（第 3.3 节）。

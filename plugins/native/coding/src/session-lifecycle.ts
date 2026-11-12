@@ -36,7 +36,8 @@ export async function changeCodingSessionLifecycle(a: CodingActivation, executio
     const control = { beforeEffect: async () => { await beforeWrite(); current(); }, assert_authority_current: current };
     if (archived && session) await api.invoke(agent.archiveSession, [session], control);
     current();
-    expected = await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), current, archived);
+    // A later request finishing the other half finds the business record already there; the store refuses a repeat write.
+    if (expected.archived !== archived) expected = await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), current, archived);
     a.context.services?.ui.invalidate();
     if (!archived && session) await api.invoke(agent.unarchiveSession, [session], control);
     current();

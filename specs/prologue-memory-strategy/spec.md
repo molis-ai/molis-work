@@ -365,6 +365,14 @@ PR 和 main 冲突，CI 一个检查都没跑起来；并入 main 的 #2010、#2
 - **其余冲突。** 插件执行器的会话表保留定义（本 PR 的插件动作回调要用），执行表取 main 的；合同 `ActionCallContext` / `ActionExecutionContext`、插件运行时的动作提供方、agent-host 入口导出、S-68 文档、插件 SDK README 两边取并集。
 - **门禁。** 公开 API 快照按构建重写（`contracts/platform/actions`、`platform/plugin`），动作快照不变。巨大单元按实测重记 `MolisWorkLocalHost` 325 行、`AssistantRoundMaterials` 306 行。main #2032 改了库结构门禁的量法，现在量到本 PR 已批准、已登记的记忆账本 1 → 2 升级，`stores.tsv` 按实测记为第 2 版、一步升级。页面资源对 main `539d2d7d4` 独立构建实测：工作台脚本 +25,416、Coding 脚本 +5,545，比上次多 1 和 2 字节，仍在用户批准的合计之内。健康门禁、版本核对、包边界、页面资源门禁通过。
 - **用例。** main 给 `defineSearchEntriesAction`、`defineSubjectContextAction` 加了版本参数，本 PR 的三个用例（`action-query-result-current`、`knowledge-source-retention`、`plugin-capability-availability`）按新写法补上。之后一次 `pnpm build`，相关 170 个文件 `--jobs 1` 一次（16.7 分钟），169 个通过；`coding-state-rings.e2e` 因本机没有专用测试浏览器（`MOLIS_WORK_TEST_CHROME`）失败，只差环境，交给 CI。
+- **CI 在 `c66be4b07` 上 7 个必过作业失败（本机那 170 个文件没覆盖到）。** 评审台逐个在本机复现，判「要改」。其中 `characters-agent-host` 和 `coding-store` 在 `43b0e8bf5` 上就已失败，上一轮「审过」时没看 CI，漏了。逐个处理，没有删或放宽断言：
+  - **首屏字节门**（main #2010 新加，Package boundaries 作业）：记忆设置页的文字进了工作台启动词包，词包换了内容寻址路径，四个首屏页面各算一条新入口；工作台脚本在两个工作台首屏页面上一次涨过 10 KB。用户 11-12 答「放行」：原来的页面资源批准同样覆盖首屏。按实测写进 `tooling/gates/page-asset-allowances/memory-v0-first-screen.json`（冷轮最多 +29,227 B，热轮最多 +744 B）。
+  - **`characters-agent-host`（本 PR 的真问题）**：`AgentHost.start` 为了包一层只放一次的 `disposeDispatch`，把调用方的授权对象复制了一份；开跑后 Character 被停用，派发时的检查读的是旧副本，拦不住。改成不替换授权对象，`disposeDispatch` 单独交给 Runtime。
+  - **`coding-store`（本 PR 的真问题）**：给 Coding 加恢复时删掉了「会话已归档」的拒绝，重复归档会悄悄成功。存储层改回拒绝：归档已归档的、恢复没归档的都拒绝；生命周期命令在业务记录已经是目标状态时（另一半由后来的请求补完）不再写这一步。
+  - **`coding-actions`（预期变化）**：Coding 新声明的 `memory.learning.run` 只对插件开放（它自己的后台学习任务调用），人的动作目录不列它；用例的排除条件加上它并写明理由。
+  - **`assistant-followups`**：本 PR 把归档前的检查从「一轮在进行」扩到暂停、等输入、待核对，提示一律改成「先处理它再归档」。按状态分开：在进行的照旧说「先停止它再归档」，其余说「暂停着或在等处理，先处理它再归档」；用例不改。
+  - **`web-route-table`（W5-07，预期变化）**：快照钉住每个地址返回的顶层键。`/api/memory/overview`（Home 与项目两条）按本 spec 的有界读取改成 `items/cursor/exhausted/stopped/total/scanned/cost`，不再有 `counts`；按用例写明的办法（`MOLIS_WORK_UPDATE_ROUTE_SNAPSHOT=1`）重写快照，只有这两条变了。
+  - **`issue-assistant`（ISSUE-07，Security invariants 4/8）**：用例的假模型服务器靠旧提炼提示里的一句话认出后台记忆提炼、把它挡在业务回合外；本 PR 把 `memory.extract` 改到第 3 版后那句话没了，提炼请求吃掉了排给业务回合的回复，「重新读取后改标题」那一轮拿不到修改调用。改成认新提示的开头，并按现在的输出形状回 `{"drafts":[]}`（原来回旧形状，日志里的 `memory.conflict` 警告就是它）。
 
 ## 1. 用户结果与责任边界
 

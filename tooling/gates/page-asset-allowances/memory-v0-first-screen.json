@@ -1,0 +1,81 @@
+{
+  "reason": "Memory V0 的设置页管理与 Coding 记忆会话绑定在 #2031 后改成稳定键，记忆设置页约 140 条中英文进了工作台启动词包，词包内容变化得到新的内容寻址路径（四个首屏页面各算一条新入口）；工作台脚本的增长与 memory-v0.json 的 assets 额度是同一份代码（+25,416 B，在用户批准合计 +27,407 之内），在两个工作台首屏页面上单行超过 10 KB。热轮几乎不变（≤744 B），冷轮增量主要是工作台脚本。",
+  "review": "Work PR #2020（Memory 收口 P0）。main #2010 新加首屏字节门后，对 merge-base 539d2d7d4 用 node scripts/gates/first-screen.mjs --base origin/main 实测；各页冷、热增量如 pages。",
+  "userApproval": "用户 2026-11-12 在 #2020 会话里对首屏字节门答「放行」：Memory V0 的页面资源批准同样覆盖首屏的新词包入口与工作台脚本增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/molis-work-workbench.js",
+      "change": "growth"
+    },
+    {
+      "pages": [
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/molis-work-workbench.js",
+      "change": "growth"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 3306,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 3100,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 4050,
+      "warm": 744
+    },
+    "chooser/en": {
+      "cold": 3843,
+      "warm": 743
+    },
+    "workbench-default/zh": {
+      "cold": 28770,
+      "warm": 96
+    },
+    "workbench-default/en": {
+      "cold": 28563,
+      "warm": 95
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 29227,
+      "warm": 553
+    },
+    "workbench-all-plugins/en": {
+      "cold": 29015,
+      "warm": 547
+    }
+  }
+}

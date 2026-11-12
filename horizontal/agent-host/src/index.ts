@@ -324,8 +324,9 @@ export class AgentHost implements AgentHostApi {
   ): Promise<AgentRunHandle> {
     const originalDispose = authority.disposeDispatch;
     let disposed = false;
+    // The authority object stays the caller's own (its checks read live state, such as a Character switched off mid-start);
+    // only this once-only release is wrapped, and it is handed to the Runtime on its own.
     const disposeDispatch = () => { if (!disposed) { disposed = true; originalDispose?.(); } };
-    authority = { ...authority, disposeDispatch };
     try {
     request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the

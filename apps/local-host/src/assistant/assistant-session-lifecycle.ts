@@ -24,8 +24,10 @@ export async function changeAssistantSessionLifecycle(store: AssistantStore, por
   };
   const beforeEffect = async () => { await original?.beforeEffect(); current(); };
   current();
-  if (archived && host && (await Promise.all(group.map(work => reads.stateFor(host, work))))
-    .some(state => ["running", "paused", "waiting-input", "waiting-review", "needs-check"].includes(state))) throw assistantErrors.state("这项工作还有一轮在进行或待核对，先处理它再归档");
+  const states = archived && host ? await Promise.all(group.map(work => reads.stateFor(host, work))) : [];
+  // A running round is stopped first; one paused or waiting on the person or a check is dealt with first.
+  if (states.includes("running")) throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
+  if (states.some(state => ["paused", "waiting-input", "waiting-review", "needs-check"].includes(state))) throw assistantErrors.state("这项工作还有一轮暂停着或在等处理，先处理它再归档");
   if (adapter) {
     if (!lifecycle || !adapter.withEffect) throw assistantErrors.unsupported("运行时未接通会话归档与恢复，业务状态未改变");
     const found = await lifecycle.read(sessionRef(expected));

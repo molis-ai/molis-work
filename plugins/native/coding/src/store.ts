@@ -296,7 +296,8 @@ export class CodingSessionStore {
   async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: CodingWriteGuard, archived = true): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
       guard?.();
-      sessionIn(tx, projectId, sessionId);
+      // Archiving an archived session (or restoring an active one) is refused, never a silent success.
+      if (sessionIn(tx, projectId, sessionId).archived === archived) throw codingStoreErrors.session_unknown(archived ? "会话已归档" : "会话没有归档");
       tx.run("UPDATE coding_sessions SET archived = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [archived ? 1 : 0, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
     });

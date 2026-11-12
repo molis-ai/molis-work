@@ -20,12 +20,12 @@ function existingText(page: TodoPage, candidate: TodoCandidate): string {
   const existing = candidate.existing;
   if (!existing) return "";
   const names = fieldNames();
-  const changes = Object.entries(existing.changes).map(([field, value]) => `${names[field as FieldName]} ${fieldValue(page, field, value)}`).join("，");
+  const changes = Object.entries(existing.changes).map(([field, value]) => `${names[field as FieldName]} ${fieldValue(page, field, value)}`).join(uiText.text("common.punctuation.clause-separator"));
   if (existing.relation === "same") return uiText.text("todo.review.existing-same", { title: existing.title });
   if (existing.relation === "update") return uiText.text("todo.review.existing-update", { title: existing.title, changes });
   if (existing.relation === "conflict") return uiText.text("todo.review.existing-conflict", { title: existing.title });
-  if (existing.relation === "maybe_done") return uiText.text("todo.review.existing-maybe-done", { title: existing.title }) + (existing.reason ? `：${existing.reason}` : "");
-  return uiText.text("todo.review.existing-reopen", { title: existing.title }) + (changes ? `：${changes}` : "");
+  if (existing.relation === "maybe_done") return uiText.text("todo.review.existing-maybe-done", { title: existing.title }) + (existing.reason ? uiText.text("common.punctuation.label-separator") + existing.reason : "");
+  return uiText.text("todo.review.existing-reopen", { title: existing.title }) + (changes ? uiText.text("common.punctuation.label-separator") + changes : "");
 }
 
 function editorField(candidate: TodoCandidate, label: string, field: string, type: string, value: string): HTMLElement {
@@ -114,7 +114,7 @@ function renderCandidate(page: TodoPage, batch: TodoBatch, candidate: TodoCandid
     quote.append(make("small", "", ` — ${material ? material.title : uiText.text("todo.source.material")}`));
     body.append(quote);
   }
-  if (candidate.uncertain.length) body.append(make("p", "todo-candidate-uncertain", uiText.text("todo.review.uncertain") + candidate.uncertain.join("；")));
+  if (candidate.uncertain.length) body.append(make("p", "todo-candidate-uncertain", uiText.text("todo.review.uncertain") + candidate.uncertain.join(uiText.text("common.punctuation.semicolon"))));
   if (choice.editing && !candidate.decision) body.append(renderEditor(page, candidate, choice, due, planned));
   const actions = make("div", "todo-candidate-actions");
   if (candidate.decision) actions.append(make("span", `mw-status mw-status--${candidate.decision.action === "ignored" ? "quiet" : "done"}`, decidedAs[candidate.decision.action]));

@@ -8,7 +8,11 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantCharacterChoice } from "@molis-ai/molis-work-contracts/services/assistant";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
+import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";

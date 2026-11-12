@@ -40,7 +40,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       (state.loading ? '<p role="status">' + globalThis.t.text("workbench.home-offers.finding-available-actions") + '</p>' : '') +
       (state.busy ? '<p role="status">' + globalThis.t.text("workbench.home-offers.running-please-wait") + '</p>' : '') +
       (!state.busy && state.pending ? '<p role="status">' + globalThis.t.text("workbench.home-offers.result-isn-t-confirmed-yet-open-item-check") + '</p>' : '') +
-      [...state.issues, ...state.offers.filter(o => !o.availability.available).map(o => o.title + '：' + o.availability.reason)].map(message => '<p class="home-offers-note">' + esc(message) + '</p>').join('') +
+      [...state.issues, ...state.offers.filter(o => !o.availability.available).map(o => o.title + globalThis.t.text('common.punctuation.label-separator') + o.availability.reason)].map(message => '<p class="home-offers-note">' + esc(message) + '</p>').join('') +
       (state.error ? '<p role="alert">' + esc(typeof state.error==='string'?state.error:molisWorkRequest.text(state.error)) + '</p>' : '') +
       (state.result ? '<details class="home-offers-result"><summary>' + esc(state.result.title) + ' · ' + globalThis.t.text("workbench.home-offers.view-result") + '</summary><pre>' + esc(JSON.stringify(state.result.result, null, 2)) + '</pre></details>' : '') +
       (!state.busy && (state.error || state.pending || state.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + globalThis.t.text("workbench.home-offers.reload-item") + '</button>' : '') + hint;

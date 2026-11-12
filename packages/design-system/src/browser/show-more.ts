@@ -3,7 +3,8 @@ import type { ShowMoreOptions } from "@molis-ai/molis-work-plugin-sdk/page-globa
 /**
  * One "show more" for a long list (specs/visual-ui-experience §assistant-information, VUX-08):
  * `window.molisShowMore(list, { key, label, limit, keep })` keeps the list's first `limit` items in sight and tucks the rest
- * behind one button whose words say how many (`label`, with `{n}`). An item matching `keep` (a failure) is never tucked.
+ * behind one button whose words say how many (`label`, one translated sentence with `{n}` for the count). An item matching
+ * `keep` (a failure) is never tucked.
  * - Revealing is the person's choice: it lasts for the page under the same `key`, so the list drawn again stays open.
  * - The button stands where the tucked items are and hands focus to the first one it revealed; a list only one over the
  *   limit shows that item, not a button.
@@ -24,7 +25,8 @@ function molisShowMore(list: HTMLElement, { key, label, limit = 5, keep }: ShowM
   const button = document.createElement("button");
   button.type = "button";
   button.className = "mw-btn mw-btn--ghost mw-btn--sm mw-show-more";
-  button.textContent = label.replace("{n}", String(tucked.length));
+  // The page translated one sentence; the count it carries is filled by name here (only now is it known). No hand-spliced template.
+  button.textContent = label.split("{n}").join(String(tucked.length));
   button.addEventListener("click", () => {
     revealed.add(key);
     for (const item of tucked) item.removeAttribute(TUCKED);

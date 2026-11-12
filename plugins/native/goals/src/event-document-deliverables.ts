@@ -21,7 +21,7 @@ export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables
         const chosen = new Set(was);
         edited.forEach(item => { if (item.checked) chosen.add(key(item.reference)); else chosen.delete(key(item.reference)); });
         // Proposals from the assistant, Coding or a workflow stay unticked: ticking one is the person's confirmation.
-        const rows = [...recorded.filter(item => item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: globalThis.t.text("goals.event-document-deliverables.proposed-assistant") + (item.reason ? "：" + item.reason : "") })),
+        const rows = [...recorded.filter(item => item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: globalThis.t.text("goals.event-document-deliverables.proposed-assistant") + (item.reason ? globalThis.t.text("common.punctuation.label-separator") + item.reason : "") })),
           ...recorded.filter(item => !item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: "" })),
           ...(library.versions || []).filter(item => !listed.has(key(item.reference)))];
         const option = (fieldName, value, checked, title, meta) => {

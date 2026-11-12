@@ -2,6 +2,10 @@ import { inAssistantPage, noticeText } from "./fixtures/assistant-saved-text.js"
 import assert from "node:assert/strict";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +15,7 @@ import { createRequire } from "node:module";
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost, AssistantStore, AssistantService, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, LocalHost, AssistantStore, AssistantService, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { roundParts } from "./fixtures/round-parts.js";

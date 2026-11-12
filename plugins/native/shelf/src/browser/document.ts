@@ -40,7 +40,7 @@ async function dropFiles(page: ShelfPage, event: Event): Promise<void> {
       else if (entry.isFile) await admitFiles(page, [await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject))]);
     } catch (error) {
       if (!page.lifetime.alive) return;
-      failures.push(entry.name + "（" + messageOf(error) + "）");
+      failures.push(uiText.text("shelf.admit.file-reason", { name: entry.name, reason: messageOf(error) }));
     }
   }
   if (failures.length) showAdmissionError(page, new Error(failures.join(" · ")));

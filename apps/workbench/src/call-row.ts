@@ -59,9 +59,9 @@ export function renderCallRow(row: CallRowView, p: CallText, where?: { label: st
   return `<article data-call-row><header><strong>${e(title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${uiText(row.refused ? "workbench.call-row.not-run" : row.ok ? "workbench.call-row.succeeded" : "workbench.call-row.failed")}</span></header>`
     + `<p>${source}${e(callerLabel(row, readText))} · <time datetime="${e(at)}">${e(localTime(at))}</time></p>`
     + (row.count && row.count > 1 ? `<p>${uiText("workbench.call-row.same-result-count-count-row-first", { count: row.count, at: localTime(row.at) })}</p>` : "")
-    + (!row.ok && !row.refused && row.message ? `<p>${uiText("workbench.call-row.reason-failure")}：${e(row.message)}</p>` : "")
+    + (!row.ok && !row.refused && row.message ? `<p>${uiText("workbench.call-row.reason-failure")}${uiText("common.punctuation.label-separator")}${e(row.message)}</p>` : "")
     + `<p>${renderCallIdButton(row.matched_call_id ?? row.call_id, p)}</p>`
     + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${uiText("workbench.call-row.view-call-history")}</a>` : ""}</p>` : "")
     + `<details class="capability-contract"><summary>${uiText("workbench.call-row.technical-details")}</summary><p><code>${e(row.capability_id)}@${row.version}</code>${actor}</p>`
-    + (!row.ok && row.code ? `<p>${uiText("workbench.call-row.error-code")}：${e(row.code)}</p>` : "") + "</details></article>";
+    + (!row.ok && row.code ? `<p>${uiText("workbench.call-row.error-code")}${uiText("common.punctuation.label-separator")}${e(row.code)}</p>` : "") + "</details></article>";
 }

@@ -115,7 +115,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       // The shipped text stays readable beside the person's, so a newer default can be compared and taken over by hand.
       const shipped = el("details", "prompt-default");
       shipped.open = prompt.default_updated;
-      shipped.append(el("summary", "", prompt.default_updated ? globalThis.t.text("workbench.settings-prompts.default-updated-version") + " " + (prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version) + " · " + globalThis.t.text("workbench.settings-prompts.view-new-default") : globalThis.t.text("workbench.settings-prompts.view-default-text")));
+      shipped.append(el("summary", "", prompt.default_updated ? globalThis.t.text("workbench.settings-prompts.default-updated-version", { version: prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version }) + " · " + globalThis.t.text("workbench.settings-prompts.view-new-default") : globalThis.t.text("workbench.settings-prompts.view-default-text")));
       shipped.append(el("pre", "prompt-default-text", prompt.default_body));
       box.append(shipped);
     }
@@ -129,7 +129,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         const list = el("ul", "prompt-history-list");
         if (!data.history.length) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-prompts.not-edited-yet")));
         data.history.forEach((row) => list.append(el("li", "", "#" + row.revision + " · " + (row.action === "reset" ? globalThis.t.text("workbench.settings-prompts.restore-default") : globalThis.t.text("common.control.save")) + " · " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: row.at, style: "datetime-with-seconds" } }) + (row.default_ref ? " · " + signedVersion(row.default_ref) : ""))));
-        if (data.uses.length) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-prompts.last-used") + "：" + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: data.uses[0].at, style: "datetime-with-seconds" } }) + " · " + (data.uses[0].user_revision ? globalThis.t.text("workbench.settings-prompts.version") + " #" + data.uses[0].user_revision : globalThis.t.text("workbench.settings-prompts.default")) + (data.uses[0].source_ref ? " · " + signedVersion(data.uses[0].source_ref) : "")));
+        if (data.uses.length) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-prompts.last-used", { at: globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: data.uses[0].at, style: "datetime-with-seconds" } }) }) + " · " + (data.uses[0].user_revision ? globalThis.t.text("workbench.settings-prompts.version-revision", { revision: data.uses[0].user_revision }) : globalThis.t.text("workbench.settings-prompts.default")) + (data.uses[0].source_ref ? " · " + signedVersion(data.uses[0].source_ref) : "")));
         history.append(list);
       } catch (failure) { history.append(problem(failure)); }
     });
@@ -144,7 +144,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     copy.append(displayField("strong", "", "prompts", prompt, "title"), displayField("span", "settings-muted", "prompts", prompt, "purpose"));
     const meta = el("div", "prompt-row-meta");
     meta.append(el("span", "prompt-tag", globalThis.t.text(prompt.kind === "agent" && prompt.layer ? LAYER[prompt.layer] || prompt.layer : KIND[prompt.kind] || prompt.kind)),
-      el("span", "prompt-tag", globalThis.t.text("workbench.settings-prompts.version-2") + " " + (prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version)), stateBadge(prompt));
+      el("span", "prompt-tag", globalThis.t.text("workbench.settings-prompts.version-2", { version: prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version })), stateBadge(prompt));
     const edit = el("button", "mw-btn mw-btn--secondary mw-btn--sm", open === prompt.key ? globalThis.t.text("workbench.settings-prompts.collapse") : globalThis.t.text("workbench.settings-prompts.view-edit")); edit.type = "button";
     edit.setAttribute("aria-expanded", String(open === prompt.key));
     edit.addEventListener("click", () => { open = open === prompt.key ? null : prompt.key; paint(); });
@@ -235,8 +235,8 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       const list = el("ul", "prompt-diagnostics-list");
       data.owners.forEach((owner) => {
         const item = el("li", "prompt-diagnostics-owner");
-        const counts = [owner.prompts ? globalThis.t.text("workbench.settings-prompts.role-part") + " " + owner.prompts : "", owner.instructions ? globalThis.t.text("workbench.settings-prompts.model-call-instructions") + " " + owner.instructions : "",
-          owner.roles ? "Character" + " " + owner.roles : "", owner.edited ? globalThis.t.text("workbench.settings-prompts.edited-2") + " " + owner.edited : ""].filter(Boolean).join(" · ");
+        const counts = [owner.prompts ? globalThis.t.text("workbench.settings-prompts.role-part", { n: owner.prompts }) : "", owner.instructions ? globalThis.t.text("workbench.settings-prompts.model-call-instructions", { n: owner.instructions }) : "",
+          owner.roles ? globalThis.t.text("workbench.settings-prompts.character-part", { n: owner.roles }) : "", owner.edited ? globalThis.t.text("workbench.settings-prompts.edited-2", { n: owner.edited }) : ""].filter(Boolean).join(" · ");
         item.append(el("strong", "", sourceTitle(owner.source)), el("span", "settings-muted", counts || globalThis.t.text("workbench.settings-prompts.no-prompts-registered")));
         if (owner.issues.length) {
           const issues = el("ul", "prompt-diagnostics-issues");

@@ -103,7 +103,7 @@ test("RAC-951 RAC-952 the 插件 page gives each requested optional permission a
   assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");
   assert.match(script, /!view\.granted && item\.permissions\.includes\(view\.permission\)/, "a job is paused by a permission that is off");
-  assert.match(script, /off\.length \? readText\("workbench\.settings-plugins\.paused-permissions-switched-off", \{ permissions: off\.join\("、"\) \}\) : ""/, "the paused message names exactly the missing grants");
+  assert.match(script, /off\.length \? globalThis\.t\.text\("workbench\.settings-plugins\.paused-permissions-switched-off", \{ permissions: off\.join\(globalThis\.t\.text\("common\.list\.separator"\)\) \}\) : ""/, "the paused message names exactly the missing grants");
 });
 
 const HOME_SET = "/api/settings/plugin-permissions/set";

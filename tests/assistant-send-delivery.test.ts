@@ -11,9 +11,13 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore, LocalHost, MolisWorkLocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, AssistantService, AssistantStore, LocalHost, MolisWorkLocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AgentInputSend } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { serveTestHost } from "./fixtures/test-home.js";
 
 function reply(text: string): Response {

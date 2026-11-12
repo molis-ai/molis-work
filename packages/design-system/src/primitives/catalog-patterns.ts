@@ -56,9 +56,6 @@ export const COMPOSER_PATTERN_STYLES = `${MARK_STYLES}
 
 export const CATALOG_PATTERN_STYLES = `
   .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--sk-b2-bg, var(--control-fill)); box-shadow: inset 0 0 0 1px var(--sk-b2-edge, transparent); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
-  /* Tray's keys carry their own edge: a secondary group shares one line between keys instead of a seam. */
-  :root[data-skin="tray"] .mw-btn-group > :not(:first-child):is(.mw-btn--secondary, .mw-btn-group__count),
-  :root[data-skin="tray"] .mw-btn-group > :not(:first-child) > .mw-btn--secondary { margin-left: -2px; }
   .mw-tag--add { gap: 4px; padding: 0 8px 0 6px; background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); cursor: pointer; }
   .mw-tag--add:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag--add:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 1px; }

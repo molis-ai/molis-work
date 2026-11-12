@@ -14,10 +14,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment } from "@molis-ai/molis-work-kernel/contextual";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
-import { AssistantService, AssistantStore, LocalHost, MolisWorkLocalHost, assistantAuthority, ensureSystemAgentService, memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, AssistantService, AssistantStore, LocalHost, MolisWorkLocalHost, assistantAuthority, ensureSystemAgentService, memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UNTRUSTED_MATERIALS_NOTICE, defineInstructionPrompt, fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";

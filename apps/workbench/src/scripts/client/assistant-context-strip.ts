@@ -65,8 +65,9 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     if (!at) return null;
     const heading = ((at.surroundings || {}).heading_path || []).slice(-1)[0] || "", where = readText(WHERE[at.position]), name = at.object.title || at.object.id;
     const near = (at.position === "selection" ? ((at.targets || [])[0] || {}).text || "" : ((at.surroundings || {}).before || "").split("\n").pop().slice(-12)).replace(/\s+/g, " ").trim();
-    return { key: "landing", landing: true, label: name + " · " + (heading ? "「" + (heading.length > 10 ? heading.slice(0, 10) + "…" : heading) + "」" : "") + where,
-      note: readText("workbench.assistant-context-strip.where-would-go-place", { place: [name, heading && "「" + heading + "」", where].filter(Boolean).join("，") })
+    const shownHeading = heading ? readText("workbench.assistant-context-strip.heading-quoted", { heading: heading.length > 10 ? heading.slice(0, 10) + "…" : heading }) : "";
+    return { key: "landing", landing: true, label: name + " · " + shownHeading + where,
+      note: readText("workbench.assistant-context-strip.where-would-go-place", { place: [name, heading ? readText("workbench.assistant-context-strip.heading-quoted", { heading }) : "", where].filter(Boolean).join(globalThis.t.text("common.list.separator")) })
         + (near ? (at.position === "selection" ? readText("workbench.assistant-context-strip.replacing-text", { text: near.slice(0, 20) }) : readText("workbench.assistant-context-strip.after-text", { text: near })) : "") };
   };
   /** What the Send carries of the landing (contracts AssistantLanding; the Host bounds it): only while its chip is on the strip. */
@@ -99,9 +100,12 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     const place = () => { nodes.forEach((node, index) => { if (row.children[index] !== node) row.insertBefore(node, row.children[index] || null); }); while (row.children.length > nodes.length) row.lastElementChild.remove(); };
     if (window.molisReflow) window.molisReflow(row, place); else place();
     if (had && !strip.contains(document.activeElement)) {
-      const same = row.querySelector('[data-strip-key="' + CSS.escape(had) + '"]'), label = focused.getAttribute("aria-label")?.split("：")[0];
+      // Which button inside the chip had the focus, by its place in the chip: nothing is read back out of a label.
+      const oldChip = focused?.closest("[data-strip-key]"), focusedButton = focused?.closest("button");
+      const buttonIndex = oldChip && focusedButton ? [...oldChip.querySelectorAll("button")].indexOf(focusedButton) : -1;
+      const same = row.querySelector('[data-strip-key="' + CSS.escape(had) + '"]');
       const buttons = same ? (same.matches("button") ? [same] : [...same.querySelectorAll("button")]) : [];
-      (buttons.find((button) => button.getAttribute("aria-label")?.split("：")[0] === label) || buttons[0] || row.querySelector("button"))?.focus();
+      (buttons[buttonIndex >= 0 ? buttonIndex : 0] || row.querySelector("button"))?.focus();
     }
   };
   strip.setAttribute("aria-label", readText("workbench.assistant-context-strip.going-send"));

@@ -90,7 +90,7 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
       if (!plan.candidates.some((item) => item.available)) { this.idle(); return; }
       this.plan = plan; this.published = plan; this.shown = { context_id: plan.context_id, primary: [...plan.primary] };
       this.view = viewOf(out, rulesOnly, focus.plugin_id);
-      const words = plan.primary.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean).join("、");
+      const words = plan.primary.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean).join(globalThis.t.text("common.list.separator"));
       if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = globalThis.t.text("workbench.context-bar.can") + words; }
       clearTimeout(this.timer);
       // Writing shows nothing by itself; a selection shows once it has been steady for a moment.

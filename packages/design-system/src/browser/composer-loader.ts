@@ -30,7 +30,8 @@ function load(): Promise<ComposerMount> {
 function unavailable(root: HTMLElement, options: ComposerOptions) {
   const box = root.querySelector(".mw-composer__box") ?? root, line = document.createElement("div"), words = document.createElement("span");
   line.className = "mw-composer__status"; line.setAttribute("role", "status");
-  words.textContent = options.labels.unavailable.replace("{name}", options.labels.input);
+  // One translated sentence; its one named value (the input's name) is filled by name here. No hand-spliced template.
+  words.textContent = options.labels.unavailable.split("{name}").join(options.labels.input);
   line.append(words);
   box.querySelector(".mw-composer__status")?.remove();
   box.insertBefore(line, box.querySelector(".mw-composer__foot"));

@@ -131,7 +131,7 @@ test("FSS-36 FSS-39: each Assistant verb keeps its bare, started and completed m
   for (const locale of ["zh", "en"] as const) withPageText(locale, [], () => {
     for (const [verb, zh, en] of STEP_WORDS) {
       const words = locale === "zh" ? zh : en, target = "原文 <x> & ‘read’";
-      const suffix = (verb === "ask" ? "：" : " ") + target;
+      const suffix = (verb === "ask" ? (locale === "zh" ? "：" : ": ") : " ") + target;
       assert.equal(process.activityLine({ verb, target, state: "started" }), words[1] + suffix, verb + ":started:" + locale);
       assert.equal(process.activityLine({ verb, target, state: "completed" }), words[2] + suffix, verb + ":completed:" + locale);
       assert.equal(process.activityLine({ verb, target, state: "failed", reason: "not-authorized" }),

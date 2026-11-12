@@ -5,8 +5,8 @@ import { readText, htmlLang } from "./web-locale.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { drawRegisteredText } from "./ui-text-provider.js";
 
-export function createLocalHostCapsule(renderDesktopShell: CapsuleRendererPorts["renderDesktopShell"]) {
-  const shell = createCapsuleWorkbench({ locale: { readText, htmlLang }, renderDesktopShell });
+export function createLocalHostCapsule(renderDesktopShell: CapsuleRendererPorts["renderDesktopShell"], appearance?: CapsuleRendererPorts["appearance"]) {
+  const shell = createCapsuleWorkbench({ locale: { readText, htmlLang }, renderDesktopShell, ...(appearance ? { appearance } : {}) });
   const { buildCapsuleSnapshot, buildCapsuleMenu } = createGoalsCapsuleProjection();
   const registered = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "goals")?.manifest;
   const drawBuiltin = <Result>(draw: () => Result): Result => registered ? drawRegisteredText(registered, draw) : draw();

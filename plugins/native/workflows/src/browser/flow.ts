@@ -68,7 +68,7 @@ function faultHtml(page: WorkflowsPage, flow: Flow) {
       ' · <span' + (item.state.raw ? ' translate="no"' : '') + '>' + esc(item.state.reason) + '</span>';
     if (flow.stations.slice(item.index, item.index + 2).some((station) => station.availability?.available === false)) return `<span>${message}</span>`;
     return `<button type="button" class="wf-issue" data-wf-action="link" data-link="${item.index}">${message}</button>`;
-  }).join('<span aria-hidden="true">；</span>') + "</span></p>";
+  }).join('<span aria-hidden="true">' + esc(uiText.text("common.punctuation.semicolon")) + "</span>") + "</span></p>";
 }
 
 function runsHtml(page: WorkflowsPage, flow: Flow) {
@@ -100,7 +100,7 @@ function paletteHtml(page: WorkflowsPage) {
   const joinable = ui.stations.filter((info) => info.supported), others = ui.stations.filter((info) => !info.supported);
   return joinable.map((info) => `<button type="button" class="wf-chip" draggable="true" data-wf-plugin="${esc(info.plugin)}" data-wf-action="append" title="${esc(uiText.text("workflows.palette.chip-hint"))}" style="--station-tint:${tint(info.plugin)}">${ico(info.icon)}<span>${esc(info.label)}</span></button>`).join("")
     + `<button type="button" class="wf-chip wf-chip--action" data-wf-action="add-step" title="${esc(uiText.text("workflows.palette.action-hint"))}">${ico("zap")}<span>${esc(uiText.text("workflows.palette.add-action"))}</span></button>`
-    + (others.length ? `<span class="wf-palette__others" title="${esc(others.map((info) => info.label).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</span>` : "");
+    + (others.length ? `<span class="wf-palette__others" title="${esc(others.map((info) => info.label).join(uiText.text("common.list.separator")))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</span>` : "");
 }
 
 export function drawFlow(page: WorkflowsPage) {

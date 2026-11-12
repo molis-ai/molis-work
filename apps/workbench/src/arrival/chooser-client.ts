@@ -27,7 +27,8 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
   const rowOf = (id) => $$('.mw-dir-row', list).find((row) => row.dataset.id === id) || null;
   const nameOf = (id) => (id === PERSONAL ? data.personalTitle : rowOf(id)?.dataset.name) || '';
   const visibleRows = () => $$('.mw-dir-row', list).filter((row) => !row.hidden);
-  const locale = () => (document.documentElement.lang || 'zh-CN');
+  // The document's lang attribute is the page's language; a document without one (never a served workbench page) formats in the system language.
+  const locale = () => (document.documentElement.lang || document.documentElement.dataset.uiLanguageTag || Intl.DateTimeFormat().resolvedOptions().locale);
 
   /* ───────── Time: “2 小时前”, kept true while the page is open ───────── */
   const dayKey = (date) => date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();

@@ -10,7 +10,7 @@
 | `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
 | `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
-| `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
+| `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK，以及别的工作区包的 `./contract` 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `schemas/stores.tsv` | 这个构建会建的每个库的结构快照（位置、主人、版本、结构哈希、升级段的 `from`） | `pnpm schemas:update`（见「库的结构快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
@@ -18,6 +18,14 @@
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
 | `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 | `sqlite-driver-owners.json` | 允许直接 import `better-sqlite3` 的目录（以 `/` 结尾）和理由：今天只有 `plugins/native/alchemist/`（已有审批的私有驱动，BL-377 重做前保留；其余项目库连接已由 storage 统一走 `node:sqlite`）。文件缺失、形状或理由不合格时 `pnpm boundary:check` 直接失败（`scripts/gates/project-sqlite-driver.mjs`） | 人，过评审；新增一个例外要加一条带理由的目录 |
+
+## 宿主源码行数报告（A2）
+
+`pnpm health:check` 显示 `apps/local-host/src/` 的总行数。有实际 merge-base 时，同时显示基点行数和净变化。按用户 2026-11-01 的决定，增长只报告。本地快查不保存这项数字。
+
+在 Git 跟踪的文件里统计 `.ts`、`.mts`、`.cts`、`.tsx`、`.js`、`.mjs`、`.cjs` 和 `.jsx`，各级目录中的生成源码、夹具、测试和声明都计入。空行、注释和未以换行结束的末行各算一行。LF 和 CRLF 都只换一次行，尾换行不多算一行，空文件是零行。
+
+`node scripts/check-health-gates.mjs --base origin/main --report` 按行数变化幅度列出变更文件，可以用 `--top N` 收窄。Git 识别到范围内的改名时，同时显示两个路径。省略 `--base` 则列当前文件的行数。再加 `--json` 可从 `hostLines` 读取两份总量与逐文件计数、净变化和变更明细。JSON 的明细完整输出。
 
 ## 按文件计数、只许减少的项
 
@@ -188,7 +196,7 @@
 
 ## 公开 API 快照
 
-`api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。
+`api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。别的工作区包（按根的 `pnpm-workspace.yaml` 找，测试根也一样，不写名单）只收它声明的精确 `./contract` 子路径，记在包目录下，如 `api/plugins/native/feed/contract.txt`、`api/modules/shelf/contract.txt`（BL-901）：插件或 Module 给调用方的合同；根入口、登记、样式等别的子路径不收。这些包都是 private，外部插件作者仍只装 contracts 与 SDK；快照只让工作区调用方依赖的合同变化不再悄悄发生。
 
 - 内容：用编译器对包自己的源码做声明输出（不需要先构建，`paths` 把包名指到 `src/`，旧的 `dist/` 不会被读到），**去掉注释**。每个导出名一段，按名字排序：函数签名、接口的每个字段、常量的类型或字面值都在里面。改注释或函数体不改变快照。
 - 一个名字有几条声明就写几段，一条不漏：函数的每个重载（按源码里的先后写，因为重载的顺序决定调用落到哪一个）、同名的类型和常量（`export const X = [...] as const; export type X = …`）、同一个声明以两个名字导出（别名那一段末尾注明 `exported from this entry as`）。重载的实现签名不是 API，不记。

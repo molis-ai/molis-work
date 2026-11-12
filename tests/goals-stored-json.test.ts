@@ -2,9 +2,13 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_HOME_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import { GoalsModule } from "./fixtures/goals-modules.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 const BOARD = "board-stored-json";
 const UNREADABLE = "goals.storage.record_unreadable";
@@ -14,6 +18,12 @@ function fixture() {
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
   return { store, app, goals: new GoalsModule(pluginLegalSql(store).db, store, {}), close: () => store.close() };
+}
+
+/** BGE-05: the error names the broken cell by table, column and the row's own rowid (a decimal string), and nothing else. */
+function locatedAt(error: ActionError, store: LocalProjectDatabase, table: string, column: string, where: string, ...params: string[]): void {
+  const row = store.db.prepare(`SELECT rowid AS r FROM ${table} WHERE ${where}`).get(...params) as { r: number };
+  assert.deepEqual(error.details, { storage: { table, column, row_ref: String(row.r) } });
 }
 
 function createGoal(app: GoalProjectApplication): string {
@@ -43,8 +53,10 @@ test("RAC-1260: an unreadable project rule stops policy resolution and the snaps
     });
     data.store.db.prepare("UPDATE policy_bindings SET policy_json = ? WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'")
       .run('{"human_approval": true,', BOARD);
-    captured(() => data.goals.query.resolvePolicy(BOARD, goalId));
-    captured(() => data.goals.query.snapshot(BOARD));
+    const at = "project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'";
+    // BGE-05：同一表列经两条读取路径（规则解析与快照），两条都指到同一行。
+    locatedAt(captured(() => data.goals.query.resolvePolicy(BOARD, goalId)), data.store, "policy_bindings", "policy_json", at, BOARD);
+    locatedAt(captured(() => data.goals.query.snapshot(BOARD)), data.store, "policy_bindings", "policy_json", at, BOARD);
   } finally { data.close(); }
 });
 
@@ -53,8 +65,8 @@ test("RAC-1262: an unreadable Goal list column stops the snapshot and the Goal l
   try {
     const goalId = createGoal(listColumn.app);
     listColumn.store.db.prepare("UPDATE goals SET in_scope_json = ? WHERE goal_id = ?").run('{"unreadable":', goalId);
-    captured(() => listColumn.goals.query.snapshot(BOARD));
-    captured(() => listColumn.goals.query.listGoals(BOARD));
+    locatedAt(captured(() => listColumn.goals.query.snapshot(BOARD)), listColumn.store, "goals", "in_scope_json", "goal_id = ?", goalId);
+    locatedAt(captured(() => listColumn.goals.query.listGoals(BOARD)), listColumn.store, "goals", "in_scope_json", "goal_id = ?", goalId);
   } finally { listColumn.close(); }
 
   const criterionColumn = fixture();
@@ -66,8 +78,8 @@ test("RAC-1262: an unreadable Goal list column stops the snapshot and the Goal l
     }, { actor_id: "user-1", idempotency_key: "create-evidence-goal" });
     criterionColumn.store.db.prepare("UPDATE acceptance_criteria SET required_evidence_json = ? WHERE criterion_id = ?")
       .run('{"unreadable":', "criterion-evidence");
-    captured(() => criterionColumn.goals.query.snapshot(BOARD));
-    captured(() => criterionColumn.goals.query.listGoals(BOARD));
+    locatedAt(captured(() => criterionColumn.goals.query.snapshot(BOARD)), criterionColumn.store, "acceptance_criteria", "required_evidence_json", "criterion_id = ?", "criterion-evidence");
+    locatedAt(captured(() => criterionColumn.goals.query.listGoals(BOARD)), criterionColumn.store, "acceptance_criteria", "required_evidence_json", "criterion_id = ?", "criterion-evidence");
   } finally { criterionColumn.close(); }
 });
 
@@ -82,7 +94,7 @@ test("RAC-1263: a readable method pack is kept and an unreadable one stops the s
     assert.equal(readable.planning_method_packs.length, 1);
     assert.equal(readable.planning_method_packs[0]?.method_id, "pack-one");
     data.store.db.prepare("UPDATE planning_method_packs SET pack_json = ? WHERE project_id = ?").run('{"unreadable":', BOARD);
-    captured(() => data.goals.query.snapshot(BOARD));
+    locatedAt(captured(() => data.goals.query.snapshot(BOARD)), data.store, "planning_method_packs", "pack_json", "method_id = ?", "pack-one");
   } finally { data.close(); }
 });
 
@@ -96,8 +108,8 @@ test("RAC-1265: unreadable guidance source refs stop the snapshot and the guidan
     });
     data.store.db.prepare("UPDATE project_guidance_entries SET source_refs_json = ? WHERE project_id = ?")
       .run('{"unreadable":', BOARD);
-    captured(() => data.goals.query.snapshot(BOARD));
-    captured(() => data.goals.query.readProjectGuidance(BOARD));
+    locatedAt(captured(() => data.goals.query.snapshot(BOARD)), data.store, "project_guidance_entries", "source_refs_json", "project_id = ?", BOARD);
+    locatedAt(captured(() => data.goals.query.readProjectGuidance(BOARD)), data.store, "project_guidance_entries", "source_refs_json", "project_id = ?", BOARD);
   } finally { data.close(); }
 });
 
@@ -152,6 +164,32 @@ test("RAC-1269: the unreadable-record error never repeats the stored text", () =
       .run(`{"${marker}":`, BOARD);
     const error = captured(() => data.goals.query.resolvePolicy(BOARD, goalId));
     assert.doesNotMatch(error.message, new RegExp(marker));
-    assert.doesNotMatch(JSON.stringify(error.details ?? null), new RegExp(marker));
+    // BGE-05：详情只有表、列和行号，不带业务键（项目、Goal、规则的 id）。
+    for (const leaked of [marker, BOARD, goalId, "human_approval"]) assert.doesNotMatch(JSON.stringify(error.details ?? null), new RegExp(leaked));
   } finally { data.close(); }
+});
+
+const GOALS_SRC = join(import.meta.dirname, "..", "plugins", "native", "goals", "src");
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? sourceFiles(join(dir, entry.name))
+    : entry.name.endsWith(".ts") ? [join(dir, entry.name)] : []);
+}
+
+test("BGE-05: every stored-JSON read in Goals names a real table and column of the database it reads", () => {
+  // Each read names its cell as literals (`storedJson(row, "<table>", "<column>", …)`); a name that is not in the schema would point
+  // maintenance at nothing. A read that forgot `rowid AS stored_row` fails on its first read, so every Goals test reading that path catches it.
+  const reads = sourceFiles(GOALS_SRC).flatMap(file => [...readFileSync(file, "utf8").matchAll(/storedJson(?:<[^(]*>)?\(row, "(\w+)", "(\w+)"/g)]
+    .map(match => ({ file, table: match[1]!, column: match[2]! })));
+  assert.ok(reads.length >= 41, `读到 ${reads.length} 处，设计时数到 41 处（含两条路径都读的规则表）`);
+  const project = new LocalProjectDatabase(":memory:");
+  const home = new DatabaseSync(":memory:");
+  try {
+    home.exec(GOALS_HOME_DATABASE.schema);
+    const columns = (db: DatabaseSync, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(row => row.name);
+    for (const read of reads) {
+      const db = read.table.startsWith("personal_") ? home : project.db;
+      assert.ok(columns(db, read.table).includes(read.column), `${read.file} 读的 ${read.table}.${read.column} 不在库结构里`);
+    }
+  } finally { project.close(); home.close(); }
 });

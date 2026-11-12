@@ -7,6 +7,7 @@ import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
 import { handleRuntimeOverviewHttp } from "./runtime-overview-http.js";
+import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
@@ -162,7 +163,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     sendJson(response, 200, { lifted: await liftRollbackHold(serverOptions.homeDirectory) });
     return true;
   } },
-  { id: "project-index", handle: ({ request, response, url, serverOptions, projects, controlToken, composition }) => {
+  { id: "project-index", handle: async ({ request, response, url, serverOptions, projects, controlToken, composition, localHost }) => {
     if (!(request.method === "GET" && url.pathname === "/")) return false;
     const desktopShell = composition.isDesktopShellRequest(request, url);
     const onboarding = molisWorkOnboardingStatus(serverOptions.homeDirectory, projects.length);
@@ -180,6 +181,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
       ...(notice ? { upgrade_notice: notice } : {}),
+      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory),
     }));
     return true;
   } },

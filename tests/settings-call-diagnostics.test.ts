@@ -20,7 +20,7 @@ const GONE = "f4000004-0006-4000-8000-000000000008"; // a command of a project t
 const rowsOf = (html: string) => [...html.matchAll(/<article data-call-row[\s\S]*?<\/article>/g)].map(match => match[0]);
 const idsOf = (html: string) => [...html.matchAll(/data-molis-call-id="([^"]+)"/g)].map(match => match[1]);
 
-async function withPages(run: (context: { read: (path: string) => Promise<string>; base: string; host: MolisWorkLocalHost; projectId: string;
+async function withPages(run: (context: { read: (path: string, locale?: "zh" | "en") => Promise<string>; base: string; host: MolisWorkLocalHost; projectId: string;
   record: (id: string, capability: string, title: string, outcome: Record<string, unknown>, over?: Record<string, unknown>, call?: Record<string, unknown>) => void }) => Promise<void>): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "call-diagnostics-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -32,7 +32,11 @@ async function withPages(run: (context: { read: (path: string) => Promise<string
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const base = `http://127.0.0.1:${address.port}`;
-    const read = async (path: string) => { const response = await fetch(base + path); assert.equal(response.status, 200, path); return response.text(); };
+    const read = async (path: string, locale?: "zh" | "en") => {
+      const response = await fetch(base + path, locale ? { headers: { Cookie: `molis_work_locale=${locale}` } } : {});
+      assert.equal(response.status, 200, path);
+      return response.text();
+    };
     const record = (id: string, capability: string, title: string, outcome: Record<string, unknown>, over: Record<string, unknown> = {}, call: Record<string, unknown> = {}) =>
       host.callLog!.record({ actor_id: "web-user", project_id: created.project_id, audience: "user", permissions: [], call_id: id, ...over } as never,
         { capability_id: capability, version: 1, provider_id: "system.fixture", operation: "command", title, provider_title: "测试服务", ...call } as never, outcome as never);
@@ -204,5 +208,63 @@ test("the call history shows the id of every row with a copy button, 未执行 f
     assert.match(byId(A), /诊断编号 a1b2c3d4/);
     assert.match(history, /href="\/settings\/diagnostics[^"]*"/, "and the page says where to look an id up");
     assert.deepEqual(idsOf(await read("/capabilities/history")), [D]);
+  });
+});
+
+test("B27-UI-05/06 · F-01/F-02: both call views show local time and keep technical identifiers in details", { timeout: 60_000 }, async t => {
+  const previousZone = process.env.TZ;
+  process.env.TZ = "America/Los_Angeles";
+  t.after(() => {
+    if (previousZone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousZone;
+  });
+  const first = "2026-11-04T06:19:41.939Z";
+  const last = "2026-11-04T06:19:43.939Z";
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(first) });
+  await withPages(async ({ read, projectId, record }) => {
+    record(A, "test.fixture.write", "新建目标", refused, { actor_id: "fixture-client", audience: "mcp" }, { provider_title: "Goals" });
+    record(B, "missing.action", "missing.action", { ...refused, code: "actions.missing" }, {}, { provider_title: "", operation: "unknown" });
+    const failed = { ok: false, code: "test.sync_failed", message: "无法读取 <目录>" };
+    record(E1, "test.fixture.sync", "保存配置", failed);
+    t.mock.timers.tick(2000);
+    record(E2, "test.fixture.sync", "保存配置", failed);
+
+    // VUX-52 / VUX-56 / VUX-58: the actual HTTP entry points share the same view and expose the diagnostic copy hook.
+    for (const path of ["/settings/diagnostics", `/capabilities/history?project=${projectId}`]) {
+      for (const locale of ["zh", "en"] as const) {
+        const page = await read(path, locale);
+        const byId = (id: string) => rowsOf(page).find(row => row.includes(`data-molis-call-id="${id}"`))!;
+        const [main, details] = byId(A).split('<details class="capability-contract">');
+        // The title is the one the call record kept, shown as recorded in both languages (batch 16 dropped the Chinese-keyed dictionary;
+        // action titles in English are BL-455～463); the page's own words around it follow the language.
+        assert.match(main!, locale === "en" ? /<strong>新建目标<\/strong>.*Not run.*Goals · MCP client/ : /<strong>新建目标<\/strong>.*未执行.*Goals · MCP 客户端/);
+        assert.doesNotMatch(main!, /fixture-client|test\.fixture\.write|test\.disconnected|失败原因|Reason for failure/);
+        assert.match(details!, locale === "en" ? /<summary>Technical details<\/summary>/ : /<summary>技术详情<\/summary>/);
+        assert.match(details!, /test\.fixture\.write@1.*fixture-client/);
+        assert.match(details!, /test\.disconnected/);
+        assert.doesNotMatch(byId(A), /此原因不会被记录/);
+
+        const [unknown, reference] = byId(B).split('<details class="capability-contract">');
+        assert.match(unknown!, locale === "en" ? /<strong>Unrecognized action<\/strong>/ : /<strong>未识别的操作<\/strong>/);
+        assert.doesNotMatch(unknown!, /missing\.action/);
+        assert.match(reference!, /<code>missing\.action@1<\/code>/);
+
+        const [folded, foldedDetails] = byId(E2).split('<details class="capability-contract">');
+        const time = folded!.match(/<time datetime="([^"]+)">([^<]+)<\/time>/);
+        assert.equal(time?.[1], last);
+        if (locale === "en") {
+          assert.match(time?.[2] ?? "", /^11\/3\/2026, 10:19:43 PM$/);
+          assert.match(folded!, /Same result 2 times in a row, first at 11\/3\/2026, 10:19:41 PM/);
+          assert.match(folded!, /Reason for failure：无法读取 &lt;目录&gt;/);
+        } else {
+          assert.match(time?.[2] ?? "", /^2026\/11\/3 22:19:43$/);
+          assert.match(folded!, /连续 2 次相同结果，最早 2026\/11\/3 22:19:41/);
+          assert.match(folded!, /失败原因：无法读取 &lt;目录&gt;/);
+        }
+        assert.doesNotMatch(folded!, /test\.sync_failed/);
+        assert.match(foldedDetails!, /test\.sync_failed/);
+      }
+    }
+    assert.deepEqual(idsOf(await read("/settings/diagnostics?call=e1000001")), [E1], "the earliest folded call remains findable");
   });
 });

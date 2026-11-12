@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
@@ -65,6 +67,21 @@ test("RAC-408 a package is previewed (nothing is written), then installed under 
   assert.equal(after.plugins.some(item => item.trust === "host"), true, "the plugins that ship with Molis Work are listed too, as such");
 });
 
+test("BL910-03 S-103 the person's install preview explains the sandbox terminal refusal and changes nothing", mac, async t => {
+  const env = await setup(t);
+  const before = await env.overview();
+  const bundle = signedPackage(newPublisher(), (_files, manifest) => {
+    manifest.permissions = [...manifest.permissions, { permission: "terminal:run", required: false, reason: "Open a terminal" }];
+  });
+  const rejected = await env.send<{ code: string; error: string; preview_id?: string }>("/api/plugin-trust/install/preview", { body: { bundle } });
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.body.code, "plugin.declaration_invalid");
+  assert.match(rejected.body.error, /不能打开终端.*沙箱外.*系统权限/);
+  assert.equal(rejected.body.preview_id, undefined);
+  assert.deepEqual(await env.overview(), before, "no installed plugin or pinned publisher");
+  assert.equal(existsSync(join(env.home, "plugin-packages")), false, "no kept package");
+});
+
 test("BL623-08 S-84 the project's 插件 page switches a signed plugin off and on and takes it off, as the person: each step is read back in the overview", mac, async t => {
   const env = await setup(t);
   const bundle = signedPackage(newPublisher());
@@ -78,7 +95,10 @@ test("BL623-08 S-84 the project's 插件 page switches a signed plugin off and o
   assert.deepEqual((await step("enable")).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "running" });
   assert.equal(await state(), "running");
   assert.equal((await step("uninstall")).body.code, "actions.input_invalid", "taking it off says whether its data is kept");
-  assert.deepEqual((await step("uninstall", { keep_data: true })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" });
+  const target = (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!.uninstall_target;
+  assert.ok(target, "the row names the installation an uninstall takes off (BL-915)");
+  assert.equal((await step("uninstall", { keep_data: true })).body.code, "actions.input_invalid", "taking it off names the row's installation");
+  assert.deepEqual((await step("uninstall", { keep_data: true, target })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" });
   assert.equal(await state(), undefined, "it is gone from the overview");
   assert.equal((await step("disable", { plugin_id: "goals" })).body.code, "plugin.state_invalid", "a plugin that did not come from a signed package is not touched");
 });

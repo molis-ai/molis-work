@@ -985,9 +985,13 @@ export declare function sandboxOperationEffects(contract: SandboxPluginContract,
 
 export declare function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[];
 
+export declare function sandboxOperationSwitches(effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): string[];
+
 export declare const sandboxPackageBuildId: (pluginId: string, signature: string) => string;
 
 export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
+
+export declare function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): PermissionRow[];
 
 export declare function sandboxPromptId(entryId: string): string;
 
@@ -1017,6 +1021,14 @@ export declare function splitLines(text: string): DiffLine[];
 export declare function stageRequestParams(input: readonly string[] | undefined, params: Readonly<Record<string, string>>): Readonly<Record<string, string>>;
 
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function subjectContextAction(manifest: PluginManifest, kind: UiSubjectContextKind): ActionDefinition | undefined;
+
+export declare function subjectContextInput(kind: UiSubjectContextKind, id: string): Readonly<Record<string, string>>;
+
+export declare function subjectContextProblems(parsed: PluginManifest): string[];
+
+export declare function subjectContextText(answer: unknown): string | null;
 
 export declare function supportsMaterialExtension(extension: string): boolean;
 
@@ -1060,13 +1072,15 @@ export { withinRunsWindow } from "@molis-ai/molis-work-contracts/platform/action
 
 // Declarations the exports above refer to, which no entry exports itself:
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 
 type LiteralSchemaDefinition<S extends ActionSchema, Output> = Omit<ActionDefinition<unknown, Output>, "action"> & {
     readonly action: Omit<ActionMetadata, "input_schema"> & {
         readonly input_schema: S & (string extends keyof S ? never : unknown);
     };
 };
+
+type PermissionRow = NonNullable<PluginManifest['permissions']>[number];
 
 interface SettingsActionOptions {
     readonly capability_id: string;

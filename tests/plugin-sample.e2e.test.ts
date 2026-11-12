@@ -73,6 +73,14 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     `], { cwd: project, encoding: "utf8" });
     assert.equal(sandbox.status, 0, sandbox.stderr);
     assert.deepEqual(JSON.parse(sandbox.stdout), { effects: { storage: ["read", "write"] }, entry: "./plugin.mjs", scope: "home", requires: [["ui.plugin-presentation", 1]] });
+    // B27SRC-03: /highlight loads from the same offline install (a CR ends a line comment); /rich-text needs the optional peers it names.
+    const subpaths = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { codeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
+      let richText = "loaded"; try { await import("@molis-ai/molis-work-plugin-sdk/rich-text"); } catch (error) { richText = error.code; }
+      console.log(JSON.stringify({ comment: codeTokens("// a\\rb", "ts")[0], richText }));
+    `], { cwd: project, encoding: "utf8" });
+    assert.equal(subpaths.status, 0, subpaths.stderr);
+    assert.deepEqual(JSON.parse(subpaths.stdout), { comment: ["comment", "// a"], richText: "ERR_MODULE_NOT_FOUND" });
     const definition = (await import(pathToFileURL(join(project, "index.mjs")).href)).default as PluginDefinition;
     assert.equal(definition.manifest.plugin_id, validated.plugin_id);
     assert.equal(definition.manifest.schema_version, 1);

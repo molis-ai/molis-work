@@ -72,7 +72,9 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
 // measures nothing and takes no parts off. What it still does is tell the sheets above the bar how tall the bar is (one variable).
 test("the bottom bar measures no line of its own and gives the bar's height to the sheets above it through --dock-h", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const fitInput = |dataset\.crowded|dataset\.measuring/, "no line fitting left in the island");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{ const height = bar\.offsetHeight; if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\); \}\)/, "the bar's measured height is --dock-h");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{\s*const height = bar\.offsetHeight;\s*if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\);/, "the bar's measured height is --dock-h");
+  // BL-102: a bar that is not drawn says so, so the side panel's narrow-window rule does not make room for it.
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /bar\.toggleAttribute\("data-dock-hidden", !height\);/, "an undrawn bar is marked for the side panel");
 });
 
 // RAC-2571: the script is cut by job into twelve parts joined in place (W5-10 batch A, T-060), so the main file stays under the

@@ -94,6 +94,7 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser-search svg { width: 16px; height: 16px; }
   .chooser-search__key { flex: none; display: inline-flex; }
   .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 4px; border: 0; background: var(--control-fill); }
+  .chooser-personal-search { width: 100%; justify-content: flex-start; margin-top: -4px; }
   .chooser-dir { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; padding: 0 8px 8px; }
   .chooser-dir > [data-slot="directory-heading"] { padding: 10px 8px 4px; }
   .chooser-dir .mw-dir-row--meta { height: auto; min-height: 40px; padding-block: 6px; border-radius: var(--r-row, 10px); }
@@ -305,6 +306,7 @@ export const ARRIVAL_STYLES = String.raw`
     .stage-split > .stage-side { max-height: 36vh; overflow: auto; }
     .chooser-dir { min-height: 104px; }
     .chooser-foot { display: none; }
+    .chooser-personal-search { min-height: 44px; }
   }
   @media (max-width: 900px) {
     /* Narrow windows, including landscape phones: keep the assistant above the actions instead of squeezing three columns. */

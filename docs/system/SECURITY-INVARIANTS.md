@@ -3,7 +3,7 @@
 本机的安全边界写成一张表：每条不变量写清**被拒绝的是什么**、**守住它的代码在哪**、**断言拒绝本身的测试是哪几个**。设计来源：[specs/archive/repository-anti-corruption](../../specs/archive/repository-anti-corruption/spec.md) §6（初稿）与 §4.18（W2-19）。
 
 - 一条不变量的测试必须断言**拒绝**（状态码、错误码、没有被写的记录），不能只证明正常路径能走通。
-- 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到，每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改对应独立记录。
+- 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到（`test:security`、`test:contracts`、`ci.yml`，或 Verify 产品子集里列着、不在隔离表里的用例；子集清单本身有错时一条都不算），每个 `tests/security-invariants-*.test.ts` 与 `*.e2e.test.ts` 都被某一行点名；「代码位置」一列反引号里的每个 `.ts` 路径都是从仓库根写起的已跟踪文件（可带行号，行号不查），简称、越出根或别处同名文件都报记录与行。上游来源写成指向具体提交的 Markdown 链接，已删的文件用文字说明，不写成代码路径。改了测试名或搬了文件就改对应独立记录。
 - CI 里跑的集合是三处：根 `package.json` 的 `test:security`、`test:contracts` 里已有的几条（动作网关、`beforeEffect`、MCP 授权），以及 `ci.yml` 其它作业/步骤单独跑的几条（例如 `gates` 作业的「Gate rules reject what they claim to」步骤跑 `tests/secret-scan.test.ts`，`health-gate-rules` 作业跑 `tests/health-gates-dual-instance.test.ts`）；门禁按这三处核对「CI 里跑」一列。CI 是 Linux：`security-invariants` 作业的浏览器用例使用 runner 自带的 Chrome 执行；只在 macOS 上能跑的（如 Seatbelt 沙箱）和尚未纳入 CI 的整机用例列在「只在本机跑」一列，同一文件里的其它用例仍可能在 CI 里跑。
 - **这一步挡合并**（决定 #14，本次按只许变严合同落实）：`ci.yml` 的 `security-invariants` 作业在 `Verify` 的九项必过结果里。合并队列里跑 `test:security` 全清单；PR 上 some 定向，whole、选择故障及不可信输出仍跑整套，只有选择成功且本作业 mode 明确为 none 时才跳过。Verify 直接读取选择器结果和两个 mode，逐项核合法 skipped；失败或取消的作业不放行。选择器本身是辅助依赖，不替代实际测试结果。直推、每晚、手动整套跑，可信已验 push 按原队列证明复用。
 - Computer Use 已在 main：助理电脑 socket 在 S-04，桌面动作的拒绝在 S-25。

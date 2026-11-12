@@ -427,7 +427,8 @@ test("RAC-2636/2641/2643 signed mixed registrations survive two projects, Home c
     await settings.web.post("/api/settings/plugin-permissions/disable", { plugin_id: homeId });
     await assert.rejects(consumer().service.reads.readRole(null, oldSelection));
     await settings.web.post("/api/settings/plugin-permissions/enable", { plugin_id: homeId }); complete(homeId);
-    await settings.web.post("/api/settings/plugin-permissions/uninstall", { plugin_id: homeId, keep_data: true });
+    const listed = await settings.web.post<{ plugins: Array<{ plugin_id: string; uninstall_target?: unknown }> }>("/api/settings/plugin-permissions/list", {});
+    await settings.web.post("/api/settings/plugin-permissions/uninstall", { plugin_id: homeId, keep_data: true, target: listed.plugins.find(row => row.plugin_id === homeId)!.uninstall_target });
     assert.equal(recovered.prompts().some(item => item.owner_id === homeId), false);
     await install(a, homeBundle); complete(homeId);
     await assert.rejects(consumer().service.reads.readRole(null, oldSelection), /版本已变化/);

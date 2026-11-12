@@ -271,9 +271,11 @@ export {
 } from "./agent-host-composition.js";
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
-export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
+export { agentReviewActions, agentReviewProvider, handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
+export { handlePluginTrustHttp } from "./plugin-trust-http.js";
+export { collectRetained } from "./uninstall-retained.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
@@ -302,7 +304,7 @@ export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 // The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
-export { assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+export { assistantPanelActions, assistantPanelProvider, assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 export { assistantSurroundings, repositoryName } from "./assistant/assistant-surroundings.js";
 export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
@@ -364,6 +366,8 @@ export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-backgrou
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+export { PLUGIN_STOP_HOOK_MS } from "./plugin-stop-hook.js";
+export { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 
 
 export { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
@@ -417,3 +421,5 @@ export { runtimeOverview, decideRuntimeRun, runtimeRunDecisionRequest, type Runt
 export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
 export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
 export { residentHostAddress } from "./resident-host-request.js";
+export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
+export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";

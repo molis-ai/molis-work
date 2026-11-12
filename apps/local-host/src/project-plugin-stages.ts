@@ -278,22 +278,40 @@ export function runtimeStageOwner(state: ProjectPluginState, entry: StageEntry, 
     : { scope: entry.manifest.runtime?.scope === "home" ? "home" : "project" };
 }
 
+/**
+ * Bind one read the owner's Manifest declares for the person's page (a stage, object or subject-context read) and pin the provider of the
+ * owner's selected half: the action must be the Manifest's only declaration of that id, a query that only reads, for the person.
+ */
+export async function pinOwnerRead(owner: RuntimeStageOwner, action: ActionDefinition, bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient):
+  Promise<{ client: BoundActionClient; pinned: ActionDefinition }> {
+  owner.assertCurrent();
+  if (owner.entry.manifest.actions?.filter(item => item.capability_id === action.capability_id).length !== 1 || action.operation !== "query"
+    || actionEffect(action.action, action.capability_id) !== "read" || !action.action.audiences.includes("user")) throw new ActionError("actions.input_invalid", "页面读取必须是本 Manifest 唯一的本人只读查询");
+  const client = bind(action, owner), matches = (await client.discover()).filter(view => view.capability_id === action.capability_id && view.version === action.version
+    && view.provider.plugin_install_id === owner.install_id && (owner.scope === "home" ? !view.provider.project_id : Boolean(view.provider.project_id)));
+  owner.assertCurrent();
+  if (matches.length !== 1) throw new ActionError("actions.forbidden", "原插件的读取提供方不再唯一可用");
+  return { client, pinned: { ...action, provider_id: matches[0]!.provider.provider_id } };
+}
+
 /** Invoke exactly this actual owner's declaration and pin the provider of its selected half. */
 export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient,
   input: Readonly<Record<string, string>>, object = false): Promise<unknown> {
   owner.assertCurrent();
   const manifest = owner.entry.manifest, action = object ? stageObjectAction(manifest) : stageDataAction(manifest);
   if (!action) { if (object) throw new ActionError("actions.missing", "插件未声明对象读取"); return undefined; }
-  if (manifest.actions?.filter(item => item.capability_id === action.capability_id).length !== 1 || action.operation !== "query"
-    || actionEffect(action.action, action.capability_id) !== "read" || !action.action.audiences.includes("user")) throw new ActionError("actions.input_invalid", "舞台读取必须是本 Manifest 唯一的本人只读查询");
-  const client = bind(action, owner), matches = (await client.discover()).filter(view => view.capability_id === action.capability_id && view.version === action.version
-    && view.provider.plugin_install_id === owner.install_id && (owner.scope === "home" ? !view.provider.project_id : Boolean(view.provider.project_id)));
-  owner.assertCurrent();
-  if (matches.length !== 1) throw new ActionError("actions.forbidden", "原舞台的读取提供方不再唯一可用");
-  const pinned = { ...action, provider_id: matches[0]!.provider.provider_id };
+  const { client, pinned } = await pinOwnerRead(owner, action, bind);
   const result = object ? await client.invoke(pinned, input) : await optionalPluginQuery(client, pinned, input);
   owner.assertCurrent();
   return result;
+}
+
+/** The running owners of the plugins a project page shows that have a stage, in the order the Host lists its plugins (GAS-01). */
+export function shownRuntimeOwners(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined): RuntimeStageOwner[] {
+  const showing = new Set(shown);
+  const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
+    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];
+  return entries.flatMap(entry => stageContributionId(entry.manifest) ? runtimeStageOwner(state, entry, home).owner ?? [] : []);
 }
 
 /** Choose once, read once, and keep only request-local guarded view references for later synchronous rendering. */

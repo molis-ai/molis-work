@@ -39,10 +39,10 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const detailNode = $("[data-home-detail]");
   const detailHolder = $("[data-home-detail-holder]");
   const labels = () => ({
-    todayEmpty: globalThis.t.text("workbench.project-home.nothing-arrived-today-yet"),
-    empty: globalThis.t.text("workbench.project-home.nothing-day"),
-    todaySum: (n) => globalThis.t.text("workbench.project-home.n-n-arrived-today", { n }),
-    daySum: (n) => globalThis.t.text("workbench.project-home.n-n-day", { n }),
+    todayEmpty: globalThis.t.text("workbench.project-home.no-items-today"),
+    empty: globalThis.t.text("workbench.project-home.no-items-day"),
+    todaySum: (n) => globalThis.t.text("workbench.project-home.n-items-today", { n }),
+    daySum: (n) => globalThis.t.text("workbench.project-home.n-items-day", { n }),
     attentionLead: globalThis.t.text("workbench.project-home.some-items-need-attention"),
     emptyLead: globalThis.t.text("workbench.project-home.new-pending-items-plugins-appear-here"),
   });
@@ -191,11 +191,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       const otherDay = !day?.today;
       // The plugins the project shows say how to start with them (the start of their views); the page carries the list in order.
       const starts = readStarts();
-      // The ways to start are one row of small buttons; the sentence of each is its hint.
+      // The plugins' own hints stay on the buttons.
       const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(hint) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(label) + '</span></button>';
-      paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
-          ? '<b>' + globalThis.t.text("workbench.project-home.nothing-happened-day") + '</b>' + globalThis.t.text("workbench.project-home.work-still-here-continue-current-goal-start-something")
-          : globalThis.t.text("workbench.project-home.start-something-new-pick-up-where-left-off")) + '</p><div class="home-start-actions">' +
+      paint('<div class="home-start"><div class="home-start-actions">' +
         (otherDay ? chip('data-home-today', 'back', globalThis.t.text("workbench.project-home.back-today")) : '') +
         starts.map(item => chip('data-home-start="' + esc(item.id) + '"', item.glyph, item.title, item.hint)).join('') +
         chip('data-home-start="market"', 'grid', globalThis.t.text("workbench.project-home.explore-more-tools")) + '</div></div>');

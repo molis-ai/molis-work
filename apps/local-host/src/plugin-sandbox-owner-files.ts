@@ -51,6 +51,6 @@ export function removeSandboxOwnerFiles(scope: SandboxOwnerFilesScope, installId
   if (!scope.home) return;
   const base = sandboxOwnerFilesBase(scope.home.directory, scope.project_id, installId);
   try { lstatSync(base); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
-  if (!(realpathSync(dirname(base)) + sep).startsWith(realpathSync(scope.home.directory) + sep)) throw pluginErrors.declaration_invalid("沙箱插件的主人文件根不在 Home 里");
+  if (!(realpathSync(dirname(base)) + sep).startsWith(realpathSync(scope.home.directory) + sep)) throw pluginErrors.declaration_invalid("存它文件的文件夹指向这个空间之外，为稳妥没有动；处理好后可以重试");
   rmSync(base, { recursive: true, force: true });
 }

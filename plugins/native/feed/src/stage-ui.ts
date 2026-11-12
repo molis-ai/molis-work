@@ -6,6 +6,7 @@ import type { FeedItemRecord, FeedItemType, FeedSourceRecord } from "./projectio
 import type { FeedStageData, FeedReaderData } from "./query-actions.js";
 import type { FeedUiEntry, FeedUiItem, FeedUiModel, FeedUiPrimitives, FeedUiSource, PersistedFeedDetailModel } from "./ui.js";
 import { feedSourceUiKind } from "./source-presentation.js";
+import { feedRunHttpStatus } from "./run-failure.js";
 
 type FeedText = { readText: FeedUiPrimitives["text"] };
 type FeedStageView = { route_prefix: string; data: FeedStageData };
@@ -47,6 +48,7 @@ function buildFeedModel(
       id: source.id,
       name: source.name,
       category_label: source.category_label,
+      limited: (source.limitations?.length ?? 0) > 0,
     })),
     connector_auth: {
       github: view.data.connector_auth?.github ?? { bound: false },
@@ -190,6 +192,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, readText: Fe
       phase: run.phase,
       outcome: run.outcome,
       error_code: run.error_code,
+      http_status: feedRunHttpStatus(run.receipt),
       created_count: run.created_count,
       deduped_count: run.deduped_count,
       started_at: run.started_at,

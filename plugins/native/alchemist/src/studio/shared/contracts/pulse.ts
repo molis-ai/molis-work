@@ -9,10 +9,6 @@ export const startPulseRunRequestSchema = z
 
 export const pulseSourceParamsSchema = z.object({ sourceId: z.enum(pulseSourceIds) }).strict();
 
-export const updatePulseSourceRequestSchema = z.object({ enabled: z.boolean() }).strict();
-
-export const opportunityParamsSchema = z.object({ id: z.string().min(1) }).strict();
-
 export interface PulseReportBundleDto {
   report: PulseReport;
   opportunities: readonly Opportunity[];

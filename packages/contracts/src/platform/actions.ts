@@ -6,6 +6,7 @@ export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
 import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
@@ -118,7 +119,7 @@ export interface HomePageSubject {
 }
 
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
-export interface ActionCallContext extends ActionCallOrigin {
+export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
   readonly actor_id: string;
   /** Only the same stage entry may inspect its own saved scene bindings through these accepted exact refs. */
   readonly stage_scene_metadata?: StageSceneMetadataAuthority;
@@ -231,7 +232,7 @@ export interface RetainedActionAuthority {
   readonly assertCurrent: () => void;
 }
 
-export interface ActionExecutionContext extends ActionCallContext {
+export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
   readonly beforeEffect: () => Promise<void>;
   /** The action this handler runs, with the provider the dispatcher resolved: a plugin finds "its own action" here rather than naming itself (PG-030). */
   readonly current_action?: ExactActionReference;

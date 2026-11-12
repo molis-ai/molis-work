@@ -183,8 +183,8 @@ export function createFeedPlugin(): PluginDefinition {
         // Goals is asked through the caller's directory; without it (`actions:delegate` not given) there is no Goal service to ask, and the promotion stays unavailable.
         promote: delegation ? (input, caller) => promoteFeedItemToGoal({ feed, goals: feedGoalsThroughDirectory(delegation), hydrateItem: hydrate,
           transaction: operation => writer.commit(caller, operation), beforeEffect: () => caller.beforeEffect(),
-          // The same line Goals draws from the delegated call (S-43): the person's own call to this action, not a scene's run inside it.
-          by_person: caller.audience === "user" && caller.scene_binding === undefined }, input) : undefined,
+          // The fact Goals reads from the delegated call (S-43, BL-803): the Runtime saw this promotion entered as the person's own call.
+          by_person: caller.direct_person_entry === true }, input) : undefined,
         promoteAvailable: delegation ? async () => promoteOffered(await delegation.discover()) : undefined }),
     ];
     const declared = new Set(FEED_PROJECT_ACTIONS.map(idOf)), own = new Set([...SELF_COMMITTING, WAKE].map(idOf));

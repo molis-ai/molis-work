@@ -74,7 +74,7 @@ function parseRow(line: string): ActionCallRecord | undefined {
   let row: Partial<ActionCallRecord> | undefined;
   // A line that is not JSON is a torn write from a crash mid-append: not a row of this log.
   try { row = JSON.parse(line) as Partial<ActionCallRecord>; } catch { return undefined; }
-  // A row from before calls had a number (or a torn one) is not a row of this log: it is not shown, and the next tidy drops it.
+  // Diagnostics need an addressable call ID. Rotation copies only records accepted by this parser.
   return typeof row?.call_id === "string" && row.call_id && OPERATIONS.includes(row.operation ?? "") && typeof row.capability_id === "string" && typeof row.at === "string"
     ? row as ActionCallRecord : undefined;
 }
@@ -151,7 +151,7 @@ export class ActionCallLog {
     }
     this.append(row, size);
     if (this.lines < 0) this.lines = this.read().lines; else this.lines++;
-    // Keep the file short: once it passes its limit, rewrite what is worth keeping atomically (the rows of an older shape go with it).
+    // Rewrite atomically after the line limit to keep the newest executed commands and a separate diagnostics tail.
     if (this.lines > LIMIT) this.rewrite(tidy(this.read().rows));
   }
 

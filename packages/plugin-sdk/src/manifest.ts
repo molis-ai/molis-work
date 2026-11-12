@@ -30,6 +30,7 @@ import { inspectContextDeclarations } from "./context-declarations.js";
 import { localeDeclarationProblems } from "./locale-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { pageRouteProblems } from "./page-routes.js";
+import { subjectContextProblems } from "./subject-context.js";
 import { createStations, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
@@ -262,6 +263,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...inspectSkillDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...pageRouteProblems(parsed));
+  problems.push(...subjectContextProblems(parsed));
   problems.push(...localeDeclarationProblems(parsed));
   problems.push(...validateSettingsDeclaration(parsed), ...blueprintDeclarationProblems(parsed, ui), ...validateAdoptsDeclaration(parsed));
   problems.push(...inspectRouteDeclarations(parsed));

@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 每个库和文件的主人、版本、备份分类 | `docs/system/HOME-DATA.md` §2～§6 | 金样要覆盖的清单就从这张表来，表里多一项就要求金样也多一项（§5 第 3 条） |
 | 离线 Home 快照，带清单与摘要 | `apps/local-host/src/home-snapshot{,-capture,-contract,-inventory,-publication}.ts`、`home-store-snapshot.ts`，SQLite 备份在 `packages/storage/src/snapshot-sqlite.ts`；`molis-work home snapshot`（`docs/cli-and-development.md`「Home 离线快照」） | 金样走同一套店铺登记和分类（`homeStores()`、inventory），不另写枚举；出来的形状是 §2 的文本转储和自己的清单，不是快照的二进制和它的清单 |
-| 所有无参数读取跑一遍 | `tests/fixtures/parameterless-reads.ts` 的 `readEveryParameterlessAction`（从 `tests/action-read-compatibility.test.ts` 抽出来的） | 回放和那条用例共用，从「一个项目库」扩到「整份 Home、所有项目、Home 级与项目级的读取」 |
+| 所有无参数读取跑一遍 | `tests/fixtures/parameterless-reads.ts` 的 `readEveryParameterlessAction`（从 `tests/action-read-history.test.ts` 抽出来的） | 回放和那条用例共用，从「一个项目库」扩到「整份 Home、所有项目、Home 级与项目级的读取」 |
 | 插件回放 | `scripts/replay-plugins.mjs`、`tests/fixtures/replay-plugins/corpus.json` | 金样里装的第三方插件就取语料里的签名包样本（`scripts/replay-plugins/signed-session.mjs` 两边共用）；回放时对升级后的 Home 再跑一遍 |
 | 演示种子、历史 Goal 数据 | `seedDemoBoard`（`apps/local-host/src/demo-seed.ts:102`）、`tests/fixtures/goal-event-history/*.sql` 与加载器 `tests/goal-event-history-fixture.ts` | 生成金样时用它们填项目库，不另编一套 Goal 数据。这组文件是「当前基线加 Goal 场景」的冻结转储：统一第 1 版起是 1（#1837，头 `b977224cf` 上已核），第 05 批把项目库升到第 2 版时四个文件同步改成 2。所以它只在版本等于当前基线时能用：生成脚本按 `PROJECT_DATABASE_BASELINE.version` 先比（`scripts/golden/populate.mjs:42`），不等就失败并提示刷新，不做转换。`seedDemoBoard` 是一个 538 行的函数，`docs/system/HUGE-CLASS-MIGRATION.md` 登记的拆分对象，只调用它，不依赖它的内部形状 |
 | 各库版本表与代码一致 | `docs/releases/CHECKLIST.md` §3、`scripts/verify-release-versions.mjs` | 金样清单里记下的每库版本，与这张表同源 |

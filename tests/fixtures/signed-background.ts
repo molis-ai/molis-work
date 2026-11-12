@@ -100,7 +100,11 @@ export async function backgroundRig(t: TestContext, options: { dependencies?: Pl
   let served = await serveTestHost(null,{home:h.home,host:h.host}); t.after(()=>served.close());
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({actor_id:LOCAL_PERSON_ACTOR_ID,project_id:null,audience:'user',permissions:BACKGROUND_PERMISSIONS,...extra});
   const record = () => h.host.homePlugins!.installation(BACKGROUND_ID)!;
-  const control = (action: string, keep_data?: boolean) => served.web.post('/api/settings/plugin-permissions/'+action,{plugin_id:BACKGROUND_ID,...(keep_data===undefined?{}:{keep_data})});
+  // An uninstall names the row's installation, as the 插件 page does (BL-915).
+  const control = async (action: string, keep_data?: boolean) => {
+    const target = action === 'uninstall' ? (await served.web.post<{ plugins: Array<{ plugin_id: string; uninstall_target?: unknown }> }>('/api/settings/plugin-permissions/list', {})).plugins.find(row => row.plugin_id === BACKGROUND_ID)?.uninstall_target : undefined;
+    return served.web.post('/api/settings/plugin-permissions/'+action,{plugin_id:BACKGROUND_ID,...(keep_data===undefined?{}:{keep_data}),...(target?{target}:{})});
+  };
   const set = (permission: string,granted: boolean) => served.web.post('/api/settings/plugin-permissions/set',{install_id:record().install_id,permission,granted});
   const approve = async () => {
     const rows = await served.web.post<{plugins:Array<{plugin_id:string;permissions:Array<{permission:string;required:boolean;requested:boolean}>}>}>('/api/settings/plugin-permissions/list',{});

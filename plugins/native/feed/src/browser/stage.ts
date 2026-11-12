@@ -149,7 +149,7 @@ export function feedStage(page: FeedPage) {
     const action = target.closest<HTMLButtonElement>("[data-feed-action]");
     if (action) {
       event.preventDefault(); if (action.disabled) return; const check = page.guard(); action.disabled = true; const release = page.pending(() => { if (action.isConnected) action.disabled = false; });
-      try { const result = await page.api<{ goal_id?: string }>("/items/" + encodeURIComponent(action.dataset.feedItemId!) + "/" + action.dataset.feedAction, "POST", { expected_revision: Number(action.dataset.feedRevision) || undefined, ...(action.dataset.feedRestoreTarget ? { restore_target: action.dataset.feedRestoreTarget } : {}) }); check(); host.invalidateView(); if (result.goal_id) host.openItem("goals", result.goal_id); else await page.refresh(); }
+      try { const result = await page.api<{ goal_id?: string }>("/items/" + encodeURIComponent(action.dataset.feedItemId!) + "/" + action.dataset.feedAction, "POST", { expected_revision: Number(action.dataset.feedRevision) || undefined, ...(action.dataset.feedRestoreTarget ? { restore_target: action.dataset.feedRestoreTarget } : {}) }); check(); host.invalidateView(); if (result.goal_id) { host.openItem("goals", result.goal_id); void page.refresh().catch(failure => page.error(failure)); } else await page.refresh(); }
       catch (error) { try { check(); page.error(error, q("[data-feed-action-status]", action.closest("[data-feed-detail]") || host.root)); } catch { /* Old selection. */ } }
       finally { try { check(); release(); } catch { /* Old selection. */ } } return;
     }

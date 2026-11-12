@@ -1,4 +1,4 @@
-import { goalErrors } from "./errors.js";
+import { storedJson } from "../stored-json.js";
 import type {
   GoalAcceptanceCriterion,
   GoalPolicyBindingRecord,
@@ -103,20 +103,20 @@ export class GoalsRepository {
   }
 
   getGoal(goalId: string): GoalRecord | null {
-    const row = this.db.prepare("SELECT * FROM goals WHERE goal_id = ?").get(goalId) as Row | undefined;
+    const row = this.db.prepare("SELECT *, rowid AS stored_row FROM goals WHERE goal_id = ?").get(goalId) as Row | undefined;
     if (!row) return null;
     const criteria = this.db
-      .prepare("SELECT * FROM acceptance_criteria WHERE goal_id = ? ORDER BY criterion_id")
+      .prepare("SELECT *, rowid AS stored_row FROM acceptance_criteria WHERE goal_id = ? ORDER BY criterion_id")
       .all(goalId) as Row[];
     return mapGoal(row, criteria);
   }
 
   listGoals(projectId: string): GoalRecord[] {
     const rows = this.db
-      .prepare("SELECT * FROM goals WHERE project_id = ? ORDER BY priority DESC, created_at, goal_id")
+      .prepare("SELECT *, rowid AS stored_row FROM goals WHERE project_id = ? ORDER BY priority DESC, created_at, goal_id")
       .all(projectId) as Row[];
     const criteria = this.db.prepare(`
-      SELECT ac.* FROM acceptance_criteria ac
+      SELECT ac.*, ac.rowid AS stored_row FROM acceptance_criteria ac
       JOIN goals g ON g.goal_id = ac.goal_id
       WHERE g.project_id = ? ORDER BY ac.criterion_id
     `).all(projectId) as Row[];
@@ -174,13 +174,13 @@ export class GoalsRepository {
   listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[] {
     const rows = goalId == null
       ? this.db.prepare(`
-          SELECT scope, goal_id, policy_json FROM policy_bindings
+          SELECT scope, goal_id, policy_json, rowid AS stored_row FROM policy_bindings
           WHERE project_id = ? AND state = 'active'
           ORDER BY CASE scope WHEN 'project_default' THEN 0 WHEN 'ancestor_minimum' THEN 1 ELSE 2 END,
                    created_at
         `).all(projectId)
       : this.db.prepare(`
-          SELECT scope, goal_id, policy_json FROM policy_bindings
+          SELECT scope, goal_id, policy_json, rowid AS stored_row FROM policy_bindings
           WHERE project_id = ? AND state = 'active' AND (goal_id IS NULL OR goal_id = ?)
           ORDER BY CASE scope WHEN 'project_default' THEN 0 WHEN 'ancestor_minimum' THEN 1 ELSE 2 END,
                    created_at
@@ -188,15 +188,15 @@ export class GoalsRepository {
     return (rows as Row[]).map((row) => ({
       scope: text(row.scope) as GoalPolicyBindingRecord["scope"],
       goal_id: nullableText(row.goal_id),
-      policy: parseJson(row.policy_json, {}),
+      policy: storedJson(row, "policy_bindings", "policy_json", {}),
     }));
   }
 
   listPlanningMethodPacks(projectId: string): PlanningMethodPack[] {
     return (this.db
-      .prepare("SELECT pack_json FROM planning_method_packs WHERE project_id = ? ORDER BY method_id")
+      .prepare("SELECT pack_json, rowid AS stored_row FROM planning_method_packs WHERE project_id = ? ORDER BY method_id")
       .all(projectId) as Row[])
-      .map((row) => parseJson<PlanningMethodPack | null>(row.pack_json, null))
+      .map((row) => storedJson<PlanningMethodPack | null>(row, "planning_method_packs", "pack_json", null))
       .filter((pack): pack is PlanningMethodPack => pack != null);
   }
 
@@ -233,7 +233,7 @@ export class GoalsRepository {
     includeInactive = false,
   ): ProjectGuidanceEntryRecord[] {
     return (this.db.prepare(`
-      SELECT * FROM project_guidance_entries
+      SELECT *, rowid AS stored_row FROM project_guidance_entries
       WHERE project_id = ?${includeInactive ? "" : " AND active = 1"}
       ORDER BY position, guidance_id
     `).all(projectId) as Row[]).map(mapGuidanceEntry);
@@ -241,7 +241,7 @@ export class GoalsRepository {
 
   listProjectGuidanceRevisions(projectId: string): ProjectGuidanceRevisionRecord[] {
     return (this.db.prepare(`
-      SELECT * FROM project_guidance_revisions
+      SELECT *, rowid AS stored_row FROM project_guidance_revisions
       WHERE project_id = ? ORDER BY created_at DESC, guidance_id, revision DESC
     `).all(projectId) as Row[]).map(mapGuidanceRevision);
   }
@@ -271,10 +271,6 @@ export function rowText(value: unknown): string {
   return text(value);
 }
 
-export function rowJson<T>(value: unknown, fallback: T): T {
-  return parseJson(value, fallback);
-}
-
 function mapGoal(row: Row, criteria: Row[]): GoalRecord {
   return {
     goal_id: text(row.goal_id),
@@ -283,12 +279,12 @@ function mapGoal(row: Row, criteria: Row[]): GoalRecord {
     outcome: text(row.outcome),
     why: text(row.why),
     business_logic: text(row.business_logic),
-    in_scope: parseJson(row.in_scope_json, []),
-    out_of_scope: parseJson(row.out_of_scope_json, []),
-    constraints: parseJson(row.constraints_json, []),
-    required_inputs: parseJson(row.required_inputs_json, []),
-    promised_outputs: parseJson(row.promised_outputs_json, []),
-    decomposition_review: parseJson(row.decomposition_review_json, null),
+    in_scope: storedJson(row, "goals", "in_scope_json", []),
+    out_of_scope: storedJson(row, "goals", "out_of_scope_json", []),
+    constraints: storedJson(row, "goals", "constraints_json", []),
+    required_inputs: storedJson(row, "goals", "required_inputs_json", []),
+    promised_outputs: storedJson(row, "goals", "promised_outputs_json", []),
+    decomposition_review: storedJson(row, "goals", "decomposition_review_json", null),
     definition_state: text(row.definition_state) as GoalRecord["definition_state"],
     decomposition_state: text(row.decomposition_state) as GoalRecord["decomposition_state"],
     validity_state: text(row.validity_state) as GoalRecord["validity_state"],
@@ -313,8 +309,8 @@ function mapAcceptanceCriterion(row: Row): GoalAcceptanceCriterion {
     statement: text(row.statement),
     decision_method: text(row.decision_method) as GoalAcceptanceCriterion["decision_method"],
     pass_condition: text(row.pass_condition),
-    target: parseJson(row.target_json, null),
-    required_evidence: parseJson(row.required_evidence_json, []),
+    target: storedJson(row, "acceptance_criteria", "target_json", null),
+    required_evidence: storedJson(row, "acceptance_criteria", "required_evidence_json", []),
   };
 }
 
@@ -343,7 +339,7 @@ function mapGuidanceEntry(row: Row): ProjectGuidanceEntryRecord {
     kind: text(row.kind) as ProjectGuidanceEntryRecord["kind"],
     content: text(row.content),
     content_hash: text(row.content_hash),
-    source_refs: parseJson(row.source_refs_json, []),
+    source_refs: storedJson(row, "project_guidance_entries", "source_refs_json", []),
     created_by: text(row.created_by),
     confirmation_summary: text(row.confirmation_summary),
     reason: text(row.reason),
@@ -362,7 +358,7 @@ function mapGuidanceRevision(row: Row): ProjectGuidanceRevisionRecord {
     kind: text(row.kind) as ProjectGuidanceRevisionRecord["kind"],
     content: text(row.content),
     content_hash: text(row.content_hash),
-    source_refs: parseJson(row.source_refs_json, []),
+    source_refs: storedJson(row, "project_guidance_revisions", "source_refs_json", []),
     active: bool(row.active),
     changed_by: text(row.changed_by),
     change_kind: text(row.change_kind) as ProjectGuidanceRevisionRecord["change_kind"],
@@ -374,25 +370,6 @@ function mapGuidanceRevision(row: Row): ProjectGuidanceRevisionRecord {
 
 function json(value: unknown): string {
   return JSON.stringify(value ?? null);
-}
-
-const unreadableStoredJson = Symbol("unreadable-stored-json");
-const unreadableStoredJsonMessage = "Goals 存的一条记录读不出来（JSON 已损坏），读取已停止，没有按空值处理";
-
-/** Goals' strict read: a stored value that is not JSON is reported as `unreadableStoredJson`, not silently
- * replaced by the fallback (the SDK's shared `parseJson` is the forgiving read other owners use). */
-export function parseJson<T>(value: unknown, fallback: T): T {
-  if (value == null) return fallback;
-  let parsed: unknown = unreadableStoredJson;
-  if (typeof value === "string" && value.length > 0) {
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      // The stored text is not JSON; it is reported as unreadable below.
-    }
-  }
-  if (parsed === unreadableStoredJson) throw goalErrors["goals.storage.record_unreadable"](unreadableStoredJsonMessage);
-  return parsed as T;
 }
 
 function text(value: unknown): string {

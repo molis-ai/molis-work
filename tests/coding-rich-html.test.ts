@@ -114,16 +114,18 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
   }
 });
 
-test("PG062-07: the Markdown parser and sanitizer stay on Coding's server side, and the Host no longer declares them", () => {
+test("PG062-07 B27SRC-03: the Markdown parser and sanitizer stay on Coding's server side, and the Host no longer declares them", () => {
   // What each library leaves in any bundle that carries it: a string literal minifying keeps.
   const coding = createRequire(join(root, "plugins/native/coding/package.json"));
-  const parsers = /markedjs|disallowedTagsMode/u;
-  assert.match(readFileSync(coding.resolve("marked"), "utf8"), /markedjs/u);
+  // Micromark's token names are strings any bundle of it keeps (B27SRC replaced Marked with Micromark and GFM).
+  const parsers = /codeFencedFence|gfmTaskListItem|disallowedTagsMode/u;
+  assert.match(readFileSync(coding.resolve("micromark"), "utf8"), /micromark/u);
+  assert.match(readFileSync(coding.resolve("micromark-extension-gfm"), "utf8"), /gfmTaskListItem/u);
   assert.match(readFileSync(coding.resolve("sanitize-html"), "utf8"), /disallowedTagsMode/u);
   assert.doesNotMatch(readFileSync(join(root, "plugins/native/coding/dist/workbench-bundle.js"), "utf8"), parsers, "workbench-bundle.js");
   assert.doesNotMatch(CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, parsers);
   const hostManifest = JSON.parse(readFileSync(join(root, "apps/local-host/package.json"), "utf8")) as { dependencies?: Record<string, string> };
-  for (const name of ["marked", "sanitize-html"]) assert.equal(hostManifest.dependencies?.[name], undefined, `the Host declares no ${name}`);
+  for (const name of ["marked", "micromark", "micromark-extension-gfm", "sanitize-html"]) assert.equal(hostManifest.dependencies?.[name], undefined, `the Host declares no ${name}`);
   const hostSources = join(root, "apps/local-host/src");
   const rendering = readdirSync(hostSources, { recursive: true, encoding: "utf8" }).filter(name => name.endsWith(".ts"))
     .filter(name => readFileSync(join(hostSources, name), "utf8").includes("plugin-sdk/rich-text"));

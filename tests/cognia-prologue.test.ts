@@ -55,7 +55,7 @@ test("Cognia discovery never decrypts or starts Prologue; actual packed SDK rece
   assert.equal((await f.bound.discover()).find(d => d.capability_id === actions.synthesize.capability_id)!.availability.available, true);
   // Cognia's instructions are registered by its running definition (PG-051): the person edits them once it runs.
   agentDefinitionsFor(f.home, builtinRegistrations).save("io.molis.work.cognia/cognia-evidence", "COGNIA_ROLE_OVERRIDE", null, "person");
-  const workspace = await f.bound.invoke(actions.workspace, {}); assert.equal(workspace.ai_runtime, "Prologue · Cognia model · fixture-model");
+  const workspace = await f.bound.invoke(actions.workspace, {}); assert.equal(workspace.ai_runtime, "Cognia model · fixture-model");
   assert.equal(reads, 0); assert.equal(requests, 0); assert.equal(existsSync(join(f.home, "cognia", "runtime")), false);
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Selected", body: "ORIGINAL_FIXED_EVIDENCE" });
   await f.bound.invoke(actions.createMaterial, { title: "Private", body: "UNSELECTED_EVIDENCE" });

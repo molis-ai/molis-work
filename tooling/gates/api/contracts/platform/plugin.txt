@@ -396,7 +396,7 @@ export type ActionAvailability = {
     readonly kind?: ActionErrorKind;
 };
 
-export interface ActionCallContext extends ActionCallOrigin {
+export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
     readonly actor_id: string;
     readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
@@ -480,7 +480,7 @@ export interface ActionErrorOptions {
     readonly cause?: unknown;
 }
 
-export interface ActionExecutionContext extends ActionCallContext {
+export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
@@ -3630,6 +3630,7 @@ export interface PluginManifest {
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
         page_routes?: UiPageRouteDeclaration[];
+        subject_context?: UiSubjectContextDeclaration[];
         locales?: PluginLocalesDeclaration;
     };
     ports?: PluginPortsDeclaration;
@@ -5257,6 +5258,8 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
 
 export declare const SUBJECT_CONTEXT_PAGE_CHARS = 32000;
 
+export declare const SUBJECT_CONTEXT_PATH = "/api/host/subject-context";
+
 export declare const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
 
 export declare const SUBJECT_OFFERS_INPUT_SCHEMA: {
@@ -5505,6 +5508,13 @@ export interface SubjectActionOffer {
     input: unknown;
 }
 
+export interface SubjectContextAnswer {
+    readonly contexts: ReadonlyArray<{
+        readonly plugin_id: string;
+        readonly source_context: string;
+    }>;
+}
+
 export interface SubjectContextRequest {
     subject_id: string;
     offset?: number;
@@ -5666,6 +5676,19 @@ export interface SyncTrackedTable {
         readonly rowColumn: string;
     };
 }
+
+export declare const UI_SUBJECT_CONTEXT_KINDS: readonly ["goal"];
+
+export declare const UI_SUBJECT_CONTEXT_LIMIT = 12000;
+
+export declare const UI_SUBJECT_CONTEXT_PLUGINS = 4;
+
+export interface UiSubjectContextDeclaration {
+    readonly subject_kind: UiSubjectContextKind;
+    readonly action: string;
+}
+
+export type UiSubjectContextKind = (typeof UI_SUBJECT_CONTEXT_KINDS)[number];
 
 export declare const WORKFLOW_CONTENT_OUTPUT_VERSIONS: {
     readonly list: 1;
@@ -6231,6 +6254,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly manifest_invalid: "invalid";
     readonly manifest_version_invalid: "invalid";
     readonly package_invalid: "invalid";
+    readonly package_missing: "not_found";
     readonly permission_invalid: "invalid";
     readonly preview_unknown: "not_found";
     readonly publisher_revoked: "invalid";
@@ -6241,8 +6265,10 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";
+    readonly stop_timeout: "timeout";
     readonly storage_denied: "invalid";
     readonly storage_input_invalid: "invalid";
+    readonly uninstall_cleanup_pending: "unavailable";
     readonly upgrade_required: "invalid";
     readonly upgrade_rollback_failed: "invalid";
     readonly upgrade_validation_failed: "invalid";
@@ -6320,6 +6346,16 @@ export declare function workExecutorRoleOf(action: {
 }): WorkExecutorRole | null;
 
 // Declarations the exports above refer to, which no entry exports itself:
+
+interface ActionDelegationSource {
+    readonly delegated_action?: Readonly<ExactActionReference & {
+        readonly direct_person_entry?: true;
+    }>;
+}
+
+interface ActionPersonEntry {
+    readonly direct_person_entry?: true;
+}
 
 type AllKeys<U> = U extends unknown ? keyof U : never;
 

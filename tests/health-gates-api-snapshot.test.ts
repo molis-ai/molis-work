@@ -320,6 +320,57 @@ test("moving a helper between files that no subpath exports leaves the snapshot 
   assert.equal(api("--update").out.match(/(\d+) written/)?.[1], "0");
 });
 
+// B27G-05 / B27G-06 (BL-901): any other workspace package of the root is snapshotted at its exact ./contract, found from the root's
+// pnpm-workspace.yaml; its implementation, registration and styles are not, and a helper its contract reaches through another file is.
+const ZETA_CONTRACT = `import type { ZetaPart } from "./internal/part.js";
+import type { Alpha } from "@molis-ai/molis-work-contracts/modules/alpha";
+export interface ZetaRecord { readonly part: ZetaPart; readonly alpha: Alpha }
+export const ZETA_ACTION = "zeta.run";
+`;
+const zetaPackage = (subpaths: string[]) => {
+  put("pnpm-workspace.yaml", "packages:\n  - 'packages/*'\n  - 'plugins/native/*'\n");
+  put("plugins/native/zeta/package.json", JSON.stringify({ name: "@example/plugin-zeta", exports: exportsMap(...subpaths) }, null, 2) + "\n");
+  put("plugins/native/zeta/src/index.ts", "export const zetaPlugin = { id: \"zeta\" };\n");
+  put("plugins/native/zeta/src/registration.ts", "export const registration = { plugin: \"zeta\" };\n");
+  put("plugins/native/zeta/src/contract.ts", ZETA_CONTRACT);
+  put("plugins/native/zeta/src/internal/part.ts", "export interface ZetaPart { readonly n: number }\n");
+};
+
+test("B27G-05 a workspace package's ./contract is snapshotted, and only it; adding or removing it is never silent", () => {
+  branch("zeta-contract", () => zetaPackage([".", "./registration", "./contract"]));
+  const missing = gate("--base", "main");
+  assert.equal(missing.code, 1);
+  assert.match(missing.out, /tooling\/gates\/api\/plugins\/native\/zeta\/contract\.txt: no snapshot/);
+  assert.equal(api("--update").code, 0);
+  assert.ok(existsSync(path.join(repo, "tooling/gates/api/plugins/native/zeta/contract.txt")));
+  assert.deepEqual(readdirSync(path.join(repo, "tooling/gates/api/plugins/native/zeta")), ["contract.txt"], "the root, the registration and the rest are not part of it");
+  const zeta = snapshot("plugins/native/zeta/contract");
+  assert.match(zeta, /^\/\/ @example\/plugin-zeta\/contract: public API snapshot\./);
+  assert.match(zeta, /export declare const ZETA_ACTION = "zeta\.run";/);
+  assert.match(zeta, /interface ZetaPart \{\n    readonly n: number;\n\}/, "a helper from another file of the package is listed");
+  commit("refresh");
+  assert.equal(gate("--base", "main").code, 0, "refreshed on purpose, the gate passes");
+  put("plugins/native/zeta/src/index.ts", "export const zetaPlugin = { id: \"zeta\", more: true };\n");
+  put("plugins/native/zeta/src/registration.ts", "export const registration = { plugin: \"zeta\", runtime: 1 };\n");
+  assert.equal(api().code, 0, "a change outside ./contract is not an API change");
+  put("plugins/native/zeta/package.json", JSON.stringify({ name: "@example/plugin-zeta", exports: exportsMap(".", "./registration") }, null, 2) + "\n");
+  const stale = api();
+  assert.equal(stale.code, 1);
+  assert.match(stale.out, /plugins\/native\/zeta\/contract\.txt: no longer an exported subpath; the snapshot is stale/);
+});
+
+test("B27G-06 a helper the contract reaches in another file is part of it; a comment or body there is not", () => {
+  branch("zeta-helper", () => { zetaPackage([".", "./contract"]); });
+  assert.equal(api("--update").code, 0);
+  commit("zeta snapshots");
+  put("plugins/native/zeta/src/internal/part.ts", "/** Rewritten. */\nexport interface ZetaPart { readonly n: number }\nexport const unrelated = () => 1;\n");
+  assert.equal(api().code, 0, "a comment and an export the contract does not reach change nothing");
+  put("plugins/native/zeta/src/internal/part.ts", "export interface ZetaPart { readonly n: number; readonly required: string }\n");
+  const changed = api();
+  assert.equal(changed.code, 1, "a new required field of the helper is an API change");
+  assert.match(changed.out, /plugins\/native\/zeta\/contract\.txt: the source no longer matches the snapshot/);
+});
+
 test("an unreadable package is an error, never a pass", () => {
   branch("broken-exports", () => {
     put("packages/contracts/package.json", JSON.stringify({ name: "@molis-ai/molis-work-contracts", exports: { ".": "./index.js", "./modules/alpha": exportsMap("./modules/alpha")["./modules/alpha"], "./platform/beta": exportsMap("./platform/beta")["./platform/beta"], "./platform/missing": exportsMap("./platform/missing")["./platform/missing"] } }, null, 2) + "\n");

@@ -41,6 +41,16 @@ function patchFromEditor(page: TodoPage): Record<string, unknown> {
   return patch;
 }
 
+async function readDetail(page: TodoPage, id: string) {
+  const { state } = page;
+  const ticket = ++state.detailTicket;
+  const [payload, pool] = await Promise.all([
+    page.request<DetailPayload>("GET", `/items/${encodeURIComponent(id)}`),
+    page.request<ListPayload>("GET", `/items?view=all${state.everything ? "&all=1" : ""}`).catch(() => ({ items: [] as ListPayload["items"] })),
+  ]);
+  return { ticket, payload, pool };
+}
+
 /** The open todo: its editor with saving, sources, works, links and history. */
 export function installDetail(page: TodoPage): void {
   const { el, state } = page;
@@ -98,22 +108,30 @@ export function installDetail(page: TodoPage): void {
     el.rowsEl.querySelectorAll<HTMLElement>("[data-todo-row]").forEach((row) => row.classList.toggle("is-selected", row.dataset.todoRow === item.id));
   };
 
-  page.openDetail = async (id, keepEdits) => {
-    const ticket = ++state.detailTicket;
-    const [payload, pool] = await Promise.all([
-      page.request<DetailPayload>("GET", `/items/${encodeURIComponent(id)}`),
-      page.request<ListPayload>("GET", `/items?view=all${state.everything ? "&all=1" : ""}`).catch(() => ({ items: [] as ListPayload["items"] })),
-    ]);
-    if (ticket !== state.detailTicket) return;
+  const adoptDetail = ({ payload, pool }: Awaited<ReturnType<typeof readDetail>>) => {
     state.history = payload.history || [];
     state.backlinks = payload.backlinks || [];
     state.linkPool = pool.items || [];
+    return payload.item;
+  };
+  page.openDetail = async (id, keepEdits) => {
+    const detail = await readDetail(page, id);
+    if (detail.ticket !== state.detailTicket) return;
+    const item = adoptDetail(detail);
     if (state.selected && (state.dirtyKeys.size || state.saving)) {
-      if (keepEdits && state.selected.id === id) state.selected = payload.item;
+      if (keepEdits && state.selected.id === id) state.selected = item;
       page.paintSave();
       return;
     }
-    fillEditor(payload.item);
+    fillEditor(item);
+  };
+  page.reloadDetail = async (id) => {
+    const selected = state.selected, draft = state.dirtyKeys;
+    if (selected?.id !== id) return false;
+    const detail = await readDetail(page, id);
+    if (detail.ticket !== state.detailTicket || state.selected !== selected || state.dirtyKeys !== draft || state.saving) return false;
+    fillEditor(adoptDetail(detail));
+    return true;
   };
 
   page.flush = async () => {

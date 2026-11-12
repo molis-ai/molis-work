@@ -100,22 +100,37 @@ export async function loadSource(page: GitPage): Promise<void> {
     const handed = handedDraft(page.scWorkspace);
     if (handed && !message.value.trim()) { message.value = handed; scStatus.textContent = uiText.text("git.commit.handed"); }
     s("[data-git-branch]").textContent = summary.branch || uiText.text("git.branch.detached", { commit: (summary.head_commit || "").slice(0, 8) });
-    s("[data-git-sync]").textContent = summary.upstream ? `↑${summary.ahead} ↓${summary.behind} · ${summary.upstream}` : (summary.remotes.length ? uiText.text("git.sync.unpushed") : uiText.text("git.sync.no-remote"));
-    const commit = s<HTMLButtonElement>("[data-git-commit]");
-    commit.disabled = !summary.staged.length && !summary.merging;
-    commit.textContent = summary.staged.length ? uiText.text("git.commit.staged", { count: summary.staged.length }) : summary.merging ? uiText.text("git.commit.merge") : uiText.text("git.commit.nothing");
-    const push = s<HTMLButtonElement>("[data-git-push]");
-    push.disabled = !summary.branch || !summary.remotes.length || !summary.head_commit || Boolean(summary.upstream && !summary.ahead);
-    push.textContent = !summary.remotes.length ? uiText.text("git.sync.no-remote") : summary.upstream ? (summary.ahead ? uiText.text("git.push.count", { count: summary.ahead }) : uiText.text("git.push.synced")) : uiText.text("git.push.upstream");
+    const hasRemote = summary.remotes.length > 0;
+    s("[data-git-sync]").textContent = !hasRemote ? uiText.text("git.sync.no-remote") : summary.upstream
+      ? `↑${summary.ahead} ↓${summary.behind} · ${summary.upstream}` : uiText.text("git.pull.no-upstream");
+    const staged = summary.staged.length, commit = s<HTMLButtonElement>("[data-git-commit]");
+    const draft = s<HTMLButtonElement>("[data-git-commit-draft]");
+    commit.hidden = commit.disabled = !staged && !summary.merging;
+    draft.hidden = draft.disabled = !page.draft;
+    s("[data-git-commit-state]").hidden = !commit.hidden;
+    if (!commit.hidden) commit.textContent = staged ? uiText.text("git.commit.staged", { count: staged }) : uiText.text("git.commit.merge");
+
+    const push = s<HTMLButtonElement>("[data-git-push]"), pull = s<HTMLButtonElement>("[data-git-pull]");
+    push.hidden = push.disabled = !summary.branch || !hasRemote || !summary.head_commit || Boolean(summary.upstream && !summary.ahead);
+    if (!push.hidden) push.textContent = summary.upstream ? uiText.text("git.push.count", { count: summary.ahead }) : uiText.text("git.push.upstream");
+    pull.hidden = pull.disabled = !summary.upstream || summary.merging;
+    if (!pull.hidden) pull.textContent = summary.behind ? uiText.text("git.pull.count", { count: summary.behind }) : uiText.text("git.pull.any");
+
+    const pr = s<HTMLButtonElement>("[data-git-pr-toggle]");
+    pr.hidden = pr.disabled = !hasRemote;
+    s("[data-git-sync-actions]").hidden = pr.hidden && pull.hidden;
+    if (!hasRemote) {
+      s("[data-git-pr-form]").hidden = true;
+      s<HTMLButtonElement>("[data-git-pr-create]").disabled = true;
+      pr.setAttribute("aria-expanded", "false");
+    }
+
     // Branches Coding keeps for its independent writer directories are checked out there: they can be neither
     // switched to here nor a sensible PR target, so they are not offered.
     const others = summary.branches.filter((branch) => branch !== summary.branch && !branch.startsWith("molis-work/writer/"));
     const choice = s<HTMLSelectElement>("[data-git-branch-choice]"), mergeChoice = s<HTMLSelectElement>("[data-git-merge-choice]");
     setOptions(choice, others, choice.value);
     setOptions(mergeChoice, others, mergeChoice.value);
-    const pull = s<HTMLButtonElement>("[data-git-pull]");
-    pull.disabled = !summary.upstream || summary.merging;
-    pull.textContent = !summary.upstream ? uiText.text("git.pull.no-upstream") : summary.behind ? uiText.text("git.pull.count", { count: summary.behind }) : uiText.text("git.pull.any");
     renderConflicts(page);
     // The PR target follows the repository's main branch unless the person picked one; a value left over from the
     // branch previously checked out is not a choice.
@@ -269,7 +284,6 @@ export function installSource(page: GitPage): void {
   lifetime.listen(s("[data-git-commit-draft]"), "click", () => {
     message.value = page.draft;
     message.focus();
-    if (!page.draft) scStatus.textContent = uiText.text("git.commit.empty-index");
   });
   lifetime.listen(s("[data-git-commit]"), "click", (event) => {
     if (!message.value.trim()) { scStatus.textContent = uiText.text("git.commit.need-message"); message.focus(); return; }

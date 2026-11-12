@@ -372,7 +372,8 @@ export interface ExternalSessionToolSearchOutput { sessions: ExternalSessionRow[
  * so an identity cannot reach the index. The session is found by `session_key` alone, and the source is the person's.
  */
 export function externalSessionSearchEntry(row: Pick<ExternalSessionRow, "session_key" | "tool" | "title" | "directory" | "last_activity_at">): SearchEntry {
-  const title = searchText(row.title || row.tool.display_name, 1000), summary = searchText([row.tool.display_name, row.directory].filter(Boolean).join(" "));
+  // A title of nothing but spaces or control characters is no title: the tool's name stands in (contract-design §6.4).
+  const title = searchText(row.title, 1000) || searchText(row.tool.display_name, 1000), summary = searchText([row.tool.display_name, row.directory].filter(Boolean).join(" "));
   return { subject: { kind: EXTERNAL_SESSION_SUBJECT_KIND, id: row.session_key }, revision: searchRevisionOf([title, summary, row.last_activity_at]), title, summary,
     updated_at: row.last_activity_at, content: "summary", open: { surface: "sessions", id: row.session_key } };
 }

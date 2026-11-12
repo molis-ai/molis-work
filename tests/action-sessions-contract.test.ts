@@ -290,6 +290,12 @@ test("SRB-02, SRB-06: the search source is the person's: a declared source, titl
   assert.equal(untitled.title, "Codex");
   assert.equal(untitled.summary, "Codex");
   assert.notEqual(untitled.revision, entry.revision, "a change to what is indexed changes the revision");
+  // A title of only spaces or control characters is no title either: the tool's name stands in, never an empty title.
+  for (const title of ["  ", "\u0001\t\u0007"]) {
+    const blank = externalSessionSearchEntry({ ...row(null), title });
+    assert.equal(blank.title, "Codex", JSON.stringify(title));
+    assert.ok(accepts(SEARCH_ENTRY_SCHEMA, blank), JSON.stringify(title));
+  }
 });
 
 test("SRB-02, SRB-06: a tool's own search names a source, not a path, and only the person's whole rows come back", () => {

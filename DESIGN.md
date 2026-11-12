@@ -371,6 +371,8 @@ The Home chooses a skin from Settings › Interface and language. Soft Workbench
 
 Each skin uses the roles in `packages/design-system/resources/ui-spec.json`. The Design System turns those roles into the page, specimen and recovery CSS scopes. Phones and coarse pointers retain the 44px touch targets. The component board renders the Home’s appearance and the same component catalog that Builder uses.
 
+Batch 16 (#2031) wrote the current skin/font description above (Tray and Pill deleted, Folio and the bundled rounded font recorded, Home choice in Settings › Interface and language). What remains for batch 70 is custom appearance making (import, export, assistant-authored looks) and the assistant appearance Skill, per [the implementation plan](specs/font-and-skin-system/implementation-plan.md) §11 and [the A-section contract](specs/font-and-skin-system/a-section-contract.md) §14. The desktop menu-bar capsule does not yet consume the Home appearance; see BL-b16-capsule-appearance-unwired.
+
 ## Iconography
 
 One curated Lucide library on a 24 grid supplies navigation, action and object icons; state marks use the shared segmented ring. Four sizes: **12** (beside captions and counts), **14** (inline, menus, small buttons), **16** (buttons, row leads, tabs) and **20** (Dock, residents, the empty-state mark), as `--icon-xs` … `--icon-lg`. Stroke is 2 at 16px and below and 1.6 at 20px. A glyph and its label share a centre line with 6–8px between them. Chrome glyphs are `--ink-soft`, current glyphs `--ink`. Do not introduce a second icon family, filled glyphs or emoji.

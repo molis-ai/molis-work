@@ -1,6 +1,6 @@
 # 字体、皮肤与语言系统：A 段合同设计稿
 
-状态：设计稿，尚未实现（2026-11-07）；要用户定的事都定了（第 12 节）。路线书第 14 批合同台写，写手拿它开工；合同代码按第 10 节单独开小 PR。代码依据是 main `88c713ba3`，只读核对，没有构建、没有跑测试、没有碰真实 Home；第 5.4 节的序列对齐只跑了离线模拟，范围写在那一节。需求与总验收仍以[需求书](spec.md)为准，总体方案见[实现方案](implementation-plan.md)；两边与本文不一致的 A 段字段，以本文为准。
+状态：A 段已随第 14 批实现、B/C 已随第 16 批 #2031 合入 main（2026-11-11，`206884b447`）；本文保留为 A 段合同设计稿与第 16 批落地方式的记录，现行行为以实际代码与已审合同为准（2026-11-12 合后审计整改）。要用户定的事都定了（第 12 节）。代码依据是 main `88c713ba3`，只读核对，没有构建、没有跑测试、没有碰真实 Home；第 5.4 节的序列对齐只跑了离线模拟，范围写在那一节。需求与总验收仍以[需求书](spec.md)为准，总体方案见[实现方案](implementation-plan.md)；两边与本文不一致的 A 段字段，以本文为准。
 
 本批「做完基本看不到界面变化」。真实切换在第 16 批（[决定 20](../post-anticorruption-roadmap/reference/decisions.md#decision-20)）。下文凡是写「第 16 批」的段落只说明不留死路，不是 A 段要写的代码。例外是回复语言（T10）和手册（T9b）：用户 2026-11-07 要求这两件本批就有。验收编号在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-73。
 
@@ -550,7 +550,7 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 - **插件代码：** `startChild` 在加载插件脚本之前装上下文（第 5.2 节），插件脚本 `import { t }`，用自己打进去的那份 SDK。
 - **`host.translate`：** A 段不动。C 段删 `translate`、`globalThis.L`、`molisFrameFillMessage`，所有调用改完，不留两条路（决定 20）。
 
-**`molis-work:ui-environment-changed` A 段不登记：** 没有真实发送者和监听者，`scripts/gates/dom-events.mjs` 会拦没人用的条目。第 16 批接文档控制器（发送）和终端重新测量（监听）的那一片才登记。
+**`molis-work:ui-environment-changed` A 段不登记：** 没有真实发送者和监听者，`scripts/gates/dom-events.mjs` 会拦没人用的条目。第 16 批接文档控制器（发送）和终端重新测量（监听）的那一片才登记。**2026-11-12 补记：** 第 16 批已登记并在外观更新后发送（`packages/contracts/src/platform/dom-events.ts:365`、`apps/workbench/src/browser/appearance-view.ts:94`，终端在 `apps/workbench/src/terminal-view.ts:45` 监听）；同批因切语言另登记了新事件 `molis-work:language-changed`（`:272`）。
 
 ## 5. SDK `/ui` 工具清单
 
@@ -728,6 +728,8 @@ export interface UiTextProvider {
 4. **客户端画的字。** 第 3 步之后，整个节点的文字（或上述属性）等于产出记录里的一条，就按记录的键和参数重算。记录上限 2,000 条，先进先出。
 5. **发一次现有的失效**（`molis-work:select-item { invalidate: true }`，`tab-workspace-plugins.ts:212`）。有自己重取路径的列表和切换途中打开的标签由此重取。评审台跑的 5 个场景里这个选择器匹配到 0 个，没查透，**不能指望它纠正真界面字**。
 
+   **2026-11-12 合后审计更新：第 16 批没有按字面复用这条失效。** 实际做法：切语言成功后由当前文档发新登记的 `molis-work:language-changed`（`packages/contracts/src/platform/dom-events.ts:272`、`apps/workbench/src/browser/language-entry.ts:317`；插件 frame 由 `plugin-frame/language-child.ts:47` 发），需要重取已打开内容的视图沿自己的只读入口更新；`select-item { invalidate: true }` 仍只用于既有场景。实际接入合同见 [bc-runtime-contract](bc-runtime-contract.md#无刷新切换及重试)。
+
 切换串行：进行中再切就排队，只做最后一次。iframe 由父页面经端口把新语言包和两份文档发给子页面，跑同一段代码。
 
 **序列对齐跑过了，离线：** 7 个页面的两种语言真实渲染，1,731 句界面字（同一锚下去重），每句在四个位置各加一个同字的客户端行，共 6,924 次；另删真节点 248 次。不加「两个都换」：隔着别的字的都对，紧挨的有 1,890 次把客户端行译掉、真界面字留旧语言（序号定位在隔着字时也错）。加上：真界面字留旧语言 0 次，译错 0 次，客户端行译掉 3,780 次，全是紧挨的；删节点 0 处错。**限制：** 用 `htmlparser2` 模拟，不是浏览器；每次只加一个节点；连续几条客户端行、服务端画的用户内容也同字、节点重排、iframe 都没跑。
@@ -738,7 +740,7 @@ export interface UiTextProvider {
 2. **首屏有几种写法这个办法认不出，第 16 批要先改完才过得了首屏：** 直接 `new Intl.DateTimeFormat`（`project-home.ts:72,100,110`），改 `format.date`；`L(...).replace(…)`（`project-home.ts:141`、`assistant-island.ts:125`），改带参数；半句拼接（`project-home.ts:222`、`assistant-tabs.ts:28`），改整句一个键。它们进第 14 节。评审台实测首屏全走完仍有 9／34、17／58 处中文，含原型没记录的打包翻译，不全是这几种。
 3. **在途的旧响应：** 切换时正在路上的片段是旧语言，下一次重取才变。
 
-**T8 落地时与上面不同的三处（第 8.6 节）：** 第 3 步「结构不同的子树整块换」没有做，两份渲染形状不同就整块不动并记一条问题；第 5 步没有做（要动 DOM 事件登记，归第 16 批）；「两个都换」写成「可达」规则（第 8.6 节第 4 条）。
+**T8 落地时与上面不同的三处（第 8.6 节）：** 第 3 步「结构不同的子树整块换」没有做，两份渲染形状不同就整块不动并记一条问题；第 5 步没有做（要动 DOM 事件登记，归第 16 批）；「两个都换」写成「可达」规则（第 8.6 节第 4 条）。**2026-11-12 补记：** 第 16 批以新事件 `molis-work:language-changed` 替代第 5 步，见上。
 
 **代价：** 一段平台代码，估计 150 行上下，放 `apps/workbench/src/browser/locale-switch.ts`，**没有量过**，超过 10 KB 按规矩问用户；切一次语言多画两遍页面（第 11 节）；浏览器里每次 `t` 多一次 `Map.set`。
 
@@ -1133,6 +1135,8 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 
 只记不留死路要用的。
 
+**2026-11-12 合后审计整改：** 本节是第 16 批开工时的清单；除下列「仍余」外均已随 #2031 落地或被取代。**仍余：** 胶囊 Web 外观未接入（BL-b16-capsule-appearance-unwired）、写死日期语言/模型材料语言残余（BL-b16-language-hardcoding-residual）、给模型的动作说明 A/B 未执行（BL-b16-action-description-ab）、FSS-40/41 按用户决定缓（第 70 批）。逐项：门禁 PR→已随 #2031；字体方案与 `PLUGIN_COMPONENTS`→已落；`ActionLocale`/`WebLocale`/`WEB_LOCALES`→已由语言描述驱动；内置/沙箱语言文件、`FrameConfig`、动作网关→已接；§5.4 合并代码→已进工作台脚本与 iframe（事件改用 `language-changed`）；`/locale` 跳转→客户端原地，`/locale` 保留无 JS 入口；#1795 三条→按定样记录落地（`docs/design/appearance-selection/README.md:79`）。迁移三类、盘点、首屏写法、窄规矩存量、旧字段拒绝、后台通知、内容翻译、脚手架、手册→已随 C 段与手册改动落地；`DESIGN.md` 皮肤章节→本批写了现行描述，自定义制作章节归第 70 批。
+
 - 门禁 PR：页面总数、第一屏清单、语言和皮肤的路由（第 4.4、9 节），开工前单开。
 - 字体方案加字号、行高、长文阅读、说明文字（第 3.4 节）；圆润字体第 16 批前定；`PLUGIN_COMPONENTS` 搬进共同规格（第 3.3 节）。
 - `ActionLocale`、`WebLocale`、`WEB_LOCALES` 写死两种语言，改由语言描述驱动。
@@ -1192,7 +1196,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 - **和「界面语言只在这个浏览器」：** 不冲突。界面语言仍是每个浏览器各选各的，Cookie 不变；这项记录不决定任何页面显示，只给没有页面的工作用。两个浏览器语言不同时，没有页面的工作跟最后动的那个。
 - **主人与存放：** 主人是宿主，新文件 `apps/local-host/src/ui-locale-memory.ts`；存在 `<Home>/config/ui-locale.json`，算带版本文件（`home-stores.ts` 加一行，版本条目 `format.ui.last-locale`，第 1 版不用升级步骤）；不存在就用默认，不算新增兼容逻辑。不加表，别的包不碰文件。B 段的外观主人进 `horizontal/` 时连同文件一起搬。
 - **读写函数：** `rememberUiLocale(home, locale)`：取值校验过才写，和内存里相同就不写，写失败只记一条问题，不挡请求。`readUiLocale(home)`：第一次读文件，之后走内存；没有记录或读不了时是 `null`，调用方用 `resolveWebLocale` 的默认。
-- **写的入口：** `assistant-http.ts` 的 `pageRoundLanguage`（发消息、回答问题、重新准备操作卡共用），和 `/locale`（`web-server.ts:134`）。`/locale` 是 GET：`web-server.ts:133` 的 `refuseForeignRequest` 拒掉非回环的 `Host` 和跨站 iframe，`authorizeLocalWebRequest` 本来就放行所有 GET（`web-http.ts:152`），所以跨站 `<img>` 还能到。Cookie 照旧，写 Home 记录只认 `Sec-Fetch-Site: same-origin`，别的和没有这个头都跳过。别的网页让浏览器顶层跳到 `/locale` 仍能改 Cookie（`SameSite=Lax`），用户接着发送时回复语言和记录跟着页面走；页面语言变了用户看得见，害处小，不堵（`S-ui-locale-memory` 写进「看不到的部分」）。第 16 批原地切语言后改走写偏好的动作。
+- **写的入口：** `assistant-http.ts` 的 `pageRoundLanguage`（发消息、回答问题、重新准备操作卡共用），和 `/locale`（`web-server.ts:134`）。`/locale` 是 GET：`web-server.ts:133` 的 `refuseForeignRequest` 拒掉非回环的 `Host` 和跨站 iframe，`authorizeLocalWebRequest` 本来就放行所有 GET（`web-http.ts:152`），所以跨站 `<img>` 还能到。Cookie 照旧，写 Home 记录只认 `Sec-Fetch-Site: same-origin`，别的和没有这个头都跳过。别的网页让浏览器顶层跳到 `/locale` 仍能改 Cookie（`SameSite=Lax`），用户接着发送时回复语言和记录跟着页面走；页面语言变了用户看得见，害处小，不堵（`S-ui-locale-memory` 写进「看不到的部分」）。第 16 批原地切语言后改走写偏好的动作。**2026-11-12 补记：** 第 16 批已改为客户端原地切换并在成功后提交偏好；`/locale` 保留为无 JS 的跳转入口（见 [bc-preflight](bc-preflight.md) 未验项注记）。
 
 否掉：**记下发起时的语言**，切语言之后旧日报不变，要逐个改；**用主人默认语言**，英文用户也会收到中文日报，不满足用户的要求。
 
@@ -1248,7 +1252,7 @@ T10 不依赖其余各片，也不碰文字工具。
 
 ### 15.5 给模型的动作说明、工具说明要不要换
 
-**T10 不换；第 16 批量过再定。** 动作文字有了英文键之后，同一批英文轮次跑两遍，一遍给中文动作说明，一遍给英文，比回复里夹中文的比例和选对工具的比例（BL-103 记的是反方向的同类问题）。换的成本很小，只有 `assistant-directory.ts` 一处。**MCP 的工具说明不换：** 外部 Agent 没有界面语言，换了还会让对方的缓存和比对失效。
+**T10 不换；第 16 批量过再定。**（**2026-11-12 合后审计：** 8 轮 A/B 本批**未执行**；用户 2026-10-23 已定 FSS-40/41 暂缓，是否把这条也一并缓或另跟进待用户决定，记 BL-b16-action-description-ab。MCP 工具说明不换已按此实现，`apps/mcp/src/action-tools.ts` 用原文。） 动作文字有了英文键之后，同一批英文轮次跑两遍，一遍给中文动作说明，一遍给英文，比回复里夹中文的比例和选对工具的比例（BL-103 记的是反方向的同类问题）。换的成本很小，只有 `assistant-directory.ts` 一处。**MCP 的工具说明不换：** 外部 Agent 没有界面语言，换了还会让对方的缓存和比对失效。
 
 **红线：** 这一节没有改门禁、没有新增兼容逻辑、没有新增资源。
 
@@ -1278,6 +1282,8 @@ A 段新写法只有开发路径走得通，带 `ui.locales` 的沙箱包装不�
 ### 16.2 本批改什么（T9a、T9b）
 
 **`skills/` 改动不能排在全量回归期间**（AGENTS「构建与测试」）。**`AGENTS.md` 和开发流程这几段全局规矩，T9b 开写时由主会话先拿草稿给用户看，文字经用户确认。**
+
+**2026-11-12 合后审计：** 本节是第 16 批开工时的要求记录，本批已完成：`text-and-appearance.md` 改现在时，`ui.md` 与 `apps/workbench/README.md` 的旧写法删除，`AGENTS.md` 与开发流程已改现在时（`AGENTS.md` 的用户确认待补，见 16.md「合后审计整改」待决④），`generated-*.md` 与 `CHAPTERS` 已改并跑离线 replay。`specs/README.md` 当时写「不改」，本批因 spec 状态变化已更新其索引行。
 
 | 位置 | 改什么 | 片 |
 | --- | --- | --- |

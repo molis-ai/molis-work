@@ -716,6 +716,8 @@ export interface AssistantFollowUp {
   enabled: boolean;
   created_at: string;
   last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: AssistantSavedText };
+  /** The times it missed that the person has not decided on yet (「现在做」 or 「跳过」), newest last, at most ten. */
+  missed?: Array<{ due_at: string; missed_at: string }>;
 }
 
 /**

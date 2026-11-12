@@ -1,6 +1,6 @@
 # 当前结构中的 Goal 历史场景
 
-四份业务场景覆盖导入要求、批准、完成与混合历史，全部使用现行项目库第2版结构（第2版删去 `project_browsing_settings`、新增 `material_recent_uses`，见 `apps/local-host/src/project-database-schema.ts` 的升级段）；内置插件声明账本为1（Goals 自 2026-11-11 起为 2，见文末）。它们由 `tests/goal-event-history-fixture.ts` 载入，不包含升级链或启动转换。
+四份业务场景覆盖导入要求、批准、完成与混合历史，全部使用现行项目库第2版结构（第2版删去 `project_browsing_settings`、新增 `material_recent_uses`，见 `apps/local-host/src/project-database-schema.ts` 的升级段）；内置插件声明账本为1（Goals 自 2026-11-11 起为 2，Schedule 与 Feed 自 2026-11-12 起为 2，见文末）。它们由 `tests/goal-event-history-fixture.ts` 载入，不包含升级链或启动转换。
 
 本次集成更新完整现行结构与插件声明账本；业务INSERT、Goal状态、授权完成决定、幂等回执和版本引用不改。授权决定固定整份约定的内容，继续按现行规则比较，不读取或补全旧形状。
 
@@ -11,3 +11,5 @@
 项目库为第 2 版，插件声明版本在统一起点为 1，同步技术表名称由同步集合版本派生；业务 INSERT、列、约束与触发器是真实场景的内容。
 
 2026-11-11（第 24 批，逐项依据合同）：Goals 的表升到第 2 版，判断表加 `basis_json`、`tier`、`gap`、`reporter_session`，结论表加 `checked_artifact_id`、`checked_version`；四份夹具的建表语句和 Goals 的声明账本随之更新为 2，业务 INSERT 不改（旧行的层级按列默认值是「自述」）。
+
+2026-11-12（第 25 批，错过的运行）：Schedule 与 Feed 的表各升到第 2 版，各加一张错过表（`schedule_missed_runs`、`feed_missed_pulls`）；四份夹具补上这两句建表语句（取自现行代码新建的库），两者的声明账本改为 2、对象列表加上新表，业务 INSERT 不改。

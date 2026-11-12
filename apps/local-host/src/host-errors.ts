@@ -9,6 +9,8 @@ export const hostErrors = defineErrorCodes("host", {
   /** The caller's close deadline elapsed; the underlying resource cleanup and Home ownership continue. */
   close_timeout: "timeout",
   project_invalid: "invalid",
+  /** Closing the home page's notice that an interrupted upgrade finished needs the round it is about (upgrade-continuity U3 §3). */
+  upgrade_notice_invalid: "invalid",
   project_identity_conflict: "invalid",
   project_closing: "invalid",
   /**

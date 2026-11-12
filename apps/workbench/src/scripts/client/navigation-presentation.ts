@@ -143,7 +143,9 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const pin = document.createElement('button');
     pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : '') + (arriving ? ' is-arriving' : ''); pin.dataset.dockPin = id;
     if (arriving) pin.addEventListener('animationend', () => pin.classList.remove('is-arriving'), { once: true });
-    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + globalThis.t.text("workbench.navigation-presentation.didn-t-start") : ''));
+    // A plugin stopped because its data was not upgraded did start; it is only unavailable for now (U3 §2.4).
+    const held = failed(id) && document.querySelector('[data-work-surface="' + CSS.escape(id) + '"] [data-owner-unavailable]');
+    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + (held ? globalThis.t.text("workbench.navigation-presentation.unavailable-for-now") : globalThis.t.text("workbench.navigation-presentation.didn-t-start")) : ''));
     const glyph = glyphOf(id); if (glyph) pin.append(glyph);
     warn(pin, id);
     return pin;

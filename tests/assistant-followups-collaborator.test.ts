@@ -29,7 +29,7 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
   type SendWords = Parameters<AssistantFollowUpPorts<Work>["send"]>[1];
   const sent: Array<{ words: SendWords; requestId: string }> = [];
   const settings = new Map<string, string>();
-  let rules: AssistantRule[] = [];
+  let rules: AssistantRule[] = [], workState: "idle" | "running" = "idle";
   const tasks = new Map<string, AgentScheduledTask>();
   let runner: ((task: AgentScheduledTask) => Promise<void>) | null = null;
   const schedule: AgentScheduleCapability = {
@@ -48,13 +48,13 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
     get homeActions() { return homeActions; },
-    host: async () => ({}) as never, state: async () => "idle",
+    host: async () => ({}) as never, state: async () => workState,
     send: async (_work, words, requestId) => { sent.push({ words, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
     schedule: async () => schedule,
   };
   return { followUps: new AssistantFollowUps(ports), tasks, sent, notices, changed, settings, works, db, store,
     run: async (key: string) => { assert.ok(runner, "a runner is attached"); await runner!(tasks.get(key)!); },
-    at: (iso: string) => { now = new Date(iso); }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
+    at: (iso: string) => { now = new Date(iso); }, working: (running: boolean) => { workState = running ? "running" : "idle"; }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
 }
 
 test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned instants and long original failures after a v1 restart", async t => {
@@ -187,4 +187,59 @@ test("W4-05-03 the collaborator depends on its own ports only: no import of anot
   assert.deepEqual(siblings, ["assistant-errors.js", "assistant-saved-text.js"], "only the Assistant's shared error table and pure text reference constructor");
   const imports = source.split("\n").filter(line => line.startsWith("import ")).join("\n");
   assert.doesNotMatch(imports, /AssistantStore|AssistantService/, "the store and the service are reached through ports");
+});
+
+test("RES-04 a missed time is listed for the person, 现在做 starts that round once on the same path, 跳过 only takes it off; the queued times are the upcoming ones", async () => {
+  const h = harness("2026-11-11T08:00:00.000Z");
+  const daily = await h.followUps.save({ work_id: "w1", text: "汇总今天的工作", at: "2026-11-11T10:00:00.000Z", label: "每日汇总", repeat: "daily" });
+  const once = await h.followUps.save({ work_id: "w1", text: "看一眼合同", at: "2026-11-11T11:00:00.000Z", label: "看合同" });
+  const window = (now: string, hours = 48) => ({ now, upcoming_until: new Date(Date.parse(now) + hours * 3_600_000).toISOString() });
+  let view = h.followUps.runsOverview(window("2026-11-11T08:00:00.000Z"));
+  assert.deepEqual(view.upcoming.map(run => [run.title, run.due_at, run.needs, run.project_id]), [
+    ["每日汇总", "2026-11-11T10:00:00.000Z", ["model"], null], ["看合同", "2026-11-11T11:00:00.000Z", ["model"], null]]);
+  assert.deepEqual(view.missed, []);
+  assert.deepEqual(h.followUps.runsOverview(window("2026-11-11T08:00:00.000Z", 1)).upcoming, [], "nothing outside the window");
+
+  // Molis Work was off past both times: each is written down as missed, nothing is sent.
+  h.at("2026-11-11T12:00:00.000Z");
+  await h.run(`fu-${daily.followup_id}-${Date.parse("2026-11-11T10:00:00.000Z")}`);
+  await h.run(`fu-${once.followup_id}-${Date.parse("2026-11-11T11:00:00.000Z")}`);
+  assert.equal(h.sent.length, 0);
+  view = h.followUps.runsOverview(window("2026-11-11T12:00:00.000Z"));
+  assert.deepEqual(view.missed.map(run => [run.title, run.due_at, run.missed_at]), [
+    ["看合同", "2026-11-11T11:00:00.000Z", "2026-11-11T12:00:00.000Z"], ["每日汇总", "2026-11-11T10:00:00.000Z", "2026-11-11T12:00:00.000Z"]]);
+  assert.deepEqual(view.upcoming.map(run => [run.title, run.due_at]), [["每日汇总", "2026-11-12T10:00:00.000Z"]], "the daily one goes on to tomorrow");
+  const [contract, summary] = view.missed;
+
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: summary!.run_id, decision: "run_now" }), { state: "started" });
+  assert.deepEqual(h.sent, [{ words: { owner: "workbench", key: "workbench.assistant-followup.scheduled-message",
+    args: [{ name: "label", kind: "text", text: "每日汇总" }, { name: "text", kind: "text", text: "汇总今天的工作" }] },
+    requestId: `fu-${daily.followup_id}-${Date.parse("2026-11-11T10:00:00.000Z")}` }],
+    "the round the time itself would have started, with its request id");
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: summary!.run_id, decision: "run_now" }), { state: "gone" }, "a second click finds it decided");
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: contract!.run_id, decision: "skip" }), { state: "skipped" });
+  assert.equal(h.sent.length, 1, "跳过 sends nothing");
+  assert.deepEqual(h.followUps.runsOverview(window("2026-11-11T12:00:00.000Z")).missed, [], "decided times leave the list");
+  assert.equal(h.followUps.list("w1").find(item => item.followup_id === daily.followup_id)!.next_at, "2026-11-12T10:00:00.000Z", "deciding leaves the next time alone");
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: "followup:nothing:1", decision: "skip" }), { state: "gone" });
+});
+
+test("RES-04 a missed time of a work since archived or a follow-up since removed is gone; a work in a round is refused, not started", async () => {
+  const h = harness("2026-11-11T08:00:00.000Z");
+  const first = await h.followUps.save({ work_id: "w1", text: "一", at: "2026-11-11T09:00:00.000Z", label: "一" });
+  const second = await h.followUps.save({ work_id: "w1", text: "二", at: "2026-11-11T09:30:00.000Z", label: "二" });
+  h.at("2026-11-11T11:00:00.000Z");
+  await h.run(`fu-${first.followup_id}-${Date.parse("2026-11-11T09:00:00.000Z")}`);
+  await h.run(`fu-${second.followup_id}-${Date.parse("2026-11-11T09:30:00.000Z")}`);
+  const [secondRun, firstRun] = h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z" }).missed;
+  h.working(true);
+  await assert.rejects(h.followUps.decideMissed({ run_id: firstRun!.run_id, decision: "run_now" }), { code: "assistant.busy" });
+  assert.equal(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z" }).missed.length, 2, "a refused 现在做 keeps it on the list");
+  h.working(false);
+  await h.followUps.remove(first.followup_id);
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: firstRun!.run_id, decision: "run_now" }), { state: "gone" });
+  h.works.set("w1", { ...h.works.get("w1")!, archived: true });
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: secondRun!.run_id, decision: "run_now" }), { state: "gone" });
+  assert.equal(h.sent.length, 0);
+  assert.deepEqual(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z" }).missed, []);
 });

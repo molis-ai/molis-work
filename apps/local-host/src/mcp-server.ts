@@ -1,5 +1,5 @@
 import { connectResidentAccount, type ResidentAccountConnection } from "./resident-account-connection.js";
-import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
+import { homeHostUrl } from "./host-endpoint.js";
 import { mcpErrors } from "./mcp-errors.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ensureSystemAgentService } from "./system-agent-service.js";
@@ -289,7 +289,8 @@ export class LocalMcpServer {
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
       runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
       ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: mcpResidentManagement(this.ensureResident,
-        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
+        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL")
+          ?? homeHostUrl(resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome()),
         mcpRequestSignal(this.transportLifetime.signal),resident?.controlToken) } : {}) }, name, arguments_);
   }
 

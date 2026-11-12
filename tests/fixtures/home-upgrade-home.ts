@@ -49,7 +49,7 @@ export function upgradeTestHome(t: TestContext) {
 }
 
 export const notesDescriptor = (name: string, overrides: Partial<HomeUpgradeStoreDescriptor> = {}): HomeUpgradeStoreDescriptor =>
-  ({ owner: "tests/notes", pattern: relativeStore(name), baseline: BASELINE_V2, open: openNode, ...overrides });
+  ({ owner: "tests/notes", block: { kind: "home" }, pattern: relativeStore(name), baseline: BASELINE_V2, open: openNode, ...overrides });
 
 /** A step that does its change and then fails, so only a rollback or a restore can undo it. */
 export const failingBaseline = (message = "the step's own words"): SqliteBaseline =>

@@ -49,7 +49,7 @@ test("ASR-02 management CLI preserves the native connection token, fixed origin 
 for (const [mode, name, change] of [
   ["cli", "tool-supplied token", s => s.replace("controlToken:connected?.controlToken", "controlToken:input.controlToken")],
   ["cli", "missing captured token", s => s.replace("controlToken:connected?.controlToken,", "")],
-  ["cli", "changed constant origin", s => s.replace('const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??DEFAULT_RESIDENT_HOST_URL;', 'const origin=input.origin;')],
+  ["cli", "changed constant origin", s => s.replace('const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??homeHostUrl(home);', 'const origin=input.origin;')],
   ["cli", "mutable origin", s => s.replace("const origin=", "let origin=")],
   ["cli", "fake account owner", s => s.replace('from "./resident-account-connection.js"', 'from "./forged-account.js"')],
   ["cli", "connection loses original signal", s => s.replace("connectResidentAccount(home,origin,options.signal,required)", "connectResidentAccount(home,origin,undefined,required)")],

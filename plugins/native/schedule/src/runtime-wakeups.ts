@@ -11,6 +11,7 @@ import { handleScheduleTaskWakeup, type ScheduledTaskRunner } from "./wakeup.js"
 import { composeScheduledTaskPrompt, parseScheduledAgentReply } from "./reply.js";
 import { deliverScheduleReminder } from "./reminders.js";
 import { prepareScheduledOperation, runScheduledOperation } from "./operations.js";
+import { noteMissedWakeup } from "./missed-runs.js";
 
 /** The notification service takes a title of at most 200 UTF-16 units; a longer one is cut at a whole character and ends with 「…」. */
 function notificationTitle(title: string): string {
@@ -38,7 +39,7 @@ export function scheduledTaskRunner(agents: PluginAgentClient | undefined, grant
 }
 
 export async function scheduleRuntimeWakeup(services: PluginHostServices, runtime: ScheduleRuntime, grants: ScheduleTaskGrants, installId: string,
-  caller: ActionExecutionContext, input: ScheduleWakeupInput) {
+  caller: ActionExecutionContext, input: ScheduleWakeupInput, projectId: string, now = Date.now) {
   if (caller.audience !== "plugin" || caller.plugin_install_id !== installId || input.plugin_id !== SCHEDULE_PLUGIN_ID) {
     throw new ActionError("actions.forbidden", "唤醒只接受本安装的调度调用");
   }
@@ -48,6 +49,9 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   }
   const control: ScheduleWakeupControl = { signal: caller.signal!, beforeEffect: () => { caller.signal!.throwIfAborted(); caller.assert_authority_current?.(); } };
   const write = (operation: () => void) => runtime.write(caller.beforeEffect, operation);
+  // Far past its time (Molis Work was not running, or the computer slept): written down for the person, not run now (§2.1).
+  const missed = await noteMissedWakeup(runtime.db, projectId, input, now(), write);
+  if (missed) return missed;
   if (input.capability_id === SCHEDULE_TASK_WAKEUP_CAPABILITY) {
     return handleScheduleTaskWakeup(runtime.db, input.object_ref, scheduledTaskRunner(services.agents, grants), undefined, control, write);
   }

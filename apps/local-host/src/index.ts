@@ -2,6 +2,7 @@ export { accountSessionForHost } from "./account-host.js";
 export {syncDocumentFiles} from './sync-document-files.js';
 export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type RuntimeProjectCopyInput } from "./runtime-project-copy.js";
 export { installMolisWorkHome } from "./installer/home.js";
+export { keepPreviousRelease, readRollbackHold, readRollbackPoint, rollbackErrors, rollbackHome, type RollbackPoint, type RollbackResult } from "./installer/home-rollback.js";
 export {openProjectCopyJournal} from './project-copy-journal.js';
 
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";
@@ -43,7 +44,8 @@ export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surf
 export { ensureHomeUpgraded, pendingUpgradeUnits, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
 export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
 export { configuredModelChoices } from "./configured-models.js";
-export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
+export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismissUpgradeNotice, rollbackHrefFor, upgradeNoticeFor, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
+export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type UpgradeBlock, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
 export { pluginTablesDescriptor, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
@@ -415,5 +417,9 @@ export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent
 export { gatewayFactory } from "./continuity-gateway.js";
 export { configureMemberActions } from "./continuity-admin.js";
 export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";
+export { runtimeOverview, decideRuntimeRun, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
+export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
+export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
+export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";

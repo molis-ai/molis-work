@@ -1,0 +1,9 @@
+{
+  "identifier": "capsule-runtime",
+  "description": "The menu-bar popover's 「运行」 section: what runs on its own here, 现在做／跳过 a missed run, the tray's dot and the confirmed quit.",
+  "windows": ["capsule"],
+  "remote": {
+    "urls": ["http://127.0.0.1:{port}/desktop/capsule*"]
+  },
+  "permissions": ["allow-runtime-capsule"]
+}

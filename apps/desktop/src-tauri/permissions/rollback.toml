@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-rollback-to-previous"
+description = "Go back to the kept previous version from Settings › Update in the trusted local main window (U3 §5.4)."
+commands.allow = ["rollback_to_previous"]

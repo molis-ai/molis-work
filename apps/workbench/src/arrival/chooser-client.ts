@@ -243,6 +243,11 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     else if (act === 'new-named') { event.preventDefault(); location.assign(route('/onboarding?mode=new-project&name=' + encodeURIComponent(state.query.trim()))); }
     else if (act === 'retry-brief') { if (state.selected) loadBrief(state.selected, { force: true }); }
     else if (act === 'reload') location.reload();
+    else if (act === 'dismiss-upgrade-notice') {
+      const box = target.closest('[data-upgrade-notice]');
+      box.remove();
+      molisWorkRequest('/api/upgrade/notice/dismiss', { method: 'POST', body: { run_id: box.dataset.runId } }).catch(() => { /* Not closed on record: it is said once more on the next start, nothing else. */ });
+    }
     else if (act === 'prefill') assistant?.fill(target.dataset.text || '');
   });
   root.addEventListener('dblclick', (event) => { const row = event.target.closest('#chooser-dir .mw-dir-row'); if (row) { pick(row.dataset.id); enterSelected(row.dataset.id); } });

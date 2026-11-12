@@ -9,6 +9,7 @@ import { REMINDER_ACTIONS } from "./reminder-actions.js";
 import { SCHEDULE_OPERATION_ACTIONS } from "./operation-actions.js";
 import { SCHEDULE_RECONCILE_JOB, scheduleWakeupActions } from "./background-actions.js";
 import { SCHEDULE_TASK_GRANT_ACTIONS } from "./task-grants.js";
+import { scheduleRunsActions } from "./missed-runs.js";
 export { SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 
 export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
@@ -40,7 +41,7 @@ export const scheduleManifest: PluginManifest = {
     // The platform's grants of this installation's tasks: listed to pick a round's role and mark the page, cleared when a task ends.
     consumes: [projectDirectoryActions.get.capability_id, ...SCHEDULE_TASK_GRANT_ACTIONS.map(action => action.capability_id)],
   },
-  actions: [...SCHEDULE_ACTIONS, ...REMINDER_ACTIONS, ...SCHEDULE_OPERATION_ACTIONS, ...Object.values(scheduleWakeupActions)],
+  actions: [...SCHEDULE_ACTIONS, ...REMINDER_ACTIONS, ...SCHEDULE_OPERATION_ACTIONS, ...Object.values(scheduleWakeupActions), ...Object.values(scheduleRunsActions)],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   // Reminders alone are one group (日程 = Jelly's calendar and these, user decision); the task list carries them together with other
   // plugins' scheduled operations and their original input, so it is a group of its own, off unless the person turns it on.

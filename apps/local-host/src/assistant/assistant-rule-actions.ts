@@ -1,4 +1,5 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
+import { bindActionHandler, defineRunDecisionAction, defineRunsOverviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { checkedRoleSelection } from "./assistant-send-materials.js";
 import { SIGNED_MATERIAL_NOTICE } from "./assistant-signed-materials.js";
 /**
@@ -57,6 +58,12 @@ export const ASSISTANT_FOLLOW_UP_ACTIONS = {
     { type: "object", additionalProperties: false, required: ["followup_id"], properties: { followup_id: { type: "string", title: "定时" } } }),
 } as const;
 
+/** The follow-ups as an owner of runs, for the menu-bar panel: what comes next and what was missed (resident-runtime-design §2.1). */
+export const ASSISTANT_RUNS_ACTIONS = {
+  overview: { ...defineRunsOverviewAction("assistant.runs.overview", /* @version action.assistant.runs.overview */ 1, "助理定时的接下来与错过", [], "home"), provider_id: ASSISTANT_RULES_PROVIDER },
+  decide: { ...defineRunDecisionAction("assistant.runs.decide", /* @version action.assistant.runs.decide */ 1, "处理错过的助理定时", [], "home"), provider_id: ASSISTANT_RULES_PROVIDER },
+} as const;
+
 const signedRefSchema: ActionSchema = { type: "object", additionalProperties: false, required: ["kind", "entry_id", "source"], properties: {
   kind: { type: "string", enum: ["role"] }, entry_id: { type: "string", maxLength: 71 }, source: { type: "object", additionalProperties: false,
     required: ["kind", "plugin_id", "plugin_version", "publisher_signature"], properties: { kind: { type: "string", enum: ["plugin"] }, plugin_id: { type: "string", maxLength: 200 },
@@ -82,6 +89,8 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
   const records = computerRecordFileSource(homeDirectory);
   const handlers: ActionHandlerBinding[] = [
     ...records.handlers, ...extra.handlers,
+    bindActionHandler(ASSISTANT_RUNS_ACTIONS.overview, input => service().followUps.runsOverview(input)),
+    bindActionHandler(ASSISTANT_RUNS_ACTIONS.decide, input => service().followUps.decideMissed(input)),
     { capability_id: "assistant.rules.list", version: /* @version action.assistant.rules.list */ 1, handle: async () => ({ rules: service().followUps.rules() }) },
     { capability_id: "assistant.rules.add", version: /* @version action.assistant.rules.add */ 1, handle: async (_context, input) => ({ rules: await service().followUps.addRule(input as AssistantRuleInput) }) },
     { capability_id: "assistant.rules.remove", version: /* @version action.assistant.rules.remove */ 1, handle: async (_context, input) => ({ rules: service().followUps.removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
@@ -108,5 +117,5 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
     } },
   ];
   return registry.registerProvider({ provider: { provider_id: ASSISTANT_RULES_PROVIDER, title: "助理", kind: "system" },
-    definitions: [...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_METHOD_ACTIONS), ...records.definitions, ...extra.definitions], handlers });
+    definitions: [...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_METHOD_ACTIONS), ...Object.values(ASSISTANT_RUNS_ACTIONS), ...records.definitions, ...extra.definitions], handlers });
 }

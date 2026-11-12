@@ -6,7 +6,7 @@ import { catalogManagementProject, residentManagementActions, upgradeOlderCatalo
 import {connectResidentAccount,type ResidentAccountConnection} from "./resident-account-connection.js";
 import {NATIVE_SESSION_FILE} from "./personal-native-session.js";
 import {WEB_CONTROL_TOKEN_RELATIVE_PATH} from "./web-control-token.js";
-import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
+import { homeHostUrl } from "./host-endpoint.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -35,7 +35,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const location = flagValue?.startsWith("--") ? undefined : namedDatabasePath(flagValue);
   if (!location) throw new Error("Molis Work 命令需要 --db PATH 指明项目数据库；没有默认路径，不会按当前目录猜一个。");
   let home = options.homeDirectory ?? resolveMolisWorkHome();
-  const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??DEFAULT_RESIDENT_HOST_URL;
+  const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??homeHostUrl(home);
   let connected:ResidentAccountConnection|undefined;
   let allowLocalFallback=!!options.localHost||options.homeDirectory!==undefined;
   const storage = prepareLocalProjectStorage(location, "existing");

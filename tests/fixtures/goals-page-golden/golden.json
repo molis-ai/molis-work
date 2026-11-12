@@ -128,12 +128,12 @@
   "length": 270566
  },
  "planning-library-personal.en": {
-  "sha256": "2028c6bcebf186048e21889b93bacc8c22447cde96aaa33c0e9cd04e84623146",
-  "length": 29364
+  "sha256": "bda76683bfa4c46c72ea7fe291ac97d75c3a8116cc2281ac4901a6b8ecb84261",
+  "length": 29464
  },
  "planning-library-personal.zh": {
-  "sha256": "9ec1f7de42aa5d554eb457321cd44a9f78b26dac9b0ea53055f7bb34c0218ed7",
-  "length": 27159
+  "sha256": "6a3aad8a046301094998b647161ef740a465229d8a3c665be84e2d2551989845",
+  "length": 27255
  },
  "planning-library-project.en": {
   "sha256": "0fd58120e4f2d7a3694433a604b60d1594b1756c3e5bdc180caa11ce12436141",
@@ -144,12 +144,12 @@
   "length": 25627
  },
  "planning-method-detail.en": {
-  "sha256": "b1528e7dc724783b41b00a1d9654147684393392433400c47e09982279f3ab96",
-  "length": 10301
+  "sha256": "2ad41fe38bd6608e90fec8c3ac77da31771d8f106b283e2fb1090a8f82b6cea9",
+  "length": 10401
  },
  "planning-method-detail.zh": {
-  "sha256": "7f4fa425a9b6c3e2ced563007090477fde5b05a781df4bc0e758ffdfa282b676",
-  "length": 9348
+  "sha256": "f513e07b1b6b2c8f4bf93d89a2a4b4fff92bcab1b8f96175f2a178d6985645d8",
+  "length": 9444
  },
  "planning-method-edit.en": {
   "sha256": "7031ce7f4b90b8f2923d06f1d2e9ec138cd5bc789a68954e407c970e43ba958a",
@@ -160,12 +160,12 @@
   "length": 20521
  },
  "planning-method-new.en": {
-  "sha256": "e5bb1609c59e9b1958d4ef2ffb277c20c5ca98f848c92d5ac151e2a163df45b3",
-  "length": 13579
+  "sha256": "fd37edb5ec84ba6f90fe6e6a637433b5eb021c7130acc573983637ca4a9fa2dc",
+  "length": 13679
  },
  "planning-method-new.zh": {
-  "sha256": "a50f9bb5ac8b966da8f94ed2b5a9155a7e3676170b47049e013ad6f30b8e5f00",
-  "length": 11194
+  "sha256": "8184008d2b1aa4747d2eb936c9938daa2606d8bb0a684daee7beaf67ee80e8c3",
+  "length": 11290
  },
  "refresh-archive.en": {
   "sha256": "95d664e928cc0103696842f6bd3af8307b95a8c5b6ab4c598fff1abecb961d1c",

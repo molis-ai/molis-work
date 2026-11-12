@@ -18,7 +18,7 @@ import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
-import type { HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
+import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
@@ -60,12 +60,30 @@ export function upgradePluginLibraryFile(file: string, manifest: PluginManifest)
   finally { db.close(); }
 }
 
+/**
+ * Where the platform's own libraries show when they cannot be used (U3 design §2.1). One that is not here stops the whole Home's
+ * explanation, which is what it means for a store the platform keeps for everyone: plugin runtime records, placement, originals.
+ */
+const PLATFORM_LIBRARY_BLOCKS: Readonly<Record<string, UpgradeBlock>> = {
+  sync: { kind: "setting", page: "sync" },
+  assistant: { kind: "setting", page: "assistant" },
+  "agent-definitions": { kind: "setting", page: "library" },
+  "agent-declarations": { kind: "setting", page: "library" },
+  connectors: { kind: "setting", page: "connections" },
+  functions: { kind: "setting", page: "library" },
+  characters: { kind: "setting", page: "characters" },
+  memory: { kind: "setting", page: "memory" },
+};
+
+const HOME_BLOCK: UpgradeBlock = { kind: "home" };
+
 function libraryDescriptor(store: HomeStore): HomeUpgradeDescriptor {
   const { baseline, partition } = store.library!, name = store.library!.file ?? `${store.path}.db`;
   const pattern = partition ? join(store.path, "projects", "*", name) : join(store.path, name);
   const plugin = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest)
     .find(manifest => manifest.plugin_id === store.owner && manifest.databases?.home?.store_name === store.path);
-  return { owner: store.owner, pattern, baseline, open: file => openHomeSqliteFile(file), ...(partition ? { paths: (home: string) => partitionFiles(home, store) } : {}),
+  const block: UpgradeBlock = plugin ? { kind: "plugin", plugin_id: plugin.plugin_id } : PLATFORM_LIBRARY_BLOCKS[store.path] ?? HOME_BLOCK;
+  return { owner: store.owner, block, pattern, baseline, open: file => openHomeSqliteFile(file), ...(partition ? { paths: (home: string) => partitionFiles(home, store) } : {}),
     ...(plugin ? { upgrade: (file: string) => upgradePluginLibraryFile(file, plugin) } : {}) };
 }
 
@@ -85,7 +103,7 @@ const PROJECT_LIBRARIES: PluginTablesLibrary = { pattern: PROJECT_LIBRARY, paths
 export function pluginTablesDescriptor(manifest: PluginManifest, library: PluginTablesLibrary = PROJECT_LIBRARIES): HomeUpgradeDescriptor {
   const declaration = manifest.databases!.project!, store = `#${declaration.store_name}`;
   return {
-    owner: manifest.plugin_id, pattern: library.pattern + store, paths: home => library.paths(home).map(file => file + store),
+    owner: manifest.plugin_id, block: { kind: "plugin", plugin_id: manifest.plugin_id }, pattern: library.pattern + store, paths: home => library.paths(home).map(file => file + store),
     tables: {
       version: declaration.version,
       read: file => readUpgradeStore(file, db => (USER_VERSION_ACCESS.read(db) > library.version ? undefined : pluginProjectTablesVersion(db, manifest.plugin_id))),
@@ -112,17 +130,17 @@ function computerRecords(home: string): readonly string[] {
 
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
-  { owner: "horizontal/appearance", pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
-  { owner: "apps/local-host", pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
-  { owner: "apps/local-host", pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
-  { owner: "apps/local-host", pattern: join("config", "project-arrival.json"), file: PROJECT_ARRIVAL_FILE },
-  { owner: "horizontal/appearance", pattern: join("config", "ui-locale.json"), file: UI_LOCALE_FILE },
-  { owner: "apps/local-host", pattern: join("browser", "sites.json"), file: BROWSER_SITES_FILE },
-  { owner: "apps/local-host", pattern: join("computer", "settings.json"), file: COMPUTER_SETTINGS_FILE },
-  { owner: "apps/local-host", pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },
-  { owner: "modules/shelf", pattern: join("shelf", "catalog.json"), file: SHELF_CATALOG_FILE },
-  { owner: "packages/storage", pattern: join("feed", "secrets.json"), file: SECRET_STORE_FILE },
-  ...platformModelPreferences().map(({ owner, path }) => ({ owner, pattern: path, file: MODEL_PREFERENCE_FILE })),
+  { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
+  { owner: "apps/local-host", block: { kind: "setting", page: "access" }, pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
+  { owner: "apps/local-host", block: HOME_BLOCK, pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
+  { owner: "apps/local-host", block: { kind: "projects" }, pattern: join("config", "project-arrival.json"), file: PROJECT_ARRIVAL_FILE },
+  { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: join("config", "ui-locale.json"), file: UI_LOCALE_FILE },
+  { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("browser", "sites.json"), file: BROWSER_SITES_FILE },
+  { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "settings.json"), file: COMPUTER_SETTINGS_FILE },
+  { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },
+  { owner: "modules/shelf", block: { kind: "shelf" }, pattern: join("shelf", "catalog.json"), file: SHELF_CATALOG_FILE },
+  { owner: "packages/storage", block: HOME_BLOCK, pattern: join("feed", "secrets.json"), file: SECRET_STORE_FILE },
+  ...platformModelPreferences().map(({ owner, path }) => ({ owner, block: { kind: "plugin", plugin_id: owner } as const, pattern: path, file: MODEL_PREFERENCE_FILE })),
 ];
 
 /**
@@ -133,8 +151,8 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
  */
 export function platformUpgradeDescriptors(): readonly HomeUpgradeDescriptor[] {
   return [
-    { owner: "apps/local-host", pattern: CATALOG, baseline: CATALOG_BASELINE, baselineFor: catalogBaselineFor, version: CATALOG_VERSION_ACCESS, open: file => openSqliteConnection(file) },
-    { owner: "apps/local-host", pattern: PROJECT_LIBRARY, baseline: PROJECT_DATABASE_BASELINE, open: file => openSqliteConnection(file), paths: projectDatabases },
+    { owner: "apps/local-host", block: { kind: "projects" }, pattern: CATALOG, baseline: CATALOG_BASELINE, baselineFor: catalogBaselineFor, version: CATALOG_VERSION_ACCESS, open: file => openSqliteConnection(file) },
+    { owner: "apps/local-host", block: { kind: "project" }, pattern: PROJECT_LIBRARY, baseline: PROJECT_DATABASE_BASELINE, open: file => openSqliteConnection(file), paths: projectDatabases },
     ...projectDatabasePlugins().map(manifest => pluginTablesDescriptor(manifest)),
     ...homeStores().stores.filter(store => store.library !== undefined).map(libraryDescriptor),
     ...platformFiles(),

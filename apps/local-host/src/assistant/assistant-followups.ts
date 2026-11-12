@@ -3,7 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type ActionView, type DueReminderCollection, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow, withinRunsWindow, type ActionView,
+  type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
@@ -24,7 +25,8 @@ export const FOLLOW_UP_KIND = "assistant.follow-up";
  * outside the page that created it, so the sentence is written where it starts, in the language last used (FSS-69).
  */
 export type FollowUpMessageWords = Extract<AssistantSavedText, { readonly key: string }>;
-const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
+/** Missed times kept per follow-up for the person to decide on; older ones fall off. */
+const MISSED_KEPT = 10;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
 /** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
 const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
@@ -154,7 +156,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   /** The work is put away: its timed rounds stop with it, each saying why. */
   async stopForArchive(workId: string): Promise<void> {
     const { ports } = this, schedule = await ports.schedule().catch(() => null), at = ports.now().toISOString();
-    for (const { next_at, ...rest } of this.list(workId).filter(item => item.enabled)) {
+    for (const { next_at, missed: _missed, ...rest } of this.list(workId).filter(item => item.enabled || item.missed?.length)) {
       if (next_at) await schedule?.cancel(followUpTask({ ...rest, next_at }, "").key).catch(() => null);
       ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: assistantWords("workbench.assistant-followup.archived") } });
     }
@@ -224,7 +226,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); throw error; }
     if (!work) { outcome = "failed"; detail = assistantWords("workbench.assistant-followup.missing"); }
     else if (work.archived) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.archived-skip"); }
-    else if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
+    else if (work && now.getTime() - Date.parse(due) > RUN_MISSED_GRACE_MS) {
       outcome = "missed"; detail = assistantWords("workbench.assistant-followup.missed");
       ports.notify({ kind: "failed", work_id: work.work_id, work_title: work.title,
         text: assistantWords("workbench.assistant-notice.followup-missed", { label: followUp.label, at: dateArg(due, "datetime", { time_zone: followUp.time_zone }) }) }, `followup:${followUp.followup_id}:${due}:missed`);
@@ -243,11 +245,60 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
     let next = days && !work?.archived ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
     while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
-    const { next_at: _next, ...rest } = followUp;
+    const { next_at: _next, missed: earlier = [], ...rest } = followUp;
+    const missed = outcome === "missed" ? [...earlier.filter(entry => entry.due_at !== due), { due_at: due, missed_at: now.toISOString() }].slice(-MISSED_KEPT) : earlier;
     const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
-      last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) } };
+      last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) }, ...(missed.length ? { missed } : {}) };
     if (!ports.records.save(ports.actorId, saved, followUp)) return;
     if (next !== undefined && work?.session_id) await this.#enqueueCurrent(saved, work.session_id, await ports.schedule());
+  }
+
+  /**
+   * The follow-ups as an owner of runs (specs/proactive-assistant/resident-runtime-design.md §2.1): the times queued in the window, and
+   * the times missed that the person has not decided on. A follow-up's works are the person's own, outside any project.
+   */
+  runsOverview(window: RunsWindow): RunsOverview {
+    assertRunsWindow(window);
+    const all = this.list(), run = (followUp: AssistantFollowUp, dueAt: string): ScheduledRun => ({ run_id: missedRunId(followUp.followup_id, dueAt), title: followUp.label,
+      due_at: dueAt, project_id: null, open: { surface: "assistant", id: followUp.work_id }, needs: ["model"] });
+    const upcoming = all.filter(item => item.enabled && item.next_at && withinRunsWindow(item.next_at, window)).map(item => run(item, item.next_at!))
+      .sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, RUNS_UPCOMING_LIMIT);
+    const missed: MissedRun[] = all.flatMap(item => (item.missed ?? []).map(entry => ({ ...run(item, entry.due_at), missed_at: entry.missed_at })))
+      .sort((a, b) => b.due_at.localeCompare(a.due_at)).slice(0, RUNS_MISSED_LIMIT);
+    return { source: { surface: "assistant", title: "助理定时" }, upcoming, missed };
+  }
+
+  /**
+   * 「现在做」 or 「跳过」 on one missed time. 现在做 starts one round the way the time itself would have (the same words and the same
+   * request id, so it cannot start twice) and does not wait for it; 跳过 only takes it off the list. A time already decided, or a
+   * follow-up or work no longer there, is `gone`. A work in the middle of a round is refused: the person tries again when it is free.
+   */
+  async decideMissed(decision: RunDecision): Promise<RunDecided> {
+    const { ports } = this, parsed = parseMissedRunId(decision.run_id);
+    const find = () => { const followUp = parsed && this.list().find(item => item.followup_id === parsed.followupId); return followUp && followUp.missed?.find(entry => Date.parse(entry.due_at) === parsed.due) ? followUp : null; };
+    const followUp = find();
+    if (!followUp || !parsed) return { state: "gone" };
+    const due = followUp.missed!.find(entry => Date.parse(entry.due_at) === parsed.due)!.due_at;
+    const work = whenThere(() => ports.work(followUp.work_id));
+    if (decision.decision === "run_now") {
+      if (!work || work.archived) { this.#forgetMissed(followUp.followup_id, due); return { state: "gone" }; }
+      const host = await ports.host(), state = await ports.state(host, work);
+      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
+      await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${parsed.due}`, () => find() !== null);
+    }
+    return this.#forgetMissed(followUp.followup_id, due) ? { state: decision.decision === "run_now" ? "started" : "skipped" } : { state: "gone" };
+  }
+
+  /** Take one missed time off a follow-up, reading it again until the write lands on the row it read; false when it was not there. */
+  #forgetMissed(followupId: string, due: string): boolean {
+    const { ports } = this;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const current = this.list().find(item => item.followup_id === followupId);
+      if (!current?.missed?.some(entry => entry.due_at === due)) return false;
+      const { missed = [], ...rest } = current, left = missed.filter(entry => entry.due_at !== due);
+      if (ports.records.save(ports.actorId, { ...rest, ...(left.length ? { missed: left } : {}) }, current)) return true;
+    }
+    return false;
   }
 
   /**
@@ -349,4 +400,11 @@ export function sameLocalTimeLater(at: number, days: number, timeZone: string | 
   const target = wall(at) + days * 86_400_000;
   const guess = target - (wall(at) - at);
   return target - (wall(guess) - guess);
+}
+
+/** `followup:<followup id>:<due time in ms>`: stable for one missed time of one follow-up. */
+function missedRunId(followupId: string, dueAt: string): string { return `followup:${followupId}:${Date.parse(dueAt)}`; }
+function parseMissedRunId(runId: string): { followupId: string; due: number } | null {
+  const match = /^followup:(.+):(\d+)$/u.exec(runId);
+  return match ? { followupId: match[1]!, due: Number(match[2]) } : null;
 }

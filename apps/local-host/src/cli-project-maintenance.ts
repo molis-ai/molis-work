@@ -11,7 +11,7 @@ import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modul
 import { createLocalUninstallService } from "./local-uninstall.js";
 import type { MolisWorkUninstallPlan } from "./installer/uninstall-contract.js";
 import { resolveConfiguredHome } from "./product-home.js";
-import { DEFAULT_RESIDENT_HOST_URL, RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
+import { RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostAddress, residentHostOrigin } from "./resident-host-request.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 function printDemoHelp(): void {
@@ -19,7 +19,7 @@ function printDemoHelp(): void {
 
 不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。
 
-remove --confirm 在 Molis Work 正在运行时交给它来删（示例项目里的终端还开着就拒绝）；常驻服务不在 http://127.0.0.1:4173 时，用环境变量 MOLIS_WORK_WEB_URL 指定它的地址。没有运行中的服务时，命令自己删。`);
+remove --confirm 在 Molis Work 正在运行时交给它来删（示例项目里的终端还开着就拒绝）；常驻服务不在 Home 的地址文件写的端口（没有就是 http://127.0.0.1:4173）时，用环境变量 MOLIS_WORK_WEB_URL 指定它的地址。没有运行中的服务时，命令自己删。`);
 }
 
 function printUninstallHelp(): void {
@@ -66,7 +66,7 @@ function printDemoResult(action: string, result: object | null, json: boolean): 
  * stops the command, whatever the reason; it does not delete behind that Host's back.
  */
 async function removeDemoThroughResidentHost(homeDirectory: string | undefined,action="remove",connected?:ResidentAccountConnection): Promise<object | null> {
-  const address = process.env[RESIDENT_HOST_URL_ENV]?.trim() || DEFAULT_RESIDENT_HOST_URL;
+  const address = residentHostAddress(homeDirectory ?? resolveConfiguredHome());
   const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: homeDirectory ?? resolveConfiguredHome(),controlToken:connected?.controlToken,homeId:connected? actionGatewayHomeId(connected.homeDirectory):undefined,
     path: "/api/settings/demo", body: { action, user_confirmed: true },
     retryHint: "先运行不带 --confirm 的 molis-work demo remove，看示例项目还在不在" });
@@ -91,7 +91,7 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
   let homeDirectory = flag(args, "--home");
   const home=homeDirectory??resolveConfiguredHome();
   const required=homeDirectory===undefined&&readStorageSpace(home)?.kind!=="personal";
-  const connected=required||existsSync(join(home,NATIVE_SESSION_FILE))||existsSync(join(home,WEB_CONTROL_TOKEN_RELATIVE_PATH))?await connectResidentAccount(home,process.env[RESIDENT_HOST_URL_ENV]?.trim()||DEFAULT_RESIDENT_HOST_URL,undefined,required):undefined;
+  const connected=required||existsSync(join(home,NATIVE_SESSION_FILE))||existsSync(join(home,WEB_CONTROL_TOKEN_RELATIVE_PATH))?await connectResidentAccount(home,residentHostAddress(home),undefined,required):undefined;
   const allowLocalFallback=homeDirectory!==undefined&&!connected?.installation;
   if(connected)homeDirectory=connected.homeDirectory;
   if ((connected||action === "remove") && args.includes("--confirm")) {

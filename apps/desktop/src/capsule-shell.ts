@@ -23,6 +23,9 @@ export interface CapsuleShellEnvironment {
    * `html[data-ui-skin=…]` scope; the capsule itself keeps no palette of its own.
    */
   baselineStyles?: string;
+  /** The 「运行」 section the workbench draws (what runs on its own here) and its arrangement; the workbench adds its program. */
+  runtimePanel: { html: string; styles: string };
+
 }
 
 
@@ -53,7 +56,7 @@ export const CAPSULE_STYLES = `
     transform: translateX(-50%) rotate(45deg); pointer-events: none;
   }
   .capsule {
-    position: relative; z-index: 1; display: grid; grid-template-rows: 45px 44px minmax(0, 1fr) 51px;
+    position: relative; z-index: 1; display: grid; grid-template-rows: 45px auto 44px minmax(0, 1fr) 51px;
     width: 100%; height: 100%; overflow: hidden; border: 1px solid var(--line-strong);
     border-radius: 8px; background: var(--paper); box-shadow: var(--shadow);
   }
@@ -610,13 +613,15 @@ export function renderDesktopCapsuleShell(
 ): string {
   const options = projectOptions(projects);
   // Light/dark still follow the device through the theme bootstrap; the Home's appearance projection decides skin and type.
-  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title>${environment.languageHead}<script>${environment.themeBootstrapScript}</script>${environment.appearanceHead ?? ""}<style>${environment.baselineStyles ?? ""}${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
+  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title>${environment.languageHead}<script>${environment.themeBootstrapScript}</script>${environment.appearanceHead ?? ""}<style>${environment.baselineStyles ?? ""}${CAPSULE_STYLES}${environment.runtimePanel.styles}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
+
     <i class="capsule__arrow" aria-hidden="true"></i>
     <section class="capsule">
       <header class="capsule__head">
         <label class="capsule__project-wrap"><span class="capsule__project-mark" aria-hidden="true"></span><select class="capsule__project" data-capsule-project aria-label="${uiText("workbench.capsule-shell.switch-viewed-project")}">${options}</select></label>
         <span class="capsule__status"><i class="capsule__dot" aria-hidden="true"></i><span data-capsule-status-text>${uiText("workbench.capsule-shell.loading")}</span></span>
       </header>
+      ${environment.runtimePanel.html}
       <nav class="capsule__tabs" data-capsule-tabs role="tablist" aria-label="${uiText("workbench.capsule-shell.view-goals-work-status")}" aria-busy="true"></nav>
       <section class="capsule__list" data-capsule-list role="tabpanel" aria-live="polite" aria-busy="true"><div class="capsule__loading"><i class="capsule__spinner" aria-hidden="true"></i><strong>${uiText("workbench.capsule-shell.loading-work-status")}</strong><span>${uiText("workbench.capsule-shell.getting-project-s-latest-work-status")}</span></div></section>
       <footer class="capsule__actions"><p class="capsule__hint">Esc ${uiText("common.control.close")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${uiText("workbench.capsule-shell.open-molis-work")}</button></div></footer>

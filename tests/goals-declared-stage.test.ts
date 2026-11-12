@@ -4,7 +4,6 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
@@ -17,11 +16,8 @@ test("RAC-2682 Goals owns the canvas markup and the shell has no Goals renderer 
   assert.doesNotMatch(shell, /goal-canvas-shell|buildGoalCollectionModel|molis-work-plugin-goals/u);
 });
 
-test("RAC-2682 the declared Goals refresh surface returns content without document tags", t => {
+test("RAC-2682 the declared Goals refresh surface returns content without document tags", () => {
   const view = JSON.parse(readFileSync(new URL("./fixtures/goals-page-golden/view.json", import.meta.url), "utf8")) as MolisWorkWebView;
-  const pack = parseLocalePack(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8"));
-  assert.ok(pack.ok);
-  t.after(installTextForTest({ packs: [pack.value], locale: "zh" }));
   const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
   for (const [selection, goalId] of [["current", "V1"], ["archive", "GRAPH"], ["trash", "AUTO-CONNECT"]] as const) {
     const html = renderer.declaredPageSurface("io.molis.work.goals", "board-refresh", view,

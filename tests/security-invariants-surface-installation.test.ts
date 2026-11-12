@@ -18,6 +18,7 @@ import { APPROVED, fixture, homePackage, mac, person, ref } from "./fixtures/hom
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 
 const dependencyId = "io.molis.work.surface.source";
 const actionId = (pluginId: string, publisher: string, localId: string) => sandboxActionId(sandboxPackageBuildId(pluginId, publisher), localId);
@@ -88,6 +89,14 @@ function watchConfirmation() {
     if (++validations === 2) entered.resolve();
     if (validations === 3) final.resolve();
   } };
+}
+
+/** The Home's own stored record, read after its host is closed (a closed host no longer answers `installation`). */
+function storedHomeRecord(home: string, pluginId: string) {
+  const db = openTestSqlite(join(home, "plugin-runtime", "plugin-runtime.db"), { readonly: true });
+  try {
+    return new SqlitePluginRuntimeRepository(db).list().find(record => record.plugin_id === pluginId && record.state !== "uninstalled") ?? null;
+  } finally { db.close(); }
 }
 
 function assertAbsent(home: string, pluginId: string, publisher: string, record: () => unknown) {
@@ -171,7 +180,8 @@ test("S-surface-composition SCS-16 cancellation, revoked authority and Home clos
       release.resolve();
       await rejected;
       await closing;
-      assertAbsent(h.home, pluginId, publisher.identity, () => home.installation(pluginId));
+      // After closure the host refuses reads; the stored record is what a later start would find.
+      assertAbsent(h.home, pluginId, publisher.identity, () => cause === "closed" ? storedHomeRecord(h.home, pluginId) : home.installation(pluginId));
     } finally { release.resolve(); await held; }
   }
 });

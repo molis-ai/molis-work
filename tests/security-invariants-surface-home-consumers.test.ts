@@ -16,11 +16,19 @@ async function json<T>(response: Response, status = 200): Promise<T> {
   return value;
 }
 
+/** Adds a plugin to a project with the revision the settings page read, as the membership write requires (batch 20). */
+async function addMember(f: { request(path: string, init?: { method?: string; body?: unknown }): Promise<Response> }, project_id: string, plugin_id: string) {
+  const { projects } = await json<{ projects: Array<{ project_id: string; revision: string }> }>(await f.request("/api/settings/project-plugins"));
+  const revision = projects.find(item => item.project_id === project_id)?.revision;
+  assert.ok(revision);
+  await json(await f.request("/api/settings/projects/" + project_id + "/plugins", { method: "POST", body: { plugin_id, expected_revision: revision } }));
+}
+
 test("SCS-07 SCS-08 SCS-11 WBR-24: real Goals, Inbox, Coding and Feed supply one project home and their original routes", { timeout: 60_000 }, async t => {
   let modelCalls = 0;
   const f = await serveHomeRuntime(t, { completeText: async () => { modelCalls++; throw new Error("Home must not call a model"); } });
   const project = await f.project("Home consumers"), prefix = "/projects/" + project.project_id;
-  for (const plugin of ["inbox", "coding", "feed"]) await json(await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id: plugin } }));
+  for (const plugin of ["inbox", "coding", "feed"]) await addMember(f, project.project_id, plugin);
   assert.equal((await f.request(prefix + "/")).status, 200);
   const read = (body: unknown = {}) => f.request(prefix + endpoint, { method: "POST", body }).then(response => json<SurfaceHomeDisplay>(response));
   const click = (id: string, target: unknown) => f.request(prefix + endpoint + "/click", { method: "POST", body: { owner_plugin_id: owner(id), target } });
@@ -118,7 +126,7 @@ test("WBR-24 SCS-08: Feed reads the personal partition and discards the whole re
   assert.equal((await f.request(prefix + "/")).status, 200, "the real personal space entry opens the partition");
   const project = f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).read(catalog => catalog.getProject("personal"));
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: "personal" });
-  await json(await f.request("/api/settings/projects/personal/plugins", { method: "POST", body: { plugin_id: "feed" } }));
+  await addMember(f, "personal", "feed");
   await f.request(prefix + "/");
   const { itemId, records, install } = await f.host.withProject(reference, runtime => {
     const feed = createLocalFeedApplication(runtime.store.db);
@@ -161,7 +169,7 @@ test("SCS-11: Coding completes the original create once when its original read r
     refuseRead && view.capability_id === "coding.subject.read"
       ? { available: false, code: "actions.forbidden", reason: "Reader withdrawn" } : { available: true } });
   const project = await f.project("Coding home receipt"), prefix = "/projects/" + project.project_id;
-  await json(await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id: "coding" } }));
+  await addMember(f, project.project_id, "coding");
   await f.request(prefix + "/");
   const read = () => f.request(prefix + endpoint, { method: "POST", body: {} }).then(response => json<SurfaceHomeDisplay>(response));
   const click = (target: unknown) => f.request(prefix + endpoint + "/click", { method: "POST", body: { owner_plugin_id: owner("coding"), target } });

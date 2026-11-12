@@ -398,78 +398,7 @@ export declare const sessionsActions: {
     attributionSet: ActionDefinition<ExternalSessionAttributionInput, ExternalSessionRow>;
     attributionSuggest: ActionDefinition<ExternalSessionAttributionSuggestInput, ExternalSessionAttributionSuggestOutput>;
     searchEntries: ActionDefinition<import("platform/search-sources").SearchEntriesInput, import("platform/search-sources").SearchEntriesPage>;
-    subject: {
-        action: {
-            audiences: "user"[];
-            title: string;
-            description: string;
-            local_id?: string;
-            kind: "query" | "judgment" | "operation" | "navigation";
-            scope: "home" | "project";
-            effect?: "read" | "write" | "irreversible";
-            plugin?: false;
-            scheduling?: "concurrent";
-            authorship?: "session";
-            execution?: import("platform/action-execution").ActionExecutionPolicy;
-            permissions: readonly string[];
-            subject_kinds: readonly string[];
-            input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
-            output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
-            result_view?: import("platform/action-result").ActionResultView;
-            input_type?: string;
-            output_type?: string;
-            workflow_content?: import("platform/workflow-content").WorkflowContentStation;
-            search_source?: import("platform/search-sources").SearchSourceDeclaration;
-            file_source?: import("platform/file-sources").FileSourceDeclaration;
-            composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
-            thread_source?: {
-                readonly role: "context" | "reply";
-                readonly subject_kind: string;
-            };
-            home_aggregate?: true;
-            project_reach?: "person";
-            placement_relation?: import("platform/placement").PlacementRelationDeclaration;
-            subject_offer_choices?: readonly import("platform/action-offers").SubjectOfferChoice[];
-            fragment_offer_choices?: readonly import("platform/action-fragments").FragmentOfferChoice[];
-            intake?: import("platform/item-intake").ActionIntake;
-            attach?: import("platform/item-intake").ActionAttach;
-            required_scene?: {
-                readonly scene_id: string;
-                readonly version: number;
-            };
-            result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
-            required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
-            result_subject?: {
-                readonly id: string;
-                readonly revision?: string;
-            };
-            background_job?: {
-                readonly status: {
-                    readonly capability_id: string;
-                    readonly version: number;
-                };
-                readonly id: string;
-                readonly input: string;
-                readonly state: string;
-                readonly done: readonly string[];
-                readonly failed: readonly string[];
-            };
-            undo?: {
-                readonly capability_id: string;
-                readonly version: number;
-                readonly input: Readonly<Record<string, string | readonly [string]>>;
-            };
-        };
-        __types__?: {
-            input: import("platform/action-subjects").SubjectContextRequest;
-            output: import("platform/action-subjects").ActionSubjectContext;
-        } | undefined;
-        operation: "query" | "command";
-        provider_id?: string;
-        capability_id: string;
-        version: number;
-        action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
-    };
+    subject: ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
     toolSearch: ActionDefinition<ExternalSessionToolSearchInput, ExternalSessionToolSearchOutput>;
 };
 

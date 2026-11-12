@@ -48,6 +48,8 @@ function resolveThroughExistingParent(absolute: string): string {
 /**
  * `bound_by` of a relation a tool binding brought in. Which relations are the person's is an allow-list, `bound_by` equal to the person's id:
  * this mark tells a terminal the person opened from a relation the person made, and a value nobody marked still counts as not theirs.
+ * Other values that are not the person's: the catalog upgrade's `molis-work-upgrade` (`catalog-upgrade.ts`), and the plain actor ids
+ * relations written before this mark carry (a terminal's `cwd` among them, kept as they are by the user's 2026-11-09 decision).
  */
 export const toolBoundBy = (actorId: string): string => `binding:${actorId}`;
 

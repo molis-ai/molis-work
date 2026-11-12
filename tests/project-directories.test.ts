@@ -6,7 +6,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 import type { DirectoryChange, ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   createProjectsSchema,
@@ -197,8 +197,8 @@ test("SSC-22 a path names its folder's row: an input by its path, a default outp
     assert.equal(env.projects.query.workspaceIdAt(env.outputs), null);
     assert.equal(env.projects.query.workspaceIdAt(folder(env, "unlinked")), null);
     // A runtime context's folder that stops offering the project: an input link goes; the project's output stays (SSC-17).
-    assert.equal(env.projects.lifecycle.unlinkWorkspaceMembership(env.projects.query.outputDirectory(first).workspace_id, first, "user-1"), false);
-    assert.equal(env.projects.lifecycle.unlinkWorkspaceMembership(added.workspace_id, first, "user-1"), true);
+    assert.equal(env.projects.lifecycle.unlinkWorkspaceMembership(env.projects.query.outputDirectory(first).workspace_id, first, "user-1"), "output_kept");
+    assert.equal(env.projects.lifecycle.unlinkWorkspaceMembership(added.workspace_id, first, "user-1"), "unlinked");
     assert.deepEqual(env.projects.query.projectDirectories(first).directories.map(item => [item.workspace_id, item.roles]),
       [[env.projects.query.outputDirectory(first).workspace_id, ["output"]]]);
   });
@@ -479,8 +479,11 @@ async function repositoryWithWriter(root: string) {
   return { repo, writer: resolve(repo, tree.directory) };
 }
 
-/** A version-1 catalog with the given projects (each with an event) and links (`[project, path, is_default]`), one folder row per path. */
-function catalogWithLinks(projects: readonly string[], links: ReadonlyArray<readonly [string, string, 0 | 1]>): SqliteDatabase {
+/**
+ * A version-1 catalog with the given projects (each with an event) and links (`[project, path, is_default, bound_by]`, `bound_by` `user-1`
+ * unless given), one folder row per path.
+ */
+function catalogWithLinks(projects: readonly string[], links: ReadonlyArray<readonly [string, string, 0 | 1, string?]>): SqliteDatabase {
   const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   createProjectsSchema(db);
@@ -492,16 +495,62 @@ function catalogWithLinks(projects: readonly string[], links: ReadonlyArray<read
     db.prepare("INSERT INTO project_events (event_id, project_id, type, actor_id, payload_json, created_at) VALUES (?, ?, 'project.created', 'user-1', '{}', ?)").run(`event-${project}`, `project-${project}`, at);
   }
   const ids = new Map<string, string>();
-  links.forEach(([project, path, isDefault], index) => {
+  links.forEach(([project, path, isDefault, boundBy = "user-1"], index) => {
     if (!ids.has(path)) {
       ids.set(path, `workspace-${ids.size}`);
       db.prepare("INSERT INTO workspaces (workspace_id, canonical_path, realpath_verified, display_name, created_at, updated_at) VALUES (?, ?, 1, ?, ?, ?)").run(ids.get(path), path, basename(path), at, at);
     }
-    db.prepare("INSERT INTO workspace_project_memberships (membership_id, workspace_id, project_id, is_default, bound_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'user-1', ?, ?)")
-      .run(`m${index}`, ids.get(path), `project-${project}`, isDefault, at, at);
+    db.prepare("INSERT INTO workspace_project_memberships (membership_id, workspace_id, project_id, is_default, bound_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(`m${index}`, ids.get(path), `project-${project}`, isDefault, boundBy, at, at);
   });
   return db;
 }
+
+/** Who the project's output link is recorded as made by. */
+const outputBoundBy = (db: SqliteDatabase, project: string) =>
+  (db.prepare("SELECT bound_by FROM workspace_project_memberships WHERE project_id = ? AND role_output = 1").get(`project-${project}`) as { bound_by: string }).bound_by;
+
+// 用户 2026-11-09 定 A：升级补出来的默认输出目录，和新建项目一致——项目原来的目录关系里有一条是本人建的，就算本人的；否则不算。
+test("SRB-14 catalog 1 to 2: a filled-in default output is the person's when the person made one of the project's links, and not otherwise (用户 2026-11-09 定 A)", () => {
+  const db = catalogWithLinks(["甲", "乙", "丙"], [
+    // 甲: the person linked one of its two folders, a tool the other.
+    ["甲", "/p1/person-linked", 0, LOCAL_PERSON_ACTOR_ID], ["甲", "/p1/tool-linked", 0, "codex:session-1"],
+    // 乙: tools only, in the current mark, in an older shape, and another actor; none is the person's id exactly.
+    ["乙", "/p1/tool-a", 0, `binding:${LOCAL_PERSON_ACTOR_ID}`], ["乙", "/p1/tool-b", 0, "codex:session-2"], ["乙", "/p1/tool-c", 0, `${LOCAL_PERSON_ACTOR_ID} `],
+    // 丙 has no link at all.
+  ]);
+  try {
+    upgrade(db);
+    assert.deepEqual(linkedPaths(db, "甲").filter(row => row.role_output).map(row => row.path), ["project-output:project-甲"]);
+    assert.equal(outputBoundBy(db, "甲"), LOCAL_PERSON_ACTOR_ID, "the person made one of 甲's links, so its default output is theirs, as for a project they make now");
+    assert.equal(outputBoundBy(db, "乙"), "molis-work-upgrade", "only tools linked 乙: its default output is not the person's");
+    assert.equal(outputBoundBy(db, "丙"), "molis-work-upgrade", "a project with no link keeps the upgrade's mark");
+    // The links themselves are copied as they were.
+    assert.deepEqual((db.prepare("SELECT bound_by FROM workspace_project_memberships WHERE project_id = 'project-甲' AND role_output = 0 ORDER BY bound_by").all() as { bound_by: string }[])
+      .map(row => row.bound_by), ["codex:session-1", LOCAL_PERSON_ACTOR_ID]);
+  } finally {
+    db.close();
+  }
+});
+
+// 用户 2026-11-09 定 A：Host 当年用本人的 id 写下的写手工作树关联先被删掉，不算本人连的目录。
+test("SRB-14 catalog 1 to 2: a writer's worktree link the Host wrote with the person's id does not make the filled-in output the person's (用户 2026-11-09 定 A)", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-work-upgrade-output-source-")));
+  try {
+    const { repo, writer } = await repositoryWithWriter(root);
+    const other = join(root, "notes");
+    const db = catalogWithLinks(["甲"], [["甲", repo, 0, "codex:session-1"], ["甲", other, 0, "codex:session-2"], ["甲", writer, 0, LOCAL_PERSON_ACTOR_ID]]);
+    try {
+      upgrade(db);
+      assert.deepEqual(linkedPaths(db, "甲").filter(row => row.role_input).map(row => row.path), [repo, other].sort(), "the worktree link went");
+      assert.equal(outputBoundBy(db, "甲"), "molis-work-upgrade");
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 const linkedPaths = (db: SqliteDatabase, project: string) => (db.prepare(`SELECT workspaces.canonical_path AS path, role_input, role_output FROM workspace_project_memberships
   JOIN workspaces USING (workspace_id) WHERE project_id = ? ORDER BY workspaces.canonical_path`).all(`project-${project}`) as Array<{ path: string; role_input: number; role_output: number }>);

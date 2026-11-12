@@ -38,7 +38,13 @@ export declare const EXTERNAL_SESSION_SOURCE_REASONS: {
 
 export declare const EXTERNAL_SESSION_SOURCE_STATES: readonly ["complete", "reading", "needs_login", "version_unreadable", "failed", "unsupported", "not_allowed"];
 
+export declare const EXTERNAL_SESSION_SUBJECT_KIND = "external_session";
+
 export declare const EXTERNAL_SESSION_SUGGESTION_REASON_MAX_CHARS = 120;
+
+export declare const EXTERNAL_SESSION_SUGGEST_MAX_GROUPS = 20;
+
+export declare const EXTERNAL_SESSION_SUGGEST_MAX_SESSIONS = 100;
 
 export type ExternalSessionActivity = "running" | "idle" | "unknown";
 
@@ -73,6 +79,32 @@ export type ExternalSessionAttribution = {
     candidates: ProjectSelection[];
     suggestion: ExternalSessionSuggestion | null;
 };
+
+export interface ExternalSessionAttributionInput {
+    session_key: string;
+    decision: {
+        kind: "project";
+        project_id: string;
+        suggestion_accepted?: boolean;
+    } | {
+        kind: "leave_unfiled";
+    } | {
+        kind: "clear";
+    };
+    expected_revision: number;
+}
+
+export interface ExternalSessionAttributionSuggestInput {
+    session_keys: string[];
+    retry?: boolean;
+}
+
+export interface ExternalSessionAttributionSuggestOutput {
+    suggestions: Array<{
+        session_key: string;
+        suggestion: ExternalSessionSuggestion;
+    }>;
+}
 
 export interface ExternalSessionConnectionChoice {
     connection_id: string;
@@ -115,6 +147,12 @@ export interface ExternalSessionEntry {
 }
 
 export type ExternalSessionEntryRole = "you" | "tool" | "tool_step" | "note";
+
+export type ExternalSessionFiledAttribution = Omit<Extract<ExternalSessionAttribution, {
+    state: "confirmed";
+}>, "later_suggestion"> | Omit<Extract<ExternalSessionAttribution, {
+    state: "automatic";
+}>, "tool_reported_other">;
 
 export interface ExternalSessionHistoryInput {
     session_key: string;
@@ -231,6 +269,7 @@ export interface ExternalSessionRow {
     last_activity_at: string;
     activity: ExternalSessionActivity;
     attribution: ExternalSessionAttribution;
+    attribution_revision: number;
     forked_from: string | null;
     return_target: {
         kind: "command" | "url";
@@ -238,8 +277,9 @@ export interface ExternalSessionRow {
     } | null;
 }
 
-export type ExternalSessionRowSummary = Omit<ExternalSessionRow, "identity" | "return_target"> & {
+export type ExternalSessionRowSummary = Omit<ExternalSessionRow, "identity" | "return_target" | "attribution" | "attribution_revision"> & {
     return_target: null;
+    attribution: ExternalSessionFiledAttribution;
 };
 
 export interface ExternalSessionScopeReadInput {
@@ -311,6 +351,19 @@ export interface ExternalSessionSuggestion {
     created_at: string;
 }
 
+export interface ExternalSessionToolSearchInput {
+    entry_id: ExternalToolId;
+    location_key: string;
+    query: string;
+    limit?: number;
+}
+
+export interface ExternalSessionToolSearchOutput {
+    sessions: ExternalSessionRow[];
+    skipped_count: number;
+    trust: "untrusted";
+}
+
 export declare const SESSIONS_HISTORY_PERMISSION = "sessions:history";
 
 export declare const SESSIONS_MANAGE_PERMISSION = "sessions:manage";
@@ -324,6 +377,8 @@ export declare const SESSIONS_READ_PERMISSION = "sessions:read";
 export declare const externalSessionConnectionLocation: (connectionId: string) => string;
 
 export declare function externalSessionConnectionRoute(tool: ExternalToolEntry): ExternalSessionConnectionRoute | null;
+
+export declare function externalSessionSearchEntry(row: Pick<ExternalSessionRow, "session_key" | "tool" | "title" | "directory" | "last_activity_at">): SearchEntry;
 
 export declare const servicesSessionsContract: {
     readonly contractId: "io.molis.work.service.sessions.v1";
@@ -340,6 +395,11 @@ export declare const sessionsActions: {
     scopeSet: ActionDefinition<ExternalSessionScopeSetInput, ExternalSessionScopeView>;
     projectAiReadSet: ActionDefinition<ExternalSessionProjectAiReadSetInput, ExternalSessionProjectAiRead>;
     discoveryRun: ActionDefinition<ExternalSessionDiscoveryRunInput, ExternalSessionDiscoveryRunOutput>;
+    attributionSet: ActionDefinition<ExternalSessionAttributionInput, ExternalSessionRow>;
+    attributionSuggest: ActionDefinition<ExternalSessionAttributionSuggestInput, ExternalSessionAttributionSuggestOutput>;
+    searchEntries: ActionDefinition<import("platform/search-sources").SearchEntriesInput, import("platform/search-sources").SearchEntriesPage>;
+    subject: ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
+    toolSearch: ActionDefinition<ExternalSessionToolSearchInput, ExternalSessionToolSearchOutput>;
 };
 
 export declare const sessionsErrors: import("platform/action-errors").ErrorCodeRaisers<{
@@ -353,5 +413,9 @@ export declare const sessionsErrors: import("platform/action-errors").ErrorCodeR
     readonly read_failed: "upstream";
     readonly source_unsupported: "unavailable";
     readonly project_required: "invalid";
+    readonly project_unavailable: "invalid";
+    readonly attribution_conflict: "conflict";
     readonly cursor_invalid: "invalid";
+    readonly suggestion_unavailable: "unavailable";
+    readonly too_many_groups: "too_large";
 }>;

@@ -1,5 +1,5 @@
 import { projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { CATALOG_SCHEMA_VERSION, LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
@@ -434,6 +434,52 @@ it("lets the current Runtime list, unbind, and separately confirm project deleti
       assert.equal(afterDelete.result.isError, false, afterDelete.result.content[0]?.text);
       assert.match(afterDelete.result.content[0]?.text ?? "", new RegExp(preserved.project_id));
       assert.doesNotMatch(afterDelete.result.content[0]?.text ?? "", new RegExp(removable.project_id));
+    } finally {
+      await fixture.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("mcp directory relations", () => {
+it("SRB-16 context_unbind reports a directory relation the person made as kept and takes back the one the tool brought in", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-directory-source-"));
+    const home = path.join(directory, "home", ".molis-work");
+    const own = path.join(directory, "person-workspace"), brought = path.join(directory, "tool-workspace");
+    fs.mkdirSync(own, { recursive: true });
+    fs.mkdirSync(brought, { recursive: true });
+    const fixture = await runtimeCatalogFixture(home);
+    const { catalog } = fixture;
+    const call = async (server: MolisWorkServer, name: string, args: Record<string, unknown>) =>
+      server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) as Promise<{ result: { isError: boolean; content: Array<{ text: string }> } }>;
+    const runtimeIn = (workspace: string, session: string) => fixture.runtime({ homeDirectory: home,
+      runtimeContext: { runtime_id: "codex", stable_work_context_id: session, host_declares_stable: true, workspace: { canonical_path: workspace, realpath_verified: false } } });
+    const payload = (reply: { result: { isError: boolean; content: Array<{ text: string }> } }) => {
+      assert.equal(reply.result.isError, false, reply.result.content[0]?.text);
+      return JSON.parse(reply.result.content[0]?.text ?? "{}") as { changed: boolean; unbound_project: unknown; kept?: { code: string; message: string } };
+    };
+    // Only the two folders this case links: every project also has its default output directory, which is not under test here.
+    const person = (project: string) => catalog.listWorkspaceDirectory(project).filter(record => [own, brought].includes(record.canonical_path))
+      .map(record => [path.basename(record.canonical_path), record.person_project_ids]);
+    try {
+      const project = await catalog.createProject({ display_name: "目录来源", actor_id: "user" });
+      catalog.addWorkspaceProject({ canonical_path: own, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+      const inOwn = runtimeIn(own, "own-entry"), inBrought = runtimeIn(brought, "brought-entry");
+      const arguments_ = { binding_scope: "workspace", project_id: project.project_id, user_confirmed: true };
+      assert.equal((await call(inOwn, "molis_work_v1_context_bind", { project_id: project.project_id, user_confirmed: true })).result.isError, false);
+      assert.equal((await call(inBrought, "molis_work_v1_context_bind", { project_id: project.project_id, user_confirmed: true })).result.isError, false);
+      assert.deepEqual(person(project.project_id).sort(), [["person-workspace", [project.project_id]], ["tool-workspace", []]]);
+
+      const refusedUnbind = payload(await call(inOwn, "molis_work_v1_context_unbind", arguments_));
+      assert.equal(refusedUnbind.changed, false);
+      assert.equal(refusedUnbind.unbound_project, null);
+      assert.equal(refusedUnbind.kept?.code, "work.context.person_relation_kept");
+      assert.deepEqual(person(project.project_id).sort(), [["person-workspace", [project.project_id]], ["tool-workspace", []]]);
+
+      const removed = payload(await call(inBrought, "molis_work_v1_context_unbind", arguments_));
+      assert.equal(removed.changed, true);
+      assert.equal(removed.kept, undefined);
+      assert.deepEqual(person(project.project_id), [["person-workspace", [project.project_id]]]);
     } finally {
       await fixture.close();
       fs.rmSync(directory, { recursive: true, force: true });

@@ -1,9 +1,10 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { MolisWorkProjectCatalog, RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -187,6 +188,57 @@ test("RAC-1650 removing a membership the workspace really has: the membership go
     assert.equal(again.changed, false);
     assert.equal(again.unbound_project, null);
     assert.equal(catalog.resolveRuntimeContext(member).project?.project_id, alpha.project_id);
+  });
+});
+
+test("SRB-16 context_unbind leaves the person's directory relation in place and says so; the tool's own goes without kept", async () => {
+  await withCatalog(async (catalog, directory) => {
+    const alpha = await catalog.createProject({ display_name: "Alpha", actor_id: "owner" });
+    const ownPath = join(directory, "person-workspace"), broughtPath = join(directory, "tool-workspace");
+    await mkdir(ownPath, { recursive: true });
+    await mkdir(broughtPath, { recursive: true });
+    const own = catalog.addWorkspaceProject({ canonical_path: ownPath, project_id: alpha.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+    const member: RuntimeWorkContext = { ...session("person-relation"), workspace: { canonical_path: ownPath, realpath_verified: false } };
+    const unbind = (context: RuntimeWorkContext, actorId: string) => catalog.unbindRuntimeContext({ context, actor_id: actorId,
+      user_confirmed: true, binding_scope: "workspace", project_id: alpha.project_id });
+    const record = (workspaceId: string) => catalog.listWorkspaceDirectory().find((row) => row.workspace_id === workspaceId);
+    // A tool binding in the person's directory does not take the relation over.
+    catalog.bindRuntimeContext({ context: member, project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
+    assert.deepEqual(record(own.workspace_id)?.person_project_ids, [alpha.project_id]);
+    // (a) refused for the tool, and for the person's id arriving through the tool's entry: nothing unlinked, nothing claimed.
+    for (const actor of ["runtime-codex", LOCAL_PERSON_ACTOR_ID]) {
+      const refusedUnbind = unbind(member, actor);
+      assert.equal(refusedUnbind.changed, false);
+      assert.equal(refusedUnbind.unbound_project, null);
+      assert.equal(refusedUnbind.kept?.code, "work.context.person_relation_kept");
+      assert.match(refusedUnbind.kept?.message ?? "", /项目设置/u);
+    }
+    // (b) the relation, the read scope and the Session binding are as they were.
+    assert.deepEqual(record(own.workspace_id)?.person_project_ids, [alpha.project_id]);
+    assert.equal(catalog.resolveRuntimeContext(member).project?.project_id, alpha.project_id);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(member).map((event) => event.type), ["context.bound"]);
+    // (c) the session scope never touched directories and still works; it has nothing to keep.
+    const sessionUnbind = catalog.unbindRuntimeContext({ context: member, actor_id: "runtime-codex", user_confirmed: true });
+    assert.equal(sessionUnbind.changed, true);
+    assert.equal(Object.hasOwn(sessionUnbind, "kept"), false);
+    assert.deepEqual(record(own.workspace_id)?.person_project_ids, [alpha.project_id]);
+    // (d) what a tool brought in, a tool can take back, and that answer has no kept.
+    const brought: RuntimeWorkContext = { ...session("tool-relation"), workspace: { canonical_path: broughtPath, realpath_verified: false } };
+    catalog.bindRuntimeContext({ context: brought, project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
+    const workspaceId = catalog.listWorkspaceDirectory().find((row) => row.canonical_path === realpathSync(broughtPath))!.workspace_id;
+    assert.deepEqual(record(workspaceId)?.person_project_ids, []);
+    const removed = unbind(brought, "runtime-codex");
+    assert.equal(removed.changed, true);
+    assert.equal(Object.hasOwn(removed, "kept"), false);
+    assert.equal(record(workspaceId), undefined);
+    // (e) a directory that has no relation at all has nothing to keep either.
+    const absent = unbind(brought, "runtime-codex");
+    assert.equal(absent.changed, false);
+    assert.equal(Object.hasOwn(absent, "kept"), false);
+    // (f) control: the person undoes it from the project's settings.
+    catalog.changeDirectories({ project_id: alpha.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, change: { kind: "remove_input", workspace_id: own.workspace_id },
+      expected_revision: catalog.projectDirectories(alpha.project_id).revision });
+    assert.equal(record(own.workspace_id), undefined);
   });
 });
 

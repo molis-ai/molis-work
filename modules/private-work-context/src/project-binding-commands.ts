@@ -5,14 +5,15 @@ import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import type { RuntimeBindingRecords } from "./runtime-binding-records.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
 import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
-import { bindingErrors } from "./binding-errors.js";
+import { bindingErrors, personRelationKept } from "./binding-errors.js";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export interface RuntimeProjectBindingPorts {
   query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships" | "workspaceIdAt">;
   lifecycle: {
     upsertWorkspaceMembership(workspace: NormalizedRuntimeWorkspaceContext, projectId: string, actorId: string): void;
-    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): boolean;
+    /** Only `unlinked` changed anything; the output stays (SSC-17), and so does a relation the person made, which Projects judges. */
+    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): "unlinked" | "absent" | "output_kept" | "person_kept";
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, string | null>): void;
   };
 }
@@ -120,12 +121,14 @@ export class RuntimeProjectBindingCommands {
         }
         const projectId = this.validation.requiredProjectId(input.project_id ?? "");
         const membership = this.records.findWorkspaceMembershipAt(normalized.workspace.canonical_path, projectId);
-        // The project's output folder keeps offering it: nothing is unlinked there (SSC-17).
-        if (!membership || !this.projects.lifecycle.unlinkWorkspaceMembership(membership.workspace_id, projectId, actorId)) {
+        // The project's output folder keeps offering it (SSC-17), and a relation the person made stays theirs: nothing is unlinked there.
+        const outcome = membership ? this.projects.lifecycle.unlinkWorkspaceMembership(membership.workspace_id, projectId, actorId) : "absent";
+        if (outcome !== "unlinked") {
           return {
             resolution: this.resolveRuntimeContext(input.context),
             unbound_project: null,
             changed: false,
+            ...(outcome === "person_kept" ? { kept: personRelationKept() } : {}),
           };
         }
         const project = this.projects.query.getProject(projectId);

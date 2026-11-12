@@ -1,12 +1,12 @@
 {
   "reason": "Memory V0 的设置页管理（分类、分页、历史、批量、会话清除）与 Coding 的记忆会话绑定，复用现设置页 cover、编辑器、确认框与原请求重试，没有新资源或样式文件。并入 main（#2031 稳定键界面文字）后对独立构建的 main 206884b4 实测，工作台脚本 1,124,417 → 1,149,832 字节（+25,415；比并入前的 +21,804 多 3,611 字节，来自记忆设置页 142 条文字改成稳定键后的键名与翻译表条目），Coding 脚本 300,558 → 306,101 字节（+5,543），都在原批准合计之内。 另：助理工作侧栏的折叠块加 min-width: 0 与 minmax(0, 1fr) 一列，长记忆标题不再把行内按钮挤出侧栏（并入 main 后的窄侧栏里「去设置查看」被对话盖住）；同一条规则进三份样式表（设置、工作台、首页），各 +48 字节。 再并入 main 539d2d7d4（#2010、#2033、#2032）后对其独立构建实测：工作台脚本 1,127,911 → 1,153,327（+25,416），Coding 脚本 300,948 → 306,493（+5,545），比上次各多 1 和 2 字节，来自 main 新改的代码与本分支相邻处的压缩差异，仍在原批准合计之内。",
   "review": "Work PR #2020（Memory 收口 P0），实测与历次逐片记录见 specs/prologue-memory-strategy/spec.md「6664 隔离采用并入 main」的门禁条和「本轮主干整合工程结果」。",
-  "userApproval": "Memory V0 各片的一次性增量由用户逐项批准，或在用户授权统筹裁定的 10 KB 以内由统筹登记，合计工作台脚本 +27,407、Coding 脚本 +6,499 字节（见 specs/prologue-memory-strategy/spec.md 同两节）；本次只用实测值，不扩大额度。",
+  "userApproval": "Memory V0 各片的一次性增量由用户逐项批准，或在用户授权统筹裁定的 10 KB 以内由统筹登记，合计工作台脚本 +27,407、Coding 脚本 +6,499 字节（见 specs/prologue-memory-strategy/spec.md 同两节）；本次只用实测值，不扩大额度。；BL-1076 代走后的修复（回执撤销、发送标签写明位置、个人页选项目改为项目记忆、别处改了自动重读等）让工作台脚本合计到 +28,566（超出原批 1,159 字节），用户 2026-11-13 在 #2020 会话里答「Approve」放行；Coding 脚本 +5,758 仍在原批 +6,499 内，两份样式表各 +320 在统筹 10 KB 裁定内。",
   "assets": {
-    "/assets/molis-work-workbench.js": 25416,
-    "/assets/molis-work-plugins/coding.js": 5545,
-    "/assets/molis-work-settings.css": 48,
-    "/assets/molis-work-workbench.css": 48,
+    "/assets/molis-work-workbench.js": 28566,
+    "/assets/molis-work-plugins/coding.js": 5758,
+    "/assets/molis-work-settings.css": 320,
+    "/assets/molis-work-workbench.css": 320,
     "/assets/molis-work-arrival.css": 48
   }
 }

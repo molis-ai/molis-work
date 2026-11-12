@@ -62,9 +62,10 @@ test("BL-1076 a personal memory moves into a project picked on the personal page
     await ready(page);
     assert.equal((await texts(client, "personal")).includes(moving.text), false, "it left personal memory");
     assert.equal((await texts(client, "project")).includes(moving.text), true, "it is the chosen project's memory now");
-    // The page it left says where it went, not that it was deleted.
-    await page.wait(`document.querySelector('${root} [data-memory-changes]')?.textContent.includes('已移到项目记忆')`);
-    assert.equal(String(await page.evaluate(`document.querySelector('${root} [data-memory-changes]').textContent`)).includes("这条后来被删除了"), false);
+    // A person's own change on this page is not repeated under 最近变动 (only the Assistant's and works' changes are), so the
+    // page it left never calls the moved memory deleted. A memory kept in a work and moved later reads 「已移到项目记忆」 there:
+    // the change carries `moved_to` (tests/memory-service.test.ts) and the row names where it went.
+    assert.equal(String(await page.evaluate(`document.querySelector('${root} [data-memory-changes]')?.textContent ?? ''`)).includes("这条后来被删除了"), false);
 
     // Something else (the Assistant) keeps a memory while the page is open: the page shows it without pressing reload.
     const later = (await client.invoke(memoryActions.write, { scope: "personal", text: "周报用要点列表，每条一句", kind: "preference" })).memory!;

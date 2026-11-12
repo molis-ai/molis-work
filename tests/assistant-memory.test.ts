@@ -176,7 +176,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
     const frozen = (await adapter.readSession({ session_id: first.work.session_id! })).latest_run!.frozen;
     const system = typeof first.first.system === "string" ? first.first.system : first.first.system.map((block: { text: string }) => block.text).join("\n");
-    for (const [promptId, version] of [["assistant-base", 6], ["assistant-work", 3]] as const) {
+    for (const [promptId, version] of [["assistant-base", 5], ["assistant-work", 3]] as const) {
       const registered = homeAgentDefinitions(home).prompt(`${ASSISTANT_PLUGIN_ID}/${promptId}`);
       assert.equal(registered.default_version, version, "the public prompt registry declares the current version (phase one edits in place: docs/system/CONTRACT-CHANGES.md §3)");
       assert.equal(frozen.prompts.find(prompt => prompt.prompt_id === promptId)!.version, version, "the Run freezes the current registered version");

@@ -52,7 +52,7 @@ const ASSISTANT_ENDING_REVIEW = [
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
   { prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base", ...promptBody("assistant-thread") },
-  { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 6, layer: "base", ...promptBody("assistant-base") },
+  { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base", ...promptBody("assistant-base") },
   { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role", ...promptBody("assistant-work") },
   { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role", ...promptBody("assistant-delegated") },
   { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1, body: ASSISTANT_COMPACTION },
@@ -64,7 +64,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base" }, { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 6, layer: "base" }, { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role" }, { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role" }, { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1 }, { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 1 }],
+  prompts: [{ prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base" }, { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base" }, { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role" }, { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role" }, { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1 }, { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 1 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   // The runtime counts the whole context, this round's lookups and readings included: at 16,000 almost every first round
   // (25–33k with its capability lookups) paid for a compaction it did not need.

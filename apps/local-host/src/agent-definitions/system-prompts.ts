@@ -31,7 +31,7 @@ export const INFORMATION_PLANNER = defineInstructionPrompt({
 /** The platform memory draws out, when a work ends, what may be worth keeping (specs/archive/memory-system §6.1). It only proposes. */
 const MEMORY_OWNER = "system:memory";
 export const MEMORY_EXTRACT = defineInstructionPrompt({
-  owner_id: MEMORY_OWNER, prompt_id: "memory.extract", version: /* @version prompt.memory.extract */ 4, title: "从工作里提炼记忆",
+  owner_id: MEMORY_OWNER, prompt_id: "memory.extract", version: /* @version prompt.memory.extract */ 3, title: "从工作里提炼记忆",
   purpose: "一项工作结束时，从用户本人的话里找出值得长期记住的偏好、项目约定和经验，只提议，由写入门决定记不记", used_by: ["平台记忆"],
   ...promptBody("memory.extract"),
 });

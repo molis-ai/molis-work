@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { SourceRecord } from "./contract/sources.js";
+import type { SourceMissedPulls, SourceRecord } from "./contract/sources.js";
 import { feedErrors } from "./contract/feed.js";
 import type { FeedSourceRunRecord, FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { assertSourceHistoryDecision } from "./application-errors.js";
@@ -9,7 +9,12 @@ import { retireFeedSource } from "./source-history.js";
 
 /** Feed's sources and their pull runs: what a source is (Sources) and what its listener did (Listener), read and written as Feed's records. */
 export class FeedSources {
-  constructor(private readonly ports: FeedApplicationPorts) {}
+  /** The pulls missed while Molis Work was not running (resident runtime §2.1); the record is the store's, kept as it writes it. */
+  readonly missed: SourceMissedPulls;
+
+  constructor(private readonly ports: FeedApplicationPorts) {
+    this.missed = ports.sources.missed;
+  }
 
   list(projectId: string): FeedSourceRecord[] {
     return this.ports.sources.query.list(projectId).map(source => this.record(source));

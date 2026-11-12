@@ -26,7 +26,7 @@ export function createSchedulePlugin(): PluginDefinition {
     const wakeups = new Set(Object.values(scheduleWakeupActions).map(item => item.capability_id));
     return { kind: "app", sync: syncBindings(context), views: [scheduleUiContribution], actions: scheduleManifest.actions!.map(definition => ({ ...definition,
       handle: async (caller, input) => {
-        if (wakeups.has(definition.capability_id)) return scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput);
+        if (wakeups.has(definition.capability_id)) return scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput, projectId);
         const bindings = await scheduleRuntimeActions(projectId, services, runtime, grants, caller, definition.capability_id);
         return bindings.find(binding => binding.capability_id === definition.capability_id && binding.version === definition.version)!.handle(caller, input);
       },

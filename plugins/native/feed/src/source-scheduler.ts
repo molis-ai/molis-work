@@ -4,6 +4,8 @@ import type { FeedSourceService } from "./source-service.js";
 import type { FeedSourceSyncResult } from "./source-ports.js";
 import { createFeedSourceSyncGuard, type FeedSourceSyncAuthority, type FeedSourceSyncGuard } from "./source-sync-guard.js";
 import { stableId } from "./source-input.js";
+import { runIsMissed } from "@molis-ai/molis-work-contracts/platform/actions";
+import { missedPullRunId } from "./missed-pulls.js";
 
 export interface FeedSourceSchedulerResult {
   due: number;
@@ -39,6 +41,20 @@ export class FeedSourceScheduler {
     const attempts = await Promise.allSettled(due.map(async (source) => {
       const schedule = source.schedule;
       if (schedule.mode !== "interval" || !schedule.next_pull_at) return;
+      if (runIsMissed(schedule.next_pull_at, at.getTime())) {
+        // Far past its time (Molis Work was not running, or the computer slept): written down for the person, not pulled now; the next
+        // time comes as usual (resident runtime §2.1). 「现在做」 sets the next time to now, so that pull is on time.
+        const plannedAt = schedule.next_pull_at, guard = createFeedSourceSyncGuard(service.feed, source, authority);
+        await guard();
+        await this.write(service, () => {
+          guard.check();
+          service.feed.sources.missed.record(this.projectId, { run_id: missedPullRunId(source.source_id, plannedAt), source_id: source.source_id,
+            title: [...source.name].slice(0, 300).join("") || source.source_id, due_at: plannedAt, missed_at: at.toISOString() });
+          return service.advanceSchedule(source.source_id, plannedAt, at);
+        });
+        result.skipped += 1;
+        return;
+      }
       if (this.inFlight.has(source.source_id)) {
         result.skipped += 1;
         return;

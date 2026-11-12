@@ -213,3 +213,26 @@ type RollbackPoint =
 | UPGR-08 | 说明卡的「回到上一版」只在升级失败且有回退点时出现，指向设置 › 更新；设置 › 更新在桌面给按钮与确认框（另存默认勾上）、在浏览器给命令，回不去时说原因，停在上一版时给「重新装上」 | `tests/home-rollback.test.ts` |
 | UPGR-09 | 卸载把回退点和 hold 当作安装器自己的文件一起删，读不了的就停下不删 | 同上 |
 | UPGR-07 | [人工] 在隔离 Home 里装两个构建（后一个改了库结构），从说明卡和设置 › 更新各回退一次，勾与不勾另存各一次 | 实操记录 |
+
+## 9. 开工前检查
+
+对第 25 批第 2 项（主人暂不可用、开场页与结果卡）和第 3 项（回到上一版）答（[开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)第 4 节），按实现后的样子写。
+
+| # | 项 | 回答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 不可用表与诊断号归宿主（`home-unavailable-owners.ts`）；回退点、上一版程序与 hold 归安装器；回退这件事的主人是桌面（11-04「桌面是本机服务的主人」）；被拒的库仍归它原来的主人，不另记 |
+| 2 | 插件同等待遇 | 插件的表被升级拒绝时，说明卡与 Dock 的「暂不可用」对所有插件同一份，按 Manifest 的声明认出主人 |
+| 3 | 能力注册 | 不新增动作：回退是命令行 `home rollback` 与桌面原生命令 `rollback_to_previous` |
+| 4 | 合同 | 不改公开合同；三份新带版本文件（`upgrade/notice.json`、`releases/previous/rollback.json`、`config/rollback-hold.json`）登记进 `tooling/versions.json` |
+| 5 | 放在哪个包 | 宿主、工作台、安装器（`apps/local-host/src/installer/`）、桌面；不新增包 |
+| 6 | 表与存储 | 不新增表；新文件登记进 `HOME-DATA.md` 与卸载清单 |
+| 7 | 兼容与迁移 | 不加：回退是把 U1 的升级前快照原样放回，读路径仍只认现行版本 |
+| 8 | 安全边界 | 新增 `S-desktop-rollback-main-only`（只有主窗口本机主文档能回退，拒绝测试在 Rust 与 `security-invariants-desktop-ipc`）；`/upgrade-progress` 并进 `S-upgrade-maintenance-listener` |
+| 9 | 调用次数 | 平时打开路径只多一次分类；说明卡读一次回退点；回退是离线的一次命令 |
+| 10 | 升级与数据 | 就是这件事；回退前默认先另存一份现在的数据 |
+| 11 | 成果与过程项 | 不涉及 |
+| 12 | 页面与外壳 | 说明卡（就地，不出整页）、开场页、首页结果卡、设置 › 更新，照定样「更新与回退」；Dock 读作「暂不可用」 |
+| 13 | 错误 | 新错误码经 `defineErrorCodes`；不新增 Error 子类 |
+| 14 | 冲突面 | 宿主启动（枢纽）、安装器与桌面（F 轨）；本批只有主会话一个写手 |
+| 15 | 全局最优 | 回退由桌面做、不由宿主自己做：宿主不能在持锁、正在服务时把自己换掉；命令行的 `home rollback` 给不开桌面时用 |
+

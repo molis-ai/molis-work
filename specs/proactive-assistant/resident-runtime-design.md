@@ -192,3 +192,26 @@ interface RuntimeOverview {
 - **胶囊能打开的主窗口页**在 `/projects/…` 之外只多了正好 `/settings/models`（「去设置模型」那一下）。
 - **宿主不是桌面起的**：LaunchAgent 装的本机服务仍固定在 4173（服务的 plist 不随地址文件变）；只有桌面自己起宿主、4173 被别的程序占着时才换到 4174–4199。
 - **运行时授权**：`src-tauri/capabilities/` 不再有静态授权，六份模板在 `src-tauri/runtime-capabilities/`，启动核过端口后按端口填好再 `add_capability`（`host_port.rs`、`main.rs` 的 `grant_host_capabilities`）；同一个端口只加一次。
+
+## 11. 开工前检查
+
+对第 25 批第 1 项答（[开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)第 4 节），按实现后的样子写。
+
+| # | 项 | 回答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 错过与接下来归各自的主人：Schedule（`schedule_missed_runs`）、Feed（`feed_missed_pulls`）、助理定时（跟进记录里的 `missed`），用户 11-11 定。汇总不存事实，只是宿主的读与转交。`run/presence.json`、`run/endpoint.json` 归 `apps/local-host`；`config/desktop.json` 归 `apps/desktop` |
+| 2 | 插件同等待遇 | 按类型发现：声明了 `molis.runs.*` 这一对动作的任何插件都进面板与首页提示，宿主没有主人名单；内置三位主人也只走这条路 |
+| 3 | 能力注册 | 每位主人的 `runs.overview@1`、`runs.decide@1` 在自己的声明里注册一次（Schedule、Feed 在 Manifest，助理定时在系统提供方 `io.molis.work.assistant.rules`）；汇总是宿主路由，不是动作（§10） |
+| 4 | 合同 | 新增 `platform/actions` 的 `scheduled-runs` 一组并由 SDK 转出，`services/assistant` 的 `AssistantFollowUp` 加 `missed`；公开 API 与动作快照随本批刷新；阶段一不留兼容期；`CONTRACT-CHANGES.md` §8 记两条 |
+| 5 | 放在哪个包 | 合同在 `packages/contracts`，主人各在自己的包，汇总、presence、地址文件在 `apps/local-host`，界面在 `apps/workbench`，原生部分在 `apps/desktop`；不新增包 |
+| 6 | 表与存储 | 两张新表各归声明它的插件，各升一版带升级段；Home 里三个新文件登记进 `homeStores()` 与 `HOME-DATA.md`；别的包不读这几张表 |
+| 7 | 兼容与迁移 | 不加兼容读取或迁移逻辑：两张表是正式升级链里的一段；地址文件与 `config/desktop.json` 只认第 1 版，不认得的当作没有 |
+| 8 | 安全边界 | 碰 S-14：授权从静态 4173 改成启动后按核过身份的端口加，运行命令按窗口、来源和路径拒绝（RES-08，拒绝测试在 Rust 与 `security-invariants-desktop-ipc`）；地址文件不含令牌，读的人照旧核身份（S-07）；主人的错误只留错误码（S-12） |
+| 9 | 调用次数 | 面板打开一次 = 一个请求 = 每位主人一次调用（并发，2 秒超时），开着 30 秒刷新、关着不刷；首页一次；「现在做／跳过」一个请求、在那一处按类型重新找一次主人 |
+| 10 | 升级与数据 | 两张表的 1→2 走 U1 的升级链和金样回放；`run/` 快照时 reset；`config/desktop.json` 没有就按默认开 |
+| 11 | 成果与过程项 | 不涉及：错过与运行状态不是成果，不进成果库、侧栏和搜索 |
+| 12 | 页面与外壳 | 胶囊里的「运行」一节、首页上方的错过提示、设置 › 运行（目录只在桌面列）；照 11-04 定样，没有新页面整页；不加 DOM 事件；页面资源的增长见本批许可 |
+| 13 | 错误 | 新错误码都经 `defineErrorCodes`，没有新的 Error 子类 |
+| 14 | 冲突面 | 宿主启动（`web-server.ts`，枢纽）、桌面（F 轨文件）、Schedule 与 Feed 的库；本批只有主会话一个写手 |
+| 15 | 全局最优 | 比较过：平台集中记错过与各主人记（用户定各主人记，插件不分内外都能接）；Runtime 配置里加地址与 Home 里放地址文件（选文件：端口每次启动可能不同，配置写进外部 Runtime 后改不了）；汇总做成动作与宿主路由（选路由：只给本机的人看，Agent 要的是各主人自己的动作） |
+

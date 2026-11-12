@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { ActionError, bindActionHandler, fileContentOf, fileEntriesPage, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration,
+import { ActionError, bindActionHandler, fileContentOf, fileEntriesPage, retainActionAuthority, subjectContext, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration,
   type FileEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactJsonValue, ArtifactReference, ArtifactsApplicationApi, FixedVersionRecord, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -314,6 +314,19 @@ function materialsFiles({ ports, nested, folders, read }: MaterialsCore) {
         : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
       // A text file too long for one read is named by its size, the revision a windowed read answers to; the reader reads it on.
       return fileContentOf({ subject: input.subject, revision: result.outcome === "too-large" ? `size:${result.bytes}` : "unreadable", title, media_type: "text/plain", text: why });
+    }),
+    // A project-folder file's context by the shared subject protocol (Placement follows it into a Goal): its text page by page under
+    // the caller's folder authority, and the revision a live reference compares with (the content's SHA, or its size when too long).
+    bindActionHandler(materialsFileSource.subject, async (input, caller) => {
+      const call = nested(caller, materialsFileSource.subject), subject = { kind: WORKSPACE_FILE_SUBJECT_KIND, id: input.subject_id };
+      const named = resolveWorkspaceFileSubject(subject, await folders(call));
+      if (!named) throw unavailable("这个文件不在当前项目的文件夹里");
+      const title = named.path.at(-1) ?? "文件", open = { surface: MATERIALS_SURFACE, id: subject.id };
+      const result = await read(call, named.workspace_id, named.path, "text");
+      if (result.outcome === "text") return subjectContext({ subject, revision: result.fingerprint, title, content: result.text, open }, input);
+      if (result.outcome === "too-large") return subjectContext({ subject, revision: `size:${result.bytes}`, title, content: "", truncated: true, open }, input);
+      if (result.outcome === "missing") throw unavailable("文件已不存在");
+      throw notText(result);
     }),
   ];
 }

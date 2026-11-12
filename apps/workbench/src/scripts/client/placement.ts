@@ -370,11 +370,12 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     return set;
   };
   const takeAsInput = async (projectId, goalId, object, fixed) => {
-    if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
-    // A file of the project's folders is fixed by the platform's materials service, as it is now, and bound by that exact version.
+    const base = "/projects/" + encodeURIComponent(projectId), ask = (path, body) => molisWorkRequest(base + path, { body, fallback: L("没有记下输入") });
+    // A file of the project's folders is read first: followed, the Goal keeps what was read so it can tell later that the original changed; fixed, that exact version is bound.
+    const seen = object.kind === "workspace_file" ? (await ask("/api/materials/read", { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" })).read_revision : "";
+    if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId, ...(seen ? { read_revision: seen } : {}) }); return; }
     if (object.kind === "workspace_file") {
-      const base = "/projects/" + encodeURIComponent(projectId), ask = (path, body) => molisWorkRequest(base + path, { body, fallback: L("没有记下输入") }), at = object.id.indexOf(":");
-      const seen = (await ask("/api/materials/read", { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" })).read_revision;
+      const at = object.id.indexOf(":");
       if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(L("长文件只能固定选区"));
       const { ref } = await ask("/api/materials/capture", { workspace_id: object.id.slice(0, at), path: object.id.slice(at + 1).split("/"), fingerprint: seen });
       await ask("/api/plugins/io.molis.work.goals/goals/" + encodeURIComponent(goalId) + "/inputs", { action: "bind", ref });
@@ -391,7 +392,9 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     try {
       // The same one request as the side panel (N52): every source with its first page.
       const { sources, pages } = await readSideFileSources(read);
-      for (const source of sources) for (const entry of pages.get(source.id).items) if (entry.subject) entries.push({ ...entry, group: source.title });
+      // Every source gets its share of the 80 rows, so one long source does not hide the others.
+      const share = Math.ceil(80 / Math.max(1, sources.length));
+      for (const source of sources) entries.push(...pages.get(source.id).items.filter((entry) => entry.subject).slice(0, share).map((entry) => ({ ...entry, group: source.title })));
     } catch (error) { card(L("读不到项目的内容"), error, [], "error"); return; }
     if (!entries.length) { card(L("这里还没有可以作为输入的内容"), L("先为这个 Goal 新建一份，或在成果库里导入。"), [], "error"); return; }
     const rows = entries.slice(0, 80).map((entry, index) => choice("object", JSON.stringify(entry.subject), entry.title, entry.group, index === 0));
@@ -503,6 +506,13 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           ? (view.plugin ? view.plugin.title + " · " : "") + L("放在 {place}", { place: where }) + (view.moved_from ? " · " + L("从 {place} 移来", { place: view.moved_from.title }) : "")
           : view.state === "missing" ? L("原对象已删除") : (view.reason || L("暂时读不到"));
         row.classList.toggle("is-gone", view.state !== "ok");
+        // A project-folder file the Goal follows: what was read when it was taken is compared with the file now (SSC-28).
+        const digest = row.dataset.goalInputDigest;
+        if (view.state === "ok" && object.kind === "workspace_file" && digest !== undefined) {
+          if (!digest) state.textContent += " · " + L("内容没有核对");
+          else void molisWorkRequest(route("/api/materials/read"), { body: { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: digest.slice(7) } }, mode: "head" }, fallback: "" })
+            .then((read) => { if (read.state === "changed") state.textContent += " · " + L("原文已改动"); }).catch(() => {});
+        }
         if (view.state === "ok" && view.open) {
           const open = ghost(L("打开"));
           open.onclick = () => openObject(view.open, view.title); actions.append(open);
@@ -518,6 +528,19 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         actions.append(remove);
       }).catch((error) => { molisWorkRequest.show(state,error); });
     });
+    // Versions the materials service fixed for a Goal: only whether the person can still read each is asked, never where it was.
+    const fixed = [...document.querySelectorAll("[data-goal-material-snapshot]:not([data-placement-filled])")];
+    if (!fixed.length) return;
+    fixed.forEach((row) => { row.dataset.placementFilled = "1"; });
+    const versions = fixed.map((row) => { try { const [artifact_id, version] = JSON.parse(row.dataset.goalMaterialSnapshot); return { artifact_id, version }; } catch { return null; } });
+    void molisWorkRequest(route("/api/materials/pinned"), { body: { versions: versions.filter(Boolean) }, fallback: L("暂时读不到") }).then(({ items }) => {
+      let at = 0;
+      fixed.forEach((row, index) => {
+        const found = versions[index] ? items[at++] : null, gone = !found || !found.ref;
+        row.classList.toggle("is-gone", gone);
+        row.querySelector("[data-goal-material-snapshot-state]").textContent = gone ? L("现在读不到这一版") : "";
+      });
+    }).catch((error) => { fixed.forEach((row) => molisWorkRequest.show(row.querySelector("[data-goal-material-snapshot-state]"), error)); });
   };
   document.addEventListener("click", (event) => {
     const add = event.target.closest && event.target.closest("[data-goal-input-add]");
@@ -635,7 +658,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   new MutationObserver((records) => {
     for (const record of records) {
-      if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material]")))) { scheduleRepaint(); return; }
+      if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]")))) { scheduleRepaint(); return; }
     }
   }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden", "data-expanded"] });
   // The workbench selects an item on a plugin's surface when a tab is applied; the plugin shows it a moment later.

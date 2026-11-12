@@ -11,10 +11,10 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 /**
  * The workbench's door to the platform's materials service (Files retirement, materials-ui-contract §4, §5): the side panel's reader
  * opens a file of the project's folders, reads a long one on in windows, fixes what the person saw as a snapshot or a quoted
- * selection, and asks where they last read; the main area's reader reads a file to show it (`GET content`). Every route invokes the `materials.*` action as the person, in this project only, with
+ * selection, and asks where they last read; the main area's reader reads a file to show it (`GET content`); a Goal's page asks which of its fixed versions the person can still read (`pinned`). Every route invokes the `materials.*` action as the person, in this project only, with
  * the folder read the service asks; what each may do is the action's to decide, and its refusal is passed on as it is.
  */
-const posted: Readonly<Record<string, ActionDefinition<unknown, unknown>>> = { open: materialsActions.open, read: materialsActions.read, capture: materialsActions.capture };
+const posted: Readonly<Record<string, ActionDefinition<unknown, unknown>>> = { open: materialsActions.open, read: materialsActions.read, capture: materialsActions.capture, pinned: materialsActions.pinned };
 
 export async function handleMaterialsHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: { localHost: MolisWorkLocalHost; projectRef: LocalHostProjectReference }): Promise<boolean> {

@@ -625,6 +625,7 @@
     "action.materials.read": 1,
     "action.materials.recent": 1,
     "action.materials.recent.record": 1,
+    "action.materials.subject.read": 1,
     "action.mcp.grants.usages": 1,
     "action.memory.candidates.accept": 1,
     "action.memory.candidates.discard": 1,

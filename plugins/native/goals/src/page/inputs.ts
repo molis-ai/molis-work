@@ -1,3 +1,5 @@
+import { GOAL_MATERIAL_SNAPSHOT_SOURCE } from "../contract/goal-inputs.js";
+
 /**
  * A Goal's inputs in one place (specs/artifact-positioning 五.1, 「合成一种入口」): materials it follows as they change
  * (bound work objects) and versions it fixed (成果 taken as input), one list and one 「加输入」. New materials can still be
@@ -34,14 +36,19 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, rend
   const goalRoute = escapeHtml(`/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(item.goal.goal_id)}`);
   const follows = `<span class="goal-input-mode" data-goal-input-mode="live">${L("跟着原文")}</span>`;
   const live = item.input_bindings.filter((binding) => binding.state !== "inactive").map((binding) => {
+    // The buttons carry what they ask of the Goal's own route and what to say when it fails; one client handler serves them (placement.ts).
+    const decide = (action: "accept" | "remove", label: string, fail: string, done = "") => `<button type="button" class="mw-btn mw-btn--${action === "accept" ? "secondary" : "ghost"} mw-btn--sm" data-goal-input-${action === "accept" ? "accept" : "release"} data-goal-input-post="${goalRoute}/inputs" data-goal-input-body="${escapeHtml(JSON.stringify({ binding_id: binding.binding_id, action }))}" data-goal-input-fail="${escapeHtml(fail)}"${done ? ` data-goal-input-done="${escapeHtml(done)}"` : ""}>${escapeHtml(label)}</button>`;
+    // A version of a project-folder file the platform's materials service fixed: the Goal keeps only its version; the placement client asks
+    // whether the person can still read it, and nothing of its path is on the page.
+    if (binding.source_type === GOAL_MATERIAL_SNAPSHOT_SOURCE) {
+      return `<article class="placement-goal-material goal-input-fixed" data-goal-material-snapshot="${escapeHtml(binding.source_ref)}"><div><strong>${escapeHtml(binding.input_name)}</strong><span class="goal-input-mode" data-goal-input-mode="fixed">${L("固定的这一版")}</span><small data-goal-material-snapshot-state></small></div><span class="placement-goal-material-actions">${decide("remove", L("移除"), L("没能移除"))}</span></article>`;
+    }
     if (binding.source_type === "plugin_object") {
       let subject: [string, string] | null = null;
       try { const value = JSON.parse(binding.source_ref); if (Array.isArray(value) && value.length === 2) subject = [String(value[0]), String(value[1])]; } catch { subject = null; }
       if (!subject) return "";
-      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-binding="${escapeHtml(binding.binding_id)}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(L("正在读取…"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
+      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-binding="${escapeHtml(binding.binding_id)}" data-goal-input-digest="${escapeHtml(binding.snapshot_digest ?? "")}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(L("正在读取…"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
     }
-    // The buttons carry what they ask of the Goal's own route and what to say when it fails; one client handler serves them (placement.ts).
-    const decide = (action: "accept" | "remove", label: string, fail: string, done = "") => `<button type="button" class="mw-btn mw-btn--${action === "accept" ? "secondary" : "ghost"} mw-btn--sm" data-goal-input-${action === "accept" ? "accept" : "release"} data-goal-input-post="${goalRoute}/inputs" data-goal-input-body="${escapeHtml(JSON.stringify({ binding_id: binding.binding_id, action }))}" data-goal-input-fail="${escapeHtml(fail)}"${done ? ` data-goal-input-done="${escapeHtml(done)}"` : ""}>${escapeHtml(label)}</button>`;
     const pending = binding.source_type === "feed_item" && binding.state === "proposed";
     const stated = { proposed: L("待确认"), confirmed: L("已确认") }[binding.state] ?? binding.state;
     return `<article class="placement-goal-material" data-goal-input-binding="${escapeHtml(binding.binding_id)}"><div>${renderReference(binding.source_ref, binding.input_name)}<span class="goal-input-mode" data-goal-input-state="${escapeHtml(binding.state)}">${escapeHtml(stated)}</span><small>${escapeHtml(binding.reason)}${binding.snapshot_digest ? ` · ${escapeHtml(binding.snapshot_digest)}` : ""}</small></div>${pending ? `<span class="placement-goal-material-actions">${decide("accept", L("认可这条输入"), L("没能认可"), L("已确认"))}${decide("remove", L("移除"), L("没能移除"))}</span>` : ""}</article>`;

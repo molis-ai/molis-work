@@ -2,7 +2,7 @@ import type { ArtifactReference } from "../modules/artifacts.js";
 import type { DirectoryRole } from "../modules/projects.js";
 import type { ActionDefinition, ActionSchema } from "./actions.js";
 import { defineFileContentAction, defineFileEntriesAction } from "./file-sources.js";
-import type { ActionSubject } from "./action-subjects.js";
+import { defineSubjectContextAction, type ActionSubject } from "./action-subjects.js";
 import type { SystemOutputSource } from "./plugin-wiring.js";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_SCHEMA_VERSION,
   FILES_COLLECTION_TYPE, WORKSPACE_FILE_SUBJECT_KIND, workspaceReadActions, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "../modules/workspace-artifacts.js";
@@ -299,4 +299,6 @@ const readingFolders = <Definition extends ActionDefinition>(definition: Definit
 export const materialsFileSource = {
   entries: /* @__PURE__ */ readingFolders(defineFileEntriesAction("materials.files.entries", /* @version action.materials.files.entries */ 1, projectFileKinds, "项目文件夹", [])),
   content: /* @__PURE__ */ readingFolders(defineFileContentAction("materials.files.content", /* @version action.materials.files.content */ 1, projectFileKinds, "项目文件夹", [])),
+  /** The one reader of a project-folder file's context (`isSubjectReader`): what Placement and the other subject readers find for `workspace_file`. */
+  subject: /* @__PURE__ */ readingFolders(defineSubjectContextAction("materials.subject.read", /* @version action.materials.subject.read */ 1, WORKSPACE_FILE_SUBJECT_KIND, "项目文件夹里的文件", [])),
 };

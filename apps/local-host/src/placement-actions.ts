@@ -91,7 +91,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     { ...placementActions.copy, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string; request_id: string }; return forCall(caller).copy(value.object, value.to_project_id, value.request_id); } },
     { ...placementActions.convert, handle: (caller, input) => forCall(caller).convert(input as PlacementConvertRequest) },
     { ...placementGoalActions.goals, handle: async (caller, input) => ({ goals: await forCall(caller).goals((input as { project_id: string }).project_id) }) },
-    { ...placementGoalActions.bindGoal, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; goal_id: string }; return forCall(caller).bindGoal(value.object, value.project_id, value.goal_id); } },
+    { ...placementGoalActions.bindGoal, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; goal_id: string; read_revision?: string }; return forCall(caller).bindGoal(value.object, value.project_id, value.goal_id, value.read_revision); } },
     { ...placementGoalActions.create, handle: (caller, input) => forCall(caller).create(input as PlacementCreateRequest) },
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "放置", kind: "system" },

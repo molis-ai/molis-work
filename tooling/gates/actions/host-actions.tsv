@@ -210,6 +210,7 @@ materials.position	1	system.materials	query	query	project	read	concurrent	plugin
 materials.read	1	system.materials	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	materials.read	b8cb7710572f	03326f59a123	1cc35ff17bf8
 materials.recent	1	system.project-workspaces	query	query	project	read	concurrent	plugin,user	-	project	-	materials.recent	99334726611c	9b289878a1fd	-
 materials.recent.record	1	system.project-workspaces	command	operation	project	write	concurrent	plugin,user	-	project	-	-	da06221c9d32	99334726611c	-
+materials.subject.read	1	system.materials	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	workspace:read	workspace_file	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	1cc35ff17bf8
 mcp.grants.usages	1	system.action-usages	query	query	home	read	concurrent	user	-	-	molis.action-usages.input.v1	molis.action-usages.output.v1	8fc50332e9ea	d6491f838975	-
 memory.candidates.accept	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	8cf8239eb8fe	d2f86bd66a8d	-
 memory.candidates.discard	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	9b895ae078a5	5e22d107e685	-
@@ -239,7 +240,7 @@ placement.convert	1	system.placement	command	operation	home	write	-	user	placeme
 placement.copy	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	c5d3f5ab6119	c8f6063885fc	-
 placement.create	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	eb83462c854f	ab68d3ea3932	-
 placement.describe	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	551a9964df38	0afbb6c1fc04	-
-placement.goal.bind	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	1ac630107b15	673957d8495a	-
+placement.goal.bind	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	090eb0bb51b9	673957d8495a	-
 placement.goals	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	03636e556197	b0d83604bd15	-
 placement.link	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	954d5893299d	673957d8495a	-
 placement.locate	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	551a9964df38	a77217e9b48b	-

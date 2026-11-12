@@ -65,6 +65,7 @@ export const GOALS_PAGE_EN: Readonly<Record<string, string>> = {
   "Goal 信息与时间线": "Goal info and timeline",
   "完成这一步前，相关工作不会继续": "Related work will not continue until this step is done",
   "固定的第 {version} 版": "Fixed version {version}",
+  "固定的这一版": "Fixed version",
   "加输入…": "Add input…",
   "或为这个 Goal 新建": "or create for this goal",
   "还没有输入。": "No inputs yet.",

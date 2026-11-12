@@ -39,6 +39,8 @@
 
 实施记录（2026-11-11，S4 阅读器）：侧栏与主区共用一份阅读器（`apps/workbench/src/materials-reader-client.ts`，页面上只建一次，与设计系统的文件预览一起交给两处）。项目文件夹里的文件在侧栏原位打开：拖选的文字按所在分段的 UTF-16 绝对位置固定成选区；没有拖选时「引用选区」列出段落，方向键与回车选择；整份文件可「固定快照」，长文件只能固定选区，「继续读取」逐段读到末尾；文件在展示后变了，固定被拒并在工具栏下一行说明，不留任何持有项。「加入任务」经 `molis:assistant-open` 以 `{ title, ref }` 交给助理输入框；发送时宿主经 `materials.read` 以本人身份重读（快照/选区读固定版本，当前引用核对 read_revision，变了就在任何模型调用前拒绝）。「在主区打开」是本人的显式打开：先调 `materials.open`（保存阅读位置、交出端口），再打开主区的「资料」标签（`apps/workbench/src/materials-stage.ts`）；标签显示和重载后恢复只读（`GET /api/materials/content`）。验收见 `tests/side-materials-reader.e2e.test.ts`（BSH-08）、`tests/shell-file-preview.e2e.test.ts`（RAC-84，目标由 Files 页改为主区阅读器）与 `tests/assistant-mentions.test.ts`。
 
+实施记录（2026-11-11，S5 Goal 输入）：Goal「加输入」对项目文件夹的文件，跟着原文时先经 `materials.read` 只核身份（head），把读到的 `read_revision` 经 `placement.goal.bind@1`（同版本加可选 `read_revision`）交给 `goals.inputs.bind`，摘要存成 `sha256:<hex>`，长文件存 null；Goal 页面再次打开时按存下的摘要核对，变了写「原文已改动」，没有摘要写「内容没有核对」。Placement 读这种对象靠平台新登记的 `materials.subject.read@1`（共用的对象读取协议，按调用人的文件夹授权分页读正文）；Knowledge 与助理对 `workspace_file` 本来就各走自己的分支，不受影响。固定这一版时由平台资料服务固定快照，Goal 只记过程项的 id 与版本（`material_snapshot`），页面上没有路径；读不读得到经 `materials.pinned@1` 问，读不到写「现在读不到这一版」，可在同一列表移除。验收见 `tests/goal-inputs-one-entry.e2e.test.ts`（BSH-08、SSC-28）与 `tests/system-materials-actions.test.ts`。Goal 加输入的选单暂按来源平分 80 行，选择器升级时换成按来源分组分页。
+
 ## 5. 原阅读命令与端口
 
 - A 原型 `docs/design/batch-06-materials/app.js:909–913` 的 `read/place=coding` 是原 Coding 内嵌 Files 阅读面的文件行打开手势。将此手势接平台 `materials.open` 显式命令，成功仍在 A 的侧区就地显示。原 `files.open` 成功读文本后保存阅读位置并在可列目录时发布当前根的 files collection，移交该语义给系统资料 owner。保留 collection 的 workspace/handle/display_name/entry_count/truncated/selection.path 合同和用户已有合法绑定。没有内置 collection 默认消费者的证据；保留手绑/外装消费，实测已知 Diff before/after、Text Stats before。

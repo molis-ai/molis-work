@@ -125,7 +125,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
           : view.section === "diagnostics"
             ? renderDiagnosticsSettings(view, primitives, desktopShell)
           : view.section === "update" ? renderUpdateSettings(view, desktopShell)
-          : view.section === "running" ? renderRunningSettings(desktopShell)
+          : view.section === "running" ? renderRunningSettings()
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">

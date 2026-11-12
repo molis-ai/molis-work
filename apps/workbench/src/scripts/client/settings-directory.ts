@@ -124,6 +124,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindMemorySettings?.(root);
     globalThis.molisWorkBindAgentDiagnostics?.(root);
+    globalThis.molisWorkBindRunningSettings?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectManager?.(root, { hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindProjectGuidance?.(root);
@@ -324,6 +325,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (capability) return CAPABILITY_SECTIONS.includes(capability[1]) ? capability[1] : "library";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
     if (pathname.startsWith("/settings/projects")) return "projects";
+    // 运行 is listed only in the desktop app; its address still opens its page in a browser, which says where the switches are.
+    if (pathname.startsWith("/settings/running")) return "running";
     if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
     const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];
     if (!slug || slug === pathname) return "";

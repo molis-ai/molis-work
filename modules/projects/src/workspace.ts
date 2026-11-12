@@ -20,7 +20,7 @@ import type { ProjectsRepository } from "./repository.js";
 import { toolBoundBy, type ProjectDirectoryRow } from "./workspace-repository.js";
 
 /** What a tool's unlink did: only `unlinked` changed anything. The output stays (SSC-17), and so does a relation the person made. */
-export type WorkspaceUnlinkOutcome = "unlinked" | "absent" | "output_kept" | "person_kept";
+type WorkspaceUnlinkOutcome = "unlinked" | "absent" | "output_kept" | "person_kept";
 
 /**
  * A folder a runtime context names, before it is matched to a row: its resolved path and whether `realpathSync.native` could resolve it.

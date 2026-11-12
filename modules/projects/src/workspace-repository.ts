@@ -265,7 +265,10 @@ export class WorkspaceRepository {
     );
   }
 
-  /** Whether the person made this relation: the one place that reads `bound_by` as a decision. */
+  /**
+   * Whether the person made this relation. `bound_by` is read as a decision only in this file, always by the same allow-list (this method,
+   * `person_project_ids`, `projectHasPersonMembership` and the write rule of `upsertWorkspaceMembership`).
+   */
   isPersonMembership(workspaceId: string, projectId: string): boolean {
     return this.db.prepare("SELECT 1 FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ? AND bound_by = ?")
       .get(workspaceId, projectId, LOCAL_PERSON_ACTOR_ID) !== undefined;

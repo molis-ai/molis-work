@@ -318,6 +318,10 @@ test("SRB-14 writing a relation again never takes it from the person; the person
     setBoundBy(db, projects.query.workspaceIdAt(olderPath)!, first, "codex:session-1");
     changeDirectories(projects, first, { kind: "add_input", workspace_path: olderPath });
     assert.deepEqual(directoryAt(projects, olderPath)?.person_project_ids, [first], "the person's add_input claims it too");
+    const pickedPath = folder("picked");
+    toolBinds(projects, first, pickedPath, "codex:session-1");
+    changeDirectories(projects, first, { kind: "set_output", target: { workspace_id: projects.query.workspaceIdAt(pickedPath)! } });
+    assert.deepEqual(directoryAt(projects, pickedPath)?.person_project_ids, [first], "so does the person picking it as the output");
   });
 });
 

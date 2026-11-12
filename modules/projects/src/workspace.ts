@@ -245,11 +245,11 @@ export class ProjectWorkspaceService {
     this.appendEvent(projectId, "project.workspace_output_set", actorId, { workspace_id: chosen.workspace_id, previous_workspace_id: previous?.workspace_id ?? null });
   }
 
-  /** A `DirectoryTarget` as one of this project's folders: an existing one, a path linked now (as an input), or the default output directory. */
+  /** A `DirectoryTarget` as one of this project's folders: an existing one (claimed when the person chose it), a path linked now (as an input), or the default output directory. */
   private target(current: ProjectDirectories, target: DirectoryTarget, projectId: string, actorId: string): { workspace_id: string; created: boolean } {
     if ("workspace_id" in target) {
       if (!current.directories.some(item => item.workspace_id === target.workspace_id)) throw catalogErrors.workspace_membership_not_found("这个文件夹不是当前项目的目录");
-      return { workspace_id: target.workspace_id, created: false };
+      return this.member(target.workspace_id, projectId, actorId, actorId, ["input"]);
     }
     if ("workspace_path" in target) return this.link(projectId, actorId, target.workspace_path, "explicit", ["input"])!;
     return this.member(this.ownOutputRow(projectId), projectId, actorId, actorId, ["input"]);

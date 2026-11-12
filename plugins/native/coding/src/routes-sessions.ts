@@ -1,4 +1,5 @@
 import { readCodingSessions } from "./session-observation.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection, savedMaterials } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
@@ -22,6 +23,10 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
 const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
+
+
+/** A session title for a reader: the stored untitled marker becomes a word of the read's language; storage keeps the marker. */
+const sessionTitleFor = (title: string): string => title === DEFAULT_SESSION_TITLE ? uiText.text("coding.session.new-title") : title || uiText.text("coding.session.untitled");
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
@@ -123,7 +128,7 @@ const ROUTES: RouteMaker[] = [
       const records = execution.sessions.list(projectId).filter(record => !record.archived);
       await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite);
       return searchEntriesPage(records.map(record => ({
-        subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: record.title || "编码会话",
+        subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: sessionTitleFor(record.title),
         summary: record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : "", updated_at: record.updated_at, content: "context" as const,
         open: { surface: "coding", id: record.session_id } })), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
         limit: Math.min(500, Math.max(1, Number(request.query.limit ?? 500) || 500)) });
@@ -150,7 +155,7 @@ const ROUTES: RouteMaker[] = [
           lines.push("", `一轮（${run.phase}）：${task.slice(0, 600)}`, ...(changed.length ? [`改动的文件：${changed.join("、")}`] : []), ...(reply ? [`结果：${reply.slice(0, 1200)}`] : []));
         }
       }
-      return subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision, title: record.title || "编码会话",
+      return subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision, title: sessionTitleFor(record.title),
         content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [],
         open: { surface: "coding", id: record.session_id } });
     });

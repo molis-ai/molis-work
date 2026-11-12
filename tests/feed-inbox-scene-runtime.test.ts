@@ -4,7 +4,8 @@ import test from "node:test";
 import type { ActionCallContext, ActionClient, ActionSceneBinding, ActionSceneUsage, ActionSceneView, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
-import { createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStagedFeedContent } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxManifest, createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStagedFeedContent } from "@molis-ai/molis-work-plugin-inbox";
+import { installHostUiText, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 
 // FI-1 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime.md, PG-034): the judgment side of Feed's capture scene and of Inbox's
 // next-step scene belongs to the plugins. The Host supplies the owners' data (the judgment ledger, the readable item) to Feed and decides
@@ -12,6 +13,12 @@ import { createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStage
 // services. These tests run the plugins' runtimes over fake ports, with no database and no Host.
 
 const PROJECT = "project-1";
+// The Inbox scene runtime now words its own fixed sentences with the plugin's words, in the language of the read
+// (scene-runtime.ts, `inbox.judgment.*`): a test that calls its ports needs the text context and its owner installed.
+installHostUiText();
+const inboxOwner = registeredBuiltinText(inboxManifest);
+assert.ok(inboxOwner);
+const inInbox = <T>(locale: "zh" | "en", run: () => T): T => runWithLocale(locale, () => runWithRegisteredText(inboxOwner, run));
 const caller = { actor_id: "tester", project_id: PROJECT, permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write"] } as never;
 const FUNCTION = { capability_id: "functions.published.rule-a", version: 2, provider_id: "system.functions" } as const;
 
@@ -121,15 +128,34 @@ test("FI-1 RAC-482 Inbox binds only a published rule, and unbinding pauses the b
 });
 
 test("FI-1 RAC-482 Inbox lists a rule only when its capability can run the scene, and says why a binding is not usable", async () => {
+  type ReadState = { functions: unknown[]; function_key: string | null; summary: { reason: string | null; name: string | null } };
+  const read = async (runtime: ReturnType<typeof inboxRuntime>, locale: "zh" | "en"): Promise<ReadState> =>
+    await inInbox(locale, () => runtime.ports.readJudgment!(caller)) as ReadState;
   const compatible = inboxRuntime({ capabilities: [action(FUNCTION)] });
-  const state = await compatible.ports.readJudgment!(caller) as { functions: unknown[]; function_key: string | null; summary: { reason: string | null; name: string | null } };
-  assert.deepEqual(state.functions, [{ function_key: "rule-a", name: "规则 A" }]);
-  assert.deepEqual({ key: state.function_key, reason: state.summary.reason }, { key: null, reason: "尚未绑定规则" });
+  const zhUnbound = await read(compatible, "zh"), enUnbound = await read(compatible, "en");
+  assert.deepEqual(zhUnbound.functions, [{ function_key: "rule-a", name: "规则 A" }]);
+  assert.deepEqual({ key: zhUnbound.function_key, reason: zhUnbound.summary.reason }, { key: null, reason: "尚未绑定规则" });
+  assert.deepEqual({ key: enUnbound.function_key, reason: enUnbound.summary.reason }, { key: null, reason: "No rule is bound yet" },
+    "the fixed sentence comes from Inbox's own words in the language of the read");
   const incompatible = inboxRuntime({ capabilities: [action(FUNCTION)], views: [sceneView(INBOX_NEXT_SCENE_ID, 1, false)] });
-  assert.deepEqual((await incompatible.ports.readJudgment!(caller) as { functions: unknown[] }).functions, []);
+  assert.deepEqual((await read(incompatible, "zh")).functions, []);
   const binding: ActionSceneBinding = { binding_id: inboxSceneBindingId(PROJECT), scene_id: INBOX_NEXT_SCENE_ID, scene_version: 1, project_id: PROJECT, function: FUNCTION, enabled: true, revision: "r1", title: "t", href: "/" } as never;
-  const unauthorised = await inboxRuntime({ bound: binding, capabilities: [action(FUNCTION)] }).ports.readJudgment!(caller) as { function_key: string | null; summary: { reason: string | null } };
-  assert.deepEqual({ key: unauthorised.function_key, reason: unauthorised.summary.reason }, { key: "rule-a", reason: "当前无权使用此场景" });
+  const unauthorised = inboxRuntime({ bound: binding, capabilities: [action(FUNCTION)] });
+  const zhNoScene = await read(unauthorised, "zh"), enNoScene = await read(unauthorised, "en");
+  assert.deepEqual({ key: zhNoScene.function_key, reason: zhNoScene.summary.reason }, { key: "rule-a", reason: "当前无权使用此场景" });
+  assert.equal(enNoScene.summary.reason, "You don’t have access to this scene");
+  // Another owner's reason (the scene's own availability words) is original text, shown as written in either language.
+  const usage = { scene_id: INBOX_NEXT_SCENE_ID, binding_id: inboxSceneBindingId(PROJECT), revision: "r1", enabled: true, function: FUNCTION,
+    availability: { available: false, reason: "此能力需要已配置的个人服务" } } as never;
+  const unavailable = inboxRuntime({ bound: binding, capabilities: [action(FUNCTION)], usages: [usage] });
+  const zhUnavailable = await read(unavailable, "zh"), enUnavailable = await read(unavailable, "en");
+  assert.equal(zhUnavailable.summary.reason, "此能力需要已配置的个人服务");
+  assert.equal(enUnavailable.summary.reason, "此能力需要已配置的个人服务", "another owner's reason is not looked up as a key");
+  for (const [locale, state] of [["zh", zhUnavailable], ["en", enUnavailable]] as const) {
+    const reason = state.summary.reason!;
+    assert.doesNotMatch(reason, /…|这句话暂时显示不了|This text cannot be shown right now/u, `${locale}: the summary reason is never the unavailable placeholder`);
+    assert.doesNotMatch(reason, /^inbox\./u, `${locale}: the summary reason is never a bare key`);
+  }
 });
 
 test("FI-1 RAC-483 Inbox keeps a judgment only while its entry is open and unchanged, and judges only open entries", async () => {

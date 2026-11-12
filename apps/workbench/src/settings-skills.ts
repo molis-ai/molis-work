@@ -29,8 +29,8 @@ finally { group.disabled = !skill.availability.available && LOCKED.has(skill.ava
 };
 const facts = skill => {
 const dl = el("dl", "mw-facts"), fact = (label, text) => { if (text) dl.append(el("dt", "", readText(label)), el("dd", "", text)); };
-fact("workbench.settings-skills.for", readText(FOR[skill.applies_to])); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join("、") || readText("workbench.settings-skills.no-declared-tools"));
-fact("workbench.settings-skills.connector-categories", (skill.connector_categories || []).join("、"));
+fact("workbench.settings-skills.for", readText(FOR[skill.applies_to])); fact("workbench.catalog-skill-packs.local-agents-only", skill.native_only_reason); fact("workbench.catalog-skill-packs.when-to-use", skill.when_to_use); fact("workbench.settings-skills.when-not-to-use", skill.when_not_to_use); fact("workbench.settings-skills.tools-declared-not-granted", skill.tools.join(readText("common.list.separator")) || readText("workbench.settings-skills.no-declared-tools"));
+fact("workbench.settings-skills.connector-categories", (skill.connector_categories || []).join(readText("common.list.separator")));
 fact("workbench.settings-skills.included-files", skill.resources.map(r => r.path + " · " + r.bytes + " B" + (r.role === "script" ? " · " + readText("workbench.settings-skills.runs-code") : "")).join("\n") || readText("workbench.catalog-skill-packs.no-included-files"));
 fact("workbench.catalog-skill-packs.start-of-the-text", skill.excerpt); return dl;
 };
@@ -38,7 +38,7 @@ const preview = (panel, skills) => { if (!skills?.length) return;
 panel.append(el("h3", "", readText("workbench.settings-skills.skills-in-this-package"))); const list = el("ul", "mw-items");
 for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", readText(FOR[s.applies_to])));
 const CHANGE = { added: "workbench.settings.add", body_changed: "workbench.settings-skills.body-changed", resources_changed: "workbench.settings-skills.files-changed", removed: "workbench.settings-skills.will-be-removed" };
-if (s.runs_scripts) text.append(el("small", "", readText("workbench.settings-skills.runs-code"))); if (s.connector_categories?.length) text.append(el("small", "", s.connector_categories.join("、"))); if (s.change) text.append(el("small", "", readText(CHANGE[s.change]))); if (s.state === "manual" && s.change !== "removed") text.append(el("small", "", readText("workbench.settings-skills.manual-setting-is-kept")));
+if (s.runs_scripts) text.append(el("small", "", readText("workbench.settings-skills.runs-code"))); if (s.connector_categories?.length) text.append(el("small", "", s.connector_categories.join(readText("common.list.separator")))); if (s.change) text.append(el("small", "", readText(CHANGE[s.change]))); if (s.state === "manual" && s.change !== "removed") text.append(el("small", "", readText("workbench.settings-skills.manual-setting-is-kept")));
 const detail = el("details", "mw-item__more"), summary = el("summary", "", readText("workbench.catalog-skill-packs.details")); detail.append(summary, facts(s)); row.append(detail); list.append(row); } panel.append(list);
 };
 const enable = async (panel, project, pluginId, done) => {

@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "./session-title.js";
 import { drawBackground, drawBanner, drawSection } from "./cooperation-draw.js";
 import type { BackgroundTask, Coop, CooperationClient, CooperationPorts, Delegations, Mail } from "./cooperation-types.js";
 import { el, errorMessage } from "./dom.js";
@@ -93,7 +94,7 @@ async function createDelegation(coop: Coop, dialog: Dialog, reading: Reading, ev
     const result = await api<{ delivery_unconfirmed?: boolean; session: { title: string } }>("/sessions/" + encodeURIComponent(id) + "/delegations", "POST", { task, ...(title ? { title } : {}), materials });
     dialog.node.close();
     await ports.refreshSessions();
-    status(result.delivery_unconfirmed ? uiText.text("coding.coop.unconfirmed") : uiText.text("coding.coop.created", { title: result.session.title }), Boolean(result.delivery_unconfirmed));
+    status(result.delivery_unconfirmed ? uiText.text("coding.coop.unconfirmed") : uiText.text("coding.coop.created", { title: sessionTitle(result.session.title) }), Boolean(result.delivery_unconfirmed));
     await refresh(coop, reading, true);
   } catch (error) {
     if (!lifetime.alive) return;

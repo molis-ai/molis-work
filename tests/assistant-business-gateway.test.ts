@@ -5,6 +5,10 @@ import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +16,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AGENT_TOOLS, AgentHost, AgentReviewQueue, createPrologueNodeAdapter, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, actionFieldLabelSource, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, createMolisWorkLocalHost, drawAssistantReply, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
@@ -1322,8 +1326,13 @@ test("a change held for review names the object this work knows by its title, no
     const sent = await f.service.send({ text: "改这篇笔记", request_id: "req-00000094",
       context: { source: { surface: "notes", title: "Notes" }, object: { kind: "note", id: "note-7f3a", title: "周报草稿" }, captured_at: new Date().toISOString() } }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    // The stored review keeps the exact value; the title is put on its display words when the review is drawn, in the
+    // page's language (`common.punctuation.quoted`), not spliced into the record as Chinese brackets.
     const fields = held.reviews[0]!.fields;
-    assert.ok(fields.some(field => field.value === "「周报草稿」"), JSON.stringify(fields));
+    assert.ok(fields.some(field => field.label === "内容" && field.value === "note-7f3a"), JSON.stringify(fields));
+    inAssistantPage("zh", () => drawAssistantReply(held, { say: pageText("zh"), drafts: () => ({}), card: () => "" }));
+    const reviewHtml = (held.reviews[0] as { html?: string }).html ?? "";
+    assert.match(reviewHtml, /「周报草稿」/u, reviewHtml);
     // The exact parameters stay exact.
     assert.ok(fields.some(field => field.label === "完整参数" && field.value.includes("note-7f3a")));
   } finally { await f.close(); }
@@ -1338,7 +1347,10 @@ test("a change held for review names an object another work made by the title th
     f.store.setSetting("web-user", "object-title:todo_item:8b2f0c3a-9db4-40c7-bd8e-5a1adc2d2894", "约设计评审（本人）");
     const sent = await f.service.send({ text: "删掉那条待办", request_id: "req-00000095" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    assert.ok(held.reviews[0]!.fields.some(field => field.value === "「约设计评审（本人）」"), JSON.stringify(held.reviews[0]!.fields));
+    // The record keeps the identifier it saw; the title another work kept is put on the drawn review.
+    assert.ok(held.reviews[0]!.fields.some(field => field.value === "8b2f0c3a-9db4-40c7-bd8e-5a1adc2d2894"), JSON.stringify(held.reviews[0]!.fields));
+    inAssistantPage("zh", () => drawAssistantReply(held, { say: pageText("zh"), drafts: () => ({}), card: () => "" }));
+    assert.match((held.reviews[0] as { html?: string }).html ?? "", /「约设计评审（本人）」/u, "the review names the object by the title the Host last saw");
   } finally { await f.close(); }
 });
 

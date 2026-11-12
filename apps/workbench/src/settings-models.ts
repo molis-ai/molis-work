@@ -350,7 +350,7 @@ function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrim
       <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}" disabled><option value="off" selected>${p.escape(uiText.text("common.control.close"))}</option></select>
       <p class="model-field-note">${p.escape(uiText.text("workbench.settings-models.format-has-no-thinking-level-turn"))}</p>
     </div>`;
-  const options = ([["off", "关闭"], ["adaptive", "开启（由模型决定想多少）"]] as const)
+  const options = ([["off", "common.control.close"], ["adaptive", "workbench.settings-models.thinking-adaptive"]] as const)
     .map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${p.escape(uiText.text(label))}</option>`).join("");
   return `<div class="model-field">
       <label for="model-thinking">${uiText("workbench.settings-models.thinking")}</label>

@@ -147,13 +147,13 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope) => {
       const parts = [];
-      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins") + " " + applies.plugin_ids.join("、"));
-      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(globalThis.t.text("workbench.settings-memory.object") + " " + applies.object_kinds.join("、"));
+      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(globalThis.t.text("common.list.separator")) }));
+      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: applies.object_kinds.join(globalThis.t.text("common.list.separator")) }));
       // Goals by name when their plugin can still read them; one it cannot is said so rather than shown as an id.
       if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.map((id) => {
-        const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join("、"));
+        const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? globalThis.t.text("workbench.settings-memory.goal-title", { title }) : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join(globalThis.t.text("common.list.separator")));
       if (applies && applies.task) parts.push(applies.task);
-      if (applies && applies.until) parts.push(globalThis.t.text("workbench.settings-memory.until") + " " + applies.until.slice(0, 10));
+      if (applies && applies.until) parts.push(globalThis.t.text("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
       return parts.length ? parts.join(" · ") : globalThis.t.text(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");
     };
     let data = null, busy = false;
@@ -175,12 +175,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const title = globalThis.t.text(actions[payload.action || path.split("/").at(-1)]);
       const subject = payload.text || data?.items?.find(item => item.memory_id === payload.memory_id)?.text
         || data?.candidates?.find(item => path.startsWith("/candidates/" + encodeURIComponent(item.candidate_id) + "/"))?.text;
-      return title + (subject ? "：「" + subject + "」" : "");
+      return subject ? globalThis.t.text("workbench.settings-memory.named-subject", { title, subject }) : title;
     };
     const dispatch = async (command) => {
       try {
         const result = await api(command.path, JSON.parse(command.body));
-        if (command.path === "/import") toast(globalThis.t.text("workbench.settings-memory.imported-count", { count: result.written }) + (result.skipped ? " · " + globalThis.t.text("workbench.settings-memory.skipped") + " " + result.skipped : "") + (result.refused ? " · " + globalThis.t.text("workbench.settings-memory.not-imported") + " " + result.refused : ""));
+        if (command.path === "/import") toast(globalThis.t.text("workbench.settings-memory.imported-count", { count: result.written }) + (result.skipped ? " · " + globalThis.t.text("workbench.settings-memory.skipped-n", { n: result.skipped }) : "") + (result.refused ? " · " + globalThis.t.text("workbench.settings-memory.not-imported-n", { n: result.refused }) : ""));
         pendingCommands.delete(command.id); paintRetries(); return result;
       } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); throw failure; }
     };
@@ -189,7 +189,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const list = $("[data-memory-retry-list]"); list.replaceChildren();
       for (const command of pendingCommands.values()) {
         const row = el("li", "memory-row"), copy = el("strong", "memory-row-copy", command.title);
-        const retry = button(globalThis.t.text("workbench.settings-memory.retry-operation"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.retry-operation") + "：" + command.title);
+        const retry = button(globalThis.t.text("workbench.settings-memory.retry-operation"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.retry-operation-named", { title: command.title }));
         retry.dataset.memoryRetry = "";
         retry.addEventListener("click", () => run(() => dispatch(command), command.path === "/import" ? undefined : "workbench.settings-memory.operation-completed"));
         row.append(copy, retry); list.append(row);
@@ -234,13 +234,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const row = el("li", "memory-change" + (change.state === "undone" ? " is-undone" : ""));
         const copy = el("div", "memory-change-copy");
         const head = change.state === "undone" ? globalThis.t.text("workbench.settings-memory.undone-deleted-memory")
-          : globalThis.t.text(CHANGE[change.kind] || change.kind) + (change.text ? "「" + change.text + "」" : change.memory_id && change.kind !== "removed" ? " · " + globalThis.t.text("workbench.settings-memory.since-deleted-its-text-not-kept") : "");
+          : (change.text ? globalThis.t.text("workbench.settings-memory.change-named", { change: globalThis.t.text(CHANGE[change.kind] || change.kind), text: change.text })
+            : globalThis.t.text(CHANGE[change.kind] || change.kind) + (change.memory_id && change.kind !== "removed" ? " · " + globalThis.t.text("workbench.settings-memory.since-deleted-its-text-not-kept") : ""));
         copy.append(el("strong", "", head));
-        const meta = [day(change.at), change.rule, change.reason, change.work ? globalThis.t.text("workbench.settings-memory.work") + "「" + change.work.title + "」" : ""].filter(Boolean).join(" · ");
+        const meta = [day(change.at), change.rule, change.reason, change.work ? globalThis.t.text("workbench.settings-memory.work-named", { title: change.work.title }) : ""].filter(Boolean).join(" · ");
         if (meta) copy.append(el("span", "settings-muted", meta));
         row.append(copy);
         if (change.undoable && change.state === "active") {
-          const undo = button(globalThis.t.text("workbench.settings-memory.undo"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.undo") + "：" + (change.text || "")), revert = mutation();
+          const undo = button(globalThis.t.text("workbench.settings-memory.undo"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.undo-named", { text: change.text || "" })), revert = mutation();
           undo.addEventListener("click", () => run(() => revert("/changes/" + encodeURIComponent(change.change_id) + "/undo", {}), "workbench.settings-memory.undone"));
           row.append(undo);
         }
@@ -260,19 +261,19 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const meta = el("div", "memory-meta");
         meta.append(el("span", "memory-tag", globalThis.t.text(KIND[candidate.kind] || candidate.kind)));
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
-        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.because") + "：" + candidate.why));
-        if (candidate.work) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.work") + "「" + candidate.work.title + "」"));
+        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.because-named", { why: candidate.why })));
+        if (candidate.work) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.work-named", { title: candidate.work.title })));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
-        const keep = button(globalThis.t.text("workbench.settings-memory.keep"), "mw-btn--primary", globalThis.t.text("workbench.settings-memory.keep") + "：" + candidate.text);
+        const keep = button(globalThis.t.text("workbench.settings-memory.keep"), "mw-btn--primary", globalThis.t.text("workbench.settings-memory.keep-named", { text: candidate.text }));
         keep.addEventListener("click", () => run(() => decide("accept"), "workbench.settings-memory.kept"));
         const reword = button(globalThis.t.text("workbench.settings-memory.edit-then-keep"), "mw-btn--ghost");
         reword.addEventListener("click", () => {
           const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "workbench.settings-memory.kept");
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
-        const drop = button(globalThis.t.text("workbench.settings-memory.no"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.no") + "：" + candidate.text);
+        const drop = button(globalThis.t.text("workbench.settings-memory.no"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.no-named", { text: candidate.text }));
         drop.addEventListener("click", () => run(() => decide("discard"), "workbench.settings-memory.will-not-be-suggested-again"));
         actions.append(keep, reword, drop);
         row.append(copy, actions);
@@ -362,26 +363,26 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         copy.append(el("strong", "memory-text", item.text));
         const meta = el("div", "memory-meta");
         meta.append(el("span", "memory-tag", globalThis.t.text(KIND[item.kind] || item.kind)));
-        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", globalThis.t.text("workbench.settings-memory.role") + "「" + (item.character_title || item.character_id) + "」"));
-        if (item.plugin_id) meta.append(el("span", "memory-tag", globalThis.t.text("workbench.settings-memory.plugins") + " " + item.plugin_id));
-        meta.append(el("span", "memory-tag memory-tag--" + item.source, globalThis.t.text(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
+        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", globalThis.t.text("workbench.settings-memory.role-named", { title: item.character_title || item.character_id })));
+        if (item.plugin_id) meta.append(el("span", "memory-tag", globalThis.t.text("workbench.settings-memory.plugins-n", { name: item.plugin_id })));
+        meta.append(el("span", "memory-tag memory-tag--" + item.source, globalThis.t.text("workbench.settings-memory.source-at", { source: globalThis.t.text(SOURCE[item.source] || item.source), at: day(item.created_at) })));
         if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", globalThis.t.text(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
-        meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.applies") + "：" + appliesText(item.applies, item.scope)));
-        meta.append(el("span", "", item.last_used ? globalThis.t.text("workbench.settings-memory.last-referenced-turn") + "：" + item.last_used.title + " · " + day(item.last_used.at) : globalThis.t.text("workbench.settings-memory.no-confirmed-reference")));
+        meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.applies-named", { value: appliesText(item.applies, item.scope) })));
+        meta.append(el("span", "", item.last_used ? globalThis.t.text("workbench.settings-memory.last-referenced-turn-named", { title: item.last_used.title }) + " · " + day(item.last_used.at) : globalThis.t.text("workbench.settings-memory.no-confirmed-reference")));
         copy.append(meta);
         const origin = el("details", "memory-origin"); origin.append(el("summary", "", globalThis.t.text("workbench.settings-memory.provenance")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
-        const edit = button(globalThis.t.text("workbench.settings-memory.edit"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.edit") + "：" + item.text);
+        const edit = button(globalThis.t.text("workbench.settings-memory.edit"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.edit-named", { text: item.text }));
         edit.addEventListener("click", () => {
           const editor = itemEditor(item, (value) => change({ action: "update", text: value.text, kind: value.kind, applies: value.applies }));
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
         const toggleLabel = item.state === "paused" ? globalThis.t.text("workbench.settings-memory.resume-use") : globalThis.t.text(item.state === "disabled" ? "workbench.settings-memory.switch" : "workbench.settings-memory.switch-off");
-        const toggle = button(toggleLabel, "mw-btn--ghost", toggleLabel + "：" + item.text);
+        const toggle = button(toggleLabel, "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.toggle-named", { label: toggleLabel, text: item.text }));
         toggle.addEventListener("click", () => run(() => change({ action: item.state === "active" ? "disable" : "enable" }), item.state === "active" ? "workbench.settings-memory.switched-off-will-not-be-used" : "workbench.settings-memory.switched"));
         const more = el("details", "memory-more mw-menu-host");
-        const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.more") + "：" + item.text);
+        const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.more-named", { text: item.text }));
         const menu = el("div", "memory-menu mw-menu");
         const menuItem = (text, handler, danger) => { const node = el("button", "mw-menu__item" + (danger ? " mw-menu__item--danger" : ""), text); node.type = "button"; node.addEventListener("click", () => { more.open = false; handler(); }); menu.append(node); };
         if (item.scope !== "character" && !item.plugin_id) menuItem(globalThis.t.text(item.scope === "project" ? "workbench.settings-memory.make-personal" : "workbench.settings-memory.make-project-memory"), () => {
@@ -431,7 +432,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         [["a", pair.a], ["b", pair.b]].forEach(([side, item]) => {
           const line = el("div", "memory-pair-line");
           line.append(el("strong", "memory-text", item.text), el("span", "settings-muted", globalThis.t.text(SOURCE[item.source] || item.source)));
-          const keep = button(globalThis.t.text("workbench.settings-memory.keep-one"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.keep-2") + "：" + item.text);
+          const keep = button(globalThis.t.text("workbench.settings-memory.keep-one"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.keep-2-named", { text: item.text }));
           keep.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: side }), "workbench.settings-memory.kept-other-switched-off"));
           line.append(keep);
           copy.append(line);
@@ -447,9 +448,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     function paintUpkeep() {
       const box = $("[data-memory-upkeep]"), last = data.last_upkeep;
       if (!last) return;
-      const done = [last.expired ? globalThis.t.text("workbench.settings-memory.expired") + " " + last.expired : "", last.unused ? globalThis.t.text("workbench.settings-memory.unused") + " " + last.unused : "", last.merged ? globalThis.t.text("workbench.settings-memory.merged") + " " + last.merged : "",
-        last.paused ? globalThis.t.text("workbench.settings-memory.paused-basis-gone") + " " + last.paused : "", last.pairs ? globalThis.t.text("workbench.settings-memory.choose") + " " + last.pairs : ""].filter(Boolean).join(" · ");
-      box.textContent = globalThis.t.text("workbench.settings-memory.last-tidied") + " " + day(last.at) + " " + new Date(last.at).toTimeString().slice(0, 5) + " · " + (done || globalThis.t.text("workbench.settings-memory.nothing-do"));
+      const done = [last.expired ? globalThis.t.text("workbench.settings-memory.expired-n", { n: last.expired }) : "", last.unused ? globalThis.t.text("workbench.settings-memory.unused-n", { n: last.unused }) : "", last.merged ? globalThis.t.text("workbench.settings-memory.merged-n", { n: last.merged }) : "",
+        last.paused ? globalThis.t.text("workbench.settings-memory.paused-basis-gone-n", { n: last.paused }) : "", last.pairs ? globalThis.t.text("workbench.settings-memory.choose-n", { n: last.pairs }) : ""].filter(Boolean).join(" · ");
+      box.textContent = globalThis.t.text("workbench.settings-memory.last-tidied-at", { date: day(last.at), time: new Date(last.at).toTimeString().slice(0, 5) }) + " · " + (done || globalThis.t.text("workbench.settings-memory.nothing-do"));
     }
 
     function paint() {
@@ -508,8 +509,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         toast(clearStatus.textContent);
       } else {
         const countOutcome = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
-        showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + globalThis.t.text("workbench.settings-memory.deleted") + " " + done.removed
-          + " · " + globalThis.t.text("workbench.settings-memory.version-conflicts") + " " + countOutcome("conflict") + " · " + globalThis.t.text("workbench.settings-memory.outcome-unknown") + " " + countOutcome("unknown") + " · " + globalThis.t.text("workbench.settings-memory.not-run-yet") + " " + countOutcome("not-executed"));
+        showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + globalThis.t.text("workbench.settings-memory.deleted-n", { n: done.removed })
+          + " · " + globalThis.t.text("workbench.settings-memory.version-conflicts-n", { n: countOutcome("conflict") }) + " · " + globalThis.t.text("workbench.settings-memory.outcome-unknown-n", { n: countOutcome("unknown") }) + " · " + globalThis.t.text("workbench.settings-memory.not-run-yet-n", { n: countOutcome("not-executed") }));
       }
     }));
     resetClear.addEventListener("click", () => run(async () => {

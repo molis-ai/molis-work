@@ -68,11 +68,11 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
       const query = input.query.trim().toLocaleLowerCase(), matches = (text: string) => text.toLocaleLowerCase().includes(query);
       return { revision: state.revision, items: [...state.items, ...state.series].filter(i => matches(i.title + "\n" + i.notes)), notes: state.notes.filter(i => !i.archived_at && matches(i.title + "\n" + i.blocks.map(b => b.text).join("\n"))) };
     })),
-    bindActionHandler(jellyActions.exportNote, input => read(state => {
+    bindActionHandler(jellyActions.exportNote, (input, caller) => read(state => {
       const note = state.notes.find(n => n.id === input.id); if (!note) throw jellyErrors.not_found("笔记不存在");
       const html = input.format === "html";
       // Whole characters, not UTF-16 units: unit 100 can fall inside a two-unit character. The first slice bounds what is spread.
-      return { content: html ? jellyNoteToHtml(note) : jellyNoteToMarkdown(note), filename: [...note.title.replace(/[\/\\:*?"<>|]/gu, "-").slice(0, 200)].slice(0, 100).join("") + (html ? ".html" : ".md"), mime: html ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" };
+      return { content: html ? jellyNoteToHtml(note, caller.locale ?? "") : jellyNoteToMarkdown(note), filename: [...note.title.replace(/[\/\\:*?"<>|]/gu, "-").slice(0, 200)].slice(0, 100).join("") + (html ? ".html" : ".md"), mime: html ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" };
     })),
     bindActionHandler(jellyActions.previewImport, (input, caller) => ports.write(caller, store => ({ preview: store.previewImport(input.source) }))),
     bindActionHandler(jellyActions.previewNoteDelete, (input, caller) => ports.write(caller, store => ({ preview: store.previewDelete(input.id) }))),

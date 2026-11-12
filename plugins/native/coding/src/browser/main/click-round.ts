@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { errorMessage } from "../dom.js";
 import { commitRound } from "./click-commit.js";
 import type { ClickRule } from "./click-types.js";
@@ -86,9 +87,9 @@ function rename(page: Page) {
   field.select();
   const save = async () => {
     const id = s.current, result = await api<{ session: { title: string } }>(page, sessionPath(id), "PATCH", { title: field.value });
-    title.textContent = result.session.title;
+    title.textContent = sessionTitle(result.session.title);
     await refreshState(page);
-    host.openItem("coding", id, result.session.title);
+    host.openItem("coding", id, sessionTitle(result.session.title));
     status(page, uiText.text("coding.session.name-saved"));
   };
   lifetime.listen(field, "keydown", event => {
@@ -97,7 +98,7 @@ function rename(page: Page) {
       event.preventDefault();
       void save().catch(error => status(page, errorMessage(error), true));
     }
-    if (key === "Escape") title.textContent = s.state.sessions.find(item => item.session_id === s.current)?.title || "";
+    if (key === "Escape") title.textContent = sessionTitle(s.state.sessions.find(item => item.session_id === s.current)?.title) || "";
   });
   status(page, uiText.text("coding.session.rename-hint"));
 }

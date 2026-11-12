@@ -27,9 +27,13 @@ const definitionOf = (fn: JudgmentRuleRecord): string => JSON.stringify([fn.name
 
 type Translate = typeof uiText.text;
 const labelOf = (id: Field, _L: Translate) => id === "name" ? uiText.text("feed.rule-keep.rule-name") : uiText.text("feed.rule-keep.description");
+/**
+ * The published-elsewhere alert names the version it was published as. The template is drawn without a record, so the version
+ * is written into the sentence here, as one message with its argument, instead of filling a `{version}` token left in the words.
+ */
 const withVersion = (rec: JudgmentRuleRecord) => (alert: HTMLElement) => {
-  const walk = document.createTreeWalker(alert, NodeFilter.SHOW_TEXT);
-  for (let node = walk.nextNode(); node; node = walk.nextNode()) node.nodeValue = node.nodeValue!.replace("{version}", "v" + (rec.version || 1));
+  const title = alert.querySelector<HTMLElement>(".mw-alert__title span:last-child");
+  if (title) title.textContent = uiText.text("feed.ui.rule-was-published-elsewhere-version", { version: "v" + (rec.version || 1) });
 };
 /** The preview drawn for the old content no longer counts. */
 const unpreview = (section: HTMLElement) => section.querySelectorAll<HTMLElement>("[data-feed-rule-preview], [data-feed-rule-status]").forEach(node => { node.hidden = true; });

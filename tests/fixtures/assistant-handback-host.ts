@@ -2,11 +2,15 @@
 // once that is over, the part's round answers, and this process is killed at the first task-graph write after it — so
 // the part's step end is not on disk, the way a Host that stops between a round's end and its step's end leaves it.
 import fs from "node:fs";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { syncBuiltinESMExports } from "node:module";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { reply } from "./fixture-replies.js";
 
 const [home, database] = process.argv.slice(2);

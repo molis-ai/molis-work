@@ -1,3 +1,4 @@
+import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
 import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -65,7 +66,7 @@ export class AssistantRoundMaterials {
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
-    const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
+    const local = format.date(now.toISOString(), "datetime", { time_zone: zone });
     const where = work.scope.kind === "personal" ? "个人工作（不属于任何项目，使用个人范围的能力）"
       : `项目「${(await this.ports.projectTitle?.(work.scope.project_id).catch(() => null)) ?? work.scope.project_id}」中的工作（只使用这个项目的能力与资料）`;
     // Pictures ride only on the round they came with; history keeps the words, so say what the model saw back then.

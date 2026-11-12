@@ -53,7 +53,7 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   const shown = card.fields.filter(field => !editable.includes(field));
   const state = STATUS[card.status];
   const result = card.status === "done" ? card.presentation : undefined;
-  const actions = open ? [{ id: "run", label: card.status === "failed" ? `${say("workbench.assistant-card-view.try-again")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("workbench.assistant-card-view.dismiss") }] : [];
+  const actions = open ? [{ id: "run", label: card.status === "failed" ? say("workbench.assistant-card-view.try-again") + say("common.punctuation.label-separator") + card.title : card.title, variant: "primary" as const }, { id: "dismiss", label: say("workbench.assistant-card-view.dismiss") }] : [];
   const origin = card.from ? say("workbench.assistant-card-view.title-page", { title: card.from.title || card.from.surface })
     + (card.source_object?.title ? ` · ${say("workbench.assistant-card-view.selected-title", { title: card.source_object.title })}` : "") : "";
   // A result that left a connection to finish gets the platform's connection card under it (ASC-69); the page fills it from the
@@ -67,7 +67,7 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
     // The buttons come after everything that would run: under the exact values when there are any, else under the fields.
     ...(shown.length ? { preview: { title: say("workbench.assistant-card-view.what-will-be-used"), rows: shown.map((field): [string, string] => [asked(field.key) ?? field.label, field.value]), ...(actions.length ? { actions } : {}) } }
       : actions.length ? { actions } : {}),
-    ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
+    ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? say("common.punctuation.label-separator") : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
     ...(result ? { result: { title: result.title ?? result.summary, body: result.text ?? "",
       ...(result.link ? { actions: [{ id: "result", label: result.link.label, href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,

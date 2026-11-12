@@ -7,13 +7,13 @@ import { status } from "./request.js";
 import type { Page } from "./page.js";
 import type { FrozenSetup, RunView } from "./shapes.js";
 
-type Fact = readonly [label: string, value: string];
+type Fact = readonly [label: string, value: string, path?: boolean];
 
 /** What a round was set up with: each part it used is a line, and what it did not use is named once. */
 function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] } {
-  const { readText } = page, f: FrozenSetup = run.frozen, values: Fact[] = [[readText("coding.facts.model"), f.model_id], [readText("coding.facts.usage"), codingUsageSummary(run.usage, readText)], [readText("coding.facts.scope"), f.directory?.canonical_path || readText("coding.facts.no-directory")]], unused: string[] = [];
-  const joiner = readText("coding.list.joiner");
-  if (f.subagent_workspaces?.length) values.push([readText("coding.facts.subagent-dirs"), f.subagent_workspaces.map(item => item.directory.canonical_path).join(readText("coding.list.semicolon"))]);
+  const { readText } = page, f: FrozenSetup = run.frozen, values: Fact[] = [[readText("coding.facts.model"), f.model_id], [readText("coding.facts.usage"), codingUsageSummary(run.usage, readText)], [readText("coding.facts.scope"), f.directory?.canonical_path || readText("coding.facts.no-directory"), true]], unused: string[] = [];
+  const joiner = readText("common.list.separator");
+  if (f.subagent_workspaces?.length) values.push([readText("coding.facts.subagent-dirs"), f.subagent_workspaces.map(item => item.directory.canonical_path).join(readText("common.punctuation.semicolon")), true]);
   values.push([readText("coding.facts.role"), f.role_id + " · v" + f.role_version]);
   if (f.skills.length) values.push([readText("coding.facts.methods"), f.skills.map(skill => skill.name + " · v" + skill.ref.version).join(joiner)]);
   else unused.push(readText("coding.attach.method"));
@@ -48,11 +48,11 @@ function drawFacts(page: Page, result: HTMLElement, run: RunView, count: number,
   phase.dataset.tone = tone;
   phase.dataset.mwState = phaseRing(run.phase);
   head.append(el("h3", uiText.text("coding.results.facts")), phase, el("span", uiText.text("coding.turn.number", { number: count }), "coding-facts-round"));
-  for (const [label, value] of facts.values) {
-    list.append(el("dt", label), el("dd", value, label === uiText.text("coding.facts.scope") || label === uiText.text("coding.facts.subagent-dirs") ? "is-path" : ""));
+  for (const [label, value, path] of facts.values) {
+    list.append(el("dt", label), el("dd", value, path ? "is-path" : ""));
   }
   result.replaceChildren(head, list);
-  if (facts.unused.length) result.append(el("p", uiText.text("coding.facts.unused", { what: facts.unused.join(uiText.text("coding.list.joiner")) }), "coding-facts-unused"));
+  if (facts.unused.length) result.append(el("p", uiText.text("coding.facts.unused", { what: facts.unused.join(uiText.text("common.list.separator")) }), "coding-facts-unused"));
 }
 
 /** The results panel's facts of the latest round; with no round it says there is nothing yet. */

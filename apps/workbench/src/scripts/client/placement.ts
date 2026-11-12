@@ -35,12 +35,16 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   if (here() === "personal") {
     const homeLabel = globalThis.t.text("workbench.placement.personal-home");
     document.querySelectorAll('[data-work-surface="home"]').forEach((surface) => { surface.dataset.workSurfaceLabel = homeLabel; surface.setAttribute("aria-label", globalThis.t.text("workbench.placement.personal-space") + " · " + homeLabel); });
+    let previousHomeLabel = "";
     document.querySelectorAll('[data-plugin-id="home"]').forEach((link) => {
       if (link.getAttribute("aria-label")) link.setAttribute("aria-label", homeLabel);
       if (link.getAttribute("title")) link.setAttribute("title", homeLabel);
-      link.querySelectorAll("span").forEach((span) => { if (span.textContent.trim() === globalThis.t.text("workbench.placement.project-home")) span.textContent = homeLabel; });
+      // The label span is the link's own direct span (immersive-shell marks it up as icon + span + hint); its text is the
+      // value shown now, read before it is replaced, so nothing compares against a translation.
+      const labelSpan = link.querySelector(":scope > span");
+      if (labelSpan) { previousHomeLabel = labelSpan.textContent.trim(); labelSpan.textContent = homeLabel; }
     });
-    document.title = document.title.replace(globalThis.t.text("workbench.placement.project-home"), homeLabel);
+    if (previousHomeLabel) document.title = document.title.replace(previousHomeLabel, homeLabel);
   }
 
   /* ---- Opening an object wherever it lives ---- */
@@ -141,7 +145,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail || {};
     if (detail.verb === "exported") {
       const file = detail.file || {};
-      card(globalThis.t.text("workbench.placement.exported") + " " + (file.name || detail.title || ""), (file.format ? file.format + " · " : "") + globalThis.t.text("workbench.placement.file-browser-s-downloads"), [], "done");
+      card(globalThis.t.text("workbench.placement.exported-named", { name: file.name || detail.title || "" }), (file.format ? file.format + " · " : "") + globalThis.t.text("workbench.placement.file-browser-s-downloads"), [], "done");
       return;
     }
     if (detail.verb === "printed") { card(globalThis.t.text("workbench.placement.print-dialog-opened"), globalThis.t.text("workbench.placement.choose-save-pdf-print-dialog-get-pdf-file"), [], "done"); return; }
@@ -238,7 +242,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     links.textContent = count ? globalThis.t.text("workbench.placement.count-linked", { count }) : "";
     links.hidden = !count;
     bar.dataset.kind = location ? location.kind : "unknown";
-    bar.setAttribute("aria-label", globalThis.t.text("workbench.placement.location-links") + "：" + where.textContent + "，" + access.textContent + (count ? "，" + globalThis.t.text("workbench.placement.link") + " " + count : "") + (saved.textContent ? "，" + saved.textContent : ""));
+    bar.setAttribute("aria-label", globalThis.t.text("workbench.placement.location-links-named", { where: where.textContent, access: access.textContent }) + (count ? " · " + globalThis.t.text("workbench.placement.link-count", { n: count }) : "") + (saved.textContent ? " · " + saved.textContent : ""));
     bar.onclick = (event) => { event.stopPropagation(); openPanel(bar, object); };
   };
   let panel = null;

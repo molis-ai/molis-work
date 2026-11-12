@@ -278,7 +278,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const render=(file,note)=>{
     body.classList.remove('is-frame');
     // Where a handed-over page came from: the page itself opens again in the side panel's browser.
-    const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(globalThis.t.text("workbench.side-panel-files.original-page"))+'：<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
+    const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(globalThis.t.text("workbench.side-panel-files.original-page"))+esc(globalThis.t.text("common.punctuation.label-separator"))+'<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
     const head=source+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(globalThis.t.text("workbench.side-panel-files.only-beginning-shown-open-its-plugin-full-content"))+'</p>':'');
     const type=file.media_type||'text/plain';
     if(file.url&&type==='application/pdf'){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.url)+'"></iframe>';return;}
@@ -299,7 +299,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const paintCard=(card,editing)=>{
     const state=stateText({state:card.state,excluded:card.excluded,changed:!!card.suggestion})||(card.state==='listed'?globalThis.t.text("workbench.side-panel-files.title-only"):globalThis.t.text("workbench.side-panel-files.organized"));
-    const words=(card.keywords||[]).join('、');
+    const words=(card.keywords||[]).join(globalThis.t.text('common.list.separator'));
     cardBox.innerHTML=editing
       ?'<form class="side-files-card-form" data-side-card-form><label>'+esc(globalThis.t.text("workbench.side-panel-files.title"))+'<input class="mw-input" name="title" value="'+esc(card.title)+'" required maxlength="120"></label><label>'+esc(globalThis.t.text("workbench.side-panel-files.brief"))+'<textarea class="mw-textarea" name="brief" rows="3" maxlength="300">'+esc(card.brief)+'</textarea></label><label>'+esc(globalThis.t.text("workbench.side-panel-files.keyword"))+'<input class="mw-input" name="keywords" value="'+esc(words)+'"></label><div class="side-files-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="submit">'+esc(globalThis.t.text("workbench.side-panel-files.save-card"))+'</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="cancel">'+esc(globalThis.t.text("common.control.cancel"))+'</button></div></form>'
       :'<p class="side-files-card-head"><span class="mw-badge mw-badge--neutral">'+esc(state)+'</span>'+(card.state==='failed'&&card.error?'<span class="side-files-card-error">'+esc(card.error)+'</span>':'')+'</p>'+(card.brief?'<p class="side-files-card-brief">'+esc(card.brief)+'</p>':'')+(words?'<p class="side-files-card-words">'+esc(words)+'</p>':'')
@@ -321,7 +321,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   cardBox.addEventListener('submit',async event=>{
     event.preventDefault();const form=event.target,card=cardBox.cardRecord;if(!card)return;
     const keywords=form.elements.keywords.value.split(/[,，、;；]/).map(word=>word.trim()).filter(Boolean);
-    const change={};if(form.elements.title.value.trim()!==card.title)change.title=form.elements.title.value.trim();if(form.elements.brief.value.trim()!==card.brief)change.brief=form.elements.brief.value.trim();if(keywords.join('、')!==(card.keywords||[]).join('、'))change.keywords=keywords;
+    const change={};if(form.elements.title.value.trim()!==card.title)change.title=form.elements.title.value.trim();if(form.elements.brief.value.trim()!==card.brief)change.brief=form.elements.brief.value.trim();if(keywords.join(globalThis.t.text('common.list.separator'))!==(card.keywords||[]).join(globalThis.t.text('common.list.separator')))change.keywords=keywords;
     if(!Object.keys(change).length){paintCard(card,false);return;}
     try{paintCard(await post('/api/knowledge/edit',{subject:card.subject,...change}),false);}catch(error){molisWorkRequest.show(form.querySelector('.side-files-card-actions'),error);}
   });

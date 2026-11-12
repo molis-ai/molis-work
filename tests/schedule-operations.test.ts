@@ -11,13 +11,16 @@ import { createScheduledOperationManagement, createScheduledOperations, getSched
   createScheduleReminders, getScheduleReminder, SCHEDULE_REMINDER_WAKEUP, SCHEDULE_PROJECT_DATABASE,
   SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, type ScheduledOperation, type ScheduledOperationOutcome } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
-import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase, installHostUiText } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/services/scheduler';
 import { wakeupInstallation } from './fixtures/scheduler-owner.js';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 
+// Scheduling a job puts the shared label separator into its stored title, through the platform's words: the process needs
+// the Host's text context installed, as a running Host has it (a direct store call has no page scope).
+installHostUiText();
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };
 const installation = (generation = 'first'): PluginInstanceRecord => ({ install_id: identity.installationId, plugin_id: identity.pluginId,

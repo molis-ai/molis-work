@@ -46,7 +46,7 @@ export function packState(kit: Kit, pack: KitPack): PackState {
   if (state.kind === "disabled") return make(readText("workbench.kit.disabled"), "quiet", "paused", "off", readText("workbench.kit.disabled-description"));
   if (state.kind === "unknown") {
     const titles = state.issues.map(index => kit.catalog.issues[index]?.title).filter((title): title is string => Boolean(title));
-    return make(readText("workbench.kit.incomplete"), "hold", "unavailable", "na", readText("workbench.kit.unread-reports", { what: joined(titles.map(title => `「${title}」`)) }));
+    return make(readText("workbench.kit.incomplete"), "hold", "unavailable", "na", readText("workbench.kit.unread-reports", { what: joined(titles.map(title => readText("common.punctuation.quoted", { value: title }))) }));
   }
   if (state.kind === "attention") {
     const items = state.items.map(item => kit.byKey.get(item.entry)).filter((entry): entry is KitEntry => Boolean(entry));

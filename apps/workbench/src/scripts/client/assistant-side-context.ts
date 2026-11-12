@@ -19,10 +19,10 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
     const state = objectState(object), open = openObject(object);
     const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
     box.append(tile(objectGlyph(object), state ? "attention" : ""));
-    if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("common.control.open") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
+    if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-context.open-named", { title: object.title })); name.addEventListener("click", () => { void open(); }); box.append(name); }
     else box.append(el("span", "assistant-item-title", objectTitle(object)));
     box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), [state || surfaceName(object.open && object.open.surface) || globalThis.t.text("workbench.assistant-side-context.quote"),
-      round ? globalThis.t.text("workbench.assistant-side-context.turn-n").replace("{n}", String(round)) : ""].filter(Boolean).join(" · ")));
+      round ? globalThis.t.text("workbench.assistant-side-context.turn-n", { n: round }) : ""].filter(Boolean).join(" · ")));
     box.title = objectDetail(object);
     return box;
   };
@@ -31,9 +31,9 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
     const readable = material.kind === "file" && material.text && sidePanelHere()
       ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: material.text } }); } : readBack(material, name) || readImage(material, name);
     const title = el(readable ? "button" : "span", "assistant-item-title", name);
-    if (readable) { title.type = "button"; title.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-context.preview") + "：" + name); box.classList.add("is-openable"); title.addEventListener("click", readable); }
+    if (readable) { title.type = "button"; title.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-context.preview-named", { name })); box.classList.add("is-openable"); title.addEventListener("click", readable); }
     box.append(tile(GLYPH[material.kind] || "file", ""), title, el("span", "assistant-item-sub", [globalThis.t.text(kinds[material.kind] || "workbench.assistant-side-context.material"),
-      round ? globalThis.t.text("workbench.assistant-side-context.turn-n").replace("{n}", String(round)) : "", material.expired ? globalThis.t.text("workbench.assistant-side-context.no-longer-valid") : ""].filter(Boolean).join(" · ")));
+      round ? globalThis.t.text("workbench.assistant-side-context.turn-n", { n: round }) : "", material.expired ? globalThis.t.text("workbench.assistant-side-context.no-longer-valid") : ""].filter(Boolean).join(" · ")));
     if (material.expired) box.title = expired;
     return box;
   };
@@ -46,7 +46,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
     const used = new Map();
     // A round's selection is what it saw of the page, the same as what was handed over; its page object is a material object.
     const seen = (round) => [...(round.materials || []).filter((material) => !material.object),
-      ...(round.context && round.context.selection ? [{ kind: "selection", title: globalThis.t.text("workbench.assistant-side-context.selection") + "：" + round.context.selection.text.replace(/\s+/g, " ").slice(0, 28) }] : [])];
+      ...(round.context && round.context.selection ? [{ kind: "selection", title: globalThis.t.text("workbench.assistant-side-context.selection-named", { text: round.context.selection.text.replace(/\s+/g, " ").slice(0, 28) }) }] : [])];
     rounds.forEach((round, index) => seen(round).forEach((material) => { const key = material.kind + ":" + material.title; used.delete(key); used.set(key, { material, round: index + 1, now: round === latest }); }));
     const at = new Map();
     rounds.forEach((r, i) => (r.materials || []).forEach((m) => m.object && at.set(m.object.kind + ":" + m.object.id, i + 1)));
@@ -93,7 +93,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
  */
 export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
   let asked = "", held = null, at = 0, asking = false, last = null;
-  const count = (text, value) => globalThis.t.text(text).replace("{n}", String(value));
+  const count = (text, value) => globalThis.t.text(text, { n: value });
   const CONNECTION = { connected: "workbench.assistant-side-context.connected", "needs-authorization": "workbench.assistant-side-context.needs-sign", failed: "workbench.assistant-side-context.connection-failed", disconnected: "workbench.assistant-side-context.disconnected", unchecked: "workbench.assistant-side-context.not-checked-yet", incomplete: "workbench.assistant-side-context.setup-not-finished", off: "workbench.assistant-side-context.switched-off" };
   const TOOLS = { callable: "workbench.assistant-side-context.tools-can-be-called", partial: "workbench.assistant-side-context.some-tools-can-be-called", blocked: "workbench.assistant-side-context.tools-cannot-be-called", "none-discovered": "workbench.assistant-side-context.no-tools-found-yet" };
   const paint = (work, read) => {
@@ -162,7 +162,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText
 export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, progress, api, toast, box, current, adopt }) => {
   const number = (value) => Number(value).toLocaleString("en-US");
   const MARK = { estimated: "workbench.assistant-side-context.estimated", partial: "workbench.assistant-side-context.partial", "partial-estimated": "workbench.assistant-side-context.partly-estimated" };
-  const tag = (coverage) => MARK[coverage] ? "（" + globalThis.t.text(MARK[coverage]) + "）" : "", marked = (value, coverage) => coverage === "unknown" ? globalThis.t.text("workbench.assistant-side-context.unavailable") : number(value) + tag(coverage);
+  const tag = (coverage) => MARK[coverage] ? globalThis.t.text("workbench.assistant-side-context.coverage-mark", { mark: globalThis.t.text(MARK[coverage]) }) : "", marked = (value, coverage) => coverage === "unknown" ? globalThis.t.text("workbench.assistant-side-context.unavailable") : globalThis.t.text("workbench.assistant-side-context.marked-value", { value: number(value), mark: tag(coverage) });
   const row = (label, value, muted) => { const line = el("p", "assistant-usage-row" + (muted ? " is-muted" : "")); line.append(el("span", "", label), el("span", "mw-num", value)); return line; };
   const section = (title, ...rows) => { const part = el("div", "assistant-usage-part"); part.append(el("p", "assistant-block-sub", title), ...rows.filter(Boolean)); return part; };
   return { paint(work) {
@@ -194,7 +194,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, p
         report.unavailable_reason ? el("p", "assistant-material-origin", report.unavailable_reason) : null));
       details.append(section(globalThis.t.text("workbench.assistant-side-context.account-quota"), row(globalThis.t.text("workbench.assistant-side-context.quota-reset"), globalThis.t.text("workbench.assistant-side-context.unavailable"), true)));
     }
-    if (usage && usage.budget_of) details.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-side-context.sub-task-counts-toward-work-that-delegated") + "：「" + usage.budget_of.title + "」"));
+    if (usage && usage.budget_of) details.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-side-context.delegated-work-named", { title: usage.budget_of.title })));
     else if (usage) {
       const form = el("form", "assistant-usage-form");
       const field = el("input", "assistant-usage-input"); field.type = "number"; field.min = "1000"; field.step = "1000"; field.inputMode = "numeric";

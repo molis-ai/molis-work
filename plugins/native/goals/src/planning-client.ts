@@ -57,7 +57,9 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
         // The reason and Retry in place, like every list that cannot be read.
         detail.innerHTML='<div class="mw-empty mw-empty--error" role="alert"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button></div>';
         detail.querySelector("strong").textContent=globalThis.t.text("goals.planning-client.couldn-t-load-settings");
-        detail.querySelector("p").textContent=error?.message&&!error.status&&error.message!==globalThis.t.text("goals.planning-client.couldn-t-load-settings")?error.message:globalThis.t.text("goals.planning-client.try-again-moment");
+        // A refused reply carries a status; with none the message is the read's own network failure. Compare that
+        // structure, never the translated fallback sentence, so the choice does not depend on the page language.
+        detail.querySelector("p").textContent=error?.message&&!error.status?error.message:globalThis.t.text("goals.planning-client.try-again-moment");
         const retry=detail.querySelector("button");retry.textContent=globalThis.t.text("goals.planning-client.retry");
         retry.addEventListener("click",()=>{retry.disabled=true;void loadDetail(path);});
       }

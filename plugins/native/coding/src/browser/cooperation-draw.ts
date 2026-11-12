@@ -1,4 +1,5 @@
 import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "./session-title.js";
 import type { BackgroundTask, Coop, Delegation, Delegations, Delivery, Mail, Side } from "./cooperation-types.js";
 import { el, errorMessage } from "./dom.js";
 import type { Translate } from "./types.js";
@@ -81,7 +82,7 @@ function stateChip(readText: Translate, delegation: Delegation) {
 }
 
 const sessionLink = (coop: Coop, side: Side | null | undefined) => side?.title
-  ? button(coop, uiText.text("coding.coop.quoted", { title: side.title }), "ghost", () => void coop.ports.openSession(side.session_id, side.title ?? ""))
+  ? button(coop, uiText.text("coding.coop.quoted", { title: sessionTitle(side.title) }), "ghost", () => void coop.ports.openSession(side.session_id, sessionTitle(side.title)))
   : el("span", uiText.text("coding.coop.gone"), "coding-coop-gone");
 
 /** A form that asks why, then hands the reason to the handler. */
@@ -195,7 +196,7 @@ export function drawBanner(coop: Coop, incoming: Delegation | null) {
   const head = el("div", "", "coding-coop-head");
   head.append(el("strong", uiText.text("coding.coop.incoming")), stateChip(readText, incoming));
   const from = el("p", "", "coding-coop-line");
-  from.append(document.createTextNode(uiText.text("coding.coop.from")), sessionLink(coop, incoming.from), document.createTextNode(" · " + incoming.title));
+  from.append(document.createTextNode(uiText.text("coding.coop.from")), sessionLink(coop, incoming.from), document.createTextNode(" · " + sessionTitle(incoming.title)));
   const ended = ENDED.includes(incoming.state);
   banner.classList.toggle("is-ended", ended);
   if (ended) {

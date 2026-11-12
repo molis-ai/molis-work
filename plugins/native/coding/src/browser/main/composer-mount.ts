@@ -1,4 +1,5 @@
 import type { ComposerCommand, ComposerControl, ComposerDelivery, ComposerOutcome, ComposerPause, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { sessionTitle } from "../session-title.js";
 import { codingComposerLabels } from "../../composer-labels.js";
 import { errorMessage } from "../dom.js";
 import { mac } from "../matching.js";
@@ -151,9 +152,9 @@ export function mountCodingComposer(page: Page, id: string) {
       if (!s.current || !s.sessionOnShow) return null;
       // 「发给」 lists the latest few other sessions too; picking one opens it as its row in the list would (§10.4).
       const others = s.state.sessions.filter(item => item.session_id !== s.current).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, OTHERS)
-        .map(item => ({ id: item.session_id, label: item.title || readText("coding.session.untitled"), detail: readText("coding.receiver.detail") }));
-      return { label: session?.title || readText("coding.session.untitled"), icon: "code", detail: readText("coding.receiver.detail"), others,
-        choose: (other: string) => { const item = s.state.sessions.find(one => one.session_id === other); if (!item) return; page.host.openItem("coding", other, item.title); void select(page, other); } };
+        .map(item => ({ id: item.session_id, label: sessionTitle(item.title) || readText("coding.session.untitled"), detail: readText("coding.receiver.detail") }));
+      return { label: sessionTitle(session?.title) || readText("coding.session.untitled"), icon: "code", detail: readText("coding.receiver.detail"), others,
+        choose: (other: string) => { const item = s.state.sessions.find(one => one.session_id === other); if (!item) return; page.host.openItem("coding", other, sessionTitle(item.title)); void select(page, other); } };
     },
     delivery: () => deliveries(page),
     stop: () => stopRound(page),

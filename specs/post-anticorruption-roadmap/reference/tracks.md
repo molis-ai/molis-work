@@ -44,7 +44,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 ### 批次与轨道对照
 
-认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／46-2／47-5，交付项增到 203。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／46-2／47-5，交付项增到 203；2026-11-12 随事项线加 32-3，交付项增到 204，第 32 批不再整批在 A 轨。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
 
 怎样算占用：
 
@@ -57,7 +57,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 | 轨道 | 批次 | 其中不占用的项 |
 | --- | --- | --- |
-| A 助理与输入 | [09](batches/09.md)、[10](batches/10.md)、[11](batches/11.md)、[32](batches/32.md)、[51](batches/51.md)、[53](batches/53.md)、[57](batches/57.md)、[58](batches/58.md) | — |
+| A 助理与输入 | [09](batches/09.md)、[10](batches/10.md)、[11](batches/11.md)、[51](batches/51.md)、[53](batches/53.md)、[57](batches/57.md)、[58](batches/58.md) | — |
 | B Coding | [64](batches/64.md)、[66](batches/66.md)、[83](batches/83.md)、[84](batches/84.md)、[85](batches/85.md) | — |
 | C1 合同与 SDK | [05](batches/05.md)、[08](batches/08.md)、[20](batches/20.md)、[46](batches/46.md) | — |
 | C2 AI 运行时 | [31](batches/31.md)、[41](batches/41.md) | — |
@@ -117,6 +117,9 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [27-3](batches/27.md#batch-27-item-3) | 首批文案与帮助 | D | 是 | A、B、E |
 | [27-4](batches/27.md#batch-27-item-4) | Runtime、Goals 与沙箱余项 | C1 | 是 | E |
 | [27-5](batches/27.md#batch-27-item-5) | 宿主出口、文档门禁与各包清理 | 统筹 | 否 | — |
+| [32-1](batches/32.md#batch-32-item-1) | 主对话持续接单与后台任务控制 | A | 是 | — |
+| [32-2](batches/32.md#batch-32-item-2) | 逐项产物、认可、返工与复核 | A | 是 | C1 |
+| [32-3](batches/32.md#batch-32-item-3) | 事项线第一片：外壳、线、节点卡与后台任务列表 | D | 是 | A、C1、C3 |
 | [33-1](batches/33.md#batch-33-item-1) | Coding 任务与环境恢复 | B | 是 | — |
 | [33-2](batches/33.md#batch-33-item-2) | 材料、大清单与重启接续 | F | 是 | — |
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |

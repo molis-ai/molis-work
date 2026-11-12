@@ -193,7 +193,7 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
     const button = el("button", "", "mw-btn mw-btn--ghost mw-btn--icon-only");
     button.type = "button";
     button.title = label;
-    button.setAttribute("aria-label", label + "：" + title);
+    button.setAttribute("aria-label", label + uiText.text("common.punctuation.label-separator") + title);
     button.innerHTML = svg(icon);
     lifetime.listen(button, "click", action);
     tools.append(button);

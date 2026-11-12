@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { ActionError, type ActionReference, type ActionSceneBinding, type ActionSceneConfigureOptions, type ActionSceneExecutionContext, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, publishedFunctionKey, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { PluginJudgmentsClient, PluginSceneClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { inboxActions, type InboxActionPorts } from "./actions.js";
 import { createInboxSceneHandler, inboxNextScene, inboxSceneBindingId, type InboxJudgmentSubject } from "./scenes.js";
 
@@ -131,9 +132,11 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
       return { function_key: current?.enabled ? publishedFunctionKey(current.function) : null,
         functions: publishedRules(capabilities).map(rule => ({ function_key: rule.function_key, name: rule.name })),
         capabilities, binding: current,
-        summary: { name: usage?.function_title ?? selected?.action.title ?? (current ? "已绑定判断能力" : null), enabled: Boolean(current?.enabled),
+        summary: { name: usage?.function_title ?? selected?.action.title ?? (current ? uiText.text("inbox.judgment.capability-bound") : null), enabled: Boolean(current?.enabled),
           available: Boolean(usage?.enabled && usage.availability.available),
-          reason: !current ? "尚未绑定规则" : !current.enabled ? "已暂停" : usage && !usage.availability.available ? usage.availability.reason : !usage ? "当前无权使用此场景" : null },
+          // This plugin's own fixed sentences come from its own words in the language of the read; another owner's reason is its
+          // original text and is shown as written. Nothing here is a translation key for the page to look up.
+          reason: !current ? uiText.text("inbox.judgment.rule-unbound") : !current.enabled ? uiText.text("inbox.judgment.paused") : usage && !usage.availability.available ? (usage.availability.reason ?? uiText.text("inbox.judgment.unavailable")) : !usage ? uiText.text("inbox.judgment.no-scene-access") : null },
       };
     },
     recommendations: async (_caller, entryIds) => {

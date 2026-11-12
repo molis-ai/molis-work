@@ -110,9 +110,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!query) return ["", hasProject ? globalThis.t.text("workbench.global-search.search-everything-project-personal-space-jump-tool-name") : home ? globalThis.t.text("workbench.global-search.search-personal") : globalThis.t.text("workbench.global-search.search-personal-content-jump-tool-name")];
     if (remote.status === "loading" && !remote.hits.length) return ["running", globalThis.t.text("workbench.global-search.searching")];
     const indexing = remote.sources.filter((source) => source.state === "indexing").map((source) => source.title);
-    if (indexing.length) return ["indexing", globalThis.t.text("workbench.global-search.building-search-index") + indexing.join("、")];
+    if (indexing.length) return ["indexing", globalThis.t.text("workbench.global-search.building-search-index-list", { list: indexing.join(globalThis.t.text("common.list.separator")) })];
     const failing = remote.sources.filter((source) => ["failed", "stale", "unavailable"].includes(source.state));
-    if (failing.length) return ["partial", globalThis.t.text("workbench.global-search.some-content-can-t-be-searched-right-now") + failing.map((source) => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、")];
+    if (failing.length) return ["partial", globalThis.t.text("workbench.global-search.some-content-can-t-be-searched-right-now-list", { list: failing.map((source) => source.reason ? globalThis.t.text("workbench.global-search.unsearchable-source", { title: source.title, reason: source.reason }) : source.title).join(globalThis.t.text("common.list.separator")) })];
     return ["", ""];
   };
   const paintSelection = () => {
@@ -156,7 +156,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const noContent = query && !content.length && remote.status === "done";
     // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
     const ask = noContent && typeof askAssistant === "function"
-      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(globalThis.t.text("workbench.global-search.ask-assistant") + "“" + query + "”") + "</button>" : "";
+      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(globalThis.t.text("workbench.global-search.ask-assistant-about", { query: query.trim() })) + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
     if (previous) selected = hits.findIndex(item => item.kind === previous.kind && (item.kind === "hit" ? item.hit.hit_id === previous.hit.hit_id : item.id === previous.id));
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
@@ -314,7 +314,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       // The owner confirms the object still exists and this person may read it before anything opens.
       const opened = await request("/api/search/open", { hit_id: hit.hit_id });
       if (opened.state !== "ok") {
-        notice = opened.state === "missing" ? globalThis.t.text("workbench.global-search.item-was-deleted-archived-has-been-removed-results") : (globalThis.t.text("workbench.global-search.can-t-open-right-now") + opened.reason);
+        notice = opened.state === "missing" ? globalThis.t.text("workbench.global-search.item-was-deleted-archived-has-been-removed-results") : (globalThis.t.text("workbench.global-search.can-t-open-reason", { reason: opened.reason }));
         if (opened.state === "missing") remote = { ...remote, hits: remote.hits.filter((known) => known.hit_id !== hit.hit_id) };
         render();
         return;

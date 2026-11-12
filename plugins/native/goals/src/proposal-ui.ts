@@ -116,7 +116,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     return issues
       .map((issue) => issue.message.trim())
       .filter(Boolean)
-      .map((message) => title ? `${title}：${message}` : message);
+      .map((message) => title ? `${title}${uiText.text("common.punctuation.label-separator")}${message}` : message);
   }))].join("\n");
   const narrative = proposal.narrative;
   const narrativeSummary = narrative
@@ -139,8 +139,8 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     const semanticExplanation = `<dl class="goal-tree-proposal-item-explanation">
       <div><dt>${uiText("goals.proposal-ui.problem-addressed")}</dt><dd>${escapeHtml(explanation?.problem ?? item.reason)}</dd></div>
       ${explanation ? `<div><dt>${uiText("goals.proposal-ui.what-changes")}</dt><dd>${escapeHtml(explanation.expected_effect)}</dd></div>
-      <div><dt>${uiText("goals.proposal-ui.what-stays-unchanged")}</dt><dd>${explanation.non_goals.length ? escapeHtml(explanation.non_goals.join("；")) : uiText("goals.proposal-ui.no-additional-boundary")}</dd></div>
-      <div><dt>${uiText("goals.proposal-ui.related-changes")}</dt><dd>${dependencyLabels.length ? escapeHtml(dependencyLabels.join("；")) : uiText("goals.proposal-ui.can-be-understood-independently-no-prerequisite-change")}</dd></div>` : ""}
+      <div><dt>${uiText("goals.proposal-ui.what-stays-unchanged")}</dt><dd>${explanation.non_goals.length ? escapeHtml(explanation.non_goals.join(uiText.text("common.punctuation.semicolon"))) : uiText("goals.proposal-ui.no-additional-boundary")}</dd></div>
+      <div><dt>${uiText("goals.proposal-ui.related-changes")}</dt><dd>${dependencyLabels.length ? escapeHtml(dependencyLabels.join(uiText.text("common.punctuation.semicolon"))) : uiText("goals.proposal-ui.can-be-understood-independently-no-prerequisite-change")}</dd></div>` : ""}
     </dl>`;
     const issueCopy = issuesByItem.get(item.item_id) ?? [];
     const blocked = item.state === "conflict" || issueCopy.length > 0;
@@ -193,8 +193,8 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
       <section class="goal-tree-proposal-acceptance"><h4>${uiText("goals.proposal-ui.completion-requirement")}</h4><ol>${requirements.map((requirement) => `<li><strong>${escapeHtml(requirement.statement)}</strong>${requirement.human_decision_required ? `<small>${uiText("goals.proposal-ui.needs-user-acceptance")}</small>` : ""}</li>`).join("")}</ol></section>
     </div></details>` : ""}
     ${problemCount
-      ? `<label class="decision-reason"><span>${uiText("goals.proposal-ui.decision-reason-revision-note")}（${uiText("goals.proposal-ui.required")}）</span><textarea name="reason" rows="3" required placeholder="${uiText("goals.proposal-ui.prefilled-issues-below-submit-rewrite")}">${escapeHtml(prefilledRejectReason)}</textarea></label>`
-      : `<label class="decision-reason"><span>${uiText("goals.proposal-ui.decision-reason-revision-note")}（${uiText("goals.proposal-ui.required")}）</span><textarea name="reason" rows="3" required placeholder="${uiText("goals.proposal-ui.when-using-say-why-plan-accurate-when-sending")}"></textarea></label>`}
+      ? `<label class="decision-reason"><span>${uiText("goals.proposal-ui.decision-reason-revision-note")}${uiText.text("common.punctuation.in-parens", { value: uiText("goals.proposal-ui.required") })}</span><textarea name="reason" rows="3" required placeholder="${uiText("goals.proposal-ui.prefilled-issues-below-submit-rewrite")}">${escapeHtml(prefilledRejectReason)}</textarea></label>`
+      : `<label class="decision-reason"><span>${uiText("goals.proposal-ui.decision-reason-revision-note")}${uiText.text("common.punctuation.in-parens", { value: uiText("goals.proposal-ui.required") })}</span><textarea name="reason" rows="3" required placeholder="${uiText("goals.proposal-ui.when-using-say-why-plan-accurate-when-sending")}"></textarea></label>`}
     <p class="form-error" data-decision-error role="alert" hidden></p>
     <footer class="decision-actions"><button type="submit" name="decision" value="reject">${problemCount ? uiText("goals.proposal-ui.return-correction") : uiText("goals.proposal-ui.send-back-changes")}</button><button class="mw-btn mw-btn--primary" type="submit" name="decision" value="confirm"${problemCount || !actionableItems.length ? ` disabled aria-disabled="true"` : ""}>${invalidItemCount ? uiText("goals.proposal-ui.correct-proposal-first") : conflictCount ? uiText("goals.proposal-ui.update-conflicting-items-first") : uiText("goals.proposal-ui.use-whole-plan")}</button></footer>
   </form>`;

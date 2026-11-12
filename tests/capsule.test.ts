@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { createLocalHostCapsule, installHostUiText, LocalProjectDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
+import type { CapsuleRendererPorts } from "@molis-ai/molis-work-app-workbench";
+import type { UiAppearanceSelection, UiEnvironmentSnapshot } from "@molis-ai/molis-work-contracts/platform/ui";
 import { readGoalCapsuleMenu, eventDirectoryPresentation, goalsManifest, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
@@ -12,6 +14,21 @@ import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-applicati
 
 const PROJECT = { project_id: "project-capsule", display_name: "胶囊测试" };
 const capsule = createLocalHostCapsule(renderDesktopCapsuleShell);
+
+/** A Home appearance projection as the Host hands it to pages: a selected Folio skin with a pinned reading font and Menlo mono. */
+const CAPSULE_SKIN = { id: "folio", revision: 1 };
+const CAPSULE_FONT = { id: "relaxed-reading", revision: 1 };
+const CAPSULE_MONO = { id: "system-menlo", revision: 1 };
+const CAPSULE_APPEARANCE_SELECTION: UiAppearanceSelection = { skin: CAPSULE_SKIN, font: { policy: "pinned", scheme: CAPSULE_FONT }, mono: CAPSULE_MONO };
+const CAPSULE_APPEARANCE_SNAPSHOT: UiEnvironmentSnapshot = {
+  revision: "capsule-appearance-test", spec: { id: "soft-workbench", revision: 1 }, skin: CAPSULE_SKIN,
+  font: { scheme: CAPSULE_FONT, policy: "pinned", mono: CAPSULE_MONO },
+  locale: { tag: "zh", direction: "ltr", source: "explicit", formatting: "zh-CN" }, device: null, problems: [],
+};
+const capsuleAppearance: NonNullable<CapsuleRendererPorts["appearance"]> = {
+  current: () => ({ snapshot: CAPSULE_APPEARANCE_SNAPSHOT, selection: CAPSULE_APPEARANCE_SELECTION, selection_revision: 3, stylesheet: "/assets/ui-skin/folio-1.css" }),
+  choices: () => ({ baseline: { skin: CAPSULE_SKIN, font: CAPSULE_FONT }, skins: [], fonts: [], stylesheet: "/assets/ui-skin/folio-1.css" }),
+};
 test.before(installHostUiText);
 
 function buildCapsuleSnapshot(
@@ -454,6 +471,28 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.doesNotMatch(html, /capsule__compact|capsule__expanded|capsule__minimized/);
   assert.doesNotMatch(html, /capsule__goal-block/);
   assert.doesNotMatch(html, />Pause<|>Resume<|>Start</);
+});
+
+test("K7 capsule shell consumes the Home's appearance projection, and the baseline when none is selected", () => {
+  // The projection is the one every workbench page reads: environment snapshot, selected skin/font/mono scopes and the shared sheet.
+  const withAppearance = createLocalHostCapsule(renderDesktopCapsuleShell, capsuleAppearance);
+  const chosen = runWithLocale("zh", () => withAppearance.renderCapsuleShell([PROJECT]));
+  assert.match(chosen, /id="ui-environment"/);
+  assert.match(chosen, /data-ui-appearance-sheet/);
+  assert.match(chosen, /href="\/assets\/ui-skin\/folio-1\.css"/);
+  assert.match(chosen, /Object\.assign\(document\.documentElement\.dataset,\{"uiSkin":"folio@1","uiFont":"relaxed-reading@1","uiMono":"system-menlo@1"\}\)/);
+  assert.match(chosen, /"id":"folio"/);
+  // The formal Soft Workbench baseline still ships below the selected scopes, so a missing selection still draws the same capsule.
+  assert.match(chosen, /--accent: #3c6e98/);
+  assert.match(chosen, /--capsule-height: 476px/);
+  assert.doesNotMatch(chosen, /#4f6ff7/);
+
+  const baseline = runWithLocale("zh", () => capsule.renderCapsuleShell([PROJECT]));
+  assert.doesNotMatch(baseline, /data-ui-appearance-sheet|id="ui-environment"|assets\/ui-skin\/folio-1\.css/);
+  // The default is the design-system baseline skin scope (mist-blue accent) and the baseline type; no handwritten token block is left.
+  assert.match(baseline, /--accent: #3c6e98/);
+  assert.match(baseline, /Noto Sans SC/);
+  assert.doesNotMatch(baseline, /renderShellTokens|FONT_STACK/);
 });
 
 test("D0013 SYS-09 a cancelled Goal's production event projection stays Cancelled and explicitly resumable in the capsule", t => {

@@ -190,7 +190,7 @@ function describeChange(page: TodoPage, change: TodoChange): string {
   if (change.kind === "link") return actor + (after.link_added ? uiText.text("todo.history.linked", { title: after.link_added.title }) : uiText.text("todo.history.unlinked"));
   if (change.kind === "revert") return actor + uiText.text("todo.history.reverted");
   const names = Object.keys(change.after).map((key) => (FIELD_KEYS[key] ? uiText.text(FIELD_KEYS[key]) : "")).filter(Boolean);
-  return `${actor}${uiText.text("todo.history.changed")} ${[...new Set(names)].join("、")}`;
+  return `${actor}${uiText.text("todo.history.changed")} ${[...new Set(names)].join(uiText.text("common.list.separator"))}`;
 }
 
 /** The change history, with undo on the latest change while it is still the todo's current version. */

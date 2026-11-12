@@ -65,9 +65,9 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
   const verb = (item, form = 0) => { const key = VERBS[item.verb]?.[form]; return key ? globalThis.t.text(key) : item.verb; };
   const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
   const activityLine = (item) => {
-    const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
+    const what = item.target ? (item.verb === "ask" ? globalThis.t.text("workbench.assistant-process.target-named", { target: item.target }) : " " + item.target) : "";
     if (item.state === "started") return verb(item, 1) + what;
-    if (item.state === "completed") return verb(item, 2) + what + (item.verb === "ask" && item.answer ? " · " + globalThis.t.text("workbench.assistant-process.answer") + "：" + item.answer : "");
+    if (item.state === "completed") return verb(item, 2) + what + (item.verb === "ask" && item.answer ? " · " + globalThis.t.text("workbench.assistant-process.answer-named", { answer: item.answer }) : "");
     return capital(verb(item)) + what + " — " + globalThis.t.text(item.state === "failed" ? REASONS[item.reason] || "workbench.assistant-process.not-finished" : "workbench.assistant-process.result-unconfirmed");
   };
   const BY_PROVIDER = new Set(["read", "change", "suggest"]);

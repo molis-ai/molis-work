@@ -28,13 +28,13 @@ export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
         <label class="check-row"><input type="checkbox" name="effect" value="reject_requirements"><span>${uiText("goals.event-forms-decision.reject-these-requirements")}</span></label>
         <label class="check-row"><input type="checkbox" name="effect" value="accept_concerns"><span>${uiText("goals.event-forms-decision.accept-these-risks")}</span></label>
         <label class="check-row"><input type="checkbox" name="effect" value="reject_concerns"><span>${uiText("goals.event-forms-decision.reject-these-issues")}</span></label>
-        <label class="check-row"><input type="checkbox" name="effect" value="authorize_action"><span>${uiText("goals.event-forms-decision.authorize-action")}${pendingAction ? `（${escapeHtml(pendingAction)}）` : ""}</span></label>
+        <label class="check-row"><input type="checkbox" name="effect" value="authorize_action"><span>${uiText("goals.event-forms-decision.authorize-action")}${pendingAction ? uiText.text("common.punctuation.in-parens", { value: escapeHtml(pendingAction) }) : ""}</span></label>
         <label class="check-row"><input type="checkbox" name="effect" value="deny_action"><span>${uiText("goals.event-forms-decision.reject-action")}</span></label>
       </fieldset>
       <fieldset><legend>${uiText("goals.event-forms-decision.requirement-scope")}</legend>${requirements || `<p class="form-note">${uiText("goals.event-forms-decision.there-no-requirements-yet")}</p>`}</fieldset>
       <fieldset><legend>${uiText("goals.event-forms-decision.issue-scope")}</legend>${concerns || `<p class="form-note">${uiText("goals.event-forms-decision.no-issues-currently-need-attention")}</p>`}</fieldset>
       ${pendingAction
-        ? `<input type="hidden" name="action" value="${escapeHtml(pendingAction)}"><p class="form-note">${uiText("goals.event-forms-decision.pending-action")}：${escapeHtml(pendingAction)}</p>`
+        ? `<input type="hidden" name="action" value="${escapeHtml(pendingAction)}"><p class="form-note">${uiText("goals.event-forms-decision.pending-action")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(pendingAction)}</p>`
         : `<label><span>${uiText("goals.event-forms-decision.related-action-fill-when-authorizing-rejecting-not-inferred")}</span><input name="action" placeholder="complete"></label>`}`;
     return `<form class="event-form mw-form" data-event-form="decision" data-pending-action="${escapeHtml(pendingAction)}" hidden>
       <header class="event-form-heading"><h2>${uiText("goals.event-forms-decision.user-decision")}</h2></header>
@@ -79,25 +79,25 @@ export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
     const parts: string[] = [];
     if (change.outcome) {
       const from = pending.commitment?.outcome || state.agreement.outcome;
-      parts.push(`${uiText.text("goals.event-forms-decision.original-result")}：${escapeHtml(from)} → ${uiText.text("goals.event-forms-decision.proposed-result-change")}：${escapeHtml(change.outcome)}`);
+      parts.push(`${uiText.text("goals.event-forms-decision.original-result")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)} → ${uiText.text("goals.event-forms-decision.proposed-result-change")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(change.outcome)}`);
     }
-    for (const item of change.new_requirements ?? []) parts.push(`${uiText.text("goals.event-forms-decision.new-requirement")}：${escapeHtml(item.statement)}`);
+    for (const item of change.new_requirements ?? []) parts.push(`${uiText.text("goals.event-forms-decision.new-requirement")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(item.statement)}`);
     for (const item of change.revise_requirements ?? []) {
       const previous = byId.get(item.requirement_id);
       const from = previous?.statement || item.requirement_id;
       if (item.statement) {
-        parts.push(`${uiText.text("goals.event-forms-decision.original-requirement")}：${escapeHtml(from)} → ${uiText.text("goals.event-forms-decision.proposed-requirement-change")}：${escapeHtml(item.statement)}`);
+        parts.push(`${uiText.text("goals.event-forms-decision.original-requirement")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)} → ${uiText.text("goals.event-forms-decision.proposed-requirement-change")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(item.statement)}`);
       }
       if (item.human_decision_required === false) {
-        parts.push(`${uiText.text("goals.event-forms-decision.cancel-human-acceptance")}：${escapeHtml(from)}`);
+        parts.push(`${uiText.text("goals.event-forms-decision.cancel-human-acceptance")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)}`);
       }
       if (item.human_decision_required === true) {
-        parts.push(`${uiText.text("goals.event-forms-decision.change-requiring-user-acceptance")}：${escapeHtml(from)}`);
+        parts.push(`${uiText.text("goals.event-forms-decision.change-requiring-user-acceptance")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(from)}`);
       }
     }
     for (const id of change.retire_requirement_ids ?? []) {
       const previous = byId.get(id);
-      parts.push(`${uiText.text("goals.event-forms-decision.retire-requirement")}：${escapeHtml(previous?.statement || id)}`);
+      parts.push(`${uiText.text("goals.event-forms-decision.retire-requirement")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(previous?.statement || id)}`);
     }
     return `<div class="reader-lead"><strong>${uiText("goals.event-forms-decision.agreement-change-2")}</strong><ul>${parts.map((part) => `<li>${part}</li>`).join("")}</ul></div>`;
   }

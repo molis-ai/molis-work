@@ -131,8 +131,11 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const ui = record(manifest.ui, "ui");
   strings(ui.contributions, "ui.contributions");
-  if (Object.hasOwn(ui, "messages") || Object.hasOwn(ui, "translations")) {
-    throw pluginErrors.declaration_invalid("界面文字请放在 locales/<语言>.json 并声明 ui.locales；Manifest 不再接收 messages 或 translations");
+  if (Object.hasOwn(ui, "messages")) {
+    throw pluginErrors.declaration_invalid("ui.messages 已取消：界面文字请放在 locales/<语言>.json 并声明 ui.locales，请删掉这一项");
+  }
+  if (Object.hasOwn(ui, "translations")) {
+    throw pluginErrors.declaration_invalid("ui.translations 已取消：界面文字请放在 locales/<语言>.json 并声明 ui.locales，请删掉这一项");
   }
   if (ui.commands !== undefined) throw pluginErrors.declaration_invalid("ui.commands 已取消：没有界面调用插件的命令，请删掉这一项（BL-363）");
   if (ui.embedded_plugins !== undefined) {

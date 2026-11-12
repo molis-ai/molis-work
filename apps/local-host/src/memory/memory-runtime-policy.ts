@@ -99,8 +99,9 @@ const namespaceAllowed = (caller: AgentMemoryCaller, namespace?: string | null) 
 function preferences(caller: AgentMemoryCaller, target: Target, owner: MemoryRuntimePolicyOwner, readMode: "explicit" | "task") {
   const prefs = owner.prefsFor(target.scope === "user" ? "personal" : "project", target.scope === "user" ? null : caller.project_id);
   const consumer = MEMORY_CONSUMERS.find(value => value === caller.consumer)!;
-  const access = consumerAccess(prefs, consumer, caller.plugin_id, readMode);
-  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, readMode) : null;
+  const scope = target.scope === "user" ? "personal" : target.scope === "project" ? "project" : undefined;
+  const access = consumerAccess(prefs, consumer, caller.plugin_id, readMode, scope);
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, readMode, scope) : null;
   return { prefs, allowed: access.allowed && (!plugin || plugin.allowed)
     && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
 }

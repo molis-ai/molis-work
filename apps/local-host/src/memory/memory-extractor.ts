@@ -18,7 +18,8 @@ function schema(input: AgentMemoryExtractionRequest, slotIds: string[]) {
     items: { type: "object", properties: {
       slot_id: { type: "string", enum: slotIds },
       text: { type: "string", minLength: 1, maxLength: Math.min(200, input.limits.max_draft_chars) },
-      applies_when: { type: "object", properties: { task: { type: "string", minLength: 1, maxLength: 100 } }, required: ["task"], additionalProperties: false },
+      // Models often answer "no condition" with a blank task; it is read as no condition below rather than failing the batch (BL-1073).
+      applies_when: { type: "object", properties: { task: { type: "string", maxLength: 100 } }, required: ["task"], additionalProperties: false },
       suggested_basis: { type: "string", enum: ["explicit", "inferred"] },
       evidence: { type: "array", minItems: 1, maxItems: input.sources.length, items: { type: "object",
         properties: { source_id: { type: "string", enum: input.sources.map((_, index) => `s${index}`) }, quote: { type: "string", minLength: 1, maxLength: 200 } },
@@ -60,7 +61,7 @@ export function memoryExtractor(homeDirectory: string, generation: () => HostTex
     const drafts = (result.structured as { drafts: Draft[] }).drafts;
     const sources = new Map(input.sources.map((source, index) => [`s${index}`, source]));
     const projected: AgentMemoryExtractionDraft[] = drafts.map(draft => ({ slot_id: slots.get(draft.slot_id)!.id, text: draft.text,
-      ...(draft.applies_when === undefined ? {} : { applies_when: { task: draft.applies_when.task } }), suggested_basis: draft.suggested_basis,
+      ...(draft.applies_when?.task.trim() ? { applies_when: { task: draft.applies_when.task } } : {}), suggested_basis: draft.suggested_basis,
       evidence: draft.evidence.map(evidence => {
         const source = sources.get(evidence.source_id);
         if (!source) throw memoryErrors.invalid("记忆草稿引用了本轮未提供的来源");
@@ -75,10 +76,15 @@ export function memoryExtractor(homeDirectory: string, generation: () => HostTex
         && entry.sources?.length && draft.evidence.every(evidence => entry.sources!.some(source =>
           source.event_id === evidence.source.event_id && source.version === evidence.source.version)));
     });
-    const inputTokens = reportedTokenTotal(result.usage, "input"), outputTokens = reportedTokenTotal(result.usage, "output");
+    const outputTokens = reportedTokenTotal(result.usage, "output");
     const cacheKnown = result.usage.length > 0 && result.usage.every(usage => usage.cacheRead.source === "reported" && usage.cacheRead.tokens !== undefined);
+    const cachedTokens = cacheKnown ? result.usage.reduce((sum, usage) => sum + usage.cacheRead.tokens!, 0) : undefined;
+    // The SDK counts cached input inside input (it rejects cached > input); the Provider reports the uncached part alone, so the
+    // total is uncached + cache reads. Reporting the uncached part made every cache-hit formation fail (BL-1073, 31 of 32 rejections).
+    const uncached = reportedTokenTotal(result.usage, "input");
+    const inputTokens = uncached === undefined ? undefined : uncached + (cachedTokens ?? 0);
     return { drafts: projected, usage: { ...(inputTokens === undefined ? {} : { input_tokens: inputTokens }),
       ...(outputTokens === undefined ? {} : { output_tokens: outputTokens }),
-      ...(cacheKnown ? { cached_input_tokens: result.usage.reduce((sum, usage) => sum + usage.cacheRead.tokens!, 0) } : {}) } };
+      ...(cachedTokens === undefined ? {} : { cached_input_tokens: cachedTokens }) } };
   } };
 }

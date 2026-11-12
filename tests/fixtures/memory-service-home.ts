@@ -16,6 +16,8 @@ type Generation = NonNullable<ReturnType<NonNullable<Parameters<typeof memoryExt
 /** A bounded model response, passed through the production registered prompt, schema and extractor before the real SDK. */
 export function scriptedMemoryExtraction() {
   let proposals: readonly (MemoryProposal & { replaces_text?: string })[] = [];
+  /** What the Provider reported and whether a draft without a condition comes back with a blank one, as real models do. */
+  let reply: { usage: Awaited<ReturnType<Generation>>["usage"]; blankTask: boolean } = { usage: [], blankTask: false };
   const generate: Generation = async (prompt, options) => {
     await options?.beforeDispatch?.();
     const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
@@ -34,13 +36,13 @@ export function scriptedMemoryExtraction() {
       used.add(slot);
       const quoted = data.sources.filter(source => source.text.includes(proposal.quote));
       return { slot_id: slot, text: proposal.text, suggested_basis: proposal.basis,
-        ...(proposal.applies_when ? { applies_when: { task: proposal.applies_when } } : {}),
+        ...(proposal.applies_when ? { applies_when: { task: proposal.applies_when } } : reply.blankTask ? { applies_when: { task: "" } } : {}),
         evidence: (quoted.length ? quoted : data.sources.slice(0, 1)).map(source => ({ source_id: source.id, quote: proposal.quote })) };
     });
     return { value: "{}", structured: { drafts }, run_ref: { kind: "run", id: "memory-extractor-fixture", revision: 1 } as PrologueRunRef,
-      state: "completed", configuredModel: "bounded-fixture", reportedModels: [], usage: [], validateResult() {} };
+      state: "completed", configuredModel: "bounded-fixture", reportedModels: [], usage: reply.usage, validateResult() {} };
   };
-  return { generate, set(next: typeof proposals) { proposals = next; } };
+  return { generate, set(next: typeof proposals) { proposals = next; }, reply(next: Partial<typeof reply>) { reply = { ...reply, ...next }; } };
 }
 
 /** Explicit original-input fixture. A request can resolve only declared identities in the person's allowed scopes. */

@@ -61,6 +61,22 @@ test("MEM-FORM independent full originals form once then use v3 promotion and or
   assert.equal((await env.raw(person).list("project", "project-a")).length, 1, "accepting the covered original never adds a second formal memory");
 });
 
+test("MEM-FORM BL-1073 a cache-hit reply and a blank condition still form a candidate, with cached input counted inside input", { timeout: 30_000 }, async t => {
+  const env = await fixture(t), text = "以后 Prism 恢复依赖统一用 uv sync --locked";
+  // The shape MiniMax returned in the BL-1073 run: 169 uncached input tokens, 640 read from cache, and "applies_when": { "task": "" }.
+  const reported = (tokens: number) => ({ source: "reported" as const, tokens });
+  env.extraction.reply({ blankTask: true, usage: [{ input: reported(169), output: reported(75), cacheRead: reported(640),
+    cacheWrite: { source: "unknown" as const }, cost: { source: "unknown" as const } }] });
+  env.extraction.set([proposal(text)]);
+  const result = await env.memory.learnFromWork(caller("cache-hit-blank-task"), { said: [text], sources: [env.originals.add("cache-hit", text)] });
+  assert.equal(result.formation.outcome, "completed");
+  assert.equal(result.recording_error, undefined);
+  assert.equal(result.learned[0]?.outcome, "candidate");
+  assert.deepEqual(result.formation.extraction.usage, { input_tokens: 809, output_tokens: 75, cached_input_tokens: 640 });
+  const pending = await env.memory.candidates(person, { scope: "project" });
+  assert.deepEqual(pending.map(candidate => candidate.applies ?? {}), [{}], "a blank condition is no condition, not an empty one");
+});
+
 test("MEM-31 MEM-FORM extraction excludes expired, disabled, paused and other-scene formal context without blocking new candidates", async t => {
   let now = new Date("2026-10-23T10:00:00Z");
   const originals = originalMemorySources(["project-a"]), extraction = scriptedMemoryExtraction();

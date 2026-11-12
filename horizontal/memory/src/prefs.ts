@@ -13,8 +13,14 @@ export function defaultPrefs(scope: MemoryScope, preset: "reviewed" | "assisted"
   };
 }
 
-/** Kinds a plugin reads when the person set nothing for it: how they like things done, not background facts. */
+/** Kinds a plugin reads when the person set nothing for it: how they like things done, not personal background facts. */
 export const PLUGIN_DEFAULT_KINDS: readonly MemoryKind[] = ["preference", "convention"];
+/**
+ * In a project, a plugin also reads the facts the person approved for that project (a port, a branch name): the same for every
+ * plugin, never personal facts (user 2026-11-12, BL-1073). Any other scope, or none given, keeps the personal default.
+ */
+export const PLUGIN_PROJECT_DEFAULT_KINDS: readonly MemoryKind[] = ["preference", "convention", "fact"];
+export const pluginDefaultKinds = (scope?: MemoryScope): readonly MemoryKind[] => scope === "project" ? PLUGIN_PROJECT_DEFAULT_KINDS : PLUGIN_DEFAULT_KINDS;
 
 /** The ledger key of one scope's switches. A project without its own uses the project default. */
 export const PERSONAL_PREFS_KEY = "personal";
@@ -37,20 +43,21 @@ export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<Memor
       if (typeof layer.consumers[consumer] === "boolean") out.consumers[consumer] = layer.consumers[consumer];
     if (layer.plugins && typeof layer.plugins === "object") for (const [pluginId, rule] of Object.entries(layer.plugins)) {
       if (!rule || typeof rule.allowed !== "boolean") continue;
-      const kinds = Array.isArray(rule.kinds) ? rule.kinds.filter((kind): kind is MemoryKind => MEMORY_KINDS.includes(kind)) : [...PLUGIN_DEFAULT_KINDS];
+      const kinds = Array.isArray(rule.kinds) ? rule.kinds.filter((kind): kind is MemoryKind => MEMORY_KINDS.includes(kind)) : [...pluginDefaultKinds(scope)];
       out.plugins[pluginId] = { allowed: rule.allowed, kinds: [...new Set(kinds)] };
     }
   }
   return out;
 }
 
-/** Whether a consumer may read a scope's memories, and the kinds a plugin may read. */
-export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, pluginId?: string | null, readMode: "explicit" | "task" = "task"): { allowed: boolean; kinds: readonly MemoryKind[] | null } {
+/** Whether a consumer may read a scope's memories, and the kinds a plugin may read (`scope` picks the plugin default). */
+export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, pluginId?: string | null, readMode: "explicit" | "task" = "task",
+  scope?: MemoryScope): { allowed: boolean; kinds: readonly MemoryKind[] | null } {
   if (!prefs.enabled || (readMode === "task" && !prefs.task_recall) || !prefs.consumers[consumer]) return { allowed: false, kinds: null };
   if (consumer !== "plugin") return { allowed: true, kinds: null };
   const rule = pluginId ? prefs.plugins[pluginId] : undefined;
   if (rule) return { allowed: rule.allowed && rule.kinds.length > 0, kinds: rule.kinds };
-  return { allowed: true, kinds: PLUGIN_DEFAULT_KINDS };
+  return { allowed: true, kinds: pluginDefaultKinds(scope) };
 }
 
 export const CONSUMER_LABELS: Record<MemoryConsumer, string> = {

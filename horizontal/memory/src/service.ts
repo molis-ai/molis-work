@@ -306,7 +306,7 @@ export class MemoryService {
     const offScopes: string[] = [];
     const ranked: Array<{ located: Located; score: number }> = [];
     for (const where of scopes) {
-      const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode);
+      const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode, where.scope);
       if (!access.allowed) { offScopes.push(where.scope === "personal" ? "个人记忆" : where.scope === "character" ? "角色记忆" : "项目记忆"); continue; }
       for (const located of await this.scopeCommands.located(caller, where.scope, where.owner)) {
         const meta = located.meta;

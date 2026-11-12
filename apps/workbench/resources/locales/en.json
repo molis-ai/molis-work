@@ -6503,7 +6503,7 @@
     },
     "workbench.settings-memory.personal-memories": "Personal memories",
     "workbench.settings-memory.plugins": "Plugins",
-    "workbench.settings-memory.plugins-read-only-preferences-conventions-never-background-facts": "Plugins read only preferences and conventions, never background facts.",
+    "workbench.settings-memory.plugins-read-preferences-conventions-project-facts": "Plugins read preferences and conventions, and in a project the facts approved for that project; never your personal facts.",
     "workbench.settings-memory.possible-duplicates-conflicts": "Possible duplicates or conflicts",
     "workbench.settings-memory.preference": "Preference",
     "workbench.settings-memory.preferences-habits-used-assistant-agent-work-plugins-interface": "Your preferences and habits, used by the Assistant, Agent work, plugins and interface suggestions in every project. Each one shows where it came from and where it was last used, and can be edited, switched off or deleted.",

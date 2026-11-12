@@ -6039,7 +6039,7 @@
     "workbench.settings-memory.personal-count": "个人记忆 {count} 条",
     "workbench.settings-memory.personal-memories": "个人记忆",
     "workbench.settings-memory.plugins": "插件",
-    "workbench.settings-memory.plugins-read-only-preferences-conventions-never-background-facts": "插件只能读到偏好和约定，不会读到背景事实。",
+    "workbench.settings-memory.plugins-read-preferences-conventions-project-facts": "插件能读到偏好和约定，在项目里还能读到这个项目已认可的事实；读不到你的个人事实。",
     "workbench.settings-memory.possible-duplicates-conflicts": "可能重复或冲突",
     "workbench.settings-memory.preference": "偏好",
     "workbench.settings-memory.preferences-habits-used-assistant-agent-work-plugins-interface": "你的偏好和习惯：助理、Agent 工作、插件和界面推荐都会用到，在所有项目里生效。每一条都能看到从哪来、最近用在哪，可以修改、停用或删除。",

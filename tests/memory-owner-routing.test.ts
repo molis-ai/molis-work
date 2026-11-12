@@ -7,7 +7,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { PLUGIN_DEFAULT_KINDS } from "@molis-ai/molis-work-service-memory";
+import { PLUGIN_DEFAULT_KINDS, pluginDefaultKinds } from "@molis-ai/molis-work-service-memory";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { codingProductHost, type CodingProviderRequest } from "./fixtures/coding-product-host.js";
@@ -133,14 +133,12 @@ async function ownerFixture(t: TestContext) {
   return { ...f, get host() { return host; }, get providerCalls() { return f.providerRequests.length; }, person, assistant, codingRound, reopen, closeCurrent: async () => { await closeReopened?.(); } };
 }
 
-/** This journey is a person's explicit Coding fact configuration; production defaults stay unchanged. */
+/** Since the user's 2026-11-12 decision (BL-1073) every plugin reads the project's approved facts by default; no configuration is needed. */
 async function allowCodingFacts(f: Awaited<ReturnType<typeof ownerFixture>>) {
   const manager = f.person(), prefs = (await manager.invoke(memoryActions.prefs, { scope: "project" })).prefs;
-  const kinds = prefs.plugins["io.molis.work.coding"]?.kinds ?? PLUGIN_DEFAULT_KINDS;
-  assert.equal(kinds.includes("fact"), false, "default Coding plugin kinds do not include background facts");
-  await manager.invoke(memoryActions.savePrefs, { scope: "project", prefs: { plugins: { ...prefs.plugins,
-    "io.molis.work.coding": { allowed: true, kinds: [...kinds, "fact"] } } } });
-  assert.ok((await manager.invoke(memoryActions.prefs, { scope: "project" })).prefs.plugins["io.molis.work.coding"]!.kinds.includes("fact"));
+  assert.equal(prefs.plugins["io.molis.work.coding"], undefined, "the person set nothing for Coding");
+  assert.ok(pluginDefaultKinds("project").includes("fact"), "a plugin's project default includes the project's approved facts");
+  assert.equal(PLUGIN_DEFAULT_KINDS.includes("fact"), false, "personal facts stay out of every plugin's default");
 }
 
 /** A declared action is selected from the actual request's granted tool list, never from a guessed tool name. */

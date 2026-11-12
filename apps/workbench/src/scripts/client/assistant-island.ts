@@ -238,6 +238,11 @@ ${ASSISTANT_SIDE_PATH_PART}
       jobs.map((j) => [j.job_id, j.state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
+    // A memory kept, replaced or undone in this work changes what the memory settings show: tell them to read again.
+    const memorySignature = JSON.stringify([work && work.work_id, kept.map((m) => [m.change_id, m.state])]);
+    if (node.dataset.memorySignature && node.dataset.memorySignature !== memorySignature && JSON.parse(node.dataset.memorySignature)[0] === (work && work.work_id))
+      document.dispatchEvent(new CustomEvent("molis-work:memory-changed", { detail: { work_id: work.work_id } }));
+    node.dataset.memorySignature = memorySignature;
     keepFocus(node.parentNode, () => {
       const UNDO = { available: "workbench.assistant-island.can-be-undone", undone: "workbench.assistant-island.undone", failed: "workbench.assistant-island.could-not-undo" };
       const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
@@ -262,7 +267,7 @@ ${ASSISTANT_SIDE_PATH_PART}
         auto_disabled: "workbench.assistant-island.switched-off-its-own", disabled: "workbench.assistant-island.switched-off-assistant-asked" };
       // What undoing did depends on the kind: a memory kept on its own is deleted (its words go with it), a replacement
       // goes back to the earlier version, a memory switched off is on again. The last two keep the words they undid.
-      const UNDONE = { auto_replaced: "workbench.assistant-island.undone-back-earlier-one", auto_disabled: "workbench.assistant-island.undone-switched-again", disabled: "workbench.assistant-island.undone-switched-again" };
+      const UNDONE = { auto_replaced: "workbench.assistant-island.undone-back-earlier-one", replaced: "workbench.assistant-island.undone-back-earlier-one", auto_disabled: "workbench.assistant-island.undone-switched-again", disabled: "workbench.assistant-island.undone-switched-again" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];

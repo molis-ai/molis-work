@@ -3,7 +3,7 @@ import type { AgentMemoryCaller, AgentMemoryExtractor } from "@molis-ai/molis-wo
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope, type MemorySessionPurgeTarget } from "@molis-ai/molis-work-contracts/services/memory";
-import { characterOwner, consumerAccess, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, consumerAccess, formationAllowed, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
 import type { MemoryForgettingPhase } from "@molis-ai/molis-work-service-memory";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
@@ -154,6 +154,8 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     const explicit = managementRead || request.readMode === "explicit" && (caller.person === true || caller.run_explicit === true);
     const { prefs, allowed } = preferences(caller, request.target, state.owner, explicit ? "explicit" : "task");
     const readMode = explicit ? "explicit" : request.readMode === "resident" ? "resident" : "task";
+    // 允许记住 is the personal page's and holds in every project too.
+    const forms = (value: MemoryPrefs) => formationAllowed(state.owner.prefsFor("personal", null), value);
     const formation = () => classAllowed(caller, prefs, request.target, "form")
       && (!request.before || classAllowed(caller, preferences(caller, request.before, state.owner, "explicit").prefs, request.before, "form"));
     const candidate = caller.candidate_access;
@@ -162,12 +164,12 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
         && candidate.scope === request.target.scope && candidate.owner === request.target.owner
         && (candidate.purpose === "formation-receipt" ? candidate.candidate_id === request.target.ref.id && candidate.version === request.target.version
           : candidate.purpose === "proposal-check" && !!candidate.operation_id);
-      return matching && prefs.enabled && prefs.form && (caller.source_use !== "learning" || prefs.learn_from_work)
+      return matching && prefs.enabled && forms(prefs) && (caller.source_use !== "learning" || prefs.learn_from_work)
         && preferences(caller, request.target, state.owner, "explicit").allowed && formation();
     }
     if (request.action === "read" || request.action === "manage-read") return allowed && classAllowed(caller, prefs, request.target, readMode);
     if (!prefs.enabled) return false;
-    if (request.action === "promote") return prefs.form && prefs.learn_from_work && prefs.auto
+    if (request.action === "promote") return forms(prefs) && prefs.learn_from_work && prefs.auto
       && preferences(caller, request.target, state.owner, "explicit").allowed && formation();
     if (caller.person === true && caller.purpose === "management") return true;
     // Turning a memory off (the SDK's pause or disable: a save whose target goes off) only narrows its use. The form switch and the
@@ -175,7 +177,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     const deactivating = request.action === "save" && request.target.ref.kind === "memory" && request.before !== undefined
       && (request.target.disabled === true && request.before.disabled !== true
         || request.target.paused === true && request.before.paused !== true && request.before.disabled !== true);
-    if (!prefs.form && !deactivating || request.action === "accept" || !preferences(caller, request.target, state.owner, "explicit").allowed) return false;
+    if (!forms(prefs) && !deactivating || request.action === "accept" || !preferences(caller, request.target, state.owner, "explicit").allowed) return false;
     // Plugins write only their own namespace; shared explicit statements are admitted by MemoryService's source gate.
     const pluginSave = request.action === "save" && caller.consumer === "plugin" && request.target.namespace === caller.plugin_id
       && request.target.source === "plugin" && request.target.approvedBy?.by === "policy" && request.target.approvedBy.policy === `plugin:${caller.plugin_id}`;

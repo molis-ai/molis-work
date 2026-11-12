@@ -202,7 +202,8 @@ test("the gate records 'said' only when the text is the quote whole: a clause ad
   for (const [index, [text, said]] of whole.entries()) {
     const result = await keep(memory, work(30 + index), { scope: "personal", text, said });
     assert.deepEqual([result.outcome, result.memory?.source, result.memory?.basis], ["written", "said", "explicit"], text);
-    assert.equal(result.memory!.evidence[0]!.text, said);
+    // A leading “remember that” is the request, not what is kept (spoken.ts).
+    assert.equal(result.memory!.evidence[0]!.text, said.replace(/^remember that /i, ""));
   }
 
   // A correction names its target and borrows nothing from it: its text is theirs only when it is the quote whole.
@@ -249,7 +250,7 @@ test("a correction borrows no words from the memory it replaces, the person's ow
   // ...and a quote with nothing in it that the text uses brings nothing of its own.
   const trimmed = await keep(memory, work(6), { scope: "project", text: "代码评审先看测试", said: "好的", replaces: mine.memory_id });
   assert.equal(trimmed.outcome, "candidate");
-  assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === mine.memory_id)!.text, "记住：代码评审先看测试，提交信息用中文");
+  assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === mine.memory_id)!.text, "代码评审先看测试，提交信息用中文", "kept without the leading 记住：");
   // The correction they mean is theirs when it is their words whole.
   const spoken = await keep(memory, work(9), { scope: "project", text: "提交信息改用英文", said: "提交信息改用英文", replaces: mine.memory_id });
   assert.deepEqual([spoken.outcome, spoken.memory!.source, spoken.memory!.text], ["replaced", "said", "提交信息改用英文"]);
@@ -816,4 +817,84 @@ test("two SDK memory calls never exchange execution controls, and a committed en
   await env.close(); await env.open();
   assert.deepEqual((await env.memory().withCaller(caller).list("user", LOCAL_PERSON_ACTOR_ID)).map(entry => entry.text), ["original"]);
   assert.deepEqual((await env.memory().withCaller(caller).list("project", "project-a")).map(entry => entry.text), ["accepted independently"]);
+});
+
+test("what the person just asked to remember can be taken back from its receipt: a keep is removed, a replacement goes back, a later edit of theirs refuses", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const change = async (id: string | null) => (await memory.changes(person(), { scope: "personal" })).find(item => item.change_id === id)!;
+  const texts = async () => (await memory.list(person(), { scope: "personal" })).items.map(item => item.text);
+
+  // Kept from their own words: undo removes it.
+  const kept = await keep(memory, assistant("project-a", { work_id: "said-1", title: "一" }), { scope: "personal", text: "回答先给结论", said: "回答先给结论" });
+  assert.deepEqual([kept.outcome, kept.memory!.source], ["written", "said"]);
+  assert.match(kept.reason, /可以撤销/);
+  assert.equal((await change(kept.change_id)).undoable, true);
+  await memory.undo(person(), kept.change_id!);
+  assert.deepEqual(await texts(), [], "the said keep is gone");
+
+  // Replaced by their own words: undo restores the version before.
+  const first = await keep(memory, assistant("project-a", { work_id: "said-2", title: "二" }), { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
+  const replaced = await keep(memory, assistant("project-a", { work_id: "said-3", title: "三" }), { scope: "personal", text: "回答改用编号列表", said: "回答改用编号列表", replaces: first.memory!.memory_id });
+  assert.equal(replaced.outcome, "replaced");
+  assert.equal((await change(first.change_id)).undoable, false, "the first keep is no longer undone on its own once it was replaced");
+  assert.equal((await change(replaced.change_id)).undoable, true);
+  await memory.undo(person(), replaced.change_id!);
+  assert.deepEqual(await texts(), ["回答用要点列表"]);
+
+  // Edited by the person afterwards: the receipt no longer applies.
+  const later = await keep(memory, assistant("project-a", { work_id: "said-4", title: "四" }), { scope: "personal", text: "周报先写风险", said: "周报先写风险" });
+  await memory.change(person(), { memory_id: later.memory!.memory_id, action: "update", text: "周报先写风险，再写进展", expected_version: later.memory!.version });
+  await assert.rejects(memory.undo(person(), later.change_id!));
+  assert.ok((await texts()).includes("周报先写风险，再写进展"), "their edit stays");
+});
+
+test("允许记住 off on the personal page stops forming everywhere: no keep, offer or suggestion in a project whose own switch is still on", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  memory.savePrefs(person(), "personal", { form: false });
+  assert.equal(memory.prefsFor(LOCAL_PERSON_ACTOR_ID, "project", "project-a").form, true, "the project's own switch is untouched");
+  const said = await keep(memory, assistant(), { scope: "project", text: "发布前先跑全量回归", said: "发布前先跑全量回归" });
+  assert.deepEqual([said.outcome, said.memory, said.candidate], ["refused", null, null]);
+  assert.match(said.reason, /允许记住/);
+  const offered = await memory.offer(assistant(), { scope: "project", text: "发布前先跑全量回归", kind: "convention", basis: "inferred", why: "推断", from: "extraction" });
+  assert.equal(offered.outcome, "refused");
+  await assert.rejects(memory.propose(assistant(), { scope: "project", text: "周会改到周三", kind: "convention", basis: "inferred", why: "两次", from: "work" }), { code: "memory.off" });
+  assert.deepEqual(await memory.candidates(person(), { scope: "all" }), []);
+  // The person's own additions in settings still count.
+  assert.equal((await memory.write(person(), { scope: "project", text: "周会改到周三" })).outcome, "written");
+});
+
+test("accepting a suggestion settles the same suggestion still waiting from another work into the same memory", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const suggest = (work_id: string) => memory.propose(assistant("project-a", { work_id, title: work_id }), { scope: "project", text: "发布前先跑全量回归", kind: "convention", basis: "inferred", why: "推断", from: "work" });
+  const first = await suggest("run-1");
+  // Two runs that formed at the same time each left one (the state the formation check now prevents): the second never saw the first.
+  const hidden = t.mock.method(env.ledger(), "candidates", () => []);
+  const second = await suggest("run-2");
+  hidden.mock.restore();
+  assert.equal((await memory.candidates(person(), { scope: "project" })).length, 2);
+  const accepted = await memory.accept(person(), first.candidate_id);
+  assert.deepEqual(await memory.candidates(person(), { scope: "project" }), [], "nothing is left waiting");
+  const twin = env.ledger().candidates(LOCAL_PERSON_ACTOR_ID).find(note => note.candidate_id === second.candidate_id)!;
+  assert.deepEqual([twin.state, twin.memory_id], ["accepted", accepted.memory!.memory_id]);
+  assert.deepEqual((await memory.list(person(), { scope: "project" })).items.map(item => item.text), ["发布前先跑全量回归"]);
+  assert.equal(accepted.memory!.version, (await memory.list(person(), { scope: "project" })).items[0]!.version);
+});
+
+test("moving a memory to the other scope says so on the earlier changes it leaves behind, without their text", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const project = (await keep(memory, assistant(), { scope: "project", text: "发布前先跑全量回归", said: "发布前先跑全量回归" })).memory!;
+  await memory.change(person(), { memory_id: project.memory_id, action: "move", to: "personal" });
+  const left = (await memory.changes(person(), { scope: "project" })).filter(item => item.memory_id === project.memory_id);
+  assert.ok(left.length >= 1);
+  for (const item of left) assert.deepEqual([item.text, item.moved_to], ["", "personal"]);
+  const there = (await memory.changes(person(), { scope: "personal" })).find(item => item.kind === "moved")!;
+  assert.equal(there.moved_to, undefined, "the destination's own change is not marked as moved away");
+  // An ordinary delete is not a move.
+  const other = (await keep(memory, assistant(), { scope: "project", text: "周会改到周三", said: "周会改到周三" })).memory!;
+  await memory.change(person(), { memory_id: other.memory_id, action: "remove", expected_version: other.version });
+  for (const item of (await memory.changes(person(), { scope: "project" })).filter(one => one.memory_id === other.memory_id)) assert.equal(item.moved_to, undefined);
 });

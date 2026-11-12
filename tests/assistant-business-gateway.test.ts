@@ -1560,3 +1560,29 @@ test("RAC-61/62: an unreadable work keeps its job waiting, storage recovery fini
     locker.close(); await f.close(); database.close(); await rm(directory, { recursive: true, force: true });
   }
 });
+
+// Seen 2026-11-13: with input allowed to be any JSON value, models sent a positional array (["kb36be7e"]); the refusal then read as
+// "not authorized", and the confirmation card showed the retry key and raw field names.
+test("a capability's input is an object with named fields; a shape refusal reads as invalid input; the card leaves out bookkeeping and raw keys", async () => {
+  const { pack, declare, parameterBranches } = prologueActionGateway({ client: { discover: async () => [], offer: async () => ({ offer_id: "o" }) }, operate: true } as never);
+  for (const name of ["read-capability", "change-capability", "change-reversible", "suggest-action"]) {
+    const registered = pack.tools.find(one => one.registration.name === name)!.registration.parameters as { properties: { input: { type?: unknown } } };
+    assert.equal(registered.properties.input.type, "object", `${name} takes input as an object`);
+  }
+  // A capability that takes no arguments (an empty array) is called by leaving input out; it is declared on no tool.
+  const none = { capability_id: "fixture.settings.read", version: 1, operation: "query", provider: { provider_id: "fixture.settings", kind: "plugin", title: "Settings" },
+    action: { ...count.action, input_schema: { type: "array", maxItems: 0 } }, availability: { available: true } } as ActionView;
+  assert.deepEqual(capabilityInput(none, undefined), []);
+  declare(none);
+  assert.equal(parameterBranches("read-capability"), undefined);
+  const view = { ...write, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as ActionView;
+  declare(view);
+  assert.deepEqual((parameterBranches("change-capability") as { input: Array<{ title: string }> }).input.map(one => one.title), ["fixture.notes.write@1"]);
+  const client = { discover: async () => [view], check: async (_ref: unknown, input: unknown) => { if (typeof (input as { text?: unknown })?.text !== "string") throw new ActionError("actions.input_invalid", "输入不符合能力合同：/text type"); } };
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: ["会后发纪要"] }) ?? "",
+    /^Invalid input, not a permission problem; nothing ran\. .*you sent array/);
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write" }) ?? "", /^Invalid input, not a permission problem/);
+  // The card: the person's fields under names they read; the retry key, the confirmation flag and an unnamed field stay in 完整参数 only.
+  assert.deepEqual(readableInput({ type: "object", properties: { text: { type: "string", title: "内容" }, idempotency_key: { type: "string" }, user_confirmed: { type: "boolean" }, x_ref_9: { type: "string" } } },
+    { text: "会后发纪要", idempotency_key: "k-1", user_confirmed: true, x_ref_9: "abc" }), [{ label: "内容", value: "会后发纪要" }]);
+});

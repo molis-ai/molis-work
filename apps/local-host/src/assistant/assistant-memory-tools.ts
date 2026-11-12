@@ -3,7 +3,7 @@ import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/se
 import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isDeepStrictEqual } from "node:util";
-import { characterOwner, consumerAccess, memoryErrors, theirWords, type MemoryCaller, type MemoryService, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, consumerAccess, formationAllowed, memoryErrors, theirWords, type MemoryCaller, type MemoryService, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -53,7 +53,7 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
       const permitted = (target: "personal" | "project") => {
         const prefs = input.memory.prefsFor(input.actorId, target, target === "personal" ? null : projectId);
         if (!prefs.enabled) throw memoryErrors.off("这个范围的记忆已关闭；仍可查看和删除，启用后才能保存或恢复");
-        if (!prefs.form) {
+        if (!formationAllowed(input.memory.prefsFor(input.actorId, "personal", null), prefs)) {
           if (suggesting) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
           throw assistantErrors.invalid("没有记住：你关掉了“允许记住”，这条没有记住，也没有留作建议");
         }
@@ -114,9 +114,11 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
 export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMemoryTools | undefined {
   const { memory, work, projectId, caller } = input;
   const personal = memory.prefsFor(input.actorId, "personal", null), project = projectId ? memory.prefsFor(input.actorId, "project", projectId) : null;
-  if (!(personal.enabled && personal.form) && !(project?.enabled && project.form)) return undefined;
+  // 允许记住 is set on the personal page and holds everywhere: off there, no project of theirs forms anything either.
+  const formsPersonal = formationAllowed(personal, personal), formsProject = !!project?.enabled && formationAllowed(personal, project);
+  if (!formsPersonal && !formsProject) return undefined;
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
-  const mayPropose = (personal.enabled && personal.form && personal.learn_from_work) || (!!project?.enabled && project.form && project.learn_from_work);
+  const mayPropose = (formsPersonal && personal.learn_from_work) || (formsProject && project!.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async (request, call) => {
     const invocation = await memoryInvocation(input, call, request.scope, sources => sources, true), { sources } = invocation;
     try {
@@ -138,7 +140,8 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
         return said === null ? sources : latest.filter(source => theirWords(request.text, [source.text]) !== null).slice(0, 1);
       }), { sources: selected, originals } = invocation;
       try {
-        const result = await invocation.memory.write({ ...invocation.caller, ...(request.replaces ? { context_selection: true } : {}) }, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) },
+        const result = await invocation.memory.write({ ...invocation.caller, ...(request.replaces ? { context_selection: true } : {}) }, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}),
+          ...(request.expires_at ? { expires_at: request.expires_at } : {}) },
           { originals, ...(selected.length ? { sources: selected.map(({ event_id, version }) => ({ event_id, version })) } : {}) });
         // Only what really went into memory counts as kept; the reply must say what happened instead.
         if (result.outcome === "refused") throw assistantErrors.invalid(`没有记住：${result.reason}`);
@@ -155,7 +158,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       try {
         const items = (await invocation.memory.list({ ...invocation.caller, context_selection: true }, { scope: "all" })).items;
         call.signal.throwIfAborted();
-        return items.filter(item => item.state === "active").map(item => ({ memory_id: item.memory_id, version: item.version, scope: item.scope }));
+        return items.filter(item => item.state === "active").map(item => ({ memory_id: item.memory_id, scope: item.scope, text: item.text }));
       } finally { invocation.dispose(); }
     },
     ...(work.delegated_by ? {} : { forget: async (memoryId: string, call: ToolControl) => {

@@ -51,6 +51,7 @@ import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { callerClassAllowed } from "./class-restrictions.js";
 import { memoryRunRecipe } from "./run-recipe.js";
 import { MemorySessionClear } from "./session-clear.js";
+import { learnedInSession, type MemorySourceSession } from "./session-links.js";
 import { MemoryForgetting, type MemoryForgettingPhase } from "./forgetting.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
@@ -123,6 +124,8 @@ export interface MemoryServicePorts {
   newId?: () => string;
   timeZone?: string;
   projectTitle?(projectId: string): Promise<string | null>;
+  /** The Runtime session an original input came from (the Host owns that identity): a session's page and clear include what was learned there. */
+  sourceSession?: MemorySourceSession;
 }
 
 /** Validated product write intent, shared by admission and the one approved commit path. */
@@ -195,7 +198,19 @@ export class MemoryService {
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
-    this.sessionClear = new MemorySessionClear({ ...ports, scopes: this.scopeCommands, forgetting: this.forgetting, newId: this.newId, now: this.now });
+    this.sessionClear = new MemorySessionClear({ ...ports, scopes: this.scopeCommands, forgetting: this.forgetting, newId: this.newId, now: this.now,
+      removeLearned: async (caller, target) => {
+        const located = await this.scopeCommands.find(caller, target.memory_id);
+        if (located.scope !== target.scope || located.owner !== target.owner || located.entry.version !== target.version) throw memoryErrors.conflict("这条记忆在预览之后已变化，没有删除");
+        await this.purge(caller, located, target.version);
+        this.recordChange(caller, { kind: "removed", scope: located.scope, owner: located.owner, memory_id: target.memory_id, text: "", by: "person", rule: null, reason: null, undo: null });
+      },
+      dismissLearned: async (caller, target) => {
+        const record = await this.ownCandidate(caller, target.candidate_id);
+        if (record.scope !== target.scope || record.owner !== target.owner || record.version !== target.version && !this.operations.find(caller, `discarded:${target.candidate_id}`))
+          throw memoryErrors.conflict("这条建议在预览之后已变化，没有清除");
+        if (record.state === "pending" || this.operations.find(caller, `discarded:${target.candidate_id}`)) await this.settleCandidate(caller, record, "discarded");
+      } });
     this.batch = new MemoryBatch({ ...ports, operations: this.operations, scopes: this.scopeCommands, forgetting: this.forgetting,
       newId: this.newId, now: this.now, record: (caller, item) => { this.recordChange(caller, {
         kind: item.action === "remove" ? "removed" : "disabled", scope: item.scope, owner: item.owner, memory_id: item.memory_id,
@@ -209,7 +224,7 @@ export class MemoryService {
       saveFacts: (caller, located, meta, before) => this.saveFacts(caller, located, meta, before) });
     this.moves = new MemoryMoves({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       preferences: this.preferences, date: at => this.date(at), bindTarget: ports.bindChangeTarget,
-      purge: (caller, target, version) => this.purge(caller, target, version),
+      purge: (caller, target, version, movedTo) => this.purge(caller, target, version, undefined, movedTo),
       record: (caller, target) => this.recordChange(caller, { kind: "moved", scope: target.scope, owner: target.owner,
         memory_id: target.entry.memory_id, text: target.entry.text, by: "person", rule: null,
         reason: target.scope === "personal" ? "改为个人记忆" : "改为项目记忆", undo: null }) });
@@ -452,7 +467,7 @@ export class MemoryService {
     const formationKind = MEMORY_KINDS.find(kind => kind === input.kind);
     if (!MEMORY_FORMAL_KINDS.includes(input.kind) || (!formationKind && (!caller.person || !input.retainedMeta))) throw memoryErrors.invalid("新形成的记忆类别只能是偏好、约定、背景事实或经验");
     // 允许记住 off: nothing new is formed and no candidate is left. The person's own additions in the settings still count.
-    if (!prefs.form && !caller.person) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
+    if (!caller.person && !this.preferences.formAllowed(caller.actor_id, where)) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
     const screened = await this.ports.backend.withCaller(caller).screen?.(text).catch(() => null) ?? null;
     if (looksLikeSecret(text) || (input.said && looksLikeSecret(input.said)) || screened?.redacted.includes(REDACTED_CREDENTIAL)) return refused("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     if (caller.consumer === "plugin" && !caller.plugin_id) throw memoryErrors.forbidden("插件写记忆必须由宿主确认插件身份");
@@ -461,7 +476,7 @@ export class MemoryService {
     const entries = await this.scopeCommands.located(caller, input.scope, where.owner);
     this.preferences.assertEnabled(caller.actor_id, where);
     prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
-    if (!prefs.form && !caller.person) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
+    if (!caller.person && !this.preferences.formAllowed(caller.actor_id, where)) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
     const target = input.replaces ? entries.find(located => located.entry.memory_id === input.replaces) ?? null : null;
     if (spoken !== null) input = { ...input, said: spoken, evidence: input.evidence.map(item => item.kind === "said" ? { ...item, text: spoken.slice(0, 200) } : item) }; // their message, not a model's quote of it
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
@@ -505,6 +520,8 @@ export class MemoryService {
     // Approved by a policy rather than the person: the write gate's (automatic) or a plugin's install-time grant (its own namespace).
     const automatic = input.source === "auto" || input.source === "plugin";
     const requiresPromotion = input.source === "auto";
+    // What the person just said can be taken back from its receipt, the same as an automatic keep, until it is edited again.
+    const said = input.source === "said";
     const policy = input.approved_by?.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
     const rule = input.source === "plugin" ? `插件「${caller.plugin_id ?? "?"}」记下` : MEMORY_GATE_RULE;
     if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title, subject: caller.character.id });
@@ -529,9 +546,9 @@ export class MemoryService {
         if (!automatic) disownAutomatic(this.ports.ledger, updated.memory_id);
         return this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
           applied_version: updated.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null, reason: input.why ? `依据：${input.why}` : null,
-          undo: automatic ? { action: "restore", version: before } : null });
+          undo: automatic || said ? { action: "restore", version: before } : null });
       });
-      return { outcome: "replaced", reason: "已替换旧的那条，旧版本保留在历史里", applies_text: appliesText,
+      return { outcome: "replaced", reason: said ? "已替换旧的那条，旧版本保留在历史里，可以撤销" : "已替换旧的那条，旧版本保留在历史里", applies_text: appliesText,
         memory: this.scopeCommands.item({ scope: input.scope, owner: where.owner, project: where.project, entry: updated, meta }), candidate: null, change_id: change.change_id };
     }
     const origin = input.origin ?? await this.originFor(caller, input.scope, input.source, { said: input.said, why: input.why, at });
@@ -571,9 +588,9 @@ export class MemoryService {
       if (automatic && input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
       return this.recordChange(caller, { kind, scope: input.scope, owner: where.owner, memory_id: entry.memory_id, text,
         applied_version: creation.result?.version ?? entry.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null,
-        reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null, undo: automatic ? { action: "remove" } : null });
+        reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null, undo: automatic || said ? { action: "remove" } : null });
     });
-    return { outcome: "written", reason: automatic ? `${input.source === "plugin" ? rule : `自动记住（${rule}）`}，可以撤销` : "已记住", applies_text: appliesText,
+    return { outcome: "written", reason: automatic ? `${input.source === "plugin" ? rule : `自动记住（${rule}）`}，可以撤销` : said ? "已记住，可以撤销" : "已记住", applies_text: appliesText,
       memory: this.scopeCommands.item({ scope: input.scope, owner: where.owner, project: where.project, entry, meta }), candidate: null, change_id: change.change_id };
 
   }
@@ -809,7 +826,25 @@ export class MemoryService {
         applied_version: located.entry.version, by: "person", rule: null, reason: `依据：${record.why.slice(0, 120)}`, undo: null });
       this.ports.ledger.saveCandidate(kept);
     });
-    return { candidate: candidateView(kept), memory: this.scopeCommands.item(located) };
+    // The same suggestion made again by another work (two runs, two identical candidates) is settled into what was just kept, not left waiting.
+    let current = located.entry;
+    for (const twin of (await this.candidateRecords(holder, record.scope, record.owner)).filter(one => one.candidate_id !== candidateId && one.state === "pending"
+      && one.kind === record.kind && isDeepStrictEqual(one.applies, record.applies) && (sameText(one.text, record.text) || sameText(one.text, text)))) {
+      const mark = this.operations.begin(caller, `accept-twin:${twin.candidate_id}`, { kind: "settleInto", scope: record.scope, owner: record.owner,
+        candidate_id: twin.candidate_id, memory_id: current.memory_id, expected_version: current.version, candidate_expected_version: twin.version });
+      const entry = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: twin.candidate_id,
+        candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
+        target: { memory_id: current.memory_id, expected_version: mark.expected_version!, change: { text: current.text, meta: current.meta } }, by: { by: "person" } });
+      const settled = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === twin.candidate_id);
+      this.ports.ledger.transaction(() => {
+        this.operations.committed(caller, mark, { memory_id: entry.memory_id, candidate_id: twin.candidate_id, version: entry.version });
+        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
+          snapshot: { origin: entry.origin, meta: entry.meta }, change: "merged", by: "person", at });
+        this.ports.ledger.saveCandidate({ ...twin, version: settled?.version ?? twin.version, state: "accepted", memory_id: entry.memory_id });
+      });
+      current = entry;
+    }
+    return { candidate: candidateView(kept), memory: this.scopeCommands.item({ ...located, entry: current }) };
   }
 
   async discard(caller: MemoryCaller, candidateId: string, expectedVersion?: number): Promise<{ candidate: MemoryCandidate }> {
@@ -838,7 +873,7 @@ export class MemoryService {
         }
       }
       if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
-      if (!belongsToMemorySession(caller, found.meta)) continue;
+      if (!belongsToMemorySession(caller, found.meta) && !learnedInSession(caller, found.meta, found.sources ?? [], this.ports.sourceSession)) continue;
       canonical?.set(found.candidate_id, found);
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
       out.push({ ...note, version: found.version, state, memory_id: found.memory_id ?? note.memory_id });
@@ -908,7 +943,8 @@ export class MemoryService {
     const undoMark = plan.action !== "recreate" && located ? this.operations.begin(holder, `undo:${changeId}`, { kind: "undo", scope: located.scope, owner: located.owner,
       memory_id: located.entry.memory_id, expected_version: record.applied_version ?? located.entry.version }) : undefined;
     if (plan.action !== "remove") this.preferences.assertEnabled(caller.actor_id, { ...record, project: holder.project_id });
-    if (located && (plan.action === "remove" || plan.action === "restore") && !AUTOMATIC_SOURCES.includes(located.meta.source)) {
+    const ownSaid = (record.kind === "kept" || record.kind === "replaced") && located?.meta.source === "said";
+    if (located && (plan.action === "remove" || plan.action === "restore") && !AUTOMATIC_SOURCES.includes(located.meta.source) && !ownSaid) {
       this.ports.ledger.saveChange({ ...record, undoable: false, undo: null });
       throw memoryErrors.invalid("这条现在是你自己的记忆（你说过、认可过或改过），不能再按自动记住撤销；要删除请到记忆设置里删");
     }
@@ -955,7 +991,7 @@ export class MemoryService {
     const where = placeOf(caller, scope);
     const prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
     const threshold = { ...SIGNAL_THRESHOLD };
-    if (!prefs.enabled || !prefs.form || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
+    if (!prefs.enabled || !this.preferences.formAllowed(caller.actor_id, where) || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
     const situation = report.situation ?? {};
     const key = [scope, where.owner, report.signal, report.subject.capability_id, situation.plugin_id ?? "", situation.object_kind ?? ""].join("|");
     const counted = this.ports.ledger.countSignal({ actor_id: caller.actor_id, key, event_id: report.event_id, occurrence: report.occurrence ?? report.event_id, at: this.now().toISOString() });
@@ -1165,7 +1201,7 @@ export class MemoryService {
     return located.entry;
   }
 
-  private async purge<T = void>(caller: MemoryCaller, located: MemoryPurgeTarget, expectedVersion: number, afterForget?: () => T): Promise<T | undefined> {
+  private async purge<T = void>(caller: MemoryCaller, located: MemoryPurgeTarget, expectedVersion: number, afterForget?: () => T, movedTo?: "personal" | "project"): Promise<T | undefined> {
     caller = this.operations.caller(caller);
     const where = { scope: located.scope, owner: located.owner };
     const condition = located.condition ?? this.operations.formal(caller, located, "purge", expectedVersion);
@@ -1178,7 +1214,7 @@ export class MemoryService {
     await this.ports.beforeEffect?.();
     caller.signal?.throwIfAborted();
     return this.ports.ledger.transaction(() => {
-      this.ports.ledger.forget(located.entry.memory_id, "related"); return afterForget?.();
+      this.ports.ledger.forget(located.entry.memory_id, "related", movedTo ? { moved_to: movedTo } : undefined); return afterForget?.();
     });
     } catch (error) { return this.forgetting.failed(caller, error, accepted); }
   }

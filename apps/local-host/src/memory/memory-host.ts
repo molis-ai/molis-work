@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemorySourceRef, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { readMemoryInputSource } from "./memory-source-identity.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -247,11 +248,13 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     return memory;
   };
   const backend = prologueMemoryBackend(store);
-  const servicePorts = { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
+  // A session's memory page and clear include what was learned from what the person said in it (the source names its Runtime session).
+  const sourceSession = (ref: AgentMemorySourceRef) => readMemoryInputSource(ref)?.session_id;
+  const servicePorts = { backend, ledger, sourceSession, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
   const projection = new MemoryService(servicePorts);
   const service = controlledMemoryService(servicePorts, control => prologueMemoryBackend(store, control),
     { beforeEffect: async () => assertBusiness(), assert_current: assertBusiness });
-  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
+  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, sourceSession, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
     control => prologueMemoryBackend(store, control), businessAlive);
   const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;

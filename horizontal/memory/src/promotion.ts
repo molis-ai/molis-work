@@ -6,6 +6,7 @@ import { fromEntryMeta } from "./facts.js";
 import { memoryErrors } from "./errors.js";
 import { MEMORY_GATE_POLICY, MEMORY_GATE_RULE, MEMORY_GATE_VERSION, automaticMemoryHold } from "./policy.js";
 import { theirWords } from "./spoken.js";
+import { formationAllowed } from "./prefs.js";
 
 interface PromotionMark extends AgentMemoryPromotionIdentity {
   kind: "promotion";
@@ -101,7 +102,7 @@ export class MemoryPromotion {
     request.signal?.throwIfAborted();
     const entry = request.proposed, scope = scopeOf(entry), meta = request.desired.change.meta;
     const prefs = this.ports.prefs(caller.actor_id, scope, scope === "project" ? entry.owner : caller.project_id);
-    if (caller.source_use !== "learning" || request.policy !== MEMORY_GATE_POLICY || request.version !== MEMORY_GATE_VERSION || !prefs.enabled || !prefs.form || !prefs.learn_from_work
+    if (caller.source_use !== "learning" || request.policy !== MEMORY_GATE_POLICY || request.version !== MEMORY_GATE_VERSION || !prefs.enabled || !formationAllowed(this.ports.prefs(caller.actor_id, "personal", null), prefs) || !prefs.learn_from_work
       || !meta || !MEMORY_KINDS.includes(meta.kind as MemoryKind) || automaticMemoryHold(meta.kind as MemoryKind, meta.basis ?? null, prefs.auto)
       || meta.source !== "auto" || !isDeepStrictEqual(meta.approved_by, { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION })
       || !this.sourceAllowed(caller.actor_id, scope, entry.owner, request.sources)) return "hold";

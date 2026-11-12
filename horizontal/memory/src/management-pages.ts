@@ -7,11 +7,13 @@ import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, visibleTo } from "./places.js";
 import { memoryErrors } from "./errors.js";
 import { belongsToMemorySession } from "./classification.js";
+import { learnedInSession, memorySources, type MemorySourceSession } from "./session-links.js";
 
 /** Workload limits do not promise a bounded filesystem directory enumeration. */
 export interface MemoryPageLimits { defaultLimit: number; maxLimit: number; scanLimit: number }
 const DEFAULT_PAGE_LIMITS: MemoryPageLimits = { defaultLimit: 40, maxLimit: 100, scanLimit: 200 };
-interface PagePorts { backend: MemoryBackendPort; ledger: MemoryLedgerPort; scopes: MemoryScopeCommands; isForgotten: MemoryService["isForgotten"]; now(): Date; limits?: Partial<MemoryPageLimits> }
+interface PagePorts { backend: MemoryBackendPort; ledger: MemoryLedgerPort; scopes: MemoryScopeCommands; isForgotten: MemoryService["isForgotten"]; now(): Date; limits?: Partial<MemoryPageLimits>;
+  sourceSession?: MemorySourceSession }
 interface Continuation { version: /* @version format.memory.page-cursor */ 1; binding: string; index: number; cursor?: string }
 
 /** One bounded page over current authorized owners; it never reads the full formal list. */
@@ -80,7 +82,9 @@ export class MemoryManagementPages {
     let omitted = false;
     const now = this.ports.now();
     for (const entry of result.items) {
-      if (!belongsToMemorySession(caller, entry.meta)) { omitted = true; continue; }
+      // A session's page shows its own memories and the long-term ones learned from what was said in it.
+      if (!belongsToMemorySession(caller, entry.meta)
+        && !learnedInSession(caller, entry.meta, memorySources(this.ports.ledger, caller.actor_id, entry.memory_id), this.ports.sourceSession)) { omitted = true; continue; }
       // SDK management authority is also needed to finish physical cleanup; public pages must apply the accepted facts after the final wait.
       if (this.ports.isForgotten(where.scope, where.owner, "memory", entry.memory_id)) { omitted = true; continue; }
       const meta = fromEntryMeta({ ...entry, scope: where.scope, owner: where.owner });
@@ -96,8 +100,9 @@ export class MemoryManagementPages {
     const next = result.exhausted ? { version: /* @version format.memory.page-cursor */ 1 as const, binding, index: position.index + 1 }
       : { version: /* @version format.memory.page-cursor */ 1 as const, binding, index: position.index, cursor: result.cursor };
     const exhausted = result.exhausted && next.index === scopes.length;
-    const total = scopes.length === 1 && suppliedCursor === undefined && !query && unclassified === undefined && !omitted
-      ? result.total : { kind: "unknown" as const };
+    // A session's page leaves out the rest of the scope by design: when the one scope was read whole, what is shown is the exact total.
+    const total = scopes.length === 1 && suppliedCursor === undefined && caller.memory_session && result.exhausted ? { kind: "exact" as const, value: items.length }
+      : scopes.length === 1 && suppliedCursor === undefined && !query && unclassified === undefined && !omitted ? result.total : { kind: "unknown" as const };
     return { items, exhausted, stopped: result.exhausted && !exhausted ? "unknown" : result.stopped, total,
       scanned: result.scanned, cost: result.cost, ...(exhausted ? {} : { cursor: pageCursor(next) }) };
   }

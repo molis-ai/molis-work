@@ -4,7 +4,7 @@ import type { AgentMemoryCaller, AgentMemorySourceRef, AgentMemorySourceRequest,
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { characterOwner, consumerAccess, memoryErrors } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, consumerAccess, formationAllowed as memoryFormationAllowed, memoryErrors } from "@molis-ai/molis-work-service-memory";
 import { assistantMemorySourceWork } from "../assistant/assistant-memory-sources.js";
 import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
 import { personalInputText, readMemoryInputSource } from "./memory-source-identity.js";
@@ -36,7 +36,7 @@ function formationAllowed(owner: MemorySourceOwner, caller: AgentMemoryCaller, s
   const prefs = owner.policy.prefsFor(scope === "personal" ? "personal" : "project", scope === "personal" ? null : projectId);
   const consumer = assistant ? "assistant" : "agent", plugin = assistant ? undefined : CODING;
   // Accepting an existing candidate is the person's decision; automatic formation switches do not authorize or veto it.
-  const permitted = (value: typeof prefs) => value.enabled && (personDecision(caller) || value.form && (caller.source_use === "explicit" || value.learn_from_work)
+  const permitted = (value: typeof prefs) => value.enabled && (personDecision(caller) || memoryFormationAllowed(owner.policy.prefsFor("personal", null), value) && (caller.source_use === "explicit" || value.learn_from_work)
     && consumerAccess(value, consumer, plugin, "explicit").allowed
     && (!plugin || consumerAccess(value, "plugin", plugin, "explicit").allowed));
   return owner.policy.alive() && permitted(prefs)

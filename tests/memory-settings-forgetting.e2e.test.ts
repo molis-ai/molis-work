@@ -317,6 +317,9 @@ test("B4 category selection previews original versions, cancels with zero effect
     for (const [index, item] of saved.slice(0, 2).entries()) assert.match(await page.evaluate<string>(`document.querySelector('${root} [data-memory-id="${item.memory_id}"] [data-memory-selection-index]').textContent`), new RegExp(`第 ${index + 1} 项`));
     await page.click(root + ' [data-memory-batch-action="disable"]');
     await page.wait("document.querySelector('dialog.memory-confirm[open]')");
+    // BL-1076: the question says what happens in plain words, with the count, and the button names the action.
+    assert.equal(await page.evaluate<string>("document.querySelector('dialog.memory-confirm p').textContent"), "将停用 2 条记忆，重新启用前不会被使用。");
+    assert.equal(await page.evaluate<string>("document.querySelector('dialog.memory-confirm [data-memory-confirm-yes]').textContent"), "停用");
     await page.click("dialog.memory-confirm button.mw-btn--secondary");
     await page.wait("!document.querySelector('dialog.memory-confirm') && document.querySelector('[data-batch-test] [data-memory-list]')?.getAttribute('aria-busy') === 'false'");
     assert.ok((await client.invoke(memoryActions.page, { scope: "project" })).items.every(item => item.state === "active"));

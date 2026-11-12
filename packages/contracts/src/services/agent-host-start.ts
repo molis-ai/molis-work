@@ -296,10 +296,11 @@ export interface AgentMemoryTools {
    * Passed through the platform's write gate (specs/archive/memory-system §6.2); it throws with the reason when the write is refused
    * (switched off, secret-shaped, refused). It is recorded as the person's own words (“you said”) only when `text` is the whole of one message they typed in this work, as the Host saved it, apart from case, width, spacing, quotation-mark style and one sentence mark at the very end (nothing else: a superscript, a ligature or an invisible character is not a space or the plain form). A paraphrase, a part of a message, words of two messages joined, a project's name put in: not theirs. It is left as the Assistant's suggestion for them to accept: the result then has an empty `memory_id`, the suggestion's `candidate_id`, and a `note` saying it was not kept directly and why the reason is on the card (D32). The judgement is against the saved message, never against `said`, which is only a pointer, and what is kept is the saved message as they wrote it, not the text given here. `note` says it was already kept.
    */
-  remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }, control: AgentMemoryToolControl): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string; candidate_id?: string }>;
-  list(control: AgentMemoryToolControl): Promise<Array<{ memory_id: string; version: number; scope: "personal" | "project" | "character" }>>;
-  /** Run-local projection, installed only by the AgentHost bridge. */
-  expandList?(control: AgentMemoryToolControl): Promise<unknown>;
+  remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string;
+    /** A future ISO time when the person said it holds only for a while (today, this week…): kept short-term until then. Absent: long-term. */
+    expires_at?: string }, control: AgentMemoryToolControl): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string; candidate_id?: string }>;
+  /** What is kept and in effect, returned as the tool's own output; it is not admitted into the Run's memory Context and is not recorded as used. */
+  list(control: AgentMemoryToolControl): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string }>>;
   /** Switches one off (not a delete: the person can switch it on again or delete it in settings), as the Assistant's change. */
   forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{ forgotten: boolean; note?: string }>;
   /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */

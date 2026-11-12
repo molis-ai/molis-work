@@ -1,5 +1,5 @@
 import type { MemoryCandidate, MemoryLedgerPort, MemoryPrefs, MemoryPrefsView, MemoryPreset, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { isCompletePrefs, completePrefs, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
+import { isCompletePrefs, completePrefs, formationAllowed, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
 import { memoryErrors } from "./errors.js";
 import { personOnly, placeOf } from "./places.js";
 import type { MemoryCaller } from "./service.js";
@@ -58,10 +58,20 @@ export class MemoryPreferences {
     return this.assistantPrefs(actorId);
   }
 
+  /** 允许记住 for one place: the personal switch and the place's own (see `formationAllowed`). */
+  formAllowed(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): boolean {
+    return formationAllowed(this.prefsFor(actorId, "personal", null), this.prefsAt(actorId, where));
+  }
+
+  /** One place's switches: a project's own, a Character's are its project's. */
+  prefsAt(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs {
+    return where.scope === "personal" ? this.prefsFor(actorId, "personal", null) : this.prefsFor(actorId, "project", where.scope === "project" ? where.owner : where.project ?? null);
+  }
+
   assertFormation(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }, from: MemoryCandidate["from"], gate: boolean): void {
     this.assertEnabled(actorId, where);
-    const prefs = this.prefsFor(actorId, where.scope, where.project ?? null);
-    if (!prefs.form) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
+    const prefs = this.prefsAt(actorId, where);
+    if (!this.formAllowed(actorId, where)) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
     if (gate) return;
     if ((from === "work" || from === "extraction") && !prefs.learn_from_work)
       throw memoryErrors.forbidden(where.scope === "project" ? "用户没有允许从项目工作里提出项目约定" : "用户没有允许从工作里提出个人偏好");

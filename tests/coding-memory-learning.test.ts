@@ -247,12 +247,16 @@ test("MEM-V0-C2 Coding retains a matching Assistant pending source and the origi
   // Existing person management can form common pending notes with authentic Assistant sources. This is the historical
   // cross-owner shape the automatic Coding caller must refuse; no source/grant test bypass is installed.
   const ledger = openMemoryLedger({ homeDirectory: f.home });
+  // Since 2026-11-13 formation registers no second suggestion with the same text while one waits; the seed hides the Assistant's
+  // note from that check only, to keep producing the historical two-owner shape.
+  const notes = ledger.candidates.bind(ledger);
+  const hidden = t.mock.method(ledger, "candidates", (actor: string) => notes(actor).filter(note => note.candidate_id !== assistantCandidate.candidate_id));
   try {
     const service = new MemoryService({ backend: prologueMemoryBackend(async () => capability), ledger });
     const seeded = await service.learnFromWork({ ...person, operation_id: randomUUID() }, { said: [text],
       sources: assistantCandidate.sources!.map(source => ({ ...source, text })) });
     assert.equal(seeded.formation.outcome, "completed");
-  } finally { ledger.close(); }
+  } finally { hidden.mock.restore(); ledger.close(); }
   assert.equal(extracted, 2);
   const before = await f.call<{ candidates: Array<{ candidate_id: string }> }>(f.project.project_id, "/api/memory/overview?scope=project");
   assert.equal(before.body.candidates.length, 2);

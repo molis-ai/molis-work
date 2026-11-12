@@ -114,7 +114,7 @@ export function ensureStopGuard(runtime: Runtime, state: RoundState, sessionId: 
       || (suggestedMemory && /记住|记下|保留|忘记|删掉|停用|remember|kept|forgot/i.test(text));
     if (changed && !(suggestionsOnly && claimAfterSuggestion)) return { kind: "allow" as const };
     record.reviewedAt = facts.calls.length;
-    const round: EndingRound = { reply: text, facts, materials: guard.materials,
+    const round: EndingRound = { reply: text, facts, materials: guard.materials, request: guard.task,
       ...(memory ? { memory: memory.off ? "switched-off" : memory.without.keep ? "not-given" : "available" } : {}) };
     const signal = AbortSignal.any([AbortSignal.timeout(REVIEW_TIMEOUT_MS), ...(guard.signal ? [guard.signal] : [])]);
     const held = heldFor(await reviewEnding(runtime, guard.review, round, signal), memory, guard.business, suggestedAction).filter(([kind]) => !record.held.has(kind));

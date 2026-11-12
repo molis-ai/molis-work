@@ -296,12 +296,14 @@ test("MEM-31 MEM-FORM pending review context cannot expose another scene, privat
 });
 
 test("MEM-FORM all 144 fixed destinations fit a real invocation and same-kind drafts remain independent", { timeout: 30_000 }, async t => {
-  const originals = originalMemorySources(["project-a"]); let slots = 0, serialized = 0, offeredKinds: string[] = [];
+  const originals = originalMemorySources(["project-a"]); let slots = 0, serialized = 0, offeredKinds: string[] = [], runs = 0;
   const env = await memoryServiceHome(t, { projects: ["project-a"], sources: originals.port, extractor: { async extract(_caller, input) {
     slots = input.slots.length; serialized = JSON.stringify(input.slots).length;
     offeredKinds = [...new Set(input.slots.map(slot => slot.meta.kind!))].sort();
     const choices = input.slots.filter(slot => slot.scope === "project" && slot.meta.kind === "convention" && !slot.replacement).slice(0, 2);
-    return { drafts: choices.map((slot, index) => ({ slot_id: slot.id, text: `以后发布先完成步骤${index}`, suggested_basis: "inferred" as const,
+    // Each run drafts its own texts: a draft the same as a suggestion still waiting is not registered twice.
+    runs += 1;
+    return { drafts: choices.map((slot, index) => ({ slot_id: slot.id, text: `以后发布先完成第${runs}轮步骤${index}`, suggested_basis: "inferred" as const,
       evidence: [{ source: input.sources[0]!, quote: "以后" }] })) };
   } } });
   await env.open();

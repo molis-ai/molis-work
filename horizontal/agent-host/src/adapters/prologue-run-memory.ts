@@ -56,7 +56,6 @@ export class RunMemoryBinding {
       ...(receipt.errorCode ? { errorCode: receipt.errorCode } : {}) };
   }
   client(client: AgentActionClient, frozen?: readonly ActionView[]): AgentActionClient {
-    const memory = client.memory;
     return { ...client,
       invoke: async (reference, input, signal) => {
         const definition = reference.provider_id === MEMORY_PROVIDER_ID
@@ -73,10 +72,6 @@ export class RunMemoryBinding {
         const result = await client.invoke(reference, input, signal, { assert_current: this.assertCurrent }) as { items: Identity[] };
         return this.#expand(result.items, signal);
       },
-      ...(memory ? { memory: { ...memory,
-        // Only the protected Host list supplies these canonical identities, never tool arguments.
-        expandList: async control => { await this.#current(control.signal); return this.#expand(await memory.list(control), control.signal); },
-      } } : {}),
     };
   }
   role(role: AgentFrozenRole): AgentFrozenRole {

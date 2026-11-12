@@ -49,7 +49,7 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
         if (mode(memoryId) !== "exact-identities" || !isDeepStrictEqual(previous, record)) assertNotForgotten(memoryId);
       }
     },
-    forget: (memoryId, selection_mode) => transaction(() => {
+    forget: (memoryId, selection_mode, options) => transaction(() => {
       db.prepare("INSERT OR IGNORE INTO memory_markers(actor_id,key,at,body) VALUES ('',?,?,?)")
         .run(forgottenKey(memoryId), new Date().toISOString(), JSON.stringify({ memory_id: memoryId, state: "forgotten" }));
       db.prepare("DELETE FROM memory_revisions WHERE memory_id=?").run(memoryId);
@@ -57,7 +57,7 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
       // Recent changes stay (what happened, when), but no longer carry the deleted text.
       for (const row of db.prepare("SELECT change_id, body FROM memory_changes WHERE memory_id=?").all(memoryId)) {
         const change = JSON.parse(String(row.body)) as MemoryChangeRecord;
-        db.prepare("UPDATE memory_changes SET body=? WHERE change_id=?").run(JSON.stringify({ ...change, text: "", reason: null, undoable: false, undo: null }), String(row.change_id));
+        db.prepare("UPDATE memory_changes SET body=? WHERE change_id=?").run(JSON.stringify({ ...change, text: "", reason: null, undoable: false, undo: null, ...(options?.moved_to ? { moved_to: options.moved_to } : {}) }), String(row.change_id));
       }
       // A pair that named it shows no copy of it any more.
       for (const row of db.prepare("SELECT pair_id, body FROM memory_pairs").all()) {

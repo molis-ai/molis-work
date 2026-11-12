@@ -199,6 +199,8 @@ export interface MemoryChange {
   at: string;
   undoable: boolean;
   state: "active" | "undone";
+  /** Set on this scope's earlier changes once the memory was moved to the other scope: its text went with it, it was not deleted. */
+  moved_to?: "personal" | "project";
 }
 
 /** Switches of one scope: the person's (personal memories), or one project's. */
@@ -536,7 +538,7 @@ const candidateSchema = { type: "object", properties: {
   additionalProperties: false };
 const changeSchema = { type: "object", properties: {
   change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance", "assistant"] },
-  rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] } },
+  rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] }, moved_to: { enum: ["personal", "project"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
 export const memoryClassRestrictionsSchema = { type: "array", items: { type: "object", properties: {
   selector: { type: "object", properties: { consumer: { enum: [...MEMORY_CONSUMERS] }, current_scene: { enum: [...MEMORY_SCENES] },
@@ -795,8 +797,8 @@ export interface MemoryUseRecord {
 export interface MemoryLedgerPort {
   /** Independent terminal decisions; the SQL records below are only their projections. */
   readonly forgetting: import("./memory-forgetting.js").MemoryForgettingPort;
-  /** Clear a deleted formal's own copies; only related mode also clears associated candidate projections. */
-  forget(memoryId: string, selection_mode: import("./memory-forgetting.js").MemoryForgettingSelection["selection_mode"]): void;
+  /** Clear a deleted formal's own copies; only related mode also clears associated candidate projections. A move's source copy passes `moved_to`: its blanked changes say where the memory went. */
+  forget(memoryId: string, selection_mode: import("./memory-forgetting.js").MemoryForgettingSelection["selection_mode"], options?: { moved_to?: "personal" | "project" }): void;
   /**
    * Scopes that no longer exist (a deleted project and its Characters): their changes go entirely, with the notes on their
    * held candidates, the pairs raised in them, the owner notes, and the named switches, interface counts and markers.

@@ -24,6 +24,15 @@ function canonical(request: Request): Array<{ memory?: { id: string; scope: stri
     return texts.flatMap(text => text.split("\n").filter(line => line.startsWith('{"source":"memory-recall"')).map(line => JSON.parse(line)));
   });
 }
+/** What list-memories returned in this request's tool results: each kept item's id, scope and text, as tool output (not Run Context). */
+function listed(request: Request): Array<{ memory_id: string; scope: string; text: string }> {
+  const texts = toolResults(request).flatMap(block => {
+    const content = (block as { content?: unknown }).content;
+    return typeof content === "string" ? [content] : Array.isArray(content) ? content.map(part => String((part as { text?: unknown }).text ?? "")) : [];
+  });
+  return texts.flatMap(text => [...text.matchAll(/\{"memory_id":"([^"]+)","scope":"([^"]+)","text":"((?:[^"\\]|\\.)*)"\}/g)]
+    .map(([, memory_id, scope, body]) => ({ memory_id: memory_id!, scope: scope!, text: JSON.parse(`"${body}"`) as string })));
+}
 const recipe: AgentRecalledMemory = { pinned: [], consumer: "agent", current_scene: "coding", class_restrictions: { policy_version: 1, taxonomy_version: 1, personal: [], project: [] },
   scopes: [{ scope: "user", owner: LOCAL_PERSON_ACTOR_ID }], task: false, skip: true, budget_tokens: 800, budget_chars: 3000 };
 
@@ -65,7 +74,8 @@ for (const failure of ["start-failed", "waiting-cancelled", "unavailable", "ende
   await adapter.close();
 });
 
-test("C1 actual Assistant HTTP list supplies canonical identities and sends bodies only through this Run Context", { timeout: 40_000 }, async t => {
+// 2026-11-13 (user-approved): list-memories returns ids and text as its own output; it no longer admits them into the Run's memory Context.
+test("C1 actual Assistant HTTP list returns ids and text as tool output, without putting them into this Run Context", { timeout: 40_000 }, async t => {
   const seen: Request[] = [];
   const f = await codingProductHost(t, async given => {
     const request = given as Request, review = endingReviewAnswer(request, () => []);
@@ -76,10 +86,10 @@ test("C1 actual Assistant HTTP list supplies canonical identities and sends bodi
       return cogniaScriptedResponse({ name: "list-memories", input: {} });
     }
     if (seen.length === 2) {
-      const entries = canonical(request), target = entries.find(entry => entry.text === "ASSISTANT_BODY_ONLY_CONTEXT");
-      assert.ok(target?.memory); assert.equal(target.memory.scope, "user");
-      assert.doesNotMatch(JSON.stringify(toolResults(request)), /"queued"\s*:|"omitted"\s*:|ASSISTANT_BODY_ONLY_CONTEXT/);
-      return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: target.memory.id } });
+      const target = listed(request).find(entry => entry.text === "ASSISTANT_BODY_ONLY_CONTEXT");
+      assert.ok(target); assert.equal(target.scope, "personal");
+      assert.ok(!canonical(request).some(entry => entry.text === "ASSISTANT_BODY_ONLY_CONTEXT"), "listing is not admitting into Run Context");
+      return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: target.memory_id } });
     }
     assert.ok(!canonical(request).some(entry => entry.text === "ASSISTANT_BODY_ONLY_CONTEXT"), "disabled canonical block leaves the next actual payload");
     return cogniaScriptedResponse(undefined, "已停用那条记忆。");
@@ -92,9 +102,8 @@ test("C1 actual Assistant HTTP list supplies canonical identities and sends bodi
   const view = await f.ended({ session_id: sent.work.session_id, run_id: sent.run_id });
   assert.equal(view.phase, "completed", view.stop_reason ?? ""); assert.equal(seen.length, 3);
   assert.doesNotMatch(JSON.stringify(seen[0]), /ASSISTANT_BODY_ONLY_CONTEXT/);
-  assert.doesNotMatch(JSON.stringify(toolResults(seen[1]!)), /ASSISTANT_BODY_ONLY_CONTEXT/);
-  assert.match(JSON.stringify(seen[1]!.messages), /ASSISTANT_BODY_ONLY_CONTEXT/);
-  assert.match(JSON.stringify(toolResults(seen[1]!)), /queued/);
+  assert.match(JSON.stringify(toolResults(seen[1]!)), /ASSISTANT_BODY_ONLY_CONTEXT/);
+  assert.doesNotMatch(JSON.stringify(toolResults(seen[1]!)), /"queued"\s*:|"omitted"\s*:/);
   const after = await manager.invoke(memoryActions.list, { scope: "personal" });
   assert.equal(after.items.find(entry => entry.text === "ASSISTANT_BODY_ONLY_CONTEXT")?.state, "disabled");
 });
@@ -208,7 +217,7 @@ test("C1 nonempty readable parent does not grant its undeclared child canonical 
   } finally { ledger.close(); }
 });
 
-test("C1 same text in personal and project Context is addressed by its actual scope before forgetting", { timeout: 40_000 }, async t => {
+test("C1 same text kept personally and in the project is listed by its actual scope and forgotten by its own id", { timeout: 40_000 }, async t => {
   const seen: Request[] = [], text = "SAME_BODY_DISTINCT_SCOPE";
   const f = await codingProductHost(t, given => {
     const request = given as Request, review = endingReviewAnswer(request, () => []);
@@ -216,13 +225,12 @@ test("C1 same text in personal and project Context is addressed by its actual sc
     seen.push(request);
     if (seen.length === 1) return cogniaScriptedResponse({ name: "list-memories", input: {} });
     if (seen.length === 2) {
-      const entries = canonical(request).filter(entry => entry.text === text);
-      assert.equal(entries.length, 2); assert.deepEqual(entries.map(entry => entry.memory!.scope).sort(), ["project", "user"]);
-      assert.notEqual(entries[0]!.memory!.id, entries[1]!.memory!.id);
-      for (const entry of entries) assert.equal(JSON.stringify(toolResults(request)).includes(entry.memory!.id), false);
-      return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: entries.find(entry => entry.memory!.scope === "project")!.memory!.id } });
+      const entries = listed(request).filter(entry => entry.text === text);
+      assert.equal(entries.length, 2); assert.deepEqual(entries.map(entry => entry.scope).sort(), ["personal", "project"]);
+      assert.notEqual(entries[0]!.memory_id, entries[1]!.memory_id);
+      assert.ok(!canonical(request).some(entry => entry.text === text), "listing is not admitting into Run Context");
+      return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: entries.find(entry => entry.scope === "project")!.memory_id } });
     }
-    assert.deepEqual(canonical(request).filter(entry => entry.text === text).map(entry => entry.memory!.scope), ["user"]);
     return cogniaScriptedResponse(undefined, "已停用项目那条，个人那条保留。");
   }, { loopbackProvider: true });
   const project = molisWorkHostProjectReference({ databasePath: f.project.database_path, projectId: f.project.project_id });
@@ -245,7 +253,7 @@ test("C1 same text in personal and project Context is addressed by its actual sc
   }
 });
 
-test("C1 Assistant remember replaces an explicit-only target taken from its actual Context", { timeout: 40_000 }, async t => {
+test("C1 Assistant remember replaces an explicit-only target whose id list-memories returned", { timeout: 40_000 }, async t => {
   const seen: Request[] = [], oldText = "答复采用旧格式", newText = "以后答复用短句";
   let modelTarget = "";
   const f = await codingProductHost(t, given => {
@@ -254,9 +262,9 @@ test("C1 Assistant remember replaces an explicit-only target taken from its actu
     seen.push(request);
     if (seen.length === 1) return cogniaScriptedResponse({ name: "list-memories", input: {} });
     if (seen.length === 2) {
-      const target = canonical(request).find(entry => entry.text === oldText); assert.ok(target?.memory);
-      modelTarget = target.memory.id;
-      return cogniaScriptedResponse({ name: "remember", input: { scope: "personal", text: newText, said: newText, replaces: target.memory.id } });
+      const target = listed(request).find(entry => entry.text === oldText); assert.ok(target);
+      modelTarget = target.memory_id;
+      return cogniaScriptedResponse({ name: "remember", input: { scope: "personal", text: newText, said: newText, replaces: target.memory_id } });
     }
     return cogniaScriptedResponse(undefined, "已核对结果。");
   }, { loopbackProvider: true });

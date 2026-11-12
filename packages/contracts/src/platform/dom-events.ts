@@ -279,6 +279,11 @@ export const DOM_EVENTS = [
     summary: "Is a return trip's place still in the layout: the pane is there and has a view or a tab of this surface (not a frame's key). Sent by the settings-return owner when a trip settles with no page claiming it; an embedded pane document does not answer, and with no answer the sender does not judge.",
   },
   {
+    name: "molis-work:memory-changed", kind: "announcement", owner: "assistant", on: "document",
+    detail: "{ work_id }",
+    summary: "A memory kept, replaced or undone in an Assistant work changed what the memory settings show; an open memory settings page reads its list again once it is idle.",
+  },
+  {
     name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
     detail: "none",
     summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" reads its model state again (listeners: `node scripts/gates/dom-events.mjs --report`). When a return trip is open on these settings (a page of this tab sent the person there: an ordinary link, a pane's relay or a page's host.returns.go; not the gear, a menu or an address), the trip is settled first (settings-return): read back, the cover closed over that page and a toast, and only then is the event sent, so a page that reacts finds itself as the person sees it; with the settings opened any other way the settings stay open, and a page beneath them is still hidden when it hears the event. The model settings script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how an onboarding page open in another tab learns that a model was set up there (also on the standalone settings page of a person with no project, where the settings directory is not loaded); that channel is not a DOM event and has no entry of its own, and a desktop shell that hands a tab to the system browser cannot reach it.",

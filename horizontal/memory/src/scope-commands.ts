@@ -63,7 +63,7 @@ export class MemoryScopeCommands {
   constructor(private readonly ports: ScopePorts) {}
   /** A scope's switches: the person's own, or the project's (a Character's memories follow its project's). */
   prefsAt(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs {
-    return where.scope === "personal" ? this.ports.preferences.prefsFor(actorId, "personal", null) : this.ports.preferences.prefsFor(actorId, "project", where.scope === "project" ? where.owner : where.project ?? null);
+    return this.ports.preferences.prefsAt(actorId, where);
   }
 
   /** Share data, never permission results, only until this synchronous phase's final check. */

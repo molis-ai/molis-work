@@ -22,9 +22,14 @@ const isTheirs = ([text, message]: Case) => theirWords(text, [message]) !== null
 function check(cases: readonly Case[], expected: boolean) {
   for (const one of cases) assert.equal(isTheirs(one), expected, label(one));
 }
-/** What the fuzzy check let through as a restatement. Now a text is theirs only when it is the very same words: an identical pair is, every other pair is a suggestion. */
+/** A leading request to keep it (“记住：”, “remember that”) is not part of what is kept (spoken.ts). */
+const REMEMBER_OPENING = /^(?:(?:请|帮我)?记住[：:，,]?|remember(?:\s+that)?[:,]?)\s*/i;
+/**
+ * What the fuzzy check let through as a restatement. Now a text is theirs only when it is the very same words: an identical pair is, and so is
+ * the message without a leading “记住：” (2026-11-13); every other pair is a suggestion.
+ */
 function restated(cases: readonly Case[]) {
-  for (const one of cases) assert.equal(isTheirs(one), one[0] === one[1], label(one));
+  for (const one of cases) assert.equal(isTheirs(one), one[0] === one[1] || one[0] === one[1].replace(REMEMBER_OPENING, ""), label(one));
 }
 
 test("everything the last two re-reviews found is never the person's words: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something, the front of a sentence before a number, a one-off made a rule", () => {
@@ -265,7 +270,7 @@ test("a word that joins or turns against, a ban with a word of its own, traditio
     ["Don't send reports", "Refuse to send reports"],
     ["别发给外部顾问", "拒绝发给外部顾问"],
     ["沒有確認", "沒有確認"],
-    ["预算上限 $500", "记住预算上限 $500"],
+    ["预算上限 $500", "以后预算上限 $500"],
     ["Keep it under 5%", "Please keep it under 5%"],
     ["用图片代替表格", "用图片代替表格"],
     ["Use bullet points instead of tables", "Use bullet points instead of tables"],

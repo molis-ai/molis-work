@@ -693,3 +693,29 @@ test("MEM-FORM BL-1073 the model sees one ID per destination and kind; drafts na
   picks = ["d1", "d1"];
   await assert.rejects(extractor.extract({} as never, request as never), { code: "memory.invalid" });
 });
+
+test("允许记住 off on the personal page forms nothing in a project whose own switch is on: no extraction, no candidate", { timeout: 60_000 }, async t => {
+  const { service, learn } = await memoryHome(t);
+  service.savePrefs(person, "personal", { form: false });
+  assert.equal(service.prefsFor(LOCAL_PERSON_ACTOR_ID, "project", "project-q4").form, true);
+  const said = ["以后周报都把风险放最前面，别放最后"];
+  assert.equal(service.worthLearning(inWork("off-1", "周报"), said), false, "no place to form in");
+  const learned = await learn(inWork("off-1", "周报"), { said, proposals: [{ ...riskFirst, text: said[0]!, quote: said[0]! }] });
+  assert.deepEqual(learned, []);
+  assert.deepEqual(await service.candidates(person, { scope: "all" }), []);
+});
+
+test("the same suggestion formed again in another work is not registered twice, and one quoted out of a longer message says so instead of calling it a guess", { timeout: 60_000 }, async t => {
+  const { service, learn } = await memoryHome(t);
+  const message = "这周的周报你先帮我起个草。以后周报都把风险放最前面，别放最后。";
+  const text = "以后周报都把风险放最前面，别放最后";
+  const first = await learn(inWork("twin-1", "周报 1"), { said: [message], proposals: [{ ...riskFirst, text, quote: text }] });
+  assert.deepEqual(first.map(item => item.outcome), ["candidate"]);
+  const [waiting] = await service.candidates(person, { scope: "project" });
+  assert.equal(waiting!.basis, "inferred", "a sentence out of a longer message is not their whole words");
+  assert.equal(waiting!.hold_reason, "摘自你说的话，需要你认可才会生效");
+  assert.equal(waiting!.why, "摘自你在这次工作里说的话");
+  const second = await learn(inWork("twin-2", "周报 2"), { said: [message], proposals: [{ ...riskFirst, text, quote: text }] });
+  assert.deepEqual(second.map(item => [item.outcome, item.candidate_id]), [["skipped", waiting!.candidate_id]]);
+  assert.equal((await service.candidates(person, { scope: "project" })).length, 1, "still one suggestion waiting");
+});

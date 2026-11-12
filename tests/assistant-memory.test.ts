@@ -176,7 +176,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
     const frozen = (await adapter.readSession({ session_id: first.work.session_id! })).latest_run!.frozen;
     const system = typeof first.first.system === "string" ? first.first.system : first.first.system.map((block: { text: string }) => block.text).join("\n");
-    for (const [promptId, version] of [["assistant-base", 5], ["assistant-work", 3]] as const) {
+    for (const [promptId, version] of [["assistant-base", 6], ["assistant-work", 3]] as const) {
       const registered = homeAgentDefinitions(home).prompt(`${ASSISTANT_PLUGIN_ID}/${promptId}`);
       assert.equal(registered.default_version, version, "the public prompt registry declares the current version (phase one edits in place: docs/system/CONTRACT-CHANGES.md §3)");
       assert.equal(frozen.prompts.find(prompt => prompt.prompt_id === promptId)!.version, version, "the Run freezes the current registered version");
@@ -215,7 +215,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.deepEqual(inBView.rounds[0]!.memories_used?.used.map(item => [item.scope, item.text]), [["personal", "回答用要点列表"]]);
     const firstView = await service.read(first.work.work_id);
     assert.deepEqual(firstView.memory_changes?.map(change => [change.kind, change.text, change.undoable]).sort(),
-      [["kept", "回答用要点列表", false], ["kept", "项目甲里 NSM 指北极星指标", false]]);
+      [["kept", "回答用要点列表", true], ["kept", "项目甲里 NSM 指北极星指标", true]], "what the person asked to keep can be undone from the work");
     // Project A's work sees both.
     const inA = await round("NSM 这周怎么样", projectA, "req-memory-003");
     assert.match(recalled(inA.first), /memory-recall[\s\S]{0,400}项目甲里 NSM 指北极星指标/);
@@ -631,7 +631,7 @@ test("remember checks all of the text against the person's message, however long
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "Send the weekly report to me every Friday", scope: "personal", said: "send the weekly report to me" }, memoryToolControl()), "Send the weekly report to me every Friday", "a text that says more than the words it rests on is only suggested");
     const dark = await tools.remember!({ text: "remember that i prefer dark mode, and send the weekly report to me", scope: "personal", said: "Remember that I prefer dark mode" }, memoryToolControl());
     assert.ok(dark.memory_id);
-    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["Remember that I prefer dark mode, and send the weekly report to me.", message].sort(), "the message as they wrote it, not the lower-cased text the model asked for");
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["I prefer dark mode, and send the weekly report to me.", message].sort(), "the message as they wrote it (the leading remember request is not part of what is kept), not the lower-cased text the model asked for");
 
     // Two clauses of theirs with the same words, one asking and one not: neither clause is theirs alone, and the ban is never put on the other. The sentence whole is.
     const both = "删文件前要问我，改名前不用问我";
@@ -1066,5 +1066,65 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
     await until(() => learned.length >= 5 ? learned : undefined, "learning handed over");
     assert.deepEqual(learned.find(item => item.said.includes(typed))?.said, ["帮我处理一下转账", typed]);
     assert.ok(learned.every(item => item.said.every(said => ![redo, handback, delegated].some(note => note === said))), "no page-written round is handed to learning");
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("remember keeps an end the person named, and 允许记住 off on the personal page offers no memory tools in any of their works", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-expiry-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const originalModel = await scriptedModelServer(t, () => "已读。");
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
+  try {
+    const work = await originalWork(memory, adapter, store, "本周安排", "这周的周报都抄送老王");
+    const tools = (await toolsFor(service, work))!;
+    const end = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    await tools.remember!({ text: "这周的周报都抄送老王", scope: "project", said: "这周的周报都抄送老王", expires_at: end }, memoryToolControl());
+    const [item] = (await memory.list(person)).items;
+    assert.deepEqual([item!.text, item!.source, item!.expires_at && Date.parse(item!.expires_at)], ["这周的周报都抄送老王", "said", Date.parse(end)], "the end the person named is kept");
+
+    memory.savePrefs(person, "personal", { form: false });
+    await service.memory.memoryForRound(work, work.title);
+    assert.equal(service.memory.memoryTools(work), undefined, "off on the personal page, the project's own 允许记住 does not open a way in");
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a weekly report the person asked to have drafted is the reply's content: its 已确定 and 已保存 are not read as the round saving something, so a round with no calls is not held", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-draft-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const requests: unknown[] = [], reviews: string[] = [];
+  const draft = "本周周报：\n- 已初步确定发布时间为下周三\n- 测试报告已保存到共享盘";
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // A review model that follows the owner's note: told the person's request and that drafted content is not a claim, it finds none.
+    const whole = JSON.stringify(body);
+    const review = endingReviewAnswer(body, () => {
+      reviews.push(whole);
+      return whole.includes("交给用户的正文") && whole.includes("帮我起草这周的周报") ? [] : ["kept", "changed"];
+    });
+    if (review) return reply(undefined, review);
+    requests.push(body);
+    return reply(undefined, draft);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memory.memoryTools(work)),
+      memory: (task: string) => service.memory.memoryForRound(work, task) }),
+    projectTitle: async () => "项目", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
+  try {
+    const sent = await sendAsPerson(service, { text: "帮我起草这周的周报，把已经定下来的事写进去", request_id: "req-memory-draft-1" }, {});
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "round");
+    assert.equal(reviews.length, 1, "the ending was reviewed");
+    assert.match(reviews[0]!, /request\\":\\"[^}]*帮我起草这周的周报/, "the review is given the person's request");
+    assert.equal(requests.length, 1, "no hold: the round ends with the draft");
+    assert.equal(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text, draft);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

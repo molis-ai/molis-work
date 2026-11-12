@@ -214,7 +214,7 @@ Run 来源 frame 不以 start 返回 handle 作为结束：SDK 已发布 complet
 
 ### 同 Run 的受控记忆展开
 
-静态 Action、gateway 与助理 list 只选择 canonical 身份，绑定到原 Run 的 SDK Memory control。模型工具仅得到状态、预算和回执号；身份与正文由 SDK addressable Context 同源投影、统一计量和最终复核。只有能寻址记忆的一轮才开 addressable：带业务 gateway（遗忘、替换或目录里的 Memory Action），或冻结的 Action 里有 Memory 提供方的；其余各轮只收正文，不收用不上的身份（BL-1073）。可信 App receipt 的 queued/omitted 不下发给模型。取消、结束及关闭释放绑定；C3 的同步派发围栏继续执行。
+静态 Action 与 gateway 里的 Memory Action 只选择 canonical 身份，绑定到原 Run 的 SDK Memory control。助理的 `list-memories` 工具不经此路：它把本人当前生效记忆的 id、范围与正文作为工具输出交回，不选入 Run Context、不记为“用到”，免得一次列出把无关记忆带进本轮（2026-11-13 修正）；`remember` 的说明不再要求先列出，重复由写入门按同文判断。模型工具仅得到状态、预算和回执号；身份与正文由 SDK addressable Context 同源投影、统一计量和最终复核。只有能寻址记忆的一轮才开 addressable：带业务 gateway（遗忘、替换或目录里的 Memory Action），或冻结的 Action 里有 Memory 提供方的；其余各轮只收正文，不收用不上的身份（BL-1073）。可信 App receipt 的 queued/omitted 不下发给模型。取消、结束及关闭释放绑定；C3 的同步派发围栏继续执行。
 
 助理明确按当前 Context 身份遗忘/替换时，目标定位同样使用 Host-only 显式读取资格；它不授予管理人身份，也不绕过冻结分类与当前分类、原工作、原操作和目标范围检查。未指向现有身份的新形成保持原路径。
 

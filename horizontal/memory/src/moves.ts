@@ -18,7 +18,8 @@ interface Ports {
   preferences: MemoryPreferences;
   date(at: string): string;
   bindTarget?(target: { scope: MemoryScope; owner: string; project: string | null }): void;
-  purge(caller: MemoryCaller, target: MemoryPurgeTarget, version: number): Promise<void>;
+  /** `movedTo`: the source copy of a move, whose earlier changes then say where it went. */
+  purge(caller: MemoryCaller, target: MemoryPurgeTarget, version: number, movedTo: "personal" | "project"): Promise<void>;
   record(caller: MemoryCaller, target: Located): MemoryChangeRecord;
 }
 
@@ -75,7 +76,7 @@ export class MemoryMoves {
           change: "created", by: "person", at: stamp.at });
       });
     }
-    await this.ports.purge(caller, source, stamp.expected_version!);
+    await this.ports.purge(caller, source, stamp.expected_version!, to);
     caller.signal?.throwIfAborted();
     const change = this.ports.record(caller, destination);
     return { memory: scopes.item(destination), change: changeView(change) };

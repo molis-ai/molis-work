@@ -60,6 +60,14 @@ export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, plu
   return { allowed: true, kinds: pluginDefaultKinds(scope) };
 }
 
+/**
+ * Whether anything new may be formed in a scope: 允许记住 is set on the personal page and holds everywhere, so the scope's own switch
+ * only narrows it. Memory switched off personally, or 允许记住 off there, stops candidates, suggestions and automatic keeps in every project too.
+ */
+export function formationAllowed(personal: MemoryPrefs, own: MemoryPrefs): boolean {
+  return personal.enabled && personal.form && own.form;
+}
+
 export const CONSUMER_LABELS: Record<MemoryConsumer, string> = {
   assistant: "助理", agent: "Agent 工作", ui: "界面推荐", plugin: "插件", mcp: "外部 AI 客户端",
 };

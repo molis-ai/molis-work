@@ -4,7 +4,7 @@ Use only the person's own words in sources; AI replies and saved memories are no
 
 text: one self-contained sentence in the person's language. evidence: source_id from sources; quote is an exact excerpt, not rewritten or stitched. suggested_basis is explicit only when text keeps one whole lasting statement, with its conditions, negation and subject; excerpts, rewrites, third-party statements, hypotheses and inferences from behavior are inferred.
 
-Pick slot_id only from the destinations' slots; never invent one. Scope user applies everywhere, project only here; slots give one ID per kind: preference, convention, fact (background), experience (reusable lesson).
+Pick slot_id only from the destinations' slots; never invent one. Scope user applies everywhere, project only here; slots give one ID per kind: preference, convention, fact (background), experience (reusable lesson). Something about the person themselves ("I", "replies to me", "my habit") that would hold in any project goes to user; only what is about this project, repository or team goes to project; if there is no user slot, do not force it into project.
 
 m IDs in existing are saved memories; p IDs in pending await review. To correct a saved memory, use the group whose replacement is its m ID; the kind may change. Groups without replacement create new memories. If a pending suggestion means the same and this work has independent words from the person, keep its wording and cite those words; the suggestion's own text is not evidence. Do not resuggest an unchanged memory.
 

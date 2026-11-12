@@ -73,6 +73,8 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   sources?: NonNullable<PrologueNodeAdapterOptions["memory"]>["sources"];
   extractor?: NonNullable<PrologueNodeAdapterOptions["memory"]>["extractor"];
   generate?: Generation;
+  /** Which business session an original source belongs to; the Host reads its own source identity format. */
+  sourceSession?: (ref: { event_id: string; version: string }) => string | undefined;
 }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-service-"));
   const initialOwner = acquireStorageOwner(join(home, "agent-runtime"));
@@ -101,7 +103,8 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
         promotion: { policy: "memory.write-gate", version: 1, decide: (caller, request) => service.promotion.decide(caller, request),
           undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => { throw new Error("Memory fixture does not call a model"); } });
     service = new MemoryService({ backend: backend(), ledger, timeZone: "Asia/Shanghai",
-      ...(options.now ? { now: options.now } : {}), ...(options.projectTitle ? { projectTitle: options.projectTitle } : {}) });
+      ...(options.now ? { now: options.now } : {}), ...(options.projectTitle ? { projectTitle: options.projectTitle } : {}),
+      ...(options.sourceSession ? { sourceSession: options.sourceSession } : {}) });
     alive = true;
     return service;
   };

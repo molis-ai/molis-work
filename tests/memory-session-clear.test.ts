@@ -4,7 +4,7 @@ import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, originalMemorySources } from "./fixtures/memory-service-home.js";
 
 const person = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true,
   current_scene: "common", purpose: "management", operation_id });
@@ -229,4 +229,28 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
       assert.deepEqual(await restoring.storage.readSecure(indexTarget), originalIndexBytes);
     }
   }
+});
+
+test("Session view and clear include what was learned in the session: long-term memories and suggestions whose sources name it", async t => {
+  const sourceSession = (ref: { event_id: string }) => ref.event_id.startsWith("session:") ? ref.event_id.split(":")[1] : undefined;
+  const originals = originalMemorySources(["project-a"]);
+  const f = await memoryServiceHome(t, { projects: ["project-a"], sources: originals.port, sourceSession }), service = await f.open(), who = await binding(f);
+  const said = originals.add(`session:${who.session_id}:said`, "周报先写风险"), elsewhere = originals.add("session:other:said", "日报写进度");
+  const learned = (await service.write(person("learned"), { scope: "personal", text: "周报先写风险", kind: "preference" }, { sources: [said] })).memory!;
+  const kept = (await service.write(person("kept"), { scope: "personal", text: "日报写进度", kind: "preference" }, { sources: [elsewhere] })).memory!;
+  const suggestion = await service.propose(person("suggested"), { scope: "personal", text: "周报附上下周计划", kind: "preference", basis: "inferred",
+    why: "摘自你在这次工作里说的话", from: "extraction" }, { sources: [said] });
+  await service.write({ ...who, operation_id: "own" }, { scope: "personal", text: "This session only", kind: "preference", classification: sessionClass });
+  const page = await service.page({ ...who, purpose: "management" }, { scope: "personal", limit: 20 });
+  assert.deepEqual(page.items.map(item => item.text).sort(), ["This session only", "周报先写风险"].sort());
+  assert.deepEqual(page.total, { kind: "exact", value: 2 });
+  const preview = await service.sessionClear.preview(who);
+  assert.equal(preview.memory_count, 2); assert.equal(preview.candidate_count, 1); assert.ok(preview.preview_id);
+  const result = await service.sessionClear.apply(who, preview.preview_id!);
+  assert.equal(result.complete, true, JSON.stringify(result));
+  const left = (await service.list(person("after"), { scope: "personal" })).items.map(item => item.memory_id);
+  assert.ok(!left.includes(learned.memory_id), "the long-term memory learned in this session is forgotten with it");
+  assert.ok(left.includes(kept.memory_id), "one learned elsewhere stays");
+  assert.ok(!(await service.candidates(person("after-candidates"))).some(item => item.candidate_id === suggestion.candidate_id));
+  assert.ok((await service.changes(person("changes"), { scope: "personal" })).some(change => change.memory_id === learned.memory_id && change.kind === "removed"));
 });

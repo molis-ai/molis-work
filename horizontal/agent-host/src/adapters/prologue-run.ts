@@ -124,7 +124,6 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     ...(memory ? { memory: {
       ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
       list: memory.list.bind(memory),
-      ...(memory.expandList ? { expandList: memory.expandList.bind(memory) } : {}),
       ...(memory.forget ? { forget: async (...args: Parameters<NonNullable<typeof memory.forget>>) => { const result = await memory.forget!(...args); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),

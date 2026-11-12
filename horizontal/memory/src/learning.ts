@@ -8,7 +8,8 @@ import { formationContext, formationPending, formationSlots, formationSources, f
 import { memoryErrors } from "./errors.js";
 import { callerClassAllowed, callerClassReadPossible } from "./class-restrictions.js";
 import { newMemoryClassification } from "./classification.js";
-import { consumerAccess } from "./prefs.js";
+import { consumerAccess, formationAllowed } from "./prefs.js";
+import { sameText } from "./text.js";
 
 export interface MemoryProposal {
   text: string;
@@ -39,6 +40,9 @@ interface LearningPorts {
   bindFormationSources?(refs: readonly AgentMemorySourceRef[]): void | Promise<void>;
   isForgotten: MemoryService["isForgotten"];
 }
+/** A suggestion left alone this long has gone quietly (the service's candidate TTL). */
+const TWIN_WAITING = "同样的建议已经在等你认可";
+const PENDING_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const DO_NOT_REMEMBER = /(?:不要|别|不用|无需|不必)(?:帮我)?(?:记|记住|记下|记录)(?!得)|(?:don['’]?t|do not|never) (?:remember|save|store)/i;
 const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|都要|都用|都别|都不|别再|不要再|下次|下回|记住|习惯|偏好|喜欢|讨厌|统一|规范|约定|规定|改成|应该|不对|always|never|from now on|every time|prefer|going forward|next time/i;
 
@@ -59,7 +63,7 @@ export class MemoryLearning {
       const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, "explicit") : undefined;
       const kinds = MEMORY_KINDS.filter(kind => (!access.kinds || access.kinds.includes(kind)) && (!plugin?.kinds || plugin.kinds.includes(kind))
         && callerClassAllowed(prefs, caller, where.scope, { kind, classification: newMemoryClassification(caller, null).classification }, "form"));
-      return prefs.enabled && prefs.form && prefs.learn_from_work && access.allowed && (!plugin || plugin.allowed) && kinds.length
+      return prefs.enabled && formationAllowed(this.ports.scopes.prefsAt(caller.actor_id, { scope: "personal", owner: caller.actor_id }), prefs) && prefs.learn_from_work && access.allowed && (!plugin || plugin.allowed) && kinds.length
         ? [{ ...where, auto: prefs.auto, kinds }] : [];
     });
   }
@@ -177,6 +181,15 @@ export class MemoryLearning {
         const saved = this.ports.ledger.candidates(caller.actor_id).find(note => note.candidate_id === entry.candidate_id);
         if (saved && saved.version !== entry.version && entry.state === "pending") throw memoryErrors.conflict("原候选版本已改变，不能追随新版本晋升");
         const record = saved ?? formedRecord(caller, slot, entry, snapshot, sources, input.said);
+        // Another work already suggested the same thing and it is still waiting: unless this one adds an independent original (repeated), one suggestion is enough.
+        const twin = !saved && entry.state === "pending" && record.basis !== "repeated" ? this.ports.ledger.candidates(caller.actor_id).find(note => note.scope === slot.scope && note.owner === slot.owner
+          && note.state === "pending" && note.kind === record.kind && sameText(note.text, entry.text) && Date.parse(note.created_at) > Date.now() - PENDING_TTL_MS
+          && !this.ports.isForgotten(note.scope, note.owner, "memory-candidate", note.candidate_id)) : undefined;
+        if (twin) {
+          // The App does not register it (the SDK's own copy is left to its 14-day expiry: a learning caller may not decline a suggestion).
+          learned.push({ text: entry.text, outcome: "skipped", reason: TWIN_WAITING, candidate_id: twin.candidate_id, memory_id: null });
+          continue;
+        }
         if (!saved) this.ports.ledger.saveCandidate(record);
         if (entry.state !== "pending") {
           learned.push({ text: entry.text, outcome: entry.memory_id ? "duplicate" : "skipped", reason: "这份候选已有决定",

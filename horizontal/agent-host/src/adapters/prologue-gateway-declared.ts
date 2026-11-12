@@ -7,7 +7,8 @@ type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 /** What read-capability, change-capability and change-reversible take: the exact identity find-capabilities returned, and the input. */
 export const CAPABILITY_PARAMETERS = { type: "object", properties: {
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-  input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
+  // An object, named fields: a positional array (["kb36be7e"]) is what models send when this allowed any JSON value (2026-11-13).
+  input: { type: "object", description: "The capability's input as a JSON object with named fields (not an array of values, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties. Leave it out for a capability whose input_schema is an empty array." },
 }, required: ["capability_id", "version", "provider_id"] };
 
 /** What suggest-action takes: the button's words beside the same identity and input. */
@@ -15,7 +16,7 @@ export const SUGGEST_PARAMETERS = { type: "object", properties: {
   title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
   summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-  input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
+  input: { type: "object", description: "The full prepared JSON object matching input_schema from find-capabilities, with named fields (never an array of values or a string). Put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields." },
   editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
   missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
 }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
@@ -45,6 +46,8 @@ export function declaredCapabilities(gateway: Gateway) {
   const found = new Map<string, { view: ActionView; direct: boolean }>();
   let answer: ReadonlyMap<Tool, readonly Record<string, unknown>[]> | undefined;
   const fits = (tool: Tool, row: { view: ActionView; direct: boolean }) => {
+    // `input` is an object; a capability that takes no arguments (an empty array) is called by leaving input out, so it has no branch.
+    if (row.view.action.input_schema.type !== "object") return false;
     const reads = actionEffect(row.view.action, row.view.capability_id) === "read";
     if (tool === "read-capability") return reads;
     if (tool === "suggest-action") return !!gateway.client.offer;

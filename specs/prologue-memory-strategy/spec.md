@@ -373,6 +373,7 @@ PR 和 main 冲突，CI 一个检查都没跑起来；并入 main 的 #2010、#2
   - **`assistant-followups`**：本 PR 把归档前的检查从「一轮在进行」扩到暂停、等输入、待核对，提示一律改成「先处理它再归档」。按状态分开：在进行的照旧说「先停止它再归档」，其余说「暂停着或在等处理，先处理它再归档」；用例不改。
   - **`web-route-table`（W5-07，预期变化）**：快照钉住每个地址返回的顶层键。`/api/memory/overview`（Home 与项目两条）按本 spec 的有界读取改成 `items/cursor/exhausted/stopped/total/scanned/cost`，不再有 `counts`；按用例写明的办法（`MOLIS_WORK_UPDATE_ROUTE_SNAPSHOT=1`）重写快照，只有这两条变了。
   - **`issue-assistant`（ISSUE-07，Security invariants 4/8）**：用例的假模型服务器靠旧提炼提示里的一句话认出后台记忆提炼、把它挡在业务回合外；本 PR 把 `memory.extract` 改到第 3 版后那句话没了，提炼请求吃掉了排给业务回合的回复，「重新读取后改标题」那一轮拿不到修改调用。改成认新提示的开头，并按现在的输出形状回 `{"drafts":[]}`（原来回旧形状，日志里的 `memory.conflict` 警告就是它）。
+- **复验。** 一次 `pnpm build`，上面 7 个用例加相邻的 agent-host、Character、Coding 会话与归档、助理归档用例共 39 个文件 `--jobs 1` 一次，全部通过（3.8 分钟）。健康门禁、版本核对、包边界、首屏字节门、页面资源门禁对 main `539d2d7d4` 通过。
 
 ## 1. 用户结果与责任边界
 

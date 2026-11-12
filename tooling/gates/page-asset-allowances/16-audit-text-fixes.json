@@ -1,6 +1,6 @@
 {
   "reason": "第 16 批合后审计修复：英文界面不再拼中文标点/半句（FSS-39），新增平台共用标点键与整句消息、补充 fallback 与显示映射，页面脚本取词增量。只按同一测量器相对 206884b447 的逐资源实测差额放行。 并含英文界面文字修复后的新语言包条目两条与四默认页（zh/en）首屏增长（用户 2026-11-11 批准）。",
-  "review": "fix/16-audit-followups 合后审计整改；2026-11-12 用仓库同一测量器（隔离构建 206884b447 与候选）实测，逐资源增量均小于 10 KB；见 PR 说明与 /private/tmp/audit16/REPORT.md。 合入 #2032（a08903b8e0）后按新 merge-base 重测：workbench.js +3432 B；其余同前。 首屏数字用仓库同一 first-screen 测量器（隔离构建 a08903b8e0 vs 候选）实测，draft pages 原样写入。 合入第 27 批 #2010（539d2d7d46）后按新 merge-base 重测：14 项 + chooser-search.js 共 15 项，数值按本次实测（含 characters 由 74 降到 37）。 合入第 27 批 #2010 后按新 merge-base 重测首屏（draft pages 原样 + warm 64 B 余量）：到达 +2.5/+2.4 KB 冷、选择 +4.8/+4.7 KB 冷、工作台 +6.1/+5.9 KB 冷；warm 均持平。 warm 实测 +259/+2624/+323 等，预算按实测 +64 B 余量记。",
+  "review": "fix/16-audit-followups 合后审计整改；2026-11-12 用仓库同一测量器（隔离构建 206884b447 与候选）实测，逐资源增量均小于 10 KB；见 PR 说明与 /private/tmp/audit16/REPORT.md。 合入 #2032（a08903b8e0）后按新 merge-base 重测：workbench.js +3432 B；其余同前。 首屏数字用仓库同一 first-screen 测量器（隔离构建 a08903b8e0 vs 候选）实测，draft pages 原样写入。 合入第 27 批 #2010（539d2d7d46）后按新 merge-base 重测：14 项 + chooser-search.js 共 15 项，数值按本次实测（含 characters 由 74 降到 37）。 合入第 27 批 #2010 后按新 merge-base 重测首屏（draft pages 原样 + warm 64 B 余量）：到达 +2.5/+2.4 KB 冷、选择 +4.8/+4.7 KB 冷、工作台 +6.1/+5.9 KB 冷；warm 均持平。 warm 实测 +259/+2624/+323 等，预算按实测 +64 B 余量记。 合入第 25 批 #2034（3d844d493a）后按新 merge-base 重测：冷增长 到达 +2.7/+2.7 KB、选择 +5.0/+5.0 KB、工作台 +6.3/+6.2 KB（实测+64 B 余量），warm 持平。",
   "assets": {
     "/assets/molis-work-chooser-search.js": 184,
     "/assets/molis-work-kit.js": 28,
@@ -44,35 +44,35 @@
   ],
   "pages": {
     "arrival-empty/zh": {
-      "cold": 2475,
+      "cold": 2740,
       "warm": 323
     },
     "arrival-empty/en": {
-      "cold": 2365,
+      "cold": 2718,
       "warm": 323
     },
     "chooser/zh": {
-      "cold": 4840,
+      "cold": 5105,
       "warm": 2688
     },
     "chooser/en": {
-      "cold": 4730,
+      "cold": 5083,
       "warm": 2688
     },
     "workbench-default/zh": {
-      "cold": 6059,
+      "cold": 6324,
       "warm": 387
     },
     "workbench-default/en": {
-      "cold": 5948,
+      "cold": 6301,
       "warm": 386
     },
     "workbench-all-plugins/zh": {
-      "cold": 6059,
+      "cold": 6324,
       "warm": 387
     },
     "workbench-all-plugins/en": {
-      "cold": 5952,
+      "cold": 6305,
       "warm": 390
     }
   },

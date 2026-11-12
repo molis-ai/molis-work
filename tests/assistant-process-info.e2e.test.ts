@@ -35,6 +35,23 @@ const GROUP = `${P} > details.assistant-steps`;
 
 // FSS-35/36/39: another real Settings document commits the language while this conversation keeps its reading state.
 async function checkStepLanguageRoundTrip(b: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
+  // Finish the bell's ordinary acknowledgement of the completed work before observing writes caused by the language switch.
+  await b.evaluate(`(async () => {
+    const workId = ${CURRENT_WORK};
+    const unacknowledged = notices => notices.some(notice => notice.work_id === workId && !notice.held);
+    const { notices } = await molisWorkRequest('/api/assistant/notices');
+    window.stepNoticeSettled = !unacknowledged(notices);
+    if (window.stepNoticeSettled) return;
+    const requested = performance.now();
+    const settle = ({ detail }) => {
+      if (detail.started < requested || !Array.isArray(detail.notices) || unacknowledged(detail.notices)) return;
+      document.removeEventListener('molis-work:attention', settle);
+      window.stepNoticeSettled = true;
+    };
+    document.addEventListener('molis-work:attention', settle);
+    document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'));
+  })()`);
+  await b.waitFor("window.stepNoticeSettled === true", 15_000);
   const before = await b.evaluate(`fetch('/api/assistant/works/' + ${CURRENT_WORK}).then(r => r.json()).then(v => v.rounds.flatMap(r => r.activity))`);
   await b.evaluate(`void (() => {
     const group = window.__group, raw = window.__failed.querySelector('.assistant-activity-raw'); raw.open = true;

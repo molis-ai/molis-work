@@ -64,14 +64,19 @@ test("FSS-35 FSS-70 PG049-N01 PG049-N02 PG049-N03 saved directory outcomes switc
     await page.command("Page.enable");
     for (const [index, locale] of (["zh", "en", "en"] as const).entries()) {
       if (index === 1) {
-        const settings = await browser.page();
-        await settings.command("Page.navigate", { url: f.origin + "/settings/appearance" });
-        await settings.wait("typeof t === 'function' && typeof molisWorkRequest === 'function' && document.querySelector('a[data-ui-language=en]')");
-        await settings.evaluate("document.querySelector('a[data-ui-language=en]').click()");
-        await page.wait("document.documentElement.lang === 'en'");
+        const { targetId } = await browser.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
+        try {
+          const settings = await browser.page(targetId);
+          await settings.command("Page.navigate", { url: f.origin + "/settings/appearance" });
+          await settings.wait("typeof t === 'function' && typeof molisWorkRequest === 'function' && document.querySelector('a[data-ui-language=en]')");
+          await settings.evaluate("document.querySelector('a[data-ui-language=en]').click()");
+          await page.wait("document.documentElement.lang === 'en'");
+        } finally { await browser.command("Target.closeTarget", { targetId }); }
       } else await Promise.all([browser.event("Page.loadEventFired"), index === 2 ? page.command("Page.reload")
         : page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(path) })]);
-      await page.wait(`document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}' && document.querySelector('[data-assistant-attention]')`);
+      // The bell reads only on a visible page, including after a reload.
+      await page.command("Page.bringToFront");
+      await page.wait(`!document.hidden && document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}' && document.querySelector('[data-assistant-attention]')`);
       await page.wait("document.querySelector('[data-assistant-attention]')?.hasAttribute('aria-label')");
       // These notices keep their existing non-urgent grouping. Exercise its initialized open handler without changing reachability.
       if (index !== 1) await page.evaluate("document.querySelector('[data-assistant-attention]').click()");

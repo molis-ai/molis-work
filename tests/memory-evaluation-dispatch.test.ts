@@ -38,6 +38,15 @@ test("an attempt is durably recorded before its real HTTP request arrives", asyn
   assert.equal(remote.received.length, 1);
 });
 
+test("BL-1073 the raw reply is kept on its attempt for diagnosis while the caller still reads the full body", async t => {
+  const remote = await endpoint(t);
+  const observer = observeEvaluationRequests(remote.url, 1, () => ({ maxOutputTokens: 12, maxRequestBytes: 1000 })); t.after(() => observer.restore());
+  const response = await fetch(remote.url, { method: "POST", body });
+  assert.equal(await response.text(), "ok");
+  for (let wait = 0; !observer.requests[0]?.response && wait < 50; wait++) await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(observer.requests[0]?.response, { status: 200, text: "ok" });
+});
+
 test("journal write failure prevents this send and permanently closes subsequent sends", async t => {
   const path = join(await directory(t), "attempts.jsonl"); const journal = await createEvaluationAttemptJournal(path);
   await journal.close(); const remote = await endpoint(t);

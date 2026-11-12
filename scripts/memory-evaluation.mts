@@ -11,10 +11,25 @@ if (args[0] === "--b2") args.shift();
 else if (!args[0]?.startsWith("--live-b2")) throw new Error("当前入口必须显式 --b2；付费回放必须另行确认预算");
 const preflight = memoryEvaluationB2Preflight(root);
 if (args.length === 1 && args[0] === "--preflight") console.log(JSON.stringify(preflight, null, 2));
-else if ((args.length === 2 && args[0] === "--out" && args[1]) || (args.length === 3 && ["--live-b2-calibration", "--live-b2"].includes(args[0]!) && args[1] === "--out" && args[2])) {
+else if ((args.length === 2 && args[0] === "--out" && args[1]) || (args.length === 3 && ["--live-b2-calibration", "--live-b2", "--live-b2-formation-diagnosis"].includes(args[0]!) && args[1] === "--out" && args[2])) {
   if (!preflight.ready) throw new Error("B2 预检未通过：生产或观测工具 dirty / 构建 stale / 实际 SDK 不一致；由统筹收束后再运行");
   if (!preflight.dependencies.installed || !preflight.dependencies.memoryBuilt || !preflight.dependencies.hostBuilt) throw new Error("依赖或构建缺失；由统筹安排安装和 build 后重试");
-  if (args[0] === "--live-b2") {
+  if (args[0] === "--live-b2-formation-diagnosis") {
+    // Approved by the user 2026-11-12: B2 formation events only, at most 64 attempts, once; replies kept for diagnosis.
+    const credential = process.env.MINIMAX_API_KEY;
+    if (!credential) throw new Error("需要 appkey exec minimax 临时注入；不读取或复制真实 Home 凭据");
+    const { replayMemorySequences } = await import("./memory-evaluation/sequence-replay.mjs");
+    const output = args[2]!;
+    await writeFile(output, `${JSON.stringify({ preflight, stage: "running", attempts: 0, requests: [], rows: [] }, null, 2)}\n`, { flag: "wx" });
+    const journal = await createEvaluationAttemptJournal(`${output}.attempts.jsonl`);
+    let report: Awaited<ReturnType<typeof replayMemorySequences>>;
+    try { report = await replayMemorySequences({ protocol: "anthropic-compatible", endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3", credential_ref: "evaluation:minimax" }, credential, async progress => {
+      await writeFile(output, `${JSON.stringify({ preflight, stage: "running", ...progress }, null, 2)}\n`);
+    }, undefined, undefined, { beforeDispatch: journal.beforeDispatch }, { formationOnly: true, maxNetworkAttempts: 64 }); } finally { await journal.close(); }
+    await writeFile(output, `${JSON.stringify({ preflight, stage: "completed", ...report }, null, 2)}\n`);
+    const sources = report.rows.filter(row => row.event.startsWith("source"));
+    console.log(`形成诊断已记录：${report.attempts} 次网络 attempt，${sources.length} 个来源事件，失败 ${sources.filter(row => row.status !== "observed").length}。`);
+  } else if (args[0] === "--live-b2") {
     const credential = process.env.MINIMAX_API_KEY;
     if (!credential) throw new Error("需要 appkey exec minimax 临时注入；不读取或复制真实 Home 凭据");
     const { replayMemorySequences } = await import("./memory-evaluation/sequence-replay.mjs");
@@ -55,4 +70,4 @@ else if ((args.length === 2 && args[0] === "--out" && args[1]) || (args.length =
     console.log(`已记录 ${report.rows.length} 个成对观测；付费调用 0。最终 Context、任务质量和 token 收益未验证。`);
     if (report.rows.some(row => row.status === "failed")) process.exitCode = 1;
   }
-} else throw new Error("用法：memory-evaluation.mts --b2 --preflight | --b2 --out | [--live-b2-calibration|--live-b2] --out <不存在的输出文件>");
+} else throw new Error("用法：memory-evaluation.mts --b2 --preflight | --b2 --out | [--live-b2-calibration|--live-b2|--live-b2-formation-diagnosis] --out <不存在的输出文件>");

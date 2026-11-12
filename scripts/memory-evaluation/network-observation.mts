@@ -1,7 +1,9 @@
 import { open } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 
-export interface EvaluationAttempt { bytes: number; body: unknown; startedAt: string; intentIndex: number; checkpointDurationMs?: number }
+/** `response` is the raw reply as the Provider sent it (status and full streamed text), read from a clone after dispatch: diagnosis only, never billing. */
+export interface EvaluationAttempt { bytes: number; body: unknown; startedAt: string; intentIndex: number; checkpointDurationMs?: number;
+  response?: { status: number; text: string } | { error: string } }
 export interface DispatchObservation {
   beforeDispatch?(attempt: EvaluationAttempt): Promise<void>;
   signal?: AbortSignal;
@@ -74,7 +76,9 @@ export function observeEvaluationRequests(endpoint: string, maxAttempts: number 
       requests.push(attempt);
       send = original(input, { ...init, signal });
       // Attach immediately: a fast transport failure must not become an unhandled rejection while reservation settles.
-      void send.catch(() => {});
+      // The reply is read from a clone, so the caller's own stream is untouched and nothing here waits for it.
+      void send.then(response => response.clone().text().then(text => { attempt.response = { status: response.status, text }; }),
+        (error: unknown) => { attempt.response = { error: error instanceof Error ? error.message : String(error) }; }).catch(() => {});
     });
     queue = reserved.catch(() => {});
     await reserved;

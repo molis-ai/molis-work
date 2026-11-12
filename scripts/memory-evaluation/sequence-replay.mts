@@ -12,6 +12,9 @@ import { observeEmittedMemory } from "./request-observation.mjs";
 type SequenceEnvironment = Awaited<ReturnType<typeof memoryEvaluationEnvironment>>;
 const person = evaluationPerson;
 const failureText = (error: unknown) => error instanceof Error ? error.message : String(error);
+/** What a failed generation said about itself; the raw reply is on the matching request's `response`. */
+const describeFailure = (error: unknown) => ({ name: error instanceof Error ? error.name : typeof error,
+  code: typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : null, message: failureText(error) });
 
 export async function observeMemoryFormation(env: SequenceEnvironment, sequence: MemoryEvaluationSequence, index: number, repeat: number, modelEnv: NodeJS.ProcessEnv, previous?: EvaluationOriginal) {
   const event = sequence.sources[index]!;
@@ -27,10 +30,12 @@ export async function observeMemoryFormation(env: SequenceEnvironment, sequence:
       return result;
     } catch (error) {
       if (error instanceof PrologueInferenceError && error.execution) executions.push(error.execution);
+      generationErrors.push(describeFailure(error));
       throw error;
     }
   });
   let error: string | null = null, outcome: Awaited<ReturnType<SequenceEnvironment["memory"]["learnFromWork"]>> | null = null;
+  const generationErrors: Array<{ name: string; code: string | null; message: string }> = [];
   let original = previous;
   const setupBefore = env.sourceSetup();
   env.setGeneration(generate);
@@ -45,14 +50,16 @@ export async function observeMemoryFormation(env: SequenceEnvironment, sequence:
       error = outcome.recording_error?.code ?? `SDK memory formation ${outcome.formation.outcome}${outcome.formation.code ? ` (${outcome.formation.code})` : ""}`;
   } catch (failure) { error = failureText(failure); }
   const setupAfter = env.sourceSetup();
-  return { outcome, executions, outputs, error, original, fixtureSetup: { calls: setupAfter.calls - setupBefore.calls, requestBytes: setupAfter.requestBytes - setupBefore.requestBytes, paidCalls: 0 }, source: event, formationQuality: "awaiting-independent-review" };
+  return { outcome, executions, outputs, generationErrors, error, original, fixtureSetup: { calls: setupAfter.calls - setupBefore.calls, requestBytes: setupAfter.requestBytes - setupBefore.requestBytes, paidCalls: 0 }, source: event, formationQuality: "awaiting-independent-review" };
 }
 
 export async function replayMemorySequences(config: PrologueModelConfiguration, credential: string,
   onProgress: (report: SequenceProgress) => Promise<void>, sequences: readonly MemoryEvaluationSequence[] = MEMORY_EVALUATION_SEQUENCES,
-  repeats: number = MEMORY_SEQUENCE_PROTOCOL.repeats, dispatchObservation: DispatchObservation = {}) {
+  repeats: number = MEMORY_SEQUENCE_PROTOCOL.repeats, dispatchObservation: DispatchObservation = {},
+  diagnosis?: { formationOnly: true; maxNetworkAttempts: number }) {
   let currentKind: "source" | "task" = "task";
-  const observer = observeEvaluationRequests(config.endpoint, MEMORY_SEQUENCE_PROTOCOL.budget.maxNetworkAttempts, () => ({
+  const maxAttempts = diagnosis?.maxNetworkAttempts ?? MEMORY_SEQUENCE_PROTOCOL.budget.maxNetworkAttempts;
+  const observer = observeEvaluationRequests(config.endpoint, maxAttempts, () => ({
     maxOutputTokens: currentKind === "source" ? MEMORY_SEQUENCE_PROTOCOL.budget.formation.maxOutputTokens : MEMORY_SEQUENCE_PROTOCOL.budget.task.maxOutputTokens,
     maxRequestBytes: MEMORY_SEQUENCE_PROTOCOL.budget.maxRequestBytes,
   }), dispatchObservation);
@@ -63,7 +70,9 @@ export async function replayMemorySequences(config: PrologueModelConfiguration, 
   const checkpoint = async () => onProgress({ attempts: observer.requests.length, requests: observer.requests, fixtureRequests: observer.fixtureRequests, rows });
   try {
     for (const [sequenceIndex, sequence] of sequences.entries()) for (let repeat = 0; repeat < repeats; repeat++) {
-      const arms: readonly EvaluationArm[] = (sequenceIndex + repeat) % 2 === 0 ? ["B0", "B2"] : ["B2", "B0"];
+      const paired: readonly EvaluationArm[] = (sequenceIndex + repeat) % 2 === 0 ? ["B0", "B2"] : ["B2", "B0"];
+      // The diagnosis replays only B2's formation events; B0 never forms and tasks are not its question.
+      const arms = diagnosis ? paired.filter(arm => arm === "B2") : paired;
       for (const arm of arms) {
         let env: SequenceEnvironment | undefined, initializationError: string | undefined;
         let firstOriginal: EvaluationOriginal | undefined;
@@ -84,7 +93,7 @@ export async function replayMemorySequences(config: PrologueModelConfiguration, 
                   attemptRange: { startInclusive, endExclusive: startInclusive }, observation: null });
                 await checkpoint(); continue;
               }
-              if (startInclusive >= MEMORY_SEQUENCE_PROTOCOL.budget.maxNetworkAttempts) {
+              if (startInclusive >= maxAttempts) {
                 rows.push({ ...identity, status: "not-run", error: "全批网络 attempt 预算耗尽", attemptRange: { startInclusive, endExclusive: startInclusive }, observation: null });
                 await checkpoint(); continue;
               }
@@ -117,6 +126,8 @@ export async function replayMemorySequences(config: PrologueModelConfiguration, 
                   rows.push({ ...identity, status: observation.error ? "failed" : "observed", error: observation.error,
                     attemptRange: { startInclusive, endExclusive: observer.requests.length }, durationMs, observation: { ...observation, backend: reads,
                       ledgerProjection: env.inspectLedger() } });
+                } else if (diagnosis) {
+                  rows.push({ ...identity, status: "not-run", error: "形成诊断只重放来源事件", attemptRange: { startInclusive, endExclusive: startInclusive }, observation: null });
                 } else {
                   const observation = await runMemoryEvaluationTask(env, arm, sequence.tasks[index]!);
                   const requests = observer.requests.slice(startInclusive);
@@ -136,7 +147,7 @@ export async function replayMemorySequences(config: PrologueModelConfiguration, 
       }
     }
   } finally { observer.restore(); }
-  return { schema: "molis-memory-sequence-b2-v2", recordedAt: new Date().toISOString(), source: currentEvaluationSource(),
+  return { schema: diagnosis ? "molis-memory-formation-diagnosis-b2-v1" : "molis-memory-sequence-b2-v2", recordedAt: new Date().toISOString(), source: currentEvaluationSource(),
     protocol: MEMORY_SEQUENCE_PROTOCOL, sequences, model: config.model, endpoint: config.endpoint,
     attempts: observer.requests.length, requests: observer.requests, fixtureRequests: observer.fixtureRequests, rows,
     evidence: "production-memory-service-host-sdk-with-real-provider-when-not-fixture", quality: "awaiting-independent-review",

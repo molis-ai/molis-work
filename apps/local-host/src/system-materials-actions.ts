@@ -65,6 +65,12 @@ function windowCursors() {
 }
 
 const POSITION_KEY = "reading-position";
+/**
+ * The project's last reading position as Files kept it, carried here by adoption (process-items-adoption.ts): it never had an actor and
+ * none is made up for it. A caller's own position comes first; this one is read only when the caller has none, and like every position
+ * it is resolved against the folders the caller can read now.
+ */
+export const PROJECT_POSITION_KEY = POSITION_KEY;
 /** The folder ports last carried, project-wide: reading another folder withdraws what they hand on (as Files did). */
 const LAST_FOLDER_KEY = "last-workspace";
 const POSITION_MAX = 16_384;
@@ -76,7 +82,7 @@ const unavailable = (message: string) => new ActionError("actions.subject_unavai
 const shown = (folder: ProjectDirectory): MaterialsWorkspace => ({ workspace_id: folder.workspace_id, name: folder.display_name, handle: folder.workspace_id });
 const positionKey = (actorId: string) => `${POSITION_KEY}:${actorId}`;
 
-function parsePosition(raw: string | null): MaterialsPosition | null {
+export function parsePosition(raw: string | null): MaterialsPosition | null {
   if (!raw || raw.length > POSITION_MAX) return null;
   try {
     const value = JSON.parse(raw) as { workspace_id?: unknown; path?: unknown };
@@ -372,7 +378,7 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
         return readRef(nested(caller, materialsActions.read), input.ref, input.mode === "text", input.cursor);
       }),
       bindActionHandler(materialsActions.position, async (_input, caller) => {
-        const position = parsePosition(values.get(positionKey(caller.actor_id)));
+        const position = parsePosition(values.get(positionKey(caller.actor_id))) ?? parsePosition(values.get(PROJECT_POSITION_KEY));
         if (!position) return { position: null };
         const all = await folders(nested(caller, materialsActions.position));
         const workspaceId = resolveWorkspaceId(position.workspace_id, all);

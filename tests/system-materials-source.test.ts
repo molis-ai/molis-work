@@ -109,3 +109,23 @@ test("BSH-06 the person agrees to a shipped plugin's default from system.materia
   }
   assert.ok(!new HomeConsentLedger(f.home).consents(DIFF_ID).some(row => row.subject.startsWith("after<-system.materials") && row.granted_by === "user"));
 });
+
+test("BSH-06 the settings page lists a shipped plugin's platform default the person has not agreed to now, and agreeing through the settings entry clears it", { timeout: 60_000 }, async t => {
+  const { openTestHome } = await import("./fixtures/test-home.js");
+  const { HomeConsentLedger } = await import("@molis-ai/molis-work-app-local-host");
+  const f = await openTestHome(t);
+  const DIFF_ID = "io.molis.work.diff";
+  const project = await f.createProject("Pending defaults", ["diff"]);
+  type View = { plugin_id: string; pending_defaults: { port: string; source_plugin_id: string; source_name: string; source_port: string }[] };
+  const pending = async () => (await f.web.get<{ plugins: View[] }>(`/projects/${project.project_id}/api/plugin-trust/overview`)).plugins.find(row => row.plugin_id === DIFF_ID)!.pending_defaults;
+  assert.deepEqual(await pending(), [], "a true first install was agreed by the Host's build");
+  // The person takes one back, as after an upgrade the Host never agrees again: that port is offered for the person's own agreement.
+  const ledger = new HomeConsentLedger(f.home);
+  const before = consentSubject.defaultWiring("before", { plugin_id: MATERIALS_PROVIDER_ID, port: "before" }, SYSTEM_MATERIALS_SOURCE.signature);
+  const row = ledger.consents(DIFF_ID).find(item => item.subject === before && item.revoked_at === null)!;
+  await f.web.post("/api/settings/plugin-consents/revoke", { consent_id: row.consent_id });
+  assert.deepEqual(await pending(), [{ port: "before", source_plugin_id: MATERIALS_PROVIDER_ID, source_name: SYSTEM_MATERIALS_SOURCE.name, source_port: "before" }]);
+  await f.web.post("/api/settings/plugin-consents/grant-default-source", { plugin_id: DIFF_ID, port: "before" });
+  assert.deepEqual(await pending(), []);
+  assert.ok(ledger.consents(DIFF_ID).some(item => item.subject === before && item.granted_by === "user" && item.revoked_at === null));
+});

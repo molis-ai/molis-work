@@ -45,4 +45,18 @@ test("Coding actually consumes the version Shelf saved into project knowledge af
   assert.equal(kept.status, 200, JSON.stringify(kept.body));
   const keptRun = await call<{ error: string }>(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, start);
   assert.equal(keptRun.status, 400); assert.match(keptRun.body.error, /材料「notes」读不到/u); assert.equal(rounds().length, 1);
+  // BSH-08 (current-version-adoption.md「Coding 私有值」): a piece kept from an earlier draft without an exact reference is read the way it
+  // was then, through its owner, and the round records no reference for it rather than one guessed from what it read now.
+  assert.equal((await call(project.project_id, "/api/knowledge/exclude", { subject: { kind: "artifact", id: artifactSubjectId(pinned.body.reference) }, excluded: false })).status, 200);
+  const recorded = { recorded: { kind: "artifact", id: artifactSubjectId(pinned.body.reference) }, title: "旧草稿里的资料" };
+  const again = await call<{ run: { ref: AgentRunRef } }>(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, { ...start, materials: [recorded] });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  const read = await waitRun(again.body.run.ref);
+  assert.equal(read.phase, "completed", read.stop_reason); assert.equal(rounds().length, 2);
+  const frozen = read.frozen.text_materials[0]!;
+  assert.equal(frozen.material_ref, undefined, "no reference is made up for a recorded piece");
+  assert.equal(frozen.source_artifact_id, undefined);
+  assert.equal(frozen.title, "notes.md", "its owner answered with its own title");
+  const sent = rounds()[1]!.messages.flatMap(message => typeof message.content === "string" ? [message.content] : message.content.flatMap(part => part.type === "text" && part.text ? [part.text] : []));
+  assert.ok(sent.some(text => text.includes("独特尾句：只认这一版")), "and its text reached the round");
 });

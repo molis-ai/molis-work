@@ -254,14 +254,14 @@ plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-cons
 plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	41c687ca9fa6	-
 plugins.home.installed.disable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.home.installed.enable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	ac7a1ab2b686	-
+plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	d3cb2e0410d8	-
 plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
 plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	db44b239cf8d	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	ac7a1ab2b686	-
+plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	d3cb2e0410d8	-
 plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.permissions.set	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.project_reach.grant	1	plugin-consents	command	operation	project	write	-	user	plugin-consents:write	-	-	-	5fcc8f8605f2	91acffc20284	-

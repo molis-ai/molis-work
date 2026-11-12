@@ -46,6 +46,12 @@
 
 允许写入边界供唯一 writer：Server `server/src/sync/{lib,protocol,round,changes,history,retention,blobs,maintenance,quota}.rs` 和本集合 cutover helper、`server/migrations/sync/`；`apps/sync-worker` 仅本地夹具与验证文档。Host 项目和资料/sync owner（`project-database{,-schema}.ts`、`project-replication{,-triggers,-schema}.ts` 对应现行文件、`personal-artifact-sync.ts`）、`modules/{artifacts,sync-replication}` 及 Runtime 私有值/端口 owner；A 现行合同对应的 Coding/Agent/Workbench。隔离维护入口与 BSH-14-F 改成同版采用，记入现有 specs/CONTRACT-CHANGES，所有版本注册值保留。无需放宽现有门禁。
 
+实施记录（2026-11-12，H5 私有值、阅读位置与同意）：
+- Coding 私有值：`PluginRegistration.private_value_adoption`（`packages/contracts/src/platform/plugin-registration.ts`）由插件自己声明要转的 key 前缀和转换函数（`plugins/native/coding/src/material-adoption.ts`）；Runtime（`packages/plugin-runtime/src/private-value-adoption.ts`）只对精确官方安装（插件 id、发布者签名、宿主信任）按原整值写回，与过程项改属同一项目事务。旧 `{kind,id,title}` 中可解析的 artifact id/version 转为固定引用；其余转为 `{recorded:{kind,id},title}`，不补造版本，发起时经 `knowledge.read` 读当前内容，冻结记录不带 `material_ref`。缺省、`null`、`[]` 三种队列选择原样保留。转换读不懂的值使整个项目拒绝采用。
+- 阅读位置：采用把精确官方 Files 安装的 `reading-position` 原值复制到资料服务自己的私有值（`system.materials` 下的项目级键 `reading-position`），不补造 actor，原行保留到删除步骤；资料服务读不懂的值不搬、不挡项目。`materials.position` 先读调用者自己的位置，没有时才读这个项目级值，两者都按调用者当前可读的目录解析，失权即为空。
+- 同意：`retireFilesConsents`（Home 一步，宿主持 storage owner）只在本 Home 所有项目库都已采用后，由 Runtime 的 `revokeRetiredPlugin` 撤回 Files 自己（精确 id 与签名）仍有效的同意；已撤回的保留原时间，别的插件指向 Files 的默认连线不撤，它的 subject 指向已不存在的来源，自然不再生效，是否曾被本人撤回仍可读。重跑不再撤。安装与私有值随删除步骤处理。
+- 本人恢复默认：插件设置「你给过的同意」里，为宿主随带插件声明、读平台资料服务且当前无本人同意的默认来源各列一行（`PluginInstalledView.pending_defaults`），按钮「同意默认来源」经确认框走 `/api/settings/plugin-consents/grant-default-source`（用户 2026-11-12 弹窗定样）。
+
 ## 验收与实证限制
 
 - BSH-14-A/B/C/E 沿原矩阵，在真实隔离 Worker 另钉同版的错 lane、猜内部 key、跨账号 cutoverId、旧 policy PUT 回开、同 opId 旧重放与现行独立回执、并发 policy/封印/续播/R2 交错及 quota/GC。受保护引用、老正文与 R2 读回、读到完整图是断言，单比键或计数不够。

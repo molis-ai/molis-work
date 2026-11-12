@@ -265,6 +265,18 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
       return rows.length;
     });
   }
+  /**
+   * A retired plugin's own current consents taken back at once (the Files retirement, specs/batch-06-shared-tools/spec.md「项目库 v2 同版本采用与交接」):
+   * only rows of that exact plugin id and publisher, only ones still current, each with `revoked_at` like `revoke`. Running it again takes
+   * nothing more back. Another plugin's default wiring that named it stays as it was: its subject names a source that is gone, so it no
+   * longer counts, and whether the person had kept or revoked it is still there to read.
+   */
+  revokeRetiredPlugin(plugin: { readonly plugin_id: string; readonly publisher_signature: string }, at: string): PluginConsentRecord[] {
+    return this.transaction(() => {
+      const current = this.consents(plugin.plugin_id).filter(row => row.publisher_signature === plugin.publisher_signature && row.revoked_at === null);
+      return current.map(row => this.revoke(row.consent_id, at)!);
+    });
+  }
   publishers(): PluginPublisherPin[] {
     return (this.db.prepare("SELECT * FROM plugin_publishers ORDER BY rowid").all() as PluginPublisherPin[]).map(row => ({ ...row }));
   }

@@ -64,6 +64,25 @@ test("BSH-05 materials.open reads the file, keeps the person's reading position 
   assert.deepEqual(await m.call(materialsActions.position, {}), { position: { workspace_id: m.output.workspace_id, path: ["notes.md"] } });
 });
 
+test("BSH-05/BSH-14-F the project's reading position adoption carried from Files is read only for a caller with none, and only under a folder the caller can read now", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t);
+  const set = (key: string, value: string) => m.owner.store.db.prepare(`INSERT INTO plugin_private_values(install_id,item_key,item_value) VALUES (?,?,?)
+    ON CONFLICT(install_id,item_key) DO UPDATE SET item_value=excluded.item_value`).run(MATERIALS_PROVIDER_ID, key, value);
+  // As adoption leaves it: Files' value under the project-level key, with no actor.
+  set("reading-position", JSON.stringify({ workspace_id: m.output.workspace_id, path: ["notes.md"] }));
+  assert.deepEqual(await m.call(materialsActions.position, {}), { position: { workspace_id: m.output.workspace_id, path: ["notes.md"] } });
+  // A folder no longer among the project's folders resolves to nothing; the stored value is not treated as anyone's grant.
+  set("reading-position", JSON.stringify({ workspace_id: "ws-gone", path: ["notes.md"] }));
+  assert.deepEqual(await m.call(materialsActions.position, {}), { position: null });
+  // The caller's own position, once there is one, comes first.
+  await writeFile(join(m.folder, "other.md"), "x\n");
+  await m.call<MaterialsOpenResult>(materialsActions.open, { workspace_id: m.output.workspace_id, path: ["other.md"] });
+  set("reading-position", JSON.stringify({ workspace_id: m.output.workspace_id, path: ["notes.md"] }));
+  assert.deepEqual(await m.call(materialsActions.position, {}), { position: { workspace_id: m.output.workspace_id, path: ["other.md"] } });
+  assert.equal(m.owner.store.db.prepare("SELECT item_value FROM plugin_private_values WHERE install_id=? AND item_key=?").get(MATERIALS_PROVIDER_ID, "reading-position") !== undefined, true,
+    "opening a file never rewrites the project-level value");
+});
+
 test("BSH-05 materials.capture fixes what was seen as the platform's process item, hands it to Diff in the same commit, and reads back exactly", { timeout: 60_000 }, async t => {
   const m = await materialsHome(t);
   const text = "第一行\nsecond line 🙂\n";

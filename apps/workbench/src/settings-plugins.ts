@@ -122,7 +122,20 @@ toggle.disabled = false; repaint();
 return line;
 }));
 const draw = (target, empty, nodes) => { target.replaceChildren(...(nodes.length ? nodes : [el("li", "settings-muted", empty)])); };
-const consents = (plugin, agreements) => group(L("你给过的同意"), L("没有同意记录"), agreements.map((consent) => {
+// A bundled plugin's default that now reads the platform's materials is the person's to agree to; the Host never does it on an upgrade (BSH-06).
+const pending = (plugin, wait) => {
+const what = { plugin: plugin.name, port: wait.port, source: L(wait.source_name), source_port: wait.source_port };
+const item = row(L("默认连线 · 端口「{port}」读平台{source}服务的「{source_port}」", what), L("未同意 · 升级后需要你确认"));
+const agree = button(L("同意默认来源"), "mw-btn--secondary"); agree.dataset.pendingDefault = wait.port;
+agree.addEventListener("click", async () => {
+if (!await ask(L("同意 {plugin} 默认从平台{source}服务读取「{source_port}」？", what), L("以后打开项目时自动接上；可随时在这里撤回。"), L("同意"))) return;
+error.hidden = true; agree.disabled = true;
+try { await molisWorkRequest("/api/settings/plugin-consents/grant-default-source", { body: { plugin_id: plugin.plugin_id, port: wait.port } }); toast(L("已同意默认来源")); await load(); }
+catch (failure) { fail(failure); } finally { agree.disabled = false; }
+});
+item.append(agree); return item;
+};
+const consents = (plugin, agreements) => group(L("你给过的同意"), L("没有同意记录"), (plugin.pending_defaults || []).map((wait) => pending(plugin, wait)).concat(agreements.map((consent) => {
 const item = row(L(KIND[consent.kind] || consent.kind) + " · " + consent.subject,
 consent.revoked_at ? L("已于 {date} 撤回", { date: day(consent.revoked_at) }) : L(consent.granted_by === "user" ? "你同意的" : "宿主随这个插件代为同意") + " · " + day(consent.granted_at));
 if (!consent.revoked_at) {
@@ -135,7 +148,7 @@ try { await molisWorkRequest("/api/settings/plugin-consents/revoke", { body: { c
 item.append(revoke);
 }
 return item;
-}));
+})));
 const projectReach = (plugin, view) => {
 const box = el("div", "plugin-trust-group"); box.dataset.projectReach = plugin.plugin_id; box.style.overflowWrap = "anywhere";
 box.append(el("strong", "", L("读写当前项目")), el("span", "settings-muted", projectName));
@@ -198,7 +211,7 @@ const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, p
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
 const agreements = plugin.consents.filter((consent) => consent.kind !== "project_reach");
-if (agreements.length || !reach) body.append(consents(plugin, agreements));
+if (agreements.length || plugin.pending_defaults?.length || !reach) body.append(consents(plugin, agreements));
 if (reach) body.append(projectReach(plugin, reach));
 if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;

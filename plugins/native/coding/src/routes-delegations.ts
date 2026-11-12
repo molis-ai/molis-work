@@ -206,7 +206,7 @@ const ROUTES: RouteMaker[] = [
         busy.add(record.session_id);
         try {
         const saved = savedMaterials(context, record.session_id);
-        const included = saved.some(material => JSON.stringify(material.ref) === JSON.stringify(delivered.ref));
+        const included = saved.some(material => "ref" in material && JSON.stringify(material.ref) === JSON.stringify(delivered.ref));
         if (!included && saved.length >= CODING_MATERIALS_MAX) throw codingFailure("coding.server.materials-full", { max: CODING_MATERIALS_MAX });
         await on(reply.message_id, "accept"); await on(reply.message_id, "complete");
         await on(letter.message_id, "complete", { event: "delivery-accepted", attachments: handed });

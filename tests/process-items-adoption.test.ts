@@ -8,7 +8,8 @@ import { createHash } from "node:crypto";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { adoptProjectDatabase, captureProcessItemsRecovery, inspectProjectAdoption, LocalProjectDatabase, verifyProcessItemsRecovery } from "@molis-ai/molis-work-app-local-host";
+import { adoptProjectDatabase, captureProcessItemsRecovery, HomeConsentLedger, inspectProjectAdoption, LocalProjectDatabase, retireFilesConsents, verifyProcessItemsRecovery } from "@molis-ai/molis-work-app-local-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 // BSH-14-F, BSH-06 (specs/batch-06-shared-tools/current-version-adoption.md「同版本存储实施」, spec.md「项目库 v2 同版本采用与交接」): the
@@ -83,7 +84,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.throws(() => new LocalProjectDatabase(h.path), /结构与当前完整基线不符|SQLITE_BASELINE_TRIGGER_MISMATCH/u);
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
-  assert.deepEqual({ ...inspected, refused: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, refused: [] });
+  assert.deepEqual({ ...inspected, refused: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, refused: [] });
   assert.match(inspected.refused.join("\n"), unsent, "lines the original journal never sent are unsettled");
   // BSH-14-D: those lines are adopted only once a recovery file of this Home keeps them.
   const before = await readFile(h.path);
@@ -99,7 +100,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
 
   const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: capture.captureId! });
   assert.equal(report.state, "adopted");
-  assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, refused: [], backup: undefined });
+  assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, refused: [], backup: undefined });
   assert.ok(report.backup && existsSync(report.backup), "a backup is taken before the first change");
   const backup = openTestSqlite(report.backup!);
   assert.equal((backup.prepare("SELECT COUNT(*) AS n FROM process_items WHERE producer_plugin_id=?").get(FILES.id) as { n: number }).n, 3, "the backup is the library before adoption");
@@ -239,3 +240,119 @@ test("BSH-14-D a recovery file keeps the original journal and each line's graph;
   assert.equal(existsSync(join(other.directory, "sync")), false, "and creates no sync store either");
 });
 
+test("BSH-14-F/BSH-08 Coding's draft and queued rounds in the earlier shape are converted by Coding at adoption: a fixed version stays fixed, a live piece is kept as recorded", async t => {
+  const h = await home(t);
+  const db = openTestSqlite(h.path);
+  const install = (installId: string, signature: string, trust: string) => db.prepare("INSERT INTO plugin_runtime_installs(install_id,record_json,publisher_trust) VALUES (?,?,?)")
+    .run(installId, JSON.stringify({ install_id: installId, plugin_id: codingManifest.plugin_id, publisher_signature: signature, publisher_trust: trust }), trust);
+  install("coding-official", codingManifest.publisher.signature, "host");
+  install("coding-copy", "someone-else", "unsigned");
+  const value = db.prepare("INSERT INTO plugin_private_values(install_id,item_key,item_value) VALUES (?,?,?)");
+  const old = [{ kind: "artifact", id: JSON.stringify(["coding-report:1", 2]), title: "报告" }, { kind: "workspace_file", id: "ws1:src/a.ts", title: "a.ts" }];
+  value.run("coding-official", "materials:s1", JSON.stringify(old));
+  value.run("coding-official", "queued:w1", JSON.stringify({ work_id: "work-1", body: { task: "go", intent: "do", materials: old } }));
+  value.run("coding-official", "queued:w2", JSON.stringify({ work_id: "work-2", body: { task: "go", materials: null } }));
+  value.run("coding-official", "queued:w3", JSON.stringify({ work_id: "work-3", body: { task: "go", materials: [] } }));
+  value.run("coding-official", "settings:model", JSON.stringify(old));
+  value.run("coding-copy", "materials:s1", JSON.stringify(old));
+  db.close();
+  const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups });
+  assert.equal(report.state, "adopted");
+  assert.equal(report.private_values, 2, "the draft and the queued round with pieces");
+  const read = openTestSqlite(h.path);
+  t.after(() => read.close());
+  const stored = (installId: string, key: string) => JSON.parse((read.prepare("SELECT item_value FROM plugin_private_values WHERE install_id=? AND item_key=?").get(installId, key) as { item_value: string }).item_value);
+  const current = [
+    { ref: { subject: { kind: "artifact", id: JSON.stringify(["coding-report:1", 2]) }, pin: { mode: "fixed", version: { artifact_id: "coding-report:1", version: 2 } } }, title: "报告" },
+    { recorded: { kind: "workspace_file", id: "ws1:src/a.ts" }, title: "a.ts" },
+  ];
+  assert.deepEqual(stored("coding-official", "materials:s1"), current, "no version is made up for a live piece");
+  assert.deepEqual(stored("coding-official", "queued:w1"), { work_id: "work-1", body: { task: "go", intent: "do", materials: current } });
+  assert.deepEqual(stored("coding-official", "queued:w2").body.materials, null, "a queued round without pieces still takes the draft");
+  assert.deepEqual(stored("coding-official", "queued:w3").body.materials, [], "and one with none still has none");
+  assert.deepEqual(stored("coding-official", "settings:model"), old, "other keys are not Coding's to convert here");
+  assert.deepEqual(stored("coding-copy", "materials:s1"), old, "another install's values are not touched");
+  assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups }).state, "current", "converting twice changes nothing");
+
+  // A value Coding cannot read leaves the whole library as it was, and says which.
+  const other = await home(t);
+  const db2 = openTestSqlite(other.path);
+  db2.prepare("INSERT INTO plugin_runtime_installs(install_id,record_json,publisher_trust) VALUES (?,?,?)")
+    .run("coding-official", JSON.stringify({ install_id: "coding-official", plugin_id: codingManifest.plugin_id, publisher_signature: codingManifest.publisher.signature, publisher_trust: "host" }), "host");
+  db2.prepare("INSERT INTO plugin_private_values(install_id,item_key,item_value) VALUES (?,?,?)").run("coding-official", "materials:s9", "[{\"kind\":\"\"}]");
+  db2.close();
+  const before = await readFile(other.path);
+  const refused = adoptProjectDatabase({ home: other.directory, owner: other.owner, projectId: other.projectId, backupDirectory: other.backups });
+  assert.equal(refused.state, "refused");
+  assert.match(refused.refused.join("\n"), /private value materials:s9/u);
+  assert.ok((await readFile(other.path)).equals(before));
+});
+
+
+test("BSH-14-F the official Files install's reading position is carried to the materials service as the project's, with no actor made up; another install's is not", async t => {
+  const h = await home(t);
+  const db = openTestSqlite(h.path);
+  const install = (installId: string, signature: string, trust: string) => db.prepare("INSERT INTO plugin_runtime_installs(install_id,record_json,publisher_trust) VALUES (?,?,?)")
+    .run(installId, JSON.stringify({ install_id: installId, plugin_id: FILES.id, publisher_signature: signature, publisher_trust: trust }), trust);
+  install("files-official", FILES.signature, "host");
+  install("files-copy", "someone-else", "unsigned");
+  const value = db.prepare("INSERT INTO plugin_private_values(install_id,item_key,item_value) VALUES (?,?,?)");
+  const position = JSON.stringify({ workspace_id: "ws1", path: ["docs", "a.md"] });
+  value.run("files-official", "reading-position", position);
+  value.run("files-copy", "reading-position", JSON.stringify({ workspace_id: "ws2", path: ["b.md"] }));
+  value.run(SYSTEM.id, "reading-position:user", JSON.stringify({ workspace_id: "ws3", path: ["c.md"] }));
+  db.close();
+  const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups });
+  assert.equal(report.state, "adopted");
+  assert.equal(report.positions, 1);
+  const read = openTestSqlite(h.path);
+  t.after(() => read.close());
+  assert.deepEqual(rows(read, "SELECT install_id,item_key,item_value FROM plugin_private_values ORDER BY install_id,item_key"), [
+    { install_id: "files-copy", item_key: "reading-position", item_value: JSON.stringify({ workspace_id: "ws2", path: ["b.md"] }) },
+    { install_id: "files-official", item_key: "reading-position", item_value: position },
+    { install_id: SYSTEM.id, item_key: "reading-position", item_value: position },
+    { install_id: SYSTEM.id, item_key: "reading-position:user", item_value: JSON.stringify({ workspace_id: "ws3", path: ["c.md"] }) },
+  ], "the project's value is kept under the project-level key; a person's own position and the original row stay as they were");
+  assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups }).state, "current", "carrying it twice changes nothing");
+
+  // A value the materials service could not read is not carried, and does not stop the project.
+  const other = await home(t);
+  const db2 = openTestSqlite(other.path);
+  db2.prepare("INSERT INTO plugin_runtime_installs(install_id,record_json,publisher_trust) VALUES (?,?,?)")
+    .run("files-official", JSON.stringify({ install_id: "files-official", plugin_id: FILES.id, publisher_signature: FILES.signature, publisher_trust: "host" }), "host");
+  db2.prepare("INSERT INTO plugin_private_values(install_id,item_key,item_value) VALUES (?,?,?)").run("files-official", "reading-position", "{not json");
+  db2.close();
+  const kept = adoptProjectDatabase({ home: other.directory, owner: other.owner, projectId: other.projectId, backupDirectory: other.backups });
+  assert.equal(kept.state, "current");
+  assert.equal(kept.positions, 0);
+});
+
+test("BSH-14-F/BSH-06 Files' own current consents are taken back once every project is adopted; a revoked one keeps its first time, another publisher's and another plugin's wiring stay", async t => {
+  const h = await home(t);
+  const ledger = new HomeConsentLedger(h.directory);
+  const grant = (plugin_id: string, publisher_signature: string, kind: "always_on" | "default_wiring" | "default_group", subject: string, at: string) =>
+    ledger.record({ plugin_id, publisher_signature, manifest_digest: "sha256:old", granted_by: "user", grants: [{ kind, subject }], at })[0]!;
+  const kept = grant(FILES.id, FILES.signature, "always_on", "always_on", "2026-11-01T00:00:00Z");
+  const earlier = grant(FILES.id, FILES.signature, "default_group", "files-group", "2026-11-01T00:00:00Z");
+  ledger.revoke(earlier.consent_id, "2026-11-02T00:00:00Z");
+  const copy = grant(FILES.id, "someone-else", "always_on", "always_on", "2026-11-01T00:00:00Z");
+  const wiring = grant("io.molis.work.diff", "official-diff-binding", "default_wiring", `before<-${FILES.id}:before@${FILES.signature}`, "2026-11-01T00:00:00Z");
+  const db = openTestSqlite(h.path);
+  toOriginalLayout(db); filesEra(db, h.projectId);
+  db.close();
+
+  const waiting = retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-12T00:00:00Z" });
+  assert.deepEqual(waiting.waiting.map(row => row.project_id), [h.projectId], "a project still on the Files source holds the Home step back");
+  assert.equal(waiting.revoked, 0);
+  assert.equal(ledger.consent(kept.consent_id)!.revoked_at, null);
+
+  const { captureId } = captureProcessItemsRecovery({ home: h.directory, owner: h.owner, cutoverId: "cutover-0123456789abcdef" });
+  assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: captureId! }).state, "adopted");
+  assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-12T00:00:00Z" }), { waiting: [], revoked: 1 });
+  assert.equal(ledger.consent(kept.consent_id)!.revoked_at, "2026-11-12T00:00:00Z");
+  assert.equal(ledger.consent(earlier.consent_id)!.revoked_at, "2026-11-02T00:00:00Z", "the person's own revocation keeps its time");
+  assert.equal(ledger.consent(copy.consent_id)!.revoked_at, null, "another publisher's plugin of the same id is not Files");
+  assert.equal(ledger.consent(wiring.consent_id)!.revoked_at, null, "Diff's agreement stays readable; its subject names a source that is gone");
+  assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-13T00:00:00Z" }), { waiting: [], revoked: 0 }, "a second run takes nothing more back");
+  assert.equal(ledger.consent(kept.consent_id)!.revoked_at, "2026-11-12T00:00:00Z");
+});

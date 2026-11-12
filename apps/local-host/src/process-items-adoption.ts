@@ -4,7 +4,10 @@ import pathUtil from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { planProcessItemReassignment, reassignProcessItems, type ProcessItemProducer } from "@molis-ai/molis-work-module-artifacts";
-import { planWiringReassignment, reassignWiringSource } from "@molis-ai/molis-work-plugin-runtime";
+import { applyPrivateValueAdoption, applyPrivateValueMove, planPrivateValueAdoption, planPrivateValueMove, planWiringReassignment, reassignWiringSource, SqlitePluginConsentLedger, type PrivateValueAdoptionPlan } from "@molis-ai/molis-work-plugin-runtime";
+import { MATERIALS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { PROJECT_POSITION_KEY, parsePosition } from "./system-materials-actions.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { assertStorageOwner, readDatabaseSpace, readStorageSpace, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { PROCESS_ITEMS_TRIGGER_NAMES } from "./project-database-schema.js";
 import { ADOPTED_PROCESS_ITEMS_JOURNAL, ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL } from "./project-replication-schema.js";
@@ -12,6 +15,7 @@ import { layoutOf, type ProjectLayout } from "./project-layout.js";
 import { processItemKey, verifyProcessItemsRecovery } from "./process-items-recovery.js";
 import { processItemsSyncFailureKeys } from "@molis-ai/molis-work-module-sync-replication";
 import { projectDatabases } from "./platform-upgrade-stores.js";
+import { openHomePluginStore, openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 
 /**
@@ -33,6 +37,10 @@ export interface ProjectAdoptionReport {
   readonly versions: number;
   readonly outputs: number;
   readonly bindings: number;
+  /** Built-in plugins' private values in an earlier shape, each converted by its own plugin (Coding's draft and queued rounds). */
+  readonly private_values: number;
+  /** The project's Files reading position carried to the materials service (0 or 1). */
+  readonly positions: number;
   readonly refused: readonly string[];
   /** The copy taken before this run changed anything. */
   readonly backup?: string;
@@ -58,17 +66,31 @@ function unsettled(db: DatabaseSync, failures: readonly string[]): string[] {
   return reasons;
 }
 
-interface Plan { layout: ProjectLayout; items: number; versions: number; outputs: number; bindings: number; refused: string[]; unsettled: string[] }
+interface Plan { layout: ProjectLayout; items: number; versions: number; outputs: number; bindings: number; private_values: number; positions: number; refused: string[]; unsettled: string[] }
+
+/** Files kept the project's last reading position under this key (plugins/native/files/src/position.ts), as `{workspace_id,path}`. */
+const FILES_POSITION_KEY = "reading-position";
+/** The Files reading position this library would carry to the materials service: only one the materials service itself reads. */
+const positionMoves = (db: DatabaseSync) => planPrivateValueMove(db, {
+  from: { plugin_id: FILES_PRODUCER.plugin_id, signature: FILES_PRODUCER.signature, key: FILES_POSITION_KEY },
+  to: { system_id: MATERIALS_PROVIDER_ID, key: PROJECT_POSITION_KEY }, accept: value => parsePosition(value) !== null,
+});
+
+/** Each built-in plugin that converts its own private values at adoption, and what it would change in this library. */
+const privateValues = (db: DatabaseSync): PrivateValueAdoptionPlan[] =>
+  PLATFORM_PLUGIN_REGISTRATIONS.filter(registration => registration.private_value_adoption).map(registration => planPrivateValueAdoption(db, registration));
 
 function plan(db: DatabaseSync, path: string, failures: readonly string[] = []): Plan {
   const layout = layoutOf(db, path);
   const items = planProcessItemReassignment(db, FILES_PRODUCER, SYSTEM_MATERIALS_SOURCE.process_items);
   const wiring = planWiringReassignment(db, FILES_PRODUCER.plugin_id, SYSTEM_PRODUCER.plugin_id, SYSTEM_MATERIALS_SOURCE.outputs.map(output => output.port));
-  const refused = [...items.refused, ...wiring.refused];
+  const values = privateValues(db), positions = positionMoves(db);
+  const refused = [...items.refused, ...wiring.refused, ...values.flatMap(plan => plan.refused), ...positions.refused];
   // An output moves with its line: what a Files port hands on must be a Files process item, or the reference would change producer.
   const moving = new Set(items.items);
   for (const row of wiring.handed) if (!moving.has(row.artifact_id)) refused.push(`output ${row.port}: ${row.artifact_id} is not a Files process item`);
-  return { layout, items: items.items.length, versions: items.versions, outputs: wiring.outputs, bindings: wiring.bindings, refused,
+  return { layout, items: items.items.length, versions: items.versions, outputs: wiring.outputs, bindings: wiring.bindings,
+    private_values: values.reduce((sum, plan) => sum + plan.changes.length, 0), positions: positions.moves.length, refused,
     unsettled: layout === "original" ? unsettled(db, failures) : [] };
 }
 
@@ -102,7 +124,7 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
     const { unsettled: open, ...rest } = found;
     const report = { project_id: input.projectId, ...rest, refused: [...found.refused, ...(kept ? [] : open)] };
     if (report.refused.length) return { ...report, state: "refused" };
-    if (found.layout === "current" && !found.items && !found.outputs && !found.bindings) return { ...report, state: "current" };
+    if (found.layout === "current" && !found.items && !found.outputs && !found.bindings && !found.private_values && !found.positions) return { ...report, state: "current" };
     mkdirSync(input.backupDirectory, { recursive: true });
     const backup = pathUtil.join(input.backupDirectory, `${input.projectId}-${Date.now()}.db`);
     if (existsSync(backup)) throw new ActionError("actions.conflict", `备份 ${backup} 已存在`);
@@ -117,16 +139,50 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
       else db.exec(`UPDATE ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_state SET applying=1 WHERE id=1`);
       const items = reassignProcessItems(db, FILES_PRODUCER, SYSTEM_PRODUCER);
       const wiring = reassignWiringSource(db, FILES_PRODUCER.plugin_id, SYSTEM_PRODUCER.plugin_id);
+      const values = privateValues(db).reduce((sum, plan) => sum + applyPrivateValueAdoption(db, plan), 0);
+      const positions = applyPrivateValueMove(db, positionMoves(db).moves);
       if (found.layout === "original") db.exec(`${ADOPTED_PROCESS_ITEMS_JOURNAL_SQL}\n${ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL}`);
       else db.exec(`UPDATE ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_state SET applying=0 WHERE id=1`);
       const after = plan(db, path);
-      if (items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || after.layout !== "current"
-        || after.items || after.outputs || after.bindings || after.refused.length) {
+      if (items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || values !== found.private_values || positions !== found.positions || after.layout !== "current"
+        || after.items || after.outputs || after.bindings || after.private_values || after.positions || after.refused.length) {
         throw new ActionError("actions.service_unavailable", `${path} 采用后的读回与计划不符，已回滚`);
       }
       db.exec("COMMIT");
       committed = true;
       return { ...report, state: "adopted", backup };
     } finally { if (!committed) db.exec("ROLLBACK"); }
+  } finally { db.close(); }
+}
+
+export interface FilesConsentRetirement {
+  /** Projects that still have something to adopt, with why; while any is listed nothing is taken back. */
+  readonly waiting: readonly { readonly project_id: string; readonly reasons: readonly string[] }[];
+  /** The consents this run took back (none on a second run). */
+  readonly revoked: number;
+}
+
+/**
+ * The Home step of the Files retirement (spec.md「项目库 v2 同版本采用与交接」): Files' own current consents in the Home ledger are taken
+ * back by the ledger's owner, only after every project library of this Home is adopted, so no project still runs on the retired source
+ * when it loses them. Idempotent; a Home with no ledger yet has nothing to take back. Installs and values go with the deletion step.
+ */
+export function retireFilesConsents(input: { home: string; owner: StorageOwner; at: string }): FilesConsentRetirement {
+  assertStorageOwner(agentRuntimeDirectory(input.home), input.owner);
+  const home = realpathSync(input.home), space = readStorageSpace(home);
+  if (!space) throw new ActionError("actions.missing", "这个 Home 还没有账号空间");
+  const waiting = projectDatabases(home, space).flatMap(relative => {
+    const { layout, items, outputs, bindings, private_values, positions, refused } = inspectProjectAdoption(pathUtil.join(home, relative));
+    const reasons = [...(layout === "current" ? [] : [`layout ${layout}`]), ...(items || outputs || bindings || private_values || positions ? ["not adopted yet"] : []), ...refused];
+    return reasons.length ? [{ project_id: pathUtil.basename(pathUtil.dirname(relative)), reasons }] : [];
+  });
+  if (waiting.length) return { waiting, revoked: 0 };
+  const existing = openReadOnlyHomePluginStore(home);
+  if (!existing) return { waiting, revoked: 0 };
+  existing.close();
+  const { db } = openHomePluginStore(home);
+  try {
+    const revoked = new SqlitePluginConsentLedger(db).revokeRetiredPlugin({ plugin_id: FILES_PRODUCER.plugin_id, publisher_signature: FILES_PRODUCER.signature }, input.at);
+    return { waiting, revoked: revoked.length };
   } finally { db.close(); }
 }

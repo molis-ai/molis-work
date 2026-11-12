@@ -26,7 +26,8 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     assert.equal(new URL(request.url).origin,'http://127.0.0.1:8787');
     const token=request.headers.get('Authorization')?.replace('Bearer ','');
     if(!['alice','bob','wrong-app'].includes(token))return RuntimeResponse.json({error:'UNAUTHORIZED'},{status:401});
-    return RuntimeResponse.json({data:{userId:token,applicationId:token==='wrong-app'?'other':'work'}});
+    // Auth V2 identity shape: the Worker reads data.user.{userId,issuer} and data.session.applicationId.
+    return RuntimeResponse.json({data:{user:{issuer:'http://127.0.0.1:8787',userId:token,displayName:token,email:null},session:{applicationId:token==='wrong-app'?'other':'work'}}});
   }}));
   const clients=[],runtimes=[];
   const previousLocal=process.env.MOLIS_WORK_SYNC_LOCAL,previousOrigin=process.env.MOLIS_WORK_SYNC_ORIGIN;

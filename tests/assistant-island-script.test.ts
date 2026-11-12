@@ -180,3 +180,25 @@ test("D0007 D0009: the served usage client reads empty, running and failed respo
     if (name === "failed") assert.match(box.text(), /暂不可用/);
   }
 });
+
+// E3 (2026-11-11 review): the page's glyph in 「发给」 comes from the island's own rendered platform glyphs, not from the
+// composer's DOM: reaching into `.mw-composer__to svg` made the bottom bar depend on the component's internals.
+test("the page's glyph in 「发给」 is drawn from the assistant's own rendered glyphs, not read out of the composer", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  assert.doesNotMatch(script, /keepGlyph|pageGlyphs|\.mw-composer__to svg/, "no composer DOM is read for a glyph");
+  assert.match(script, /const glyphSprite = island\.querySelector\("\[data-assistant-glyphs\]"\)/);
+  assert.match(script, /const pageGlyph = \(name\) => \{/);
+  assert.match(script, /mark = pageGlyph\(named\.icon\)/, "the 「发给」 row's mark comes from the receiver's icon name");
+});
+
+// E8 (2026-11-11 review): files the side pane takes are dropped silently when a page in front has the bar. The path is
+// defensive today (the panel is the Assistant's, so that page does not take the bar then), but a silent drop is the wrong
+// failure: say why, so a later path that does reach it cannot lose the person's files without a word.
+test("files the side pane takes say why they were not added while a page has the bar", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  const addFiles = script.match(/function addFiles\(chosen\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.ok(addFiles, "addFiles is found");
+  assert.match(addFiles, /if \(boundPage\) \{ host\.showToast\?\.\(/);
+  assert.match(addFiles, /composer\?\.attach\(chosen\)/);
+  assert.doesNotMatch(addFiles, /^\s*if \(!boundPage\) composer\?\.attach\(chosen\);\s*$/m, "the old silent guard is gone");
+});

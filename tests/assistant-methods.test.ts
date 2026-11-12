@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { SKILLS_PERMISSIONS, SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { AssistantService, AssistantStore, assistantServiceFor, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, assistantAuthority, assistantServiceFor, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
 import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -154,4 +154,33 @@ test("SKC-07 reading 20 offered roles and Skills reads the install records once 
   const chosen = await service.materials.chosenMethods(work, skills.map((skill, index) => ({ material_id: `m${index}`, kind: "method" as const, title: "方法", explicit: true, method: { kind: "skill" as const, ref: skill.ref } })));
   assert.equal(chosen.length, 20);
   assert.deepEqual([counts.readSkills, counts.refs], [1, 20], "20 chosen Skills are one body read");
+});
+
+// B1 + B3 (round-2 review, fixed): the round's tool calls carry the Assistant's `skill_round`, so the model can read an `auto`,
+// assistant-only Skill's body through the catalog; a `manual` one is refused `not_named` unless the person named it. Before the fix
+// the auto read was refused `not_applicable`, although the materials told the model to read it.
+test("B1 B3 SKP-10: an Assistant round reads an auto assistant-only Skill through its action port, and a manual one only when named", { timeout: 120_000 }, async () => {
+  const h = await installedPackageHost();
+  try {
+    await h.install(signedContentPackage(newPublisher(), { skills: [{ ...MEETING_NOTES, applies_to: "assistant" }] }));
+    const person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] }, ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
+    const [offer] = ((await h.client.invoke(person, ref(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] }).skills.filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
+    assert.ok(offer, "the content package's Skill is in the catalog");
+    const setState = (state: "auto" | "manual", expected_revision: number) => h.client.invoke(person, ref(skillCatalogActions.setState),
+      { install_id: offer.ref.install_id, skill_id: offer.ref.skill_id, scope: "project", expected_revision, state });
+    await setState("auto", 0);
+    const work = { work_id: "work-b1", session_id: null, project_ref: h.reference } as never;
+    const readBody = async (named: readonly typeof offer.ref[]) => {
+      const ports = await assistantAuthority(h.host, work, () => new Set(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, named).actions?.("prologue");
+      assert.ok(ports);
+      const read = await ports.invoke({ capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, provider_id: SKILLS_PROVIDER_ID },
+        { refs: [offer.ref] }) as { results: Array<{ ok: boolean; reason?: string; body?: string }> };
+      return read.results[0]!;
+    };
+    const auto = await readBody([]);
+    assert.deepEqual([auto.ok, auto.body?.includes("先读 references/template.md")], [true, true], "the round reads its own auto Skill's body");
+    await setState("manual", 1);
+    assert.equal((await readBody([])).reason, "not_named", "a manual Skill nobody named is not readable");
+    assert.equal((await readBody([offer.ref])).ok, true, "the person's named list makes it readable");
+  } finally { await h.close(); }
 });

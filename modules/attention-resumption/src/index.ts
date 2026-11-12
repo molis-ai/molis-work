@@ -1,3 +1,4 @@
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { randomUUID } from "node:crypto";
 
@@ -388,7 +389,7 @@ function mapAttentionEntry(row: Row): AttentionEntryRecord {
     subject_id: text(row.subject_id),
     reason: text(row.reason) as AttentionReason,
     status: text(row.status) as AttentionStatus,
-    detail: json<Record<string, unknown>>(row.detail_json, {}),
+    detail: parseJson<Record<string, unknown>>(row.detail_json, {}),
     revision: Number(row.revision ?? 0),
     created_at: text(row.created_at),
     updated_at: text(row.updated_at),
@@ -430,11 +431,3 @@ function optionalText(value: unknown): string | null {
   return valueText || null;
 }
 
-function json<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}

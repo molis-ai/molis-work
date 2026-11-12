@@ -71,8 +71,14 @@ export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | n
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
   return async (input, signal, beforeDispatch) => {
-    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal, beforeDispatch, timeoutMs: 120_000, maxOutputTokens: 4000 });
+    let recordUse: (() => void) | undefined;
+    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id,
+      { onDispatch: record => { recordUse = record; } });
+    // The use is recorded when the call is dispatched, not when its text is read: a call refused first (the generation log's
+    // `actions.forbidden`) is no use of the prompt, and counting it made two generations over the same Home differ.
+    const result = await generate(prompt, {
+      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal,
+      beforeDispatch: async () => { await beforeDispatch?.(); recordUse?.(); }, timeoutMs: 120_000, maxOutputTokens: 4000 });
     const draft = result.structured as KnowledgeDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的卡片");
     return draft;
@@ -87,8 +93,12 @@ export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator |
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
   return async input => {
-    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 2000 });
+    let recordUse: (() => void) | undefined;
+    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id,
+      { onDispatch: record => { recordUse = record; } });
+    // Dispatched like a card's call: recorded at dispatch, so a refused locate call is no use of the prompt either.
+    const result = await generate(prompt, { structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never },
+      beforeDispatch: async () => { recordUse?.(); }, timeoutMs: 120_000, maxOutputTokens: 2000 });
     const draft = result.structured as KnowledgeLocateDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的选节结果");
     return draft;

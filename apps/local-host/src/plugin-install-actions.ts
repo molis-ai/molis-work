@@ -1,5 +1,7 @@
 import { ActionError, bindActionHandler, inputSchemaFor, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+export { PLUGIN_INSTALL_PROVIDER_ID };
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { PROJECT_INSTALLATION } from "@molis-ai/molis-work-contracts/services/surface-composition";
@@ -12,7 +14,6 @@ import type { SkillImportService } from "./skill-import.js";
 // or a plugin can neither start an install nor confirm one (nor pin a publisher by confirming). The package is verified at the preview
 // and not trusted again after it: confirming takes only a preview the Host made for this person in this project.
 
-export const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
 export const PLUGIN_INSTALL_READ = "plugin-install:read";
 export { PLUGIN_INSTALL_WRITE };
 export const PLUGIN_INSTALL_PERMISSIONS = [PLUGIN_INSTALL_READ, PLUGIN_INSTALL_WRITE];

@@ -36,7 +36,7 @@ const { replayHomeLibrarySample } = await import("./golden/home-library-sample.m
 const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs");
 const { assertRecordedVersions } = await import("./golden/formats.mjs");
 const storage = await import("@molis-ai/molis-work-storage");
-const { versionsNewestLast } = await import("./golden/versions.mjs");
+const { relativePathPattern, versionsNewestLast } = await import("./golden/versions.mjs");
 const { retainRefusedDiscussion } = await import("./golden/discussion-v1.mjs");
 
 /** A golden Home has neither a managed workspace nor a model a read could reach. The table of the shared read, and nothing wider. */
@@ -68,8 +68,7 @@ const homesOf = (manifest, home) => manifest.homes.map(item => {
  */
 function declaredReductions(entry) {
   const relative = entry.path.replace(/^spaces\/[^/]+\//u, "");
-  const pattern = location => new RegExp(`^${location.split(path.sep).map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/")}$`, "u");
-  const descriptor = local.homeUpgradeDescriptors().find(item => "baseline" in item && pattern(item.pattern).test(relative));
+  const descriptor = local.homeUpgradeDescriptors().find(item => "baseline" in item && relativePathPattern(item.pattern).test(relative));
   return new Set((descriptor?.baseline.upgrades ?? []).filter(step => step.from >= entry.schema_version).flatMap(step => step.reduces_rows ?? []));
 }
 

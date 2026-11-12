@@ -4,6 +4,7 @@ import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "../platform/action-su
 import { PRESENTATION_FIELD_ROLES, PRESENTATION_FORM_KINDS, PRESENTATION_LIMITS, PRESENTATION_VALUE_STATES, SURFACE_SLOT_KINDS, type FieldRole, type FormKind,
   type PresentationStartForm, type PresentationValueState, type SurfaceSlotKind } from "../platform/presentation.js";
 import { OWNED_TEXT_REF_SCHEMA, type OwnedTextRef } from "../platform/ui-text.js";
+import type { ContractDescriptor } from "../platform/package.js";
 import { CONTEXT_RELATION_TYPES, type ContextRelationType } from "../modules/context-ledger.js";
 
 // The composition service's public contract (specs/shared-sources-and-surfaces §6; the service is batch 15's, specs/surface-composition).
@@ -11,6 +12,15 @@ import { CONTEXT_RELATION_TYPES, type ContextRelationType } from "../modules/con
 // presentation declarations and fixed rules. The page reads object values from their owners. Home cards can carry the current
 // overview's text reference and its arguments. Both actions are declared here and
 // registered by the service under `SURFACES_PROVIDER_ID`.
+
+/** The composition service's public contract (specs/shared-sources-and-surfaces §6): the two actions are declared, the provider registers them with batch 15's service. */
+export const servicesSurfaceCompositionContract = {
+  contractId: /* @version contract.io.molis.work.service.surface-composition "io.molis.work.service.surface-composition.v{version}" */ "io.molis.work.service.surface-composition.v1",
+  kind: "service",
+  schemaVersion: /* @version contract.io.molis.work.service.surface-composition */ 1,
+  maturity: "contract-only",
+  ssot: "specs/shared-sources-and-surfaces/spec.md",
+} as const satisfies ContractDescriptor;
 
 export const SURFACES_PROVIDER_ID = "system.surfaces";
 export const SURFACE_HOME_ORDER_LIMIT = 200;

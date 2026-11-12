@@ -26,7 +26,7 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
         probe.calls.push(url.search);
         if(probe.complete)sessionStorage.setItem('accountPollProbeDone','1');
         const response=Response.json({ configured: true, space: 'local',
-          identity: probe.complete ? { userId: 'test-alice', displayName: '测试用户', emails: ['alice@example.test'] } : null,
+          identity: probe.complete ? { userId: 'test-alice', displayName: '测试用户', email: 'alice@example.test' } : null,
           accountGeneration: probe.complete ? 2 : 1, ready: probe.complete, loginCompleted: probe.complete });
         if(probe.holdNext){probe.holdNext=false;return new Promise(resolve=>{probe.release=()=>resolve(response);});}
         return Promise.resolve(response);
@@ -82,7 +82,7 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const originalFetch = window.fetch.bind(window);
     window.fetch = (input, init) => new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
-      ? Promise.resolve(Response.json({configured:true,identity:null,syncEnabled:false}))
+      ? Promise.resolve(Response.json({configured:true,identity:null}))
       : originalFetch(input, init);
   }` }, sessionId);
   for (const width of [1440, 1024, 390]) for (const theme of ['light', 'dark']) {
@@ -127,7 +127,7 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window);
     window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
-      ? Promise.resolve(Response.json({configured:true,identity:{userId:'test-alice',displayName:'测试用户',emails:['alice@example.test']},space:'local',syncEnabled:false}))
+      ? Promise.resolve(Response.json({configured:true,identity:{userId:'test-alice',displayName:'测试用户',email:'alice@example.test'},space:'local'}))
       : original(input,init);
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
@@ -135,6 +135,7 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
   await click('[data-project-menu] > summary');
   await click('[data-personal-menu] [data-account-link]');
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
+  assert.equal(await evaluate("document.querySelector('[data-menu-email]').textContent"),'alice@example.test','the menu shows the contract user email instead of the signed-out placeholder');
   assert.equal(await evaluate("document.activeElement?.dataset.personalAction"), 'switch');
   assert.equal(await evaluate("document.querySelector('[data-personal-action=local], [data-personal-action=space]')"),null);
   assert.equal(await evaluate("document.querySelector('[data-personal-action=login]').hidden"),true);
@@ -153,7 +154,7 @@ test('account menu localizes its dynamic controls and accessible labels in Engli
     const original=window.fetch.bind(window);
     window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
       ? Promise.resolve(Response.json({configured:true,identity:window.accountEnglishSignedIn
-        ? {userId:'test-alice',displayName:'<img src=x onerror=alert(1)>',emails:[]} : null,space:'local',syncEnabled:false}))
+        ? {userId:'test-alice',displayName:'<img src=x onerror=alert(1)>',email:null} : null,space:'local'}))
       : original(input,init);
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
@@ -191,7 +192,7 @@ test('ASR-04/05 account switching waits for the Host preparation and cancellatio
     };
     window.fetch=(input,init)=>{
       const url=new URL(String(input),location.href);
-      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',email:null},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
       if(url.pathname==='/api/personal/prepare'){
         const action=url.searchParams.get('action');
         if(action==='start')probe.preparation={id:'test-preparation',ownerPageId:url.searchParams.get('page'),intent:'switch',ready:false};

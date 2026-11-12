@@ -55,7 +55,11 @@ export function parseStoreSchemas(text, where = SCHEMAS_FILE) {
   return { rows };
 }
 
-/** Whether a path a golden recorded is the library of `store` (for `<library>#<plugin_id>`, the library), in the root Home or in an account Home under `spaces/`. */
+/**
+ * Whether a path a golden recorded is the library of `store` (for `<library>#<plugin_id>`, the library), in the root Home or in an account
+ * Home under `spaces/`. Not `relativePathPattern` (the one the golden reader and the replay share): this accepts either Home, because an
+ * account Home's recorded path carries a `spaces/<id>/` prefix that the store's own pattern does not.
+ */
 export function goldenPathMatcher(store) {
   const pattern = store.split("#")[0].split("/").map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/");
   const expression = new RegExp(`^(?:spaces/[^/]+/)?${pattern}$`, "u");

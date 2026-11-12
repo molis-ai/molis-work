@@ -1,6 +1,7 @@
 import { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 import { homedir } from "node:os";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { localPackageSignAction, type LocalPackageSignInput, type LocalPackageSignResult } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { completeContentPackagePayload } from "@molis-ai/molis-work-plugin-sdk";
@@ -55,7 +56,9 @@ export function pluginInstallProvider(service: PluginInstallService, imports?: S
  * Skills import over the Home: Character import's scan of the person's own local Agents, the packages kept here, and this Home's
  * publisher identity, made only when a confirmation signs.
  */
-export function skillImportFor(home: string, source: ProjectPluginHost, install: PluginInstallService, userHome = homedir()): SkillImportService {
+export function skillImportFor(home: string, source: ProjectPluginHost, install: PluginInstallService, userHome = homedir(),
+  /** The project's reference from the catalog: resolving it does not open the project's Runtime. */
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>): SkillImportService {
   const packages = new SandboxPackageStore(home);
   return new SkillImportService({ install,
     publisherKeyId: () => localPublisherKeyId(home),
@@ -69,9 +72,14 @@ export function skillImportFor(home: string, source: ProjectPluginHost, install:
       });
     },
     retained: (pluginId, keyId) => packages.releases(pluginId, keyId),
+    retainedOf: pluginId => packages.releasesOf(pluginId),
     sign: async (input, caller) => {
-      const project = source.host.projects().find(row => row.project_id === caller.project_id);
-      if (!project) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+      // The project comes from the catalog when the Host has no Runtime for it open: signing a content package is the Home provider's
+      // home-scoped act and needs the project's reference, not the project's plugins started (a settings page may be the only thing
+      // open in that project). The Runtime list alone made an import fail with 「需要一个打开的项目」 on such a page.
+      const open = caller.project_id ? source.host.projects().find(row => row.project_id === caller.project_id) : undefined;
+      const project = open ?? (caller.project_id && resolveProject ? await resolveProject(caller.project_id) : null);
+      if (!project) throw new ActionError("actions.scope_mismatch", "导入技能需要一个打开的项目");
       const nested = retainActionAuthority(caller, confirmingImport, caller.beforeEffect);
       return await source.host.actionClient(project).invoke(nested, signing, input) as LocalPackageSignResult;
     },
@@ -84,8 +92,9 @@ export function skillImportFor(home: string, source: ProjectPluginHost, install:
 }
 
 /** The install provider over the Home: its ledger, its kept packages, and the project the plugin is installed in. */
-export function pluginInstallProviderFor(home: string, source: ProjectPluginHost): ActionProviderRegistration {
-  const service = pluginInstallServiceFor(home, source), provider = pluginInstallProvider(service, skillImportFor(home, source, service), home);
+export function pluginInstallProviderFor(home: string, source: ProjectPluginHost,
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>): ActionProviderRegistration {
+  const service = pluginInstallServiceFor(home, source), provider = pluginInstallProvider(service, skillImportFor(home, source, service, homedir(), resolveProject), home);
   // The AI kit's pack headers and a content package's export come from the install records and packages this provider owns (§4.6, §4.9).
   return { ...provider, definitions: [...provider.definitions, pluginsKitReport, pluginPackageExport],
     handlers: [...provider.handlers, bindActionHandler(pluginsKitReport, (_input, caller) => pluginKitHeaders(home, source, caller)), pluginPackageExportHandler(home, source)] };

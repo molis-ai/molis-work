@@ -91,10 +91,11 @@ function ordinaryFile(root: string, relativePath: string): "absent" | "ordinary"
 }
 
 /**
- * The version, by reading only. A hot journal is the one thing that needs more: unless the store is too new for this build, the holder of the
- * lock recovers it. A plugin's tables read undefined when their file has none of them.
+ * The version of one unit, by reading only. A hot journal is the one thing that needs more: unless the store is too new for this build, the
+ * holder of the lock recovers it (`holdsLock`; the failure path asks without it, which keeps whatever it read). A plugin's tables read
+ * undefined when their file has none of them. The scan and the failure path both read a unit through this, so the two cannot drift apart.
  */
-function storeVersion({ descriptor }: Store, file: string, holdsLock: boolean): number | undefined {
+function readUnitVersion(descriptor: HomeUpgradeDescriptor, file: string, holdsLock: boolean): number | undefined {
   if ("file" in descriptor) return readVersionedFileVersion(descriptor.file, file);
   if ("tables" in descriptor) return descriptor.tables.read(file);
   const access = descriptor.version ?? USER_VERSION_ACCESS, seen = readUpgradeStoreVersion(file, access);
@@ -103,6 +104,8 @@ function storeVersion({ descriptor }: Store, file: string, holdsLock: boolean): 
   try { return access.read(db); }
   finally { db.close(); }
 }
+
+const storeVersion = ({ descriptor }: Store, file: string, holdsLock: boolean): number | undefined => readUnitVersion(descriptor, file, holdsLock);
 
 /** A version of 0 is not this process's to judge: a store being created, or one with tables and no version, which every open refuses on its own. */
 function lookAt(root: string, store: Store, holdsLock: boolean): Look {
@@ -151,10 +154,8 @@ function restore(round: Round, relativePath: string, cause: UpgradeUnitError): v
 function recoverFromFailure(round: Round, store: Store, failure: unknown): void {
   const { relative_path, descriptor } = store, target = upgradeTarget(descriptor), file = join(round.root, upgradeUnitFile(descriptor, relative_path));
   let found: number | undefined;
-  try {
-    found = "file" in descriptor ? readVersionedFileVersion(descriptor.file, file) : "tables" in descriptor ? descriptor.tables.read(file)
-      : readUpgradeStoreVersion(file, descriptor.version).version;
-  } catch { found = undefined; }
+  try { found = readUnitVersion(descriptor, file, false); }
+  catch { found = undefined; }
   if (found === target) {
     hostLog.warn("host", "home_upgrade_failed_after_commit", failure);
     record(round, relative_path, { state: "committed" });

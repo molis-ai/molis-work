@@ -46,7 +46,7 @@
 // CHECKLIST §4.3, done by hand before a release. It does not check that the maintenance the row describes was done.
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
-import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
+import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
 export const SPEC_FILE = "docs/system/CONTRACT-CHANGES.md";
@@ -166,7 +166,7 @@ function declaredSteps(file, source, name) {
   const constants = constantsIn(tree);
   let beside = [];
   if (value && ts.isNumericLiteral(value)) {
-    const list = constants.get(name.replace(/(?:_?SCHEMA)?_?VERSION$/, (match) => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES")));
+    const list = constants.get(upgradesNameFor(name) ?? "");
     if (list && ts.isArrayLiteralExpression(list)) beside = [list];
   }
   const owners = value && ts.isObjectLiteralExpression(value) ? [value] : objects;

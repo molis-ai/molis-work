@@ -1,5 +1,6 @@
 import type { FeedSql } from "./sql.js";
 import { createHash } from "node:crypto";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 
 import type { SignalCommands, SignalReceipt } from "../contract/signals.js";
 import type {
@@ -545,7 +546,7 @@ function mapDelivery(row: Row): Delivery {
     project_id: text(row.project_id),
     source_id: text(row.source_id),
     operation_id: text(row.operation_id),
-    event: json<ConnectorRawEvent>(row.raw_event_json, {
+    event: parseJson<ConnectorRawEvent>(row.raw_event_json, {
       raw_event_id: text(row.raw_event_id),
       provider_dedupe_id: text(row.provider_dedupe_id),
       occurred_at: "",
@@ -561,7 +562,7 @@ function mapCheckpoint(row: Row): ListenerCheckpoint {
   return {
     project_id: text(row.project_id),
     source_id: text(row.source_id),
-    cursor: json<unknown>(row.cursor_json, {}),
+    cursor: parseJson<unknown>(row.cursor_json, {}),
     state: text(row.state) as ListenerCheckpoint["state"],
     attempt: Number(row.attempt ?? 0),
     retry_at: optionalText(row.retry_at),
@@ -585,7 +586,7 @@ function mapRun(row: Row): ListenerRunRecord {
     error_code: optionalText(row.error_code),
     connector_receipt: row.receipt_json == null
       ? null
-      : json<Record<string, unknown>>(row.receipt_json, {}),
+      : parseJson<Record<string, unknown>>(row.receipt_json, {}),
     started_at: text(row.started_at),
     completed_at: optionalText(row.completed_at),
     updated_at: text(row.updated_at),
@@ -657,14 +658,6 @@ function optionalText(value: unknown): string | null {
   return result || null;
 }
 
-function json<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
 
 async function acceptListenerDelivery(
   dependencies: {

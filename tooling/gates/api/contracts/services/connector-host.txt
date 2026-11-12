@@ -4,6 +4,8 @@
 
 export declare const CONNECTOR_ACCOUNT_ORIGINS: Readonly<Record<string, readonly string[]>>;
 
+export declare const CONNECTOR_PROVIDER_ID = "system.connectors";
+
 export declare const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorRequestService>>;
 
 export declare const CONNECTOR_USAGES_INPUT_SCHEMA: {

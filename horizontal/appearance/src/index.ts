@@ -4,7 +4,7 @@ import { builtinAppearance } from "./builtins.js";
 import { createLocaleMemory, type AppearanceLocaleOptions } from "./locale-memory.js";
 import { createSelection } from "./selection.js";
 
-export { UI_LOCALE_RELATIVE_PATH, type AppearanceLocaleOptions } from "./locale-memory.js";
+export { UI_LOCALE_FILE, UI_LOCALE_RELATIVE_PATH, type AppearanceLocaleOptions } from "./locale-memory.js";
 export { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH } from "./state.js";
 
 /** The checked installation supplies the same definitions to the resource endpoint and to each Home. */

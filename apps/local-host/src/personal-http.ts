@@ -1,4 +1,3 @@
-import { webPageScope } from "./web-sessions.js";
 import { createPersonalAccountProtocol } from './personal-account-protocol.js';
 import { createPersonalPageHttp } from './personal-page-http.js';
 import { AccountRefreshPages } from './account-refresh-pages.js';
@@ -70,7 +69,7 @@ function browserStatusFence(desktop:boolean,session:WebAccountSession|null,respo
   return ()=>{
     if(!authenticated)return true;
     try{if(lease&&expires>Date.now()){lease.assertCurrent();return true;}}catch{ /* The request's original browser lease was revoked. */ }
-    sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false,accountChanged:true,ready:false,switching:false});return false;
+    sendLocalWebJson(response,200,{configured,identity:null,accountChanged:true,ready:false,switching:false});return false;
   };
 }
 
@@ -79,10 +78,10 @@ interface PersonalAccountEnvironment {
   status():{ready:boolean;switching:boolean;error?:string;viewScope?:string};
 }
 
-async function respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken}:{
+async function respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation}:{
   desktop:boolean;session:WebAccountSession|null;response:ServerResponse;service:PersonalAuth|null;setupError:string;url:URL;
   refreshPages:AccountRefreshPages;environment?:PersonalAccountEnvironment;nativeAttachment:ReturnType<typeof createNativeWebAttachment>;
-  navigation:AccountNavigation|null;setMode:(mode:'account')=>void;controlToken:string;
+  navigation:AccountNavigation|null;
 }):Promise<void> {
   const statusCurrent=browserStatusFence(desktop,session,response,!!service);
   if(desktop && setupError){sendLocalWebJson(response,503,{error:setupError});return;}
@@ -103,19 +102,18 @@ async function respondPersonalStatus({desktop,session,response,service,setupErro
   if(lease)try{await environment?.ready();}catch{ /* The environment status retains the cleanup or initialization failure. */ }
   if(!statusCurrent())return;
   if(lease&&(lease.signal.aborted||generation!==service?.accountGeneration())){
-    sendLocalWebJson(response,200,{configured:!!service,identity:null,syncEnabled:false,accountChanged:true,ready:false,switching:false});return;
+    sendLocalWebJson(response,200,{configured:!!service,identity:null,accountChanged:true,ready:false,switching:false});return;
   }
   const status:ReturnType<PersonalAccountEnvironment['status']>=lease?(environment?.status()??{ready:true,switching:false}):{ready:false,switching:false};
   // The native lease already proves this local account. A failed upstream check must not strand its WebView with a stale cookie.
   const nativeSession=desktop&&lease&&service&&status.ready?nativeAttachment.session(service):null;
   const browserSessionTicket=nativeSession&&service?nativeAttachment.issue(service):undefined;
   const completed=!offline&&status.ready&&!!navigation?.complete&&navigation.expires>Date.now()&&url.searchParams.get('attempt')===navigation.id;
-  if(completed&&desktop)setMode('account');
   sendLocalWebJson(response,200,{
-    configured:!!service,identity,syncEnabled:false,...(offline?{offline:true}:{}),
+    configured:!!service,identity,...(offline?{offline:true}:{}),
     ...(pageBinding?{pageBinding}:{}),accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,
     preparation:lease?refreshPages.snapshot(lease):null,...status,
-    space:(nativeSession??session)?.space??'local',viewScope:status.viewScope??controlToken.split(".")[1]??webPageScope(controlToken),
+    space:(nativeSession??session)?.space??'local',
     ...(browserSessionTicket?{browserSessionTicket}:{}),
     ...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{}),
   });
@@ -159,15 +157,17 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       assertCurrent(){if(auth!==service||pendingNavigation!==navigation||loginNonce!==nonce||(!navigation.complete&&!service.loginPending()))throw new Error('LOGIN_CANCELLED');},
       fail(){if(!navigation.complete&&pendingNavigation===navigation){service.cancelLogin();pendingNavigation=null;loginNonce=null;}},
       async completeLogin(response:ServerResponse){
+        // adoptLogin verified the candidate AUTHENTICATED view and persisted it. A later confirmation read can
+        // fail for network reasons that must not turn this committed login back into "not signed in"; the next
+        // status request recovers the identity and the page navigation continues.
         await service.adoptLogin(pendingAttachOnly);
-        if(!await service.currentIdentity())throw new Error('LOGIN_REQUIRED');
         navigation.complete=true;
         if(!pendingNative){
           const session=webSessions.adopt(service);session.navigation=navigation;
           if(pendingBrowser)webSessions.remove(pendingBrowser);
           pendingBrowser=session;
           response.setHeader('Set-Cookie',webSessions.cookie(session,service.config.productOrigin.startsWith('https:')));
-        }else response.setHeader('Set-Cookie','molis-work-mode=account; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000');
+        }
         // Anonymous auto-entry must not replace this attempt while its final account read or response is still pending.
         const delivered=()=>{if(pendingNavigation===navigation)service.finishLogin();};
         response.once('finish',delivered);response.once('close',delivered);
@@ -178,13 +178,14 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
   async function handle(request:IncomingMessage,response:ServerResponse,url:URL,origin:string,_controlToken:string,_desktopScript:string):Promise<boolean> {
     const desktop=isNativeRequest(request);
     const home=personalReturnPath(url.searchParams.get('returnTo'),desktop || url.searchParams.get('desktop')==='1');
-    const setMode=(value:'local'|'account')=>response.setHeader('Set-Cookie',`molis-work-mode=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`);
     if(request.method==='GET' && url.pathname==='/')return false;
     // Compatibility only: old bookmarks must not bring back an extra account page.
     if(request.method==='GET' && ['/welcome','/account'].includes(url.pathname)){
       response.writeHead(303,{Location:home,'Cache-Control':'no-store'});response.end();return true;
     }
-    if(!['/welcome','/account','/account/callback','/api/personal/status','/api/personal/local','/api/personal/login','/api/personal/switch','/api/personal/logout','/api/personal/space','/api/personal/native-attach','/api/personal/login-cancel','/api/personal/prepare','/api/personal/events'].includes(url.pathname))return false;
+    // The personal route owns only these names; the installation callback is handled by the account protocol.
+    const personalRoutes=['/welcome','/account','/api/personal/status','/api/personal/local','/api/personal/login','/api/personal/switch','/api/personal/logout','/api/personal/space','/api/personal/native-attach','/api/personal/login-cancel','/api/personal/prepare','/api/personal/events'];
+    if(!personalRoutes.includes(url.pathname))return false;
     response.setHeader('Cache-Control','no-store');response.setHeader('Referrer-Policy','no-referrer');
     response.setHeader('X-Content-Type-Options','nosniff');response.setHeader('X-Frame-Options','DENY');
     if(nativeAttachment.handle(request,response,url,origin,auth))return true;
@@ -200,18 +201,18 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       if(!session)return true;
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
-      sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false,accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,accountGeneration:auth?.accountGeneration(),ready:false,switching:false});return true;
+      sendLocalWebJson(response,200,{configured,identity:null,accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,accountGeneration:auth?.accountGeneration(),ready:false,switching:false});return true;
     }
     const service=desktop?getAuth():session?.auth??null;
     let navigation=desktop?desktopNavigation:session?.navigation??null;
     try{
       if(request.method==='GET' && url.pathname==='/api/personal/status') {
-        await respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken:_controlToken});
+        await respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation});
         return true;
       }
       if(request.method==='GET'&&url.pathname==='/api/personal/events')return pageHttp(request,response,url,service,desktop||!!session?.authenticated);
       if(!service){sendLocalWebJson(response,configured?401:503,{error:desktop?setupError:'登录会话已失效，请重新登录。'});return true;}
-      if(!desktop&&!session?.authenticated&&!['/account/callback','/api/personal/login','/api/personal/switch','/api/personal/login-cancel'].includes(url.pathname)){
+      if(!desktop&&!session?.authenticated&&!['/api/personal/login','/api/personal/switch','/api/personal/login-cancel'].includes(url.pathname)){
         sendLocalWebJson(response,401,{error:'请先连接当前账号。'});return true;
       }
       if(request.method==='POST'&&url.pathname==='/api/personal/login-cancel'){
@@ -253,7 +254,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
         if(scope!=='CURRENT_LOGIN'&&scope!=='ALL_MOLIS_PRODUCTS'){sendLocalWebJson(response,400,{error:'退出范围无效。'});return true;}
         const remoteRevoked=await service.logout(scope);
         nativeAttachment.clear();pendingNavigation=null;pendingBrowser=null;loginNonce=null;desktopNavigation=null;await environment?.ready(true);
-        if(session){webSessions.remove(session);session=null;setSessionCookie();}else setMode('local');
+        if(session){webSessions.remove(session);session=null;setSessionCookie();}
         sendLocalWebJson(response,200,{signedOut:true,remoteRevoked,redirectTo:home});return true;
       }
       sendLocalWebJson(response,405,{error:'不支持此操作。'});
@@ -264,10 +265,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
         const lease=service.accountLease(),preparation=refreshPages.snapshot(lease);if(preparation)refreshPages.cancel(preparation.ownerPageId,lease,preparation.id);
       }
       // Keep the user at a useful local surface, without echoing codes or upstream responses.
-      if(url.pathname==='/account/callback'){
-        response.writeHead(400,{'content-type':'text/html; charset=utf-8'});
-        response.end('<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><p>登录未完成或请求已失效，请返回工作台的账号菜单重试。</p><a href="/">返回 molis-work</a>');
-      }else sendLocalWebJson(response,503,{error:'暂时无法连接账号服务，请稍后重试。本地工作不受影响。'});
+      sendLocalWebJson(response,503,{error:'暂时无法连接账号服务，请稍后重试。本地工作不受影响。'});
     }
     return true;
   }

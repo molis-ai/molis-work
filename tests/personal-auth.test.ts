@@ -45,3 +45,13 @@ test('WUA-30 signing in to the same user replaces the login lease and refuses ol
  assert.equal(lease.signal.aborted,true);assert.throws(()=>lease.assertCurrent());assert.equal(web.get(cookie),null);assert.equal(f.auth.identity()?.userId,'alice');
  }finally{web.close();f.auth.suspend();}
 });
+
+test('V2U-04 a committed installation login survives a failed confirmation read',async()=>{
+ const f=fixture();await login(f.auth);const committed=f.auth.identity();assert.equal(committed?.userId,'alice');
+ f.waits.identity=async()=>{throw new Error('identity read failed');};
+ const read=await f.auth.currentIdentity();
+ assert.equal(read?.userId,'alice','a failed confirmation read falls back to the committed login instead of erasing it');
+ assert.equal(f.auth.identity()?.userId,'alice');
+ assert.equal(f.auth.offlineCached(),true,'the failed read only marks the identity as offline-cached');
+ f.auth.suspend();
+});

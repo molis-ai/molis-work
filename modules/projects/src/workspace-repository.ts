@@ -233,8 +233,9 @@ export class WorkspaceRepository {
   }
 
   /**
-   * Links a folder to a project; an existing link keeps its roles. A new link is an input unless `roles` says otherwise. A relation the person
-   * made stays theirs whoever writes it again.
+   * Links a folder to a project. A new link is an input unless `roles` says otherwise; an existing one keeps its id, roles and times, and only
+   * who made it can change: the person's id replaces any value, nothing replaces the person's, and a tool's value leaves an existing relation
+   * as it is.
    */
   upsertWorkspaceMembership(input: {
     membership_id: string;
@@ -250,8 +251,7 @@ export class WorkspaceRepository {
         membership_id, workspace_id, project_id, role_input, role_output, bound_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(workspace_id, project_id) DO UPDATE SET
-        bound_by = CASE WHEN bound_by = ? THEN bound_by ELSE excluded.bound_by END,
-        updated_at = excluded.updated_at
+        bound_by = CASE WHEN excluded.bound_by = ? THEN excluded.bound_by ELSE bound_by END
     `).run(
       input.membership_id,
       input.workspace_id,
@@ -263,12 +263,6 @@ export class WorkspaceRepository {
       input.now,
       LOCAL_PERSON_ACTOR_ID,
     );
-  }
-
-  /** The person linking a folder that is already linked makes the relation theirs; any other writer leaves the recorded value as it is. */
-  claimMembership(workspaceId: string, projectId: string, boundBy: string): void {
-    this.db.prepare("UPDATE workspace_project_memberships SET bound_by = ? WHERE workspace_id = ? AND project_id = ? AND ? = ? AND bound_by <> ?")
-      .run(boundBy, workspaceId, projectId, boundBy, LOCAL_PERSON_ACTOR_ID, LOCAL_PERSON_ACTOR_ID);
   }
 
   /** Whether the person made this relation: the one place that reads `bound_by` as a decision. */

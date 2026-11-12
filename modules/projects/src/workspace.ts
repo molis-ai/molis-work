@@ -196,12 +196,11 @@ export class ProjectWorkspaceService {
     return this.member(workspaceId, projectId, actorId, boundBy, roles);
   }
 
-  /** `actorId` is who acted, as events record it; `boundBy` is who the relation is recorded as made by. */
+  /** `actorId` acted, as events record it; `boundBy` made the relation. An existing one is written again too, so the person can claim it; only a new one is announced. */
   private member(workspaceId: string, projectId: string, actorId: string, boundBy: string, roles: readonly DirectoryRole[]): { workspace_id: string; created: boolean } {
     const existing = this.repository.workspaces.projectDirectoryRows(projectId).some(row => row.workspace_id === workspaceId);
-    if (existing) this.repository.workspaces.claimMembership(workspaceId, projectId, boundBy);
+    this.repository.workspaces.upsertWorkspaceMembership({ membership_id: this.id("workspace-membership"), workspace_id: workspaceId, project_id: projectId, bound_by: boundBy, now: this.now(), roles });
     if (!existing) {
-      this.repository.workspaces.upsertWorkspaceMembership({ membership_id: this.id("workspace-membership"), workspace_id: workspaceId, project_id: projectId, bound_by: boundBy, now: this.now(), roles });
       // A folder that is this project's own is read as itself: a link that named it for another device's id goes.
       this.repository.workspaces.removeSourceLink(projectId, workspaceId);
       this.appendEvent(projectId, "project.workspace_member_bound", actorId, { workspace_id: workspaceId });

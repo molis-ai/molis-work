@@ -97,10 +97,15 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
   await evaluate("document.querySelector('[data-cond-params] [data-theme-option=light]').click(); document.querySelector('[data-cond-params] [data-density-option=standard]').click()");
 
   // Back to Chinese: the board changes its language in place, where it was.
+  await evaluate("document.querySelectorAll('[data-nav-frame]').forEach(frame => { frame.loading = 'eager'; })");
+  await waitFor("[...document.querySelectorAll('[data-nav-frame]')].every(frame => frame.contentDocument?.querySelector('[data-nav-board]'))");
+  assert.match(await evaluate<string>("document.querySelector('[data-nav-frame]').contentDocument.querySelector('[data-nav-board]').textContent"), /Discussion/);
   await evaluate("window.boardLanguageSentinel = {}; document.querySelector('[data-board-lang=zh]').click()");
   await waitFor("document.documentElement.lang === 'zh-CN' && Boolean(window.boardLanguageSentinel)", 20_000);
   await waitFor("document.readyState === 'complete' && new URL(location.href).searchParams.get('lang') === 'zh'", 20_000);
   assert.deepEqual(await evaluate("[document.documentElement.lang, document.querySelector('#plugin-rows h2').textContent, location.hash]"), ["zh-CN", "插件行视图", "#plugin-rows"]);
+  await waitFor("[...document.querySelectorAll('[data-nav-frame]')].every(frame => frame.contentDocument.documentElement.lang === 'zh-CN')");
+  assert.match(await evaluate<string>("document.querySelector('[data-nav-frame]').contentDocument.querySelector('[data-nav-board]').textContent"), /讨论/);
 });
 
 test("VUX-39 the board's Assistant shows its usage detail running, reported and unavailable, and its works in English words with no Chinese left", { timeout: 180_000 }, async (t) => {
@@ -199,8 +204,14 @@ test("VUX-39 the board's Assistant questionnaire: one choice, several and other 
       const note = c.querySelector('[data-ix-field=t3] textarea'); note.value = '语气客气一点'; note.dispatchEvent(new w.Event('input', { bubbles: true }));
       return { one: [...q1.querySelectorAll('[data-ix-option]')].map((o) => o.getAttribute('aria-checked')), several: [...q2.querySelectorAll('[data-ix-option]')].map((o) => o.getAttribute('aria-pressed')), other: other.value };`);
   };
-  // Counts the answers that leave the page, through the frame's own fetch (the stand-in Host answers it).
-  const countAnswers = () => inFrame("const f = w.fetch; w.__answers = 0; w.fetch = (input, init) => { if (String(input).endsWith('/answer')) w.__answers += 1; return f(input, init); }; return null;");
+  // Count the answers handed to the specimen's Host transport.
+  const countAnswers = () => inFrame(`const transport = w.molisWorkUiTransport;
+    w.__answers = 0;
+    w.molisWorkUiTransport = (input, init) => {
+      if (new URL(input, w.location.href).pathname.endsWith('/answer')) w.__answers += 1;
+      return transport(input, init);
+    };
+    return null;`);
 
   // Refused (simulated): the stand-in Host refuses as the Runtime refuses a questionnaire.
   await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="answer"][data-cond-value="refused"]').click()`);

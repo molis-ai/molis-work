@@ -12,7 +12,7 @@ import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
 import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
@@ -266,8 +266,8 @@ test("the plugin routes of the settings tell a missing project from every other 
 
 // ---- 3. The artifact edge --------------------------------------------------------------------------------------------
 
-async function artifactEdge(t: TestContext, failure: { current: unknown }) {
-  const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
+async function artifactEdge(t: TestContext, failure: { current: unknown }, invoke: BoundActionClient["invoke"] = async () => { throw failure.current; }) {
+  const actions: BoundActionClient = { discover: async () => [], invoke };
   const handle = hostModule.createLocalArtifactHttp();
   return serve((request, response, url) => hostModule.runWithLocale(request.headers["accept-language"] === "en" ? "en" : "zh", () => handle(request, response, url.pathname, {
     projectId: "p1", routePrefix: "/projects/p1", projectTitle: "项目", actions, controlToken: "token", desktopShell: false, pageCsp: "default-src 'none'",
@@ -295,13 +295,24 @@ test("the artifact edge answers by kind: a plugin that is off is 403, and the co
 });
 
 test("the artifact edge preserves the original action refusal in both languages", async t => {
-  const failure: { current: unknown } = { current: new ActionError("actions.missing", "这个版本没有可取回的文件") };
+  const failure: { current: unknown } = { current: new ActionError("actions.missing", "外部来源拒绝原文") };
   const edge = await artifactEdge(t, failure);
   const english = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench", "accept-language": "en" } });
   const chinese = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
-  assert.equal(chinese.body.error, "这个版本没有可取回的文件");
-  assert.equal(english.body.error, "这个版本没有可取回的文件");
+  assert.equal(chinese.body.error, "外部来源拒绝原文");
+  assert.equal(english.body.error, "外部来源拒绝原文");
   assert.equal(english.body.code, "actions.missing");
+});
+
+test("the artifact download's own missing-file message follows the request language", async t => {
+  const edge = await artifactEdge(t, { current: undefined }, async <Input, Output>(action: ActionDefinition<Input, Output>) => {
+    assert.equal(action.capability_id, artifactsModule.artifactsActions.browser.capability_id);
+    return { selected: null } as Output;
+  });
+  for (const [language, error] of [["zh", "这个版本没有可取回的文件"], ["en", "This version has no file to retrieve"]] as const) {
+    const answer = await edge.send("GET", "/api/artifacts/a1/versions/1/file", { headers: { "accept-language": language } });
+    assert.deepEqual([answer.status, answer.body], [404, { code: "artifacts.file_missing", error }]);
+  }
 });
 
 test("the 成果 browser's route failures carry a code and the status of their kind", async t => {

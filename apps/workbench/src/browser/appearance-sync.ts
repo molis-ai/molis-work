@@ -64,55 +64,64 @@ interface InvalidationListener {
   denied(status: number, signal: AbortSignal): void;
 }
 
-const sideInvalidations = Symbol.for("molis.work.appearance.side-invalidations");
+const invalidations = Symbol.for("molis.work.appearance.invalidations");
 type RevisionListener = (selectionRevision: number) => void;
-type AppearanceDocument = Document & { [sideInvalidations]?: (page: Document, signal: AbortSignal, receive: RevisionListener) => void };
+type AppearanceDocument = Document & { [invalidations]?: (page: Document, signal: AbortSignal, receive: RevisionListener) => void };
 
-/** Bind a side view to its current same-origin owner, using only the public part of the page proof. */
-function sideOwner(page: Document): AppearanceDocument | null {
-  if (!page.body?.dataset.sideView) return null;
+/** Bind an attached Workbench view to its current owner using the public part of the page proof. */
+function appearanceOwner(page: Document): AppearanceDocument | null {
   const frame = page.defaultView?.frameElement as HTMLIFrameElement | null | undefined;
-  if (!frame?.matches("#side-panel iframe[data-side-frame]") || !frame.isConnected || frame.contentDocument !== page) return null;
+  if (!frame?.isConnected || frame.contentDocument !== page) return null;
+  const side = page.body?.dataset.sideView && frame.matches("#side-panel iframe[data-side-frame]");
+  const pane = frame.matches("[data-tab-panes] > iframe.tab-content-frame[data-pane-owner][data-pane-tab]");
+  if (!side && !pane) return null;
   const owner = frame.ownerDocument, scope = viewScope(owner);
-  const source = frame.closest<HTMLElement>("[data-side-src]")?.dataset.sideSrc;
+  const source = side ? frame.closest<HTMLElement>("[data-side-src]")?.dataset.sideSrc : frame.src;
   if (!source || !scope || scope !== viewScope(page)) return null;
   try {
     const route = new URL(source, owner.URL), location = owner.location;
     if (!location || route.origin !== location.origin || route.href !== frame.src || route.href !== page.URL) return null;
-    const parent = owner.body.dataset, side = page.body.dataset;
+    const parent = owner.body.dataset, child = page.body.dataset;
+    // A retained tab can move to a different pane without navigating its document.
+    if (pane && (!route.searchParams.get("workbenchPane") || route.pathname !== `${parent.routePrefix ?? ""}/`)) return null;
     // The chooser's project is its preview selection. Its registered Home side has no project route.
-    if (location.pathname === "/" && parent.arrival === "chooser" && side.homeSide === "true" && !side.projectId && !side.routePrefix) return owner;
-    return (parent.projectId ?? "") === (side.projectId ?? "") && (parent.routePrefix ?? "") === (side.routePrefix ?? "") ? owner : null;
+    if (side && location.pathname === "/" && parent.arrival === "chooser" && child.homeSide === "true" && !child.projectId && !child.routePrefix) return owner;
+    return (parent.projectId ?? "") === (child.projectId ?? "") && (parent.routePrefix ?? "") === (child.routePrefix ?? "") ? owner : null;
   } catch { return null; }
 }
 
-/** Each document owns its reads. An attached side view can share its owner's invalidations. */
+/** Each document owns its reads. Attached Workbench views share their owner's invalidations. */
 function appearanceInvalidations(request: UiRequestCall, listener: InvalidationListener) {
   let stream: AbortController | undefined, retry: ReturnType<typeof setTimeout> | undefined, delay = 1000;
   let latest = -1;
-  const sides = new Set<RevisionListener>();
-  (document as AppearanceDocument)[sideInvalidations] = (page, signal, receive) => {
-    const current = () => !signal.aborted && sideOwner(page) === document;
+  const children = new Set<RevisionListener>();
+  (document as AppearanceDocument)[invalidations] = (page, signal, receive) => {
+    const current = () => !signal.aborted && appearanceOwner(page) === document;
     if (!current()) return;
     const notify: RevisionListener = seen => {
       if (current()) receive(seen);
-      else sides.delete(notify);
+      else children.delete(notify);
     };
-    sides.add(notify);
-    signal.addEventListener("abort", () => sides.delete(notify), { once: true });
+    children.add(notify);
+    signal.addEventListener("abort", () => children.delete(notify), { once: true });
     if (latest >= 0 && listener.active()) notify(latest);
   };
   function publish(seen: number): void {
     if (!listener.active() || !Number.isSafeInteger(seen) || seen < 0 || seen < latest) return;
     latest = seen;
-    for (const notify of sides) notify(seen);
+    for (const notify of children) notify(seen);
   }
 
   async function connect(): Promise<void> {
     if (stream || !listener.active()) return;
+    const owner = appearanceOwner(document);
+    const share = owner?.[invalidations];
+    if (owner && !share) {
+      retry = setTimeout(() => { void connect(); }, delay);
+      return;
+    }
     const connection = new AbortController();
     stream = connection;
-    const share = sideOwner(document)?.[sideInvalidations];
     if (share) {
       share(document, connection.signal, listener.revision);
       return;
@@ -148,7 +157,7 @@ function appearanceInvalidations(request: UiRequestCall, listener: InvalidationL
     clearTimeout(retry);
     stream?.abort();
     stream = undefined;
-    if (release) { latest = -1; sides.clear(); }
+    if (release) { latest = -1; children.clear(); }
   }
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { stop(); listener.disconnected(); }

@@ -648,10 +648,17 @@ fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
 }
 
 /// Leave feedback in the existing main WebView without opening it or changing focus.
-fn shelf_notice(app: &tauri::AppHandle, message: &str, partial: bool, delay_ms: u64) {
+fn shelf_notice(
+    app: &tauri::AppHandle,
+    message: &str,
+    partial: bool,
+    original_warning: Option<&str>,
+    delay_ms: u64,
+) {
     if let Some(window) = app.get_webview_window("main") {
         let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
-        let notice = format!("globalThis.molisWorkShelfNotice?.({encoded},{partial});");
+        let warning = serde_json::to_string(&original_warning).unwrap_or_else(|_| "null".into());
+        let notice = format!("globalThis.molisWorkShelfNotice?.({encoded},{partial},{warning});");
         let script = if delay_ms == 0 {
             notice
         } else {
@@ -679,7 +686,7 @@ fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Res
     for path in paths {
         let candidate = std::path::Path::new(&path);
         shelf_http::admit_file(candidate)?
-            .into_item_id(|message| shelf_notice(app, message, true, 0));
+            .into_item_id(|message| shelf_notice(app, message, true, Some(message), 0));
         added += 1;
     }
     Ok(added)

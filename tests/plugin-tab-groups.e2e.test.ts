@@ -385,8 +385,17 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   const a = makePage("A"), b = makePage("B"), c = makePage("C"), d = makePage("D"); store.close();
   let holdSaves = false, heldStatus = 0, saveArrived!: () => void;
   const saveHeld = new Promise<void>(resolve => { saveArrived = resolve; });
+  const appearanceStreams = new Set<import("node:http").ServerResponse>();
+  const appearanceSources: string[] = [];
+  let peakAppearanceStreams = 0;
   const handlers = server.listeners("request"); server.removeAllListeners("request");
   server.on("request", (request, response) => {
+    if (request.method === "GET" && request.url === "/api/ui/appearance/events") {
+      appearanceStreams.add(response);
+      appearanceSources.push(new URL(request.headers.referer ?? "/", origin).search);
+      peakAppearanceStreams = Math.max(peakAppearanceStreams, appearanceStreams.size);
+      response.once("close", () => appearanceStreams.delete(response));
+    }
     if (holdSaves && request.method === "POST" && new URL(request.url!, origin).pathname === `/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${a.id}`) {
       const end = response.end;
       response.end = (...args: Parameters<typeof end>) => {
@@ -527,13 +536,22 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await bRight.evaluate(`window.t405Host.openItem('pages',${JSON.stringify(c.id)},'Item C')`);
   await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)}).tabs.some(t=>t.itemId===${JSON.stringify(c.id)})`);
   assert.equal(await itemCount(c.id), 1, "the existing untagged legal openItem still works");
-  await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger`);
-  await evaluate(`document.querySelector('iframe[data-pane-owner="${right}"]:not([hidden])').dataset.full16Owner='right-default'`);
+  const defaultTrigger = `[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger`;
+  await click(defaultTrigger);
+  const defaultOwner = JSON.stringify(ownerSelector(right!, right + ":view"));
+  await waitFor(`document.querySelector(${defaultOwner})?.checkVisibility()`);
+  await evaluate(`document.querySelector(${defaultOwner}).dataset.full16Owner='right-default'`);
   await defaultPage.waitFor("window.t405InitialItem===null && document.querySelector('[data-pages-rows]')");
-  const defaultTab = (await layout()).panes.find(p => p.id === right)!.activeTabId;
   await defaultPage.click(`button[data-page-id="${c.id}"]`);
   await defaultPage.waitFor("document.querySelector('[data-pages-title]').value==='Item C'");
-  assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, defaultTab, "a default plugin page still selects in place");
+  assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, null, "a default plugin page still selects in place");
+  // FSS-07: the active and retained split documents update without taking more HTTP event connections.
+  await evaluate(`molisWorkRequest('/api/ui/appearance', { body: { request_id: 'split-pages-folio', expected_revision: 0,
+    choice: { kind: 'selection', selection: { skin: { id: 'folio', revision: 1 }, font: { policy: 'follow-skin' }, mono: null } } } })`);
+  await waitFor(`document.querySelector(${defaultOwner}).contentDocument.documentElement.dataset.uiSkin==='folio@1'
+    && ${ownerWindow}.document.documentElement.dataset.uiSkin==='folio@1'`);
+  assert.equal(peakAppearanceStreams, 1, JSON.stringify(appearanceSources));
+  assert.ok(appearanceSources.every(source => !source.includes('workbenchPane=')), JSON.stringify(appearanceSources));
   await selectTab(bTab); await browser.reloadPage();
   await waitFor(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))})`);
   await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).dataset.full16Owner='right-b'`);

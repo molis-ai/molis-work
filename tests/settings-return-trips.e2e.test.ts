@@ -378,7 +378,7 @@ test("DRT-10 going back from the connections page before connecting: back on the
 test("DRT-06 switching the language in settings keeps the trip, its bar and the page's wait", { timeout: 150_000 }, async t => {
   const at = await open(t, "single");
   if (!at) return;
-  const { browser, standIn, source, go, arrived } = at;
+  const { browser, standIn, source, go, went, arrived, trips } = at;
   await go(source, { kind: "model" }, CARRY);
   await browser.waitFor("document.querySelector('[data-settings-return-bar]')?.dataset.returnBarState === 'waiting'", 15_000);
   // The language switch in the appearance settings updates the open document and its waiting return bar.
@@ -392,6 +392,8 @@ test("DRT-06 switching the language in settings keeps the trip, its bar and the 
   await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href: location.origin + '/settings/models' } }))");
   await saveFirstModel(browser, standIn.baseUrl);
   await browser.waitFor("document.body.dataset.desktopSurface !== 'settings'", 20_000);
-  await source.waitFor("window.pageHost?.returns", 20_000);
-  assert.deepEqual(await arrived(source), { status: "ready", carry: CARRY });
+  await source.waitFor("window.went !== undefined", 20_000);
+  assert.deepEqual(await went(source), { status: "ready", carry: CARRY }, "the already open page gets the original pending reply");
+  assert.equal(await arrived(source), null, "the carried draft is delivered only once");
+  assert.equal(await trips(), "");
 });

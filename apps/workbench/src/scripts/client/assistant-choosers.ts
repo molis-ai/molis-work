@@ -5,7 +5,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
   const executorChoices = () => [{ id: "assistant", label: readText("workbench.assistant-choosers.default-assistant"), hint: readText("workbench.assistant-choosers.assistant-hint") }].concat(executors.filter((one) => !one.problem)
     .map((one) => ({ id: one.plugin_id, label: one.title, hint: readText("workbench.assistant-choosers.plugin-executor-hint") })));
   const modeOffer = () => { const work = getWork(); return executorOffer(work ? work.executor.kind === "plugin" ? work.executor.plugin_id : "" : nextExec); };
-  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: mode.title }));
+  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: mode.title, mode: true }));
   /** A new plugin work's first round, or an open work's next one: the session's own setting, the same one its page shows. */
   async function applyMode(id) {
     const work = getWork();

@@ -15,6 +15,7 @@ import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
 import { WEB_LOCALES, type WebLocale } from "./i18n.js";
 import { renderLanguageHead } from "./language-resource.js";
+import type { AssistantBoardSamples } from "./assistant-board-samples.js";
 
 /**
  * The component board's Assistant frame (specs/visual-ui-experience VUX-39; VUX-08/09/10/13/18): the page
@@ -37,8 +38,8 @@ export interface AssistantFrameOptions {
 export interface AssistantFramePorts {
   readText(text: string, values?: Record<string, string | number>): string;
   htmlLang(): string;
-  /** The samples as the Host drew them (`drawAssistantReply`), as JSON. */
-  samples: string;
+  /** The samples as the Host drew them (`drawAssistantReply`). */
+  samples: AssistantBoardSamples & { refused: Record<string, unknown> };
 }
 
 const pick = <T extends string>(value: string | null, allowed: readonly T[]): T => (allowed as readonly string[]).includes(value ?? "") ? value as T : allowed[0]!;
@@ -59,7 +60,10 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
 export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
   const { readText } = ports;
   const bar = renderWorkbenchBar({ readText, escapeHtml, icon }, { rail: "", projectChrome: "", enabled: [] });
-  const data = `{"samples":${ports.samples.replaceAll("<", "\\u003c")},"current":${JSON.stringify(WORK_IDS[options.work])},"answer":"${options.answer}"}`;
+  const data = JSON.stringify({ samples: ports.samples, current: WORK_IDS[options.work], answer: options.answer }).replaceAll("<", "\\u003c");
+  // The language switch updates these words in place before the island reads its mode choices again.
+  const modeWords = ports.samples.executors.flatMap(offer => offer.modes.map(mode =>
+    `<span data-asst-mode-word="${escapeHtml(offer.plugin_id + "/" + mode.id)}">${escapeHtml(mode.title)}</span>`)).join("");
   return `<!doctype html>
 <html lang="${ports.htmlLang()}">
 <head>
@@ -83,6 +87,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   </main>
   ${bar}
   <div class="mw-toast toast" data-toast role="status" aria-live="polite"></div>
+  <div hidden>${modeWords}</div>
   <script type="application/json" id="mw-asst-data">${data}</script>
   <script>${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}</script>
   <script>${ASSISTANT_FRAME_SCRIPT}</script>

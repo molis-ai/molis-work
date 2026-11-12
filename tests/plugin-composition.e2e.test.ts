@@ -96,7 +96,13 @@ test('directory previews preserve full reading, overlay renaming preserves draft
     assert.equal(await page.evaluate('getComputedStyle(document.querySelector("[data-component-id=editor]>.pc-output")).display'), 'none', 'a relocated opener leaves no empty grid item');
     assert.equal(await page.evaluate('getComputedStyle(document.querySelector("[data-pc-feedback=editor]")).display'), 'none');
     assert.equal(await page.evaluate(`getComputedStyle(${preview}).whiteSpace`), 'normal');
-    assert.ok(await page.evaluate<number>(`${preview}.getBoundingClientRect().height / parseFloat(getComputedStyle(${preview}).lineHeight)`) <= 2.05, 'paragraphs in a long summary use at most two visual lines');
+    const previewLines = () => page.evaluate<number>(`(() => {
+      const node = ${preview}, single = node.cloneNode(false);
+      single.textContent = '一行'; node.after(single);
+      const lines = node.getBoundingClientRect().height / single.getBoundingClientRect().height;
+      single.remove(); return lines;
+    })()`);
+    assert.ok(await previewLines() <= 2.05, 'paragraphs in a long summary use at most two visual lines');
     assert.equal(await page.evaluate(`${preview}.textContent`), readingSamples[0]!.text, 'summary formatting never mutates the text');
     await page.command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     await page.click('[data-record-id=one] [data-pc-action=open]');
@@ -125,7 +131,7 @@ test('directory previews preserve full reading, overlay renaming preserves draft
     await page.evaluate(`(async()=>{view=structuredClone(view);view.nodes=view.nodes.filter(node=>node.id!=='reader');view.presentation.pages[0].layout.children=view.presentation.pages[0].layout.children.filter(node=>node.part!=='reader');await app.update(view)})()`);
     await page.viewport(390, 844, true);
     assert.equal(await page.evaluate(`getComputedStyle(${preview}).whiteSpace`), 'pre-wrap');
-    assert.ok(await page.evaluate<number>(`${preview}.getBoundingClientRect().height / parseFloat(getComputedStyle(${preview}).lineHeight)`) > 2.05, 'a directory without a configured reader keeps its full content');
+    assert.ok(await previewLines() > 2.05, 'a directory without a configured reader keeps its full content');
     await page.click('[data-record-id=one] [data-pc-action=open]');
     await page.wait('document.querySelector("[data-pc-feedback=open]").textContent!==""');
     await page.evaluate('fail=true'); await page.click('[data-record-id=two] [data-pc-action=open]');

@@ -937,6 +937,7 @@
     "workbench.appearance-picker.use-2": "Use it",
     "workbench.appearance-picker.use-mine-anyway": "Use mine anyway",
     "workbench.appearance-picker.use-name": "In use: {name}",
+    "workbench.artifact-library-http.no-file": "This version has no file to retrieve",
     "workbench.artifacts.navigation-hint": "Kept project artifacts and their versions.",
     "workbench.artifacts.navigation-name": "Artifacts",
     "workbench.assistant-attachments.can-t-read-file": "Can’t read this file",

@@ -923,6 +923,7 @@
     "workbench.appearance-picker.use-2": "用上",
     "workbench.appearance-picker.use-mine-anyway": "仍然用上",
     "workbench.appearance-picker.use-name": "现在用的：{name}",
+    "workbench.artifact-library-http.no-file": "这个版本没有可取回的文件",
     "workbench.artifacts.navigation-hint": "项目的固定成果，各版本可回看。",
     "workbench.artifacts.navigation-name": "成果",
     "workbench.assistant-attachments.can-t-read-file": "读不了这个文件",

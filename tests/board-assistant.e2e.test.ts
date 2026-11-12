@@ -209,6 +209,36 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     assert.equal(chip.inside && chip.clear, true, `${width}px: the mode stays inside the composer, clear of the input (folded, it is a menu over it)`);
     assert.equal(chip.onScreen, true, `${width}px: the mode is on screen`);
   }
+  await choose("width", "1280", "board-coding");
+  await waitFor(`${frame}.contentWindow.innerWidth === 1280 && ${frame}.contentDocument.querySelector('[data-assistant-panel]').dataset.layout === 'split'`);
+  await inFrame(`if (!d.querySelector('[data-assistant-island]').hasAttribute('data-side-shown')) d.querySelector('[data-assistant-side-toggle]').click();`);
+  await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-mode=execute]')?.checkVisibility()`);
+  await evaluate("document.querySelector('[data-board-lang=en]').click()");
+  await waitFor("document.documentElement.lang === 'en'");
+  await evaluate(`${frame}.scrollIntoView({block: 'start', behavior: 'instant'});`);
+  const point = await evaluate<{x: number; y: number}>(`(() => {
+    const frame = ${frame}, bounds = frame.getBoundingClientRect();
+    const note = frame.contentDocument.querySelector('[data-asst-note]').getBoundingClientRect();
+    return { x: bounds.left + note.left + 3, y: bounds.top + note.top + 3 };
+  })()`);
+  for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, sessionId);
+  assert.equal(await inFrame("return d.hasFocus();"), true);
+  await inFrame(`
+    const input = d.querySelector('[data-assistant-composer] textarea');
+    input.value = '换语言前的草稿';
+    input.dispatchEvent(new w.Event('input', {bubbles:true}));
+    w.modeSwitchDraft = input;
+    const mode = d.querySelector('[data-assistant-mode=execute]');
+    mode.focus();
+    if (d.activeElement !== mode) throw new Error("The mode button did not receive focus before the switch");`);
+  for (const [tag, label] of [["zh", "执行"], ["en", "Execute"]]) {
+    await evaluate(`document.querySelector('[data-board-lang=${tag}]').click()`);
+    await waitFor(`${frame}.contentDocument.documentElement.dataset.uiLanguageTag === ${JSON.stringify(tag)}
+      && ${frame}.contentDocument.querySelector('[data-assistant-mode=execute]')?.textContent === ${JSON.stringify(label)}`);
+    assert.deepEqual(await inFrame(`return [d.activeElement.dataset.assistantMode, d.activeElement.getAttribute('aria-pressed'),
+      d.querySelector('.assistant-tab[data-current]')?.dataset.tab, d.querySelector('[data-assistant-composer] textarea') === w.modeSwitchDraft, w.modeSwitchDraft.value];`),
+      ["execute", "true", "board-coding", true, "换语言前的草稿"], "the board retitles the open mode without losing focus, work or draft");
+  }
 });
 
 // The frame is one specimen on a long page. When it loads beside what the person is reading, the island opening its work

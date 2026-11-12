@@ -194,7 +194,7 @@ export function createLocalArtifactHttp() {
           supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }] });
         const file = importedFileOf(view.selected);
         const stream = file?.stored ? await openArtifactOriginal(context.homeDirectory, context.projectId, file.stored) : null;
-        if (!file || (file.stored && !stream)) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
+        if (!file || (file.stored && !stream)) throw artifactsErrors.file_missing(uiText.text("workbench.artifact-library-http.no-file"));
         response.writeHead(200, { "content-type": file.mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
           "content-security-policy": "default-src 'none'; sandbox",
           "content-disposition": `${file.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.filename)}` });

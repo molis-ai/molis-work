@@ -84,6 +84,14 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   await click('[data-alc-action="side-close"]');await click('[data-alc-action="cost"]');await includes('研究摘要');
   await click('[data-alc-action="decision"]');await visible('[data-outcome="hold"]');await click('[data-outcome="hold"]');await fill('reason','先验证持续使用再投入');await fill('revisit','完成三次访谈');await click('[data-alc-submit]');await includes('已决定');
   assert.equal((await read(`/ideas/${ids.idea}/versions/1/decision`)).decision.outcome,'hold');
+  await evaluate("window.originalDecisionHeading = [...document.querySelectorAll('[data-alc-content] h3')].find(node => node.textContent === '已决定 · 先放着')");
+  for (const [tag, heading, tab] of [["en", "Decided · Hold", "Decision"], ["zh", "已决定 · 先放着", "决定"]]) {
+    await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = ${text(tag)}; link.href = '/locale?lang=' + link.dataset.uiLanguage; document.body.append(link); link.click(); link.remove(); })()`);
+    await waitFor(`document.documentElement.dataset.uiLanguageTag === ${text(tag)} && originalDecisionHeading?.textContent === ${text(heading)}`);
+    assert.equal(await evaluate("originalDecisionHeading.isConnected"), true);
+    assert.equal(await evaluate("document.querySelector('.alc-tabs [aria-pressed=true]').textContent"), tab);
+    await includes('先验证持续使用再投入');
+  }
   await click('[data-alc-action="settings"]');await includes('个人判断偏好');await click('[data-alc-action="taste"]');await fill('title','首版边界');await fill('statement','优先单人可用');await fill('appliesTo','新想法');await click('[data-alc-submit]');await includes('首版边界');await click('[data-alc-action="disable-taste"]');await waitFor(`!document.querySelector('[data-alc-action="disable-taste"]')`);
   assert.equal((await read('/memory')).taste[0].status,'disabled');
   await click('[data-alc-action="runtime"]');await visible('[name="model"][value="auto"]');await click('[name="model"][value="auto"]');await fill('market','5');await click('[data-alc-submit]');await waitFor(`!document.querySelector('[data-alc-dialog]').open`);assert.equal((await read('/settings/runtime')).defaultBudgets.marketSpace.limit,5);

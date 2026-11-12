@@ -1,4 +1,5 @@
 import type { WebLocale } from "./i18n.js";
+import { renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { escapeHtml, icon, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
@@ -247,6 +248,7 @@ export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: strin
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(uiText.text("workbench.navigation-specimens.workbench-navigation"))} · Molis Work</title>
+  ${renderLanguageHead(htmlLang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-${arrival ? "arrival" : "workbench"}.css">
   <style>${FRAME_STYLES}</style>

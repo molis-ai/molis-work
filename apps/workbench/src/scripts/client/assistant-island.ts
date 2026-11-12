@@ -87,7 +87,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
 
-  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:globalThis.t.text("workbench.assistant-island.assistant-could-not-finish-right-now")});
+  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")});
   let executorRequest = 0;
   const loadExecutors = async () => {
     if (!project) return;
@@ -99,10 +99,10 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   };
   const executorsLoaded = loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
-    pact: (content, badge) => paintBlock(blocks.agreements, globalThis.t.text("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
+    pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
   const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
-  const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? globalThis.t.text("workbench.assistant-island.personal")
-    : title || (project && scope.project_id === project.id ? (project.title || globalThis.t.text("workbench.assistant-island.project")) : globalThis.t.text("workbench.assistant-island.another-project"));
+  const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
+    : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
@@ -174,7 +174,7 @@ ${ASSISTANT_CONVERSATION_PART}
   const WAITING = new Set(["waiting-input", "waiting-review", "needs-check"]);
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
-  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
+  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? readText("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
   const showError = (next) => { problem = next; render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
   const announced = new Set();
@@ -201,20 +201,20 @@ ${ASSISTANT_SIDE_KIT_PART}
     keepFocus(node, () => {
       const cards = [];
       children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
-        sub: globalThis.t.text("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? globalThis.t.text("workbench.assistant-island.answer") : globalThis.t.text("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
+        sub: readText("workbench.assistant-island.sub-task") + " · " + stateLabel(child.state), actions: [sideAct(child.state === "waiting-input" ? readText("workbench.assistant-island.answer") : readText("workbench.assistant-island.take-look"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
       objects.forEach((object) => {
         const open = openObject(object);
         cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
-          sub: object.state === "changed" ? globalThis.t.text("workbench.assistant-island.changed-since-was-used") + " · " + objectDetail(object) : objectState(object),
-          actions: open ? [sideAct(globalThis.t.text("workbench.assistant-island.open"), object.title, open, false, "secondary")] : [] }));
+          sub: object.state === "changed" ? readText("workbench.assistant-island.changed-since-was-used") + " · " + objectDetail(object) : objectState(object),
+          actions: open ? [sideAct(readText("workbench.assistant-island.open"), object.title, open, false, "secondary")] : [] }));
       });
       suggestions.forEach((candidate) => {
         const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
-        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: globalThis.t.text(candidate.held ? "workbench.assistant-island.asked-me-remember" : "workbench.assistant-island.remember") + "：" + candidate.text, detail: candidate.held,
+        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: readText(candidate.held ? "workbench.assistant-island.asked-me-remember" : "workbench.assistant-island.remember") + "：" + candidate.text, detail: candidate.held,
           sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
-          actions: [sideAct(globalThis.t.text("workbench.assistant-island.keep"), candidate.text, settle("/accept"), false, "primary"), sideAct(globalThis.t.text("workbench.assistant-island.no-thanks"), candidate.text, settle("/discard"), false, "secondary")] }));
+          actions: [sideAct(readText("workbench.assistant-island.keep"), candidate.text, settle("/accept"), false, "primary"), sideAct(readText("workbench.assistant-island.no-thanks"), candidate.text, settle("/discard"), false, "secondary")] }));
       });
-      paintBlock(node, globalThis.t.text("workbench.assistant-island.still-waiting"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
+      paintBlock(node, readText("workbench.assistant-island.still-waiting"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
     });
   };
 
@@ -240,8 +240,8 @@ ${ASSISTANT_SIDE_PATH_PART}
       const UNDO = { available: "workbench.assistant-island.can-be-undone", undone: "workbench.assistant-island.undone", failed: "workbench.assistant-island.could-not-undo" };
       const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
-        title: change.title, sub: globalThis.t.text(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
-        actions: change.state !== "undone" ? [sideAct(globalThis.t.text("workbench.assistant-island.undo"), change.title, async () => {
+        title: change.title, sub: readText(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
+        actions: change.state !== "undone" ? [sideAct(readText("workbench.assistant-island.undo"), change.title, async () => {
           view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {});
           // Taken back: the owner's page rereads, as it did when the change was made.
           const taken = (view.undoable || []).find((one) => one.undo_id === change.undo_id);
@@ -250,10 +250,10 @@ ${ASSISTANT_SIDE_PATH_PART}
         }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "workbench.assistant-island.progress", completed: "workbench.assistant-island.done", failed: "workbench.assistant-island.not-finished", unknown: "workbench.assistant-island.no-longer-followed-check-where-runs" };
       const background = jobs.map((job) => card({ icon: spinner(job.state === "running" ? "running" : job.state === "completed" ? "round-ended" : job.state === "failed" ? "failed" : "verify"),
-        tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: globalThis.t.text(JOB[job.state] || job.state) }));
+        tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: readText(JOB[job.state] || job.state) }));
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "workbench.assistant-island.waiting-its-result-will-not-be-sent-again", completed: "workbench.assistant-island.finished-after-stop", failed: "workbench.assistant-island.failed-after-stop", "not-run": "workbench.assistant-island.had-not-started-nothing-done" };
-      const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: globalThis.t.text(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
+      const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: readText(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
       const KEPT = { kept: "", auto_kept: "workbench.assistant-island.kept-its-own", replaced: "workbench.assistant-island.replaced-older-one", auto_replaced: "workbench.assistant-island.replaced-older-one-its-own", merged: "workbench.assistant-island.merged-older-one", edited: "workbench.assistant-island.edited",
@@ -264,27 +264,27 @@ ${ASSISTANT_SIDE_PATH_PART}
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];
-        if (change.undoable && !undone) actions.push(sideAct(globalThis.t.text("workbench.assistant-island.undo"), change.text, async () => {
-          await molisWorkRequest(host.route("/api/memory/changes/"+encodeURIComponent(change.change_id)+"/undo"),{method:"POST",fallback:globalThis.t.text("workbench.assistant-island.could-not-undo")});
+        if (change.undoable && !undone) actions.push(sideAct(readText("workbench.assistant-island.undo"), change.text, async () => {
+          await molisWorkRequest(host.route("/api/memory/changes/"+encodeURIComponent(change.change_id)+"/undo"),{method:"POST",fallback:readText("workbench.assistant-island.could-not-undo")});
           await reload();
         }, false, "secondary", "undo"));
-        if (!undone) actions.push(sideAct(globalThis.t.text("workbench.assistant-island.see-settings"), change.text, async () => {
+        if (!undone) actions.push(sideAct(readText("workbench.assistant-island.see-settings"), change.text, async () => {
           // The settings surface opens its memory section when it hears this; with nobody listening, go there.
           const handled = !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
           const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
           if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
         }, true));
         const scope = proc.memoryScope(change.scope);
-        if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: globalThis.t.text("workbench.assistant-island.undone-deleted-memory"), done: true, sub: scope, actions });
+        if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: readText("workbench.assistant-island.undone-deleted-memory"), done: true, sub: scope, actions });
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,
-          sub: [scope, undone ? globalThis.t.text(UNDONE[change.kind]) : KEPT[change.kind] ? globalThis.t.text(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
+          sub: [scope, undone ? readText(UNDONE[change.kind]) : KEPT[change.kind] ? readText(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
       });
       // Three groups of one kind (VUX-08): what it made, what it changed and how each stands, what still runs elsewhere; a failure shows folded.
       const list = (block, ...parts) => { const box = el("div", "assistant-group-list"); parts.forEach(([label, cards]) => cards.length && box.append(group(label, stack(cards, work.work_id + ":" + block + ":" + label)))); return box.children.length ? box : null; };
       const failed = undoable.concat(unsettled).filter((one) => one.state === "failed").length, canUndo = undoable.filter((one) => one.state === "available").length, running = jobs.filter((job) => job.state === "running").length, missed = jobs.filter((job) => job.state === "failed").length;
-      paintBlock(node, globalThis.t.text("workbench.assistant-island.output"), "package", list("results", [globalThis.t.text("workbench.assistant-island.saved-versions"), fixed], [globalThis.t.text("workbench.assistant-island.working-files"), made.filter((card) => !fixed.includes(card))]), String(made.length));
-      paintBlock(blocks.changes, globalThis.t.text("workbench.assistant-island.changes"), "edit", list("changes", ["", changes], [globalThis.t.text("workbench.assistant-island.still-running-when-stopped"), stopped], [globalThis.t.text("workbench.assistant-island.kept-memory"), remembered]), failed ? failed + " " + globalThis.t.text("workbench.assistant-island.failed") : canUndo ? canUndo + " " + globalThis.t.text("workbench.assistant-island.can-be-undone-2") : String(changes.length + stopped.length + remembered.length), failed > 0);
-      paintBlock(blocks.background, globalThis.t.text("workbench.side-panel-tab.background-tasks"), "clock", list("background", ["", background]), missed ? missed + " " + globalThis.t.text("workbench.assistant-island.did-not-finish") : running ? running + " " + globalThis.t.text("workbench.assistant-island.running") : String(jobs.length), missed > 0);
+      paintBlock(node, readText("workbench.assistant-island.output"), "package", list("results", [readText("workbench.assistant-island.saved-versions"), fixed], [readText("workbench.assistant-island.working-files"), made.filter((card) => !fixed.includes(card))]), String(made.length));
+      paintBlock(blocks.changes, readText("workbench.assistant-island.changes"), "edit", list("changes", ["", changes], [readText("workbench.assistant-island.still-running-when-stopped"), stopped], [readText("workbench.assistant-island.kept-memory"), remembered]), failed ? failed + " " + readText("workbench.assistant-island.failed") : canUndo ? canUndo + " " + readText("workbench.assistant-island.can-be-undone-2") : String(changes.length + stopped.length + remembered.length), failed > 0);
+      paintBlock(blocks.background, readText("workbench.side-panel-tab.background-tasks"), "clock", list("background", ["", background]), missed ? missed + " " + readText("workbench.assistant-island.did-not-finish") : running ? running + " " + readText("workbench.assistant-island.running") : String(jobs.length), missed > 0);
     });
   };
 
@@ -303,7 +303,7 @@ ${ASSISTANT_STRIP_PART}
   const metaRow = (label, ...content) => { const term = el("dt", "", label), detail = el("dd"); detail.append(...content); return [term, detail]; };
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
-    titleEl.textContent = work ? work.title : globalThis.t.text("workbench.assistant-island.new-work");
+    titleEl.textContent = work ? work.title : readText("workbench.assistant-island.new-work");
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");
@@ -332,10 +332,10 @@ ${ASSISTANT_STRIP_PART}
       const rows = [];
       const characterPicker = () => {
         // The design system's own select: it becomes the shared picker, sized down for the side pane.
-        const select = el("select", "mw-select"); select.setAttribute("aria-label", globalThis.t.text("workbench.assistant-island.which-character-carries-next-turn"));
-        const own = el("option", "", globalThis.t.text("workbench.assistant-island.assistant-itself")); own.value = ""; select.append(own);
+        const select = el("select", "mw-select"); select.setAttribute("aria-label", readText("workbench.assistant-island.which-character-carries-next-turn"));
+        const own = el("option", "", readText("workbench.assistant-island.assistant-itself")); own.value = ""; select.append(own);
         (characters || []).forEach((choice) => {
-          const option = el("option", "", choice.title + " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || globalThis.t.text("workbench.assistant-island.unavailable-now"))));
+          const option = el("option", "", choice.title + " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || readText("workbench.assistant-island.unavailable-now"))));
           option.value = choice.reference.artifact_id + "@" + choice.reference.version; option.disabled = !choice.available;
           option.selected = Boolean(chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version);
           select.append(option);
@@ -349,14 +349,14 @@ ${ASSISTANT_STRIP_PART}
         return select;
       };
       if (work) {
-        rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.part"), document.createTextNode(scopeLabel(work.scope, work.scope_title))));
+        rows.push(...metaRow(readText("workbench.assistant-island.part"), document.createTextNode(scopeLabel(work.scope, work.scope_title))));
         if (work.executor.kind === "plugin") {
           const offer = modeOffer();
-          rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.who-will-do"), document.createTextNode(work.executor.title)));
-          if (offer && offer.modes.length) rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.mode"), segmented(globalThis.t.text("workbench.assistant-island.mode-next-turn-same-setting-plugin-s-own"), modeRows(offer), work.executor.mode || offer.default_mode, (id) => void applyMode(id))));
+          rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), document.createTextNode(work.executor.title)));
+          if (offer && offer.modes.length) rows.push(...metaRow(readText("workbench.assistant-island.mode"), segmented(readText("workbench.assistant-island.mode-next-turn-same-setting-plugin-s-own"), modeRows(offer), work.executor.mode || offer.default_mode, (id) => void applyMode(id))));
         } else if (allowsCharacter() && hasChoices) {
-          rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.who-will-do"), characterPicker()));
-        } else rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.who-will-do"), document.createTextNode(chosen ? globalThis.t.text("workbench.assistant-island.role") + "：" + chosen.title : globalThis.t.text("workbench.assistant-island.assistant"))));
+          rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), characterPicker()));
+        } else rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), document.createTextNode(chosen ? readText("workbench.assistant-island.role") + "：" + chosen.title : readText("workbench.assistant-island.assistant"))));
         // The same work can change hands between rounds: to a plugin in its project, and back to the Assistant.
         const toPlugins = work.executor.kind === "assistant" && work.scope.kind === "project" ? executors.filter((one) => !one.problem) : [];
         if (!isLive(work.state) && (toPlugins.length || work.executor.kind === "plugin")) {
@@ -366,21 +366,21 @@ ${ASSISTANT_STRIP_PART}
               try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to }); render(); input.focus(); }
               catch (error) { showError(error); } finally { if (hand.isConnected) hand.disabled = false; } });
             rows.push(...metaRow("", hand)); };
-          toPlugins.forEach((one) => handOver(globalThis.t.text("workbench.assistant-island.hand-name", { name: one.title }), { kind: "plugin", plugin_id: one.plugin_id }));
-          if (work.executor.kind === "plugin") handOver(globalThis.t.text("workbench.assistant-island.back-assistant"), { kind: "assistant" });
+          toPlugins.forEach((one) => handOver(readText("workbench.assistant-island.hand-name", { name: one.title }), { kind: "plugin", plugin_id: one.plugin_id }));
+          if (work.executor.kind === "plugin") handOver(readText("workbench.assistant-island.back-assistant"), { kind: "assistant" });
         }
       } else {
         // A new work: who carries it and where it lives are chosen here, before its first message.
         const who = executorChoices().map((one) => ({ id: one.id, label: one.label, hint: one.hint }));
-        rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.who-will-do"), segmented(globalThis.t.text("workbench.assistant-island.who-does"), who, nextExec, (id) => { nextExec = id; if (id !== "assistant") nextChar = null; paintAim(); paintSum(); })));
-        if (nextExec === "assistant" && allowsCharacter() && hasChoices) rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.role"), characterPicker()));
+        rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), segmented(readText("workbench.assistant-island.who-does"), who, nextExec, (id) => { nextExec = id; if (id !== "assistant") nextChar = null; paintAim(); paintSum(); })));
+        if (nextExec === "assistant" && allowsCharacter() && hasChoices) rows.push(...metaRow(readText("workbench.assistant-island.role"), characterPicker()));
         if (nextExec !== "assistant" && modeOffer()) {
           const offer = modeOffer();
-          if (executorSession(nextExec)) rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.mode"), document.createTextNode(globalThis.t.text("workbench.assistant-island.continues-session-that-open"))));
-          else if (offer.modes.length) rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.mode"), segmented(globalThis.t.text("workbench.assistant-island.mode-first-turn"), modeRows(offer), nextMode || offer.default_mode, (id) => void applyMode(id))));
+          if (executorSession(nextExec)) rows.push(...metaRow(readText("workbench.assistant-island.mode"), document.createTextNode(readText("workbench.assistant-island.continues-session-that-open"))));
+          else if (offer.modes.length) rows.push(...metaRow(readText("workbench.assistant-island.mode"), segmented(readText("workbench.assistant-island.mode-first-turn"), modeRows(offer), nextMode || offer.default_mode, (id) => void applyMode(id))));
         }
         if (nextExec === "assistant" && project) {
-          rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.put"), segmented(globalThis.t.text("workbench.assistant-island.new-work-goes"), [{ id: "project", label: project.title || globalThis.t.text("workbench.assistant-island.project") }, { id: "personal", label: globalThis.t.text("workbench.assistant-island.personal") }], nextScope,
+          rows.push(...metaRow(readText("workbench.assistant-island.put"), segmented(readText("workbench.assistant-island.new-work-goes"), [{ id: "project", label: project.title || readText("workbench.assistant-island.project") }, { id: "personal", label: readText("workbench.assistant-island.personal") }], nextScope,
             (id) => { nextScope = id; paintAim(); paintSum(); })));
         }
       }
@@ -435,11 +435,11 @@ ${ASSISTANT_TABS_PART}
     const shown = problem || (work && view.problem) || null;
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
-      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(spinner("failed"), document.createTextNode(globalThis.t.text("workbench.assistant-island.something-went-wrong")));
+      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(spinner("failed"), document.createTextNode(readText("workbench.assistant-island.something-went-wrong")));
       const message=el("p", "");molisWorkRequest.show(message,shown,shown.message);box.append(kicker,message);
       if (work && work.state === "needs-check") {
         // What the interrupted round really did, then an explicit close. Nothing is re-run.
-        const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.assistant-island.see-what-actually-happened")); check.type = "button";
+        const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.see-what-actually-happened")); check.type = "button";
         check.addEventListener("click", async () => {
           check.disabled = true;
           try {
@@ -447,11 +447,11 @@ ${ASSISTANT_TABS_PART}
             const OUTCOMES = { completed: "workbench.assistant-island.happened", failed: "workbench.assistant-island.failed-did-not-happen", "not-dispatched": "workbench.assistant-island.not-executed", unknown: "workbench.assistant-island.outcome-unknown-check-where-would-have-happened" };
             const list = el("ul", "assistant-recovery"), closes = [];
             report.rounds.forEach((round) => {
-              round.operations.forEach((op) => { const item = el("li", "", op.summary + " — " + globalThis.t.text(OUTCOMES[op.outcome] || op.outcome)); item.dataset.state = op.outcome; list.append(item); });
-              if (!round.operations.length) list.append(el("li", "", globalThis.t.text("workbench.assistant-island.turn-recorded-no-operations")));
+              round.operations.forEach((op) => { const item = el("li", "", op.summary + " — " + readText(OUTCOMES[op.outcome] || op.outcome)); item.dataset.state = op.outcome; list.append(item); });
+              if (!round.operations.length) list.append(el("li", "", readText("workbench.assistant-island.turn-recorded-no-operations")));
               round.blockers.forEach((why) => list.append(el("li", "assistant-muted", why)));
               if (round.can_close) {
-                const close = el("button", "mw-btn mw-btn--primary mw-btn--sm", globalThis.t.text("workbench.assistant-island.checked-close-turn")); close.type = "button";
+                const close = el("button", "mw-btn mw-btn--primary mw-btn--sm", readText("workbench.assistant-island.checked-close-turn")); close.type = "button";
                 close.addEventListener("click", async () => {
                   close.disabled = true;
                   try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
@@ -473,7 +473,7 @@ ${ASSISTANT_TABS_PART}
           raise.addEventListener("click", openUsage);
           box.append(raise);
         }
-        else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; box.append(link); }
+        else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", readText("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; box.append(link); }
         else box.append(el("p", "assistant-muted", shown.action));
       }
       thread.append(box);
@@ -488,10 +488,10 @@ ${ASSISTANT_TABS_PART}
     if (!workNav || workNav.hidden) return;
     const focused = document.activeElement && workNav.contains(document.activeElement) ? document.activeElement.dataset.workId || "new" : null;
     workNav.replaceChildren();
-    const fresh = el("button", "assistant-works-item assistant-works-new", globalThis.t.text("workbench.assistant-island.new-work-2")); fresh.type = "button"; fresh.dataset.workId = "new";
+    const fresh = el("button", "assistant-works-item assistant-works-new", readText("workbench.assistant-island.new-work-2")); fresh.type = "button"; fresh.dataset.workId = "new";
     fresh.addEventListener("click", () => { setWorks(false); switchTo(null); input.focus(); });
     workNav.append(fresh);
-    if (!works.length) workNav.append(el("p", "assistant-muted", globalThis.t.text("workbench.assistant-island.no-work-yet-send-message-start-first-one")));
+    if (!works.length) workNav.append(el("p", "assistant-muted", readText("workbench.assistant-island.no-work-yet-send-message-start-first-one")));
     // Grouped the way the person looks for them: what waits on them, what is running, then the rest by recency.
     const groups = [["等你", (work) => markOf(work) === "waiting"], ["进行中", (work) => work.state === "running" || work.state === "paused"], ["最近", () => true]];
     const placed = new Set();
@@ -505,7 +505,7 @@ ${ASSISTANT_TABS_PART}
         const mark = markOf(work);
         if (mark) item.dataset.mark = mark;
         if (work.work_id === curId) item.setAttribute("aria-current", "true");
-        const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title) + (tabs.includes(work.work_id) ? " · " + globalThis.t.text("workbench.assistant-island.open-2") : ""));
+        const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title) + (tabs.includes(work.work_id) ? " · " + readText("workbench.assistant-island.open-2") : ""));
         meta.dataset.state = work.state; meta.dataset.mwState = ringState(work.state);
         const head = el("span", "assistant-works-head");
         head.append(tabMark(mark, work), el("span", "assistant-works-title", work.title));

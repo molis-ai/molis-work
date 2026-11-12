@@ -24,15 +24,15 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
-  globalThis.molisWorkShelfNotice=(message,partial=false)=>{
+  globalThis.molisWorkShelfNotice=(message,partial=false,originalWarning=null)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     message=String(message||"");
     window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message}}));
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
-    // The native admission code emits this fixed warning alongside its untouched error text.
-    const originalWarning="副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。";
-    const display=message.split("\\n").map(line=>line===originalWarning?(globalThis.t?.text("workbench.desktop-shelf.original-not-registered")??line):line).join("\\n");
+    // The native receipt identifies the appended warning independently of the original diagnostic.
+    const display=originalWarning ? message.slice(0,-originalWarning.length)
+      +(globalThis.t?.text("workbench.desktop-shelf.original-not-registered")??originalWarning) : message;
     globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
     if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };

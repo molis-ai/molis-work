@@ -329,7 +329,9 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const say = globalThis.t.text;
         const state = own ? (active ? "workbench.client-render.enabled" : "workbench.client-render.switched-off") : aim.binding?.enabled ? "workbench.client-render.another-rule-use" : "workbench.client-render.check-not-enabled-yet";
         section.append(summary);
         const detail = document.createElement("p");
-        detail.textContent = destTitle({ scene_id: aim.scene_id, scene_version: aim.scene_version, scene_provider_id: aim.provider_id }) + " · " + say(state); section.append(detail);
+        const badge = document.createElement("span"); badge.textContent = say(state);
+        detail.append(destTitle({ scene_id: aim.scene_id, scene_version: aim.scene_version, scene_provider_id: aim.provider_id }), " · ", badge);
+        section.append(detail);
         const availability = active ? aim.configuration_availability : aim.availability;
         if (!aim.availability.available) {
           const reason = document.createElement("p"); reason.textContent = aim.availability.reason; section.append(reason);
@@ -348,8 +350,13 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const say = globalThis.t.text;
       });
       usages.filter(row => !shown.has(targetKey(row))).forEach(row => {
         const summary = document.createElement("p"); title(summary, row);
-        const state = row.availability?.available === false ? row.availability.reason : row.enabled === undefined ? "" : say(row.enabled ? "workbench.client-render.enabled" : "workbench.client-render.switched-off");
-        if (state) summary.append(document.createTextNode(" · " + state));
+        const unavailable = row.availability?.available === false;
+        const state = unavailable ? row.availability.reason : row.enabled === undefined ? "" : say(row.enabled ? "workbench.client-render.enabled" : "workbench.client-render.switched-off");
+        if (state) {
+          const badge = document.createElement("span"); badge.textContent = state;
+          if (unavailable) badge.translate = false;
+          summary.append(" · ", badge);
+        }
         usagesEl.append(summary);
       });
       if (!targets.length && !usages.length) line(rec.scene_id === "agent.mcp"

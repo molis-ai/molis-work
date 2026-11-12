@@ -94,6 +94,9 @@ export function closeAssistantService(host: MolisWorkLocalHost): void {
   services.delete(host);
 }
 
+const personCacheKey = (reference: LocalHostProjectReference | undefined) =>
+  JSON.stringify([reference?.project_id ?? "", activeLocale()]);
+
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
@@ -102,7 +105,6 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
   // checked against its current definition, availability and grant owner when it is dispatched.
   const contexts = new Map<string, { at: number; context: Promise<ActionCallContext> }>();
-  const personCacheKey = (reference: LocalHostProjectReference | undefined) => JSON.stringify([reference?.project_id ?? "", activeLocale()]);
   const personContext = (reference: LocalHostProjectReference | undefined): Promise<ActionCallContext> => {
     const key = personCacheKey(reference), hit = contexts.get(key), now = Date.now();
     if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.context;

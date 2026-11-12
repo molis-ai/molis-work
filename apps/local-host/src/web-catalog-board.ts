@@ -51,12 +51,12 @@ function environmentSection(locale: WebLocale): string {
  * The Assistant frame's fixed works, drawn by the Host exactly as it draws a real answer (questions, reviews, replies, the
  * next steps and the delivery note), in the page's language — also what a work becomes once answered or checked. Nothing is read from or written to any store.
  */
-function drawnSamples(text: AssistantFrameOptions["text"]): string {
+function drawnSamples(text: AssistantFrameOptions["text"]) {
   const samples = assistantBoardSamples(Date.now(), text);
   for (const view of [...Object.values(samples.views), ...Object.values(samples.next).flat(), ...Object.values(samples.answered), ...Object.values(samples.closed)]) drawAssistantReply(view, { say: readText, drafts: () => ({}), card: () => "" });
   // A questionnaire answer the Runtime refuses (the frame's 回答问卷 · 被拒): the first question's options changed meanwhile, in
   // the lines the Host puts beside each field (assistant-http.ts).
   const refused = Object.fromEntries(Object.values(samples.views).flatMap((view) => view.rounds.flatMap((round) => round.awaiting_input))
     .filter((question) => question.questions?.length).map((question) => [question.pending_id, questionErrors([{ question: 1, reason: "unknown-option" }], readText, question.questions)]));
-  return JSON.stringify({ ...samples, refused });
+  return { ...samples, refused };
 }

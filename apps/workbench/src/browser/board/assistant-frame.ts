@@ -19,9 +19,10 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  *   and a picture the stand-in Host refuses, so the strip shows the parts that failed beside the one that went in.
  */
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 type Json = Record<string, unknown>;
 type View = { work: Json & { work_id: string }; [key: string]: unknown };
-type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>; executors: Json[];
+type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>; executors: AssistantExecutorOffer[];
   next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }>;
   /** The lines beside each field for a questionnaire answer the Runtime refuses, by question, as the Host drew them. */
   refused: Record<string, Record<string, string>> };
@@ -87,7 +88,10 @@ const answerQuestion = (id: string, body: string | null) => new Promise<Response
 
 const READS: Record<string, () => unknown> = {
   works: () => ({ works: copy(S.works) }), notices: () => ({ notices: copy(S.notices) }), characters: () => ({ characters: [] }),
-  executors: () => ({ executors: copy(S.executors) }), capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
+  executors: () => ({ executors: S.executors.map(offer => ({ ...offer, modes: offer.modes.map(mode => ({
+    ...mode, title: document.querySelector(`[data-asst-mode-word="${CSS.escape(offer.plugin_id + "/" + mode.id)}"]`)?.textContent ?? mode.title,
+  })) })) }),
+  capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
 };
 function answer(url: URL, method: string, body: string | null, signal?: AbortSignal | null): Response | Promise<Response> {
   const parts = url.pathname.slice((PREFIX + "/api/assistant/").length).split("/").map(decodeURIComponent);
@@ -112,9 +116,9 @@ function answer(url: URL, method: string, body: string | null, signal?: AbortSig
   }
   return refuse();
 }
-// The frame reaches nothing real: the stand-in answers the Assistant's reads and drafts and the attention read, and refuses every other request.
-window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = new URL(input instanceof Request ? input.url : String(input), location.href), method = (init?.method ?? "GET").toUpperCase();
+// All requests made by the island use this stand-in. The public specimen document uses the board's own language loader.
+window.molisWorkUiTransport = (input, init) => {
+  const url = new URL(input, location.href), method = (init.method ?? "GET").toUpperCase();
   if (url.origin === location.origin && url.pathname === PREFIX + "/api/attention" && method === "GET") {
     return Promise.resolve(json({ background_tasks: [], notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null }));
   }

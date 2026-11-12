@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { HOTKEY_OCCUPIED, HOTKEY_RECORDING } from "@molis-ai/molis-work-module-shelf";
+import { HOTKEY_OCCUPIED, HOTKEY_RECORDING, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
 import {
   SHELF_CLIENT_FACTORY_SCRIPT,
 
@@ -21,7 +21,8 @@ const sourcesIn = (dir: string): string[] => readdirSync(dir).flatMap(name => {
 });
 const browserFiles = sourcesIn(BROWSER);
 const SERVER_DRAWN = join(SRC, "ui.ts");
-const owns = (file: string) => file === SERVER_DRAWN || file.startsWith(BROWSER + "/");
+const RECIPE_TEXT = join(SRC, "recipe-text.ts");
+const owns = (file: string) => file === SERVER_DRAWN || file === RECIPE_TEXT || file.startsWith(BROWSER + "/");
 
 test("RAC-164 every word the Shelf page's client and drawn list say has a stable key with both languages", () => {
   const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
@@ -37,6 +38,13 @@ test("RAC-164 every word the Shelf page's client and drawn list say has a stable
   assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [],
     "no browser code hands a word it did not choose from the table to the translator");
   const used = new Set<string>(calls.map(call => call.key));
+  const recipeKeys = SHELF_RECIPES.flatMap(recipe => {
+    const fields = ["title", "short-title", "description", ...recipe.choices.map(choice => `choice.${choice.id}`)];
+    if (recipe.choice_label) fields.push("choice-label");
+    if (recipe.choice_hint) fields.push("choice-hint");
+    return fields.map(field => `shelf.recipe.${recipe.recipe.replaceAll("_", "-")}.${field}`);
+  });
+  assert.deepEqual([...used].filter(key => key.startsWith("shelf.recipe.")).sort(), recipeKeys.sort());
   assertPageWords("shelf", used);
   // The chord words the module's own errors and the settings page's drawn page speak are the ones the bundle shows.
   assert.equal(pageText("zh", "shelf")("shelf.settings.hotkey-occupied"), HOTKEY_OCCUPIED);

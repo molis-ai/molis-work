@@ -36,7 +36,7 @@ function moreButton(page: ShelfPage): string {
 
 /** The words under a recipe or shortcut chip: why it is greyed out, or what it does. */
 function chipTitle(page: ShelfPage, action: Shortcut | null, recipe: Recipe | null, enough: boolean, needsVision: boolean): string {
-  if (!enough) return uiText.text("shelf.bar.needs-at-least-two");
+  if (!enough) return uiText.text("shelf.bar.needs-at-least-two", { name: recipe?.short_title || recipe?.label || "" });
   if (needsVision) return uiText.text("shelf.bar.this-mac-has-no-on");
   if (action) {
     const reason = ai(page).reason;

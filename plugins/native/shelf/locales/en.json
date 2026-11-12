@@ -14,7 +14,7 @@
     "shelf.bar.conversation": "Conversation",
     "shelf.bar.done-arranging": "Done arranging",
     "shelf.bar.manage-actions": "Manage actions",
-    "shelf.bar.needs-at-least-two": "Choose at least two items",
+    "shelf.bar.needs-at-least-two": "“{name}” needs at least two items",
     "shelf.bar.new": "New",
     "shelf.bar.new-action": "New action",
     "shelf.bar.open-the-terminal-session-this": "Open the terminal session. This does not create a new file. Send files from the wheel.",

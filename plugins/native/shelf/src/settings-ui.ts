@@ -27,7 +27,7 @@ import {
   shortcutIdFromSlot,
 } from "@molis-ai/molis-work-module-shelf";
 import { SHELF_GLYPH } from "./glyphs.js";
-import { shelfRecipeTextKey } from "./recipe-text.js";
+import { shelfRecipeText } from "./recipe-text.js";
 import type { ShelfUiPrimitives } from "./ui.js";
 
 export const SHELF_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.settings.v1";
@@ -131,8 +131,8 @@ function actionsPane(model: ShelfSettingsUiModel): string {
     const shortcutId = shortcutIdFromSlot(slot);
     const action = shortcutId ? settings.shortcuts.find((entry) => entry.id === shortcutId) : undefined;
     const recipe = SHELF_RECIPES.find((entry) => entry.recipe === slot);
-    if (!action && !recipe) return "";
-    const title = action?.name ?? uiText.text(shelfRecipeTextKey(slot, "title"));
+    const title = action?.name ?? (recipe && shelfRecipeText(uiText.text, recipe.recipe, "title", recipe.label));
+    if (title === undefined) return "";
     const hidden = settings.hidden_actions.includes(slot);
     return `<li class="shelf-action-row" data-shelf-action-slot="${p.escape(slot)}" draggable="true">
         <span class="shelf-act-grip" aria-hidden="true"></span>

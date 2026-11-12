@@ -14,7 +14,7 @@
     "shelf.bar.conversation": "对话",
     "shelf.bar.done-arranging": "完成整理",
     "shelf.bar.manage-actions": "管理动作",
-    "shelf.bar.needs-at-least-two": "至少要两份材料",
+    "shelf.bar.needs-at-least-two": "「{name}」至少要两份材料",
     "shelf.bar.new": "新建",
     "shelf.bar.new-action": "新建动作",
     "shelf.bar.open-the-terminal-session-this": "打开终端会话。不会生成新文件。发给终端请用轮盘。",

@@ -1,5 +1,5 @@
 import type { Child, Clip, ConfirmRecipe, Item, Recipe, RuntimeView, Shortcut, ShelfPage } from "./types.js";
-import { shelfRecipeTextKey } from "../recipe-text.js";
+import { shelfRecipeText } from "../recipe-text.js";
 
 const uiText = globalThis.t;
 
@@ -56,10 +56,11 @@ export const recipeList = (page: ShelfPage): readonly Recipe[] => page.snapshot.
 export function recipeFor(page: ShelfPage, id: string): Recipe | null {
   const recipe = recipeList(page).find(entry => entry.recipe === id);
   if (!recipe) return null;
-  const text = (field: string) => uiText.text(shelfRecipeTextKey(id, field));
-  return { ...recipe, label: text("title"), short_title: text("short-title"), blurb: text("description"),
-    choice_label: recipe.choice_label ? text("choice-label") : "", choice_hint: recipe.choice_hint ? text("choice-hint") : "",
-    choices: recipe.choices.map(choice => ({ ...choice, title: text(`choice.${choice.id}`) })) };
+  const text = (field: string, original: string) => shelfRecipeText(uiText.text, recipe.recipe, field, original);
+  return { ...recipe, label: text("title", recipe.label), short_title: text("short-title", recipe.short_title), blurb: text("description", recipe.blurb),
+    choice_label: recipe.choice_label ? text("choice-label", recipe.choice_label) : "",
+    choice_hint: recipe.choice_hint ? text("choice-hint", recipe.choice_hint) : "",
+    choices: recipe.choices.map(choice => ({ ...choice, title: text(`choice.${choice.id}`, choice.title) })) };
 }
 export const actIdFor = (recipe: string): string => recipe === "extract_text" ? "extract" : recipe;
 export const recipeForAct = (page: ShelfPage, actId: string): Recipe | null => recipeFor(page, actId === "extract" ? "extract_text" : actId);

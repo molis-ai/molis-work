@@ -88,6 +88,7 @@
         {"name": "dur-arrive", "type": "duration", "varies_by": "none"},
         {"name": "dur-moment", "type": "duration", "varies_by": "none"},
         {"name": "dur-reveal", "type": "duration", "varies_by": "none"},
+        {"name": "dur-stagger", "type": "duration", "varies_by": "none"},
         {"name": "ease-quint", "type": "easing", "varies_by": "none"},
         {"name": "ease-spring", "type": "easing", "varies_by": "none"},
         {"name": "ease-out", "type": "easing", "varies_by": "none"},

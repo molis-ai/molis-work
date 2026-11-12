@@ -33,9 +33,9 @@ test("each state has its own fixed glyph", () => {
 });
 
 // specs/visual-ui-experience §bezier-timing (the guard's expected change, VUX-14): the motion tokens are the four durations and
-// two curves, plus the one reveal pair (90 ms, out-cubic) chosen for newly written text. Business styles still name a token,
+// two curves, plus the one reveal pair (90 ms, out-cubic) chosen for newly written text and the one stagger step (60 ms, batch 22). Business styles still name a token,
 // never a duration or a curve of their own, so the reveal's 90 ms appears only in its token's definition.
-const MOTION_TOKENS = { "dur-hover": "130ms", "dur-press": "130ms", "dur-move": "250ms", "dur-arrive": "420ms", "dur-moment": "640ms", "dur-reveal": "90ms",
+const MOTION_TOKENS = { "dur-hover": "130ms", "dur-press": "130ms", "dur-move": "250ms", "dur-arrive": "420ms", "dur-moment": "640ms", "dur-reveal": "90ms", "dur-stagger": "60ms",
   "motion-instant": "130ms", "motion-fast": "130ms", "motion-normal": "250ms", "motion-arrive": "420ms",
   "ease-quint": "cubic-bezier(.22, 1, .36, 1)", "ease-spring": "cubic-bezier(.2, 1.35, .4, 1)", "ease-reveal": "cubic-bezier(.215, .61, .355, 1)",
   "ease-out": "var(--ease-quint)", "ease-standard": "var(--ease-quint)", "ease-swift": "var(--ease-quint)", "ease-settle": "var(--ease-spring)" };

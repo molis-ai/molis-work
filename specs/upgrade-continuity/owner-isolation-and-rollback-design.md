@@ -1,6 +1,6 @@
 # U3 按主人隔离与回到上一版：设计
 
-状态：设计（2026-11-11，路线书第 25 批第 2、3 项，在本批分支 `batch/25` 上实现）。行为与验收以[升级后持续可用](spec.md) §4.2、§4.3、§7、§9 和 §10 决策记录为准，本文只写怎么做。「回到上一版」原是 U6 的一半，用户 2026-11-11 定提前到第 25 批（§10）；副本演练、接更新器仍是第 26 批的 U6。界面照 11-04 定样（[`docs/design/runtime-and-recovery`](../../docs/design/runtime-and-recovery/README.md)「某块暂不可用」「更新与回退」），不重新出样。
+状态：已实现（2026-11-12，路线书第 25 批第 2、3 项；已随 #2034 于 2026-11-12 合入 main `3d844d493a`；实现时改的几处见 §10，合后审计的修整见[第 25 批文件](../post-anticorruption-roadmap/reference/batches/25.md#post-merge-audit-2026-11-12)）。行为与验收以[升级后持续可用](spec.md) §4.2、§4.3、§7、§9 和 §10 决策记录为准，本文只写怎么做。「回到上一版」原是 U6 的一半，用户 2026-11-11 定提前到第 25 批（§10）；副本演练、接更新器仍是第 26 批的 U6。界面照 11-04 定样（[`docs/design/runtime-and-recovery`](../../docs/design/runtime-and-recovery/README.md)「某块暂不可用」「更新与回退」），不重新出样。
 
 验收编号沿用 `UPG-04`、`UPG-05`、`UPG-06`、`UPG-13`、`UPG-19`；本文新增的检查用 `UPG3-`（隔离与显示）和 `UPGR-`（回到上一版）前缀，在 §8 列出。
 
@@ -82,7 +82,7 @@ interface UnavailableOwner {
 **出现在哪，接在已有的两层上：**
 
 - **插件**：平台已经把表被拒的插件实例停掉，工作台主区给「插件暂不可用」的那一格（`unavailable-plugin-stage.ts`），Dock 上这一颗已经带琥珀点（`nav-warn-dot`，`navigation-presentation.ts`）。U3 只把这一格的内容换成说明卡：宿主组装这一格时（`project-plugin-stages.ts` 的 `unavailableStage`、`home-plugin-http.ts` 的 `homeUnavailableStage`）见到拒绝是升级一类，就带上 `upgrade` 字段；带了它就不给「重新启动」（重启升不了库）。点的 `aria-label` 改成「暂不可用」。定样里的「组件板新增 Dock 点」用的就是这颗现成的点，不新造部件。
-- **其余各块**：页面请求已经在一处包着 `withHomePluginStorePageRecovery`（`web-request.ts` 的两次分派）。把它推广成 `withOwnerUnavailablePage`：接到 Home 插件库的拒绝照旧，另外接住任何库与文件的版本／升级拒绝（`isSqliteVersionRefusal` 与带版本文件的同类码），GET 页面给一张说明卡页（按 `block` 写标题，项目块保留项目名与「回到项目列表」），`/api/` 的 GET 回 `unavailable`，写操作照旧拒绝。原来的 `renderPluginStoreUnavailablePage` 改成这张页的一种情况，不留两套。
+- **其余各块**：页面请求已经在一处包着 `withHomePluginStorePageRecovery`（`web-request.ts` 的两次分派）。把它推广成 `withOwnerUnavailablePage`（`web-owner-unavailable.ts`）：接到 Home 插件库的拒绝照旧，另外接住任何库与文件的版本／升级拒绝（`isSqliteVersionRefusal` 与带版本文件的同类码），GET 页面给一张说明卡页（按 `block` 写标题，项目块保留项目名与「回到项目列表」），`/api/` 的 GET 回 `unavailable`，写操作照旧拒绝。原来的 `renderPluginStoreUnavailablePage` 改成这张页的一种情况（`renderOwnerUnavailablePage`），不留两套。
 - **项目目录**：`resolveOrChooser` 在目录库被拒时现在给一张空的项目选择页（`load_error`）。升级一类的拒绝改给说明卡；别的读取失败照旧。设置里不读目录库的几页（外观、记忆、连接、外部访问）照常能开，只是没有项目可选；模型的服务商记在目录库里，模型页给同一张卡。这就是「其余照常」。
 
 不加全局提示（11-04 定）。再加一块，只在描述符那一行写 `block`。
@@ -106,7 +106,7 @@ interface UnavailableOwner {
 - `GET /`（以及任何 `Accept: text/html` 的 GET）：一张静态的开场页，结构照产品的到达页（`arrival.css` 的标题栏、空主区、底栏中间 `mw-bar-status`）。页面自带一小段脚本，每 500 毫秒读一次 `/upgrade-progress`。`started_at` 起不到两秒不显示进度（只有空开场），超过两秒显示「正在升级 n / m」；收到 `done` 后整页刷新，宿主已经开始正常服务。
 - `GET /upgrade-progress`：`{ done, total, started_at, state: "upgrading" | "done" }`，只有数字，没有库名和内容。守 S-01（回环）、S-02（Host 头），不带令牌：内容与 `/health` 的 `upgrade` 一样，只是不带挑战证明。
 
-页面与样式随宿主包走（不新增页面资源：用现有的 `molis-work-arrival.css`）。桌面：`wait_for_upgrading_web` 见到 `upgrading` 时，把主窗口导航到 `http://127.0.0.1:<端口>/`（维护态那张页），不再停在 Rust 的启动画面；端口取第 25 批第 1 项的地址文件。
+页面与样式随宿主包走（不新增页面资源：用现有的 `molis-work-arrival.css`）。桌面：`wait_for_upgrading_web` 见到 `upgrading` 时，把主窗口导航到 `http://127.0.0.1:<端口>/`（维护态那张页），不再停在 Rust 的启动画面；端口取第 25 批第 1 项的地址文件（实现时改：只有桌面启动等待升级时导航，应用已打开时宿主重启进入升级不另行导航，见 §10；合后审计把这个导航补上了，此前桌面只等 Rust 启动画面）。
 
 ## 5. 回到上一版（UPG-13）
 
@@ -156,7 +156,7 @@ type RollbackPoint =
 2. 取锁（`acquireStorageOwner`，不升级）；有未完成的 `home restore` 就拒绝。再读一次回退点，`available: false` 就停（`installer.rollback.unavailable`，`details.reason` 是原因），什么都不动。
 3. `data: "restore"`：先逐个核快照摘要，有一个对不上就整件不做；再删戳记，按清单把每个 `committed` 单元放回（U1 §5.2 的放回步骤）。中途失败：已经放回的不再退（它们都是完整的旧版），程序不换、回退点还在，再跑一次 `home rollback` 从头核、从头放，结果一样（实现时改：不另写 `rolling_back` 状态，放回本身可重复）。
 4. 换程序：当前发布目录 rename 到 `releases/.rolled-back-<run>`；`releases/previous/release/` rename 回 `releases/molis-work-<旧版本>`；`config/installation.json` 换成 `previous/installation.json`；重写启动器（`bin/`）。和安装器的提升同一套原子换目录。完成后删 `.rolled-back-*` 与 `previous/`（回退之后不能再「回到上一版」的上一版）。
-5. 戳记在第 3 步已删（下次启动全量扫一遍，旧程序见到的都是它的版本）；写 `config/rollback-hold.json`：`{ schema_version: 1, held_version, held_digest, rolled_back_from: { version, content_digest }, at }`（`format.home.release.rollback_hold` 第 1 版）。
+5. 戳记在第 3 步已删（下次启动全量扫一遍，旧程序见到的都是它的版本）；写 `config/rollback-hold.json`：`{ schema_version: 1, held_version, rolled_back_from: { version, content_digest }, at }`（`format.home.release.rollback_hold` 第 1 版；实现时改：不写 `held_digest`，桌面只比较版本与 `rolled_back_from`）。
 6. 放锁。
 
 **停在上一版**：桌面（`embedded_runtime_upgrade_available`）见到 `rollback-hold.json` 且内置运行时的版本或摘要等于 `rolled_back_from`，就不装进 Home，只在设置 › 更新写「已回到上一版 <版本>；需要时可以更新到最新版」。用户点「更新到最新版」（第 26 批接更新器；本批这一处按钮做的是「重新装上刚才那一版」：删掉 hold，下次启动照常装内置运行时）。内置运行时比 `rolled_back_from` 还新（真的出了新版）时照常装；任何一次真的换了程序的安装都删 hold（能走到安装，就是人或新版本要换了）。
@@ -178,7 +178,7 @@ type RollbackPoint =
 | 改动 | 位置 | 轨道 |
 | --- | --- | --- |
 | 描述符加 `block`；`describeUnavailable`；诊断号；日志加号 | `apps/local-host/src/platform-upgrade-stores.ts`、`home-upgrade-stores.ts`、`home-upgrade.ts`、新文件 `home-unavailable-owners.ts` | C1（宿主启动，按枢纽文件处理） |
-| 说明卡、插件格的说明、页面恢复 | `apps/workbench/src/`（新 `owner-unavailable.ts`，`plugin-store-unavailable.ts` 并入）、`unavailable-plugin-stage.ts`、`apps/local-host/src/web-request.ts`、`web-home-plugin-recovery.ts`（改名 `web-owner-unavailable.ts`）、`project-plugin-stages.ts`、`home-plugin-http.ts` | D（界面）、宿主枢纽 |
+| 说明卡、插件格的说明、页面恢复 | `apps/workbench/src/`（新 `owner-unavailable.ts`，`plugin-store-unavailable.ts` 并入）、`unavailable-plugin-stage.ts`、`apps/local-host/src/web-request.ts`、`web-owner-unavailable.ts`（原 `web-home-plugin-recovery.ts`）、`project-plugin-stages.ts`、`home-plugin-http.ts` | D（界面）、宿主枢纽 |
 | 开场页、`/upgrade-progress` | `apps/local-host/src/upgrade-maintenance.ts` | C1 |
 | 结果卡、`notice.json` | `apps/local-host/src/home-upgrade-ledger.ts`、首页 | C1、D |
 | 回退点、`home rollback`、保留上一版、hold；卸载认得回退点与 hold | `apps/local-host/src/installer/`（`home.ts`、新 `home-rollback.ts`、`uninstall-files.ts`）、`apps/local-host/src/cli-home.ts`；放回快照 `home-upgrade.ts` 的 `putBackUpgradeRound`、`packages/storage/src/upgrade-snapshot.ts` 的 `upgradeSnapshotListed` | F（安装器） |
@@ -236,3 +236,12 @@ type RollbackPoint =
 | 14 | 冲突面 | 宿主启动（枢纽）、安装器与桌面（F 轨）；本批只有主会话一个写手 |
 | 15 | 全局最优 | 回退由桌面做、不由宿主自己做：宿主不能在持锁、正在服务时把自己换掉；命令行的 `home rollback` 给不开桌面时用 |
 
+## 10. 实现时改（2026-11-12）
+
+以下几处与上文不同，以这里和代码为准：
+
+- **设置页的 `block.page` 用现行界面 id**：`appearance`、`access`（MCP 工具偏好页）、`assistant`（侧栏浏览器站点与电脑操作的文件归这一页）、`models`、`memory` 等；§2.1 表里举的 `mcp`／`browser`／`computer` 是旧页名。
+- **`rollback.json` 与 `rollback-hold.json` 不写 `held_digest`**：`rollback-hold.json` 只有 `held_version`、`rolled_back_from`（版本与内容摘要）和 `at`，桌面按版本与摘要判断停在哪一版；§5.3 的字段清单以这里为准。
+- **升级开场页只在桌面启动等待时导航**：应用已打开、宿主重启进入升级时，主窗口停在原页面（「没在运行」页，胶囊显示停止），不另外跳到维护态页；这是合后审计确认并记录的行为，重看条件见 [resident-runtime-design.md](../proactive-assistant/resident-runtime-design.md) §10.1。
+- **设置 › 更新与说明卡的读数**：每次渲染读一次回退点与 hold（两个小文件，不开库）；说明卡只在被拒时读一次升级记录；回退执行走一侧的 `home rollback` 与桌面命令，不另开业务库。
+- **合后独立审计的修整**：桌面升级时的维护态开场页导航是按本文 §4 补上的，见[第 25 批文件](../post-anticorruption-roadmap/reference/batches/25.md#post-merge-audit-2026-11-12)。

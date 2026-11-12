@@ -223,7 +223,7 @@
 | C 平台与 Prologue | BL-323（`remember` 待认可时的工具结果）、BL-367（插件 `stop` 钩子没有时限）、BL-569（安全不变量门禁漏扫 e2e 用例）已在 27 做完、BL-392（Runtime 显示名散在几处）；BL-371（运行时能力加会话间发信，随子代理）、BL-034（没接的 Prologue 能力，按窗口清单逐项挑）；BL-052（五家原生 Agent 实操，随 Sessions 重做）、BL-166（技能包定制）、BL-128（引用声明的语义一致性，等你定） | [24](batches/24.md)、[27](batches/27.md)、[31](batches/31.md)、[59](batches/59.md)、[61](batches/61.md) |
 | D 外观与语言 | BL-041（无项目时没有搜索入口）、BL-138（窄问卷卡的标题）已在 27 做完、等你看实物（[BL-batch27-acceptance](../../backlog/BL-batch27-acceptance.md)），BL-543（设置地址把查询参数原样带过去）、BL-544（侧视图插件框没加载完就能点）已在 27 核回；BL-139（「开始」译成 Started）随 C 段 | [07](batches/07.md)、[16](batches/16.md)、[27](batches/27.md) |
 | E 插件 | BL-129（首页事项不分撤不回，随情境 W4）；BL-039（片段级动作只有四个插件提供，随 W5、W6） | [45](batches/45.md)、[68](batches/68.md) |
-| F 首次使用与发布 | BL-106、BL-107（引导里的项目简介与后台继续，随 onboarding-coverage）、BL-108（MCP 启动器找不到 Home 的服务）；BL-110（桌面里管理项目导航卡住）、BL-126（维护六收尾核对，随真实 Home 维护） | [04](batches/04.md)、[25](batches/25.md)、[26](batches/26.md)、[44](batches/44.md)、[56](batches/56.md) |
+| F 首次使用与发布 | BL-106、BL-107（引导里的项目简介与后台继续，随 onboarding-coverage）、BL-108（MCP 启动器找不到 Home 的服务；已随第 25 批 #2034 做完，编号不复用）；BL-110（桌面里管理项目导航卡住）、BL-126（维护六收尾核对，随真实 Home 维护） | [04](batches/04.md)、[25](batches/25.md)、[26](batches/26.md)、[44](batches/44.md)、[56](batches/56.md) |
 | 服务端批（[服务端批](server-batch.md#server-batch)） | BL-070（Outbox，随同步合同） | [SRV-1](batches/srv-1.md) |
 | 工程流程（统筹） | BL-142、BL-143、BL-412（偶发失败的用例）、BL-565（共享核心 PR 的全量证据进 required CI）、BL-328（真实模型小评测的命令） | [02](batches/02.md) |
 | 11-03 补点名 | BL-880：Feed 投影随 #1725 迁回插件，门禁改动用户 2026-11-04 确认接受，07-3 已完成；BL-900：05 区分非持久编辑器字段与持久化结果合同后整理，原 R-B 不改决定保留；BL-925：仅第三个双实例插件出现时再评，见 [暂缓与条件项](deferred.md#section-8) | [05](batches/05.md)、[07](batches/07.md) |

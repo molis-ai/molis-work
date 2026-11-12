@@ -29,22 +29,6 @@ export declare const PLACEMENT_PROVIDER_ID = "system.placement";
 
 export declare const PLACEMENT_READ_PERMISSION = "placement:read";
 
-export declare const PLACEMENT_SUBJECT_SCHEMA: {
-    readonly type: "object";
-    readonly properties: {
-        readonly kind: {
-            readonly type: "string";
-            readonly minLength: 1;
-        };
-        readonly id: {
-            readonly type: "string";
-            readonly minLength: 1;
-        };
-    };
-    readonly required: readonly ["kind", "id"];
-    readonly additionalProperties: false;
-};
-
 export declare const PLACEMENT_WRITE_PERMISSION = "placement:write";
 
 export interface PlacedObject {

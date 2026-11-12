@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_TAKEN } from "./fixtures/coding-composer.js";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createCodingCodePaint } from "@molis-ai/molis-work-plugin-coding";
 import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { codeColouringProjection } from "./fixtures/code-colouring.js";
 import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
+import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 
 // specs/visual-ui-experience VUX-33 and VUX-36 (§code-diff): a large block reads at once, and each slice
 // limits both DOM work and its inline layout. The tokenizer stays shared; no Worker owns another rendering path. Measured first: on a product page a 180,000-character block took 13 s to
@@ -113,6 +115,41 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   assert.equal(await evaluate<boolean>(`(() => { const code = block(); return paint.paintInto(code, 'const value = 1;', 'ts') && !!code.querySelector('.tok-keyword'); })()`), true, "small blocks still colour synchronously");
 });
 
+test("B27SRC-05: CR, CRLF and LF code read, show and colour alike: as rendered rich text and as Coding paints it, also grown from a lone CR", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
+    window.paint = (${createCodingCodePaint.toString()})(tokensOf, ${growCodeTokens.toString()}, (hint) => hint);
+    window.block = (id) => { const pre = document.body.appendChild(document.createElement('pre')); pre.id = id; pre.style.cssText = 'font: 13px/20px monospace; white-space: pre; margin: 0'; return pre; };`);
+  const lf = textOf(90_000).replace(/\n$/u, ""), lines = lf.split("\n").length;
+  const shown: Record<string, { reads: boolean; height: number; coloured?: boolean }> = {};
+  for (const [name, ending] of [["lf", "\n"], ["crlf", "\r\n"], ["cr", "\r"]] as const) {
+    const text = lf.replaceAll("\n", ending), html = renderRichText("```ts\n" + text + "\n```");
+    // As rendered: the page reads the exact code from the HTML, and a lone CR shows as a line.
+    shown[name + "-html"] = await evaluate(`(() => { const pre = block('html-${name}'); pre.innerHTML = ${JSON.stringify(html)}; const code = document.querySelector('#html-${name} code');
+      return { reads: code.textContent === ${JSON.stringify(text)}, height: code.getBoundingClientRect().height }; })()`);
+    // As Coding paints it, in slices, to the whole colouring.
+    await evaluate(`(() => { const code = block('paint-${name}').appendChild(document.createElement('code')); window['${name}'] = code; paint.paintInto(code, ${JSON.stringify(text)}, 'ts'); })()`);
+    await waitFor(`JSON.stringify(colourParts(window['${name}'])) === JSON.stringify(tokensOf(window['${name}'].textContent, 'ts'))`, 30_000);
+    shown[name + "-paint"] = await evaluate(`({ reads: window['${name}'].textContent === ${JSON.stringify(text)}, height: window['${name}'].getBoundingClientRect().height, coloured: !!window['${name}'].querySelector('.tok-comment') })`);
+  }
+  t.diagnostic("B27SRC-05 " + JSON.stringify(shown));
+  for (const [name, value] of Object.entries(shown)) {
+    assert.equal(value.reads, true, `${name} reads the exact code`);
+    assert.ok(Math.abs(value.height - lines * 20) <= 20, `${name} shows ${lines} lines: ${value.height}px`);
+  }
+  // A lone CR streamed first and its LF next: the block grows to the CRLF text and colours it whole, without a doubled line.
+  const crlf = lf.slice(0, 4000).replaceAll("\n", "\r\n"), cut = crlf.indexOf("\r\n", 2000) + 1;
+  await evaluate(`(async () => { window.grow = block('grow').appendChild(document.createElement('code')); window.growText = ${JSON.stringify(crlf)};
+    paint.paintInto(grow, growText.slice(0, ${cut}), 'ts'); await new Promise(resolve => requestAnimationFrame(resolve)); paint.paintInto(grow, growText, 'ts'); })()`);
+  await waitFor("grow.textContent === growText && JSON.stringify(colourParts(grow)) === JSON.stringify(tokensOf(growText, 'ts'))", 30_000);
+  const grown = await evaluate<{ reads: boolean; coloured: boolean; height: number; lines: number }>("({ reads: true, coloured: true, height: grow.getBoundingClientRect().height, lines: growText.split('\\r\\n').length })");
+  assert.deepEqual([grown.reads, grown.coloured], [true, true]);
+  assert.ok(Math.abs(grown.height - grown.lines * 20) <= 20, `no doubled line where the CR met its LF: ${grown.height}px for ${grown.lines} lines`);
+});
+
 test("VUX-33: Coding reopens a turn with a large code block as text at once and coloured whole", { timeout: 240_000 }, async (t) => {
   const code = textOf(90_000).replace(/\n$/, "");
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
@@ -128,6 +165,8 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   const workspace = join(homeDirectory, "code-scale");
   await mkdir(workspace, { recursive: true }); await writeFile(join(workspace, "note.txt"), "x\n");
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => browser.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click(".navigator-project-settings");
@@ -144,12 +183,12 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "写一大段代码");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await browser.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "写一大段代码");
+  await browser.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
+  await browser.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段'))`, 60_000);
   model.finish();
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('写完了'))`, 60_000);
@@ -174,10 +213,11 @@ test("VUX-33: the Assistant sends a large block as its text and a map of its pie
 });
 
 test("VUX-33: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
-  const code = textOf(90_000).replace(/\n$/, "");
+  // A literal CR ends the body. The CRLF after it separates the closing fence.
+  const code = textOf(90_000).replace(/\n$/, "\r");
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
-    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 8, pause: 300 }); },
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\r\n```\n\n写完了。", { pieces: 8, pause: 300 }); },
   }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -191,7 +231,7 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
   await waitFor(`${figure}?.querySelector('code .tok-keyword')`, 30_000);
   await evaluate(`window.block = ${figure}; window.piece = window.block.querySelector('code').firstChild`);
   await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich')?.textContent.includes('写完了')", 60_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)})`);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)}) + "<br>"`);
   await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
   const written = await evaluate<{ same: boolean; piece: boolean; code: string }>(`(() => { const block = ${figure};
     return { same: block === window.block, piece: block.querySelector('code').firstChild === window.piece, code: block.dataset.code }; })()`);
@@ -206,7 +246,7 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
     if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`${figure}?.querySelector('code')`, 30_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)})`);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)}) + "<br>"`);
   await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
   const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");

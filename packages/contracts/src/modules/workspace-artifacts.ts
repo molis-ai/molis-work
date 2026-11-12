@@ -47,12 +47,15 @@ export type WorkspaceGitQuery = { workspace_id: string } & (
 export type WorkspaceGitResult =
   | { outcome: "status"; porcelain: string; head_commit: string | null }
   | WorkspaceGitSummary
-  | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string }
+  | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string;
+      /** The exact remote already described in message, present only when it is a local path. */
+      local_remote?: { name: string; url: string } }
   | { outcome: "conflict-file"; path: string; text: string; conflicts: number; ours: string; theirs: string; revision: string }
   | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
       before_exists: boolean; after_exists: boolean; before: string; after: string;
       before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
-  | { outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
+  | { outcome: "not-a-repository"; message: string; reason?: "directory_not_created" }
+  | { outcome: "denied" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
 export interface WorkspaceGitSummary {
   outcome: "summary";
   /** Null on a detached HEAD. */
@@ -669,7 +672,6 @@ export function mayHaveChangedFiles(outcome: GitResultOutcome): boolean {
  * the publisher's package to spell one, and so the two cannot drift apart.
  * Validators stay with the publisher: only it knows what its payload means.
  */
-export const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
 export const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
 export const GIT_OPERATION_UPDATED_EVENT = "io.molis.work.git.operation-updated";
 export const GIT_FILE_CHANGED_EVENT = "io.molis.work.git.file-changed";

@@ -76,6 +76,13 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser { --side-w: clamp(296px, 24vw, 344px); }
   .chooser-list { display: flex; flex-direction: column; gap: 12px; padding: 4px 8px 6px 14px; }
   .chooser-head { padding: 2px 8px 0; }
+  /* What was missed while Molis Work was not running (resident-runtime-design §4): above the directory, each with 现在做 and 跳过. */
+  .chooser-list > .runtime-panel[hidden] { display: none; }
+  .runtime-rows { display: grid; gap: 2px; margin-top: 8px; }
+  .runtime-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; padding-inline: 0; }
+  .runtime-row .mw-dir-row__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .runtime-row__actions { display: flex; gap: 6px; }
+  .runtime-row .runtime-failed { grid-column: 1 / -1; color: var(--red); font-size: 11px; }
   .chooser-greeting { display: grid; gap: 2px; }
   .chooser-greeting strong { font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   .chooser-greeting span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -87,6 +94,7 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser-search svg { width: 16px; height: 16px; }
   .chooser-search__key { flex: none; display: inline-flex; }
   .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 4px; border: 0; background: var(--control-fill); }
+  .chooser-personal-search { width: 100%; justify-content: flex-start; margin-top: -4px; }
   .chooser-dir { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; padding: 0 8px 8px; }
   .chooser-dir > [data-slot="directory-heading"] { padding: 10px 8px 4px; }
   .chooser-dir .mw-dir-row--meta { height: auto; min-height: 40px; padding-block: 6px; border-radius: var(--r-row, 10px); }
@@ -298,6 +306,7 @@ export const ARRIVAL_STYLES = String.raw`
     .stage-split > .stage-side { max-height: 36vh; overflow: auto; }
     .chooser-dir { min-height: 104px; }
     .chooser-foot { display: none; }
+    .chooser-personal-search { min-height: 44px; }
   }
   @media (max-width: 900px) {
     /* Narrow windows, including landscape phones: keep the assistant above the actions instead of squeezing three columns. */

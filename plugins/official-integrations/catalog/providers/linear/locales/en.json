@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.linear",
+  "locale": "en",
+  "messages": {
+    "linear.connection.auth-help": "Use a Linear Personal API key. The integration only reads the current viewer and recent issues.",
+    "linear.connection.inbound": "Feed reads issues",
+    "linear.connection.summary": "Issues, projects and cycles.",
+    "linear.connection.token-label": "Linear API Key",
+    "linear.guide.mcp-link": "View the official Linear MCP",
+    "linear.guide.oauth-link": "View Linear OAuth app",
+    "linear.setup.open-linear-api-settings": "Open Linear API settings"
+  }
+}

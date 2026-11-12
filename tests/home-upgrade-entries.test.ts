@@ -1,3 +1,5 @@
+import {v2AccountPeer} from './fixtures/v2-account-peer.js';
+import {completeInstallationLogin} from './fixtures/installation-login.js';
 // UPG1-13, UPG1-15 (the `bootstrapSpace` half): every entry that takes the Home's lock, and what each does with an older store
 // (specs/upgrade-continuity/upgrade-chain-design.md §4.3). The refusals themselves are in tests/security-invariants-home-upgrade.test.ts.
 // Every action URL here is a closed local port.
@@ -290,23 +292,12 @@ test("UPG1-15: an account Home is compared before it is upgraded", async t => {
 
 test("UPG1-15: signing in to an account whose Home is older opens it upgraded", { timeout: 60_000 }, async t => {
   const f = upgradeTestHome(t);
-  let transaction: { state: string } = { state: "" }, remote = "";
-  const upstream = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
-    res.setHeader("content-type", "application/json");
-    if (req.url === "/api/v1/auth/transactions") { transaction = JSON.parse(raw); res.end(JSON.stringify({ data: { loginUrl: `${remote}/login` } })); }
-    else if (req.url === "/oauth2/token") res.end(JSON.stringify({ access_token: "synthetic-access", refresh_token: "synthetic-refresh", expires_in: 3600 }));
-    else if (req.url === "/api/v1/users/me") res.end(JSON.stringify({ data: { userId: "alice", displayName: "alice", emails: [], applicationId: "work", clientId: "web-test" } }));
-    else res.end("{}");
-  });
+  let remote='';const peer=v2AccountPeer(),upstream=peer.server;
   const listen = (server: Server) => new Promise<string>(resolve => { server.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)); });
   remote = await listen(upstream);
   t.after(() => closeServer(upstream));
-  for (const [name, value] of [["MOLIS_WORK_AUTH_ORIGIN", remote], ["MOLIS_WORK_AUTH_CLIENT_ID", "web-test"], ["MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID", "desktop-test"], ["MOLIS_WORK_CLOUD_ORIGIN", remote]] as const) {
-    const previous = process.env[name];
-    process.env[name] = value;
-    t.after(() => { if (previous === undefined) delete process.env[name]; else process.env[name] = previous; });
-  }
+  const oldAccountConfig=process.env.MOLIS_WORK_ACCOUNT_CONFIG;process.env.MOLIS_WORK_ACCOUNT_CONFIG='';
+  t.after(()=>{if(oldAccountConfig===undefined)delete process.env.MOLIS_WORK_ACCOUNT_CONFIG;else process.env.MOLIS_WORK_ACCOUNT_CONFIG=oldAccountConfig;});
   (await openMolisWorkProjectCatalog({ homeDirectory: f.home })).close();
   const space = personalStorageSpace(remote, "work", "alice"), directory = join(f.home, "spaces", space.spaceId);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -319,16 +310,17 @@ test("UPG1-15: signing in to an account whose Home is older opens it upgraded", 
   const server = createMolisWorkWebServer({ homeDirectory: f.home, controlToken: token });
   const origin = await listen(server);
   t.after(() => closeServer(server));
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
   let cookie = "", sequence = 0, viewToken = token;
   const request = async (path: string, init: RequestInit = {}) => {
-    const response = await fetch(origin + path, { ...init, headers: { Cookie: cookie, ...init.headers } });
+    const response = await fetch(origin + path, { ...init, headers: { Cookie: cookie, Origin:origin,"content-type":"application/json","x-molis-work-control-token":viewToken,"x-molis-work-idempotency-key":"upg-v2-"+(++sequence),...init.headers } });
     if (response.headers.get("set-cookie")?.startsWith("molis-work-session=")) cookie = response.headers.get("set-cookie")!.split(";")[0]!;
     return response;
   };
   const post = (path: string) => request(path, { method: "POST", body: "{}", headers: { Origin: origin, "content-type": "application/json",
     "x-molis-work-control-token": viewToken, "x-molis-work-idempotency-key": `upgrade-entry-${++sequence}` } });
-  assert.equal((await post("/api/personal/login")).status, 200);
-  assert.equal((await request(`/account/callback?code=synthetic&state=${transaction.state}`, { redirect: "manual" })).status, 303);
+  const begun=await post("/api/personal/login");assert.equal(begun.status,200);
+  assert.equal((await completeInstallationLogin(request,(await begun.json()).loginUrl,"alice@example.test")).status,200);
   viewToken = readFileSync(join(directory, "config/web-control-token"), "utf8").trim();
   // Since #1932 signing in prepares the account's Home at once; whatever opens it, it is opened upgraded, before any business store.
   assert.equal(versionOf(notes), 2, "the account's Home was opened by signing in, so it is already upgraded");

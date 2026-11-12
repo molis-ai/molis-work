@@ -1,4 +1,3 @@
-import { FEED_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-feed";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
 
@@ -10,6 +9,12 @@ const contentStations = (pluginId: string) => (builtinPluginByManifestId(pluginI
 
 /** The local Web owner already has access to these native content stores. This is not a plugin-grant mechanism. */
 export const NATIVE_CONTENT_PERMISSIONS = [...new Set([
-  ...FEED_ACTION_PERMISSIONS,
+  ...registeredPermissions("io.molis.work.feed"),
   ...[...contentStations(PAGES_PLUGIN_ID), ...contentStations(LINGGUANG_PLUGIN_ID), ...Object.values(inboxContentActions)].flatMap(definition => definition.action.permissions),
 ])];
+
+/** Read the same generated registration as Runtime; no plugin implementation or second permission list. */
+function registeredPermissions(pluginId: string): string[] {
+  const manifest = builtinPluginByManifestId(pluginId)?.manifest;
+  return [...(manifest?.actions ?? []).flatMap(action => action.action.permissions), ...(manifest?.action_scenes ?? []).flatMap(scene => scene.permissions)];
+}

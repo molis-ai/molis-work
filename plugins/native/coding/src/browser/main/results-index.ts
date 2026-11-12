@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Page } from "./page.js";
 
 const sectionLabel = (section: HTMLElement): string => {
@@ -15,7 +16,7 @@ function sectionsOnShow(page: Page, nav: HTMLElement, tools: HTMLElement): HTMLE
 
 /** The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of sections changes. */
 function resultsIndex(page: Page) {
-  const { L, q } = page, { s } = page;
+  const { q } = page, { s } = page;
   const nav = q("[data-coding-results-index]"), tools = q("[data-coding-tools]");
   const sections = sectionsOnShow(page, nav, tools), signature = sections.map(sectionLabel).join("|");
   if (signature === s.indexSignature) return;
@@ -27,7 +28,7 @@ function resultsIndex(page: Page) {
     chip.type = "button";
     chip.className = "mw-btn mw-btn--ghost";
     chip.textContent = s.SECTION_SHORT[text] || text;
-    chip.title = L("coding.results.jump", { section: text });
+    chip.title = uiText.text("coding.results.jump", { section: text });
     chip.dataset.codingResultsJump = String(at);
     nav.append(chip);
   });
@@ -48,11 +49,11 @@ function resultVisibility(page: Page) {
 
 /** Wires the results panel's index and its open mark. */
 export function mountResultsIndex(page: Page) {
-  const { L, lifetime, q, root } = page, { s } = page;
+  const { lifetime, q, root } = page, { s } = page;
   s.SECTION_SHORT = {
-    [L("coding.results.cooperation")]: L("coding.short.cooperation"), [L("coding.checkpoints.title")]: L("coding.short.checkpoints"), [L("coding.results.recovery")]: L("coding.short.recovery"),
-    [L("coding.results.facts")]: L("coding.short.facts"), [L("coding.outcomes.title")]: L("coding.short.outcomes"), [L("coding.change.title")]: L("coding.short.change"),
-    [L("coding.commands.title")]: L("coding.short.commands"), [L("coding.results.background")]: L("coding.short.background"),
+    [uiText.text("coding.results.cooperation")]: uiText.text("coding.short.cooperation"), [uiText.text("coding.checkpoints.title")]: uiText.text("coding.short.checkpoints"), [uiText.text("coding.results.recovery")]: uiText.text("coding.short.recovery"),
+    [uiText.text("coding.results.facts")]: uiText.text("coding.short.facts"), [uiText.text("coding.outcomes.title")]: uiText.text("coding.short.outcomes"), [uiText.text("coding.change.title")]: uiText.text("coding.short.change"),
+    [uiText.text("coding.commands.title")]: uiText.text("coding.short.commands"), [uiText.text("coding.results.background")]: uiText.text("coding.short.background"),
   };
   lifetime.listen(q("[data-coding-results-index]"), "click", event => {
     const chip = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-coding-results-jump]") : null, tools = q("[data-coding-tools]");

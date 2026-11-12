@@ -4,25 +4,26 @@ import { installWorks, renderHistory, renderLinks, renderSources, renderWorks } 
 import { undoOf } from "./page.js";
 import type { DetailPayload, ItemPayload, ListPayload, TodoPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 declare global {
   interface Window { molisCraft?: { celebrate?: (node: Element) => void } }
 }
 
 /** The material the Assistant is handed with a todo: its words, dates, who it waits on, notes, sources and links. */
 function todoMaterial(page: TodoPage, item: TodoItem) {
-  const { L } = page;
   return {
-    title: `${L("todo.page.title")}「${item.title}」`,
+    title: `${uiText.text("todo.page.title")}「${item.title}」`,
     text: [
-      `${L("todo.field.what")}：${item.title}`,
-      `${L("todo.field.status")}：${page.statusName(item.status)}`,
-      item.due_date ? `${L("todo.field.due-date")}：${item.due_date}${item.due_time ? ` ${item.due_time}` : ""}` : "",
-      item.planned_date ? `${L("todo.field.planned-date-long")}：${item.planned_date}` : "",
-      item.waiting ? `${L("todo.field.waiting-who")}：${item.waiting.who}${item.waiting.what ? `，${item.waiting.what}` : ""}` : "",
-      item.notes ? `${L("todo.field.notes")}：${item.notes}` : "",
+      `${uiText.text("todo.field.what")}：${item.title}`,
+      `${uiText.text("todo.field.status")}：${page.statusName(item.status)}`,
+      item.due_date ? `${uiText.text("todo.field.due-date")}：${item.due_date}${item.due_time ? ` ${item.due_time}` : ""}` : "",
+      item.planned_date ? `${uiText.text("todo.field.planned-date-long")}：${item.planned_date}` : "",
+      item.waiting ? `${uiText.text("todo.field.waiting-who")}：${item.waiting.who}${item.waiting.what ? `，${item.waiting.what}` : ""}` : "",
+      item.notes ? `${uiText.text("todo.field.notes")}：${item.notes}` : "",
       ...item.sources.filter((source) => source.kind !== "manual").map((source) =>
-        `${L("todo.source.title")}：${source.title}${source.reason ? `（${source.reason}）` : ""}${source.excerpt ? `\n“${source.excerpt}”` : ""}`),
-      ...item.links.map((link) => `${L("todo.link.title")}：${link.title}`),
+        `${uiText.text("todo.source.title")}：${source.title}${source.reason ? `（${source.reason}）` : ""}${source.excerpt ? `\n“${source.excerpt}”` : ""}`),
+      ...item.links.map((link) => `${uiText.text("todo.link.title")}：${link.title}`),
     ].filter(Boolean).join("\n"),
   };
 }
@@ -40,14 +41,24 @@ function patchFromEditor(page: TodoPage): Record<string, unknown> {
   return patch;
 }
 
+async function readDetail(page: TodoPage, id: string) {
+  const { state } = page;
+  const ticket = ++state.detailTicket;
+  const [payload, pool] = await Promise.all([
+    page.request<DetailPayload>("GET", `/items/${encodeURIComponent(id)}`),
+    page.request<ListPayload>("GET", `/items?view=all${state.everything ? "&all=1" : ""}`).catch(() => ({ items: [] as ListPayload["items"] })),
+  ]);
+  return { ticket, payload, pool };
+}
+
 /** The open todo: its editor with saving, sources, works, links and history. */
 export function installDetail(page: TodoPage): void {
-  const { el, state, L } = page;
+  const { el, state } = page;
   installWorks(page);
 
   page.paintSave = () => {
     const { selected, saving, dirtyKeys } = state;
-    el.saveStatus.textContent = saving ? L("todo.save.saving") : dirtyKeys.size ? L("todo.save.unsaved") : selected ? page.statusName(selected.status) : "";
+    el.saveStatus.textContent = saving ? uiText.text("todo.save.saving") : dirtyKeys.size ? uiText.text("todo.save.unsaved") : selected ? page.statusName(selected.status) : "";
     const tone = saving || dirtyKeys.size ? "quiet" : selected && selected.status === "done" ? "done" : selected && selected.status === "doing" ? "progress" : "quiet";
     el.saveStatus.className = `mw-status mw-status--${tone}`;
     el.saveStatus.dataset.mwState = saving ? "saving" : dirtyKeys.size ? "unsaved" : selected?.status === "open" ? "idle" : selected?.status || "idle";
@@ -84,9 +95,9 @@ export function installDetail(page: TodoPage): void {
     });
     page.paintPlaces(page.$("[data-todo-placement-choices]"), item.placement === "project" && item.project_id !== page.projectId() ? "" : item.placement, "data-todo-placement");
     const archiveButton = page.$<HTMLButtonElement>("[data-todo-archive]");
-    archiveButton.textContent = item.archived_at ? L("todo.action.restore") : L("todo.action.archive");
+    archiveButton.textContent = item.archived_at ? uiText.text("todo.action.restore") : uiText.text("todo.action.archive");
     archiveButton.disabled = !item.archived_at && item.status !== "done" && item.status !== "cancelled";
-    archiveButton.title = archiveButton.disabled ? L("todo.archive.needs-closed") : "";
+    archiveButton.title = archiveButton.disabled ? uiText.text("todo.archive.needs-closed") : "";
     renderSources(page, item);
     renderLinks(page, item);
     renderHistory(page);
@@ -97,22 +108,30 @@ export function installDetail(page: TodoPage): void {
     el.rowsEl.querySelectorAll<HTMLElement>("[data-todo-row]").forEach((row) => row.classList.toggle("is-selected", row.dataset.todoRow === item.id));
   };
 
-  page.openDetail = async (id, keepEdits) => {
-    const ticket = ++state.detailTicket;
-    const [payload, pool] = await Promise.all([
-      page.request<DetailPayload>("GET", `/items/${encodeURIComponent(id)}`),
-      page.request<ListPayload>("GET", `/items?view=all${state.everything ? "&all=1" : ""}`).catch(() => ({ items: [] as ListPayload["items"] })),
-    ]);
-    if (ticket !== state.detailTicket) return;
+  const adoptDetail = ({ payload, pool }: Awaited<ReturnType<typeof readDetail>>) => {
     state.history = payload.history || [];
     state.backlinks = payload.backlinks || [];
     state.linkPool = pool.items || [];
+    return payload.item;
+  };
+  page.openDetail = async (id, keepEdits) => {
+    const detail = await readDetail(page, id);
+    if (detail.ticket !== state.detailTicket) return;
+    const item = adoptDetail(detail);
     if (state.selected && (state.dirtyKeys.size || state.saving)) {
-      if (keepEdits && state.selected.id === id) state.selected = payload.item;
+      if (keepEdits && state.selected.id === id) state.selected = item;
       page.paintSave();
       return;
     }
-    fillEditor(payload.item);
+    fillEditor(item);
+  };
+  page.reloadDetail = async (id) => {
+    const selected = state.selected, draft = state.dirtyKeys;
+    if (selected?.id !== id) return false;
+    const detail = await readDetail(page, id);
+    if (detail.ticket !== state.detailTicket || state.selected !== selected || state.dirtyKeys !== draft || state.saving) return false;
+    fillEditor(adoptDetail(detail));
+    return true;
   };
 
   page.flush = async () => {
@@ -122,7 +141,7 @@ export function installDetail(page: TodoPage): void {
     const target = state.selected;
     if (!target || !state.dirtyKeys.size) return;
     if (state.dirtyKeys.has("title") && !page.field("title").value.trim()) {
-      const message = L("todo.error.title-empty");
+      const message = uiText.text("todo.error.title-empty");
       page.detailHint(message, true);
       throw new Error(message);
     }
@@ -144,7 +163,7 @@ export function installDetail(page: TodoPage): void {
         void page.load().catch(() => undefined);
       } catch (error) {
         for (const name of sent) state.dirtyKeys.add(name);
-        page.detailHint((error as { code?: string }).code === "todo.conflict" ? L("todo.error.conflict") : (error as Error).message, true);
+        page.detailHint((error as { code?: string }).code === "todo.conflict" ? uiText.text("todo.error.conflict") : (error as Error).message, true);
         throw error;
       }
     };
@@ -175,7 +194,7 @@ export function installDetail(page: TodoPage): void {
     await page.load();
     if (state.selected && state.selected.id === id) await page.openDetail(id, true);
     const title = payload.item.title;
-    page.showNote(status === "done" ? L("todo.note.completed", { title }) : status === "open" ? L("todo.note.reopened", { title }) : L("todo.note.status-now", { title }) + page.statusName(status), { undo: undoOf(payload) });
+    page.showNote(status === "done" ? uiText.text("todo.note.completed", { title }) : status === "open" ? uiText.text("todo.note.reopened", { title }) : uiText.text("todo.note.status-now", { title }) + page.statusName(status), { undo: undoOf(payload) });
     const row = el.rowsEl.querySelector<HTMLElement>(`[data-todo-row="${id}"]`);
     if (status === "done" && row && typeof window.molisCraft?.celebrate === "function") window.molisCraft.celebrate(row);
   };

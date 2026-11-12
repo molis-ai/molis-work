@@ -1,15 +1,19 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { ReadAssistantMethod } from "./assistant-signed-materials.js";
+import type { SignedAgentInstallation, SignedAgentReference, SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SignedRoleView } from "../agent-definitions/agent-definitions.js";
+import type { MethodHandoff, ReadRoleMaterial } from "./assistant-signed-materials.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
-import { describeReview } from "./assistant-review-words.js";
+import { projectAssistantReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
 import type { AssistantMethod, AssistantPendingReview, AssistantRound, AssistantWork, AssistantWorkState, AssistantWorkView, AssistantRelatedWork, AssistantWorkObject, AssistantDiagnostics, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
-import { L } from "../web-locale.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
@@ -17,11 +21,18 @@ import type { PersonActions } from "./assistant-executor.js";
 import { queuedInputs, readAssistantInputs } from "./assistant-inputs.js";
 import { ownerOf } from "./assistant-round-start.js";
 import { sessionProblem } from "./assistant-parked-answer.js";
-import { RUNTIME, sessionRef, belongsElsewhere, HANDOVER_MARK, whereNow, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
+import { RUNTIME, sessionRef, belongsElsewhere, HANDOVER_MARK, whereNow, type AssistantServicePorts, type AssistantCaller, type SignedBinding } from "./assistant-service-shared.js";
 import { stateOf, spokenTurns, roundDiagnostics, stopInWords, presentActivity, type CapabilityTitles } from "./assistant-present.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import type { AssistantOutcomes } from "./assistant-outcomes.js";
 import type { AssistantRoundMaterials } from "./assistant-round-materials.js";
+
+/** A signed role in one installation, as a work offers it. */
+const roleMethod = (role: SignedRoleView, installation: SignedAgentInstallation): Extract<AssistantMethod, { kind: "role" }> => ({ kind: "role", method_id: `signed/${role.role_id}`,
+  plugin_id: role.owner_id, plugin_title: role.source.kind === "plugin" ? role.source.title : role.owner_id, version: role.version, name: role.name, summary: role.purpose,
+  default_ref: role.default_ref, installation });
+const sameSigned = (left: SignedAgentReference, right: SignedAgentReference) => left.kind === right.kind && left.entry_id === right.entry_id
+  && left.source.plugin_id === right.source.plugin_id && left.source.plugin_version === right.source.plugin_version && left.source.publisher_signature === right.source.publisher_signature;
 
 export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles" | "rememberTitle" | "rememberedTitle"> & Pick<AssistantDispatch, "executorOf"> & Pick<AssistantRoundMaterials, "holdsImage"> & { continuations: Pick<AssistantContinuations, "state">; delegations: Pick<AssistantDelegations, "shown"> };
 
@@ -79,7 +90,7 @@ export class AssistantWorkReads {
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     const reviews = read.runtime_session_id ? this.reviewsFor(host, { ...work, session_id: read.runtime_session_id }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
     return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}),
-      ...(read.recovery ? { problem: { message: read.recovery.message, action: L("到执行方的页面核对") } } : {}) };
+      ...(read.recovery ? { problem: { message: read.recovery.message, action: uiText.text("workbench.assistant-work-reads.check-executor-s-page") } } : {}) };
   }
 
   /**
@@ -130,56 +141,67 @@ export class AssistantWorkReads {
   }
 
   /**
-   * Methods Plugins offer for business work that this scope can use: registered with the Host, and their Plugin has
-   * something available here (not turned off in this project). Discoverable is not adopted: a round takes one when
-   * the person chooses it or the round reads it, and only for that round.
+   * What a work in this scope may follow: the Skills the shared catalog offers the Assistant here and the person turned on, whoever
+   * declares them (a package with only content too), and the role material of the signed installations in this scope. One catalog read
+   * and one read of the install records, whatever the count (09 §3.4). Listed is not adopted: a round takes one when the person
+   * chooses it or the round reads it, and only for that round.
    */
   async methods(work: StoredWork | null, caller: AssistantCaller = {}): Promise<AssistantMethod[]> {
-    if (!this.ports.methods) return [];
-    let actions: PersonActions | null = null;
-    try { actions = await this.ports.scopeActions?.(work ?? ({ project_ref: caller.project_ref ?? undefined } as StoredWork)) ?? null; } catch { actions = null; }
-    const live = (actions ? await actions.discover().catch(() => [] as ActionView[]) : []).filter(view => view.availability.available);
-    const output: AssistantMethod[] = [];
-    for (const method of this.ports.methods.list()) {
-      const provider = live.find(view => method.default_ref ? view.provider.plugin_id === method.owner_id && view.provider.plugin_install_id === method.install_id
-        : view.provider.plugin_id === method.owner_id || view.provider.provider_id === method.owner_id);
-      if (!provider) continue;
-      const base = { method_id: method.key, plugin_id: method.owner_id, plugin_title: method.source.kind === "plugin" ? method.source.title : method.owner_id,
-        version: method.version, name: method.name, summary: method.summary };
-      if (!method.default_ref) { output.push(base); continue; }
-      try {
-        const bound = await this.ports.methods.bindSigned?.(work?.project_ref ?? caller.project_ref, method.install_id!, method.default_ref);
-        if (bound) { bound.assertCurrent(); output.push({ ...base, kind: method.kind, default_ref: method.default_ref, installation: bound.installation }); }
-      } catch { /* A withdrawn installation is no longer offered; an explicit old selection is refused by readMethod. */ }
-    }
-    return output;
+    return (await this.offered(work?.project_ref ?? caller.project_ref)).map(item => item.method);
   }
 
-  /** Exact selected source and installation; client text and effective-revision claims never enter this read. */
-  async readMethod(work: StoredWork | null, methodId: string, selection?: AssistantMethodSelection): Promise<ReadAssistantMethod> {
-    const found = (await this.methods(work)).find(method => method.method_id === methodId && (!method.default_ref || selection?.installation?.install_id === method.installation?.install_id));
+  /**
+   * What the scope offers, each role with its binding. The catalog is read first: reading it as the person brings the scope's plugins
+   * up, so a signed installation's declarations are registered before its roles are listed (after a Host restart too).
+   */
+  private async offered(project: LocalHostProjectReference | undefined): Promise<Array<{ method: AssistantMethod; binding?: SignedBinding }>> {
     const port = this.ports.methods;
-    if (!found || !port) throw assistantErrors.invalid(`没有可用的方法「${methodId}」（插件没有提供、已停用，或不在这个范围）`);
-    if (found.default_ref) {
-      const expected = found.default_ref, picked = selection?.default_ref, installed = selection?.installation;
-      if (!picked || !installed || picked.kind !== expected.kind || picked.entry_id !== expected.entry_id || picked.source.kind !== "plugin"
-        || picked.source.plugin_id !== expected.source.plugin_id || picked.source.plugin_version !== expected.source.plugin_version || picked.source.publisher_signature !== expected.source.publisher_signature
-        || installed?.installation_generation !== found.installation?.installation_generation || installed?.project_id !== found.installation?.project_id) throw assistantErrors.invalid("角色资料或方法版本已变化，请重新选择");
-      const bound = await port.bindSigned?.(work?.project_ref, installed.install_id, expected);
-      if (!bound || !port.readSigned) throw assistantErrors.invalid("签名正文读取未装配");
-      bound.assertCurrent();
-      const material = port.readSigned(installed.install_id, expected);
-      const assertCurrent = () => {
-        bound.assertCurrent();
-        const current = port.readSigned!(installed.install_id, expected);
-        if (current.user_revision !== material.user_revision || current.body !== material.body) throw assistantErrors.invalid("角色资料的用户修订已变化，请重新选择");
-      };
-      assertCurrent();
-      return { ...found, ...material, handoff: { assertCurrent, accepted: () => port.recordSignedUse?.(material, `assistant:${work?.work_id ?? "read"}`) } };
+    if (!port) return [];
+    const skills = await port.skills(project).catch(() => [] as SkillCatalogEntry[]), roles = port.roles();
+    const bound = await port.bindSigned(project, roles.map(role => ({ install_id: role.install_id, source: role.default_ref.source })));
+    const offered: Array<{ method: AssistantMethod; binding?: SignedBinding }> = skills.filter(skill => skill.availability.available).map(skill => ({ method: { kind: "skill", skill } }));
+    for (const role of roles) {
+      const binding = bound.get(role.install_id);
+      try { binding?.assertCurrent(); } catch { continue; } // A withdrawn installation is no longer offered; an explicit old selection is refused by readRole.
+      if (binding) offered.push({ method: roleMethod(role, binding.installation), binding });
     }
-    if (selection?.default_ref || selection?.installation || selection?.version !== undefined && selection.version !== found.version) throw assistantErrors.invalid("方法版本已变化，请重新选择");
-    const body = port.read(found.plugin_id, methodId.slice(found.plugin_id.length + 1), selection?.version ?? found.version).body;
-    return { ...found, body };
+    return offered;
+  }
+
+  /** The exact selected role material, as this scope offers it now; client text and effective-revision claims never enter this read. */
+  async readRole(work: StoredWork | null, selection: Extract<AssistantMethodSelection, { kind: "role" }>): Promise<ReadRoleMaterial> {
+    const port = this.ports.methods, picked = selection.default_ref, installed = selection.installation;
+    const found = (await this.offered(work?.project_ref)).find(item => item.method.kind === "role" && item.method.installation.install_id === installed.install_id
+      && sameSigned(item.method.default_ref, picked));
+    const role = found?.method.kind === "role" ? found.method : undefined, binding = found?.binding;
+    if (!port || !role || !binding || role.installation.installation_generation !== installed.installation_generation || role.installation.project_id !== installed.project_id
+      || selection.version !== undefined && selection.version !== role.version) throw assistantErrors.invalid("角色资料版本已变化，请重新选择");
+    const material = port.readSigned(installed.install_id, role.default_ref);
+    const assertCurrent = () => {
+      binding.assertCurrent();
+      const current = port.readSigned(installed.install_id, role.default_ref);
+      if (current.user_revision !== material.user_revision || current.body !== material.body) throw assistantErrors.invalid("角色资料的用户修订已变化，请重新选择");
+    };
+    return { ...role, body: material.body, effective: material.effective, user_revision: material.user_revision,
+      handoff: { assertCurrent, accepted: () => port.recordSignedUse(material, `assistant:${work?.work_id ?? "read"}`) } };
+  }
+
+  /**
+   * The bodies of the Skills the person chose for one round, in one catalog read with them named (§2.3); a refused one refuses the
+   * round, never swapped for another version. Each is recorded as used once the round accepts it.
+   */
+  async readSkills(work: StoredWork, refs: readonly SkillRef[]): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
+    const port = this.ports.methods;
+    if (!port) throw assistantErrors.invalid("技能目录未装配");
+    const skills = (await port.readSkills(work.project_ref, refs)).map(result => {
+      if (!result.ok) throw assistantErrors.invalid(`技能「${result.ref.skill_id}」现在不能用（${result.reason}），请重新选择`);
+      return { ref: result.ref, name: result.name, body: result.body };
+    });
+    const scope_ref = work.project_ref?.project_id ?? "home";
+    return { skills, handoff: { assertCurrent: () => {}, accepted: () => {
+      const at = this.now().toISOString();
+      for (const skill of skills) port.recordSkillUse({ ref: skill.ref, name: skill.name, scope_ref, caller: "assistant", at });
+    } } };
   }
 
   /** A work of this person, as stored (for the Assistant's own actions acting for it); null when it is not theirs. */
@@ -251,14 +273,9 @@ export class AssistantWorkReads {
       if (title) titles.set(row.object.id, title);
     }
     for (const round of this.store.rounds(work.work_id)) if (round.context?.object?.title) titles.set(round.context.object.id, round.context.object.title);
-    return pending.map(review => {
-      const readable = describeReview(review.document);
-      // Also an object another work made or a page named (titles are kept per person): a delete of one is the usual case.
-      const titleOf = (value: string) => titles.get(value) ?? (/^[\w.:-]{8,200}$/.test(value) && /\d/.test(value) ? this.store.objectTitleById(this.actorId, value) : null);
-      const fields = readable.fields.map(field => { const title = field.label === "完整参数" ? null : titleOf(field.value.trim()); return title ? { ...field, value: `「${title}」` } : field; });
-      return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields,
-        requested_at: review.requested_at, expires_at: review.expires_at };
-    });
+    // Also an object another work made or a page named (titles are kept per person): a delete of one is the usual case.
+    const titleOf = (value: string) => titles.get(value) ?? (/^[\w.:-]{8,200}$/.test(value) && /\d/.test(value) ? this.store.objectTitleById(this.actorId, value) : null);
+    return pending.map(review => projectAssistantReview(review, titleOf));
   }
 
   /**

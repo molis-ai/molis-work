@@ -394,7 +394,7 @@ export type ActionAvailability = {
     readonly kind?: ActionErrorKind;
 };
 
-export interface ActionCallContext extends ActionCallOrigin {
+export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
     readonly actor_id: string;
     readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
@@ -406,6 +406,8 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly locale?: ActionLocale;
+    readonly named_skills?: import("platform/action-named-skills").ActionNamedSkills;
+    readonly skill_round?: import("platform/action-named-skills").ActionSkillRound;
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
     readonly delegated_audience?: ActionAudience;
@@ -476,7 +478,7 @@ export interface ActionErrorOptions {
     readonly cause?: unknown;
 }
 
-export interface ActionExecutionContext extends ActionCallContext {
+export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
@@ -511,7 +513,7 @@ export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;
@@ -573,6 +575,13 @@ export interface ActionMetadata {
         readonly version: number;
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
+}
+
+export interface ActionNamedSkills {
+    readonly install_id: string;
+    readonly action: ExactActionReference;
+    readonly from: "page" | "host";
+    readonly refs: readonly SkillRef[];
 }
 
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
@@ -773,6 +782,12 @@ export interface ActionSceneView {
 }
 
 export type ActionSchema = Readonly<Record<string, unknown>>;
+
+export interface ActionSkillRound {
+    readonly consumer: "assistant" | "coding" | "agent";
+    readonly named: readonly SkillRef[];
+    readonly engine?: "builtin" | "local";
+}
 
 export interface ActionSubject {
     kind: string;
@@ -2179,6 +2194,13 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePageSubject {
+    readonly kind: "home-page" | "home-page-preview";
+    readonly project_id: string;
+    readonly page_id: string;
+    readonly version: number;
+}
+
 export interface HostOfferedOriginalFile {
     readonly path: string;
     readonly install_id: string;
@@ -2250,6 +2272,70 @@ export type InferActionInput<S> = S extends {
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
+
+export declare const MISSED_RUN_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly missed_at: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly run_id: {
+            readonly maxLength: 300;
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly title: {
+            readonly maxLength: 300;
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly due_at: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly project_id: {
+            readonly type: readonly ["string", "null"];
+            readonly maxLength: 120;
+        };
+        readonly open: {
+            readonly anyOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly type: "object";
+                readonly properties: {
+                    readonly surface: {
+                        pattern: string;
+                        type: "string";
+                        minLength: 1;
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly required: readonly ["surface", "id"];
+                readonly additionalProperties: false;
+            }];
+        };
+        readonly needs: {
+            readonly type: "array";
+            readonly maxItems: 2;
+            readonly uniqueItems: true;
+            readonly items: {
+                readonly enum: readonly ["network", "model"];
+            };
+        };
+    };
+    readonly required: readonly [...string[], "missed_at"];
+    readonly additionalProperties: false;
+};
+
+export interface MissedRun extends ScheduledRun {
+    missed_at: string;
+}
 
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
 
@@ -2388,10 +2474,298 @@ export interface PlacementResult {
     revision: string;
 }
 
+export declare const RUNS_MISSED_LIMIT = 50;
+
+export declare const RUNS_OVERVIEW_INPUT_TYPE = "molis.runs.window.v1";
+
+export declare const RUNS_OVERVIEW_OUTPUT_TYPE = "molis.runs.overview.v1";
+
+export declare const RUNS_OVERVIEW_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly source: {
+            readonly type: "object";
+            readonly properties: {
+                readonly surface: {
+                    pattern: string;
+                    type: "string";
+                    minLength: 1;
+                };
+                readonly title: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["surface", "title"];
+            readonly additionalProperties: false;
+        };
+        readonly upcoming: {
+            readonly type: "array";
+            readonly maxItems: 20;
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly run_id: {
+                        readonly maxLength: 300;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly title: {
+                        readonly maxLength: 300;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly due_at: {
+                        readonly format: "date-time";
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly project_id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly maxLength: 120;
+                    };
+                    readonly open: {
+                        readonly anyOf: readonly [{
+                            readonly type: "null";
+                        }, {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly surface: {
+                                    pattern: string;
+                                    type: "string";
+                                    minLength: 1;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                            };
+                            readonly required: readonly ["surface", "id"];
+                            readonly additionalProperties: false;
+                        }];
+                    };
+                    readonly needs: {
+                        readonly type: "array";
+                        readonly maxItems: 2;
+                        readonly uniqueItems: true;
+                        readonly items: {
+                            readonly enum: readonly ["network", "model"];
+                        };
+                    };
+                };
+                readonly required: string[];
+                readonly additionalProperties: false;
+            };
+        };
+        readonly missed: {
+            readonly type: "array";
+            readonly maxItems: 50;
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly missed_at: {
+                        readonly format: "date-time";
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly run_id: {
+                        readonly maxLength: 300;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly title: {
+                        readonly maxLength: 300;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly due_at: {
+                        readonly format: "date-time";
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly project_id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly maxLength: 120;
+                    };
+                    readonly open: {
+                        readonly anyOf: readonly [{
+                            readonly type: "null";
+                        }, {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly surface: {
+                                    pattern: string;
+                                    type: "string";
+                                    minLength: 1;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                            };
+                            readonly required: readonly ["surface", "id"];
+                            readonly additionalProperties: false;
+                        }];
+                    };
+                    readonly needs: {
+                        readonly type: "array";
+                        readonly maxItems: 2;
+                        readonly uniqueItems: true;
+                        readonly items: {
+                            readonly enum: readonly ["network", "model"];
+                        };
+                    };
+                };
+                readonly required: readonly [...string[], "missed_at"];
+                readonly additionalProperties: false;
+            };
+        };
+    };
+    readonly required: readonly ["source", "upcoming", "missed"];
+    readonly additionalProperties: false;
+};
+
+export declare const RUNS_UPCOMING_LIMIT = 20;
+
+export declare const RUNS_WINDOW_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly now: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly upcoming_until: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+    };
+    readonly required: readonly ["now", "upcoming_until"];
+    readonly additionalProperties: false;
+};
+
+export declare const RUN_DECIDED_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly state: {
+            readonly enum: readonly ["started", "skipped", "gone"];
+        };
+    };
+    readonly required: readonly ["state"];
+    readonly additionalProperties: false;
+};
+
+export declare const RUN_DECISION_INPUT_TYPE = "molis.runs.decision.v1";
+
+export declare const RUN_DECISION_OUTPUT_TYPE = "molis.runs.decided.v1";
+
+export declare const RUN_DECISION_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly run_id: {
+            readonly maxLength: 300;
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly decision: {
+            readonly enum: readonly ["run_now", "skip"];
+        };
+    };
+    readonly required: readonly ["run_id", "decision"];
+    readonly additionalProperties: false;
+};
+
+export declare const RUN_MISSED_GRACE_MS: number;
+
 export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
 }
+
+export interface RunDecided {
+    state: "started" | "skipped" | "gone";
+}
+
+export interface RunDecision {
+    run_id: string;
+    decision: RunDecisionChoice;
+}
+
+export type RunDecisionChoice = "run_now" | "skip";
+
+export type RunNeed = "network" | "model";
+
+export interface RunsOverview {
+    source: {
+        surface: string;
+        title: string;
+    };
+    upcoming: ScheduledRun[];
+    missed: MissedRun[];
+}
+
+export type RunsOwnerScope = "project" | "home";
+
+export interface RunsWindow {
+    now: string;
+    upcoming_until: string;
+}
+
+export declare const SCHEDULED_RUN_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly run_id: {
+            readonly maxLength: 300;
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly title: {
+            readonly maxLength: 300;
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly due_at: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
+        };
+        readonly project_id: {
+            readonly type: readonly ["string", "null"];
+            readonly maxLength: 120;
+        };
+        readonly open: {
+            readonly anyOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly type: "object";
+                readonly properties: {
+                    readonly surface: {
+                        pattern: string;
+                        type: "string";
+                        minLength: 1;
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly required: readonly ["surface", "id"];
+                readonly additionalProperties: false;
+            }];
+        };
+        readonly needs: {
+            readonly type: "array";
+            readonly maxItems: 2;
+            readonly uniqueItems: true;
+            readonly items: {
+                readonly enum: readonly ["network", "model"];
+            };
+        };
+    };
+    readonly required: string[];
+    readonly additionalProperties: false;
+};
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     readonly type: "object";
@@ -2908,6 +3282,18 @@ export type SceneConfigurationInput = {
     };
 };
 
+export interface ScheduledRun {
+    run_id: string;
+    title: string;
+    due_at: string;
+    project_id: string | null;
+    open: {
+        surface: string;
+        id: string;
+    } | null;
+    needs: RunNeed[];
+}
+
 export interface SearchEntriesInput {
     cursor: string | null;
     limit: number;
@@ -3116,6 +3502,7 @@ export interface WorkExecutorRunControlResult {
 export interface WorkExecutorRunStart {
     session_id: string;
     task: string;
+    skills?: SkillRef[];
 }
 
 export interface WorkExecutorRunStarted {
@@ -3243,6 +3630,14 @@ export declare function actionFieldLabel(key: string, declared?: {
     description?: string;
 }): string;
 
+export declare function actionFieldLabelSource(key: string, declared?: {
+    title?: string;
+    description?: string;
+}): {
+    label: string;
+    defaultKey?: string;
+};
+
 export declare function actionFieldOptions(declared?: unknown): Array<{
     value: string;
     label: string;
@@ -3273,6 +3668,8 @@ export declare function artifactLineHeadOf(latest: {
 export declare function assertDueReminderWindow(window: DueReminderWindow): void;
 
 export declare function assertHomeEventWindow(window: HomeEventWindow): void;
+
+export declare function assertRunsWindow(window: RunsWindow): void;
 
 export declare function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient;
 
@@ -3340,6 +3737,10 @@ export declare function defineHomeEventsAction(capabilityId: string, version: nu
 export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 
 export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
+
+export declare function defineRunDecisionAction(capabilityId: string, version: number, title: string, permissions: string[], scope: RunsOwnerScope): ActionDefinition<RunDecision, RunDecided>;
+
+export declare function defineRunsOverviewAction(capabilityId: string, version: number, title: string, permissions: string[], scope: RunsOwnerScope): ActionDefinition<RunsWindow, RunsOverview>;
 
 export declare function defineSearchEntriesAction(capabilityId: string, version: number, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
 
@@ -3476,6 +3877,8 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
 
 export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
+export declare function runIsMissed(dueAt: string | number, now: number): boolean;
+
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 
 export declare function sceneConfigurationActions(scene: ActionSceneDefinition): {
@@ -3516,12 +3919,24 @@ export declare function withinDueReminderWindow(value: string, window: DueRemind
 
 export declare function withinHomeEventWindow(value: string, window: HomeEventWindow): boolean;
 
+export declare function withinRunsWindow(value: string, window: RunsWindow): boolean;
+
 export declare function workExecutorRoleOf(action: {
     input_type?: string;
     output_type?: string;
 }): WorkExecutorRole | null;
 
 // Declarations the exports above refer to, which no entry exports itself:
+
+interface ActionDelegationSource {
+    readonly delegated_action?: Readonly<ExactActionReference & {
+        readonly direct_person_entry?: true;
+    }>;
+}
+
+interface ActionPersonEntry {
+    readonly direct_person_entry?: true;
+}
 
 type AllKeys<U> = U extends unknown ? keyof U : never;
 

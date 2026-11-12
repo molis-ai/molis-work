@@ -20,12 +20,15 @@
     }
   },
   "files": [
+    "prompts",
+    "methods",
     "dist",
+    "locales",
     "README.md"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --define:ISSUES_CSS=\"$(node tooling/minify-styles.mjs)\" --outfile=dist/issues-client.js",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --define:ISSUES_CSS=\"$(node tooling/minify-styles.mjs)\" --outfile=dist/issues-client.js && node ../../../scripts/client-literals.mjs --factory dist/issues-client.js && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs methods prompts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {

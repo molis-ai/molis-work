@@ -9,7 +9,7 @@ import type { AssistantNotice } from "@molis-ai/molis-work-contracts/services/as
 import type { PluginDirectoryReadRequest, PluginDirectoryReadResult } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the current language as text", { timeout: 120_000 }, async t => {
+test("FSS-35 FSS-70 PG049-N01 PG049-N02 PG049-N03 saved directory outcomes switch in place as text", { timeout: 120_000 }, async t => {
   const probe = homeProbe("directorynotice");
   const plugin = "Notice <b>{origin}</b> $&", folder = "Vault <img> {plugin} $&";
   probe.permissions.push("directory:read");
@@ -32,11 +32,11 @@ test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the curre
   const expected = new Map<string, { zh: string; en: string }>();
   const scenarios = [
     { path: ["inside.md"], outcome: "text", zh: `「${plugin}」读取了你授权的本机目录「${folder}」（你在页面上发起）。可在设置「本机目录」查看记录或撤回。`,
-      en: `"${plugin}" read your authorized local folder "${folder}" (started by you on the page). View the record or revoke access in Settings > Local folders.` },
+      en: `“${plugin}” read your authorized local folder “${folder}” (started by you on the page). View the record or revoke access in Settings › Local folders.` },
     { path: [".."], outcome: "denied", zh: `「${plugin}」尝试读取你授权的本机目录「${folder}」，但被拒绝（你在页面上发起）。可在设置「本机目录」查看记录或撤回。`,
-      en: `"${plugin}" tried to read your authorized local folder "${folder}", but access was denied (started by you on the page). View the record or revoke access in Settings > Local folders.` },
+      en: `“${plugin}” tried to read your authorized local folder “${folder}”, but access was denied (started by you on the page). View the record or revoke access in Settings › Local folders.` },
     { path: ["absent.md"], outcome: "missing", zh: `「${plugin}」尝试读取你授权的本机目录「${folder}」，但未完成（你在页面上发起）。可在设置「本机目录」查看记录或撤回。`,
-      en: `"${plugin}" tried to read your authorized local folder "${folder}", but the read did not complete (started by you on the page). View the record or revoke access in Settings > Local folders.` },
+      en: `“${plugin}” tried to read your authorized local folder “${folder}”, but the read did not complete (started by you on the page). View the record or revoke access in Settings › Local folders.` },
   ];
   for (const scenario of scenarios) {
     request = { grant_id: grant.grant_id, path: scenario.path, kind: "text" };
@@ -44,7 +44,9 @@ test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the curre
     assert.equal(result.outcome, scenario.outcome);
     const notices = await saved(), fresh = notices.filter(notice => !expected.has(notice.notice_id));
     assert.equal(fresh.length, 1, "each real call produces exactly one new notice");
-    assert.deepEqual(fresh[0]!.text_params, { plugin, folder, origin: "你在页面上发起" });
+    assert.equal(fresh[0]!.directory_origin, "person");
+    const text = fresh[0]!.text; assert.ok("key" in text);
+    assert.deepEqual(text.args, [{ name: "plugin", kind: "text", text: plugin }, { name: "folder", kind: "text", text: folder }]);
     expected.set(fresh[0]!.notice_id, scenario);
   }
   const persisted = await saved();
@@ -61,12 +63,23 @@ test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the curre
     const page = await browser.page();
     await page.command("Page.enable");
     for (const [index, locale] of (["zh", "en", "en"] as const).entries()) {
-      await Promise.all([browser.event("Page.loadEventFired"), index === 2 ? page.command("Page.reload")
+      if (index === 1) {
+        const { targetId } = await browser.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
+        try {
+          const settings = await browser.page(targetId);
+          await settings.command("Page.navigate", { url: f.origin + "/settings/appearance" });
+          await settings.wait("typeof t === 'function' && typeof molisWorkRequest === 'function' && document.querySelector('a[data-ui-language=en]')");
+          await settings.evaluate("document.querySelector('a[data-ui-language=en]').click()");
+          await page.wait("document.documentElement.lang === 'en'");
+        } finally { await browser.command("Target.closeTarget", { targetId }); }
+      } else await Promise.all([browser.event("Page.loadEventFired"), index === 2 ? page.command("Page.reload")
         : page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(path) })]);
-      await page.wait(`document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}' && document.querySelector('[data-assistant-attention]')`);
+      // The bell reads only on a visible page, including after a reload.
+      await page.command("Page.bringToFront");
+      await page.wait(`!document.hidden && document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}' && document.querySelector('[data-assistant-attention]')`);
       await page.wait("document.querySelector('[data-assistant-attention]')?.hasAttribute('aria-label')");
       // These notices keep their existing non-urgent grouping. Exercise its initialized open handler without changing reachability.
-      await page.evaluate("document.querySelector('[data-assistant-attention]').click()");
+      if (index !== 1) await page.evaluate("document.querySelector('[data-assistant-attention]').click()");
       await page.wait("document.querySelector('[data-assistant-attention]').getAttribute('aria-expanded') === 'true'");
       await page.wait("document.querySelectorAll('[data-assistant-notices] [data-notice-action=dismiss]').length === 3");
       const rows = await page.evaluate<Array<{ id: string; text: string; open: string; dismiss: string; html: number }>>(`[...document.querySelectorAll('[data-assistant-notices] .assistant-notice')].map(item => ({
@@ -77,23 +90,29 @@ test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the curre
         html: item.querySelectorAll('b,img').length
       }))`);
       assert.equal(rows.length, 3);
+      if (index === 0) await page.evaluate(`(() => {
+        window.beforeLanguageRow = document.querySelector('[data-assistant-notices] .assistant-notice');
+        beforeLanguageRow.closest('details').open = true;
+      })()`);
+      if (index === 1) assert.equal(await page.evaluate("beforeLanguageRow === document.querySelector('[data-assistant-notices] .assistant-notice') && beforeLanguageRow.closest('details').open"), true,
+        "the open notices are updated in the same elements");
       for (const row of rows) {
         const text = expected.get(row.id)![locale];
         assert.equal(row.text, text);
-        assert.equal(row.open, (locale === "en" ? "Open" : "打开") + "：" + text);
-        assert.equal(row.dismiss, (locale === "en" ? "Got it" : "知道了") + "：" + text);
+        assert.equal(row.open, locale === "en" ? `Open “${plugin}”` : `打开「${plugin}」`);
+        assert.equal(row.dismiss, locale === "en" ? `Got it: “${plugin}”` : `知道了：「${plugin}」`);
         assert.equal(row.html, 0, "plugin and folder names stay literal text");
       }
       assert.deepEqual(await saved(), persisted, "locale changes and page reload keep exactly the same saved notices");
     }
     // PG049-N03: an invalid current-shape payload is explicit; no old Chinese parsing or fallback.
-    const bad = { ...persisted[0]!, notice_id: "invalid-current-notice", text_params: undefined };
-    const other = { ...persisted[0]!, kind: "reminder", notice_id: "unchanged-notice", text: "Unchanged <b>{plugin}</b> $&", text_params: undefined };
+    const bad = { ...persisted[0]!, notice_id: "invalid-current-notice", directory_origin: undefined };
+    const other = { ...persisted[0]!, kind: "reminder", notice_id: "unchanged-notice", text: { original: "Unchanged <b>{plugin}</b> $&" }, directory_origin: undefined };
     const invalidRows = await page.evaluate<string[]>(`(() => {
       document.dispatchEvent(new CustomEvent('molis-work:attention', { detail: { notices: ${JSON.stringify([bad, other])} } }));
       return [...document.querySelectorAll('[data-assistant-notices] .assistant-notice-text')].map(node => node.textContent);
     })()`);
-    assert.deepEqual(invalidRows.sort(), ["The directory-read notice has incomplete data.", other.text].sort());
+    assert.deepEqual(invalidRows.sort(), ["The directory-read notice has incomplete data.", other.text.original].sort());
     assert.deepEqual(await saved(), persisted, "the malformed UI payload writes no records");
     assert.equal((await directoryForHome(f.home).list())[0]!.read_count, 3, "rendering does not perform another read");
   } finally {

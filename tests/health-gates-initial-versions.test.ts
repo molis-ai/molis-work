@@ -132,7 +132,7 @@ test("UPG1-i-initial-08: every persistent format named here is still where it sa
     const [file] = definition.split("#") as [string];
     assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), "utf8").includes(`/* @version ${key} */`), `${file} carries ${key}`);
   }
-  assert.equal(PERSISTENT_DEFINITIONS.length, 15);
+  assert.equal(PERSISTENT_DEFINITIONS.length, 17);
   // A golden records each one under its version entry, so the entry is the one its definition carries, and the golden knows where it sits.
   for (const definition of PERSISTENT_DEFINITIONS) {
     const [file, name] = definition.split("#") as [string, string], entry = PERSISTENT_FORMAT_ENTRIES[definition];
@@ -180,6 +180,29 @@ test("UPG1-i-initial-11: the six files of design §2.6 at 2 fail with no chain a
   }
 });
 
+// The same rule for the values `pnpm versions:generate` writes but no `const …VERSION` declares: a property, a return, a type. Before this
+// pass only named constants were read, so an inline `/* @version */` could carry a value above the unified origin unseen (2026-11-11 review).
+test("UPG1-i-initial-19: a literal a marker names without a constant follows the same rule, above the origin and at it", () => {
+  const file = "apps/local-host/src/connector-private-state.ts";
+  const inline = (tag: string, version: number) => `const record = (v: unknown) => ({ schema_version: /* @version ${tag} */ ${version}, fields: [] });`;
+  const privateState = "format.connector.private-state";
+  assert.deepEqual(sourceVersionProblems(file, inline(privateState, 1)), []);
+  assert.deepEqual(sourceVersionProblems(file, inline(privateState, 2)),
+    [`${file}: /* @version ${privateState} */ = 2 (expected 1; only a registered persistent format may be above the unified origin)`]);
+  assert.equal(sourceVersionProblems(file, `const x = { value: /* @version ${privateState} */ "2" };`).length, 1, "a whole number written as text is the same");
+  // A persistent format goes up exactly as its constant does: with a consecutive chain and a passed replay.
+  const jelly = "plugins/native/jelly/src/contract.ts", definition = `${jelly}#schema_version`;
+  const stored = (version: number) => `export interface Workspace { schema_version: /* @version format.jelly.workspace */ ${version}; revision: number }`;
+  assert.deepEqual(sourceVersionProblems(jelly, stored(2)), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
+  assert.deepEqual(sourceVersionProblems(jelly, stored(2), new Map([[definition, { version: 2, froms: [1], replay_passed: true }]])), []);
+  // A library's version is UPG-01's (stores.tsv and the golden replay), not this half's; it is not held at 1 here.
+  assert.deepEqual(sourceVersionProblems("apps/local-host/src/project-database-schema.ts", "export const B = { version: /* @version database.project_database_baseline */ 2 };"), []);
+  // One literal is judged once: a named constant's own problem is the one reported, not the marker's too.
+  const named = `const PRIVATE_STATE_VERSION = /* @version ${privateState} */ 2;`;
+  assert.deepEqual(sourceVersionProblems(file, named), [`${file}: PRIVATE_STATE_VERSION = 2 (expected 1)`]);
+  assert.deepEqual(sourceVersionProblems(file, "// see /* @version format.connector.private-state */ 2 above\nconst PLAIN_VERSION = 1;"), []);
+});
+
 test("UPG1-i-initial-12: the machine receipt stays out of the list, as design §2.6 says", () => {
   const definitions = new Set<string>(PERSISTENT_DEFINITIONS);
   assert.ok(!definitions.has("apps/local-host/src/installer/web-service-contract.ts#schema_version"));
@@ -192,7 +215,8 @@ test("UPG1-i-initial-13: the half with no build passes on this repository as it 
   const root = new URL("../", import.meta.url);
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
   const read = (file: string) => { try { return readFileSync(new URL(file, root), "utf8"); } catch { return null; } };
-  // The catalog is at 2 (05②): like the whole check, the half takes the chains this repository registers and the versions its goldens hold.
+  // The catalog is at 3 (05② 的 2、日报 D0057/D0273 的 3): like the whole check, the half takes the chains this repository registers and the
+  // versions its goldens hold.
   assert.deepEqual(versionOriginProblems({ files, read }, { chains: registeredUpgradeChains({ files, read }) }), []);
 });
 

@@ -12,6 +12,7 @@ import type {
   AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { clonePresentedReview } from "./review-presentation.js";
 
 /**
  * The installation that started a plugin's person-reviewed Host operation (PG-009). It must declare and hold `review:<kind>`
@@ -171,7 +172,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       }
       return structuredClone(existing.request);
     }
-    const stored = structuredClone(request);
+    const stored = clonePresentedReview(request);
     this.#rows.set(stored.review_id, {
       request: stored,
       receipt: {
@@ -239,7 +240,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     return [...this.#rows.values()]
       .filter((row) => row.request.project_id === projectId
         && (status === undefined || this.#status(row) === status))
-      .map((row) => structuredClone(row.request))
+      .map((row) => clonePresentedReview(row.request))
       .sort((left, right) => left.requested_at.localeCompare(right.requested_at));
   }
 

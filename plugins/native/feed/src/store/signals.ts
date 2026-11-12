@@ -1,11 +1,12 @@
 import type { FeedSql } from "./sql.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import {assertSignalDraft as assertDraft,signalContentHash,signalDigest as sha256} from './content.js';
 export {signalContentReplicationDefinition} from './signals-replication.js';
 
 import type {
-  SignalDraft,
+  SignalDraft, SignalPage,
   SignalEvent,
   SignalRecord,
   SignalReceipt,
@@ -70,15 +71,16 @@ export const SIGNALS_SCHEMA_SQL = `
 export class SignalsModule implements SignalsApi {
   readonly query = {
     get: (projectId: string, signalId: string) => this.get(projectId, signalId),
-    list: (projectId: string, sourceId?: string) => this.list(projectId, sourceId),
+    list: (projectId: string, sourceId?: string, page?: SignalPage) => this.list(projectId, sourceId, page),
   };
 
   readonly commands = {
     submitDraft: (draft: SignalDraft) => this.submitDraft(draft),
+    deleteBySource: (projectId: string, sourceId: string) => this.deleteBySource(projectId, sourceId),
   };
 
   readonly events = {
-    list: (projectId: string, sourceId?: string) => this.listEvents(projectId, sourceId),
+    list: (projectId: string, sourceId?: string, page?: SignalPage) => this.listEvents(projectId, sourceId, page),
   };
 
   constructor(
@@ -86,16 +88,25 @@ export class SignalsModule implements SignalsApi {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  /** D0117: revisions contain the old payloads too; remove all three tables in the caller's history transaction. */
+  private deleteBySource(projectId: string, sourceId: string): void {
+    this.db.transaction(() => {
+      this.db.run("DELETE FROM signal_revisions WHERE project_id = ? AND signal_id IN (SELECT signal_id FROM signals WHERE project_id = ? AND source_id = ?)", projectId, projectId, sourceId);
+      this.db.run("DELETE FROM signal_events WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+      this.db.run("DELETE FROM signals WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+    });
+  }
+
   private get(projectId: string, signalId: string): SignalRecord {
     const row = this.db.get("SELECT * FROM signals WHERE project_id = ? AND signal_id = ?", projectId, signalId) as Row | undefined;
     if (!row) throw signalErrors.not_found("找不到这个 Signal");
     return mapSignal(row);
   }
 
-  private list(projectId: string, sourceId?: string): SignalRecord[] {
+  private list(projectId: string, sourceId?: string, page: SignalPage = {}): SignalRecord[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id", projectId)
-      : this.db.all("SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id", projectId, sourceId);
+      ? this.db.all("SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", projectId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
+      : this.db.all("SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", projectId, sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
     return (rows as Row[]).map(mapSignal);
   }
 
@@ -168,10 +179,10 @@ export class SignalsModule implements SignalsApi {
     `, draft.project_id, signalId, revision, contentHash, JSON.stringify(draft), acceptedAt);
   }
 
-  private listEvents(projectId: string, sourceId?: string): SignalEvent[] {
+  private listEvents(projectId: string, sourceId?: string, page: SignalPage = {}): SignalEvent[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id", projectId)
-      : this.db.all("SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id", projectId, sourceId);
+      ? this.db.all("SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", projectId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
+      : this.db.all("SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", projectId, sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
     return (rows as Row[]).map((row) => ({
       event_id: text(row.event_id),
       project_id: text(row.project_id),
@@ -208,14 +219,14 @@ function mapSignal(row: Row): SignalRecord {
     kind: text(row.kind),
     occurred_at: text(row.occurred_at),
     observed_at: text(row.observed_at),
-    payload: json<Record<string, unknown>>(row.payload_json, {}),
-    content_refs: json<string[]>(row.content_refs_json, []),
+    payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
+    content_refs: parseJson<string[]>(row.content_refs_json, []),
     raw_event_id: text(row.raw_event_id),
     adapter: {
       plugin_id: text(row.adapter_plugin_id),
       version: text(row.adapter_version),
     },
-    provenance: json<Record<string, unknown>>(row.provenance_json, {}),
+    provenance: parseJson<Record<string, unknown>>(row.provenance_json, {}),
     revision: Number(row.revision),
     content_hash: text(row.content_hash),
     validation: "accepted",
@@ -233,13 +244,4 @@ function text(value: unknown): string {
 function optionalText(value: unknown): string | null {
   const result = text(value);
   return result || null;
-}
-
-function json<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }

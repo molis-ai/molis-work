@@ -376,11 +376,11 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   const inspectMcpConnection = (home: string, id: string, options: McpRequestOptions = {}) => runConnection(home, id, options, inspect);
   const getMcpConnectionDescriptor = async (home: string, id: string, options: { signal?: AbortSignal } = {}) => {
     const { config: before, authority } = await active(home, id);
-    const row = withConnectorConnections(home, store => store.require(id));
+    const row = withConnectorConnections(home, store => store.require(id), "required");
     const revision = createHash("sha256").update(JSON.stringify([row.updated_at, before.transport === "stdio" ? before.launch : before.endpoint, before.mode])).digest("hex");
     const capabilities = await inspectMcpConnection(home, id, options);
     authority.check();
-    if (withConnectorConnections(home, store => store.require(id)).updated_at !== row.updated_at) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新读取");
+    if (withConnectorConnections(home, store => store.require(id), "required").updated_at !== row.updated_at) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新读取");
     return { kind: "mcp" as const, connection_id: id, service_id: row.service_id, display_name: row.display_name, revision, available: true, ...capabilities };
   };
   const callMcpConnectionTool = (home: string, id: string, name: string, args: Record<string, unknown>, options: McpToolRequestOptions = {}) => runConnection(home, id, options, async (client, signal, checkCurrent) => {

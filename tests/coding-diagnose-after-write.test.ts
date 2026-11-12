@@ -206,6 +206,10 @@ test("PA-32 output past the observation limit reaches the model cut by the SDK's
   const receipt = await round.adapter.readCommandOutput(round.session, { run_id: handle.ref.run_id, call_id: "w1:diagnostics" });
   assert.equal(receipt.stdout.trim().split("\n").length, 3000);
   assert.equal(receipt.exit_code, 0);
+  // PA-35 (timeline half): the receipt of a check names the checker and list version its executor noted for that write,
+  // which is what the timeline's write row reads; the other write's receipt names its own checker, not this one.
+  assert.deepEqual(receipt.after_write_check, { checker_id: "loud", display_name: loud.display_name, version: 1 });
+  assert.equal((await round.adapter.readCommandOutput(round.session, { run_id: handle.ref.run_id, call_id: "w2:diagnostics" })).after_write_check?.checker_id, "quiet");
   assert.match(round.result("w2") ?? "", /exit 0\nstdout:\none line\n?$/);
   assert.doesNotMatch(round.result("w2") ?? "", /truncated/);
 });

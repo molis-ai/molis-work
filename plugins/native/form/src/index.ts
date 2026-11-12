@@ -1,8 +1,6 @@
 export { FORM_UI_CONTRIBUTION_ID, formUiContribution, formUiDescriptor, renderFormWorkbench } from "./ui.js";
 export type { FormUiModel, FormUiPrimitives, FormUiSurface } from "./ui.js";
 export { FORM_STYLES } from "./styles.js";
-export { FORM_EN } from "./en.js";
-export { FORM_MESSAGES } from "./messages.js";
 export { FORM_INSTRUCTIONS } from "./prompts.js";
 export { FORM_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createFormPlugin } from "./plugin.js";

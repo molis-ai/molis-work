@@ -3,6 +3,8 @@ import {
   type ActionRef, type CharacterPublication, type CharacterRecord, type StoredDraft,
 } from "./common.js";
 
+const uiText = globalThis.t;
+
 /** What the list of personal Characters shows: the rows, where it is drawn, and what opening a row does. */
 export interface ListView {
   list: HTMLElement;
@@ -21,13 +23,17 @@ function listRow(view: ListView, record: CharacterRecord): HTMLElement {
   button.type = "button"; button.dataset.characterId = record.character_id;
   button.setAttribute("aria-current", record.character_id === view.selected ? "page" : "false");
   const copy = el("span", undefined, "characters-row-copy");
-  copy.append(el("strong", record.title || "未命名角色"), el("small", firstLine(record.instructions) || "还没写做事方式"));
+  const title = el("strong", record.title || uiText.text("workbench.characters.untitled")), instructions = firstLine(record.instructions);
+  const description = el("small", instructions || uiText.text("workbench.characters.no-instructions"));
+  if (record.title) title.translate = false;
+  if (instructions) description.translate = false;
+  copy.append(title, description);
   const meta = el("span", undefined, "characters-row-meta");
   const latest = latestActive(view.publications, record.character_id);
-  if (record.state === "disabled") meta.append(tag("已停用", "quiet"));
-  if (latest) meta.append(tag("已发布 v" + latest.version, "done")); else meta.append(tag("未发布", "quiet"));
-  if (record.import_snapshot) meta.append(tag("本机导入"));
-  if (view.drafts[record.character_id]) meta.append(tag("有未保存的修改", "attention"));
+  if (record.state === "disabled") meta.append(tag(uiText.text("workbench.characters.disabled"), "quiet"));
+  if (latest) meta.append(tag(uiText.text("workbench.characters.published", { version: latest.version }), "done")); else meta.append(tag(uiText.text("workbench.characters.not-published"), "quiet"));
+  if (record.import_snapshot) meta.append(tag(uiText.text("workbench.characters.local-import")));
+  if (view.drafts[record.character_id]) meta.append(tag(uiText.text("workbench.characters.draft-dirty"), "attention"));
   button.append(copy, meta, chevron());
   button.addEventListener("click", () => view.open(record.character_id));
   item.append(button);
@@ -49,12 +55,13 @@ export function renderVersions(
 ): void {
   target.replaceChildren();
   const versions = versionsOf(publications, selected);
-  if (!versions.length) { target.textContent = "尚未发布到当前项目。"; return; }
+  if (!versions.length) { target.textContent = uiText.text("workbench.characters.no-project-publication"); return; }
   for (const record of versions) {
     const details = el("details"), summary = el("summary"), content = el("pre");
-    summary.textContent = "v" + record.version + " · " + record.payload.title + " · "
-      + (record.lifecycle_state !== "active" || record.availability !== "available" ? "当前不可用" : "已发布") + " · 草稿修订 " + record.payload.source.draft_revision;
-    content.textContent = readableContent(record.payload, describeActions);
+    const name = el("span", record.payload.title); name.translate = false;
+    summary.append("v" + record.version + " · ", name, " · ", el("span",
+      uiText.text(record.lifecycle_state !== "active" || record.availability !== "available" ? "workbench.characters.unavailable-revision" : "workbench.characters.published-revision", { revision: record.payload.source.draft_revision })));
+    content.append(...readableContent(record.payload, describeActions));
     details.append(summary, content);
     extend(record, details);
     target.append(details);

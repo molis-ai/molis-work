@@ -7,18 +7,19 @@ import { createHash } from 'node:crypto';
 import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type HomePluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { sandboxAgentDeclarations } from './sandbox-agent-declarations.js';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
+import { PLUGIN_PRESENTATION_CAPABILITY, type TextRef } from '@molis-ai/molis-work-contracts/platform/ui';
 import type { PluginIconName } from './ui/icon.js';
 import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
 import { sandboxOperationActions, sandboxPackageBuildId } from './sandbox-actions.js';
+import { sandboxLocaleProblems } from './locale-declarations.js';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
 const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 const HOME_READ = 'home-database:read', HOME_WRITE = 'home-database:write', FILE_READ = 'owner-files:read', FILE_WRITE = 'owner-files:write';
 
 /**
@@ -32,7 +33,44 @@ export function sandboxDerivedPermissions(effects: DerivedEffects | undefined): 
 
 /** Actual requested rows, distinct from the read/write pair a resource's shape declares. Recomputed from the saved validated contract. */
 export function sandboxRequestedPermissions(effects: DerivedEffects | undefined): string[] {
-  return ['storage:private', ...(effects?.projects?.includes('exist') ? [PLUGIN_PROJECTS_EXIST_PERMISSION] : []), ...serviceRows(effects).map(row => row.permission)];
+  return ['storage:private', ...(effects?.projects?.includes('exist') ? [PLUGIN_PROJECTS_EXIST_PERMISSION] : []), ...serviceRows(effects).map(row => row.permission),
+    ...projectedRows(effects).map(row => row.permission)];
+}
+
+type PermissionRow = NonNullable<PluginManifest['permissions']>[number];
+/**
+ * Switches for effects a sandboxed package's signed Manifest has no row for (BL-701, user decision 2026-11-09 A). The Host projects them
+ * from the verified release onto its installation, beside the Manifest and never into it, so the signed bytes and digest stay as they are.
+ * Each is optional and starts off: what the person approved at installation is the most it can reach, the switch whether it may now.
+ */
+const PROJECTED_ROWS: ReadonlyArray<readonly [keyof SandboxEffects, string, string]> = [
+  ['networkDomains', 'network:request', '访问这个插件安装时获准的网站'],
+  ['secretRefs', 'secret:use', '在获准的请求里使用为这个插件保存的密钥'],
+  ['capabilities', 'capabilities:call', '调用安装时获准的平台能力'],
+  ['background', 'background:start', '在后台运行安装时获准的工作'],
+  ['connections', 'connections:use', '通过你绑定的服务账号发请求'],
+];
+
+function projectedRows(effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined, declared: ReadonlySet<string> = new Set(['connections:use'])): PermissionRow[] {
+  return PROJECTED_ROWS.filter(([key, permission]) => effects?.[key]?.length && !declared.has(permission))
+    .map(([, permission, reason]) => ({ permission, reason, required: false }));
+}
+
+/**
+ * The installation's switches beyond its Manifest's rows, from what its verified release asks for (`effects`, the union of its operations'):
+ * the Host attaches them to the sandboxed definition it builds and the Runtime counts them in the grants it may hold (BL-701). An
+ * integration's Manifest has no `connections:use` row, so its source connection is one of them; an app's Manifest already has it.
+ */
+export function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): PermissionRow[] {
+  return projectedRows(effects, new Set(manifest.permissions.map(row => row.permission)));
+}
+
+/**
+ * The switches one operation needs before its code runs (BL-701). A background launcher's `effects` already hold its targets'
+ * (`sandboxOperationEffects`). The Manifest's own rows are not among them: the Host's client for each service checks those at each call.
+ */
+export function sandboxOperationSwitches(effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): string[] {
+  return projectedRows(effects).map(row => row.permission);
 }
 
 /** Exact per-operation service permissions. A read-only operation cannot borrow a write grant held by its installation. */
@@ -92,7 +130,8 @@ export interface SandboxManifestInput {
   /** A studio release already has a build identity and integer action version; distributed packages use their publisher identity. */
   actionIdentity?: { buildId: string; version: number };
   /** Validated wire text declarations, projected once by the public SDK. */
-  textDeclarations?: SandboxPackageManifest;
+  textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
+  stageTitleText?: TextRef;
   /** The author chooses only version/schema; the store and read/write names are deterministic platform output. */
   homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
   connections?: PluginManifest['connections'];
@@ -123,6 +162,21 @@ function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'da
   return resources;
 }
 
+function localeFields(pluginId: string, contract?: SandboxPluginContract): Pick<PluginManifest['ui'], 'locales'> {
+  if (contract?.ui === undefined) return {};
+  const problems = sandboxLocaleProblems({ pluginId, ui: contract.ui });
+  if (problems.length) throw pluginErrors.declaration_invalid(problems.join('；'));
+  return { locales: contract.ui.locales };
+}
+
+function directoryFields(input?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>) {
+  return {
+    ...(input?.name_text === undefined ? {} : { name_text: input.name_text }),
+    ...(input?.summary === undefined ? {} : { summary: input.summary }),
+    ...(input?.summary_text === undefined ? {} : { summary_text: input.summary_text }),
+  };
+}
+
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
   if (input.contract) {
     if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
@@ -137,6 +191,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     ...(actions ? { actions } : {}),
+    ...directoryFields(input.textDeclarations),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
@@ -146,7 +201,8 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
+    ui: { ...localeFields(input.pluginId, input.contract), contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name,
+      ...(input.stageTitleText === undefined ? {} : { title_text: input.stageTitleText }), contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
   };
 }
 
@@ -160,6 +216,9 @@ export interface SandboxIntegrationManifestInput {
   connection_services: NonNullable<PluginManifest['connection_services']>;
   integrations: NonNullable<PluginManifest['integrations']>;
   source_presentations?: NonNullable<PluginManifest['source_presentations']>;
+  /** The contract projects the producer's words; this does not give an integration a page. */
+  contract?: SandboxPluginContract;
+  textDeclarations?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>;
 }
 
 /**
@@ -170,12 +229,13 @@ export interface SandboxIntegrationManifestInput {
 export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
+    ...directoryFields(input.textDeclarations),
     publisher: input.publisher,
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [] },
+    ui: { ...localeFields(input.pluginId, input.contract), contributions: [] },
     // An integration's sources are the Home's: one registry, which every project's Feed reads (BL-530).
     runtime: { scope: 'home' },
     connection_services: input.connection_services, integrations: input.integrations,

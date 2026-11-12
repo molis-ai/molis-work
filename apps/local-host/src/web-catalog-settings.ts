@@ -1,3 +1,5 @@
+import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
+import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -17,7 +19,9 @@ import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { readText, currentLocale, inLanguagePreview } from "./web-locale.js";
+import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
+import { agentDisplayModel } from "./agent-definitions/display-words.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
 
@@ -37,13 +41,18 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|skills|memory|mcp|connectors|projects|diagnostics|sync)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|kit|memory|mcp|connectors|projects|diagnostics|update|running|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
   const capabilitySection = (rules ? "library" : capabilityPageMatch?.[1]) as CapabilitySection | undefined;
   const section = (capabilitySection === "connections" ? "connectors" : capabilitySection === "access" ? "mcp" : capabilitySection ?? settingsPageMatch![1]) as WebSettingsSection;
-  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
+  // A page that is not the project list still opens while the catalog is refused for its version (U3 §2.4), with no project to pick;
+  // a page whose own facts are in the catalog (the models) meets the same refusal and gets its card.
+  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch((error: unknown) => {
+    if (refusedOwner(serverOptions.homeDirectory, error)?.block.kind === "projects") return [];
+    throw error;
+  });
   const contextProjectId = url.searchParams.get("project");
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
@@ -68,7 +77,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
     // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
     const refs = modelConnections.length ? withConnectorConnections(serverOptions.homeDirectory!, (store) =>
-      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id]))) : new Map<string | null, string>();
+      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id])), "required") : new Map<string | null, string>();
     return {
       // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
       providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,
@@ -89,6 +98,8 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   });
   response.end(renderMolisWorkSettings({
     section,
+    ...(section === "prompts" && serverOptions.homeDirectory && inLanguagePreview()
+      ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(serverOptions.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined) } : {}),
     capabilities: capabilities ? { ...capabilities, rules } : undefined,
     ...(characters ? { plugin_settings_html: characters.html } : {}),
     ...(capabilitySection === "connections" && serverOptions.homeDirectory ? { functions_settings: {
@@ -106,6 +117,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
     projects,
     web_service: await webService.detect(),
+    ...(section === "update" && serverOptions.homeDirectory ? { update: settingsUpdateView(serverOptions.homeDirectory) } : {}),
     diagnostics: composition.installationDiagnostics(projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
@@ -119,7 +131,12 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (!(request.method === "GET" && pluginSettings && serverOptions.homeDirectory)) return false;
-  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
+  // A page that is not the project list still opens while the catalog is refused for its version (U3 §2.4), with no project to pick;
+  // a page whose own facts are in the catalog (the models) meets the same refusal and gets its card.
+  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch((error: unknown) => {
+    if (refusedOwner(serverOptions.homeDirectory, error)?.block.kind === "projects") return [];
+    throw error;
+  });
   const contextProjectId = url.searchParams.get("project");
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
@@ -133,7 +150,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   };
   const dataAction = pluginSettingsDataAction(pluginSettings.contribution_id);
   const data = dataAction ? await bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS).invoke(dataAction, {}) : undefined;
-  const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: L } };
+  const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: readText } };
   const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
   const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
   response.writeHead(200, {
@@ -174,4 +191,10 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+/** 设置 › 更新 (U3 §5.4): read only, no store opened. */
+function settingsUpdateView(home: string) {
+  const held = readRollbackHold(home);
+  return { point: readRollbackPoint(home), held: held ? { held_version: held.held_version, rolled_back_from: held.rolled_back_from.version } : null };
 }

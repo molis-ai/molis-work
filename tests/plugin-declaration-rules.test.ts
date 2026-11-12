@@ -537,7 +537,7 @@ test("N26: each extended declaration is read in the current format and refused w
     const manifest = blockFixture();
     add(manifest);
     assert.equal(manifestProblems(manifest), "", name);
-    assert.match(manifestProblems({ ...manifest, schema_version: 2, host_api_version: 2 }), /必须都是 1/, name);
+    assert.match(manifestProblems({ ...manifest, schema_version: 2, host_api_version: 2 }), /版本不受支持/, name);
   }
 });
 
@@ -551,20 +551,20 @@ test("ui.commands remains invalid even in the current format (BL-363)", () => {
 
 /** A background job the fixture Manifest may declare: it names no permission, since the fixture declares none. */
 const JOB = { job_id: "follow", reason: "Follow what was accepted", permissions: [] };
-type ManifestCode = "plugin.manifest_invalid" | "plugin.entrypoint_missing" | "plugin.permission_invalid" | "plugin.declaration_invalid";
+type ManifestCode = "plugin.manifest_invalid" | "plugin.manifest_version_invalid" | "plugin.entrypoint_missing" | "plugin.permission_invalid" | "plugin.declaration_invalid";
 const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestCode; message: string }> = [
   { rule: "not an object", input: null, code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
   { rule: "an array", input: [], code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
   { rule: "no publisher", input: declarationManifest({ publisher: undefined }), code: "plugin.manifest_invalid", message: "publisher 必须为对象" },
-  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
-  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 2 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
+  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
+  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 2 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
   { rule: "a plugin id outside the namespace", input: declarationManifest({ plugin_id: "io.example.thing" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a version that is not SemVer", input: declarationManifest({ version: "1.0" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a numeric prerelease with a leading zero", input: declarationManifest({ version: "1.0.0-01" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a blank name", input: declarationManifest({ name: " " }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "an empty signature", input: declarationManifest({ publisher: { publisher_id: "molis", signature: "" } }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "an unknown kind", input: declarationManifest({ kind: "service" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "an app on unsupported schema_version 2", input: declarationManifest({ kind: "app", schema_version: 2, host_api_version: 2 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
+  { rule: "an app on unsupported schema_version 2", input: declarationManifest({ kind: "app", schema_version: 2, host_api_version: 2 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
   { rule: "no entrypoint", input: declarationManifest({ entrypoints: [] }), code: "plugin.entrypoint_missing", message: "Plugin 至少需要一个 entrypoint" },
   { rule: "an entrypoint for an unknown deployment", input: declarationManifest({ entrypoints: [{ deployment: "edge", entrypoint: "./entry.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
   { rule: "two entrypoints for one deployment", input: declarationManifest({ entrypoints: [{ deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
@@ -603,7 +603,7 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
 function parseFailure(input: unknown): { code: string; message: string } | null {
   try { parsePluginManifest(input); return null; }
   catch (error) {
-    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return { code: error.code, message: error.message };
+    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.manifest_version_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return { code: error.code, message: error.message };
     throw error;
   }
 }

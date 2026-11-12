@@ -31,8 +31,8 @@ test("public document timeline is bounded and keeps the journal", async t => {
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
   const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Goal event history", actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
-  // The catalog made the project and its file; the legacy dump, renamed to this project's id, replaces that file with its journal.
-  const fixture = materializeGoalEventHistory("legacy");
+  // The catalog made the project and its file; the imported-requirements dump, renamed to this project's id, replaces that file with its journal.
+  const fixture = materializeGoalEventHistory("imported");
   renameProject(fixture.path, LEGACY_PROJECT_ID, DEMO_PROJECT_ID);
   rmSync(project.database_path, { force: true });
   rmSync(`${project.database_path}-wal`, { force: true });

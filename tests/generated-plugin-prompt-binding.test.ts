@@ -20,7 +20,7 @@ import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { bindPrologueInference } from '../apps/local-host/dist/prologue-inference-host.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 
 test('installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'generated-prompt-binding-'));
@@ -81,6 +81,8 @@ test('installed and authoring model calls bind their own release through the rea
   const one = await ensureInstalledPlugins({ store: a.store, projectId: a.id, homeDirectory: home, actions: a.actions });
   const two = await ensureInstalledPlugins({ store: b.store, projectId: b.id, homeDirectory: home, actions: b.actions });
   await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
+  // `generate` calls the model through a platform capability, a switch that starts off (BL-701).
+  for (const host of [one, two]) for (const record of host.platform.runtime.list()) await host.platform.runtime.regrant(record.install_id, 'capabilities:call', true);
   const invoke = (p: typeof a, version: number, prompt = 'summary') => p.service.invoke({ actor_id: 'person', audience: 'user', project_id: p.actions.project_id, permissions: [] },
     { capability_id: exposedActionId(v1, 'generate'), version, provider_id: 'plugin:' + pluginId }, prompt);
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_ONE/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_TWO/);
@@ -95,7 +97,7 @@ test('installed and authoring model calls bind their own release through the rea
   assert.deepEqual(await preview.call(previewContext, 'model.generate', { prompt: 'summary', input: 'material' }), { text: 'GENERATED' });
   assert.match(systems.at(-1)!, /AUTHORING_DEFAULT/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE|RELEASE_TWO|PERSONAL_EDIT/);
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
-  assert.equal(registry.uses(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
+  assert.equal(registry.uses.list(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
   await two.lifecycle('uninstall', v2);
   assert.equal(registry.prompt(key).default_body, 'RELEASE_ONE'); assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);

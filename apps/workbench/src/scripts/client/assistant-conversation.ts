@@ -15,7 +15,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
 
   /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
      the design system's one copy feedback; a refusal also says how to copy by hand. */
-  const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") }).then((copied) => { if (!copied) host.showToast?.(L("没能复制，请手动选中文字")); });
+  const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: globalThis.t.text("workbench.assistant-conversation.copied"), failed: globalThis.t.text("workbench.assistant-conversation.could-not-copy") }).then((copied) => { if (!copied) host.showToast?.(globalThis.t.text("workbench.assistant-conversation.could-not-copy-select-text-instead")); });
   const bindText = (root) => {
     root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
       figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy");
@@ -66,17 +66,51 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       if (cached?.draft_revision === draft_revision) { cached.draft = saved.draft; cached.draft_revision = saved.draft_revision; }
     }); });
   };
+  const removeReview = (card) => {
+    if (card.contains(document.activeElement) && input.getClientRects().length && !input.closest("[inert]")) input.focus({ preventScroll: true });
+    card.remove();
+  };
+  const setReviewWord = (node, words) => {
+    if (!node || node.textContent === words) return;
+    const text = node.firstChild;
+    if (text?.nodeType === Node.TEXT_NODE && !text.nextSibling) text.data = words;
+    else node.textContent = words;
+  };
+  const retitleReviewText = (card) => {
+    for (const node of card.querySelectorAll('[data-assistant-review-copy]')) setReviewWord(node, globalThis.say.text(JSON.parse(node.dataset.assistantReviewCopy)));
+    for (const figure of card.querySelectorAll('.assistant-code')) {
+      const n = Number(figure.dataset.lines), copy = figure.querySelector('.assistant-code-copy');
+      setReviewWord(figure.querySelector('.assistant-code-lines'), globalThis.t.text('workbench.assistant-code-grow.lines', { n }));
+      setReviewWord(figure.querySelector('.assistant-code-more'), figure.hasAttribute('data-folded')
+        ? globalThis.t.text('workbench.assistant-code-grow.show-all-n-n', { n }) : globalThis.t.text('workbench.assistant-code-grow.collapse'));
+      setReviewWord(copy?.querySelector('[data-copy-face=idle]') || copy, globalThis.t.text('common.control.copy'));
+      for (const [state, key] of [['done', 'workbench.assistant-conversation.copied'], ['failed', 'workbench.assistant-conversation.could-not-copy']]) {
+        const face = copy?.querySelector('[data-copy-face=' + state + ']');
+        if (face) { face.dataset.label = globalThis.t.text(key); setReviewWord(face, face.dataset.label); }
+      }
+    }
+  };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;
     card.querySelectorAll("[data-assistant-review-glyph]").forEach((node) => node.replaceWith(glyph(node.dataset.assistantReviewGlyph)));
+    retitleReviewText(card);
     bindText(card);
     const row = card.querySelector(".assistant-card-actions");
+    const buttons = row.querySelectorAll("[data-assistant-decision]");
     const decide = async (decision) => {
-      row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
-      try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }); render(); poll(); }
-      catch (error) { showError(error); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+      if (row.ariaBusy === "true") return;
+      row.ariaBusy = "true";
+      buttons.forEach((button) => { button.ariaDisabled = "true"; });
+      try {
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision });
+        if (card.isConnected) { view = next; render(); poll(); }
+      } catch (error) {
+        row.removeAttribute("aria-busy");
+        buttons.forEach((button) => button.removeAttribute("aria-disabled"));
+        if (card.isConnected) showError(error);
+      }
     };
-    row.querySelectorAll("[data-assistant-decision]").forEach((button) => button.addEventListener("click", () => decide(button.dataset.assistantDecision)));
+    buttons.forEach((button) => button.addEventListener("click", () => decide(button.dataset.assistantDecision)));
   };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;
@@ -125,7 +159,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     return async () => {
       try {
         const { material: full } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id));
-        if (typeof full.text !== "string") { host.showToast?.(L("这份材料没有可以预览的正文")); return; }
+        if (typeof full.text !== "string") { host.showToast?.(globalThis.t.text("workbench.assistant-conversation.material-has-no-text-preview")); return; }
         sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
       } catch (error) { host.showToast?.(error, true); }
     };
@@ -141,7 +175,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       } catch (error) { host.showToast?.(error, true); }
     };
   };
-  const EXPIRED_IMAGE = "应用重启后图片不再保留；需要时请重新添加这张图片";
+  const EXPIRED_IMAGE = "workbench.assistant-conversation.images-not-kept-after-app-restarts-add-image";
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
     const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
@@ -154,10 +188,10 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
       : readBack(material, title) || readImage(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
-    if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", L("打开") + "：" + title); }
-    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "") + (material.expired ? L("（已失效）") : "")));
-    if (MATERIAL_KIND[material.kind]) chip.title = L(MATERIAL_KIND[material.kind]);
-    if (material.expired) { chip.classList.add("is-expired"); chip.title = L(EXPIRED_IMAGE); }
+    if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", globalThis.t.text("common.control.open") + "：" + title); }
+    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? globalThis.t.text("workbench.assistant-conversation.draft") : "") + (material.expired ? globalThis.t.text("workbench.assistant-conversation.no-longer-valid") : "")));
+    if (MATERIAL_KIND[material.kind]) chip.title = globalThis.t.text(MATERIAL_KIND[material.kind]);
+    if (material.expired) { chip.classList.add("is-expired"); chip.title = globalThis.t.text(EXPIRED_IMAGE); }
     return chip;
   };
   const renderRound = (work, round) => {
@@ -175,8 +209,8 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     round.activity.forEach((item, index) => { if (!(stepsShown && item.verb === "todo")) entries.push({ key: "a:" + item.call_id, order: item.sequence ?? (1000 + index), item }); });
     entries.sort((a, b) => a.order - b.order);
     // Which Agent ran this round, when the work changed hands.
-    if (round.executor === "plugin") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); const carrier = getWork(); setText(tag, carrier && carrier.executor.kind === "plugin" ? L("由 {name} 执行", { name: carrier.executor.title }) : L("由执行方插件执行")); put(tag); }
-    else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由角色负责") + "：" + round.character.title + " v" + round.character.version); put(tag); }
+    if (round.executor === "plugin") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); const carrier = getWork(); setText(tag, carrier && carrier.executor.kind === "plugin" ? globalThis.t.text("workbench.assistant-conversation.carried-name", { name: carrier.executor.title }) : globalThis.t.text("workbench.assistant-conversation.carried-executor-plugin")); put(tag); }
+    else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, globalThis.t.text("workbench.assistant-conversation.carried") + "：" + round.character.title + " v" + round.character.version); put(tag); }
     // What this round carried reads as a line under the person's own message; the side pane keeps the full list.
     let carried = null;
     if (round.materials && round.materials.length) {
@@ -210,7 +244,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
         put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
-            const btnEl = el("button", "assistant-copy", L("复制")); btnEl.type = "button";
+            const btnEl = el("button", "assistant-copy", globalThis.t.text("common.control.copy")); btnEl.type = "button";
             btnEl.addEventListener("click", () => copyFrom(btnEl, () => bubble.dataset.text || ""));
             return btnEl;
           });
@@ -224,11 +258,11 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
             btnEl.addEventListener("click", () => {
               const folded = bubble.hasAttribute("data-folded");
               bubble.toggleAttribute("data-folded", !folded); bubble.toggleAttribute("data-unfolded", folded);
-              btnEl.textContent = folded ? L("收起") : L("展开全文");
+              btnEl.textContent = folded ? globalThis.t.text("workbench.assistant-conversation.collapse") : globalThis.t.text("workbench.assistant-conversation.show-all");
             });
             return btnEl;
           });
-          if (!more.textContent) more.textContent = bubble.hasAttribute("data-folded") ? L("展开全文") : L("收起");
+          if (!more.textContent) more.textContent = bubble.hasAttribute("data-folded") ? globalThis.t.text("workbench.assistant-conversation.show-all") : globalThis.t.text("workbench.assistant-conversation.collapse");
           put(more);
         }
         if ((kind === "user" || kind === "host") && carried) { put(carried); carried = null; }
@@ -241,12 +275,12 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     status.dataset.phase = phase; status.dataset.mwState = ({starting:'starting',running:'running',compacting:'running',failed:'failed',stopped:'stopped',cancelled:'cancelled',paused:'paused','reconcile-required':'verify',unknown:'verify'})[phase] || 'idle';
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
     const retry = (phase === "running" || phase === "starting") && round.retry_wait ? round.retry_wait : null; retries.mark(status, retry);
-    setText(status, retry ? retries.line(status) : phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
-      : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
-      : phase === "stopped" || phase === "cancelled" ? (ownStop || L("这一轮已停止，已经发生的操作不会被撤回"))
-      : phase === "paused" ? L("已暂停，点“继续”接着做")
-      : phase === "reconcile-required" ? L("有操作的结果还没确认，请先核对")
-      : phase === "unknown" ? L("这一轮的执行记录读不到，结果需要核对") : "");
+    setText(status, retry ? retries.line(status) : phase === "running" || phase === "starting" || phase === "compacting" ? globalThis.t.text("workbench.assistant-conversation.working")
+      : phase === "failed" ? globalThis.t.text("workbench.assistant-conversation.turn-did-not-finish") + (round.stop_reason ? "：" + round.stop_reason : "")
+      : phase === "stopped" || phase === "cancelled" ? (ownStop || globalThis.t.text("workbench.assistant-conversation.turn-was-stopped-anything-already-done-not-undone"))
+      : phase === "paused" ? globalThis.t.text("workbench.assistant-conversation.paused-click-continue-go")
+      : phase === "reconcile-required" ? globalThis.t.text("workbench.assistant-conversation.operation-s-outcome-unconfirmed-check-first")
+      : phase === "unknown" ? globalThis.t.text("workbench.assistant-conversation.turn-s-record-cannot-be-read-its-outcome") : "");
     status.hidden = !status.textContent;
     put(status);
     const questions = round.awaiting_input || [];

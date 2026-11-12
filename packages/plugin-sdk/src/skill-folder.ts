@@ -1,8 +1,9 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest, type PluginPackagePayload, type PluginTranslationsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest, type PluginPackagePayload, type PluginLocalesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type PluginMethodDeclaration, type SkillAppliesTo, type SkillResourceDeclaration, type SkillResourceRole } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { parseContentPackage } from "./content-package.js";
+import type { LocalPackageSignInput } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { completeContentPackagePayload } from "./content-package.js";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { packagePathProblem } from "./skill-declarations.js";
 import { frontmatterWritesAppliesTo, skillDeclarationFromFrontmatter } from "./skill-frontmatter.js";
@@ -67,15 +68,11 @@ export interface ContentPackageInput {
   plugin_id: string;
   version: string;
   name: string;
-  /** The name in the English interface (Manifest `name_en`). */
-  name_en?: string;
-  /** What the package is for, one line (Manifest `summary`). */
+  name_text?: PluginManifest["name_text"];
   summary?: string;
-  /**
-   * The English of the package's own words, keyed by the Chinese (Manifest `ui.translations`): its summary and its Skills' descriptions,
-   * when to use and not, and argument hints. Checked as every Manifest's translations are.
-   */
-  translations?: PluginTranslationsDeclaration;
+  summary_text?: PluginManifest["summary_text"];
+  /** Declare the paths of the locale files accompanying the signing draft. */
+  locales?: PluginLocalesDeclaration;
   publisher: PluginManifest["publisher"];
   /** `home`: installed for the person, not in a project (`runtime: { scope: "home" }`). */
   scope?: "home" | "project";
@@ -90,20 +87,22 @@ export interface ContentPackageInput {
  * caller splits them into packages or picks fewer, nothing is dropped here.
  */
 export function contentPackagePayload(input: ContentPackageInput): PluginPackagePayload {
+  return completeContentPackagePayload(contentPackageDraft(input), input.publisher);
+}
+
+/** The same Skill pack declaration and files, ready to hand to the Host's signing action. */
+export function contentPackageDraft(input: Omit<ContentPackageInput, "publisher">): LocalPackageSignInput {
   if (input.skills.length > SKILL_LIMITS.skillsPerPackage) {
     refuseDeclarations([{ reason: `一个包至多 ${SKILL_LIMITS.skillsPerPackage} 个技能，这里有 ${input.skills.length} 个：请分成几个包，或少选几个` }]);
   }
   const manifest = { schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.plugin_id,
-    version: input.version, name: input.name, ...(input.name_en ? { name_en: input.name_en } : {}), ...(input.summary ? { summary: input.summary } : {}),
-    kind: "content", publisher: input.publisher, entrypoints: [], permissions: [],
+    version: input.version, name: input.name, ...(input.name_text !== undefined ? { name_text: input.name_text } : {}), ...(input.summary ? { summary: input.summary } : {}),
+    ...(input.summary_text !== undefined ? { summary_text: input.summary_text } : {}),
+    kind: "content", entrypoints: [], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [], ...(input.translations ? { translations: { ...input.translations } } : {}) },
+    ui: { contributions: [], ...(input.locales !== undefined ? { locales: input.locales } : {}) },
     methods: input.skills.map(skill => skill.declaration),
     ...(input.scope === "home" ? { runtime: { scope: "home" } } : {}),
-    ...(input.compatible_from?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.compatible_from] } } : {}) } as PluginManifest;
-  const files = [{ path: CONTENT_PACKAGE_FILES.manifest, content_base64: Buffer.from(JSON.stringify(manifest)).toString("base64") },
-    ...input.skills.flatMap(skill => [...skill.files].map(([path, bytes]) => ({ path, content_base64: Buffer.from(bytes).toString("base64") })))];
-  const payload: PluginPackagePayload = { schema_version: /* @version format.plugin.package */ 1, manifest, files };
-  parseContentPackage(payload);
-  return payload;
+    ...(input.compatible_from?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.compatible_from] } } : {}) } satisfies Omit<PluginManifest, "publisher">;
+  return { manifest, files: input.skills.flatMap(skill => [...skill.files].map(([path, bytes]) => ({ path, content_base64: Buffer.from(bytes).toString("base64") }))) };
 }

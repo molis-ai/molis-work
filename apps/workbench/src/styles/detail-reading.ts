@@ -13,6 +13,7 @@ export const DETAIL_READING_STYLES = `
   .inbox-next-config button { margin: 4px 4px 0 0; white-space: normal; }
   .inbox-next-suggestion { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; }
   .inbox-next-suggestion small { color: var(--muted); }
+  .inbox-compose-trigger { align-self: flex-start; }
   .inbox-compose-dialog { width: min(640px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 0; border-radius: 16px; background: var(--paper); color: var(--ink); box-shadow: var(--lift-3); }
   .inbox-compose-dialog::backdrop { background: var(--scrim); }
   .inbox-compose-dialog form { display: grid; gap: 16px; }
@@ -38,6 +39,7 @@ export const DETAIL_READING_STYLES = `
   body.immersive-workbench .inbox-reference-footer .feed-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .inbox-reference-footer .feed-action-status { margin: 8px 0 0; }
   body.immersive-workbench .inbox-reference-detail .inbox-attention-context { margin-top: 0; }
+  .inbox-reference-body dd { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); }
 
   body.immersive-workbench .immersive-artifact-surface > [data-artifact-detail],
   body.immersive-workbench .plugin-stage-workspace > [data-artifact-detail] { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }

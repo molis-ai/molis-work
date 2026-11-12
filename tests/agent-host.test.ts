@@ -692,24 +692,27 @@ test("review replay preserves consumed approval and refuses changed content unde
   assert.equal(queue.get(request.review_id)?.project_id, request.project_id);
 });
 
-test("selected methods freeze only declared exact bodies and reject stale, duplicate, wider or ignored selections", async () => {
+test("selected own Skills freeze only declared exact bodies and reject stale, duplicate, wider or ignored selections", async () => {
   const host = new AgentHost();
   const definition = { skill_id: "read-method", version: 1, name: "Read", summary: "Read evidence", tools: ["read-file"], body: "Use actual source evidence." };
-  const granted = { ...authority, manifest: { ...manifest, roles: [{role_id: "reader", version: 1, name: "Reader", host_tools: ["read-file"]}], skills: [definition] }, skills: [definition] };
+  const source = { source: { kind: "plugin" as const, plugin_id: PLUGIN, plugin_version: "1.0.0", publisher_signature: "fixture" }, install_id: "install-1", installation_generation: "g1" };
+  const own = { ...source, skill_id: definition.skill_id, version: 1 };
+  const granted = { ...authority, skill_source: source, manifest: { ...manifest, roles: [{role_id: "reader", version: 1, name: "Reader", host_tools: ["read-file"]}], skills: [definition] }, skills: [definition] };
   let received: AgentStartRequest | undefined;
   let starts = 0;
   const adapter = adapterFor({ runtimeId: "prologue", supported: ["skills"] });
   const start = adapter.start.bind(adapter);
   adapter.start = async request => { starts++; received = request; const handle = await start(request);
-    handle.frozen.skills = (request.role?.skills ?? []).map(({body: _body, ...declaration})=>declaration);return handle; };
+    handle.frozen.skills = (request.role?.skills ?? []).map(({body: _body, ...skill})=>skill);return handle; };
   host.register(adapter);
-  const request = {...startRequest("reader"), skills: [{skill_id: definition.skill_id, version: 1}], role: {role_id: "reader", version: 1, execution: "read-only" as const, host_tools: [], prompts: [], skills: [{...definition, body: "malicious replacement"}]} };
+  const request = {...startRequest("reader"), skills: [own], role: {role_id: "reader", version: 1, execution: "read-only" as const, host_tools: [], prompts: [], skills: [{ref: own, origin: "own" as const, name: "forged", tools: [], named: true, body: "malicious replacement"}]} };
   const run = await host.start("prologue", request, granted);
   assert.equal(received?.role?.skills?.[0]?.body, definition.body);
-  assert.equal(run.frozen.skills[0]?.version, 1);
+  assert.deepEqual(run.frozen.skills[0], { ref: own, origin: "own", name: "Read", tools: ["read-file"], named: false });
   definition.body = "changed after start";
   assert.equal(received?.role?.skills?.[0]?.body, "Use actual source evidence.");
-  await assert.rejects(host.start("prologue", {...request,skills:[{skill_id:"read-method",version:2}]},granted),/方法版本不可用/);
+  // Version 2 is not this plugin's declared Skill, so it is no own Skill; with no catalog bound, nothing else can resolve it.
+  await assert.rejects(host.start("prologue", {...request,skills:[{...own,version:2}]},granted),{ code: "agent.capability_unavailable" });
   await assert.rejects(host.start("prologue", {...request,skills:[...request.skills,...request.skills]},granted),/重复/);
   const wider = {...definition,tools:["run-command"]};
   await assert.rejects(host.start("prologue",request,{...granted,manifest:{...granted.manifest,skills:[wider]},skills:[wider]}),/未开放的工具/);
@@ -722,11 +725,11 @@ test("MCP selections require declared authority, canonical provenance and exact 
   const host=new AgentHost();let starts=0,cancels=0;
   const adapter=adapterFor({runtimeId:'prologue',supported:['mcp','text-edit','command'],onCancel:()=>cancels++});
   const selected={server:'configured-server',tool:'write-note',version:'shape-1',configuration_version:3};
-  const granted={...authority,manifest:{...manifest,mcp:true},skill_owner:{project_id:BOARD,plugin_id:PLUGIN}};
+  const granted={...authority,manifest:{...manifest,mcp:true},mcp_owner:{project_id:BOARD,plugin_id:PLUGIN}};
   adapter.mcpLibrary={
     list:async()=>[],save:async()=>{throw new Error('unused');},control:async()=>{},
     validateSources:async(_owner,refs)=>[...refs],
-    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.skill_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
+    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.mcp_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
   };
   const original=adapter.start.bind(adapter);
   adapter.start=async request=>{starts++;assert.equal(request.mcp_tools?.[0]?.server_label,'Canonical service');const run=await original(request);run.frozen.mcp_tools=structuredClone(request.mcp_tools!);return run;};

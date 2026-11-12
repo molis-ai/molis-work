@@ -110,11 +110,7 @@ export const WORKSPACE_PACKAGES = [
     maturity: "experimental",
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-server",
-      "@molis-ai/molis-work-storage",
-      "@molis-ai/molis-work-app-local-host",
-      "@molis-ai/molis-work-im-ui",
-      "@molis-ai/molis-work-app-desktop",
-      "@molis-ai/molis-work-plugin-runtime"
+      "@molis-ai/molis-work-im-ui"
     ]
   }),
   entry("server", "@molis-ai/molis-work-contracts/platform/app-host", {
@@ -162,11 +158,8 @@ export const WORKSPACE_PACKAGES = [
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-module-artifacts",
-      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
-      "@molis-ai/molis-work-integration-rss",
-      "@molis-ai/molis-work-integration-gmail",
       "@molis-ai/molis-work-plugin-sdk"
     ],
     extraDependencies: {
@@ -210,11 +203,13 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-service-account",
       "@molis-ai/molis-work-service-agent-host",
+      "@molis-ai/molis-work-service-appearance",
       "@molis-ai/molis-work-service-connector-host",
       "@molis-ai/molis-work-service-runtime-host",
       "@molis-ai/molis-work-service-scheduler",
       "@molis-ai/molis-work-service-placement",
       "@molis-ai/molis-work-service-search",
+      "@molis-ai/molis-work-service-kit",
       "@molis-ai/molis-work-service-knowledge",
       "@molis-ai/molis-work-service-memory",
       "@molis-ai/molis-work-storage",
@@ -289,6 +284,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/ui-host", "@molis-ai/molis-work-contracts/platform/ui", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     capabilities: [
       "ui.contribution.registry.v1",
       "ui.surface.render.v1",
@@ -335,6 +331,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("modules/attention-resumption", "@molis-ai/molis-work-contracts/modules/attention-resumption", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     capabilities: [
       "attention.query.v1",
       "attention.command.v1"
@@ -415,6 +412,7 @@ export const WORKSPACE_PACKAGES = [
     }
   }),
   entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     maturity: "production",
     capabilities: [
       "connector.host.v1"
@@ -460,6 +458,21 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "search.query.v1",
       "search.index.v1"
+    ]
+  }),
+  entry("horizontal/appearance", "@molis-ai/molis-work-contracts/platform/ui", {
+    maturity: "slice",
+    capabilities: ["appearance.selection.get.v1", "appearance.selection.apply.v1", "appearance.selection.undo.v1"],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
+  entry("horizontal/kit", "@molis-ai/molis-work-contracts/services/kit", {
+    maturity: "production",
+    capabilities: [
+      "kit.catalog.v1"
     ]
   }),
   entry("horizontal/placement", "@molis-ai/molis-work-contracts/services/placement", {

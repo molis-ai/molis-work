@@ -103,7 +103,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 6. **项目实例**：同一份 `registration` 写 `project_runtime: { create: createXPlugin, package_name: "@molis-ai/molis-work-plugin-x", factory_export: "createXPlugin" }`（包名与工厂名写字面量，门禁按语法读），重新生成。每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记的顺序启动它，给 `trust: HOST_BUILD_TRUST` 与 `nativePluginReleaseArtifact`，那个文件不为新插件改（PG-067）。工厂不收宿主端口：要宿主的东西走平台服务或 Manifest 声明的动作（Files 读项目的目录用 `projects.directories.get`，BL-616）。`trust: HOST_BUILD_TRUST` 让内置插件随宿主版本升级，不写 `upgrade_compatibility`。`start()` 要兑现 Manifest 的每一条（见下面「app 一等」一节）。
 7. **门禁名单**：不用改。`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 从生成的登记读 `project_runtime`，再核包真的导出那个工厂、工厂给出登记的 Manifest；`project-plugins.ts` 不手写启动任何插件，也不点名插件包（RAC-571）。
 8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `web-request.ts` 的路由表加条目；宿主的 `*-native-plugin-http.ts` 只属于批过的构建期例外（`tests/builtin-plugin-assembly-gate.test.ts` 的 `NATIVE_PLUGIN_HTTP_FILES`），不再新增条目。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。舞台通过 Manifest `views`、`stage_data` 与 `registration.workbench.contributions` 声明，Runtime 从运行中的实例绘制，外壳按贡献描述通用挂载（同第 5 步），不再以手写 `render<X>Contribution` 作为新增插件步骤。要把内容放进别的插件的页面，就在它的描述符里声明 `slots`，被嵌入的插件在 Manifest `ui.embedded_plugins` 里列出，并用 `target_slot_id` 指向那个槽（Coding 的目录与阅读器里的 Files、Git）。
-9. **英文**：插件自己的文字在 Manifest `ui.messages` / `ui.translations` 声明，由平台按当前语言交给对应插件的作用域词典；页面和客户端取同一份插件文字，不要求把插件的 `X_EN` 加入工作台全局 `EN`。公共外壳文字仍归外壳，不能用插件词典接管，也不在文档收尾中迁移其它插件的词典。
+9. **界面语言**：插件以 Manifest 的 `ui.locales` 声明 `locales/<语言>.json`。用 SDK 的 `t`、`say` 和 `format` 取字。页面与客户端从同一准确来源读取；插件不能借同名安装或接管平台词。
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 12. **动作定义**：用 SDK 的 `defineAction` 写一份定义，同一份既进 Manifest 的 `actions`，也绑定运行实例的 `actions` 处理器（`packages/plugin-sdk/README.md`）；注册后自动进共同目录，UI、编排、Agent、MCP 共用它，没有另外的适配。
@@ -207,6 +207,8 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 - 有 `ports.inputs` → `onUpstreamReady` / `onUpstreamUnavailable`
 
 缺一条或多一条都是启动失败，只影响自己。`stop` 不消耗崩溃恢复额度。
+
+`stop` 的期限（BL-367）：进程内插件的异步 `stop` 钩子，宿主最多等 2 秒。按时返回或按时抛错照原路径；到时还没结束，宿主不再等它，照常停用（或保留启用的停止进 `installed`）、释放这次激活的服务，写一行本机日志 `plugin_stop_timeout`（只有插件、安装、世代、范围和期限），不算故障：不记 `last_error_code`，不占恢复额度。钩子之后才结束，结果哪里也不去。所以钩子里只做让出事件循环的短清理，长的收尾放在激活期间做；同步死循环不受这个期限保护。沙箱插件的停止由宿主自己做（停 runner、等进程退出），按真实结果等，不受这个期限。
 
 停止以后（BL-411）：`stop` 一开始，这次激活就已撤下，钩子里调服务照常被拒、照常抛错，钩子可以据此知道哪些事已经做不了。钩子返回以后，插件留下的定时器、监听器再调 `services` 上的方法，服务照常拒绝，但不抛错：同步方法返回 `undefined`，异步方法返回一个永远不结束的 promise。宿主按安装与世代计数，每个方法第一次写一行 `stopped_service_call` 日志，只记插件、安装、服务和方法名。停止前发出、停止后才结束的调用照常给它自己的结果；在处理器还没返回的动作、消费场景、作业，或还没答复的路由里调（停止前就在跑的那次调用，或重启后的新激活拿着旧激活的句柄调），被拒也照常抛错，那次调用的发起方会收到。所以漏清的回调不会让宿主进程退出，但仍要在 `stop` 一开始清掉会调服务的定时器和监听器：它们停用后白跑；要用返回值的同步方法（如 `storage.get`）拿到 `undefined`，插件自己接着用会出错。
 

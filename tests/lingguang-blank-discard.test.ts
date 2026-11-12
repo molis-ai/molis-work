@@ -4,6 +4,7 @@ import test from "node:test";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
 import { lingguangHost } from "./fixtures/lingguang-host.js";
+import { chinesePagePacks, installPageClientText } from "./fixtures/page-text-packs.js";
 
 // W2-18 decision 6, 灵光 side: 「记下第一条灵光」 makes a spark at once; one left with nothing written is thrown away with
 // the existing lingguang.discard when the person leaves it (back to the list, another spark, another new spark, the workbench
@@ -113,6 +114,7 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     options.afterGet?.(store);
     return answer;
   }) as typeof fetch;
+  const restoreText = installPageClientText("zh", chinesePagePacks("lingguang"));
   const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: ReturnType<typeof lingguangHost>) => void;
   factory(lingguangHost(lifetime));
   await flush();
@@ -137,7 +139,7 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
       await part("[data-lingguang-stage-workspace]").listeners.input?.({ target: { closest: () => ({}) } });
     },
     discards: () => calls.filter(call => call.path === "/api/plugins/io.molis.work.lingguang/sparks/discard"),
-    restore() { Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window, location: saved.location }); },
+    restore() { restoreText(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window, location: saved.location }); },
   };
 }
 

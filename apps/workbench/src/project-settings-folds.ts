@@ -1,9 +1,9 @@
 import { renderInteractionOptions } from "@molis-ai/molis-work-design-system";
-import { icon as uiIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon as uiIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
-export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "skills" | "grants" | "rules" | "planning";
+export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "grants" | "rules" | "planning";
 
 export interface ProjectSettingsFoldProject {
   project_id: string;
@@ -20,16 +20,17 @@ interface ProjectSettingsFoldContent {
 }
 
 interface ProjectSettingsFoldsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: Extract<PluginIconName, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
   withDesktopQuery(path: string): string;
+  projectDeletionLabels?(): readonly string[];
 }
 
-function renderMissingPlugins(project: ProjectSettingsFoldProject, { L, escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "L" | "escapeHtml">): string {
+function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
   const missing = (project.plugin_requirements ?? []).filter(plugin => !plugin.installed);
   if (!missing.length) return "";
-  return `<section class="settings-section" data-project-missing-plugins><h2>${L("缺少的插件")}</h2>${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${L("请在本机安装此插件，已同步内容会保留。")}</span></span><div class="setting-value">${renderStatusMark({ label: L("未安装"), plain: true })}</div></div>`).join("")}</section>`;
+  return `<section class="settings-section" data-project-missing-plugins><h2>${uiText("workbench.project-settings-folds.missing-plugins")}</h2>${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${uiText("workbench.project-settings-folds.install-plugin-device-synced-content-kept")}</span></span><div class="setting-value">${renderStatusMark({ label: uiText.text("workbench.project-settings-folds.not-installed"), plain: true })}</div></div>`).join("")}</section>`;
 }
 
 /**
@@ -37,44 +38,44 @@ function renderMissingPlugins(project: ProjectSettingsFoldProject, { L, escapeHt
  * user 2026-11-08): the two option cards are the confirmation, so the checkbox goes while it shows. Hidden until delete-scope says
  * `has_files`; empty or unreadable folders are not asked about and stay (SSC-23).
  */
-function renderDeleteOutputQuestion(project: ProjectSettingsFoldProject, { L, escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "L" | "escapeHtml">): string {
+function renderDeleteOutputQuestion(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
   const id = `project-delete-output-${project.project_id}`;
   const options = [
-    { value: "keep", label: L("删除项目，文件留下"), description: L("默认输出目录原样留在这台电脑上，删除后告诉你它在哪里。") },
-    { value: "delete", label: L("删除项目和文件"), description: L("默认输出目录和里面的文件一起删掉，包括还没提交的代码。") },
+    { value: "keep", label: uiText.text("workbench.project-settings-folds.delete-project-keep-files"), description: uiText.text("workbench.project-settings-folds.default-output-folder-stays-mac-after-deleting-ll") },
+    { value: "delete", label: uiText.text("workbench.project-settings-folds.delete-project-files"), description: uiText.text("workbench.project-settings-folds.default-output-folder-goes-its-files-including-code") },
   ];
-  return `<div class="project-delete-output" data-project-delete-output hidden><p class="project-delete-output__ask" id="${escapeHtml(id)}-label">${L("默认输出目录里还有文件，要怎么处理？")}</p>${
-    renderInteractionOptions(options, { id, labelledBy: `${id}-label` })}<p class="project-delete-output__say">${L("两种都会永久删除项目，不能撤销。")}</p></div>`;
+  return `<div class="project-delete-output" data-project-delete-output hidden><p class="project-delete-output__ask" id="${escapeHtml(id)}-label">${uiText("workbench.project-settings-folds.default-output-folder-still-has-files-what-should")}</p>${
+    renderInteractionOptions(options, { id, labelledBy: `${id}-label` })}<p class="project-delete-output__say">${uiText("workbench.project-settings-folds.both-delete-project-good-can-t-be-undone")}</p></div>`;
 }
 
 /** The delete dialog of a project's settings: its question, the busy refusal's way out, and where kept files stay. */
 function renderProjectDeleteDialog(project: ProjectSettingsFoldProject, desktopShell: boolean, primitives: ProjectSettingsFoldsPrimitives): string {
-  const { L, escapeHtml, withDesktopQuery } = primitives;
+  const { escapeHtml, withDesktopQuery } = primitives;
   if (project.data_class === "regenerable_demo") return "";
   const directoryHref = desktopShell ? withDesktopQuery("/") : "/";
-  // `data-project-delete-scope` is filled as the dialog opens with what the plugins of this Home say they keep for the project.
+  const labels = primitives.projectDeletionLabels?.().join(uiText.text("workbench.project-deletion.separator")) ?? "";
   return `<dialog class="runtime-plan-dialog project-delete-dialog" data-project-delete-dialog aria-labelledby="project-delete-dialog-title-${escapeHtml(project.project_id)}" aria-describedby="project-delete-description-${escapeHtml(project.project_id)}">
     <form class="runtime-plan-shell" data-project-delete="${escapeHtml(project.project_id)}" data-project-directory-href="${directoryHref}">
-      <header><div><h2 id="project-delete-dialog-title-${escapeHtml(project.project_id)}">${L("删除项目")}</h2><p>${escapeHtml(project.display_name)}</p></div></header>
-      <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><p class="mw-field__hint" data-project-delete-scope>${L("各插件里属于这个项目的数据也会一起删除。")}<br><span></span></p>${renderDeleteOutputQuestion(project, primitives)}<label class="runtime-plan-confirm" data-project-delete-confirm><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label>${renderAlert({
-        title: L("现在删不干净这些文件"), tone: "warning", state: "answer", role: "alert", className: "project-delete-busy", attrs: { "data-project-delete-busy": true, hidden: true },
-        body: L("这个项目还有任务在运行或排队，它们可能还在往这个文件夹里写。等任务结束，或者先在项目里停下它们，再来删除；也可以留下文件，现在就删除项目。"),
-        actions: [{ label: L("改成留下文件"), variant: "secondary", attrs: { "data-project-delete-keep-instead": true } }] })}<p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
-      <div class="runtime-plan-body project-delete-kept" data-project-delete-kept hidden><div class="project-delete-kept__box"><div class="project-delete-kept__title">${uiIcon("folder")}<span>${L("默认输出目录留在这台电脑上")}</span></div>
-        <div class="project-delete-kept__path"><code data-project-delete-kept-path></code>${renderButton({ label: L("复制位置"), icon: "copy", variant: "secondary", size: "sm", attrs: { "data-project-delete-copy": true } })}</div></div>
-        <p data-project-delete-kept-note>${L("文件夹以项目编号命名，Molis Work 里不会再列出它。要用里面的文件，到这个位置去找。")}</p></div>
-      <footer data-project-delete-actions><button class="mw-btn mw-btn--secondary" type="button" data-project-delete-cancel autofocus>${L("取消")}</button><button class="mw-btn mw-btn--danger project-delete-button" type="submit" disabled>${L("确认删除项目")}</button></footer>
-      <footer data-project-delete-done hidden><a class="mw-btn mw-btn--primary" href="${directoryHref}" data-project-delete-home>${L("回到项目列表")}</a></footer>
+      <header><div><h2 id="project-delete-dialog-title-${escapeHtml(project.project_id)}">${uiText("workbench.project-settings-folds.delete-project")}</h2><p translate="no">${escapeHtml(project.display_name)}</p></div></header>
+      <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${uiText("workbench.project-settings-folds.delete-project-data")}</p><p class="mw-field__hint" data-project-delete-scope>${uiText("workbench.project-settings-folds.data-that-plugins-keep-project-deleted")}<br><span id="project-delete-owners-${escapeHtml(project.project_id)}" translate="no">${escapeHtml(labels)}</span></p>${renderDeleteOutputQuestion(project, primitives)}<label class="runtime-plan-confirm" data-project-delete-confirm><input type="checkbox" name="delete_confirmed"><span>${uiText("workbench.project-settings-folds.i-confirm-that-i-want-delete-project-understand")}</span></label>${renderAlert({
+        title: uiText.text("workbench.project-settings-folds.these-files-can-t-be-deleted-cleanly-right"), tone: "warning", state: "answer", role: "alert", className: "project-delete-busy", attrs: { "data-project-delete-busy": true, hidden: true },
+        body: uiText.text("workbench.project-settings-folds.project-still-has-tasks-running-queued-they-may"),
+        actions: [{ label: uiText.text("workbench.project-settings-folds.keep-files-instead"), variant: "secondary", attrs: { "data-project-delete-keep-instead": true } }] })}<p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
+      <div class="runtime-plan-body project-delete-kept" data-project-delete-kept hidden><div class="project-delete-kept__box"><div class="project-delete-kept__title">${uiIcon("folder")}<span>${uiText("workbench.project-settings-folds.default-output-folder-stays-mac")}</span></div>
+        <div class="project-delete-kept__path"><code data-project-delete-kept-path></code>${renderButton({ label: uiText.text("workbench.project-settings-folds.copy-location"), icon: "copy", variant: "secondary", size: "sm", attrs: { "data-project-delete-copy": true } })}</div></div>
+        <p data-project-delete-kept-note>${uiText("workbench.project-settings-folds.folder-named-project-s-number-molis-work-won")}</p></div>
+      <footer data-project-delete-actions><button class="mw-btn mw-btn--secondary" type="button" data-project-delete-cancel autofocus>${uiText("common.control.cancel")}</button><button class="mw-btn mw-btn--danger project-delete-button" type="submit" disabled>${uiText("workbench.project-settings-folds.confirm-project-deletion")}</button></footer>
+      <footer data-project-delete-done hidden><a class="mw-btn mw-btn--primary" href="${directoryHref}" data-project-delete-home>${uiText("workbench.project-settings-folds.back-projects")}</a></footer>
     </form>
   </dialog>`;
 }
 
 export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimitives) {
-  const { L, escapeHtml, icon } = primitives;
+  const { escapeHtml, icon } = primitives;
 
   function projectKindLong(project: ProjectSettingsFoldProject): string {
-    if (project.data_class === "regenerable_demo") return L("演示数据 · 可随时重建，不属于用户项目");
-    return L("用户数据 · 在 Molis Work 中创建");
+    if (project.data_class === "regenerable_demo") return uiText.text("workbench.project-settings-folds.demo-data-can-be-rebuilt-any-time-not");
+    return uiText.text("workbench.project-settings-folds.user-data-created-molis-work");
   }
 
   function renderFold(
@@ -94,36 +95,36 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
   function renderGeneralBody(project: ProjectSettingsFoldProject): string {
     const safe = escapeHtml(project.project_id);
     const storage = project.database_path
-      ? `<dl class="project-manager-storage"><div><dt>${L("项目 ID")}</dt><dd>${safe}</dd></div><div><dt>${L("数据文件")}</dt><dd>${escapeHtml(project.database_path)}</dd></div></dl>`
+      ? `<dl class="project-manager-storage"><div><dt>${uiText("workbench.project-settings-folds.project-id")}</dt><dd>${safe}</dd></div><div><dt>${uiText("workbench.project-settings-folds.data-file")}</dt><dd>${escapeHtml(project.database_path)}</dd></div></dl>`
       : "";
     return `<section class="project-settings-identity" data-settings-fold="general">
       <form class="inline-settings-form" data-project-rename="${safe}" data-project-observed-name="${escapeHtml(project.display_name)}">
-        <label>${L("项目名称")}<input name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"></label>
-        <button class="mw-btn mw-btn--primary" type="submit">${L("保存名称")}</button>
+        <label>${uiText("workbench.project-settings-folds.project-name")}<input name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"></label>
+        <button class="mw-btn mw-btn--primary" type="submit">${uiText("workbench.project-settings-folds.save-name")}</button>
         <p class="settings-form-error" role="alert" hidden></p>
       </form>
-      ${storage ? `<details class="form-disclosure"><summary>${L("本地数据位置")}</summary>${storage}</details>` : ""}
+      ${storage ? `<details class="form-disclosure"><summary>${uiText("workbench.project-settings-folds.local-data-location")}</summary>${storage}</details>` : ""}
     </section>`;
   }
 
   function renderGeneralPage(project: ProjectSettingsFoldProject, desktopShell = false): string {
     const safe = escapeHtml(project.project_id);
     return `<section class="project-settings-page" data-project-pane="${safe}" data-settings-panel="general">
-      <header class="settings-page-heading"><h1>${L("常规")}</h1><p>${L("管理项目名称和保存在本机的数据。")}</p></header>
-      <section class="settings-section" aria-label="${L("项目信息")}">
+      <header class="settings-page-heading"><h1>${uiText("workbench.project-settings-folds.general")}</h1><p>${uiText("workbench.project-settings-folds.manage-project-name-data-stored-device")}</p></header>
+      <section class="settings-section" aria-label="${uiText("workbench.project-settings-folds.project-information")}">
         <form class="settings-setting-row project-name-form" data-project-rename="${safe}" data-project-observed-name="${escapeHtml(project.display_name)}">
-          <label class="setting-copy" for="project-display-name"><strong>${L("项目名称")}</strong><span>${L("显示在项目列表、目录和工作区中。")}</span></label>
-          <div class="setting-value"><input id="project-display-name" name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"><button class="mw-btn mw-btn--secondary" type="submit">${L("保存名称")}</button></div>
+          <label class="setting-copy" for="project-display-name"><strong>${uiText("workbench.project-settings-folds.project-name")}</strong><span>${uiText("workbench.project-settings-folds.shown-project-lists-navigation-workspace")}</span></label>
+          <div class="setting-value"><input id="project-display-name" name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"><button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.project-settings-folds.save-name")}</button></div>
           <p class="settings-form-error" role="alert" hidden></p>
         </form>
-        <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本地数据")}</strong><span>${L("查看项目标识与数据库位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${L("项目 ID")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${L("数据文件")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>
+        <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.project-settings-folds.local-data")}</strong><span>${uiText("workbench.project-settings-folds.view-project-id-database-location")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${uiText("workbench.project-settings-folds.project-id")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${uiText("workbench.project-settings-folds.data-file")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>
       </section>
       ${renderMissingPlugins(project, primitives)}
       <section class="settings-section" data-project-runtime data-runtime-prefix="/projects/${encodeURIComponent(project.project_id)}" hidden>
-        <div class="settings-setting-row"><label class="setting-copy" for="project-runtime"><strong>${L("Agent 运行时")}</strong><span>${L("这个项目的新会话用哪个运行时；默认跟随宿主的默认运行时。")}</span></label>
+        <div class="settings-setting-row"><label class="setting-copy" for="project-runtime"><strong>${uiText("workbench.project-settings-folds.agent-runtime")}</strong><span>${uiText("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default")}</span></label>
           <div class="setting-value"><select id="project-runtime"></select></div><p class="settings-form-error" role="alert" hidden></p></div>
       </section>
-      <section class="settings-section settings-project-maintenance"><h2>${L("项目管理")}</h2>${renderDanger(project)}</section>
+      <section class="settings-section settings-project-maintenance"><h2>${uiText("workbench.project-settings-folds.project-management")}</h2>${renderDanger(project)}</section>
       ${renderProjectDeleteDialog(project, desktopShell, primitives)}
     </section>`;
   }
@@ -132,14 +133,14 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     const safe = escapeHtml(project.project_id);
     if (project.data_class === "regenerable_demo") {
       return `<section class="project-manager-danger" aria-labelledby="project-demo-title-${safe}">
-        <h3 id="project-demo-title-${safe}">${L("重建或删除 demo")}</h3>
-        <p>${L("重建会清除你在 demo 中做的改动；删除只移除这个可重建项目，不影响用户项目。")}</p>
+        <h3 id="project-demo-title-${safe}">${uiText("workbench.project-settings-folds.rebuild-delete-demo")}</h3>
+        <p>${uiText("workbench.project-settings-folds.rebuild-clears-changes-made-demo-delete-only-removes")}</p>
         <p class="settings-form-error" data-demo-error role="alert" hidden></p>
-        <div class="project-manager-danger-actions"><button class="mw-btn mw-btn--secondary" type="button" data-demo-action="reset">${L("重建 demo")}</button><button class="mw-btn mw-btn--danger" type="button" data-demo-action="remove">${L("删除 demo")}</button></div>
+        <div class="project-manager-danger-actions"><button class="mw-btn mw-btn--secondary" type="button" data-demo-action="reset">${uiText("workbench.project-settings-folds.rebuild-demo")}</button><button class="mw-btn mw-btn--danger" type="button" data-demo-action="remove">${uiText("workbench.project-settings-folds.delete-demo")}</button></div>
       </section>`;
     }
     return `<section class="project-manager-danger">
-      <button class="mw-btn mw-btn--link project-delete-quiet" type="button" data-project-delete-open>${L("删除项目")}</button>
+      <button class="mw-btn mw-btn--danger-outline" type="button" data-project-delete-open>${uiText("workbench.project-settings-folds.delete-project")}</button>
     </section>`;
   }
 
@@ -152,7 +153,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     const href = `/projects/${encodeURIComponent(project.project_id)}`;
     const open = options.showOpenTree === false
       ? ""
-      : `<a class="mw-btn mw-btn--primary" href="${href}/">${icon("tree")}<span>${L("打开工作台")}</span></a>`;
+      : `<a class="mw-btn mw-btn--primary" href="${href}/">${icon("tree")}<span>${uiText("workbench.project-settings-folds.open-workbench")}</span></a>`;
     const title = `<${headingTag} id="project-pane-title-${safe}">${escapeHtml(project.display_name)}</${headingTag}>`;
     return `<header class="project-manager-hero">
       <div>
@@ -182,10 +183,10 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     const stack = `<div class="project-settings-document">
       ${renderProjectSettingsHero(project, { headingTag: options.headingTag, showOpenTree: options.showOpenTree })}
       ${identity}
-      <div class="project-settings-stack mw-accordion" data-slot="accordion" role="region" aria-label="${L("项目设置")}">
-        ${renderFold("guidance", L("项目说明"), options.guidance, open === "guidance")}
-        ${renderFold("rules", L("工作规则"), options.rules, open === "rules")}
-        ${renderFold("planning", L("工作规划"), options.planning, open === "planning")}
+      <div class="project-settings-stack mw-accordion" data-slot="accordion" role="region" aria-label="${uiText("workbench.project-settings-folds.project-settings")}">
+        ${renderFold("guidance", uiText.text("workbench.project-settings-folds.project-guidance"), options.guidance, open === "guidance")}
+        ${renderFold("rules", uiText.text("workbench.project-settings-folds.work-rules"), options.rules, open === "rules")}
+        ${renderFold("planning", uiText.text("workbench.project-settings-folds.work-planning"), options.planning, open === "planning")}
       </div>
       ${renderDanger(project)}
     </div>`;

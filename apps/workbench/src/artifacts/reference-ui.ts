@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.reference.v1";
@@ -42,6 +43,6 @@ export const artifactReferenceUiContribution: UiContribution<ArtifactReferenceUi
     if (isProjectReference(value)) {
       return `<a class="inline-ref" href="/api/project-references/${encodeURIComponent(value)}" data-project-reference>${p.icon("file")}<span>${p.escape(label)}</span></a>`;
     }
-    return `<button class="inline-ref" type="button" data-copy-value="${p.escape(value)}" title="${p.escape(p.text("复制引用"))}">${p.icon("copy")}<span>${p.escape(label)}</span></button>`;
+    return `<button class="inline-ref" type="button" data-copy-value="${p.escape(value)}" title="${p.escape(uiText.text("workbench.reference-ui.copy-reference"))}">${p.icon("copy")}<span>${p.escape(label)}</span></button>`;
   },
 };

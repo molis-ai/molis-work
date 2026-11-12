@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.github",
+  "locale": "en",
+  "messages": {
+    "github.connection.inbound": "Feed retrieves unread notifications",
+    "github.connection.outbound": "Check the current GitHub account in Connections. The capability catalog shows what agents can use.",
+    "github.connection.summary": "Connect your account on this computer. Feed reads unread notifications, and you can check the account in Connections.",
+    "github.guide.cli-link": "View GitHub CLI sign-in",
+    "github.guide.mcp-link": "View the official GitHub MCP",
+    "github.guide.oauth-link": "Register GitHub OAuth App",
+    "github.guide.oauth-note": "The app supports Device Flow. Set up your own OAuth App Client ID before first use.",
+    "github.guide.token-note": "Create a PAT with notifications and read:user access, then paste it here.",
+    "github.setup.create-a-personal-access-token": "Create a Personal Access Token",
+    "github.setup.register-an-oauth-app": "Register an OAuth App"
+  }
+}

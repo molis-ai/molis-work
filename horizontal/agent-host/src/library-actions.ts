@@ -4,23 +4,11 @@ import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 import { placeOf } from "./run-start.js";
 
 /**
- * The caller's own method library and MCP servers (`skill_owner`): no input names another's. Saving or connecting a
- * server checks its directory is one the Host authorized for the caller, and what the servers offer is republished after.
+ * The caller's own MCP servers (`mcp_owner`): no input names another's. Saving or connecting a server checks its directory is one
+ * the Host authorized for the caller, and what the servers offer is republished after.
  */
 export function registerLibraryActions<C extends Call>(register: Register<C>, ports: AgentCallPorts<C>): Array<() => void> {
   return [
-    register(agentHostCapabilities.listSkills, async (context, [runtimeId]) =>
-      ports.agentHost(context).skillCatalog(runtimeId, await ports.authority(context))),
-    register(agentHostCapabilities.readSkill, async (context, [runtimeId, ref]) =>
-      ports.agentHost(context).readSkill(runtimeId, await ports.authority(context), ref)),
-    register(agentHostCapabilities.discoverSkills, async (context, [runtimeId, directory, path]) =>
-      ports.agentHost(context).discoverSkills(runtimeId, await ports.authority(context), directory, path)),
-    register(agentHostCapabilities.installSkill, async (context, [runtimeId, candidateId]) => {
-      const authority = await ports.authority(context);
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return ports.agentHost(context).installSkill(runtimeId, authority, candidateId);
-    }),
-
     register(agentHostCapabilities.listMcp, async (context, [runtimeId]) => {
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, await ports.authority(context));
       const servers = await library.list(owner);

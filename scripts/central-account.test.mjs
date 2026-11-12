@@ -9,7 +9,7 @@ import { resolve, isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createAccountService, parseAccountEnvironment, validateAccountContract } from '@molis-ai/molis-work-service-account';
 import { accountSessionForHost, createMolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
-import { createDesktopWebHost } from '@molis-ai/molis-work-app-desktop';
+import { createDesktopWebCore } from '@molis-ai/molis-work-app-desktop';
 import provenance from '../horizontal/account/src/upstream/provenance.json' with { type: 'json' };
 
 const source = process.env.MOLIS_AUTH_SOURCE;
@@ -30,7 +30,7 @@ process.env.MOLIS_WORK_ENCRYPTION_KEY = '';
 const home = await mkdtemp(join(tmpdir(), 'work02-central-'));
 let host, server;
 try {
-  await initializeLocalRuntime(proxy);
+  await initializeLocalRuntime(proxy,false);
   const seed = readFileSync(resolve(source, 'worker/unified-account-local-seed.sql'), 'utf8').replaceAll('http://127.0.0.1:4207', productOrigin);
   for (const sql of seed.replace(/--[^\n]*/g, '').split(';').map(s => s.trim()).filter(Boolean)) await proxy.env.DB.prepare(sql).run();
   const secret = () => randomBytes(32).toString('base64url');
@@ -69,7 +69,7 @@ try {
   const clubRead = () => proxy.fetch(new Request(authOrigin + '/api/v2/users/me', { headers: { Authorization: `Bearer ${clubTokens.accessToken}`, Origin: clubOrigin } }));
   async function startHost() {
     host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    server = createDesktopWebHost({ ptyClientFilePath: () => join(home, 'unused-asset.js') })({ homeDirectory: home, localHost: host,
+    server = createDesktopWebCore({ ptyClientFilePath: () => join(home, 'unused-asset.js') })({ homeDirectory: home, localHost: host,
       controlToken, account: { environment: config, fetch: centralFetch } });
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
     return accountSessionForHost(host);
@@ -94,7 +94,7 @@ try {
   const concurrent = await Promise.all([manager.readSession(control), manager.readSession(control)]);
   assert.ok(concurrent.every(view => view.state === 'AUTHENTICATED')); assert.equal(refreshes, 1);
   assert.equal(concurrent[0].session.lastActiveAt, restored.session.lastActiveAt, 'refresh/read never count as activity');
-  await manager.activity({ eventId: secret(), kind: 'INTERACT' }, control);
+  await manager.activity({ eventId: crypto.randomUUID(), kind: 'INTERACT' }, control);
   await host.close(); manager = await startHost();
   assert.equal((await manager.readSession(control)).state, 'AUTHENTICATED'); assert.equal(refreshes, 1);
   online = false;
@@ -125,6 +125,22 @@ try {
   assert.deepEqual(await manager.logout('ALL_MOLIS_PRODUCTS', secret(), control), { localCleared: true, remoteRevocation: 'UNCONFIRMED' });
   await host.close(); manager = await startHost(); online = true;
   assert.equal((await manager.readSession(control)).state, 'ANONYMOUS', 'offline logout cannot recover Tokens after restart');
+  // High-priority recovery: a pre-restart attempt cannot be adopted by the new Host.
+  const unfinished = manager.beginLogin(control);
+  await host.close(); manager = await startHost();
+  assert.equal(unfinished.signal.aborted, true);
+  const afterRestart = await phoneLogin(config);
+  await assert.rejects(manager.completeLogin(unfinished, afterRestart, control), error => error.code === 'account.invalid_request');
+  assert.equal((await manager.readSession(control)).state, 'ANONYMOUS');
+  await manager.completeLogin(manager.beginLogin(control), afterRestart, control);
+  // Disable in disposable Auth storage: exercise Work's handling of a central denial,
+  // not the platform administrator endpoint's authorization contract.
+  await proxy.env.DB.prepare("UPDATE auth_user SET status='DISABLED' WHERE id=?").bind(initial.user.userId).run();
+  assert.equal((await manager.readSession(control)).state, 'EXPIRED');
+  await assert.rejects(manager.invoke('listMyTenants', {}, control));
+  await host.close(); manager = await startHost();
+  assert.notEqual((await manager.readSession(control)).state, 'AUTHENTICATED');
+  process.stdout.write('PASS high-priority unfinished attempt restart and centrally disabled identity refusal\n');
   process.stdout.write('PASS WORK-02 real Auth: mock login, encrypted restart, concurrent refresh, explicit activity, offline refusal, independent/global logout and remote revocation\n');
 
 } finally {

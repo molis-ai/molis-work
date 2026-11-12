@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import vm from "node:vm";
+import { chinesePagePacks, pageTextScriptForPacks } from "./fixtures/page-text-packs.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
@@ -113,11 +114,12 @@ function openClient(f: ReturnType<typeof alchemistFixture>, saved: { collection:
       return await f.runtime.app.request(url, { method: init.method, headers: init.headers, ...(init.body === undefined ? {} : { body: init.body }) });
     },
   };
-  const document = { querySelector: (selector: string) => selector === "[data-alchemist=workbench]" ? root : fakeElement(), addEventListener() {} };
+  const document = { documentElement: {}, querySelector: (selector: string) => selector === "[data-alchemist=workbench]" ? root : fakeElement(), addEventListener() {} };
   const context = vm.createContext({ document, location: { search: "" }, URLSearchParams, console, window: {}, FormData: class {}, MutationObserver: class { observe() {} },
     localStorage: { getItem: () => JSON.stringify(saved), setItem() {} } });
+  vm.runInContext(pageTextScriptForPacks("zh", chinesePagePacks("alchemist")), context);
   const factory = vm.runInContext(`(${ALCHEMIST_CLIENT_FACTORY_SCRIPT})`, context) as (host: object) => unknown;
-  factory({ mountPluginClient: () => life, translate: (value: string) => value, route: () => base, projectId: () => "a" });
+  factory({ mountPluginClient: () => life, route: () => base, projectId: () => "a" });
   const part = (name: string) => root.querySelector(`[data-alc-${name}]`);
   const click = async (html: string, action: string) => {
     const tag = html.match(new RegExp(`<button[^>]*data-alc-action="${action}"[^>]*>`, "u"))?.[0];

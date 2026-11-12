@@ -1,6 +1,8 @@
+import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginComponentNode, PluginComponentPlan, PluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
+import type { StudioBuildFailure, StudioTextRef } from './studio-collaboration.js';
 
 export interface BrowserAcceptance {
   id: string;
@@ -15,6 +17,7 @@ export interface BrowserAcceptance {
     /** A record is chosen by its stable id or, since ids are made at run time, by text it shows. */
     | { action: 'select'; componentId: string; recordId?: string; text?: string }
     | { action: 'expect'; componentId: string; text: string }
+    | { action: 'expectWord'; componentId: string; word: 'title' | 'description' | 'submitLabel' | 'emptyText' | 'requiredText' }
     | { action: 'expectAbsent'; componentId: string; text: string }
     | { action: 'expectValue'; componentId: string; field: string; value: string | boolean }
     /** The texts appear in this order within the component, e.g. the newest record first. */
@@ -32,6 +35,7 @@ export interface AgentDesign {
   journey: string[];
   contract: SandboxPluginContract;
   parts: PluginComponentPlan[];
+  localePacks?: readonly UiLocalePack[];
   acceptance: BrowserAcceptance[];
   presentation?: PluginPresentation;
   /** The pre-freeze UI decision and representative content; advisory context, not executable acceptance. */
@@ -52,7 +56,7 @@ export interface AgentProposal {
 }
 export interface AgentBuildStep {
   id: string; agent: 'design' | 'ui' | 'code' | 'host'; action: string;
-  label: string; status: 'queued' | 'active' | 'done' | 'waiting' | 'failed' | 'cancelled';
+  label: StudioTextRef | string; status: 'queued' | 'active' | 'done' | 'waiting' | 'failed' | 'cancelled';
   target?: string; operationId?: string; detail?: string; at: string;
   selection?: { source: 'rule' | 'jev' | 'user' | 'design'; candidates: string[]; choice: string; model?: string; elapsedMs?: number; confidence?: number | null };
 }
@@ -89,7 +93,7 @@ export interface AgentBuild extends AgentBuildSnapshot {
   /** Operations a revision changes inside under the same contract (e.g. the model's instructions), with the change the code agent makes. */
   rework?: Record<string, string>;
   history: AgentBuildSnapshot[];
-  error: string | null; createdAt: string; updatedAt: string;
+  error: StudioBuildFailure | string | null; createdAt: string; updatedAt: string;
 }
 /**
  * What a generated plugin tells the model, declared in its source (`export const prompts = [...]`) and called by id
@@ -118,6 +122,11 @@ export interface AgentPublicationControl {
   commit(artifact: AgentPublicationArtifact): AgentRelease;
 }
 
+/** Nodes follow the design's part order however they were placed: parts kept from the previous design are placed before new ones. */
+export function inDesignOrder<T extends { id: string }>(design: { parts: readonly { id: string }[] } | null | undefined, nodes: readonly T[]): T[] {
+  const order = (id: string) => design?.parts.findIndex(part => part.id === id) ?? 0;
+  return [...nodes].sort((a, b) => order(a.id) - order(b.id));
+}
 /** The interface.json document in a published release, shared by the publisher and synchronization validator. */
 export function builderReleaseInterface(design: AgentDesign, nodes: AgentBuild['nodes']) {
   return { parts: design.parts, nodes, acceptance: design.acceptance,

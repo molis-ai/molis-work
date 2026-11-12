@@ -3,6 +3,8 @@ import * as record from "./record-commands.js";
 import * as grid from "./table-commands.js";
 import type { Dataset, DatasetPage, Failure } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Run = (page: DatasetPage, found: HTMLElement, open: Dataset | null, button: HTMLButtonElement) => void | Promise<void>;
 
 /** One thing a click can mean: how to find its control from the click, and what to do. `needsOpen` ones wait for a table in the editor. */
@@ -41,7 +43,7 @@ const COMMANDS: readonly Command[] = [
 
 /** Runs the command a click means, holding the editor busy for its whole length. */
 async function onClick(page: DatasetPage, event: Event): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   const target = event.target as Element;
   const button = target.closest("button");
   if (!button || button.closest("dialog") || button.disabled || s.busy) return;
@@ -55,7 +57,7 @@ async function onClick(page: DatasetPage, event: Event): Promise<void> {
     }
   } catch (error) {
     if (page.scope.alive && (error as Failure).code === "dataset.conflict") s.saveError = error;
-    page.showNote(messageOf(error) || L("dataset.error.request"), true);
+    page.showNote(messageOf(error) || uiText.text("dataset.error.request"), true);
   } finally {
     page.setBusy(false);
   }

@@ -9,6 +9,7 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import { LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsTerminalActions } from "@molis-ai/molis-work-plugin-goals";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -160,7 +161,7 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   assert.equal(parent.status, 409);
   assert.match(await parent.text(), /goals\.terminal\.read_only/);
   assert.equal((await json(await api("/PARENT/terminals"))).body.read_only, true);
-  assert.equal((await api("/PARENT/advance-prompt")).status, 409);
+  assert.equal((await api("/PARENT/advance-prompt", { method: "POST", body: {} })).status, 409);
   const foreign = await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", workspace_id: other.workspace_id } });
   assert.equal(foreign.status, 403, await foreign.clone().text());
   for (const body of [{}, { runtime: "codex", command: "sh" }, { runtime: "codex", args: [] }, { runtime: "nope" }, { command: "sh", cwd: "/" },
@@ -175,6 +176,58 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   assert.deepEqual((await json(await api("/LEAF/terminals"))).body.panels, []);
   assert.equal((await api(`/LEAF/terminals/${opened.body.key}`, { method: "DELETE" })).status, 404);
   page.close();
+});
+
+test("BTR-01 BTR-02 BTR-03 Goals refuses a corrupt terminal record and reopens the same panel after repair", { timeout: 60_000 }, async t => {
+  const { f, folder, project, api } = await served(t);
+  const before = await runs();
+  const launch = { command: "codex", args: ["first", "second argument"], key: "stored-record" };
+  const list = async () => json(await api("/LEAF/terminals"));
+  const open = async () => json(await api("/LEAF/terminals", { method: "POST", body: launch }));
+  const opened = await open();
+  assert.equal(opened.status, 200, JSON.stringify(opened.body));
+  assert.equal(opened.body.started, true);
+  const panelId = String(opened.body.panel_id);
+  await logged(before + 1);
+  const catalogPath = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => catalog.databasePath);
+  const page = await goalsPage(t, f, project.project_id);
+  try {
+    page.send({ type: "spawn", panelId, attachOnly: true });
+    await page.wait(message => message.type === "spawned");
+    page.send({ type: "kill", panelId });
+    await page.wait(message => message.type === "exit");
+
+    // Fault injection only. Both reads and the restart still go through Goals and the running Host.
+    const db = openTestSqlite(catalogPath, { fileMustExist: true });
+    try {
+      const replaceArgs = db.prepare("UPDATE plugin_terminal_panels SET launch_args = ? WHERE panel_id = ?");
+      const facts = () => ({
+        panels: db.prepare<[], { launch_args: string; created_at: string }>("SELECT * FROM plugin_terminal_panels ORDER BY panel_id").all(),
+        aliases: db.prepare("SELECT * FROM plugin_terminal_panel_aliases ORDER BY runtime_id, stable_work_context_id").all(),
+        events: db.prepare("SELECT * FROM project_events WHERE project_id = ? AND type IN ('project.terminal_opened', 'project.terminal_closed') ORDER BY event_id").all(project.project_id),
+      });
+      const original = facts();
+      assert.equal(original.panels[0]?.launch_args, JSON.stringify(launch.args));
+      const expected = { status: 500, code: "actions.execution_failed", error: "终端面板的启动参数记录无效" };
+      for (const damaged of ['["first",', '["first",42]']) {
+        assert.equal(replaceArgs.run(damaged, panelId).changes, 1);
+        const corrupted = facts();
+        const replies = [await list(), await open()].map(({ status, body }) => ({ status, code: body.code, error: body.error }));
+        assert.deepEqual(replies, [expected, expected], `list and reopen refuse ${damaged}`);
+        assert.deepEqual(facts(), corrupted, "refusals leave the panel, aliases and project terminal events intact");
+        assert.equal(await runs(), before + 1, "refusals start no process");
+      }
+
+      assert.equal(replaceArgs.run(JSON.stringify(launch.args), panelId).changes, 1);
+      const restored = await list();
+      assert.equal(restored.status, 200, JSON.stringify(restored.body));
+      assert.deepEqual(restored.body.panels, [{ key: launch.key, panel_id: panelId, title: "codex", runtime: "command",
+        program: { command: launch.command, args: launch.args }, running: false, created_at: original.panels[0]?.created_at }]);
+      assert.deepEqual(await open(), { status: 200, body: { panel_id: panelId, key: launch.key, started: true } });
+      assert.equal((await logged(before + 2)).at(-1), `${folder}|first second argument|LEAF|command`);
+      assert.deepEqual(facts(), original, "the restart reuses the original records");
+    } finally { db.close(); }
+  } finally { page.close(); }
 });
 
 test("RAC-2563 the four Goals terminal actions are the person's only: an Agent, a workflow and an MCP client are refused before they run, and no plugin is offered them", { timeout: 60_000 }, async t => {

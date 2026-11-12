@@ -35,6 +35,16 @@ test("W2-18-SETTINGS-LATE-01: a delayed failed settings load cannot replace anot
   await browser.waitFor("!!document.querySelector('[data-directories-add]')", 15_000);
 });
 
+test("F-20: a settings address that names no page says so and offers the settings' first page, not a retry", { timeout: 120_000 }, async t => {
+  const browser = await openAuditBrowser(t); if (!browser) return;
+  // A capability address whose page is not there: the library section asks the Host for it and gets 404.
+  await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href: '/capabilities/no-such-page' } }))");
+  await browser.waitFor("document.querySelector('[data-settings-loading] strong')?.textContent === '没有这个设置页'", 15_000);
+  assert.equal(await browser.evaluate("document.querySelector('[data-settings-loading] button').textContent"), "回到设置首页");
+  await browser.click("[data-settings-loading] button");
+  await browser.waitFor("!document.querySelector('[data-settings-loading]') && document.querySelector('[data-directory-panel=settings] [aria-current=page]')?.dataset.settingsSection === 'appearance'", 15_000);
+});
+
 const reference = createArtifactReferenceRenderer({ escape: value => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;"), icon: () => "", text: value => value });
 
 for (const first of ["success", "error"] as const) {

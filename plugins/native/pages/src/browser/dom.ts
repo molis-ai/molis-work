@@ -43,8 +43,6 @@ export function docText(node: unknown): string {
   return typeof text === "string" ? text : Array.isArray(content) ? content.map(docText).join(type === "doc" ? "\n" : "") : "";
 }
 
-export { shortDateLabel as formatTime } from "@molis-ai/molis-work-plugin-sdk/browser";
-
 /** True for a document node with nothing but empty paragraphs (and no text beyond blanks). */
 export function blank(node: unknown): boolean {
   const { type, text, content } = node as { type?: string; text?: string; content?: unknown[] };

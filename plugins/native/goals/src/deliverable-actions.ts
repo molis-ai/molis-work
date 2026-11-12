@@ -56,6 +56,13 @@ export const goalsDeliverableActions = {
     "可以当场固定的资料", "列出目标绑定的资料里，能当场固定为成果的那些", "query", object({ goal_id: identifier }), object({ objects: array(object({ subject, title: text })) })),
 } as const;
 
+/** The versions the person confirmed as the Goal's deliverables (never proposals). Synchronous: read inside a window. */
+export function confirmedGoalDeliverables(ledger: ContextLedgerApi, projectId: string, goalId: string): ArtifactReference[] {
+  return ledger.query.list({ actor_id: "", scope: { kind: "personal", id: projectId } }, { type: OUTPUT_ROLE.type, source: { module: "goals", id: goalId, version: null, scope: { kind: "personal", id: projectId } } })
+    .filter(edge => edge.state === "active" && edge.source.module === "goals" && edge.source.id === goalId && edge.target.module === "artifacts" && edge.target.version != null)
+    .map(edge => ({ artifact_id: edge.target.id, version: edge.target.version! }));
+}
+
 /** A version in the 成果库 a Goal takes as an input (A4b, 「作为 Goal 的输入」); same rules as deliverables. */
 export const goalsArtifactInputActions = {
   add: linking(goalAction<{ goal_id: string; reference: ArtifactReference; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.add", /* @version action.goals.artifact_inputs.add */ 1,

@@ -157,7 +157,7 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
-  const remembered = (plugin: string) => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = (plugin: string) => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
   // Before the reload the record is there to be reopened, so the checks after it are about something.
   const waitRemembered = async (plugin: string) => {
@@ -314,7 +314,7 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
-  const remembered = (plugin: string) => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = (plugin: string) => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
   const untilAsync = async (check: () => Promise<boolean>, what: string, ms = 20_000) => {
     const end = Date.now() + ms;
@@ -411,7 +411,7 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
   const ids = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.id); } finally { store.close(); } };
-  const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = () => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const untilRemembered = async (count: number, what: string) => {
     const end = Date.now() + 8_000;
@@ -462,7 +462,7 @@ test("Pages: Back and then Forward at once, while the workbench is still looking
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
   const count = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).length; } finally { store.close(); } };
-  const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = () => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const before = count();
   await pages.click("[data-pages-new]");

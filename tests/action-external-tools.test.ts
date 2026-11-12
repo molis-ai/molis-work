@@ -9,6 +9,7 @@ import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/module
 import { RUNTIME_DISPLAY_NAMES, SUPPORTED_RUNTIME_IDS } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { EXTERNAL_SESSION_NATIVE_ID_PATTERN, EXTERNAL_TOOLS, type ExternalSessionCapability, type ExternalToolAccess, type ExternalToolEntry } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { withPageText } from "./fixtures/page-text.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const REGISTER_FILE = "packages/contracts/src/platform/external-tools.ts";
@@ -173,7 +174,7 @@ test("SRB-07 a terminal recipe reads the register, and one native id rule stays"
 });
 
 test("SRB-07 the page gets names from the host, and the register stays out of its program", () => {
-  const html = renderCharacters({ route_prefix: "/projects/p", primitives: { escape: value => escapeHtml(String(value)) } });
+  const html = withPageText("zh", [], () => renderCharacters({ route_prefix: "/projects/p", primitives: { escape: value => escapeHtml(String(value)) } }));
   const attribute = /data-character-runtime-names="([^"]*)"/u.exec(html)?.[1] ?? "";
   assert.deepEqual(JSON.parse(attribute.replaceAll("&quot;", '"')), { codex: "Codex", "claude-code": "Claude Code", cursor: "Cursor", opencode: "OpenCode", "grok-build": "Grok Build" });
   assert.match(html, /<option value="">自动发现<\/option><option value="codex">Codex<\/option><option value="claude-code">Claude Code<\/option><option value="cursor">Cursor<\/option><option value="opencode">OpenCode<\/option><option value="grok-build">Grok Build<\/option><\/select>/u);

@@ -20,6 +20,10 @@
       ],
       "reason": "The central account client and its trusted Host protocol map Auth failures to the account owner without exposing credentials."
     },
+    "appearance": {
+      "paths": ["horizontal/appearance/"],
+      "reason": "The Home appearance service owns selection, receipt and persistence failures."
+    },
     "sample_notes": {
       "paths": [
         "examples/personal-sync-plugin/"
@@ -51,9 +55,10 @@
     },
     "agent_definitions": {
       "paths": [
-        "apps/local-host/src/agent-definitions/"
+        "apps/local-host/src/agent-definitions/",
+        "packages/contracts/src/services/agent-definitions.ts"
       ],
-      "reason": "The Host's registry of Agent definitions and its HTTP edge: its codes already start with agent_definitions."
+      "reason": "The Host's registry of Agent definitions, its HTTP edge, and its contract, where the refusals callers outside the Host see are declared (specs/capability-pack/contract-design.md §4.11): its codes already start with agent_definitions."
     },
     "alchemist": {
       "paths": [
@@ -70,7 +75,7 @@
     },
     "assets": {
       "paths": [
-        "apps/server/src/assets.ts"
+        "apps/local-host/src/work-assets.ts"
       ],
       "reason": "Exporting and restoring a work-assets bundle: assets.* is its own feature, raised through ImError."
     },
@@ -86,6 +91,12 @@
         "packages/contracts/src/modules/attention-errors.ts"
       ],
       "reason": "The attention and resumption module: its attention_* codes become attention.*. The public Attention contract declares these refusals; Inbox errors remain owned by Inbox."
+    },
+    "blueprints": {
+      "paths": [
+        "packages/contracts/src/services/blueprints.ts"
+      ],
+      "reason": "The scene service contract declares blueprints.* once (part_unsupported, step_conflict, dependency_unmet, preview_expired), so the future system.blueprints provider, the interface and callers can tell the refusals apart; horizontal/blueprints/ joins when batch 44 creates the service."
     },
     "browser": {
       "paths": [
@@ -222,6 +233,16 @@
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
     },
+    "kit": {
+      "paths": [
+        "apps/local-host/src/kit-actions.ts",
+        "apps/local-host/src/kit-mcp-reports.ts",
+        "horizontal/kit/",
+        "packages/contracts/src/platform/kit-report.ts",
+        "packages/contracts/src/services/kit.ts"
+      ],
+      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer (horizontal/kit/) and its Host wiring and reporters; its codes are kit.* like its action ids."
+    },
     "knowledge": {
       "paths": [
         "horizontal/knowledge/",
@@ -329,6 +350,12 @@
         "apps/local-host/src/search-*"
       ],
       "reason": "The search horizontal and its Host actions and HTTP edge; search.entry_duplicate is also a platform protocol code."
+    },
+    "sessions": {
+      "paths": [
+        "packages/contracts/src/services/sessions.ts"
+      ],
+      "reason": "The Sessions service contract declares sessions.* once, so the shell and callers can tell the refusals apart; horizontal/sessions/ joins when the service package is created."
     },
     "shelf": {
       "paths": [

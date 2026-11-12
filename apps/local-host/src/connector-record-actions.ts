@@ -32,12 +32,12 @@ export function connectorRecordHandlers(home: string): ActionHandlerBinding[] {
     const id = (input as { connection_id: string }).connection_id;
     const deadline = AbortSignal.any([AbortSignal.timeout(30_000), ...(caller.signal ? [caller.signal] : [])]);
     return withConnectorRequest(home, id, deadline, async signal => {
-      const connection = withConnectorConnections(home, store => store.require(id));
+      const connection = withConnectorConnections(home, store => store.require(id), "required");
       const service = connection.service_id;
       if (!supportsConnectorRecords(connection)) throw errors.unsupported("此连接没有固定记录读取适配；请使用已列出的 MCP 工具或对应插件，账号检查不能代替业务读取");
       const current = async () => {
         await caller.beforeEffect(); signal.throwIfAborted();
-        const now = withConnectorConnections(home, store => store.require(id));
+        const now = withConnectorConnections(home, store => store.require(id), "required");
         if (!now.enabled || now.disconnected_at || now.updated_at !== connection.updated_at) throw errors.changed("读取期间连接已改变，请核对所选账号后重新读取");
       };
       await current();

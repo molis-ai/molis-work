@@ -59,6 +59,10 @@ export interface PageStateOwner {
 
 // The Host frame adapters relay these owners' announcements into an isolated document; they own no second copy of the state.
 export const PAGE_STATE_OWNERS = {
+  "document-language": {
+    files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"],
+    state: "The displayed words and language of one document.",
+  },
   "side-panel": {
     files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
     state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
@@ -118,6 +122,10 @@ export const PAGE_STATE_OWNERS = {
   preferences: {
     files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
+  },
+  appearance: {
+    files: ["apps/workbench/src/browser/appearance-view.ts"],
+    state: "The effective Home appearance that this document has finished preparing and rendered.",
   },
   shelf: {
     files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
@@ -180,8 +188,8 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 48 names at the time of listing, 47 of them created with `new CustomEvent` (90 dispatch
- * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
+ * Every page event, in name order: 62 names at the time of listing, 159 dispatch sites and 149 listener sites on a page
+ * prefix. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
 export const DOM_EVENTS = [
@@ -259,6 +267,11 @@ export const DOM_EVENTS = [
     name: "molis-work:knowledge-picked", kind: "announcement", owner: "knowledge-picker", on: "document",
     detail: "{ request_id, outcome: 'confirmed' | 'cancelled' | 'unavailable', items: Array<{ ref: MaterialRef, title, hint? }> }",
     summary: "The picker's one answer to request_id. confirmed: items is the person's whole choice, replacing what was chosen before (an empty one clears it); cancelled: they closed it, or another request took its place, and the asking input keeps what it had; unavailable: there is no project here to pick from. Each item is an exact reference: a 成果 version, a piece as its owner indexed it, a folder file as read when ticked, or a quote or snapshot the materials service fixed.",
+  },
+  {
+    name: "molis-work:language-changed", kind: "announcement", owner: "document-language", on: "document",
+    detail: "{ tag: UiLanguageTag }",
+    summary: "This document has applied a new language in place; its existing views can refresh compound words.",
   },
   {
     name: "molis-work:layout-holds", kind: "request", owner: "tab-workspace", on: "document",
@@ -347,6 +360,11 @@ export const DOM_EVENTS = [
     name: "molis-work:terminal-theme-change", kind: "announcement", owner: "preferences", on: "window",
     detail: "{ theme }",
     summary: "The terminal colour theme changed; open terminals repaint.",
+  },
+  {
+    name: "molis-work:ui-environment-changed", kind: "announcement", owner: "appearance", on: "window",
+    detail: '{ revision: string, changed: ("skin" | "font" | "mono")[] }',
+    summary: "This document has rendered the prepared appearance; frames update and open terminals remeasure.",
   },
   {
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",
@@ -467,11 +485,6 @@ export const DOM_EVENTS = [
     name: "molis:side-shown", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ tab, target, open }",
     summary: "A tab of the side panel is now shown (or the panel closed); the tab's owner loads what it was asked to show.",
-  },
-  {
-    name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document",
-    detail: "{ tab? }",
-    summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.",
   },
   {
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,

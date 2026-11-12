@@ -1,7 +1,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, registeredBuiltinText, runWithLocale, runWithRegisteredText, seedDemoGoals, type WebLocale } from "@molis-ai/molis-work-app-local-host";
+import assert from "node:assert/strict";
+import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication } from "./goal-application.js";
 import { buildMolisWorkWebView } from "./web-view.js";
 
@@ -25,7 +27,10 @@ function ordered(value: unknown): unknown {
 }
 
 /** The view the golden pages are drawn from, as the text of `view.json`. */
-export async function recordGoldenView(): Promise<string> {
+export async function recordGoldenView(locale: WebLocale = "zh"): Promise<string> {
+  installHostUiText();
+  const owner = registeredBuiltinText(goalsManifest);
+  assert.ok(owner);
   const directory = mkdtempSync(join(tmpdir(), "goals-golden-view-"));
   try {
     const databasePath = join(directory, "demo.db");
@@ -40,7 +45,7 @@ export async function recordGoldenView(): Promise<string> {
           source_refs: ["runtime"], reason: "用户确认后创建", confidence: 1 }],
         idempotency_key: "golden-proposal",
       });
-      const view = buildMolisWorkWebView(store, coordinator, { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
+      const view = runWithLocale(locale, () => runWithRegisteredText(owner, () => buildMolisWorkWebView(store, coordinator, { databasePath, projectId: DEMO_PROJECT_ID, demo: true })));
       const ids = new Map<string, string>();
       return JSON.stringify(ordered(JSON.parse(JSON.stringify(view))), null, 1)
         .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z/g, FIXED_TIME)

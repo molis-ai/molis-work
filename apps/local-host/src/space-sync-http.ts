@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import type {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
 import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
@@ -32,7 +33,7 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
     if(request.method==='GET'){
       let value:unknown;
       switch(url.pathname){
-        case '/api/sync':await service.refreshCatalog();value={available:true,...service.status()};break;
+        case '/api/sync':await service.refreshCatalog();value={available:true,...service.status(),device_label:hostname()};break;
         case '/api/sync/conflict':value=service.inspectConflict(namespace,key);break;
         case '/api/sync/recoveries':value={items:service.recoveries(namespace)};break;
         case '/api/sync/recovery':value=service.inspectRecovery(namespace,query.get('id')??'');break;
@@ -61,6 +62,6 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
         default:sendLocalWebJson(response,404,{error:'接口不存在。'});return;
       }
     }else{sendLocalWebJson(response,404,{error:'接口不存在。'});return;}
-    sendLocalWebJson(response,200,{available:true,...service.status()});
+    sendLocalWebJson(response,200,{available:true,...service.status(),device_label:hostname()});
   }catch(error){sendLocalWebJson(response,409,{error:error instanceof Error?error.message:'同步暂时不可用'});}
 }

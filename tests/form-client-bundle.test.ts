@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { FORM_CLIENT_FACTORY_SCRIPT, FORM_MESSAGES, renderFormWorkbench } from "@molis-ai/molis-work-plugin-form";
+import { FORM_CLIENT_FACTORY_SCRIPT, renderFormWorkbench } from "@molis-ai/molis-work-plugin-form";
 
 const SRC = "plugins/native/form/src";
 const BROWSER = join(SRC, "browser");
@@ -19,15 +20,9 @@ test("RAC-154 every word the Form page says has a stable key with both languages
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "no Chinese key: every word the page says is a stable key");
   assert.deepEqual(scan.dynamicCalls.filter(call => owns(call.file)), [], "all dynamic stable-key choices are enumerated by the real scanner");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in FORM_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(FORM_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(FORM_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderFormWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /<span>«form\.action\.new»<\/span>/u, "the server-drawn page speaks through the translator");
+  assertPageWords("form", used);
+  const html = withPageText("en", ["form"], () => renderFormWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "form")("form.action.new")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

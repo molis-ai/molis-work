@@ -1,7 +1,9 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
+import { taskGrantChange, taskGrantRowHtml, taskGrantRows, taskGrantWords } from "./plugin-frame/task-grants-area.js";
+
+const uiText = globalThis.t;
 
 /**
  * 授权与放行 in a project's settings (specs/proactive-assistant/task-grants-platform-area.md §5): every background task's grants,
@@ -12,7 +14,6 @@ import { taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame
  * switch to point to. Everything drawn is
  * escaped markup, as the area's is; one click listener on the list reads which control, which task and which row from the markup.
  */
-type Translate = (text: string, values?: Record<string, string | number>) => string;
 type Row = ReturnType<typeof taskGrantRows>[number];
 interface Installation { plugin_install_id: string; plugin_id: string | null; name: string | null; titled: boolean }
 interface Listed extends TaskGrantListResult { installations: Installation[] }
@@ -20,12 +21,11 @@ interface Title { key: string; title: string; open: { surface: string; id: strin
 interface TitlesPage { entries: Title[]; next_cursor: string | null }
 type Post = <T>(body: Record<string, unknown>) => Promise<T>;
 
-const page = globalThis as typeof globalThis & { L?: Translate; LF?: (pluginId: string, text: string) => string; molisWorkRequest: UiRequest };
-const L: Translate = (text, values) => page.L ? page.L(text, values) : Object.entries(values ?? {}).reduce((out, [key, value]) => out.split("{" + key + "}").join(String(value)), text);
+const { molisWorkRequest } = globalThis as typeof globalThis & { molisWorkRequest: UiRequest };
+const refreshSettingsLanguage = new WeakMap<HTMLElement, () => void>();
 const subjectId = (subject: Pick<TaskGrantSubject, "plugin_install_id" | "key">) => subject.plugin_install_id + "\n" + subject.key;
-/** A small button for one act; `about` names what it acts on, for a screen reader. */
 const button = (label: string, variant: string, act: string, about?: string) => {
-  const text = escape(L(label));
+  const text = escape(uiText.text(label));
   return `<button type="button" class="mw-btn mw-btn--sm ${variant}" data-task-grants-act="${act}"${about === undefined ? "" : ` aria-label="${text} · ${escape(about)}"`}>${text}</button>`;
 };
 
@@ -65,7 +65,7 @@ function openHref(project: string, target: Title): string {
 function ask(root: HTMLElement, title: string, description: string): Promise<boolean> {
   const holder = document.createElement("template");
   holder.innerHTML = `<dialog class="mw-dialog mw-dialog--alert" data-slot="alert-dialog"><form method="dialog" class="mw-form mw-dialog__shell"><header class="mw-form__header"><div><h2>${escape(title)}</h2><p>${escape(description)}</p></div></header>`
-    + `<footer class="mw-form__footer"><button class="mw-btn mw-btn--md mw-btn--secondary" data-task-grants-act="cancel" autofocus>${escape(L("取消"))}</button><button class="mw-btn mw-btn--md mw-btn--danger" data-task-grants-act="confirm" value="1">${escape(L("全部撤回"))}</button></footer></form></dialog>`;
+    + `<footer class="mw-form__footer"><button class="mw-btn mw-btn--md mw-btn--secondary" data-task-grants-act="cancel" autofocus>${escape(uiText.text("common.control.cancel"))}</button><button class="mw-btn mw-btn--md mw-btn--danger" data-task-grants-act="confirm" value="1">${escape(uiText.text("workbench.task-grants-page.withdraw-all"))}</button></footer></form></dialog>`;
   const dialog = holder.content.firstElementChild as HTMLDialogElement;
   root.append(dialog); dialog.showModal();
   return new Promise(resolve => dialog.addEventListener("close", () => { dialog.remove(); resolve(dialog.returnValue === "1"); }));
@@ -75,28 +75,50 @@ function ask(root: HTMLElement, title: string, description: string): Promise<boo
  * One category the task holds: the area's own row (`taskGrantRowHtml`: its name, what it is and the same note), with the page's
  * buttons in place of the switch, since turning a category on belongs to the task. On one line here; the note is cut first.
  */
-const rowHtml = (row: Row) => taskGrantRowHtml(L, row, (row.status === "needs_confirmation" ? button("允许", "mw-btn--secondary", "allow", row.title) : "")
-  + (row.status === "removed" ? button("移除", "mw-btn--secondary", "remove", row.title) : button("撤回", "mw-btn--ghost", "off", row.title)));
+const rowHtml = (row: Row) => taskGrantRowHtml(uiText.text, row, (row.status === "needs_confirmation" ? button("workbench.task-grants-page.allow", "mw-btn--secondary", "allow", row.title) : "")
+  + (row.status === "removed" ? button("workbench.task-grants-page.remove", "mw-btn--secondary", "remove", row.title) : button("workbench.task-grants-page.withdraw", "mw-btn--ghost", "off", row.title)));
 
 /**
  * What a change did, in the page's words: the area's line points at its switch, which this page does not have, so a category
  * taken back that cannot simply be turned on again says where to turn it on (the task's 「能读的数据」).
  */
-const doneText = (act: "off" | "allow" | "remove", row: Row) => L(act === "allow" ? "已允许 {name} 的新读取能力；不想要可以撤回这一类"
-  : act === "remove" ? "已移除 {name}，这一类已不再提供"
-  : row.status === "granted" ? "已撤回 {name}，下一次运行起读不到" : "已撤回 {name}；要再读它，到任务的「能读的数据」里重新打开", { name: row.title });
+const doneText = (act: "off" | "allow" | "remove", row: Row) => uiText.text(act === "allow" ? "workbench.task-grants-page.new-data-allowed"
+  : act === "remove" ? "workbench.task-grants-page.category-removed"
+  : row.status === "granted" ? "workbench.task-grants-page.withdrawn" : "workbench.task-grants-page.withdrawn-new-data", { name: row.title });
+
+function redrawGrantWords(list: HTMLElement, draw: () => void): void {
+  const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
+  const task = focused?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
+  const category = focused?.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow;
+  const action = focused?.dataset.taskGrantsAct;
+  draw();
+  if (task === undefined) return;
+  const scope = list.querySelector(`[data-task-grants-task="${CSS.escape(task)}"]`);
+  const area = category === undefined ? scope : scope?.querySelector(`[data-task-grants-row="${CSS.escape(category)}"]`);
+  const replacement = action === undefined ? area?.querySelector("a") : area?.querySelector(`[data-task-grants-act="${CSS.escape(action)}"]`);
+  if (replacement instanceof HTMLElement) replacement.focus({ preventScroll: true });
+}
 
 export function bindTaskGrantsSettings(root: HTMLElement): void {
-  if (root.dataset.taskGrantsBound === "1") return;
+  if (root.dataset.taskGrantsBound === "1") { refreshSettingsLanguage.get(root)?.(); return; }
   root.dataset.taskGrantsBound = "1";
   const project = root.dataset.project ?? "", endpoint = "/projects/" + encodeURIComponent(project) + "/api/settings/task-grants";
   const list = root.querySelector<HTMLElement>("[data-task-grants-list]")!;
-  const post: Post = body => page.molisWorkRequest(endpoint, { body, fallback: L("操作没有完成") });
+  const languageWarning = document.createElement("div");
+  languageWarning.className = "task-grants-page__state is-error";
+  languageWarning.setAttribute("role", "alert");
+  languageWarning.addEventListener("click", event => {
+    if ((event.target as Element).closest("button")) void retitle();
+  });
+  const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.request-failed") });
   let listed: Listed | null = null;
+  const currentLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
+  let drawnLanguage = "", pendingLanguage = "", languageTurn = 0;
   /** Titles found this time the page is open, by installation; `asked` is which keys each installation was asked for. */
   const titles = new Map<string, Map<string, Title>>(), asked = new Map<string, Set<string>>(), busy = new Set<string>();
 
   async function load(): Promise<void> {
+    const language = currentLanguage();
     list.setAttribute("aria-busy", "true");
     try {
       const next = await post<Listed>({ mode: "list" });
@@ -108,34 +130,61 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         titles.set(install.plugin_install_id, found); asked.set(install.plugin_install_id, keys);
         return readTitles(post, install.plugin_install_id, keys, found);
       }));
-      listed = next; draw();
+      listed = next; drawnLanguage = language; draw();
+      if (language !== currentLanguage()) void retitle();
     } catch {
-      list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(L("暂时读不到后台任务的授权"))}</span>${button("重试", "mw-btn--secondary", "reload")}</div>`;
+      list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(uiText.text("workbench.task-grants-page.read-failed"))}</span>${button("common.control.retry", "mw-btn--secondary", "reload")}</div>`;
     } finally { list.removeAttribute("aria-busy"); }
   }
 
+  async function retitle(): Promise<void> {
+    const language = currentLanguage();
+    if (language === drawnLanguage) languageWarning.remove();
+    if (!listed || language === drawnLanguage || language === pendingLanguage) return;
+    const turn = ++languageTurn;
+    pendingLanguage = language;
+    try {
+      const current = await post<Listed>({ mode: "list" });
+      if (!root.isConnected || !listed || turn !== languageTurn || language !== currentLanguage()) return;
+      const words = taskGrantWords([...current.categories, ...current.subjects.flatMap(subject => subject.categories)]);
+      const names = new Map(current.installations.map(install => [install.plugin_install_id, install.name]));
+      listed = { ...listed, categories: listed.categories.map(words),
+        subjects: listed.subjects.map(subject => ({ ...subject, categories: subject.categories.map(words) })),
+        installations: listed.installations.map(install => ({ ...install, name: names.get(install.plugin_install_id) ?? install.name })) };
+      drawnLanguage = language;
+      languageWarning.remove();
+      redrawGrantWords(list, draw);
+    } catch {
+      if (!root.isConnected || turn !== languageTurn || language !== currentLanguage()) return;
+      languageWarning.innerHTML = `<span>${escape(uiText.text("workbench.language.window-failed"))}</span>${button("workbench.language.retry", "mw-btn--secondary", "retry-language")}`;
+      list.before(languageWarning);
+    }
+    finally { if (turn === languageTurn) pendingLanguage = ""; }
+  }
+  refreshSettingsLanguage.set(root, () => { void retitle(); });
+
   const installName = (install: Installation | undefined) => {
     const name = install?.name ?? install?.plugin_install_id ?? "";
-    return install?.plugin_id && page.LF ? page.LF(install.plugin_id, name) : L(name);
+    return name;
   };
   const titleOf = (subject: TaskGrantSubject) => titles.get(subject.plugin_install_id)?.get(subject.key);
   const nameOf = (subject: TaskGrantSubject) => titleOf(subject)?.title
-    ?? L("{name} · 一个任务", { name: installName(listed?.installations.find(install => install.plugin_install_id === subject.plugin_install_id)) });
+    ?? uiText.text("workbench.task-grants-page.name-task", { name: installName(listed?.installations.find(install => install.plugin_install_id === subject.plugin_install_id)) });
   const held = (subject: TaskGrantSubject) => taskGrantRows({ categories: listed!.categories, subject }).filter(row => row.status !== "off");
 
   /** A task: its name (its plugin's title for it, or the plugin's name and "a task"), 打开 when it has one, 全部撤回, then its rows. */
   function taskHtml(subject: TaskGrantSubject): string {
-    const target = titleOf(subject), name = escape(nameOf(subject)), open = escape(L("打开"));
+    const target = titleOf(subject), name = escape(nameOf(subject)), open = escape(uiText.text("common.control.open"));
     return `<article class="task-grants-page__task" data-task-grants-task="${escape(subjectId(subject))}"${busy.has(subjectId(subject)) ? ' aria-busy="true"' : ""}>`
       + `<header class="task-grants-page__task-head"><strong${target ? "" : ' class="is-unnamed"'} title="${name}">${name}</strong><span class="task-grants-page__task-actions">`
       + (target ? `<a class="mw-btn mw-btn--sm mw-btn--ghost" href="${escape(openHref(project, target))}" aria-label="${open} · ${escape(target.title)}">${open}</a>` : "")
-      + `${button("全部撤回", "mw-btn--ghost", "clear", nameOf(subject))}</span></header><ul class="task-grants-page__rows">${held(subject).map(rowHtml).join("")}</ul></article>`;
+      + `${button("workbench.task-grants-page.withdraw-all", "mw-btn--ghost", "clear", nameOf(subject))}</span></header><ul class="task-grants-page__rows">${held(subject).map(rowHtml).join("")}</ul></article>`;
   }
 
   function draw(): void {
     if (!listed) return;
     const subjects = listed.subjects.filter(subject => held(subject).length > 0);
-    if (!subjects.length) { list.innerHTML = `<p class="task-grants-page__state">${escape(L("还没有后台任务能读这个项目的数据。在一个任务的「能读的数据」里打开一类之后，它会列在这里。"))}</p>`; return; }
+    if (!subjects.length) { list.innerHTML = `<p class="task-grants-page__state">${escape(uiText.text("workbench.task-grants-page.empty"))}</p>`; return; }
     const groups = new Map<string, TaskGrantSubject[]>();
     for (const subject of subjects) groups.set(subject.plugin_install_id, [...groups.get(subject.plugin_install_id) ?? [], subject]);
     const installs = [...groups.keys()].map(id => listed!.installations.find(install => install.plugin_install_id === id) ?? { plugin_install_id: id, plugin_id: null, name: null, titled: false });
@@ -158,8 +207,8 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   }
   /** A write failed: changed elsewhere reads the page again (§3.6 冲突); anything else leaves the grants as they were. */
   async function failed(error: unknown): Promise<void> {
-    if ((error as { code?: string }).code === "actions.conflict") { toast(L("已在别处改动，已刷新")); await load(); return; }
-    toast(L("没能保存，原来的授权没变"), true);
+    if ((error as { code?: string }).code === "actions.conflict") { toast(uiText.text("workbench.task-grants-page.changed-elsewhere-refreshed")); await load(); return; }
+    toast(uiText.text("workbench.task-grants-page.write-failed"), true);
   }
   async function write(subject: TaskGrantSubject, send: () => Promise<TaskGrantSubject | null>, done: () => string): Promise<void> {
     const id = subjectId(subject); if (busy.has(id)) return;
@@ -179,9 +228,9 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   /** Everything a task may read, taken back in one `clear` once the person says so. */
   async function clear(subject: TaskGrantSubject): Promise<void> {
     const task = nameOf(subject);
-    if (!await ask(root, L("撤回这个任务能读的全部数据？"), L("「{task}」下一次运行起不再读任何插件的数据；要再读，到任务里重新打开。", { task }))) return;
+    if (!await ask(root, uiText.text("workbench.task-grants-page.withdraw-all-title"), uiText.text("workbench.task-grants-page.withdraw-all-description", { task }))) return;
     await write(subject, async () => { await post({ mode: "clear", plugin_install_id: subject.plugin_install_id, key: subject.key }); return null; },
-      () => L("已撤回「{task}」能读的全部数据", { task }));
+      () => uiText.text("workbench.task-grants-page.all-withdrawn", { task }));
   }
 
   // Which control, which task and which row, read from the markup: the task by its installation and key, the row by its category.
@@ -205,6 +254,9 @@ const bindAll = (container: ParentNode) => {
 document.addEventListener("molis-work:settings-embed", event => {
   const root = (event as CustomEvent<{ root?: ParentNode }>).detail?.root;
   if (root) bindAll(root);
+});
+document.addEventListener("molis-work:language-changed", () => {
+  document.querySelectorAll<HTMLElement>("[data-task-grants-settings]").forEach(root => refreshSettingsLanguage.get(root)?.());
 });
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => bindAll(document));
 else bindAll(document);

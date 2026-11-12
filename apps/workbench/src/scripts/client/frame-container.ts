@@ -1,6 +1,6 @@
 /** Goals board view (list | canvas | kanban) and Frame canvas. Cross-plugin tabs and split panes live in tab-workspace. */
 export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, showToast, visibleGoals, getSurface, setWorkSurface, setDirectory,
+  const { translate: readText, showToast, visibleGoals, getSurface, setWorkSurface, setDirectory,
     setWorkspaceMode, setMobileView, applySelection, locateGraphNode, getProjectId, route } = host;
   const LIST_TAB = "list";
   const CANVAS_TAB = "canvas";
@@ -16,7 +16,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   if (!tabsEl || !shell || !surfaceEl || !canvasEl || !worldEl) return noop;
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
-  const kindLabel = (kind) => ({ feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
+  const kindLabel = (kind) => ({ feed: "Feed", inbox: "Inbox", artifact: globalThis.t.text("workbench.frame-container.result") }[kind] || kind);
   let openIds = [];
   let curTab = LIST_TAB;
   let lastBoard = LIST_TAB;
@@ -99,11 +99,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const showBlockError = (body, error) => {
     const status = document.createElement("p");
     status.className = "frame-block-status";
-    molisWorkRequest.show(status,error,L("无法打开这个内容"));
+    molisWorkRequest.show(status,error,globalThis.t.text("workbench.frame-container.could-not-open-item"));
     const retry = document.createElement("button");
     retry.type = "button";
     retry.dataset.frameBlockRetry = "";
-    retry.textContent = L("重试");
+    retry.textContent = globalThis.t.text("common.control.retry");
     body.replaceChildren(status, retry);
   };
   const readValue = (block, row, key, attr) => block.reading?.[key] || row?.dataset[attr] || "";
@@ -119,8 +119,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const copy = document.createElement("p");
     const parts = [];
     if (reason) parts.push(reason);
-    if (relation) parts.push(L("这件事关联 {relation}。", { relation }));
-    if (next) parts.push(L("下一步：{next}", { next }));
+    if (relation) parts.push(globalThis.t.text("workbench.frame-container.relates-relation", { relation }));
+    if (next) parts.push(globalThis.t.text("workbench.frame-container.next-next", { next }));
     if (status) parts.push(status);
     if (parts.length) copy.textContent = parts.join("");
     else copy.textContent = block.caption || "";
@@ -130,24 +130,24 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const loadFeedBody = async (body, block) => {
     const row = liveAssetRow(block);
     const itemId = block.itemRef || row?.dataset.feedItemId || (row?.dataset.inboxSubjectType === "feed" ? row.dataset.inboxSubjectId : "") || block.itemId;
-    const html=await molisWorkRequest(toRoute("/api/stage/feed/objects/"+encodeURIComponent(itemId)+"?surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
+    const html=await molisWorkRequest(toRoute("/api/stage/feed/objects/"+encodeURIComponent(itemId)+"?surface=frame-block"),{as:"text",fallback:globalThis.t.text("workbench.frame-container.could-not-load-item")});
     const template = document.createElement("template");
     template.innerHTML = html.trim();
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector(".frame-reading") || template.content.firstElementChild;
-    if (!reading) throw new Error(L("无法读取这条 Item"));
+    if (!reading) throw new Error(globalThis.t.text("workbench.frame-container.could-not-load-item"));
     body.replaceChildren(reading);
   };
   const loadArtifactBody = async (body, block) => {
     const sep = String(block.itemId).lastIndexOf("#");
     const artifactId = sep === -1 ? block.itemId : block.itemId.slice(0, sep);
     const version = sep === -1 ? "1" : block.itemId.slice(sep + 1);
-    const html=await molisWorkRequest(toRoute("/artifacts/"+encodeURIComponent(artifactId)+"/versions/"+encodeURIComponent(version)),{as:"text",accept:[404],headers:{"x-molis-work-fragment":"frame-block"},fallback:L("无法读取成果")});
+    const html=await molisWorkRequest(toRoute("/artifacts/"+encodeURIComponent(artifactId)+"/versions/"+encodeURIComponent(version)),{as:"text",accept:[404],headers:{"x-molis-work-fragment":"frame-block"},fallback:globalThis.t.text("workbench.frame-container.could-not-load-artifacts")});
     const template = document.createElement("template");
     template.innerHTML = html;
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector("[data-artifact-detail]");
-    if (!reading) throw new Error(L("无法读取成果"));
+    if (!reading) throw new Error(globalThis.t.text("workbench.frame-container.could-not-load-artifacts"));
     if (reading.matches("[data-artifact-detail]")) {
-      if (!reading.childElementCount) throw new Error(L("无法读取成果"));
+      if (!reading.childElementCount) throw new Error(globalThis.t.text("workbench.frame-container.could-not-load-artifacts"));
       body.replaceChildren(...reading.childNodes);
     } else body.replaceChildren(reading);
   };
@@ -161,7 +161,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     delete body.dataset.loaded;
     const status = document.createElement("p");
     status.className = "frame-block-status";
-    status.textContent = L("正在打开…");
+    status.textContent = globalThis.t.text("workbench.frame-container.opening");
     body.replaceChildren(status);
     try {
       if (block.kind === "inbox") loadInboxBody(body, block);
@@ -196,7 +196,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     list.dataset.containerTab = LIST_TAB;
     if (curTab === LIST_TAB) list.setAttribute("aria-current", "page");
     const listLabel = document.createElement("span");
-    listLabel.textContent = L("列表");
+    listLabel.textContent = globalThis.t.text("workbench.frame-container.list");
     list.append(listLabel);
     fragment.append(list);
     const canvas = document.createElement("button");
@@ -205,7 +205,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     canvas.dataset.containerTab = CANVAS_TAB;
     if (curTab === CANVAS_TAB) canvas.setAttribute("aria-current", "page");
     const canvasLabel = document.createElement("span");
-    canvasLabel.textContent = L("Goal 画布");
+    canvasLabel.textContent = globalThis.t.text("workbench.frame-container.goal-canvas");
     canvas.append(canvasLabel);
     fragment.append(canvas);
     const kanban = document.createElement("button");
@@ -214,7 +214,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     kanban.dataset.containerTab = KANBAN_TAB;
     if (curTab === KANBAN_TAB) kanban.setAttribute("aria-current", "page");
     const kanbanLabel = document.createElement("span");
-    kanbanLabel.textContent = L("看板");
+    kanbanLabel.textContent = globalThis.t.text("workbench.frame-container.board");
     kanban.append(kanbanLabel);
     fragment.append(kanban);
     openIds.forEach((goalId) => {
@@ -230,8 +230,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       close.type = "button";
       close.className = "container-tab-close";
       close.dataset.containerTabClose = goalId;
-      close.setAttribute("aria-label", L("关闭 Frame：{title}", { title: tab.title }));
-      close.title = L("关闭");
+      close.setAttribute("aria-label", globalThis.t.text("workbench.frame-container.close-frame-title", { title: tab.title }));
+      close.title = globalThis.t.text("common.control.close");
       close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
       tab.append(label, close);
       fragment.append(tab);
@@ -262,9 +262,9 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const source = document.querySelector('[data-goal-id="' + CSS.escape(curTab) + '"] .goal-status');
     statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
     if (source) statusEl.innerHTML = source.innerHTML;
-    else statusEl.textContent = item?.status_label || L(status);
+    else statusEl.textContent = item?.status_label || status;
     statusEl.dataset.status = status;
-    put('[data-frame-goal-outcome]', item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。"));
+    put('[data-frame-goal-outcome]', item?.goal.outcome || globalThis.t.text("workbench.frame-container.no-expected-result-written-yet-can-add-one"));
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
     setCamera();
     worldEl.replaceChildren();
@@ -284,7 +284,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       close.type = "button";
       close.className = "frame-block-close";
       close.dataset.frameBlockClose = "";
-      close.setAttribute("aria-label", L("收起这块"));
+      close.setAttribute("aria-label", globalThis.t.text("workbench.frame-container.collapse-card"));
       close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
       handle.append(title, close);
       const caption = document.createElement("p");
@@ -380,12 +380,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const viewport = shell.querySelector("[data-graph-viewport]");
     viewport?.classList.add("is-reject");
     window.setTimeout(() => viewport?.classList.remove("is-reject"), 420);
-    showToast(L("Goal 画布只放 Goal。先打开某个 Goal 的 Frame，再把内容拖进去。"));
+    showToast(globalThis.t.text("workbench.frame-container.goal-canvas-only-holds-goals-open-frame-first"));
   };
   const rejectGoal = () => {
     canvasEl.classList.add("is-reject");
     window.setTimeout(() => canvasEl.classList.remove("is-reject"), 420);
-    showToast(L("Goal 留在主画布上。这里只放推进这个 Goal 用的工作内容。"));
+    showToast(globalThis.t.text("workbench.frame-container.goals-stay-main-canvas-frame-only-holds-work"));
   };
   const readAsset = (target) => {
     if (!target?.closest) return null;
@@ -447,7 +447,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!matches.length) {
       const empty = document.createElement("p");
       empty.className = "no-results";
-      empty.textContent = pickItems.length ? L("没有匹配的内容，试试其他关键词或来源。") : L("当前项目还没有可添加的内容。");
+      empty.textContent = pickItems.length ? globalThis.t.text("workbench.frame-container.no-matches-try-another-search-source") : globalThis.t.text("workbench.frame-container.project-has-no-content-add-yet");
       pickerList.append(empty);
     }
     for (const asset of matches) {
@@ -458,7 +458,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       title.textContent = asset.title;
       caption.textContent = [kindLabel(asset.kind), asset.caption].filter(Boolean).join(" · ");
       button.disabled = frameOf(curTab).blocks.some((block) => block.kind === asset.kind && block.itemId === asset.id);
-      state.textContent = button.disabled ? L("已添加") : "+";
+      state.textContent = button.disabled ? globalThis.t.text("workbench.frame-container.added") : "+";
       state.setAttribute("aria-hidden", "true");
       button.append(title, caption, state);
       button.addEventListener("click", async event => {
@@ -489,7 +489,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
     try { for (const asset of await (await host.frameAssets()).list(signal)) assets.set(asset.kind + ":" + asset.id, asset); }
-    catch { if (!signal.aborted) showToast(L("无法加载界面，请重试"), true); return; }
+    catch { if (!signal.aborted) showToast(globalThis.t.text("workbench.frame-container.drop-content-unreadable"), true); return; }
     if (signal.aborted || !isFrameTabActive() || curTab !== target || version !== receivingVersion) return;
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";

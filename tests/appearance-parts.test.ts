@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { BASELINE_FONT, BASELINE_SKIN, BASELINE_SPEC, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { fontTokenDeclarations, skinTokenDeclarations } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { EN } from "@molis-ai/molis-work-app-workbench";
+import { withPageText } from "./fixtures/page-text.js";
 
 // The look card, the specimen card and the fade when the look changes, on the component board (docs/design/appearance-selection/README.md「组件板新增」;
 // specs/font-and-skin-system/a-section-contract.md FSS-66, FSS-67, FSS-68). What the page does with them is in board-appearance.e2e.test.ts; this file
@@ -17,10 +17,10 @@ const sectionOf = (html: string, id: string) => {
   return html.slice(start, html.indexOf("</section>", start));
 };
 const cardsOf = (html: string) => html.split('<div class="mw-look-card" data-look-card="').slice(1).map((card) => ({ id: /^(\w+)"/u.exec(card)![1]!, html: card }));
-const board = renderPrimitiveCatalog();
+const board = withPageText("zh", [], renderPrimitiveCatalog);
 const styleOf = (html: string) => html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
 const style = styleOf(board);
-const english = renderPrimitiveCatalog({ say: (text, values = {}) => (EN[text] ?? text).replace(/\{(\w+)\}/gu, (whole, name: string) => String(values[name] ?? whole)) });
+const english = withPageText("en", [], renderPrimitiveCatalog);
 const PARTS = ["look-card", "look-proof", "look-fade"];
 
 test("FSS-66: the board has the three look sections, after the type section and in order", () => {
@@ -123,15 +123,17 @@ test("FSS-67: the board's own look sources write no colour, no duration and no c
   }
 });
 
-test("FSS-68: the page fades on the move clock and curve, and a page that asks for less motion changes at once", () => {
-  assert.match(style, /::view-transition-old\(root\), ::view-transition-new\(root\) \{ animation-duration: var\(--dur-move\); animation-timing-function: var\(--ease-quint\); \}/u);
-  const quiet = style.slice(style.indexOf("@media (prefers-reduced-motion: reduce)", style.indexOf(".mw-look-fade")));
-  assert.match(quiet, /::view-transition-group\(root\), ::view-transition-old\(root\), ::view-transition-new\(root\) \{ animation: none; \}/u, "a second guard in the rules");
-  const script = source("browser/catalog-appearance.ts");
-  for (const guard of ['typeof document.startViewTransition === "function"', "!document.hidden", 'root.hasAttribute("data-craft-still")', 'matchMedia("(prefers-reduced-motion: reduce)")']) assert.ok(script.includes(guard), `the script asks: ${guard}`);
-  assert.match(script, /running\?\.skipTransition\(\)/u, "a second change does not queue behind the first");
-  assert.match(script, /if \(!fades\) show\(worn\);/u, "without the fade the change is made on the spot");
-  assert.ok(board.includes("startViewTransition"), "the board carries the script");
+test("FSS-68: the board and the Workbench share the live fade and its motion guards", () => {
+  assert.doesNotMatch(style, /::view-transition-(?:old|new|group)\(root\)/u);
+  const script = source("look-fade.ts");
+  for (const guard of ['typeof root.animate === "function"', "!document.hidden", 'root.hasAttribute("data-craft-still")', 'matchMedia("(prefers-reduced-motion: reduce)")']) assert.ok(script.includes(guard), `the script asks: ${guard}`);
+  assert.match(script, /getPropertyValue\("--dur-move"\)/u);
+  assert.match(script, /getPropertyValue\("--ease-quint"\)/u);
+  assert.match(script, /cancelFade\?\.\(\);/u, "a second change does not queue behind the first");
+  assert.match(script, /commit\(\);\s+if \(!paper \|\| !document.body\) return false;/u, "the change is immediate even without a fade");
+  assert.match(source("browser/catalog-appearance.ts"), /createLookFade\(\)/u);
+  assert.match(source("browser/look-fade.ts"), /globalThis\.molisWorkLookFade = createLookFade\(\)/u);
+  assert.match(board, /id:\s*"mw-look-fade"/u, "the board carries the shared script");
   const fade = sectionOf(board, "look-fade");
   assert.match(fade, /data-look-fade data-look-fade-look="\w+"/u);
   assert.match(fade, /role="status" aria-live="polite" data-look-fade-now/u, "the change is also said in words");

@@ -672,8 +672,7 @@ test("the layer exceptions are exactly the edges that exist today", () => {
     "apps/local-host -> apps/cli",
     "apps/local-host -> apps/mcp",
     "apps/local-host -> apps/workbench",
-    "apps/server -> apps/desktop",
-    "apps/server -> apps/local-host",
+    ". -> apps/server",
   ]);
 });
 
@@ -688,7 +687,7 @@ test("a listed layer exception that no import or dependency uses is reported, so
   }
   assert.deepEqual(unusedLayerExceptions([]), listed);
   // Any iterable of observed edges works (the checker passes sets).
-  assert.ok(!unusedLayerExceptions(new Set(["apps/server -> apps/desktop"])).includes("apps/server -> apps/desktop"));
+  assert.ok(!unusedLayerExceptions(new Set([". -> apps/server"])).includes(". -> apps/server"));
 });
 
 // The Plugin SDK is what an author installs next to the contracts. Anything else it depends on would be missing on the author's

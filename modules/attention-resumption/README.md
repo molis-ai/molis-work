@@ -16,7 +16,7 @@ AttentionModule 通过 subject resolver 检查对象；commands 创建或更新�
 | --- | --- |
 | [src/index.ts](src/index.ts) | AttentionModule、状态转换与 subject 校验 |
 
-可对照现有调用方 [apps/local-host/src/demo-feed-library.ts](../../apps/local-host/src/demo-feed-library.ts) 阅读装配方式。
+可对照现有调用方 [Feed Runtime 装配](../../plugins/native/feed/src/runtime-ports.ts) 阅读装配方式。
 
 ## 接入与边界
 
@@ -54,7 +54,7 @@ node scripts/run-tests.mjs tests/feed-module-repositories.test.ts
 - 负责：需要用户关注的条目、原因、稍后提醒与恢复线索。
 - 不负责：Feed 条目、Action、Goal、Session、通知、Runtime 进程。
 - 公开入口：`@molis-ai/molis-work-module-attention-resumption`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/attention-resumption`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只取根导出的通用 `parseJson`，与其它层同一份规则）。方向：只依赖 contracts/modules、contracts/services、kernel 与公开 SDK；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 处置状态不能替代 Goal 的工作状态或完成结论。
   - 已完成或已取消 Goal 的继续归 Goals 的 `resumeWork`，必须给出原因。

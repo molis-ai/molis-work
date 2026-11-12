@@ -5,15 +5,16 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("RAC-2516 RAC-2517 RAC-2519 in-place membership owns every Feed mount, source preview keeps its Feed tab, and Inbox refresh reads its own owner", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const { projectId, command, sessionId } = b, prefix = `/projects/${projectId}`;
+  assert.ok(projectId);
   const owner = new LocalHostHttpClient({ origin: b.origin, controlToken: b.controlToken });
-  await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
-  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox" });
+  await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(owner, projectId) });
+  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox", expected_revision: await projectPluginRevision(owner, projectId) });
   const library = createLocalFeedApplication(b.store.db), source = createLocalFeedSourceService(b.store.db, projectId!).register({ kind: "web_query", query: "membership-live-source", name: "Membership source" }).source;
   const item = library.ingestItem({ source, externalId: "membership-live-item", title: "Membership live item", summary: "A Feed mutation wakes the retained Inbox", body: "Actual source material", occurredAt: new Date().toISOString(), attention: false }).item;
   await pluginFrameInitScript(t, b, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=['feed','inbox'].includes(key)?host=>{window.t403Host=host;window.t403Mounts=(window.t403Mounts||0)+1;window.t403Reads={total:0,pending:0,owners:[]};const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403Reads.total++;t403Reads.pending++;t403Reads.owners.push(host.pluginId);try{return await read(...args)}finally{t403Reads.pending--}};return value(host)}:value;return true}});`);
@@ -89,8 +90,9 @@ test("RAC-2516 RAC-2517 RAC-2519 in-place membership owns every Feed mount, sour
 test("RAC-2518 RAC-2519 a replaced or hidden account picker cannot return a late dialog or bind the previous source", { timeout: 90000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { command, sessionId, projectId, homeDirectory } = browser;
+  assert.ok(projectId);
   const client = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
-  await client.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
+  await client.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(client, projectId) });
   const prefix = `/projects/${projectId}`, api = prefix + "/api/plugins/io.molis.work.feed";
   const a = await client.post<{ source: { source_id: string } }>(api + "/sources/accounts", { service: "github", name: "Account source A" });
   const b = await client.post<{ source: { source_id: string } }>(api + "/sources/accounts", { service: "github", name: "Account source B" });

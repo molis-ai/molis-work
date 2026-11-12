@@ -1,3 +1,4 @@
+import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -23,6 +24,7 @@ import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fix
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
+import { decideMissedPull, feedRunsOverview } from "@molis-ai/molis-work-plugin-feed";
 
 test("public Feed sources register offline, replay terminal sync, and roll back failed commits", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
@@ -460,6 +462,8 @@ test("source scheduler persists the next run, collapses missed slots, and preven
         interval_minutes: 15,
         next_pull_at: "2026-08-30T09:15:00.000Z",
       });
+      const overview = feedRunsOverview(service.feed, DEMO_PROJECT_ID, { now: now.toISOString(), upcoming_until: "2026-08-30T10:00:00.000Z" });
+      assert.deepEqual(overview.upcoming.map(run => [run.open?.id, run.due_at, run.needs]), [[source.source_id, "2026-08-30T09:15:00.000Z", ["network"]]], "RES-03 the next pull, needing the network");
 
       let dispatches = 0;
       let release!: () => void;
@@ -483,13 +487,23 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       const afterFirst = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterFirst.schedule.mode === "interval" ? afterFirst.schedule.next_pull_at : null, "2026-08-30T09:30:00.000Z");
 
+      // RES-03: after a sleep the pull is not made on its own (user 2026-11-04, 「不自动补跑」): it is written down once, for the person,
+      // and the next time comes as usual; 「现在做」 makes it the next tick's pull, with its own idempotency identity.
       now = new Date("2026-08-30T10:20:00.000Z");
       const catchup = await scheduler.tick(now);
       assert.equal(catchup.due, 1);
-      assert.equal(dispatches, 2, "sleep recovery performs one catch-up pull, not every missed slot");
-      assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
+      assert.equal(catchup.skipped, 1);
+      assert.equal(dispatches, 1, "sleep recovery makes no pull of its own, for none of the missed slots");
+      const missed = service.feed.sources.missed.list(DEMO_PROJECT_ID, 50);
+      assert.deepEqual(missed.map(entry => [entry.source_id, entry.due_at, entry.decision]), [[source.source_id, "2026-08-30T09:30:00.000Z", null]]);
       const afterCatchup = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterCatchup.schedule.mode === "interval" ? afterCatchup.schedule.next_pull_at : null, "2026-08-30T10:30:00.000Z");
+      assert.deepEqual(decideMissedPull(service.feed, DEMO_PROJECT_ID, { run_id: missed[0]!.run_id, decision: "run_now" }, now), { state: "started" });
+      assert.deepEqual(decideMissedPull(service.feed, DEMO_PROJECT_ID, { run_id: missed[0]!.run_id, decision: "run_now" }, now), { state: "gone" }, "a second click finds it decided");
+      await scheduler.tick(now);
+      assert.equal(dispatches, 2, "现在做 pulls it once, on the usual path");
+      assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
+      assert.deepEqual(service.feed.sources.missed.list(DEMO_PROJECT_ID, 50), []);
     } finally {
       store.close();
     }
@@ -565,7 +579,9 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).sources.some((item) => item.source_id === source.source_id), false);
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
 
-      const replacement = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
+      // D0330: repeated registration must not overwrite the retained source's deletion marker.
+      assert.throws(() => service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }), { code: "feed.source_invalid_state" });
+      const replacement = service.register({ kind: "custom_rss", feed_url: "https://example.com/new-lifecycle.xml" }).source;
       service.feed.ingestItem({
         source: replacement,
         externalId: "lifecycle-item-2",
@@ -574,10 +590,12 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
         occurredAt: "2026-08-30T10:00:00.000Z",
         attention: { reason: "source_rule", detail: { rule: "test" } },
       });
+      const disposableIds = new Set(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === replacement.source_id).map(item => item.item_id));
       service.delete(replacement.source_id, "delete_local_history");
       const snapshot = service.feed.snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.some((item) => item.source_id === replacement.source_id), false);
-      assert.equal(snapshot.inbox_entries.some((entry) => entry.subject_type === "feed_item"), false);
+      assert.equal(snapshot.feed_items.some((item) => item.source_id === source.source_id), true, "retained history remains retained");
+      assert.equal(snapshot.inbox_entries.some((entry) => entry.subject_type === "feed_item" && disposableIds.has(entry.subject_id)), false);
       assert.equal(JSON.stringify(snapshot).includes("token"), false);
     } finally {
       store.close();
@@ -798,4 +816,31 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     else process.env.NODE_ENV = oldNodeEnv;
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("D0117 source history removes signals, revisions and events atomically and retains other sources", () => {
+  const directory = mkdtempSync(join(tmpdir(), "feed-signal-history-")), file = join(directory, "project.db");
+  seedDemoBoard(file); const store = new LocalProjectDatabase(file);
+  try {
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
+    const other = service.register({ kind: "custom_rss", feed_url: "https://example.com/retained-signals.xml" }).source;
+    const signals = new SignalsModule(fromBetterSqlite(store.db));
+    const draft = { project_id: DEMO_PROJECT_ID, source_id: source.source_id, provider_dedupe_id: "history", kind: "update", occurred_at: "2026-11-08T00:00:00.000Z", observed_at: "2026-11-08T00:00:00.000Z", payload: { title: "first" }, raw_event_id: "raw-history", adapter: { plugin_id: "io.example.history", version: "1.0.0" }, provenance: {} };
+    const first = signals.commands.submitDraft(draft).signal;
+    signals.commands.submitDraft({ ...draft, payload: { title: "second" } });
+    const kept = signals.commands.submitDraft({ ...draft, source_id: other.source_id }).signal;
+    store.db.exec("CREATE TEMP TRIGGER fail_signal_delete BEFORE DELETE ON signal_events BEGIN SELECT RAISE(ABORT, 'signal cleanup refused'); END");
+    assert.throws(() => service.delete(source.source_id, "delete_local_history"), /signal cleanup refused/);
+    assert.equal(signals.query.get(DEMO_PROJECT_ID, first.signal_id).revision, 2, "failed history deletion restores all signal payloads");
+    assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).sources.some(row => row.source_id === source.source_id), true);
+    store.db.exec("DROP TRIGGER fail_signal_delete");
+    service.delete(source.source_id, "delete_local_history");
+    assert.deepEqual(signals.query.list(DEMO_PROJECT_ID, source.source_id), []);
+    assert.deepEqual(signals.events.list(DEMO_PROJECT_ID, source.source_id), []);
+    assert.equal((store.db.prepare("SELECT count(*) AS n FROM signal_revisions WHERE signal_id = ?").get(first.signal_id) as { n: number }).n, 0);
+    service.delete(other.source_id, "retain_history");
+    assert.equal(signals.query.get(DEMO_PROJECT_ID, kept.signal_id).source_id, other.source_id);
+    assert.equal(signals.events.list(DEMO_PROJECT_ID, other.source_id).length, 1);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

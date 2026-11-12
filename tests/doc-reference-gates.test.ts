@@ -196,6 +196,11 @@ const violations: Scenario[] = [
     expect: [/`plugins\/native\/\*\/src\/gone\.ts` points at/] },
   { kind: "absolute", name: "CALL-CHAINS.md cites a path that does not exist", mutate: () => put("docs/system/CALL-CHAINS.md", "# Chains\n\nThe hop is `apps/host/src/gone.ts`.\n"),
     expect: [/bad citation: docs\/system\/CALL-CHAINS\.md:3: `apps\/host\/src\/gone\.ts`/] },
+  // B27G-04: the extension points document is held to the same rule (N10).
+  { kind: "absolute", name: "B27G-04 EXTENSION-POINTS.md cites a path that does not exist", mutate: () => put("docs/system/EXTENSION-POINTS.md", "# Extension points\n\nThe slot is `apps/host/src/gone.ts`.\n"),
+    expect: [/bad citation: docs\/system\/EXTENSION-POINTS\.md:3: `apps\/host\/src\/gone\.ts`/] },
+  { kind: "absolute", name: "B27G-04 EXTENSION-POINTS.md cites an id its owner does not define", mutate: () => put("docs/system/EXTENSION-POINTS.md", "# Extension points\n\nCall `alpha.vanished` next.\n"),
+    expect: [/bad citation: docs\/system\/EXTENSION-POINTS\.md:3: `alpha\.vanished` is not an id the code defines/] },
   { kind: "absolute", name: "a doc names a pnpm script that package.json does not define", mutate: () => append("AGENTS.md", "\nRun `pnpm nosuchscript` first.\n"),
     expect: [/bad citation: AGENTS\.md:\d+: `pnpm nosuchscript` names pnpm script "nosuchscript"/] },
   { kind: "absolute", name: "a skill cites an id its owner does not define", mutate: () => append("skills/dev/SKILL.md", "\nCall `alpha.vanished` next.\n"),

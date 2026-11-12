@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionCallContext, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * One running instance of a Plugin. The Home half and the project half of a dual-instance plugin share `install_id` and differ in
@@ -21,6 +21,8 @@ export function inPluginInstance(scope: PluginInstance | undefined, instance: Pl
  * cannot be made to look like it comes from an action it does not run in.
  */
 export interface PluginActionScope extends PluginInstance {
+  /** The original activation object, distinct even if two restored Homes have the same stored installation identifiers. */
+  readonly activation?: PluginInstance;
   readonly definition: ActionDefinition;
   readonly caller: ActionExecutionContext;
   /** Where this call stands in the order this process began calls in (`lastBegunPluginInvocation`). */
@@ -30,9 +32,16 @@ export interface PluginActionScope extends PluginInstance {
    * (`markPluginActionChecked`). From then on the call may keep a job (PG-038). Work that carries the call on shares it.
    */
   readonly checked?: { passed: boolean };
+  /**
+   * The action this handler runs, as the dispatcher resolved it for this very registration, with `direct_person_entry` when the call
+   * entered here as the person's own (BL-803). The Host's action directory hands it to the targets of this handler's calls, one hop
+   * only (`delegated_action`). Work that carries the call on (a background execution) does not carry it.
+   */
+  readonly source?: Readonly<ExactActionReference & { readonly direct_person_entry?: true }>;
 }
 
 interface PluginSceneScope extends PluginInstance {
+  readonly activation: PluginInstance;
   readonly scene: ActionSceneDefinition;
   readonly read_only: boolean;
   readonly caller: ActionCallContext;
@@ -50,6 +59,7 @@ interface PluginSceneScope extends PluginInstance {
  * job's own lifetime and checks: it names neither the call that kept the job nor that call's audience.
  */
 interface PluginJobScope extends PluginInstance {
+  readonly activation?: PluginInstance;
   readonly job: string;
   readonly caller: ActionCallContext;
   readonly begun: number;
@@ -80,12 +90,38 @@ const place = (begun: number | undefined) => begun ?? running.getStore()?.begun 
 export interface PluginRouteCall {
   readonly route_id: string;
   readonly instance?: PluginInstance;
+  readonly caller?: { readonly locale?: string; readonly signal?: AbortSignal };
+  readonly parent?: PluginInvocationScope;
 }
 const routes = new AsyncLocalStorage<PluginRouteCall>();
 const permissionCalls = new AsyncLocalStorage<PluginInstance>();
 
 /** Calls whose handler has returned, thrown or settled (`pluginInvocationOpen`), and routes ended before theirs did. */
 const ended = new WeakSet<object>();
+
+/** A persisted installation can have several successive activations. This check belongs to the original object. */
+export function pluginActivationOpen(activation: PluginInstance): boolean {
+  return !ended.has(activation);
+}
+
+export function endPluginActivation(activation: PluginInstance): void {
+  ended.add(activation);
+}
+
+/** Text reads follow the innermost plugin call; an ended call still marks the boundary of an inherited page language. */
+export function currentPluginTextCall() {
+  const action = running.getStore(), route = routes.getStore();
+  if (route && route.parent === action) {
+    return pluginTextCall(route, route.instance, route.caller);
+  }
+  return action ? pluginTextCall(action, action.activation, action.caller) : undefined;
+}
+
+function pluginTextCall(token: object, activation: PluginInstance | undefined, caller: PluginRouteCall["caller"]) {
+  const available = !caller?.signal?.aborted && (!activation || pluginActivationOpen(activation));
+  const live = available && !ended.has(token);
+  return { token, activation: available ? activation : undefined, available, live, locale: live ? caller?.locale : undefined };
+}
 
 /** Runs `handle` in `scope`; once what it returned settles, the call is over for whatever it left running. */
 function runOpen<S extends object, T>(store: AsyncLocalStorage<S>, scope: S, handle: () => T): T {

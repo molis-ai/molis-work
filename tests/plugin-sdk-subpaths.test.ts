@@ -72,8 +72,11 @@ test("W5-01-CODING-60: /highlight imports nothing and each function runs alone f
   for (const hint of ["src/app.tsx", "language-python", "Dockerfile", "notes.md"]) assert.equal(language(hint), highlight.codeLanguage(hint), hint);
 });
 
-test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, which the SDK takes as optional peers", () => {
-  const parsers = /["'](?:marked|sanitize-html)["']/u;
+/** What `/rich-text` loads besides the SDK (B27SRC: Micromark with GFM replaced Marked, so a fenced block keeps its code as written). */
+const PEERS = ["micromark", "micromark-extension-gfm", "sanitize-html"];
+
+test("W5-01-CODING-61 B27SRC-03: only /rich-text loads the Markdown parser and sanitizer, which the SDK takes as optional peers", () => {
+  const parsers = /["'](?:micromark|micromark-extension-gfm|sanitize-html)["']/u;
   assert.match(built("./rich-text"), parsers);
   // Every other built file of the SDK, the root entry and /highlight among them, loads neither.
   const dist = join(sdkDirectory, "dist");
@@ -83,7 +86,7 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
   // A plugin author's project installs contracts and the SDK alone (tests/plugin-sample.e2e.test.ts installs them offline from an
   // empty cache); a runtime dependency on the parsers would make that install fetch them. A plugin that renders rich text adds them.
   assert.deepEqual(Object.keys(manifest.dependencies ?? {}), ["@molis-ai/molis-work-contracts"]);
-  for (const name of ["marked", "sanitize-html"]) {
+  for (const name of PEERS) {
     assert.ok(manifest.peerDependencies?.[name], `${name} is a peer of the SDK`);
     assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, `${name} is an optional peer`);
   }
@@ -97,7 +100,7 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
     && readdirSync(join(root, directory, "src"), { recursive: true, encoding: "utf8" }).some(name => name.endsWith(".ts")
       && readFileSync(join(root, directory, "src", name), "utf8").includes("@molis-ai/molis-work-plugin-sdk/rich-text")));
   assert.ok(consumers.includes("plugins/native/feed") && consumers.includes("plugins/native/coding"), consumers.join(", "));
-  for (const name of ["marked", "sanitize-html"]) {
+  for (const name of PEERS) {
     const range = manifest.peerDependencies![name]!;
     assert.ok(readme.includes(`\`${name}@${range}\``), `the README names ${name}@${range}`);
     for (const consumer of consumers) {
@@ -181,7 +184,12 @@ test("PG062-10: there is one drawing of a comparison and one comparison: the SDK
   assert.deepEqual(sources.sort(), ["packages/plugin-sdk/src/diff-view.ts", "packages/plugin-sdk/src/text-diff.ts", "packages/plugin-sdk/src/unified-diff.ts"]);
   for (const gone of ["plugins/native/diff/src/unified.ts", "plugins/native/diff/src/patch.ts", "plugins/native/diff/src/sentences.ts"]) assert.equal(existsSync(join(root, gone)), false, gone);
   // Diff and Coding draw with it: neither carries a renderer of its own.
-  for (const user of ["plugins/native/diff/src/ui.ts", "plugins/native/diff/src/actions.ts", "plugins/native/coding/src/change-html.ts"]) {
+  for (const user of ["plugins/native/diff/src/ui.ts", "plugins/native/coding/src/change-html.ts"]) {
     assert.match(readFileSync(join(root, user), "utf8"), /from "@molis-ai\/molis-work-plugin-sdk\/diff-view"/u, user);
   }
+  const diffUi = readFileSync(join(root, "plugins/native/diff/src/ui.ts"), "utf8");
+  assert.match(diffUi, /function renderDiffComparison\([^\n]+\n\s*return renderDiff\(/u);
+  const actions = readFileSync(join(root, "plugins/native/diff/src/actions.ts"), "utf8");
+  assert.match(actions, /import \{ renderDiffComparison \} from "\.\/ui\.js"/u);
+  assert.match(actions, /html: renderDiffComparison\(/u);
 });

@@ -9,48 +9,49 @@ import { grantDirectory } from "./request.js";
 import { uploadFiles } from "./upload.js";
 import type { Draft, Material, Preview, Receipt } from "./types.js";
 
+const uiText = globalThis.t;
+
 const text = (data: FormData, name: string): string => String(data.get(name) ?? "");
 
 /** First step: the folder (chosen here, or picked in the system chooser after the Host's grant) becomes a fixed preview. */
 async function previewImport(page: CogniaPage, data: FormData): Promise<boolean> {
-  const { L } = page;
   const chosen = Array.from(page.form.querySelector<HTMLInputElement>("[name=files]")?.files ?? []);
   const common = { kind: text(data, "kind"), domain_id: text(data, "domain_id") || null, source_id: text(data, "source_id") || undefined };
   let result: { preview: Preview };
   if (!chosen.length) {
-    const grant = await grantDirectory(page.host, L("cognia.import.grant-failed"));
+    const grant = await grantDirectory(page.host, uiText.text("cognia.import.grant-failed"));
     if (grant.status === "cancelled") return false;
     result = await page.api<{ preview: Preview }>("/import/preview", { grant_id: grant.grant_id, path: ".", locator: "local:" + grant.root, ...common });
   } else {
-    result = await page.api<{ preview: Preview }>("/import/preview", { ...common, files: await uploadFiles(chosen, L("cognia.import.too-many")), name: chosen[0].webkitRelativePath.split("/")[0] });
+    result = await page.api<{ preview: Preview }>("/import/preview", { ...common, files: await uploadFiles(chosen, uiText.text("cognia.import.too-many")), name: chosen[0].webkitRelativePath.split("/")[0] });
   }
   const preview = result.preview;
   page.preview = preview;
   page.flow = "preview";
-  const domain = page.state.domains.find((d) => d.id === preview.source.domain_id)?.name || L("cognia.domain.unfiled");
-  page.content.innerHTML = `<p>${esc(preview.source.name)} · ${esc(preview.source.locator)}</p><p>${esc(L("cognia.import.domain-line", { name: domain }))}</p>`
+  const domain = page.state.domains.find((d) => d.id === preview.source.domain_id)?.name || uiText.text("cognia.domain.unfiled");
+  page.content.innerHTML = `<p>${esc(preview.source.name)} · ${esc(preview.source.locator)}</p><p>${esc(uiText.text("cognia.import.domain-line", { name: domain }))}</p>`
     + `<p class="cognia-hint">${tx(page, "cognia.import.confirm-hint")}</p>${entryTable(page, preview.entries)}`;
-  page.submit.textContent = L("cognia.import.confirm");
+  page.submit.textContent = uiText.text("cognia.import.confirm");
   page.content.dataset.importable = String(preview.entries.some((entry) => entry.status !== "skipped"));
-  if (page.content.dataset.importable === "false") fail(page, L("cognia.import.nothing"));
+  if (page.content.dataset.importable === "false") fail(page, uiText.text("cognia.import.nothing"));
   setStep(page, "cognia.import.step-preview");
   return true;
 }
 
 /** Second step: the preview is imported as it was shown. */
 async function commitImport(page: CogniaPage): Promise<void> {
-  const { L, preview } = page;
+  const { preview } = page;
   if (!preview) return;
-  if (page.content.dataset.importable === "false") throw new Error(L("cognia.import.nothing"));
+  if (page.content.dataset.importable === "false") throw new Error(uiText.text("cognia.import.nothing"));
   const result = await page.api<{ receipt: Receipt }>("/import/commit", { preview_id: preview.id });
   const receipt = result.receipt;
   page.receipt = receipt;
   page.flow = "receipt";
   const counts = [[STATUS_KEY.new, receipt.added], [STATUS_KEY.update, receipt.updated], [STATUS_KEY.unchanged, receipt.unchanged], [STATUS_KEY.skipped, receipt.skipped]] as const;
   page.content.innerHTML = `<p class="cognia-receipt">${tx(page, "cognia.import.done")}<br>${counts.map(([key, count]) => `${tx(page, key)} ${count}`).join(" · ")}</p>${entryTable(page, receipt.entries)}`;
-  page.submit.textContent = L("cognia.import.open");
+  page.submit.textContent = uiText.text("cognia.import.open");
   setStep(page, "cognia.import.step-result");
-  await load(page).catch((error: unknown) => fail(page, L("cognia.import.refresh-failed") + " " + messageOf(error)));
+  await load(page).catch((error: unknown) => fail(page, uiText.text("cognia.import.refresh-failed") + " " + messageOf(error)));
 }
 
 /** Writes a material (new, or a new version of the open one), then shows it. */
@@ -107,7 +108,7 @@ export function installSubmit(page: CogniaPage): void {
     setBusy(page, true);
     fail(page, "");
     const previousLabel = page.submit.textContent;
-    const processing = page.L("cognia.dialog.processing");
+    const processing = uiText.text("cognia.dialog.processing");
     page.submit.textContent = processing;
     try {
       await runStep(page, data);

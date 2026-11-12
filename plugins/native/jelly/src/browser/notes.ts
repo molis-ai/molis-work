@@ -9,6 +9,8 @@ import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { dateLabel, statusOf } from "./util.js";
 import type { JellyBlock, JellyNote, JellyPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 const draftKey = (id: string): string => `molis-jelly-draft:${id}`;
 interface Recovery { id: string; kind: string; revision: number; patch: { title?: string; blocks?: JellyBlock[] }; saved_at: string }
 
@@ -32,7 +34,7 @@ export function renderRecords(page: JellyPage): void {
   const records = page.ws().notes.filter((record) => Boolean(record.archived_at) === page.archived && matches(page, record, blockText(record)))
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updated_at.localeCompare(a.updated_at));
   const row = (record: JellyNote) => `<button type="button" class="jelly-row feed-stage-entry directory-list-row${page.selected?.id === record.id ? " is-selected" : ""}" data-jelly-record="${esc(record.id)}" data-jelly-id="${esc(record.id)}">`
-    + `<div class="jelly-row-main"><strong>${esc(record.title || page.L("jelly.note.untitled"))}</strong><p>${esc(cutHead(blockText(record).replace(/\s+/g, " "), 180))}</p></div>`
+    + `<div class="jelly-row-main"><strong>${esc(record.title || uiText.text("jelly.note.untitled"))}</strong><p>${esc(cutHead(blockText(record).replace(/\s+/g, " "), 180))}</p></div>`
     + `<div class="jelly-row-meta">${record.pinned ? '<svg aria-hidden="true"><use href="#icon-pin"></use></svg>' : ""}${page.categoryDot(record.category_id)}<time>${esc(dateLabel(record.updated_at.slice(0, 10), true))}</time></div></button>`;
   keepListScroll(page, () => {
     page.content.innerHTML = records.length ? `<div class="jelly-rows">${records.map(row).join("")}</div>`
@@ -46,7 +48,7 @@ export const noteCategoryChoices = (page: JellyPage, record: JellyNote): string 
 export function openRecord(page: JellyPage, kind: "note", id: string): void {
   const record = recordFor(page, kind, id);
   if (!record) return;
-  const { $, L } = page;
+  const { $ } = page;
   page.selected = { kind, id };
   page.dirty = false;
   page.editorVersion = 0;
@@ -55,9 +57,9 @@ export function openRecord(page: JellyPage, kind: "note", id: string): void {
   page.lastRange = null;
   page.root.dataset.expanded = "true";
   page.workspace.hidden = false;
-  $("[data-jelly-editor-heading]").textContent = L("jelly.view.notes");
+  $("[data-jelly-editor-heading]").textContent = uiText.text("jelly.view.notes");
   page.root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.jelly", surface_title: "Jelly", object: { kind: "jelly_note", id, version: String(record.revision || 0), title: record.title || "" } }));
-  const archiveLabel = L(record.archived_at ? "jelly.action.restore" : "jelly.action.archive");
+  const archiveLabel = uiText.text(record.archived_at ? "jelly.action.restore" : "jelly.action.archive");
   $("[data-jelly-archive] span").textContent = archiveLabel;
   $("[data-jelly-archive]").setAttribute("aria-label", archiveLabel);
   $("[data-jelly-editor-more]").hidden = false;
@@ -122,7 +124,7 @@ export function saveEditor(page: JellyPage): Promise<unknown> {
 export async function flushEditor(page: JellyPage): Promise<void> {
   clearTimeout(page.saveTimer);
   await page.savePending.catch(() => undefined);
-  if (page.composing) throw new Error(page.L("jelly.error.composing"));
+  if (page.composing) throw new Error(uiText.text("jelly.error.composing"));
   if (page.dirty) await saveEditor(page);
 }
 

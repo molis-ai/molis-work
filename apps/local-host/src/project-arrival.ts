@@ -116,7 +116,7 @@ export function setProjectDescription(homeDirectory: string | undefined, project
  * one place that knows which projects exist; the personal space is made on first use and keeps its memory either way.
  * Returns what remains.
  */
-export function pruneProjectArrival(homeDirectory: string | undefined, liveProjectIds: ReadonlySet<string>): ProjectArrivalState {
+export function pruneProjectArrival(homeDirectory: string | undefined, liveProjectIds: ReadonlySet<string>, persist = true): ProjectArrivalState {
   const state = readProjectArrival(homeDirectory);
   const alive = (id: string) => liveProjectIds.has(id) || id === PERSONAL_SPACE_PROJECT_ID;
   const stale = Object.keys(state.projects).filter(id => !alive(id));
@@ -125,7 +125,7 @@ export function pruneProjectArrival(homeDirectory: string | undefined, liveProje
   for (const id of stale) delete state.projects[id];
   if (lastGone) state.last_project_id = null;
   try {
-    write(homeDirectory, state);
+    if (persist) write(homeDirectory, state);
   } catch {
     // Presentation memory only.
   }

@@ -59,26 +59,26 @@ function blockFor(id: string): Node {
 
 function slashItems(translate: Translate | undefined) {
   return [
-    { id: "paragraph", icon: "text", group: "basic", label: t(translate, "段落"), hint: t(translate, "正文") },
-    { id: "heading1", icon: "hash", group: "basic", label: t(translate, "标题 1"), hint: "H1" },
-    { id: "heading2", icon: "hash", group: "basic", label: t(translate, "标题 2"), hint: "H2" },
-    { id: "heading3", icon: "hash", group: "basic", label: t(translate, "标题 3"), hint: "H3" },
-    { id: "bullet_list", icon: "rows", group: "basic", label: t(translate, "无序列表"), hint: t(translate, "圆点") },
-    { id: "ordered_list", icon: "list-ordered", group: "basic", label: t(translate, "有序列表"), hint: "1." },
-    { id: "task_list", icon: "check", group: "basic", label: t(translate, "清单"), hint: t(translate, "待办") },
-    { id: "callout", icon: "info", group: "basic", label: t(translate, "Callout"), hint: t(translate, "提示块") },
-    { id: "blockquote", icon: "message", group: "basic", label: t(translate, "引用"), hint: t(translate, "摘一句") },
-    { id: "code_block", icon: "code", group: "basic", label: t(translate, "代码"), hint: t(translate, "等宽") },
-    { id: "table", icon: "grid", group: "basic", label: t(translate, "表"), hint: t(translate, "两列表") },
-    { id: "columns", icon: "columns", group: "basic", label: t(translate, "分栏"), hint: t(translate, "并排") },
-    { id: "toggle", icon: "chevron-right", group: "basic", label: t(translate, "Toggle"), hint: t(translate, "折叠") },
-    { id: "image", icon: "image", group: "basic", label: t(translate, "图片"), hint: t(translate, "上传") },
-    { id: "horizontal_rule", icon: "minus", group: "basic", label: t(translate, "分隔线"), hint: t(translate, "横线") },
-    { id: "toc", icon: "library", group: "basic", label: t(translate, "目录"), hint: t(translate, "按标题生成") },
-    { id: "page_ref", icon: "link", group: "card", label: t(translate, "引用文档"), hint: "@" },
-    { id: "task_card", icon: "clipboard", group: "card", label: t(translate, "任务卡"), hint: t(translate, "待办") },
-    { id: "event_card", icon: "clock", group: "card", label: t(translate, "日程卡"), hint: t(translate, "日期") },
-    { id: "calendar", icon: "calendar", group: "card", label: t(translate, "月历"), hint: t(translate, "本篇事件") },
+    { id: "paragraph", icon: "text", group: "basic", label: t(translate, "pages.editor.paragraph"), hint: t(translate, "pages.editor.body") },
+    { id: "heading1", icon: "hash", group: "basic", label: t(translate, "pages.editor.heading-1"), hint: "H1" },
+    { id: "heading2", icon: "hash", group: "basic", label: t(translate, "pages.editor.heading-2"), hint: "H2" },
+    { id: "heading3", icon: "hash", group: "basic", label: t(translate, "pages.editor.heading-3"), hint: "H3" },
+    { id: "bullet_list", icon: "rows", group: "basic", label: t(translate, "pages.editor.bulleted-list"), hint: t(translate, "pages.editor.bullets") },
+    { id: "ordered_list", icon: "list-ordered", group: "basic", label: t(translate, "pages.editor.numbered-list"), hint: "1." },
+    { id: "task_list", icon: "check", group: "basic", label: t(translate, "pages.editor.checklist"), hint: t(translate, "pages.editor.todo") },
+    { id: "callout", icon: "info", group: "basic", label: t(translate, "pages.editor.callout"), hint: t(translate, "pages.editor.callout-2") },
+    { id: "blockquote", icon: "message", group: "basic", label: t(translate, "pages.editor.quote"), hint: t(translate, "pages.editor.a-line-worth-keeping") },
+    { id: "code_block", icon: "code", group: "basic", label: t(translate, "pages.editor.code-2"), hint: t(translate, "pages.editor.monospace") },
+    { id: "table", icon: "grid", group: "basic", label: t(translate, "pages.editor.table"), hint: t(translate, "pages.editor.two-columns") },
+    { id: "columns", icon: "columns", group: "basic", label: t(translate, "pages.editor.columns"), hint: t(translate, "pages.editor.side-by-side") },
+    { id: "toggle", icon: "chevron-right", group: "basic", label: t(translate, "pages.editor.toggle"), hint: t(translate, "pages.editor.toggle-2") },
+    { id: "image", icon: "image", group: "basic", label: t(translate, "pages.editor.image"), hint: t(translate, "pages.editor.upload") },
+    { id: "horizontal_rule", icon: "minus", group: "basic", label: t(translate, "pages.editor.divider"), hint: t(translate, "pages.editor.line") },
+    { id: "toc", icon: "library", group: "basic", label: t(translate, "pages.editor.table-of-contents"), hint: t(translate, "pages.editor.from-headings") },
+    { id: "page_ref", icon: "link", group: "card", label: t(translate, "pages.editor.linked-page"), hint: "@" },
+    { id: "task_card", icon: "clipboard", group: "card", label: t(translate, "pages.editor.task-card"), hint: t(translate, "pages.editor.todo") },
+    { id: "event_card", icon: "clock", group: "card", label: t(translate, "pages.editor.event-card"), hint: t(translate, "pages.editor.date") },
+    { id: "calendar", icon: "calendar", group: "card", label: t(translate, "pages.editor.calendar"), hint: t(translate, "pages.editor.events-in-this-page") },
   ];
 }
 
@@ -214,7 +214,7 @@ export function slashPlugin(translate: Translate | undefined) {
                 lastGroup = item.group;
                 const group = document.createElement("p");
                 group.className = "pages-slash-group";
-                group.textContent = t(translate, item.group === "card" ? "卡片" : "基础");
+                group.textContent = t(translate, item.group === "card" ? "pages.editor.cards" : "pages.editor.basic");
                 menu.append(group);
               }
               const button = document.createElement("button");
@@ -234,7 +234,7 @@ export function slashPlugin(translate: Translate | undefined) {
             });
             if (!items.length) {
               const empty = document.createElement("p");
-              empty.textContent = t(translate, "没有匹配的块");
+              empty.textContent = t(translate, "pages.editor.no-matching-blocks");
               menu.append(empty);
             }
           }
@@ -357,7 +357,7 @@ export function mentionPlugin(options: PagesEditorMountOptions) {
             });
             if (!items.length) {
               const empty = document.createElement("p");
-              empty.textContent = t(translate, "没有匹配的文档");
+              empty.textContent = t(translate, "pages.list.no-match");
               menu.append(empty);
             }
           }

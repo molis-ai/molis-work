@@ -29,7 +29,7 @@ const EXACT = "type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() 
 
 const FACTS_API = ["configure", "configureRequested", "intent", "isEventStateOwner", "listEvents", "listLatestEvents", "listLatestReports",
   "listLatestTimeline", "readConfig", "readCurrentRequirements", "readEvent", "readIntentSourceKind", "readObservedEventCursor", "report",
-  "runImmediate", "state"];
+  "reportRecorded", "runImmediate", "selfSupportingSessions", "state"];
 const STATE_API = ["adoptOwner", "applyConcern", "citeDecision", "readProgressReceipt", "readWorkState", "recordNote", "recordProgress",
   "recordTrustedDecision", "requestDecision", "resumeWork", "setAgreement", "submitClosure"];
 const INTENT_API = ["recordArtifacts", "remember", "replay"];
@@ -61,16 +61,16 @@ const tracked = (...directories: string[]) => execFileSync("git", ["ls-files", "
 
 // RAC-1770: the contract lives in the Goals plugin, with the runtime values it had; the platform contracts' three subpaths are gone.
 // Batch 06 (materials-ui-contract §1) added the receipt kind of a version the platform's materials service fixed and its locator.
-const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding",
+const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_EVENT_EVIDENCE_MAX", "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding",
   "boardSnapshotSchema", "boolean", "change", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType",
   "goalAcceptanceCriterionSchema", "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
   "goalDecompositionReviewSchema", "goalDecompositionReviewStatuses", "goalDirectoryItemSchema", "goalEntryActions", "goalEventAcknowledgementCategories",
-  "goalEventAcknowledgementTreatments", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
-  "goalEventDecisionPurposes", "goalEventFieldFormats", "goalEventJudgmentVerdicts", "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSchema",
+  "goalEventAcknowledgementTreatments", "goalEventAssessmentKey", "goalEventBasisGaps", "goalEventBasisTiers", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
+  "goalEventDecisionPurposes", "goalEventEvidenceKinds", "goalEventFieldFormats", "goalEventJudgmentVerdicts", "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSatisfactionGrounds", "goalEventSchema",
   "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds", "goalEventUserConclusionVerdicts",
   "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
   "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",
-  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "inGoalRelation", "judgment",
+  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "inGoalRelation", "judgment", "judgmentInput",
   "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningCompositionSchema", "planningGraphIssueSchema", "planningImpactSchema", "planningMethodInputSchema",
   "planningMethodSchema", "planningMethodSummarySchema", "planningSavedSchema", "progress", "projectGuidanceEntrySchema", "projectGuidanceRevisionSchema",
   "readGoalResumeFacts", "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",

@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "./transaction-errors.js";
 import { backup as backupDatabase, constants, DatabaseSync, type SQLInputValue, type SQLOutputValue, type StatementSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { readSqlStatementShape } from "./sqlite-statement-shape.js";
@@ -231,7 +232,7 @@ class ProjectConnection implements SqliteDatabase {
         return result;
       } catch (error) {
         // SQLite may have rolled back by itself (disk full, ON CONFLICT ROLLBACK); a second ROLLBACK would replace the error that says why.
-        if (this.inTransaction) this.database.exec(nested ? `ROLLBACK TO ${name}; RELEASE ${name}` : "ROLLBACK");
+        rollbackPreservingError(error, () => { if (this.inTransaction) this.database.exec(nested ? `ROLLBACK TO ${name}; RELEASE ${name}` : "ROLLBACK"); });
         throw error;
       } finally { this.savepoints -= 1; }
     };

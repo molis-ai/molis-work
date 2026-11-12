@@ -6,6 +6,7 @@ import dnsPromises from "node:dns/promises";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:https";
 import { syncBuiltinESMExports } from "node:module";
+import { crc32, deflateSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
@@ -16,6 +17,24 @@ export const IMAGE_DOMAIN = "images.t143.example";
 // Independent 1x1 PNG bytes, never produced by the implementation under test.
 export const IMAGE_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 
+/**
+ * A real PNG of about `bytes` bytes (BL-918): RGB rows of seeded noise, stored without compression so the size is what was asked for, give or take
+ * the headers. Built here, never by the implementation under test.
+ */
+export function noisePng(bytes: number, seed: number): Buffer {
+  const width = 1024, stride = 1 + width * 3, height = Math.max(1, Math.round(bytes / stride));
+  const raw = Buffer.alloc(stride * height);
+  let state = seed >>> 0 || 1;
+  for (let row = 0; row < height; row++) for (let i = 1; i < stride; i++) { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; raw[row * stride + i] = state & 0xff; }
+  const chunk = (type: string, data: Buffer) => {
+    const head = Buffer.alloc(8); head.writeUInt32BE(data.length, 0); head.write(type, 4, "latin1");
+    const tail = Buffer.alloc(4); tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0);
+    return Buffer.concat([head, data, tail]);
+  };
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw, { level: 0 })), chunk("IEND", Buffer.alloc(0))]);
+}
+
 /** A real HTTPS image provider: process-local trust and exact DNS only. Fetch, TLS and Prologue remain production code. */
 export async function signedImageProvider(t: TestContext, certificate: "trusted" | "untrusted" | "wrong-san") {
   const directory = mkdtempSync(join(tmpdir(), "signed-model-tls-"));
@@ -24,6 +43,7 @@ export async function signedImageProvider(t: TestContext, certificate: "trusted"
   t.after(() => { setDefaultCACertificates(priorCAs); rmSync(directory, { recursive: true, force: true }); });
   const lookups = { policy: 0, socket: 0 }, tlsErrors: string[] = [];
   const requests: Array<{ method: string | undefined; path: string | undefined; authorized: boolean; body: unknown }> = [];
+  const reply = { images: [IMAGE_PNG] as Buffer[] };
   const run = (...args: string[]) => execFileSync("openssl", args, { cwd: directory, stdio: "ignore" });
   run("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", "ca.key", "-out", "ca.pem", "-days", "1", "-subj", "/CN=T143 isolated CA", "-addext", "basicConstraints=critical,CA:TRUE");
   run("req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout", "server.key", "-out", "server.csr", "-subj", "/CN=" + IMAGE_DOMAIN);
@@ -61,7 +81,7 @@ export async function signedImageProvider(t: TestContext, certificate: "trusted"
     requests.push({ method: request.method, path: request.url, authorized: request.headers.authorization === "Bearer image-fixture", body });
     if (request.method !== "POST" || request.url !== "/v1/images/generations") { response.writeHead(404); response.end(); return; }
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ data: [{ b64_json: IMAGE_PNG.toString("base64") }] }));
+    response.end(JSON.stringify({ data: reply.images.map(image => ({ b64_json: image.toString("base64") })) }));
   });
   let closed = false;
   const close = async () => {
@@ -77,5 +97,5 @@ export async function signedImageProvider(t: TestContext, certificate: "trusted"
   t.after(close); // Also restore DNS, diagnostics and sockets when listen/setup fails before returning a provider.
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
   const address = server.address(); assert.ok(address && typeof address === "object");
-  return { origin: `https://${IMAGE_DOMAIN}:${address.port}`, lookups, requests, tlsErrors, close };
+  return { origin: `https://${IMAGE_DOMAIN}:${address.port}`, lookups, requests, tlsErrors, close, reply };
 }

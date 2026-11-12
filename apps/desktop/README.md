@@ -16,7 +16,6 @@ createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 o
 | --- | --- |
 | [src/web-host.ts](src/web-host.ts) | 桌面 Web Host 装配 |
 | [src/project-catalog.ts](src/project-catalog.ts) | 项目目录装配 |
-| [src/adapters/sqlite-panels.ts](src/adapters/sqlite-panels.ts) | 已停用的桌面面板两张表的建表语句（没有读写；何时删随 #1633 定） |
 
 可对照现有调用方 [apps/desktop/launchers/web/server.ts](../../apps/desktop/launchers/web/server.ts) 阅读装配方式。
 

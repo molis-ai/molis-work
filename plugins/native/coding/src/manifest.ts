@@ -9,6 +9,7 @@ import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -16,6 +17,7 @@ import {
   CODING_REPORT_TYPE,
 } from "./artifacts.js";
 import { CODING_RUN_UPDATED_EVENT, CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_EVENT, CODING_WORKSPACE_INVALIDATED_EVENT } from "./events.js";
+import { CODING_PUBLISHER_BINDING } from "./identity.js";
 import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
@@ -27,8 +29,6 @@ import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
-import { CODING_MESSAGES } from "./messages.js";
-import { CODING_EN } from "./en.js";
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const CODING_PROJECT_PLUGIN_ID = "coding";
@@ -54,10 +54,9 @@ export const codingManifest: PluginManifest = {
   version: /* @version product.release */ "0.1.0",
   name: "Coding",
   sync: codingSync,
-  summary: "和 Agent 一起写代码，留每轮记录。",
+  summary: "和 Agent 一起写代码，留每轮记录。", summary_text: { key: "coding.directory.summary" },
   kind: "app",
-  // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
-  publisher: { publisher_id: "molis", signature: "official-coding-binding" },
+  publisher: { publisher_id: "molis", signature: CODING_PUBLISHER_BINDING },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
@@ -65,6 +64,7 @@ export const codingManifest: PluginManifest = {
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
     { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
+    { permission: SKILLS_READ_PERMISSION, required: true, reason: "列出共同目录里给 Coding 用的技能，并按这一轮选定的技能读取正文" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
@@ -100,6 +100,8 @@ export const codingManifest: PluginManifest = {
       materialsActions.read.capability_id,
       // The files face opens a folder file as the platform's 「打开资料」, then shows it in the side panel's reader.
       materialsActions.open.capability_id,
+      skillCatalogActions.list.capability_id,
+      skillCatalogActions.readBodies.capability_id,
       projectDirectoryActions.get.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
@@ -110,7 +112,7 @@ export const codingManifest: PluginManifest = {
   },
   // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", title_text: { key: "coding.artifacts.type-title" }, preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
     consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CHARACTER_ARTIFACT_TYPE ? /* @version type.character.definition */ 1 : CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   process_items: {
@@ -187,9 +189,6 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.prepare-rewind", method: "POST", path: "/sessions/:sessionId/checkpoints/:checkpointId/rewind" },
     { route_id: "coding.save-mcp", method: "POST", path: "/mcp" },
     { route_id: "coding.control-mcp", method: "POST", path: "/mcp/:serverId/control" },
-    { route_id: "coding.discover-methods", method: "POST", path: "/methods/discover" },
-    { route_id: "coding.install-method", method: "POST", path: "/methods/install" },
-    { route_id: "coding.read-method", method: "GET", path: "/methods/:skillId/:version" },
     { route_id: "coding.state", method: "GET", path: "/state" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
@@ -221,9 +220,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-run", method: "POST", path: "/sessions/:sessionId/cards/:cardId/run" },
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
-  ui: {
-    messages: CODING_MESSAGES,
-    translations: CODING_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     embedded_plugins: ["io.molis.work.git", "io.molis.work.diff"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

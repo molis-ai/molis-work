@@ -1,6 +1,6 @@
 ---
 method_id: domain-ai-data-product
-version: 1
+version: 2
 kind: domain
 name: "AI 与数据产品"
 summary: "同时覆盖数据、评测、运行成本、安全和用户干预。"

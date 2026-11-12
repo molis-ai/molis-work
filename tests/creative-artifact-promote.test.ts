@@ -1,4 +1,4 @@
-import { zh as pagesZh } from "./fixtures/pages-host.js";
+import { pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -17,28 +17,27 @@ import { openTestHome } from "./fixtures/test-home.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? ""),
-  text: (value: string) => value,
 };
 
 test("四个创作插件的列表和顶栏都有存为固定版本（放进 Artifacts）", () => {
   // Pages' words are stable keys: the page is shown in the person's language, as the Host would.
-  const pages = renderPagesWorkbench({ primitives: { ...primitives, text: (key: string, values?: Record<string, string | number>) => pagesZh(key, values) } });
+  const pages = withPageText("zh", ["pages"], () => renderPagesWorkbench({ primitives: { ...primitives, text: pageText("zh", "pages") } }));
   assert.match(pages, /data-pages-artifact-bar/);
   // Named by what the person gets: a version that no longer changes, kept in this location's Artifacts.
   assert.match(pages, /存为固定版本/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-artifact/);
 
-  const form = renderFormWorkbench({ primitives });
+  const form = withPageText("zh", ["form"], () => renderFormWorkbench({ primitives: { ...primitives, text: pageText("zh", "form") } }));
   assert.match(form, /data-form-artifact-bar/);
   assert.match(form, /data-form-publish/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-artifact/);
 
-  const dataset = renderDatasetWorkbench({ primitives });
+  const dataset = withPageText("zh", ["dataset"], () => renderDatasetWorkbench({ primitives: { ...primitives, text: pageText("zh", "dataset") } }));
   assert.match(dataset, /data-dataset-artifact-bar/);
   assert.match(dataset, /data-dataset-snapshot/);
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/dataset/src/browser/commands.ts", import.meta.url)), "utf8"), /data-dataset-artifact/);
 
-  const ppt = renderPptWorkbench({ primitives });
+  const ppt = withPageText("zh", ["ppt"], () => renderPptWorkbench({ primitives: { ...primitives, text: pageText("zh", "ppt") } }));
   assert.match(ppt, /data-ppt-artifact-bar/);
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/commands.ts", import.meta.url)), "utf8"), /data-ppt-artifact/);
 });

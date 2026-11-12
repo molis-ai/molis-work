@@ -103,7 +103,7 @@ class ContextJourneyStore {
     const row = this.db.prepare("SELECT body FROM journeys WHERE json_extract(body, '$.oauth_status') = 'pending' AND json_extract(body, '$.oauth_state') = ?").get(state) as { body: string } | undefined;
     return row ? JSON.parse(row.body) as ContextJourney : null;
   }
-  latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string } | null {
+  latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string | null } | null {
     const row = this.db.prepare(`SELECT body FROM journeys
       WHERE json_extract(body, '$.phase') != 'complete'
       AND (json_extract(body, '$.adoption') IS NOT NULL
@@ -113,7 +113,7 @@ class ContextJourneyStore {
       ORDER BY updated_at DESC, rowid DESC LIMIT 1`).get() as { body: string } | undefined;
     if (!row) return null;
     const j = JSON.parse(row.body) as ContextJourney;
-    return { id: j.id, phase: j.phase, updated_at: j.updated_at, title: j.adoption?.title ?? j.summary?.title ?? "未完成的整理" };
+    return { id: j.id, phase: j.phase, updated_at: j.updated_at, title: j.adoption?.title ?? j.summary?.title ?? null };
   }
   create(id: string): ContextJourney {
     contextJourneyId(id);

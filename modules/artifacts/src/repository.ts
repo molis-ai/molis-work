@@ -9,6 +9,7 @@ import type {
   ArtifactVersionRecord,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { announceVersionStoreWrite, type CommitWatchedDatabase } from "./committed.js";
 
 type Row = Record<string, unknown>;
@@ -187,20 +188,30 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
   }
 
   listArtifacts(projectId: string, query: ArtifactListQuery = {}): R[] {
+    const where = ["identity.project_id = ?"], values: Array<string | number> = [projectId];
+    if (query.artifact_type_id !== undefined) { where.push("version.artifact_type_id = ?"); values.push(query.artifact_type_id); }
+    if (query.schema_version !== undefined) { where.push("version.schema_version = ?"); values.push(query.schema_version); }
+    if (query.scope !== undefined) { where.push("version.scope = ?"); values.push(query.scope); }
+    if (query.lifecycle_state !== undefined) { where.push("version.lifecycle_state = ?"); values.push(query.lifecycle_state); }
+    if (query.personal_owner_actor_id !== undefined) { where.push("(version.scope <> 'personal' OR identity.owner_actor_id = ?)"); values.push(query.personal_owner_actor_id); }
+    if (query.availability !== undefined) { where.push("version.availability = ?"); values.push(query.availability); }
+    if (query.supported_types !== undefined) { where.push("(version.artifact_type_id, version.schema_version) IN (SELECT json_extract(value, '$.artifact_type_id'), json_extract(value, '$.schema_version') FROM json_each(?))"); values.push(JSON.stringify(query.supported_types)); }
     return (this.db.prepare(`
       SELECT version.*, identity.project_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
       FROM ${this.tables.versions} version
       JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
-      WHERE identity.project_id = ?
-      ORDER BY version.created_at DESC, version.artifact_id, version.version DESC
-    `).all(projectId) as Row[])
-      .map(row => this.map(row))
-      .filter((record) =>
-        (!query.artifact_type_id || record.artifact_type_id === query.artifact_type_id)
-        && (!query.schema_version || record.schema_version === query.schema_version)
-        && (!query.scope || record.scope === query.scope)
-        && (!query.lifecycle_state || record.lifecycle_state === query.lifecycle_state));
+      WHERE ${where.join(" AND ")}
+      ORDER BY version.created_at DESC, version.artifact_id, version.version DESC LIMIT ? OFFSET ?
+    `).all(...values, Math.min(200, Math.max(1, query.limit ?? 200)), Math.max(0, query.offset ?? 0)) as Row[]).map(row => this.map(row));
+  }
+
+  existingReferences(projectId: string, references: readonly ArtifactReference[]): ArtifactReference[] {
+    return this.db.prepare(`SELECT version.artifact_id, version.version FROM ${this.tables.versions} version
+      JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
+      WHERE identity.project_id = ? AND (version.artifact_id, version.version) IN
+        (SELECT json_extract(value, '$.artifact_id'), json_extract(value, '$.version') FROM json_each(?))
+      ORDER BY version.artifact_id, version.version LIMIT 200`).all(projectId, JSON.stringify(references)) as ArtifactReference[];
   }
 
   insertVersion(record: R): void {
@@ -305,13 +316,4 @@ export function mapFixedVersion(row: Row): FixedVersionRecord {
     archived_at: row.archived_at == null ? null : String(row.archived_at),
     archived_by: row.archived_by == null ? null : String(row.archived_by),
   };
-}
-
-function parseJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }

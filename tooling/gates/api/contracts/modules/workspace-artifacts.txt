@@ -266,8 +266,6 @@ export declare const WORKSPACE_REF_SCHEMA_VERSION = 1;
 
 export declare const WORKSPACE_REF_TYPE = "workspace.ref.v1";
 
-export declare const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
-
 export declare const WORKSPACE_SKIPPED_FOLDERS: readonly ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"];
 
 export interface WorkspaceFileQuery {
@@ -331,6 +329,10 @@ export type WorkspaceGitResult = {
     tool: "ready" | "missing" | "unauthenticated" | "unsupported";
     host: string | null;
     message: string;
+    local_remote?: {
+        name: string;
+        url: string;
+    };
 } | {
     outcome: "conflict-file";
     path: string;
@@ -352,7 +354,11 @@ export type WorkspaceGitResult = {
     after_mode: GitFileMode | null;
     revision: string;
 } | {
-    outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error";
+    outcome: "not-a-repository";
+    message: string;
+    reason?: "directory_not_created";
+} | {
+    outcome: "denied" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error";
     message: string;
 };
 

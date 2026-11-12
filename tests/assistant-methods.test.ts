@@ -6,16 +6,16 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, assistantServiceFor, closeAssistantService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantService } from "@molis-ai/molis-work-app-local-host";
-import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { SKILLS_PERMISSIONS, SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { AssistantService, AssistantStore, assistantAuthority, assistantServiceFor, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
-import { homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
+import { installedPackageHost } from "./fixtures/signed-package-host.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
+import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 25)); }
@@ -34,7 +34,7 @@ function reply(text = "好的。"): Response {
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
 
-const PAGES_METHOD = "io.molis.work.pages/meeting-notes";
+const PAGES_ID = "io.molis.work.pages";
 
 test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version while it runs", async () => {
   const declared = (methods: unknown[]) => manifestProblems(declarationManifest({ methods }));
@@ -46,28 +46,29 @@ test("a method a Plugin offers for business work is declared with business tools
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-registry-"));
   try {
     const registry = homeAgentDefinitions(home);
-    assert.equal(registry.methods().find(method => method.key === PAGES_METHOD), undefined, "nothing of Pages' until it runs (PG-051)");
+    assert.equal(registry.methods().find(method => method.owner_id === PAGES_ID), undefined, "nothing of Pages' until it runs (PG-051)");
     registerPluginAgentDefinitions({ directory: home, completeText: () => undefined, stores: homeStores() }, createPagesPlugin(), "pages-install");
-    const listed = registry.methods().find(method => method.key === PAGES_METHOD);
+    const listed = registry.methods().find(method => method.key === `${PAGES_ID}/meeting-notes`);
     assert.ok(listed, "Pages' method is registered with the Host, from its running definition");
     assert.equal(listed.source.kind, "plugin");
-    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 1]);
+    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 2]);
     // ADH-14: whether writing the page asks first is the Host's, by the action's effect; the method no longer stops for it.
     assert.equal(listed.summary, "把一段会议记录或一篇会议文档整理成结论、待办（谁、做什么、何时）和待定问题，每条注明依据；用户要时写成 Pages 文档。");
-    const method = registry.method("io.molis.work.pages", "meeting-notes", 1);
+    // The body the shared catalog reads is the one this installation registered, at its declared version.
+    const method = registry.installation(PAGES_ID, "pages-install")?.methods?.find(item => item.skill_id === "meeting-notes");
+    assert.ok(method);
+    assert.equal(method.version, 2);
     assert.match(method.body, /待定问题/);
     assert.match(method.body, /\n5\. 用户要写成 Pages 文档时，新建文档写入；不覆盖已有文档，除非用户明确要求。$/);
     assert.doesNotMatch(method.body, /确认/);
-    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 2), /没有登记这个方法版本/);
-    assert.equal(registry.diagnostics().owners.find(owner => owner.owner_id === "io.molis.work.pages")?.methods, 1);
+    assert.equal(registry.diagnostics().owners.find(owner => owner.owner_id === PAGES_ID)?.methods, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 
-test("a round lists the methods its scope can use; one the person chose goes with that round only, and a round may read one itself", { timeout: 120_000 }, async t => {
-  const home = await mkdtemp(join(tmpdir(), "assistant-methods-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "方法实操", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+// SKP-02 SKP-04 SKC-07: the Assistant reads the shared catalog. A package that only carries content (no action) is offered once the person
+// turns its Skill on; before 9-2 it was offered only when its plugin had an available action here (expected change, not a looser check).
+test("SKP-02 SKP-04 SKC-07 a round lists the catalog's Skills for the Assistant; one the person chose goes with that round only, by its SkillRef, and its use is recorded", { timeout: 120_000 }, async t => {
+  const h = await installedPackageHost();
   const requests: string[] = [];
   t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (url: unknown, init: RequestInit) => {
     if (!String(url).startsWith("https://1.1.1.1/")) throw new Error("unexpected network request in fixture: " + String(url));
@@ -75,56 +76,111 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     return reply();
   }));
   const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-methods-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-methods-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
-  const registry = homeAgentDefinitions(home);
-  const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
-    scopeActions: async work => {
-      const ref = work.project_ref;
-      const scoped = ref ? local.actionClient(ref) : local.homeActionClient();
-      return { discover: async () => scoped.discover(await local.localPersonContext(ref)),
-        invoke: async (action, input) => scoped.invoke(await local.localPersonContext(ref), action, input) };
-    },
-    methods: { list: () => registry.methods(), read: (owner, skill, version) => registry.method(owner, skill, version) },
-    projectTitle: async () => project.display_name, timeZone: "Asia/Shanghai" }, "web-user");
+  const { service } = assistantServiceFor({ localHost: h.host, homeDirectory: h.home, agentHost, agentReady: async () => {}, projectTitle: async () => "方法实操", pages: async () => [] });
+  const offered = async () => (await service.reads.methods(null, { project_ref: h.reference })).flatMap(item => item.kind === "skill" && item.skill.ref.source.plugin_id === CONTENT_PLUGIN_ID ? [item.skill] : []);
   try {
-    const methods = await service.reads.methods(null, { project_ref: reference });
-    assert.ok(methods.some(method => method.method_id === PAGES_METHOD && method.plugin_title === "Pages"), JSON.stringify(methods));
+    await h.install(signedContentPackage(newPublisher()));
+    assert.deepEqual(await offered(), [], "installed and off: the person has not turned it on");
+    const person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] }, ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
+    const [off] = ((await h.client.invoke(person, ref(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] }).skills.filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
+    assert.ok(off);
+    await h.client.invoke(person, ref(skillCatalogActions.setState), { install_id: off.ref.install_id, skill_id: off.ref.skill_id, scope: "project", expected_revision: 0, state: "auto" });
+    const [skill] = await offered();
+    assert.ok(skill, "a content-only package's Skill is offered to the Assistant");
+    assert.deepEqual(skill.ref, off.ref, "the same SkillRef as the catalog's, no second reference");
 
-    // Chosen with “/”: its registered steps go with this round, said as the person's choice.
-    const sent = await service.send({ text: "整理一下：周三定了双周会，张三下周五前出看板，预算还没定", request_id: "method-send-1",
-      materials: [{ material_id: "method-1", kind: "method", title: "方法：会议纪要整理", explicit: true, method: { method_id: PAGES_METHOD } }] }, { project_ref: reference });
+    // Chosen with “/”: its body goes with this round, said as the person's choice; it is recorded once the round accepted it.
+    const sent = await service.send({ text: "整理一下：周三定了双周会", request_id: "method-send-1",
+      materials: [{ material_id: "method-1", kind: "method", title: "方法：会议纪要", explicit: true, method: { kind: "skill", ref: skill.ref } }] }, { project_ref: h.reference });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "first round");
     const first = requests.at(-1)!;
-    assert.ok(first.includes("用户为这一轮选定的方法「会议纪要整理」"), "the chosen method reaches the model as the person's choice");
-    assert.ok(first.includes("待定问题"), "with its registered steps");
-    assert.deepEqual((await service.read(sent.work.work_id)).rounds[0]!.materials.map(item => [item.kind, item.title]), [["method", "方法：会议纪要整理"]]);
+    assert.ok(first.includes(`用户为这一轮选定的方法「${MEETING_NOTES.id}」`), "the chosen method reaches the model as the person's choice");
+    assert.ok(first.includes("先读 references/template.md"), "with its body from the catalog");
+    const round = (await service.read(sent.work.work_id)).rounds[0]!;
+    assert.deepEqual(round.materials.map(item => [item.kind, item.method?.kind === "skill" && item.method.ref]), [["method", skill.ref]]);
+    const uses = homeAgentDefinitions(h.home).skills.uses(skill.ref.install_id, skill.ref.skill_id);
+    assert.deepEqual(uses.map(use => [use.caller, use.ref]), [["assistant", skill.ref]]);
 
-    // The next round does not carry it; the method is listed, for the round to read if it fits.
+    // The next round does not carry it; the Skill is listed, with exactly how to read one.
     await service.send({ text: "再补一条：李四负责预算", request_id: "method-send-2", work_id: sent.work.work_id }, {});
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "second round");
     const second = requests.at(-1)!;
     assert.ok(!second.includes("用户为这一轮选定的方法"), "a chosen method is for its own round only");
-    assert.ok(second.includes("可用的方法") && second.includes(PAGES_METHOD), "the round sees which methods it can read");
-    assert.ok(second.includes("input 是对象，例如") && second.includes("method_id"), "and exactly how to read one (its input is an object)");
-    // The gateway matches capability, version and provider exactly, so the identity the round is told is the registered one, not a copy of it.
-    assistantServiceFor({ localHost: local, homeDirectory: home, agentHost, agentReady: async () => {}, projectTitle: async () => project.display_name, pages: async () => [] });
-    const offered = await local.actionClient(reference).discover(await local.localPersonContext(reference));
-    const methodRead = offered.find(view => view.capability_id === "assistant.methods.read");
-    assert.ok(methodRead, "the read action is registered");
-    assert.ok(second.includes(`capability_id 为 assistant.methods.read，version 为 ${methodRead.version}，provider_id 为 ${methodRead.provider.provider_id}。`), "the round is told the action's registered version");
+    assert.ok(second.includes(skill.ref.installation_generation), "the round sees the Skill's exact reference");
+    assert.ok(second.includes(`capability_id 为 ${skillCatalogActions.readBodies.capability_id}，version 为 ${skillCatalogActions.readBodies.version}，provider_id 为 ${SKILLS_PROVIDER_ID}`),
+      "and reads its body from the shared catalog");
+    assert.equal(homeAgentDefinitions(h.home).skills.uses(skill.ref.install_id, skill.ref.skill_id).length, 1, "a listed Skill is not a use");
 
-    // Reading one, as the round's own read action does; one that is not offered here is refused with why.
-    const read = await service.reads.readMethod(service.reads.workRecord(sent.work.work_id), PAGES_METHOD);
-    assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
-    await assert.rejects(service.reads.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
+    // A choice that is no longer current is refused, never swapped for another version.
+    const stale: SkillRef = { ...skill.ref, installation_generation: "old" };
+    await assert.rejects(service.send({ text: "用旧的", request_id: "method-send-3", work_id: sent.work.work_id,
+      materials: [{ material_id: "method-2", kind: "method", title: "方法", explicit: true, method: { kind: "skill", ref: stale } }] }, {}), /not_current/);
   } finally {
-    service.continuations.close(); closeAssistantService(local); await adapter.close();
-    await local.close();
-    await rm(home, { recursive: true, force: true });
+    service.continuations.close(); await adapter.close(); await h.close();
   }
+});
+
+/** A catalog entry for the counting fixture: only what the Assistant reads. */
+const entry = (index: number): SkillCatalogEntry => ({ ref: { source: { kind: "plugin", plugin_id: `p${index}`, plugin_version: "1.0.0", publisher_signature: "sig" }, skill_id: `s${index}`, version: 1,
+  install_id: `i${index}`, installation_generation: "g" }, name: `技能 ${index}`, description: "d", applies_to: "assistant", user_invocable: true, tools: [], resources: [],
+  connector_categories: [], runs_scripts: false, excerpt: "", pack: { plugin_id: `p${index}`, title: `包 ${index}`, version: "1.0.0", publisher_label: "x", trust: "pinned", scope: "project" },
+  state: "auto", settings_revision: 1, availability: { available: true } });
+
+// 09 §3.4: before, `methods()` bound each signed entry on its own (one read of the project's install records each, 20 for 20) after one full
+// action discovery; now one catalog read and one binding read, and a round's chosen Skills are read in one `skills.body.read`.
+test("SKC-07 reading 20 offered roles and Skills reads the install records once and the catalog once; 20 chosen Skills are one body read", async () => {
+  const counts = { bind: 0, bound: 0, skills: 0, readSkills: 0, refs: 0 };
+  const skills = Array.from({ length: 20 }, (_, index) => entry(index));
+  const roles = Array.from({ length: 20 }, (_, index) => ({ install_id: `r${index}`, owner_id: `o${index}`, source: { kind: "plugin" as const, plugin_id: `o${index}`, plugin_version: "1.0.0", title: "包", publisher_signature: "sig" },
+    role_id: `role-${index}`, version: 1, name: `角色 ${index}`, purpose: "p", default_ref: { kind: "role" as const, entry_id: `role-${index}`, source: { kind: "plugin" as const, plugin_id: `o${index}`, plugin_version: "1.0.0", publisher_signature: "sig" } } }));
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { pages: async () => [], host: async () => { throw new Error("no round"); }, authority: async () => { throw new Error("no round"); },
+    methods: {
+      roles: () => roles,
+      bindSigned: async (_project, installs) => { counts.bind++; counts.bound += installs.length;
+        return new Map(installs.map(item => [item.install_id, { installation: { install_id: item.install_id, installation_generation: "g", project_id: null }, assertCurrent: () => {} }])); },
+      readSigned: () => { throw new Error("not read"); }, recordSignedUse: () => {}, recordSkillUse: () => {},
+      skills: async () => { counts.skills++; return skills; },
+      readSkills: async (_project, refs) => { counts.readSkills++; counts.refs += refs.length; return refs.map(ref => ({ ref, ok: true as const, name: ref.skill_id, body: "做法" })); },
+    } }, "web-user");
+  const offered = await service.reads.methods(null);
+  assert.equal(offered.length, 40);
+  assert.deepEqual([counts.bind, counts.bound, counts.skills], [1, 20, 1], "one binding read for all 20 roles, one catalog read");
+  const work = store.create({ actor_id: "web-user", title: "计数", scope: { kind: "personal" }, origin: null });
+  const chosen = await service.materials.chosenMethods(work, skills.map((skill, index) => ({ material_id: `m${index}`, kind: "method" as const, title: "方法", explicit: true, method: { kind: "skill" as const, ref: skill.ref } })));
+  assert.equal(chosen.length, 20);
+  assert.deepEqual([counts.readSkills, counts.refs], [1, 20], "20 chosen Skills are one body read");
+});
+
+// B1 + B3 (round-2 review, fixed): the round's tool calls carry the Assistant's `skill_round`, so the model can read an `auto`,
+// assistant-only Skill's body through the catalog; a `manual` one is refused `not_named` unless the person named it. Before the fix
+// the auto read was refused `not_applicable`, although the materials told the model to read it.
+test("B1 B3 SKP-10: an Assistant round reads an auto assistant-only Skill through its action port, and a manual one only when named", { timeout: 120_000 }, async () => {
+  const h = await installedPackageHost();
+  try {
+    await h.install(signedContentPackage(newPublisher(), { skills: [{ ...MEETING_NOTES, applies_to: "assistant" }] }));
+    const person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] }, ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
+    const [offer] = ((await h.client.invoke(person, ref(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] }).skills.filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
+    assert.ok(offer, "the content package's Skill is in the catalog");
+    const setState = (state: "auto" | "manual", expected_revision: number) => h.client.invoke(person, ref(skillCatalogActions.setState),
+      { install_id: offer.ref.install_id, skill_id: offer.ref.skill_id, scope: "project", expected_revision, state });
+    await setState("auto", 0);
+    const work = { work_id: "work-b1", session_id: null, project_ref: h.reference } as never;
+    const readBody = async (named: readonly typeof offer.ref[]) => {
+      const ports = await assistantAuthority(h.host, work, () => new Set(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, named).actions?.("prologue");
+      assert.ok(ports);
+      const read = await ports.invoke({ capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, provider_id: SKILLS_PROVIDER_ID },
+        { refs: [offer.ref] }) as { results: Array<{ ok: boolean; reason?: string; body?: string }> };
+      return read.results[0]!;
+    };
+    const auto = await readBody([]);
+    assert.deepEqual([auto.ok, auto.body?.includes("先读 references/template.md")], [true, true], "the round reads its own auto Skill's body");
+    await setState("manual", 1);
+    assert.equal((await readBody([])).reason, "not_named", "a manual Skill nobody named is not readable");
+    assert.equal((await readBody([offer.ref])).ok, true, "the person's named list makes it readable");
+  } finally { await h.close(); }
 });

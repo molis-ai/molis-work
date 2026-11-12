@@ -45,6 +45,8 @@ export interface AssistantMemoryCandidate {
   /** When it applies. */
   applies: string;
   state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
+  /** The version the panel saw; keeping or declining it names this one, so a suggestion changed meanwhile is refused, not overwritten. */
+  version: number;
   created_at: string;
   memory_id?: string;
   /** Why the write gate held back what the person asked to keep, in the memory service's words; absent for the work's own suggestions. */ held?: string;

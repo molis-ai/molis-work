@@ -499,9 +499,8 @@ test("RAC-181 following a round is a concurrent plugin-only query on the caller'
   assert.equal(seen.length, before, "no refused wait reached the Runtime");
 });
 
-/** R8 batch 4: the runtime directory, roles and actions, the method library, the MCP servers and the wait for a continuation. */
+/** R8 batch 4: the runtime directory, roles and actions, the MCP servers and the wait for a continuation. */
 const DIRECTORY = [agent.listRuntimes, agent.availableRoles, agent.listActions];
-const METHODS = [agent.listSkills, agent.readSkill, agent.discoverSkills, agent.installSkill];
 const MCP = [agent.listMcp, agent.saveMcp, agent.controlMcp];
 const LIBRARY = "fixture-library";
 const READER = { roles: [{ role_id: "reader", version: 1, execution: "read-only" as const, prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }], mcp: true };
@@ -540,12 +539,6 @@ async function librarySetup(t: TestContext, home = false) {
     read: async (run: unknown) => ({ ...ROUND_VIEW, ref: run }) as never,
     observe(run: unknown, listener: (view: never) => void) { observers.add(listener); listener({ ...ROUND_VIEW, ref: run } as never); return () => { observers.delete(listener); }; },
     readSession: async (session: { runtime_id: string; session_id: string }) => ({ session, owner: sessions.get(session.session_id), title: "", runs: [{ session_id: session.session_id, run_id: "r1" }], latest_run: null }) as never,
-    skillLibrary: {
-      list: asked("skills.list", () => [{ skill_id: "notes", version: 1, name: "Notes", summary: "", tools: [], source: "installed" as const, enabled: true }]),
-      read: asked("skills.read", () => ({ skill_id: "notes", version: 1, name: "Notes", summary: "", tools: [], body: "Write notes." })),
-      discover: asked("skills.discover", () => []),
-      install: asked("skills.install", () => ({ skill_id: "notes", version: 1, name: "Notes", summary: "", tools: [], source: "installed" as const, enabled: true })),
-    },
     mcpLibrary: {
       list: async (owner: unknown) => { seen.push(["mcp.list", owner]); await listing.current; return [server("s1")]; },
       save: asked("mcp.save", () => server("s1")), control: asked("mcp.control", () => undefined),
@@ -570,7 +563,7 @@ async function librarySetup(t: TestContext, home = false) {
     },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumes = [...DIRECTORY, ...METHODS, ...MCP, agent.awaitContinuations, agent.waitRun, collaboration.read, collaboration.control].map(definition => definition.capability_id);
+  const consumes = [...DIRECTORY, ...MCP, agent.awaitContinuations, agent.waitRun, collaboration.read, collaboration.control].map(definition => definition.capability_id);
   const consumer = callerPlugin("library", "project", {}, consumes), other = callerPlugin("library-other", "project", {}, consumes), bystander = callerPlugin("library-bystander", "project");
   consumer.definition.manifest.agent = READER;
   consumer.definition.agent_prompts = [{ prompt_id: "reader", version: 1, body: "Answer from the supplied context only.", layer: "role" }];
@@ -596,7 +589,7 @@ async function stoppedMidway(gate: { current?: Promise<void> }, call: (signal: A
 }
 
 test("RAC-182 the runtime directory, roles and actions are plugin-only reads that answer for the caller's own declarations", async t => {
-  for (const definition of [...DIRECTORY, ...METHODS, ...MCP, agent.awaitContinuations] as ActionDefinition[]) {
+  for (const definition of [...DIRECTORY, ...MCP, agent.awaitContinuations] as ActionDefinition[]) {
     assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
   }
   const { localHost, reference, seen, consumer, other, bystander } = await librarySetup(t), actions = consumer.actions(PROJECT);
@@ -605,35 +598,17 @@ test("RAC-182 the runtime directory, roles and actions are plugin-only reads tha
   assert.deepEqual(await other.actions(PROJECT).invoke(agent.availableRoles, [LIBRARY]), [{ role_id: "drafter", available: true }], "another plugin's are its own");
   assert.ok(Array.isArray(await actions.invoke(agent.listActions, [LIBRARY])));
   const before = seen.length;
-  // Naming a plugin is an input none of them takes: whose roles, actions, methods or servers is the caller, never an input.
-  for (const definition of [agent.availableRoles, agent.listActions, agent.listSkills, agent.listMcp])
+  // Naming a plugin is an input none of them takes: whose roles, actions or servers is the caller, never an input.
+  for (const definition of [agent.availableRoles, agent.listActions, agent.listMcp])
     await assert.rejects(actions.invoke(definition as ActionDefinition, [LIBRARY, other.id]), { code: "actions.input_invalid" }, definition.capability_id);
   await assert.rejects(actions.invoke(agent.listRuntimes as ActionDefinition, [LIBRARY]), { code: "actions.input_invalid" });
-  for (const definition of [...DIRECTORY, ...METHODS, ...MCP, agent.awaitContinuations] as ActionDefinition[]) {
+  for (const definition of [...DIRECTORY, ...MCP, agent.awaitContinuations] as ActionDefinition[]) {
     await assert.rejects(bystander.actions(PROJECT).invoke(definition, [LIBRARY]), { code: "actions.forbidden" }, definition.capability_id);
     for (const audience of ["user", "agent", "workflow", "mcp"] as const)
       await assert.rejects(localHost.actionClient(reference).invoke(person(audience), definition, [LIBRARY]), { code: "actions.forbidden" }, `${definition.capability_id} ${audience}`);
   }
   await assert.rejects(localHost.client(reference).invoke(agent.listRuntimes, []), { code: "actions.forbidden" }, "nor the Host's own client");
   assert.equal(seen.length, before, "no refused call reached the Runtime");
-});
-
-test("RAC-183 the method library is the caller's own: it lists, reads and installs for the calling plugin, and a stopped install writes nothing", async t => {
-  const { seen, gate, consumer, other, methodOwner } = await librarySetup(t), actions = consumer.actions(PROJECT);
-  const named = (name: string) => seen.filter(([what]) => what === name).map(([, owner]) => owner);
-  assert.deepEqual((await actions.invoke(agent.listSkills, [LIBRARY])).map(entry => entry.skill_id), ["notes"]);
-  await other.actions(PROJECT).invoke(agent.listSkills, [LIBRARY]);
-  assert.deepEqual(named("skills.list"), [methodOwner(consumer), methodOwner(other)], "each plugin's library is asked for that plugin");
-  assert.equal((await actions.invoke(agent.readSkill, [LIBRARY, { skill_id: "notes", version: 1 }])).body, "Write notes.");
-  assert.deepEqual(named("skills.read"), [methodOwner(consumer)]);
-  assert.deepEqual(await actions.invoke(agent.installSkill, [LIBRARY, "candidate-1"]).then(entry => entry.skill_id), "notes");
-  assert.deepEqual(named("skills.install"), [methodOwner(consumer)]);
-  // A folder outside the project's workspaces is refused before the Runtime looks in it (this project authorizes none).
-  await assert.rejects(actions.invoke(agent.discoverSkills, [LIBRARY, { canonical_path: "/elsewhere", realpath_verified: true }, "skills"]), { code: "agent.directory_unauthorized" });
-  assert.deepEqual(named("skills.discover"), []);
-  // An install stopped after it started, before it writes, installs nothing.
-  await stoppedMidway(gate, signal => actions.invoke(agent.installSkill, [LIBRARY, "candidate-2"], { signal, beforeEffect: async () => {} }));
-  assert.deepEqual(named("skills.install"), [methodOwner(consumer)], "the stopped install did not reach the library");
 });
 
 test("RAC-184 MCP servers are the caller's own; a list republishes the caller's own tools, idempotently, and a stopped call writes nothing", async t => {

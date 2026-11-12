@@ -1,0 +1,9 @@
+{
+  "identifier": "main-external-links",
+  "description": "Project home external links from the trusted local main window.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:{port}/*", "http://localhost:{port}/*"]
+  },
+  "permissions": ["allow-open-external-url", "allow-personal-account-request"]
+}

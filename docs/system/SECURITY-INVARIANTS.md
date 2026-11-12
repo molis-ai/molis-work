@@ -3,7 +3,7 @@
 本机的安全边界写成一张表：每条不变量写清**被拒绝的是什么**、**守住它的代码在哪**、**断言拒绝本身的测试是哪几个**。设计来源：[specs/archive/repository-anti-corruption](../../specs/archive/repository-anti-corruption/spec.md) §6（初稿）与 §4.18（W2-19）。
 
 - 一条不变量的测试必须断言**拒绝**（状态码、错误码、没有被写的记录），不能只证明正常路径能走通。
-- 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到，每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改对应独立记录。
+- 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到（`test:security`、`test:contracts`、`ci.yml`，或 Verify 产品子集里列着、不在隔离表里的用例；子集清单本身有错时一条都不算），每个 `tests/security-invariants-*.test.ts` 与 `*.e2e.test.ts` 都被某一行点名；「代码位置」一列反引号里的每个 `.ts` 路径都是从仓库根写起的已跟踪文件（可带行号，行号不查），简称、越出根或别处同名文件都报记录与行。上游来源写成指向具体提交的 Markdown 链接，已删的文件用文字说明，不写成代码路径。改了测试名或搬了文件就改对应独立记录。
 - CI 里跑的集合是三处：根 `package.json` 的 `test:security`、`test:contracts` 里已有的几条（动作网关、`beforeEffect`、MCP 授权），以及 `ci.yml` 其它作业/步骤单独跑的几条（例如 `gates` 作业的「Gate rules reject what they claim to」步骤跑 `tests/secret-scan.test.ts`，`health-gate-rules` 作业跑 `tests/health-gates-dual-instance.test.ts`）；门禁按这三处核对「CI 里跑」一列。CI 是 Linux：`security-invariants` 作业的浏览器用例使用 runner 自带的 Chrome 执行；只在 macOS 上能跑的（如 Seatbelt 沙箱）和尚未纳入 CI 的整机用例列在「只在本机跑」一列，同一文件里的其它用例仍可能在 CI 里跑。
 - **这一步挡合并**（决定 #14，本次按只许变严合同落实）：`ci.yml` 的 `security-invariants` 作业在 `Verify` 的九项必过结果里。合并队列里跑 `test:security` 全清单；PR 上 some 定向，whole、选择故障及不可信输出仍跑整套，只有选择成功且本作业 mode 明确为 none 时才跳过。Verify 直接读取选择器结果和两个 mode，逐项核合法 skipped；失败或取消的作业不放行。选择器本身是辅助依赖，不替代实际测试结果。直推、每晚、手动整套跑，可信已验 push 按原队列证明复用。
 - Computer Use 已在 main：助理电脑 socket 在 S-04，桌面动作的拒绝在 S-25。
@@ -29,6 +29,10 @@
 
 S-15 原章节入口：[调用者](security-invariants/S-15.md#调用者)、[权限交集](security-invariants/S-15.md#权限交集)、[内置与信任](security-invariants/S-15.md#内置与信任)、[沙箱](security-invariants/S-15.md#沙箱)、[代码位置](security-invariants/S-15.md#s-15-代码位置)。
 
+### 内容包签名与安装
+
+本人签名、预览的有效期和确认安装见 [S-84](security-invariants/S-84.md)。发布者撤销对本机签名与已装插件的影响见 [S-87](security-invariants/S-87.md)。
+
 ## 2. 怎么跑
 
 ```bash
@@ -52,7 +56,7 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 
 ## 4. 开放项（没有守住，或守住的范围有限）
 
-- **桌面 IPC 的可达范围没有实测（F15 的另一半）**：S-14 钉住了能力文件；`apps/desktop/src-tauri/capabilities/default.json` 现在只把 `capsule_*` 与 `shelf_*`（含 `platform_read_selected_file`、`shelf_admit_paths` 等）开放给 `127.0.0.1:4173`/`localhost:4173` 的页面，原生 PTY 命令已无消费方并移除（S-14）。插件侧栏的外层同源 iframe 是宿主包装页，插件 HTML 自 #1018 起由 `apps/workbench/src/home-plugin-page.ts` 交给共同的不透明 frame；不能仅凭外层无 `sandbox` 推断插件获得同源权限。D0033 的真实侧栏浏览器探针验证插件不能读取两层可信父页的 DOM/控制令牌、没有原生 IPC 对象，并拒绝跨 owner/项目的桥请求。实际 Tauri WebView 命令可达性与 `tauri.conf.json` 的 `csp: null` 仍须真实桌面构建的 S5 探针；浏览器中的模拟 IPC 不能替代该证据。壳向 Host 换到路径、核对之后到 `open` 之间仍有毫秒级的窗口（文件可能在这一刻被换成链接），没有消除（PG-113）。D0038 改为 cookie 配对的页面会话后，不再以“页面已经持有控制令牌”推断 IPC 等价；桌面仍只提供已限定的账号桥和一次性附着票据，真实 WebView 的命令可达性仍需 S5 实测。别的本机进程占着 4173 时的边界不由页面会话认证解决。
+- **桌面 IPC 的可达范围没有实测（F15 的另一半）**：S-14 钉住了能力文件；`apps/desktop/src-tauri/runtime-capabilities/default.json` 现在只把 `capsule_*` 与 `shelf_*`（含 `platform_read_selected_file`、`shelf_admit_paths` 等）开放给核过身份的那个端口（默认 4173）上 `127.0.0.1`/`localhost` 的页面，授权在启动时按端口加上（RES-08），原生 PTY 命令已无消费方并移除（S-14）。插件侧栏的外层同源 iframe 是宿主包装页，插件 HTML 自 #1018 起由 `apps/workbench/src/home-plugin-page.ts` 交给共同的不透明 frame；不能仅凭外层无 `sandbox` 推断插件获得同源权限。D0033 的真实侧栏浏览器探针验证插件不能读取两层可信父页的 DOM/控制令牌、没有原生 IPC 对象，并拒绝跨 owner/项目的桥请求。实际 Tauri WebView 命令可达性与 `tauri.conf.json` 的 `csp: null` 仍须真实桌面构建的 S5 探针；浏览器中的模拟 IPC 不能替代该证据。壳向 Host 换到路径、核对之后到 `open` 之间仍有毫秒级的窗口（文件可能在这一刻被换成链接），没有消除（PG-113）。D0038 改为 cookie 配对的页面会话后，不再以“页面已经持有控制令牌”推断 IPC 等价；桌面仍只提供已限定的账号桥和一次性附着票据，真实 WebView 的命令可达性仍需 S5 实测。别的本机进程占着 4173 时，桌面不再连它：身份核不过就当没有宿主，自己起的宿主换到 4174–4199 里空的一个，授权也只给那个端口（第 25 批）；LaunchAgent 装的本机服务仍固定在 4173。
 - **“是不是本机”在两处不是共用那一份**：桌面壳的 Rust（`apps/desktop/adapters/tauri/src/main.rs`、`context_directories.rs`）是另一种语言；OAuth 代理 Worker（`apps/local-host/cloudflare/worker.ts`）单独用 `wrangler` 打包部署，今天不引用工作区里的任何包，部署步骤（`apps/local-host/cloudflare/README.md`）也不先构建，而 `contracts` 的子路径只导出构建产物。Worker 的那份与共用的那份等价，由 `tests/connector-oauth-broker.test.ts` 逐个写法比对钉住；要合成一份，先要让 Worker 的部署带上构建步骤（它是线上服务，由用户决定）。
 - **`/health` 等 GET 路由没有“只读”断言**：S-03 保证的是变更不绕过令牌，GET 路由是否真的只读靠评审；D0038 经用户选择 D 方案，HTML 只含 cookie 配对的随机 CSRF 证明，宿主控制令牌不进入页面；会话不赋予额外账号、空间、插件或 MCP 身份。同源脚本仍可能借会话请求允许的操作；未实现 E 方案的敏感操作独立确认。没有跨域读的头（宿主不发 `Access-Control-Allow-*`，见 S-03 的测试）。`/locale` 不是只读的：同源页面切语言时写 Home 记录 `config/ui-locale.json`，只认 `Sec-Fetch-Site: same-origin`（S-ui-locale-memory）。这个头挡的是别的网页直接改记录；看不到的部分是本机非浏览器进程能自带这个头，以及别的网页让浏览器顶层跳到 `/locale` 仍能改 Cookie（页面语言变了用户看得见，用户接着发送时回复语言和记录跟着页面走）。
 - **控制令牌文件已存在但权限过宽时不会收紧**：新文件是 0600（S-06），旧文件（别的版本或手工放的）原样沿用。处理需要用户定：沿用并收紧权限、或换新令牌（换新令牌会让常驻服务与 MCP 进程重连）。

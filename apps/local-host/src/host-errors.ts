@@ -9,6 +9,8 @@ export const hostErrors = defineErrorCodes("host", {
   /** The caller's close deadline elapsed; the underlying resource cleanup and Home ownership continue. */
   close_timeout: "timeout",
   project_invalid: "invalid",
+  /** Closing the home page's notice that an interrupted upgrade finished needs the round it is about (upgrade-continuity U3 §3). */
+  upgrade_notice_invalid: "invalid",
   project_identity_conflict: "invalid",
   project_closing: "invalid",
   /**
@@ -39,6 +41,8 @@ export const hostErrors = defineErrorCodes("host", {
   builder_unavailable: "unavailable",
   /** The project connection catalog was not composed; nothing can be refreshed through it (BL-221). */
   project_connection_unavailable: "unavailable",
+  /** The project selection is committed; a related Runtime switch still needs reconciliation. */
+  project_plugins_refresh_failed: "unavailable",
   /** The Agent runtime was never started, so its write checkers cannot be read (BL-221). */
   agent_runtime_unavailable: "unavailable",
   /** The runtime's inference client was not composed (BL-221). */

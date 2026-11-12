@@ -56,7 +56,7 @@ const fs = require('node:fs'), cp = require('node:child_process');
     const entered = Promise.withResolvers<void>(), watcher = setInterval(() => { if (existsSync(marker)) entered.resolve(); }, 10);
     process.env.PATH = `${bin}:${oldPath}`;
     const database = join(home, "project.sqlite"); seedDemoBoard(database);
-    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
+    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
     const host = new MolisWorkLocalHost({ homeDirectory: home }), controller = new AbortController();
     let allowed = true;
     const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS], validate_authority: () => {
@@ -82,8 +82,8 @@ const fs = require('node:fs'), cp = require('node:child_process');
       assert.equal(recovered.run.outcome, "completed");
       const material = sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id);
       assert.equal(material.length, 1);
-      assert.match(material[0]!.body!, /One verifiable finding/);
-      assert.equal(material[0]!.materials[0]!.provenance.manifest_sha256, hash(manifest));
+      assert.match(sources.feed.getFeedItem(DEMO_PROJECT_ID, material[0]!.item_id).body!, /One verifiable finding/);
+      assert.equal(sources.feed.getFeedItem(DEMO_PROJECT_ID, material[0]!.item_id).materials[0]!.provenance.manifest_sha256, hash(manifest));
       assert.equal((await client.invoke(context, feedSourceActions.sync, input)).replayed, true);
       assert.deepEqual(sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id), material);
     } finally {

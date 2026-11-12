@@ -43,7 +43,11 @@ export function createShelfFilesCatalog(files:PluginOwnerFilesClient,sync?:Shelf
     if(JSON.stringify(current)!==expected)throw shelfErrors.conflict('目录已变化，修改未覆盖');
     Object.assign(current,value);
    });
-   else writer.replaceFileAtomic('catalog.json',Buffer.from(JSON.stringify({...value,replication:null})));
+   else {
+    // D0338: the local owner applies the same observed-version precondition as the sync catalog.
+    if(JSON.stringify(readLocalShelfCatalog(writer))!==expected)throw shelfErrors.conflict('目录已变化，修改未覆盖');
+    writer.replaceFileAtomic('catalog.json',Buffer.from(JSON.stringify({...value,replication:null})));
+   }
   }
  };
 }

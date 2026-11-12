@@ -1,4 +1,5 @@
 /** The agent-host contract (`services/agent-host`): what a run asks a person to review, and the review queue. */
+import type { OwnedTextRef } from "../platform/ui-text.js";
 import type { AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
@@ -159,7 +160,8 @@ export interface AgentReviewRecoveryView {
   receipt: AgentReviewReceipt;
   observation: AgentGitIndexObservation | null;
   can_confirm_not_happened: boolean;
-  message: string;
+  /** A platform state message, or the complete original error from reading Git. */
+  message: OwnedTextRef | string;
 }
 
 export interface AgentReviewRecoveryInput {

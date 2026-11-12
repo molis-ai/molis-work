@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -48,6 +49,12 @@ const withProject = async (plugins: string[], run: (fixture: Fixture) => Promise
   }
 };
 const get = async (url: string) => { const response = await fetch(url); const text = await response.text(); return { status: response.status, text }; };
+/** A POST of the person's page: same origin, the control token and a one-time key (the advance prompt is a POST, GAS-01). */
+const post = async (url: string, body: unknown) => {
+  const response = await fetch(url, { method: "POST", body: JSON.stringify(body), headers: { origin: new URL(url).origin, "content-type": "application/json",
+    "x-molis-work-control-token": "optional-areas-test-control-token", "x-molis-work-idempotency-key": randomUUID() } });
+  return { status: response.status, text: await response.text() };
+};
 const rowsOf = (host: MolisWorkLocalHost, projectId: string) => host.callLog!.list(projectId).map(row => [row.capability_id, row.code ?? "ok", row.refused === true]);
 
 test("OPTAREA-01 loading the pages of a project that has no Feed, Inbox or Schedule leaves nothing in the call log", { timeout: 90_000 }, async () => {
@@ -129,7 +136,7 @@ test("OPTAREA-06 advancing a Goal in a project without Feed leaves no row about 
     assert.equal((await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/directory`)).status, 200);
     const before = rowsOf(host, projectId);
     assert.ok(before.some(row => row[0] === goalsActions.create.capability_id));
-    const advanced = await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/G1/advance-prompt`);
+    const advanced = await post(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/G1/advance-prompt`, {});
     assert.equal(advanced.status, 200, advanced.text);
     assert.deepEqual(rowsOf(host, projectId), before);
   });

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCatalogConnector, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { catalogWhoami, createCatalogProvider } from "@molis-ai/molis-work-integration-catalog";
+import { accountSourceRecord } from "./fixtures/feed-account-source.js";
+import { bindLocalFeedSourceAccount } from "./fixtures/feed-library.js";
 import { withIntegrationHome } from "./fixtures/integration-home.js";
 
 const AT = "2026-08-30T10:00:00.000Z";
@@ -83,8 +85,9 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
     for (const [index, fixture] of failures.entries()) {
       const connection = withConnectorConnections(home.directory, store => store.createToken({ serviceId: fixture.service, displayName: "Fixture", token: fixture.token }));
       const port = createCatalogConnector({ connectorId: fixture.service, connectionId: connection.connection_id, now: () => new Date(AT), fetchImpl: async () => json(fixture.body) });
-      const chain = home.chain(port), source = chain.feed.sources.upsert({ ...chain.source("github"), source_id: `catalog-${index}`, kind: fixture.service,
-        definition_id: fixture.service, sync_kind: "connector", name: fixture.service, credential_ref: connection.credential_ref, config: { connection_id: connection.connection_id } });
+      const chain = home.chain(port), source = chain.feed.sources.upsert(accountSourceRecord("github", { source_id: `catalog-${index}`, kind: fixture.service,
+        definition_id: fixture.service, sync_kind: "connector", name: fixture.service, status: "active" }));
+      bindLocalFeedSourceAccount(home.directory, source, connection.connection_id);
       const before = source.cursor;
       let publicFailure: unknown;
       await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: `catalog-closed-${index}` }), error => { publicFailure = error; return true; });

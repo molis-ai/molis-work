@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -22,9 +23,9 @@ export function purgeCharactersProject(homeDirectory: string, projectId: string)
     try {
       db.prepare("DELETE FROM character_runs WHERE project_id = ?").run(projectId);
       db.exec("COMMIT");
-    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   } finally { db.close(); }
 }
 
 /** What this module keeps in the Home for a project and how the project's deletion clears it. Not a plugin, so the Host lists it by hand. */
-export const charactersProjectData: ProjectDataDeclaration = { label: "角色在这个项目里的执行记录", order: 110, purge: purgeCharactersProject };
+export const charactersProjectData: ProjectDataDeclaration = { label: { key: "workbench.project-deletion.character-runs" }, order: 110, purge: purgeCharactersProject };

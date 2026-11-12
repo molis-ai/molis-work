@@ -26,12 +26,14 @@ import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostTextGeneration } from "./host-complete-text.js";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { runBackgroundWorkIn } from "./ui-locale-memory.js";
 
 export interface KnowledgeHostPorts {
   homeDirectory: string;
   search: Pick<SearchService, "query" | "indexedCatalog">;
   /** The search index: the catalog of each project is what it holds (spec §4.4). */
-  index: Pick<SearchIndexPort, "documents" | "sources" | "related">;
+  index: Pick<SearchIndexPort, "catalog" | "document" | "sources" | "related">;
   clientFor(caller: ActionCallContext): ActionClient;
   /** The project owner's authority, which indexing and organizing read every source with. */
   ownerContext?(projectId: string): Promise<ActionCallContext>;
@@ -69,8 +71,14 @@ export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | n
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
   return async (input, signal, beforeDispatch) => {
-    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal, beforeDispatch, timeoutMs: 120_000, maxOutputTokens: 4000 });
+    let recordUse: (() => void) | undefined;
+    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id,
+      { onDispatch: record => { recordUse = record; } });
+    // The use is recorded when the call is dispatched, not when its text is read: a call refused first (the generation log's
+    // `actions.forbidden`) is no use of the prompt, and counting it made two generations over the same Home differ.
+    const result = await generate(prompt, {
+      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal,
+      beforeDispatch: async () => { await beforeDispatch?.(); recordUse?.(); }, timeoutMs: 120_000, maxOutputTokens: 4000 });
     const draft = result.structured as KnowledgeDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的卡片");
     return draft;
@@ -85,8 +93,12 @@ export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator |
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
   return async input => {
-    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 2000 });
+    let recordUse: (() => void) | undefined;
+    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id,
+      { onDispatch: record => { recordUse = record; } });
+    // Dispatched like a card's call: recorded at dispatch, so a refused locate call is no use of the prompt either.
+    const result = await generate(prompt, { structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never },
+      beforeDispatch: async () => { recordUse?.(); }, timeoutMs: 120_000, maxOutputTokens: 2000 });
     const draft = result.structured as KnowledgeLocateDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的选节结果");
     return draft;
@@ -105,7 +117,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     const caller = await ports.ownerContext(projectId);
     const current = await ports.search.indexedCatalog({ caller, client: ports.clientFor(caller) });
     if (closed) return [];
-    return knowledgeCatalog(current, projectId).map(piece => ({ ...piece, assertCurrent: current.assertCurrent }));
+    return knowledgeCatalog(current, projectId).map(piece => { piece.assertCurrent = current.assertCurrent; return piece; });
   },
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
   const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store,
@@ -131,7 +143,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     if (closed || !projectId || timers.has(projectId)) return;
     const timer = setTimeout(() => {
       timers.delete(projectId);
-      const work = settle(projectId).finally(() => settling.delete(work));
+      const work = outsidePluginAction(() => runBackgroundWorkIn(ports.homeDirectory, () => settle(projectId))).finally(() => settling.delete(work));
       settling.add(work);
       void work.catch(error => ports.onError?.(error, "knowledge.catch_up"));
     }, KICK_DELAY_MS);

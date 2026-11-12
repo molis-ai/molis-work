@@ -2,6 +2,8 @@ import type { UiPageRouteDeclaration, UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
+import type { PluginLocalesDeclaration, TextRef } from "./ui-text.js";
+export type { PluginLocalesDeclaration } from "./ui-text.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -108,22 +110,41 @@ export interface ArtifactLinkDeclaration {
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
 }
-/** A Plugin's words by stable key, each in both page languages. */
-export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-
-/** A Plugin's English for words still keyed by their Chinese source text. */
-export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
-
-/** The languages a Plugin has words in; the words of each are the package's `locales/<language>.json`. */
-export interface PluginLocalesDeclaration {
-  readonly default: string;
-  readonly available: readonly string[];
-}
-
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
+/** The kinds of object a plugin may give context text for in the person's page (GAS-01). */
+export const UI_SUBJECT_CONTEXT_KINDS = ["goal"] as const;
+export type UiSubjectContextKind = (typeof UI_SUBJECT_CONTEXT_KINDS)[number];
+/** The longest text one plugin gives for one object, in UTF-16 code units; the Host cuts a longer answer without splitting a character and marks the cut. */
+export const UI_SUBJECT_CONTEXT_LIMIT = 12_000;
+/** The most plugins whose text the person's page receives for one object, in the order the Host lists the project's plugins. */
+export const UI_SUBJECT_CONTEXT_PLUGINS = 4;
+
+/**
+ * Text a plugin keeps about an object another plugin owns (GAS-01), declared so that the person's own page can read it without the
+ * owner naming the plugin: Feed's original message of a Goal made from it, for the prompt that advances that Goal. `action` is the
+ * `capability_id` of one of the same Manifest's own actions, a query for the person (audience `user`) that only reads, with one
+ * version, under the same rule as `stage_data`. The Host calls it as the person in the project, with only that action's own
+ * permissions and with exactly `{ <subject_kind>_id }`, and takes `{ source_context: string }` or `null`; no Agent, workflow, MCP
+ * client or other plugin reaches it through this declaration. One declaration per kind.
+ */
+export interface UiSubjectContextDeclaration {
+  readonly subject_kind: UiSubjectContextKind;
+  readonly action: string;
+}
+
+/** Where the person's page reads it: `GET` with exactly `kind` and `id` in the query, under the project's route prefix. */
+export const SUBJECT_CONTEXT_PATH = "/api/host/subject-context";
+
+/** What the person's page receives for one object: each answering plugin's text, at most {@link UI_SUBJECT_CONTEXT_PLUGINS}. */
+export interface SubjectContextAnswer {
+  readonly contexts: ReadonlyArray<{ readonly plugin_id: string; readonly source_context: string }>;
+}
+
 export interface PluginManifest {
+  /** Optional project demo initializer: own workflow command with an empty object input. Invoked after Runtime startup only for trusted regenerable_demo projects. */
+  demo_seed?: { capability_id: string; version: number };
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** The current Manifest format; all plugins declare version 1. */
@@ -131,12 +152,8 @@ export interface PluginManifest {
   plugin_id: string;
   version: string;
   name: string;
-  /**
-   * the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
-   * draws the Manifest `name` itself (a plugin that has a stage and no navigator or island view); a navigator or island view's name is
-   * its own `title_en`, so one is never read for the other. Left out, the English interface shows `name`.
-   */
-  name_en?: string;
+  /** The displayed Manifest name. Each view's own title is independent. Without usable words, show `name`. */
+  name_text?: TextRef;
   kind: PluginKind;
   publisher: {
     publisher_id: string;
@@ -152,6 +169,8 @@ export interface PluginManifest {
   always_on?: boolean;
   /** One sentence for the plugin market and the page heading, at most 120 characters once trimmed. Without one the market lists the plugin by its name. */
   summary?: string;
+  /** The displayed summary, independent of the Manifest name and view title. */
+  summary_text?: TextRef;
   /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable, and shown where already added. Only `true`. */
   developer?: true;
   entrypoints: PluginEntrypointManifest[];
@@ -165,6 +184,7 @@ export interface PluginManifest {
    * type names itself (`title`, e.g. 「文档」) and its preview action (A4): one of this Plugin's actions defined with
    * `defineArtifactPreviewAction`. A type whose work objects can be pinned on the spot (a Goal handing one in, A5) also
    * names its pin action, defined with `defineArtifactPinAction`.
+   * `title_text` may select a fixed line in this Plugin's language files for display. `title` stays the declaration's original.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
    * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
@@ -173,7 +193,7 @@ export interface PluginManifest {
    * continue from and no others (ac-artifacts A3, PG-079).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];
@@ -191,22 +211,9 @@ export interface PluginManifest {
     views?: UiViewDeclaration[];
     /** the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
     page_routes?: UiPageRouteDeclaration[];
-    /**
-     * the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
-     * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
-     * them from the Manifests of the Plugins that are installed, never from a list of its own. A key one Plugin has
-     * declared is refused to another.
-     */
-    messages?: PluginMessagesDeclaration;
-    /**
-     * English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
-     * stable keys (specs/archive/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
-     * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
-     * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
-     * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
-     */
-    translations?: PluginTranslationsDeclaration;
-    /** The Plugin's languages. A Manifest that declares them writes neither `messages` nor `translations`: no Plugin takes both roads. */
+    /** text this Plugin gives about another owner's objects, read by the person's own page (GAS-01). */
+    subject_context?: UiSubjectContextDeclaration[];
+    /** The Plugin's languages, provided as one file per declared language. */
     locales?: PluginLocalesDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */
@@ -257,6 +264,12 @@ export interface PluginManifest {
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
   notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
+  /** Stable setting entries and the declaring owner’s read and write actions. */
+  settings_entries?: import("./settings.js").SettingsDeclaration;
+  /** A content pack's Blueprint files. The default is blueprint.json; this lists the translated editions. */
+  blueprint?: { locales: string[] };
+  /** Content types this owner can adopt, through its declared actions. */
+  adopts?: readonly import("./blueprints.js").AdoptsDeclaration[];
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

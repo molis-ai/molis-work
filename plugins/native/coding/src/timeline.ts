@@ -1,10 +1,9 @@
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * How one round reads in the conversation: each tool call is a row that says what it touched and how it
  * ended, consecutive calls fold into one summary, and a round closes with what actually happened.
  *
- * `createCodingTimeline` is injected into the browser with `toString()`, so it must stay self-contained:
- * no imports, no closures over module scope. Everything it shows comes from the run projection; it never
- * infers success the projection does not state.
+ * Everything it shows comes from the run projection. It never infers success the projection does not state.
  */
 import type { codingTimelineWords } from "./timeline-words.js";
 
@@ -34,6 +33,17 @@ export interface TimelineRun {
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
   turn_changes?: TimelineTurnChanges[];
+  /** The after-write checks whose receipts the round holds, by the write's call id; absent when the reader did not look. */
+  write_checks?: TimelineWriteCheck[];
+}
+/** One write's after-write check as its receipt has it (CodingWriteCheck); a receipt that could not be read says so. */
+export interface TimelineWriteCheck {
+  call_id: string;
+  checker?: string | null;
+  exit_code?: number | null;
+  timed_out?: boolean;
+  cancelled?: boolean;
+  unreadable?: boolean;
 }
 /** What one turn wrote, from the runtime's write receipts (AgentRunView.turn_changes). */
 export interface TimelineTurnChanges {
@@ -42,14 +52,23 @@ export interface TimelineTurnChanges {
   files: Array<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
 }
 
-/** The words and tables the timeline reads with (codingTimelineWords), passed in because the factory is injected alone. */
+/** The words and tables the timeline reads with. */
 export type TimelineWords = ReturnType<typeof codingTimelineWords>;
+
+const waitingUntil = (at: string) => uiText.text("coding.timeline.until", { time: dateArg(at, "time-with-seconds") });
+
+export function retitleCodingWaits(scope: Element) {
+  scope.querySelectorAll("[data-coding-wait-until]").forEach((node: Element) => {
+    const text = waitingUntil(node.getAttribute("data-coding-wait-until")!);
+    if (node.textContent !== text) node.textContent = text;
+  });
+}
 
 export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-  const { KIND, FAILURES, toolHint: hintFor, other, tally, t: L } = words;
+  const { KIND, FAILURES, toolHint: hintFor, other, tally } = words;
   const kindOf = (item: TimelineActivity) => KIND[item.name] ?? other(item.name);
   /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
   const exitCode = (item: TimelineActivity): number | null => {
@@ -78,17 +97,31 @@ export function createCodingTimeline(words: TimelineWords) {
   const REVIEWED = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
     const code = exitCode(item);
-    if (item.state === "started") return ended ? { tone: "unknown", label: L("coding.timeline.no-result") }
-      : waiting ? (REVIEWED.has(item.name) ? { tone: "waiting", label: L("coding.timeline.approve") } : { tone: "held", label: L("coding.timeline.held") })
-      : { tone: "running", label: L("coding.filter.running") };
+    if (item.state === "started") return ended ? { tone: "unknown", label: uiText.text("coding.timeline.no-result") }
+      : waiting ? (REVIEWED.has(item.name) ? { tone: "waiting", label: uiText.text("coding.timeline.approve") } : { tone: "held", label: uiText.text("coding.timeline.held") })
+      : { tone: "running", label: uiText.text("coding.filter.running") };
     if (item.name === "reasoning" && item.state === "completed") return { tone: "quiet", label: "" };
     if (item.state === "failed") {
-      if (items && wasRetry(item, items)) return { tone: "retry", label: L("coding.timeline.retried") };
-      return { tone: "failed", label: L("coding.timeline.failed") };
+      if (items && wasRetry(item, items)) return { tone: "retry", label: uiText.text("coding.timeline.retried") };
+      return { tone: "failed", label: uiText.text("coding.timeline.failed") };
     }
-    if (item.state === "unknown") return { tone: "unknown", label: L("coding.recovery.unknown") };
+    if (item.state === "unknown") return { tone: "unknown", label: uiText.text("coding.recovery.unknown") };
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
+  };
+  /**
+   * A finished write says what the person's check of it came to, from the check's receipt alone: the checker and its exit
+   * code as they are (never "passed" or "failed"), or that no check ran. Nothing is said when the reader did not look.
+   */
+  const WRITES = new Set(["edit", "write"]);
+  const checkOf = (item: TimelineActivity, checks?: TimelineWriteCheck[]) => {
+    if (!checks || !WRITES.has(item.name) || item.state !== "completed") return "";
+    const check = checks.find(entry => entry.call_id === item.call_id);
+    if (!check) return uiText.text("coding.timeline.check.none");
+    if (check.unreadable) return uiText.text("coding.timeline.check.unreadable");
+    const how = check.timed_out ? uiText.text("coding.commands.timed-out") : check.cancelled ? uiText.text("coding.state.cancelled")
+      : typeof check.exit_code === "number" ? `exit ${check.exit_code}` : uiText.text("coding.commands.exit-unknown");
+    return uiText.text("coding.timeline.check.ran", { checker: check.checker || uiText.text("coding.timeline.check.unnamed"), result: how });
   };
   const mark = (tone: string) => tone === "quiet" ? "" : '<span aria-hidden="true" data-mw-state="'
     + (tone === "running" ? "running" : tone === "waiting" ? "approval" : tone === "held" ? "waiting" : tone === "ok" ? "done" : tone === "failed" ? "failed" : tone === "retry" ? "stale" : "verify") + '"></span>';
@@ -97,18 +130,19 @@ export function createCodingTimeline(words: TimelineWords) {
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
   /** A step's one line (operation, object, result) and what came back behind it: the refusal in words over the raw output. */
-  const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
+  const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[], checks?: TimelineWriteCheck[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const first = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
     // A wait the Run sleeps in says until when, in this machine's time.
-    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? L("coding.timeline.until", { time: new Date(item.target).toLocaleTimeString() }) : "";
-    const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
+    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? item.target : "";
+    const what = until ? `<span class="coding-tool-preview" data-coding-wait-until="${escape(until)}">${escape(waitingUntil(until))}</span>`
       : item.target ? `<code>${escape(item.target)}</code>` : first ? `<span class="coding-tool-preview">${escape(first)}</span>` : "";
     const output = (item.output ?? "").trim(), shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
-    const text = shown ? `${shown.text}${hidden ? `\n${L("coding.timeline.more-lines", { count: hidden })}` : ""}${item.output_truncated ? `\n${L("coding.timeline.truncated")}` : ""}` : "";
-    const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
+    const text = shown ? `${shown.text}${hidden ? `\n${uiText.text("coding.timeline.more-lines", { count: hidden })}` : ""}${item.output_truncated ? `\n${uiText.text("coding.timeline.truncated")}` : ""}` : "";
+    const checked = checkOf(item, checks);
+    const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}${checked ? `<span class="coding-tool-check" data-coding-write-check>${escape(checked)}</span>` : ""}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return { head, text, hint: shown && item.state === "failed" ? hintFor(output) : "", tone: result.tone };
   };
   /** "Read 4 files · Ran 3 commands", or what is happening right now. */
@@ -117,18 +151,18 @@ export function createCodingTimeline(words: TimelineWords) {
     const running = (waiting ? started.find(item => REVIEWED.has(item.name)) : undefined) ?? started[0];
     if (running) {
       const kind = kindOf(running), on = running.target ? " " + running.target : "", what = kind.verb + on;
-      return waiting ? (REVIEWED.has(running.name) ? { live: false, waiting: true, text: L("coding.timeline.approve") + L("coding.timeline.colon") + what } : { live: false, waiting: true, text: L("coding.timeline.held") + L("coding.timeline.colon") + what })
+      return waiting ? (REVIEWED.has(running.name) ? { live: false, waiting: true, text: uiText.text("coding.timeline.approve") + uiText.text("coding.timeline.colon") + what } : { live: false, waiting: true, text: uiText.text("coding.timeline.held") + uiText.text("coding.timeline.colon") + what })
         : { live: true, waiting: false, text: kind.doing + on };
     }
     const counts = new Map<string, { kind: ReturnType<typeof kindOf>; targets: Set<string>; calls: number }>();
     for (const item of items) {
-      const kind = kindOf(item), key = kind.key + kind.verb;
+      const kind = kindOf(item), key = kind.key === "other" ? `other:${item.name}` : kind.key;
       const entry = counts.get(key) ?? { kind, targets: new Set<string>(), calls: 0 };
       entry.calls += 1; if (item.target) entry.targets.add(item.target); counts.set(key, entry);
     }
     const parts = [...counts.values()].map(({ kind, targets, calls }) => tally(kind, kind.tally === "targets" ? targets.size || calls : calls));
     const failed = items.filter(item => outcome(item, ended, waiting, items).tone === "failed").length;
-    return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${L("coding.timeline.not-succeeded", { count: failed })}` : "") };
+    return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${uiText.text("coding.timeline.not-succeeded", { count: failed })}` : "") };
   };
   // VUX-13: only the person opens or closes a fold, never a round streaming in or ending. Their choice is kept by group key and by
   // step ("tool:" + call id), so a fold drawn again (another session and back) opens as they left it; `put` touches a node only when its words change.
@@ -137,8 +171,8 @@ export function createCodingTimeline(words: TimelineWords) {
   const put = (node: Element, value: string, write: (node: Element) => void) => { if (drawn.get(node) !== value) { drawn.set(node, value); write(node); } };
   /** A step keeps one node by call id and changes in place (line, tone, output in the same <pre>), so what the person opened
    * stays open, focused and scrolled; a step with nothing behind it is a plain line until something comes back. */
-  const placeRow = (known: Map<string, Element>, item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
-    const row = drawRow(item, ended, waiting, items), fold = Boolean(row.text);
+  const placeRow = (known: Map<string, Element>, item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[], checks?: TimelineWriteCheck[]) => {
+    const row = drawRow(item, ended, waiting, items, checks), fold = Boolean(row.text);
     let node = known.get(item.call_id);
     if (!node || (node.tagName === "DETAILS") !== fold) {
       const fresh = document.createElement(fold ? "details" : "div"); fresh.className = "coding-tool"; fresh.dataset.tool = item.call_id; if (fold) remember(fresh, "tool:" + item.call_id);
@@ -152,13 +186,13 @@ export function createCodingTimeline(words: TimelineWords) {
   const renderGroup = (detail: Element, items: TimelineActivity[], run: TimelineRun, latest: boolean) => {
     const ended = TERMINAL.includes(run.phase), waiting = latest && run.phase === "awaiting-review";
     if (!detail.dataset.bound) { detail.dataset.bound = "true"; remember(detail, detail.dataset.codingActivity ?? ""); }
-    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0])]);
+    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0, checkOf(item, run.write_checks)])]);
     if (detail.dataset.signature === signature) return; detail.dataset.signature = signature;
     const summary = sumText(items, ended, waiting);
     const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="mw-spinner" aria-hidden="true"></span>' : summary.waiting ? '<span data-mw-state="waiting" aria-hidden="true"></span>' : ""}<span>${escape(summary.text)}</span></span>`;
     put(detail.querySelector(":scope > summary") ?? detail.insertBefore(document.createElement("summary"), detail.firstChild), head, node => { node.innerHTML = head; });
     let list = detail.querySelector(":scope > .coding-tool-list"); if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
-    const known = rowsOf.get(detail) ?? new Map<string, Element>(), rows = items.map(item => placeRow(known, item, ended, waiting, items)); rowsOf.set(detail, known);
+    const known = rowsOf.get(detail) ?? new Map<string, Element>(), rows = items.map(item => placeRow(known, item, ended, waiting, items, run.write_checks)); rowsOf.set(detail, known);
     // New steps go after the ones standing; a node already in its place is never moved (moving it would drop its focus).
     rows.forEach((row, at) => { if (list.children[at] !== row) list.insertBefore(row, list.children[at] ?? null); });
     while (list.children.length > rows.length) list.lastElementChild.remove(); for (const [id, node] of known) if (!node.isConnected) known.delete(id);
@@ -168,7 +202,7 @@ export function createCodingTimeline(words: TimelineWords) {
   const duration = (from?: string | null, to?: string | null) => {
     if (!from) return "";
     const seconds = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000));
-    return seconds < 60 ? L("coding.timeline.seconds", { seconds }) : seconds < 3600 ? L("coding.timeline.minutes", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 }) : L("coding.timeline.hours", { hours: Math.floor(seconds / 3600), minutes: Math.floor(seconds / 60) % 60 });
+    return seconds < 60 ? uiText.text("coding.timeline.seconds", { seconds }) : seconds < 3600 ? uiText.text("coding.timeline.minutes", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 }) : uiText.text("coding.timeline.hours", { hours: Math.floor(seconds / 3600), minutes: Math.floor(seconds / 60) % 60 });
   };
   /**
    * A failure explained in the user's words, with what to do next. The original code stays visible so the
@@ -176,11 +210,11 @@ export function createCodingTimeline(words: TimelineWords) {
    */
   const explainFailure = (reason: string) => {
     const match = FAILURES.find(([pattern]) => pattern.test(reason));
-    return match ? { title: match[1], hint: match[2] } : null;
+    return match ? { title: uiText.text(match[1]), hint: uiText.text(match[2]) } : null;
   };
   const LIVE_TEXT: Record<string, string> = {
-    starting: L("coding.phase.starting"), running: L("coding.live.running"), compacting: L("coding.phase.compacting"), pausing: L("coding.live.pausing"), paused: L("coding.live.paused"),
-    "awaiting-input": L("coding.live.awaiting-input"), "awaiting-review": L("coding.live.awaiting-review"),
+    starting: "coding.phase.starting", running: "coding.live.running", compacting: "coding.phase.compacting", pausing: "coding.live.pausing", paused: "coding.live.paused",
+    "awaiting-input": "coding.live.awaiting-input", "awaiting-review": "coding.live.awaiting-review",
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
   /** `planOpen`: an earlier round whose unfinished graph is still the session's latest plan; only "continue the plan" is offered. */
@@ -193,13 +227,13 @@ export function createCodingTimeline(words: TimelineWords) {
     if (!ended) {
       footer.dataset.state = ["awaiting-review", "awaiting-input", "paused"].includes(run.phase) ? "waiting" : "live";
       footer.dataset.started = run.started_at ?? "";
-      const text = LIVE_TEXT[run.phase] ?? LIVE_TEXT.running!;
+      const text = uiText.text(LIVE_TEXT[run.phase] ?? LIVE_TEXT.running!);
       // Anything new from the round (a tool, a state change, more text) counts as hearing from it.
       const progress = [run.activity.length, ...run.activity.map(item => `${item.state}:${(item.output ?? "").length}`), ...(run.turns ?? []).map(turn => turn.text.length)].join(",");
       if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
       // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
       footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
-      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="${escape(L("coding.timeline.hours", { hours: 99, minutes: 59 }))}" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
+      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="${escape(uiText.text("coding.timeline.hours", { hours: 99, minutes: 59 }))}" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
       tick(block);
       return;
@@ -216,37 +250,37 @@ export function createCodingTimeline(words: TimelineWords) {
     const acted = run.activity.some(item => item.name !== "reasoning");
     const stalled = latest && run.phase === "completed" && !acted && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
     const tone = run.phase === "completed" ? left || stalled ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
-    const title = { done: L("coding.round.done"), partial: stalled ? L("coding.round.stalled") : L("coding.round.plan-left", { count: left }), failed: run.phase === "reconcile-required" ? L("coding.round.reconcile") : L("coding.round.failed"), stopped: L("coding.round.stopped") }[tone];
+    const title = { done: uiText.text("coding.round.done"), partial: stalled ? uiText.text("coding.round.stalled") : uiText.text("coding.round.plan-left", { count: left }), failed: run.phase === "reconcile-required" ? uiText.text("coding.round.reconcile") : uiText.text("coding.round.failed"), stopped: uiText.text("coding.round.stopped") }[tone];
     // A round cut off by a restart has no end time. Its last recorded moment is when it stopped; measuring to now
     // would keep the card changing every second, and each redraw replaces its buttons under the pointer. A recovered
     // round may have kept no moment after its start at all, and then it shows no duration rather than "0 s".
     const stoppedAt = run.ended_at ?? [...run.activity.map(item => item.at), ...(run.turns ?? []).map(turn => turn.at)]
       .filter((at): at is string => typeof at === "string" && (!run.started_at || at > run.started_at)).sort().at(-1);
     const facts = [
-      stoppedAt && duration(run.started_at, stoppedAt) && L("coding.round.took", { duration: duration(run.started_at, stoppedAt) }),
-      edited.size ? tally(KIND.edit!, edited.size) : L("coding.round.no-edits"),
+      stoppedAt && duration(run.started_at, stoppedAt) && uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }),
+      edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"),
       dispatched && tally(KIND["dispatch-subagent"]!, dispatched),
       commands.length ? tally(KIND["run-command"]!, commands.length) : "",
-      lastCommand ? L("coding.round.last-command", { command: lastCommand.target || L("coding.round.command"), code: lastCode ?? "?" }) : "",
+      lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), code: lastCode ?? "?" }) : "",
     ].filter(Boolean);
     // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing. "已停止" is the runtime's own
     // default reason for a stop, so it restates the title in every language.
     const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && (title.includes(stated.replace(/^已/, "")) || (tone === "stopped" && stated === "已停止"));
     const explained = run.phase === "failed" && stated ? explainFailure(stated) : null;
     const reason = tone !== "done" && stated && !restates
-      ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>${escape(L("coding.timeline.colon"))}${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
+      ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>${escape(uiText.text("coding.timeline.colon"))}${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
       : "";
     // Only the newest unfinished round can be picked up again; an interrupted one is checked first.
-    const resume = !latest ? (planOpen && left ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(L("coding.round.continue-plan"))}</button>` : "") : run.phase === "reconcile-required"
-      ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(L("coding.round.check-continue"))}</button>`
+    const resume = !latest ? (planOpen && left ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(uiText.text("coding.round.continue-plan"))}</button>` : "") : run.phase === "reconcile-required"
+      ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(uiText.text("coding.round.check-continue"))}</button>`
       : ["failed", "stopped", "cancelled"].includes(run.phase) || left
-        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(left ? L("coding.round.continue-plan") : L("coding.round.resume"))}</button>`
-      : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}${escape(L("coding.round.nudge"))}</button>` : "";
-    const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>${escape(L("coding.round.more-files", { count: edited.size - 8 }))}</li>` : ""}</ul>` : "";
+        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(left ? uiText.text("coding.round.continue-plan") : uiText.text("coding.round.resume"))}</button>`
+      : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}${escape(uiText.text("coding.round.nudge"))}</button>` : "";
+    const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>${escape(uiText.text("coding.round.more-files", { count: edited.size - 8 }))}</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
-      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${run.phase === "reconcile-required" ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped"}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">${escape(L("coding.turn.number", { number: index + 1 }))}</span></header>
-      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">${escape(L("coding.round.stalled-why"))}</p>` : reason}${files}
-      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}${escape(L("coding.round.changes"))}</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}${escape(L("coding.round.commit"))}</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}${escape(L("coding.report.label"))}</button></div>
+      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${run.phase === "reconcile-required" ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped"}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">${escape(uiText.text("coding.turn.number", { number: index + 1 }))}</span></header>
+      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">${escape(uiText.text("coding.round.stalled-why"))}</p>` : reason}${files}
+      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}${escape(uiText.text("coding.round.changes"))}</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}${escape(uiText.text("coding.round.commit"))}</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}${escape(uiText.text("coding.report.label"))}</button></div>
     </div>`;
     if (footer.dataset.html !== html) { const again = Boolean(footer.dataset.html); footer.innerHTML = html; if (again) footer.firstElementChild?.setAttribute("data-settled", ""); footer.dataset.html = html; footer.dataset.state = "ended"; }
   };
@@ -264,7 +298,7 @@ export function createCodingTimeline(words: TimelineWords) {
       const show = footer.dataset.state === "live" && footer.dataset.quietable === "true" && quiet >= QUIET_AFTER_SECONDS;
       if (node.hidden === !show && (!show || node.dataset.seconds === String(quiet))) return;
       node.hidden = !show; node.dataset.seconds = String(quiet);
-      node.textContent = show ? L("coding.live.quiet", { seconds: quiet }) : "";
+      node.textContent = show ? uiText.text("coding.live.quiet", { seconds: quiet }) : "";
     });
   }
   return { renderGroup, renderFooter, tick, explainFailure };

@@ -476,7 +476,7 @@ test("S-06 the control token is long and random, written owner-only, and a short
 test("S-21 no answer of the host can be shown in another origin's frame: every route says SAMEORIGIN, and the pages' policy says frame-ancestors 'self'", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
   const routes: Array<[string, string, Record<string, string | undefined>]> = [
-    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
+    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/desktop/capsule", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
     ["GET", "/no/such/page", {}], ["GET", "/locale?lang=en", {}],
     ["GET", "/api/spaces", {}], ["GET", "/api/sync", {}],
     // Refusals carry it as well: the header is made before any route decides.

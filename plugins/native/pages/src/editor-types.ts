@@ -1,3 +1,4 @@
+import type { TextArgs } from "@molis-ai/molis-work-contracts/platform/ui";
 // Types shared by the editor entry and its internal views.
 import type { Plugin } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
@@ -76,4 +77,4 @@ export interface PagesEditorMountOptions {
   plugins?: readonly Plugin[];
 }
 
-export type Translate = (value: string) => string;
+export type Translate = (key: string, args?: TextArgs) => string;

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
-import test from "node:test";
-import { createLocalWebAssets } from "@molis-ai/molis-work-app-local-host";
+import nodeTest from "node:test";
+import { createLocalWebAssets, htmlLang, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
   parseConditionFrame, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
   renderCharacters, renderCharactersSettingsEntry, renderPluginSettingsContribution,
@@ -18,6 +18,7 @@ import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolis
 
 const root = new URL("..", import.meta.url).pathname;
 const normal = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+const test = (name: string, run: () => void | Promise<void>) => nodeTest(name, () => runWithLocale("zh", run));
 
 test("RAC-756 a rule moves out only when every selector names the plugin's own class or data attribute", () => {
   const css = "/* the plugin's note */.git-a{color:red}.mw-btn{color:blue}.git-a .mw-btn,.git-b{margin:0}.mw-btn:not(.git-x){top:0}"
@@ -209,10 +210,10 @@ test("RAC-761 the plugin sheets come after the workbench sheet the frame links i
 
 test("RAC-762 the component board's plugin rows link the sheets of the plugins whose rows they draw", () => {
   const options = parseConditionFrame(new URLSearchParams("part=rows"));
-  const page = renderMolisWorkConditionsSpecimen(options, { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" });
+  const page = renderMolisWorkConditionsSpecimen(options, { readText, htmlLang });
   assert.match(page, /<link rel="stylesheet" href="\/assets\/molis-work-plugins\/coding\.css">/, "Coding's rows are drawn with Coding's sheet");
   assert.ok(page.indexOf("molis-work-workbench.css") < page.indexOf("molis-work-plugins/coding.css"), "after the workbench sheet");
-  assert.doesNotMatch(renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" }),
+  assert.doesNotMatch(renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { readText, htmlLang }),
     /molis-work-plugins\//, "the reply part draws no plugin row");
 });
 
@@ -251,6 +252,7 @@ test("RAC-764 the studio declares its own class prefixes, and only rules that na
   const own = pluginOnDemandStylesheet("plugin-builder", packs)!;
   assert.match(own, /\.as-shell\{/u);
   assert.match(own, /\.as-canvas/u);
+  assert.match(own, /\.pb-surface/u, "the Studio stage carries its own surface rules");
   assert.doesNotMatch(own, /as-preview-page/u, "the host draws the preview page, so its rules stay shared");
   const shared = pluginWorkbenchStyles(packs);
   assert.match(shared, /as-preview-page/u);
@@ -306,8 +308,8 @@ test("RAC-2590 the settings sheet carries none of Coding's styles: its settings 
   assert.ok(!settings.includes(scoped.trim()), "none of what coding.css brings is in the settings sheet");
   assert.ok(!settings.includes(shared.trim()), "nor the part of Coding's sheet that stays shared");
   for (const rule of [CODING_OWN_MARKER, ...CODING_SHARED_MARKERS]) assert.ok(!settings.includes(rule), `the settings sheet does not hold ${rule}`);
-  assert.doesNotMatch(settings, /\.coding-settings/u, "RAC-2848: the settings sheet no longer owns the four rules");
-  assert.match(codingSettingsHtml(), /<section[^>]+coding-settings[^>]*>\s*<style>[\s\S]*?\.coding-settings \.coding-method-body/u, "the real registered settings section carries the positive control");
+  assert.doesNotMatch(settings, /\.coding-settings/u, "RAC-2848: the settings sheet no longer owns its rules");
+  assert.match(codingSettingsHtml(), /<section[^>]+coding-settings[^>]*>\s*<style>[\s\S]*?\.coding-settings details/u, "the real registered settings section carries the positive control");
 });
 
 test("RAC-2591 Coding's rules reach the pages that use them: its own from coding.css, the rest from the workbench sheet, and its settings page links coding.css", () => {
@@ -326,12 +328,11 @@ test("RAC-2592 the workbench's page assets no longer name Coding's package or it
 });
 
 
-test("RAC-2848 Coding owns the unchanged four rules inside its registered settings section", () => {
+test("RAC-2848 Coding owns its settings rules inside its registered settings section (three since its method library went, 09)", () => {
   const coding = packs.find(pack => pack.project_plugin_id === "coding")!;
   const rules = [
     ".coding-settings details { margin-block: 12px; }",
     ".coding-settings summary { cursor: pointer; overflow-wrap: anywhere; }",
-    ".coding-settings .coding-method-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 12px; background: var(--nav-hover); }",
     ".coding-settings .mw-select { max-width: 100%; }",
   ];
   assert.equal(coding.settingsStylesheet, undefined);

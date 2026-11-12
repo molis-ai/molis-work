@@ -1,5 +1,5 @@
 import { externalTool, externalToolIdsWith } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export interface TerminalPaneModel {
   selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
@@ -20,87 +20,87 @@ const RUNTIME_KINDS: ReadonlyArray<readonly [string, string]> = externalToolIdsW
 
 /** The Goal terminal pane beside the Goal document; `startWorkTerminalClient` drives it in the page. */
 export function renderTerminalPane(model: TerminalPaneModel): string {
-  const { selected, children, cliAvailability, text: L, icon } = model;
+  const { selected, children, cliAvailability, icon } = model;
   const selectedGoalId = selected?.goal_id ?? "";
   const compoundParent = selected?.decomposition_state === "closed_compound" && !selected?.event_work;
   const compoundParentComplete = compoundParent && selected?.fulfillment_state === "satisfied";
   const childChoices = children.map((child) => {
     return `<a class="tui-child-choice" href="/goals/${encodeURIComponent(child.goal_id)}">
       <span><strong>${escapeHtml(child.title)}</strong><small>${escapeHtml(child.statusLabel)} · ${escapeHtml(child.nextAction)}</small></span>
-      <b>${L("打开这个子 Goal")}${icon("chevron-right")}</b>
+      <b>${uiText("workbench.pane.open-child-goal")}${icon("chevron-right")}</b>
     </a>`;
   }).join("");
   const runtimeChoices = RUNTIME_KINDS.map(([kind, label]) => {
     const available = cliAvailability[kind] !== false;
-    return `<button type="button" data-tui-kind="${kind}"${available ? "" : ` disabled title="${escapeHtml(L("需要先安装 CLI"))}"`}>${label}${available ? "" : `<small>${L("未安装")}</small>`}</button>`;
+    return `<button type="button" data-tui-kind="${kind}"${available ? "" : ` disabled title="${escapeHtml(uiText.text("workbench.pane.install-cli-first"))}"`}>${label}${available ? "" : `<small>${uiText("workbench.pane.not-installed")}</small>`}</button>`;
   }).join("");
   const missingKinds = RUNTIME_KINDS
     .filter(([kind]) => cliAvailability[kind] === false)
     .map(([, label]) => label);
   const missingHint = missingKinds.length
-    ? `<p class="tui-menu-missing">${L("以下 CLI 未安装：{list}。安装后刷新页面即可使用。", { list: missingKinds.join("、") })}</p>`
+    ? `<p class="tui-menu-missing">${uiText("workbench.pane.these-clis-not-installed-list-install-them-then", { list: missingKinds.join("、") })}</p>`
     : "";
   return `
-      <div class="tui-resizer" role="separator" aria-label="${L("调整终端宽度，双击收起")}" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="720" aria-valuenow="480" tabindex="0" data-tui-resizer></div>
-      <aside class="tui-pane" id="goal-tui-pane" data-tui-pane data-goal-id="${escapeHtml(selectedGoalId)}" data-tui-prompt-route="${escapeHtml(model.promptRoute)}" data-tui-terminals-route="${escapeHtml(model.terminalsRoute)}" data-tui-parent-read-only="${compoundParent}"${compoundParent ? ' data-tui-read-only="true"' : ""} aria-label="${L("终端面板")}">
+      <div class="tui-resizer" role="separator" aria-label="${uiText("workbench.pane.resize-terminal-double-click-collapse")}" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="720" aria-valuenow="480" tabindex="0" data-tui-resizer></div>
+      <aside class="tui-pane" id="goal-tui-pane" data-tui-pane data-goal-id="${escapeHtml(selectedGoalId)}" data-tui-prompt-route="${escapeHtml(model.promptRoute)}" data-tui-terminals-route="${escapeHtml(model.terminalsRoute)}" data-tui-parent-read-only="${compoundParent}"${compoundParent ? ' data-tui-read-only="true"' : ""} aria-label="${uiText("workbench.pane.terminal-pane")}">
         <div class="tui-owner" data-tui-owner>
           <div class="tui-owner-copy">
-            <strong data-tui-owner-title>${escapeHtml(selected?.title ?? L("还没有选择 Goal"))}</strong>
-            <span class="tui-owner-binding"><i aria-hidden="true"></i><b>${L("绑定到 Goal")}</b></span>
+            <strong data-tui-owner-title>${escapeHtml(selected?.title ?? uiText.text("workbench.pane.no-goal-selected"))}</strong>
+            <span class="tui-owner-binding"><i aria-hidden="true"></i><b>${uiText("workbench.pane.bound-goal")}</b></span>
           </div>
           <div class="tui-owner-actions">
             ${selected
               ? selected.statusHtml
               : `<span class="goal-status" data-tui-owner-status hidden><span data-tui-owner-status-label></span></span>`}
-            <button class="tui-focus-return" type="button" data-tui-focus-return>${icon("target")}<span>${L("返回聚焦")}</span></button>
+            <button class="tui-focus-return" type="button" data-tui-focus-return>${icon("target")}<span>${uiText("workbench.pane.return-focus")}</span></button>
           </div>
         </div>
         <div class="tui-tabs">
-          <span class="tui-mode-label">${L("终端")}</span>
+          <span class="tui-mode-label">${uiText("workbench.pane.terminal")}</span>
           <div class="tui-tab-list" data-tui-tabs data-overflow-fade></div>
-          <button class="tui-add" type="button" data-tui-add aria-expanded="false" aria-controls="tui-open-menu" aria-haspopup="true" aria-label="${L("添加终端")}"${compoundParent ? ` disabled title="${escapeHtml(L("请进入一个具体的子 Goal"))}"` : ""}>${icon("plus")}<span>${L("添加终端")}</span></button>
+          <button class="tui-add" type="button" data-tui-add aria-expanded="false" aria-controls="tui-open-menu" aria-haspopup="true" aria-label="${uiText("workbench.pane.add-terminal")}"${compoundParent ? ` disabled title="${escapeHtml(uiText.text("workbench.pane.open-specific-child-goal"))}"` : ""}>${icon("plus")}<span>${uiText("workbench.pane.add-terminal")}</span></button>
         </div>
         <div class="tui-stage">
           <section class="tui-parent-guard" data-tui-parent-guard${compoundParent ? "" : " hidden"}>
             <div class="tui-parent-guard-copy">
               ${icon("tree")}
-              <div><strong>${L("这个上层 Goal 不直接使用终端")}</strong><p>${compoundParentComplete
-                ? L("这项工作已经由子 Goal 完成，不需要再为上层 Goal 打开终端。要查看或继续具体工作，请进入对应的子 Goal。")
-                : L("上层 Goal 不会因子 Goal 全部完成而自动完成，需要显式收尾。请选择具体的子 Goal，再从那里打开终端。")}</p></div>
+              <div><strong>${uiText("workbench.pane.parent-goal-does-not-use-terminal-directly")}</strong><p>${compoundParentComplete
+                ? uiText("workbench.pane.child-goals-have-completed-work-so-parent-goal")
+                : uiText("workbench.pane.parent-goal-does-not-complete-its-own-when")}</p></div>
             </div>
-            <div class="tui-child-choices" data-tui-child-choices>${childChoices || `<p>${L("还没有可推进的子 Goal，请先检查 Goal 的拆分。")}</p>`}</div>
+            <div class="tui-child-choices" data-tui-child-choices>${childChoices || `<p>${uiText("workbench.pane.there-no-child-goal-ready-work-check-how")}</p>`}</div>
           </section>
           <div class="tui-chrome">
             <div class="tui-chrome-actions">
-              <button class="mw-btn mw-btn--primary tui-advance" type="button" data-tui-advance disabled>${icon("play")}<span>${L("推进这个 Goal")}</span></button>
-              <button class="mw-btn mw-btn--secondary" type="button" data-tui-copy>${icon("copy")}<span>${L("复制命令")}</span></button>
-              <button class="mw-btn mw-btn--ghost" type="button" data-tui-fill disabled>${L("填入不发送")}</button>
-              <button class="mw-btn mw-btn--ghost" type="button" data-tui-reopen hidden>${icon("refresh")}<span>${L("重新打开")}</span></button>
+              <button class="mw-btn mw-btn--primary tui-advance" type="button" data-tui-advance disabled>${icon("play")}<span>${uiText("workbench.pane.advance-goal")}</span></button>
+              <button class="mw-btn mw-btn--secondary" type="button" data-tui-copy>${icon("copy")}<span>${uiText("workbench.pane.copy-command")}</span></button>
+              <button class="mw-btn mw-btn--ghost" type="button" data-tui-fill disabled>${uiText("workbench.pane.fill-without-sending")}</button>
+              <button class="mw-btn mw-btn--ghost" type="button" data-tui-reopen hidden>${icon("refresh")}<span>${uiText("workbench.pane.reopen")}</span></button>
             </div>
             <p class="tui-status" data-tui-status role="status"></p>
           </div>
           <div class="tui-terminal" data-tui-terminal>
             <div class="tui-empty" data-tui-empty>
               <span class="tui-empty-mark" aria-hidden="true">${icon("terminal")}</span>
-              <p><strong>${compoundParent ? L("这个上层 Goal 不直接使用终端") : L("还没有终端")}</strong></p>
-              <p>${compoundParent ? L("请从上方进入一个具体的子 Goal。") : L("选择常用 Runtime 或自定义命令，在这个 Goal 上开始工作。")}</p>
-              <button type="button" class="mw-btn mw-btn--primary" data-tui-empty-add aria-haspopup="true" aria-controls="tui-open-menu" aria-expanded="false"${compoundParent ? " hidden" : ""}>${icon("plus")}${L("添加终端")}</button>
+              <p><strong>${compoundParent ? uiText("workbench.pane.parent-goal-does-not-use-terminal-directly") : uiText("workbench.pane.no-terminal-yet")}</strong></p>
+              <p>${compoundParent ? uiText("workbench.pane.open-specific-child-goal-above") : uiText("workbench.pane.choose-runtime-custom-command-work-goal")}</p>
+              <button type="button" class="mw-btn mw-btn--primary" data-tui-empty-add aria-haspopup="true" aria-controls="tui-open-menu" aria-expanded="false"${compoundParent ? " hidden" : ""}>${icon("plus")}${uiText("workbench.pane.add-terminal")}</button>
             </div>
           </div>
         </div>
         <form class="tui-menu" id="tui-open-menu" data-tui-menu aria-hidden="true" inert>
-          <strong>${L("在这个 Goal 上打开终端")}</strong>
-          <p>${L("标签只属于当前 Goal。打开不会自动发送任何内容。")}</p>
+          <strong>${uiText("workbench.pane.open-terminal-goal")}</strong>
+          <p>${uiText("workbench.pane.tab-belongs-only-current-goal-opening-does-not")}</p>
           <div class="tui-runtime-choices">
             ${runtimeChoices}
-            <button type="button" data-tui-kind="generic">${L("自定义命令")}</button>
+            <button type="button" data-tui-kind="generic">${uiText("workbench.pane.custom-command")}</button>
           </div>
           ${missingHint}
-          <label data-tui-generic-fields hidden>${L("命令")}<input name="command" type="text" autocomplete="off" placeholder="opencode"></label>
-          <details class="form-disclosure"><summary>${L("继续已有会话（可选）")}</summary><label>${L("会话 ID")}<input name="resume_session_id" type="text" autocomplete="off"></label><small>${L("先填入对应 Runtime 的会话 ID，再选择上方的 Runtime。")}</small></details>
+          <label data-tui-generic-fields hidden>${uiText("workbench.pane.command")}<input name="command" type="text" autocomplete="off" placeholder="opencode"></label>
+          <details class="form-disclosure"><summary>${uiText("workbench.pane.continue-existing-session-optional")}</summary><label>${uiText("workbench.pane.session-id")}<input name="resume_session_id" type="text" autocomplete="off"></label><small>${uiText("workbench.pane.enter-session-id-matching-runtime-first-then-choose")}</small></details>
           <div class="tui-menu-actions">
-            <button class="mw-btn mw-btn--secondary" type="button" data-tui-menu-cancel>${L("取消")}</button>
-            <button class="mw-btn mw-btn--primary" type="submit" data-tui-generic-open hidden>${L("打开")}</button>
+            <button class="mw-btn mw-btn--secondary" type="button" data-tui-menu-cancel>${uiText("common.control.cancel")}</button>
+            <button class="mw-btn mw-btn--primary" type="submit" data-tui-generic-open hidden>${uiText("common.control.open")}</button>
           </div>
         </form>
       </aside>

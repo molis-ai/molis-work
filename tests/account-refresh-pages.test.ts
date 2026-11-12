@@ -9,7 +9,7 @@ function account() {
 }
 const forbidden = { code: 'actions.forbidden' };
 
-test('ASR-04 a delayed cancellation for an older preparation cannot cancel a newer real OAuth attempt', async t => {
+test('ASR-04 V2U-07 a delayed cancellation for an older preparation cannot cancel a newer real V2 login attempt', async t => {
   const f=await accountRefreshFixture(t,accountProbeCore);
   try {
     await f.login('alice');
@@ -24,7 +24,7 @@ test('ASR-04 a delayed cancellation for an older preparation cannot cancel a new
     const unchanged=await f.status();
     assert.equal(unchanged.loginPending,true,'stale cancellation cannot revoke the new Auth transaction');
     assert.equal(unchanged.preparation.id,current,'stale cancellation cannot remove the new preparation');
-    assert.equal((await f.complete(next)).status,303);
+    assert.equal((await f.complete(next)).status,200);
     assert.equal((await f.status()).identity.userId,'carol','the newer real exchange can still complete');
   } finally { await f.close(); }
 });
@@ -158,4 +158,117 @@ for (const reason of ['cancel', 'leave', 'disconnect'] as const) test(`ASR-04 ${
   a.lease.assertCurrent();
   pages.register('new-page', a.lease);
   assert.equal(pages.start('new-page', a.lease, 'switch').ready, false, 'the same account remains usable after cancelling OAuth');
+});
+
+
+test('ASR-09 reconnect bindings survive a transport loss but refuse another lease and A-to-B-to-A', t => {
+  const pages = new AccountRefreshPages(), a = account(), b = account(), nextA = account();
+  t.after(() => pages.close());
+  const binding = pages.register('page', a.lease);
+  const disconnect = pages.subscribe('page', () => {});
+  disconnect();
+  pages.connection('page', a.lease, binding);
+  assert.throws(() => pages.connection('page', a.lease, 'forged'), forbidden);
+  assert.throws(() => pages.connection('page', b.lease, binding), forbidden);
+  a.controller.abort();
+  pages.register('page', b.lease);
+  assert.throws(() => pages.connection('page', b.lease, binding), forbidden);
+  b.controller.abort();
+  const next = pages.register('page', nextA.lease);
+  assert.notEqual(next, binding);
+  assert.throws(() => pages.connection('page', nextA.lease, binding), forbidden);
+  pages.connection('page', nextA.lease, next);
+});
+
+test('ASR-09 a late registration cannot resurrect a departed page or block the next logout', t => {
+  const pages = new AccountRefreshPages(), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease);
+  pages.leave('not-yet-registered', a.lease);
+  assert.throws(() => pages.register('not-yet-registered', a.lease), forbidden);
+  const binding = pages.register('leaving', a.lease);
+  pages.leave('leaving', a.lease);
+  assert.throws(() => pages.register('leaving', a.lease), forbidden);
+  assert.throws(() => pages.connection('leaving', a.lease, binding), forbidden);
+  const preparation = pages.start('owner', a.lease, 'logout');
+  assert.equal(pages.acknowledge('owner', a.lease, preparation.id).ready, true);
+  pages.requirePrepared('owner', a.lease, preparation.id, 'logout');
+});
+
+test('ASR-04 V2U-07 a page whose stream died without leave cannot block a retry after the preparation timeout', async t => {
+  const pages = new AccountRefreshPages(5), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('crashed', a.lease);
+  const unsubscribe = pages.subscribe('crashed', () => {});
+  unsubscribe(); // the tab crashed: its stream closed and it never sends leave
+  const blocked = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, blocked.id).ready, false, 'a just-disconnected page still owes its acknowledgement');
+  await new Promise(resolve => setTimeout(resolve, 15)); // the preparation times out
+  assert.equal(pages.snapshot(a.lease), null);
+  const retry = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, retry.id).ready, true, 'the timed-out crashed page no longer blocks the retry');
+  assert.throws(() => pages.acknowledge('crashed', a.lease, retry.id), forbidden, 'a dropped page is not part of the new preparation');
+  a.lease.assertCurrent();
+});
+
+test('ASR-04 V2U-07 a stream gone past the reconnect window is not required at start', t => {
+  let now = 0;
+  const pages = new AccountRefreshPages(30_000, () => {}, () => now), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('crashed', a.lease);
+  const unsubscribe = pages.subscribe('crashed', () => {});
+  unsubscribe();
+  now += 15_001; // colder than EventSource's 10 s maximum backoff: the document is gone
+  const current = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, current.id).ready, true, 'a long-dead stream cannot block a switch');
+  a.lease.assertCurrent();
+});
+
+test('ASR-04 V2U-07 a revived page rejoins the live preparation instead of being dropped for good', t => {
+  let now = 0;
+  const pages = new AccountRefreshPages(30_000, () => {}, () => now), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('revived', a.lease);
+  const unsubscribe = pages.subscribe('revived', () => {});
+  unsubscribe(); now += 15_001;
+  const current = pages.start('owner', a.lease, 'switch');
+  pages.acknowledge('owner', a.lease, current.id);
+  pages.subscribe('revived', () => {}); // bfcache restore or a reconnect after the drop
+  assert.equal(pages.acknowledge('revived', a.lease, current.id).ready, true, 'a page that came back must acknowledge like every live participant');
+  pages.requirePrepared('owner', a.lease, current.id, 'switch');
+});
+
+test('ASR-04 V2U-07 a connection lost during preparation keeps the page required for the immediate retry', t => {
+  const pages = new AccountRefreshPages(), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('other', a.lease);
+  const unsubscribe = pages.subscribe('other', () => {});
+  const current = pages.start('owner', a.lease, 'switch');
+  pages.acknowledge('owner', a.lease, current.id);
+  unsubscribe(); // one EventSource connection lost: the preparation is cancelled, the page itself is still alive
+  assert.equal(pages.snapshot(a.lease), null);
+  const retry = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, retry.id).ready, false, 'a page disconnected a moment ago still owes its drafts, so a network blip cannot skip them');
+  assert.equal(pages.acknowledge('other', a.lease, retry.id).ready, true);
+  pages.requirePrepared('owner', a.lease, retry.id, 'switch');
+});
+
+test('ASR-04 V2U-07 a connection lost during preparation and still gone after the reconnect window is not required', t => {
+  let now = 0;
+  const pages = new AccountRefreshPages(30_000, () => {}, () => now), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('other', a.lease);
+  const unsubscribe = pages.subscribe('other', () => {});
+  pages.start('owner', a.lease, 'switch');
+  unsubscribe();
+  now += 15_001; // the page never reconnected: the next start may treat it as crashed
+  const current = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, current.id).ready, true, 'a stream gone past the reconnect window cannot block the switch');
+});
+
+test('ASR-04 V2U-07 a first event delivery failure is still a disconnect, not a permanently required page', async t => {
+  const pages = new AccountRefreshPages(5), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('broken', a.lease);
+  assert.throws(() => pages.subscribe('broken', () => { throw new Error('closed response'); }), /closed response/u);
+  const blocked = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, blocked.id).ready, false, 'the page whose first delivery failed is still part of this preparation');
+  await new Promise(resolve => setTimeout(resolve, 15)); // the preparation times out
+  assert.equal(pages.snapshot(a.lease), null);
+  const retry = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, retry.id).ready, true, 'the failed page is not required forever after its delivery failed');
+  a.lease.assertCurrent();
 });

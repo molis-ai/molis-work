@@ -82,27 +82,32 @@ test("ASC-10 ASC-13 ASC-21: Functions reports its actual selected account and in
 
 // RAC-2669 (T-121): a plugin keeps no connection of its own, so the platform, which holds the slot bindings, reports them. Feed's own reporter
 // (`feed.connection.usages`) is gone: its sources hold no connection id any more.
-test("RAC-2669 ASC-10 ASC-13: the plugin slots bound to a connection are the platform's to report: installation slots, and per_record ones counted per project without naming a record", async t => {
+test("RAC-2669 ASC-10 ASC-13 BL-920: the plugin slots bound to a connection are the platform's to report, by plugin, slot purpose and project name: installation slots, and per_record ones counted per project without naming a record", async t => {
   const home = await openTestHome(t), a = await home.createProject("A", ["feed"]), b = await home.createProject("B", ["feed"]);
+  // Feed's per-record accounts belong to its Home installation (it runs as one Home instance with a half in each project).
+  await home.host.homePlugins!.ready();
+  const feedInstall = home.host.homePlugins!.installations().find(row => row.plugin_id === FEED_PLUGIN_ID)!.install_id;
   const account = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-feed-usage-key" }));
   const bind = (scopeId: string, pluginId: string, slotId: string) => withConnectorConnections(home.home, store => store.bind({ scopeId, pluginId, slotId, serviceId: "github", connectionId: account.connection_id }));
   bind(pluginBindingScope({ install_id: "install-example" }), "io.molis.work.example.slots", "account");
   for (const [project, record] of [[a, "source-1"], [a, "source-2"], [b, "source-3"]] as const) {
-    bind(pluginBindingScope({ install_id: "install-feed", project_id: project.project_id, record_key: record }), FEED_PLUGIN_ID, "github");
+    bind(pluginBindingScope({ install_id: feedInstall, project_id: project.project_id, record_key: record }), FEED_PLUGIN_ID, "github");
   }
   const platform = (result: { usages: Usage[] }) => result.usages.filter(usage => usage.source.capability_id === connectorPluginSlotUsages.capability_id);
   const atHome = await read(home.host.homeActionClient(), account.connection_id);
   const rows = (usages: Usage[]) => usages.map(usage => JSON.stringify([usage.title, usage.detail, usage.enabled])).sort();
   assert.deepEqual(rows(platform(atHome)), rows([
+    // An installation this Home no longer has keeps its ids: there is no Manifest left to name it by.
     { title: "io.molis.work.example.slots · account", detail: "插件这个安装发出的请求都用这个账号", enabled: true },
-    { title: `${FEED_PLUGIN_ID} · github`, detail: `项目 ${a.project_id} 里 2 条记录用这个账号`, enabled: true },
-    { title: `${FEED_PLUGIN_ID} · github`, detail: `项目 ${b.project_id} 里 1 条记录用这个账号`, enabled: true },
+    { title: "Feed · 读取你为这个来源选好的账号", detail: "项目「A」里 2 条记录用这个账号", enabled: true },
+    { title: "Feed · 读取你为这个来源选好的账号", detail: "项目「B」里 1 条记录用这个账号", enabled: true },
   ] as Usage[]));
   assert.equal(atHome.usages.some(usage => usage.source.capability_id.startsWith("feed.")), false, "Feed reports nothing of its own");
   assert.doesNotMatch(JSON.stringify(atHome), /source-[123]|fixture-feed-usage-key|credential_ref/);
   // In a project, only that project's records are counted; the installation slot is every project's.
   const inA = await read(home.host.actionClient(a.reference), account.connection_id, { ...caller, project_id: a.project_id });
-  assert.deepEqual(platform(inA).map(usage => usage.detail).sort(), ["插件这个安装发出的请求都用这个账号", `项目 ${a.project_id} 里 2 条记录用这个账号`].sort());
+  assert.deepEqual(platform(inA).map(usage => usage.detail).sort(), ["插件这个安装发出的请求都用这个账号", "项目「A」里 2 条记录用这个账号"].sort());
+  assert.doesNotMatch(JSON.stringify(platform(atHome).map(usage => [usage.title, usage.detail])), new RegExp(`${a.project_id}|${b.project_id}|${feedInstall}`), "no raw project or installation id where a name is known");
   withConnectorConnections(home.home, store => store.disconnect(account.connection_id));
   assert.deepEqual(platform(await read(home.host.homeActionClient(), account.connection_id)).map(usage => usage.enabled), [false, false, false]);
 });

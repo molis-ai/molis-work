@@ -18,6 +18,8 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 | [src/declared-mount-host.ts](src/declared-mount-host.ts) | 外壳的构造器对 UiHost 只要的那一个调用：`mountDeclared`（按 surface 声明的 slot 挂）；「方法→surface」表造渲染方法的构造器在 Goals 页（`plugins/native/goals/src/page/surfaces.ts`），这里不留第二份 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin UI 访问边界 |
 | [src/view-registry.ts](src/view-registry.ts) | 按声明排序的工作台视图。工作台用 `placements(slot)` 同时取原 manifest 输入与放置结果，以便保留不同目录条目的归属。 |
+| [src/text-sources.ts](src/text-sources.ts) | 由宿主按实际激活对象登记和撤回语言读取器。平台词源可共享，插件词源只供该实例使用。 |
+| [src/plugin-directory-words.ts](src/plugin-directory-words.ts) | 从 Manifest 的原文和准确词源投影目录纯文字。工作台接着裁剪显示字段。 |
 | [src/client-lifecycle.ts](src/client-lifecycle.ts) | 浏览器挂载、取消及资源释放，由 Host 注入 |
 | [src/call-id.ts](src/call-id.ts) | 诊断编号（调用编号）给人看的短形式 `shortCallId`：前 8 位，设置页服务端渲染用；怎样显示一个编号归界面，所以不在内核 |
 | [src/request-client.ts](src/request-client.ts) | 浏览器共用请求助手：控制头、一次性键、同源检查、错误形状与诊断编号按钮，由 Host 注入 |
@@ -28,7 +30,7 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 
 UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释放由 Host 生命周期负责；注册/渲染协议不等于任意 HTML 或脚本都获得隔离执行。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖见 [package.json](package.json)。界面合同来自 `@molis-ai/molis-work-contracts`，文字引用和词键规则复用 `@molis-ai/molis-work-plugin-sdk/ui`。
 
 ## 浏览器生命周期
 
@@ -77,7 +79,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 - 负责：UI 贡献、Slot、嵌入、隔离与宿主桥。
 - 不负责：插件产品行为、Module 业务事实。
 - 公开入口：`@molis-ai/molis-work-ui-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/ui`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。遵守[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 挂载前检查 surface 与目标 slot 兼容、身份与格式。
   - 贡献属于哪个插件由平台填，插件不写：`UiHost.register` 只收 `OwnedUiContribution`（`ownedContribution` 按受信任的 Manifest 合成）；`ui:register` 的声明自带 `plugin_id`（哪怕是自己的）一律 `ui_host.plugin_denied`（PG-098）。

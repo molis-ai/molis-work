@@ -2,6 +2,8 @@ import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { Host, StateAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 const required = requiredQuery(selector => `Text Stats page: ${selector} is missing`);
 
 /**
@@ -13,7 +15,6 @@ export function textStatsPage(host: Host): void {
   if (!(root instanceof HTMLElement) || !root.matches("[data-companion]")) return;
   const lifetime = host.mountPluginClient(root);
   if (!lifetime) return;
-  const L = host.translate;
   const reload = required<HTMLButtonElement>(root, "[data-companion-refresh]"), body = required(root, "[data-companion-content]"), note = required(root, "[data-companion-status]");
   const spin = required(reload, ".mw-spinner");
   let read = 0, view: AbortSignal | undefined;
@@ -21,14 +22,14 @@ export function textStatsPage(host: Host): void {
   const load = async () => {
     if (!lifetime.visible) return;
     const signal = view, id = ++read;
-    busy(true); note.textContent = L("text-stats.stage.reading");
+    busy(true); note.textContent = uiText.text("text-stats.stage.reading");
     try {
-      const state = await molisWorkRequest<StateAnswer>(host.pluginRoute("/state"), { signal, fallback: L("text-stats.error.unreadable") });
+      const state = await molisWorkRequest<StateAnswer>(host.pluginRoute("/state"), { signal, fallback: uiText.text("text-stats.error.unreadable") });
       lifetime.assertCurrent(signal);
       if (id !== read) return;
       body.innerHTML = state.html || ""; note.textContent = "";
     } catch (error) {
-      if (!signal?.aborted && lifetime.visible && id === read) { body.replaceChildren(); molisWorkRequest.show(note, error); note.append(document.createTextNode(L("text-stats.stage.retry"))); }
+      if (!signal?.aborted && lifetime.visible && id === read) { body.replaceChildren(); molisWorkRequest.show(note, error); note.append(document.createTextNode(uiText.text("text-stats.stage.retry"))); }
     } finally {
       if (lifetime.alive && id === read) busy(false);
     }

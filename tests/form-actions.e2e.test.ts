@@ -7,6 +7,42 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
+test("FSS-35 an open Form response retitles its seconds and preserves the original answer", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser?.projectId) return;
+  const project = browser.projectId, title = "原始问卷", question = "原始问题 <raw>", answer = "原始回答 <raw>";
+  const store = openFormStore(browser.homeDirectory);
+  const { form, submission } = (() => {
+    try {
+      const form = store.receive(project, "form-response-language", title, [{ id: "original", title: question, type: "text" }]);
+      return { form, submission: store.submit(form.id, { original: answer }, project) };
+    } finally { store.close(); }
+  })();
+  const child = await pluginFrameBrowser(t, browser, "form");
+  const next = `/projects/${project}/?openPlugin=form`;
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=en&next=" + encodeURIComponent(next) }, browser.sessionId));
+  await child.click(`[data-form-id=${JSON.stringify(form.id)}]`);
+  await child.click("[data-form-tab=results]");
+  await child.waitFor("document.querySelector('[data-form-result-list] .form-result')");
+  await child.evaluate(`(() => {
+    window.responseRow = document.querySelector('[data-form-result-list] .form-result'); window.responseText = responseRow.querySelector('strong').firstChild;
+    window.responseReads = []; const request = window.molisWorkRequest;
+    window.molisWorkRequest = Object.assign((url, init) => { responseReads.push([url, init?.method || 'GET']); return request(url, init); }, request);
+  })()`);
+  const seconds = new Date(submission.submitted_at).getUTCSeconds().toString().padStart(2, "0");
+  const english = await child.evaluate<string>("responseText.data");
+  assert.match(english, new RegExp(`^Response 1 · .*:\\d\\d:${seconds}\\s(?:AM|PM)`, "u"));
+  for (const [tag, locale] of [["zh", "zh-CN"], ["en", "en"]] as const) {
+    await browser.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await child.waitFor(`document.documentElement.lang === '${locale}'`);
+    const heading = await child.evaluate<string>("responseText.data");
+    if (tag === "en") assert.equal(heading, english);
+    else assert.match(heading, new RegExp(`^答卷 1 · .*:\\d\\d:${seconds}`, "u"));
+    assert.deepEqual(await child.evaluate(`[responseRow===document.querySelector('[data-form-result-list] .form-result'), responseText===responseRow.querySelector('strong').firstChild,
+      Array.from(responseRow.querySelectorAll('p span'), node=>node.textContent), responseReads]`), [true, true, [question, answer], []]);
+  }
+});
+
 for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and retrying a fixed Artifact`, {timeout:100_000}, async t => {
   let modelCalls=0;
   // specs/ai-interaction-experience AC-26: 「AI 生成题目」 asks first in the shared question card, then drafts with the answer.

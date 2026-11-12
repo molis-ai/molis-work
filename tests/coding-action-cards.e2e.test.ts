@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
@@ -72,6 +73,8 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   const workspace = join(homeDirectory, "coding-card-fixture");
   await mkdir(workspace, { recursive: true });
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => b.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/` }, sessionId));
   await b.click('.navigator-project-settings');
@@ -87,20 +90,19 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-plain"]));
-  await fill(`${coding} [data-coding-intent]`, "execute");
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "execute");
   // The round is given the one granted action.
-  await click(`${coding} [data-coding-attach-toggle]`);
-  await click(`${coding} [data-coding-actions-open]`);
+  await b.evaluate(codingAdd("actions"));
   const granted = `[...document.querySelectorAll('${coding} [data-coding-actions-list] label')].find(row => row.textContent.includes('创建目标'))?.querySelector('input')`;
   await waitFor(`${granted} && !${granted}.disabled`, 15_000);
   await evaluate(`(()=>{const input=${granted};input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await click(`${coding} [data-coding-actions-save]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-actions-dialog]').open`);
-  await fill(`${coding} [data-coding-task]`, "整理一下这次发布要做的事");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "整理一下这次发布要做的事");
+  await b.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
 
   // The Host's operation card, under the round that suggested it, and a step beside the composer that runs it.
   const card = `${coding} [data-coding-cards] [data-ix-operation]`;

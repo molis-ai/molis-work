@@ -136,11 +136,15 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  const { result: { value: windowInsets } } = await command<{ result: { value: { width: number; height: number } } }>("Runtime.evaluate", {
+    expression: "({width:Math.max(0,outerWidth-innerWidth),height:Math.max(0,outerHeight-innerHeight)})", returnByValue: true,
+  }, sessionId);
   async function setViewport(width: number, height: number, mobile = false): Promise<void> {
     // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
     // Size this window for the current scenario before applying its layout and mobile emulation.
     const { windowId } = await command<{ windowId: number }>("Browser.getWindowForTarget", { targetId });
-    await command("Browser.setWindowBounds", { windowId, bounds: { width, height } });
+    // Bounds include Chrome's native frame; emulation describes only its content viewport.
+    await command("Browser.setWindowBounds", { windowId, bounds: { width: width + windowInsets.width, height: height + windowInsets.height } });
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
   }
   // The product shows tool names by default; these journeys measure content at a given width, so they
@@ -156,7 +160,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       const url = new URL(request ? request.url : String(input), location.href);
       const method = String(init?.method ?? request?.method ?? 'GET').toUpperCase();
       if (url.origin === fixtureOrigin && method === 'GET') {
-        if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local', syncEnabled: false }));
+        if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local' }));
         if (url.pathname === '/api/sync') return Promise.resolve(Response.json({ available: false, reason: '本地空间不参与同步，请先切换到个人空间。' }));
       }
       return original(input, init);
@@ -244,7 +248,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
     await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
   }
-  async function navigate(action: () => Promise<unknown>) {
+  async function navigate(action: () => Promise<unknown>, targetSessionId = sessionId) {
     const timeoutError = new Error("Navigation did not finish");
     let timer: ReturnType<typeof setTimeout>;
     let stopListening = () => {};
@@ -252,7 +256,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
     const loaded = new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => reject(timeoutError), 30_000);
-      stopListening = browser.on("Page.domContentEventFired", (_event, eventSession) => { if (eventSession === sessionId) resolve(); });
+      stopListening = browser.on("Page.domContentEventFired", (_event, eventSession) => { if (eventSession === targetSessionId) resolve(); });
     });
     try {
       await Promise.all([loaded, action()]);
@@ -298,5 +302,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), openPage: browser.page.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

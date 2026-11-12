@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
@@ -11,7 +12,6 @@ import { assertOnboardingWritable, molisWorkOnboardingStatus, dismissMolisWorkOn
 import { projectNavigation } from "./web-project-presentation.js";
 import { webOnboardingInitializationInput, type WebOnboardingInitializationInput, type OnboardingRuntimePorts } from "./web-onboarding-input.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
-import { L } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
@@ -38,7 +38,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       // Each provider by its own authority (PG-008): Pages and Todo by their installations' grants, the Host's by what the person holds.
       return bindLocalWebActions(localHost, reference, ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], original_file ? { original_file } : {});
-    }, homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+    }, homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) }, localHost)(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;
@@ -59,7 +59,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       const body = await readBody(request);
       const kind = body.kind === "first_run" || body.kind === "update" ? body.kind : null;
       if (!kind || body.user_confirmed !== true) {
-        sendJson(response, 400, { error: L("请明确确认要关闭哪一段引导") });
+        sendJson(response, 400, { error: uiText.text("workbench.onboarding.confirm-which-onboarding-section-want-dismiss") });
         return true;
       }
       try {

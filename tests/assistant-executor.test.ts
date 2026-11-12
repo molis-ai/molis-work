@@ -13,6 +13,7 @@ import { EXECUTOR_MODES, roleDefinitions, roleOfCapability, roleViews } from "./
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestHome } from "./fixtures/test-home.js";
+import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 
 // specs/archive/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
 // found by the roles' types and kept by the plugin's id. These tests speak the protocol with a plugin that is not Coding.
@@ -119,14 +120,15 @@ test("RAC-431 a work is kept with its plugin by id: it goes on in that plugin, a
   assert.equal(other.calls.length, 0, "the other plugin was not asked");
   // The plugin is stopped (its role actions are gone from the directory): the work does not move to the plugin that is still there.
   first.views.length = 0;
-  await assert.rejects(service.send({ work_id: sent.work.work_id, text: "再加 multiply", request_id: randomUUID() }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.executor_unavailable");
+  await assert.rejects(inAssistantPage("zh", () => service.send({ work_id: sent.work.work_id, text: "再加 multiply", request_id: randomUUID() }, caller)),
+    (error: unknown) => (error as { code?: string }).code === "assistant.executor_unavailable");
   assert.equal(other.calls.length, 0, "no other executor takes the round");
   assert.equal(other.started.length, 0);
 });
 
 test("RAC-432 a new work names its executor by plugin id; an id nobody offers is refused before a work is made", async () => {
   const { service, store, caller, project } = fixture();
-  await assert.rejects(service.send({ executor: { kind: "plugin", plugin_id: "io.molis.work.nobody" }, scope: project, text: "做点什么", request_id: randomUUID() }, caller),
+  await assert.rejects(inAssistantPage("zh", () => service.send({ executor: { kind: "plugin", plugin_id: "io.molis.work.nobody" }, scope: project, text: "做点什么", request_id: randomUUID() }, caller)),
     (error: unknown) => (error as { code?: string }).code === "assistant.executor_unavailable");
   assert.equal(store.list("web-user").length, 0, "no work was left behind");
   await assert.rejects(service.send({ executor: { kind: "plugin" } as never, scope: project, text: "做点什么", request_id: randomUUID() }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.invalid");

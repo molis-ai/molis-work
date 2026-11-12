@@ -39,8 +39,11 @@ test("S-99 Goals takes the person only from the source owner's delegation: anoth
     const client = host.actionClient(reference);
     const permissions = [...new Set([...feedManifest.permissions.map(entry => entry.permission), "goals:read", "goals:write", "context-ledger:write"])];
     const person: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions };
-    // What the Host sets on the nested caller of a plugin's action directory for the person's own direct call to that plugin (S-43).
-    const handedInBy = (plugin: string): ActionCallContext => ({ ...person, audience: "workflow", delegated_by: plugin, delegated_audience: "user" });
+    // What the Host sets on the nested caller of a plugin's action directory for the person's own direct call to that plugin (S-43), and,
+    // since BL-803, the handler's own action from the Runtime's scope. Feed's real promotion entered by the person is the only proof Goals takes.
+    const PROMOTE = { capability_id: "feed.items.promote", version: 1, provider_id: FEED_PLUGIN_ID, direct_person_entry: true as const };
+    const handedInBy = (plugin: string, delegated_action?: ActionCallContext["delegated_action"]): ActionCallContext =>
+      ({ ...person, audience: "workflow", delegated_by: plugin, delegated_audience: "user", ...(delegated_action ? { delegated_action } : {}) });
     const intent = (key: string, source_kind?: string) => ({ title: "Who asked", idempotency_key: key, ...(source_kind ? { source_kind } : {}) });
     const confirm = (goal_id: string) => ({ goal_id, source: { kind: "feed_item" as const, id: item.item_id }, name: "Feed Item 输入",
       snapshot_digest: `sha256:${"0".repeat(64)}`, reason: "who asked" });
@@ -49,8 +52,15 @@ test("S-99 Goals takes the person only from the source owner's delegation: anoth
       .then(async created => channel((created as { goal: { goal_id: string } }).goal.goal_id), (error: ActionError) => `${error.code} ${error.message}`);
     const REFUSED = "actions.input_invalid 只有本人可以指定 Goal 的创建渠道";
     const outcomes: unknown[] = [];
-    for (const [name, plugin] of [["feed", FEED_PLUGIN_ID], ["workflows", WORKFLOWS_PLUGIN_ID], ["third party", THIRD_PARTY]] as const) {
-      const caller = handedInBy(plugin);
+    const { direct_person_entry: _entered, ...notEntered } = PROMOTE;
+    const cases: Array<[string, ActionCallContext]> = [["feed", handedInBy(FEED_PLUGIN_ID, PROMOTE)], ["workflows", handedInBy(WORKFLOWS_PLUGIN_ID, PROMOTE)],
+      ["third party", handedInBy(THIRD_PARTY)],
+      // B27-DELEGATE-02 B27-DELEGATE-03: Feed's name without the proof, Feed's other action, the promotion not entered by the person, another
+      // version or provider: none is the person (before BL-803 the first one was).
+      ["feed, no action", handedInBy(FEED_PLUGIN_ID)], ["feed, other action", handedInBy(FEED_PLUGIN_ID, { ...PROMOTE, capability_id: "feed.items.dismiss" })],
+      ["feed, not entered", handedInBy(FEED_PLUGIN_ID, notEntered)], ["feed, other version", handedInBy(FEED_PLUGIN_ID, { ...PROMOTE, version: 2 })],
+      ["feed, other provider", handedInBy(FEED_PLUGIN_ID, { ...PROMOTE, provider_id: THIRD_PARTY })]];
+    for (const [name, caller] of cases) {
       const named = await create(caller, `named-${name}`, "feed");
       const other = await create(caller, `other-${name}`, "onboarding");
       const plain = await create(caller, `plain-${name}`);
@@ -64,6 +74,11 @@ test("S-99 Goals takes the person only from the source owner's delegation: anoth
       ["feed", "feed", REFUSED, "runtime", "confirmed"],
       ["workflows", REFUSED, REFUSED, "runtime", "proposed"],
       ["third party", REFUSED, REFUSED, "runtime", "proposed"],
+      ["feed, no action", REFUSED, REFUSED, "runtime", "proposed"],
+      ["feed, other action", REFUSED, REFUSED, "runtime", "proposed"],
+      ["feed, not entered", REFUSED, REFUSED, "runtime", "proposed"],
+      ["feed, other version", REFUSED, REFUSED, "runtime", "proposed"],
+      ["feed, other provider", REFUSED, REFUSED, "runtime", "proposed"],
     ]);
     // The person's own call still names any channel, and an unnamed one is theirs.
     assert.equal(await create(person, "person-onboarding", "onboarding"), "onboarding");

@@ -1,3 +1,4 @@
+import { assistantWords } from "./assistant-saved-text.js";
 import { isSubjectReader, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
 import type { WorkIdentity } from "./assistant-relations.js";
@@ -99,9 +100,10 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
           const shared = eventGoals.find(goal => ids.has(goal));
           if (!shared) continue;
           const work = group.find(item => item.work_id === workId)!;
-          const goalTitle = (await read({ kind: "goal", id: shared }))?.title || "相关目标";
+          const goal = (await read({ kind: "goal", id: shared }))?.title, words = { source: collection.source.title, item: event.title };
           const stored = store.raiseNotice(actorId, { kind: "material", work_id: work.work_id, work_title: work.title,
-            text: `${collection.source.title} 有新内容「${event.title.slice(0, 60)}」，和这项工作的目标「${goalTitle.slice(0, 40)}」有关` }, `material:${work.work_id}:${event.event_id}`);
+            text: goal ? assistantWords("workbench.assistant-notice.material", { ...words, goal })
+              : assistantWords("workbench.assistant-notice.material-untitled", words) }, `material:${work.work_id}:${event.event_id}`);
           if (stored) raised += 1;
         }
       }

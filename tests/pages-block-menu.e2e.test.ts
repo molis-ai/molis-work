@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pageTextScript } from "./fixtures/page-text.js";
+import { pageTextReaderScript } from "./fixtures/page-text.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
@@ -31,10 +31,11 @@ test("SYS-48/W5-10-PGM-02: block menu navigates, changes the selected blocks, un
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
     Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
+  await b.evaluate(pageTextReaderScript("zh", "pages"));
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='block-menu-fixture';root.className='pages-editor-host';
     root.style.cssText='width:640px;max-width:90vw;margin:48px auto';document.body.replaceChildren(root);
-    window.blockOptions={doc:${JSON.stringify(original)}};
+    window.blockOptions={translate:isolatedEditorText,doc:${JSON.stringify(original)}};
     window.blockEditor=window.MolisWorkPagesEditor.mount(root,blockOptions);blockEditor.view.focus();
   })()`);
   const mod = await b.evaluate<number>("/Mac/.test(navigator.platform) ? 4 : 2");
@@ -101,8 +102,8 @@ test("SYS-48/W5-10-PGM-02: block menu navigates, changes the selected blocks, un
   await b.evaluate("window.MolisWorkPagesEditor.destroy(blockEditor)");
   assert.equal(await b.evaluate("document.querySelectorAll('.pages-block-menu,.pages-block-handle,.pages-block-ghost').length"), 0);
   // SYS-48: the formal English translator keeps the editor action distinct from clipboard Copy.
-  await b.evaluate(pageTextScript("en", "pages")); // Pages' editor runs in Pages' frame: its own English with the page's catalog
-  await b.evaluate("blockOptions.translate=window.L; void (blockEditor=window.MolisWorkPagesEditor.mount(document.querySelector('#block-menu-fixture'),blockOptions))");
+  await b.evaluate(pageTextReaderScript("en", "pages")); // Pages' editor runs in Pages' frame: its own English with the page's catalog
+  await b.evaluate("blockOptions.translate=isolatedEditorText; void (blockEditor=window.MolisWorkPagesEditor.mount(document.querySelector('#block-menu-fixture'),blockOptions))");
   await open();
   await choose(b, "Duplicate");
   assert.deepEqual(await texts(), ["Alpha", "Alpha", "Beta", "Gamma"]);

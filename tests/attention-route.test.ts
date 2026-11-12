@@ -1,3 +1,4 @@
+import { noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
@@ -16,7 +17,7 @@ import { openTestHome } from "./fixtures/test-home.js";
  */
 
 interface Attention { background_tasks: unknown[] | null; notices: unknown[] | null; plugin_events_pending: number | null; board_cursor: number | null }
-interface Notice { notice_id: string; kind: string; text: string }
+type Notice = import("@molis-ai/molis-work-contracts/services/assistant").AssistantNotice;
 
 test("W4-10-01 the Home page's attention read answers background tasks and notices, with no project parts", async t => {
   const home = await openTestHome(t);
@@ -56,12 +57,12 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
   let told: Notice[] = [];
   do {
     ({ notices: told } = await home.web.get<{ notices: Notice[] }>("/api/assistant/notices"));
-    if (told.some(notice => notice.text.includes(title))) break;
+    if (told.some(notice => noticeText(notice).includes(title))) break;
     assert.ok(Date.now() < deadline, "the Host's reminder timer did not tell the Todo reminder"); await pause(10);
   } while (true);
   const attention = await home.web.get<Attention>("/api/attention");
   assert.deepEqual(attention.notices, told, "the attention read answers the Assistant's own notices, not a copy of its own");
-  assert.deepEqual((attention.notices as Notice[]).filter(notice => notice.text.includes(title)).map(notice => notice.kind), ["reminder"], "the one reminder, told once");
+  assert.deepEqual((attention.notices as Notice[]).filter(notice => noticeText(notice).includes(title)).map(notice => notice.kind), ["reminder"], "the one reminder, told once");
   assert.deepEqual(attention.background_tasks, []);
   assert.equal(attention.plugin_events_pending, 0);
   assert.equal(attention.board_cursor, null);

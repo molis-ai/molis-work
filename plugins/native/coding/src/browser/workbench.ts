@@ -21,8 +21,6 @@ type CompanionClient = (ports: { readonly root: Element; readonly openResult: ()
 export interface CodingWorkbenchHost {
   readonly root: Element;
   readonly mountPluginClient: CodingHost["mountPluginClient"];
-  /** The page's words. */
-  readonly translate: CodingHost["translate"];
   /** What a page says when the router refused a read for who-may-read reasons; empty for any other failure. */
   readonly readRefusal?: CodingHost["readRefusal"];
   /** The Manifest identity this page runs under, and a path under it in the current project. */
@@ -48,9 +46,9 @@ export interface CodingWorkbenchHost {
  * (its own bundle, loaded beside this one); the files face is Coding's own (main/files-face.ts). Built with esbuild into `dist/workbench-bundle.js` (src/workbench-client.ts reads it).
  */
 export function codingWorkbench(host: CodingWorkbenchHost): void {
-  const { mountPluginClient, translate, readRefusal, pluginId, pluginRoute, confirm, clients } = host;
+  const { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm, clients } = host;
   // What every client mounted here gets besides its own ports.
-  const lent = { mountPluginClient, translate, readRefusal, pluginId, pluginRoute, confirm };
+  const lent = { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm };
   const showReviews = (element: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null,
     query?: { runSession?: string; limit?: number }, control?: { signal?: AbortSignal }) => host.reviews.show(element,
     { runIds: refs.map(ref => ref.run_id), sessionId, workspaceId, ...query }, { signal: control?.signal });

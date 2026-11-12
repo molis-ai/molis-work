@@ -1,3 +1,5 @@
+import { imFailureText } from "./error-text.js";
+import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { TopicDraft, ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -44,9 +46,9 @@ export function createImTopics(base: ImBaseCtx, context: () => ImCtx): Pick<ImCt
     s.threadDraft = { source_message_id: messageId };
     revealThread();
     c.formFor('thread').hidden = true;
-    v.context({ thread: { id: 'draft', title: '新话题', source_message_id: messageId }, context: message ? [message] : [] });
+    v.context({ thread: { id: 'draft', title: '', source_message_id: messageId }, context: message ? [message] : [] });
     const stream = q('[data-stream="thread"]');
-    stream.innerHTML = '<form class="im-thread-setup"><p>让一个问题有自己的讨论空间，所有项目成员都能参与。</p><label class="im-field">话题名称<input name="title" maxlength="80" required placeholder="这次想聊什么？" autocomplete="off"></label><label class="im-field">第一条消息<textarea name="body" rows="4" maxlength="12000" required placeholder="把问题、背景或需要的判断写在这里…"></textarea></label><p class="im-form-error" data-form-error role="alert"></p><div class="im-form-actions"><button class="im-secondary" type="button" data-action="close-thread">留作草稿</button><button class="im-primary" type="submit">发布话题</button></div></form>';
+    stream.innerHTML = ("<form class=\"im-thread-setup\"><p>" + escapeImText(uiText.text("im-ui.thread.new-description")) + "</p><label class=\"im-field\">" + escapeImText(uiText.text("im-ui.thread.name")) + "<input name=\"title\" maxlength=\"80\" required placeholder=\"" + escapeImText(uiText.text("im-ui.thread.name-placeholder")) + "\" autocomplete=\"off\"></label><label class=\"im-field\">" + escapeImText(uiText.text("im-ui.thread.first-message")) + "<textarea name=\"body\" rows=\"4\" maxlength=\"12000\" required placeholder=\"" + escapeImText(uiText.text("im-ui.thread.body-placeholder")) + "\"></textarea></label><p class=\"im-form-error\" data-form-error role=\"alert\"></p><div class=\"im-form-actions\"><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"close-thread\">" + escapeImText(uiText.text("im-ui.thread.keep-draft")) + "</button><button class=\"mw-btn mw-btn--primary mw-btn--sm\" type=\"submit\">" + escapeImText(uiText.text("im-ui.thread.publish")) + "</button></div></form>");
     c.updateHeader();
     const form = stream.querySelector('form')!;
     const titleInput = form.querySelector<HTMLInputElement>('[name=title]')!, bodyInput = form.querySelector<HTMLTextAreaElement>('[name=body]')!;
@@ -84,7 +86,7 @@ export function createImTopics(base: ImBaseCtx, context: () => ImCtx): Pick<ImCt
       catch (cause) {
         const error = cause as ApiError;
         if (version === s.epoch)
-          form.querySelector<HTMLElement>('[data-form-error]')!.textContent = error.message;
+          form.querySelector<HTMLElement>('[data-form-error]')!.textContent = imFailureText(error);
       }
       finally {
         busy = false;

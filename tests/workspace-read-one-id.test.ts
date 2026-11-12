@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -250,7 +251,7 @@ test("Git and Coding read the linked folder through the one action in a real Hos
     const created = await request("/api/settings/projects", "POST", { display_name: "读取同一个动作", user_confirmed: true });
     assert.equal(created.status, 201);
     const id = created.body.project.project_id as string;
-    for (const pluginId of ["coding", "git"]) assert.equal((await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: pluginId })).status, 200);
+    for (const pluginId of ["coding", "git"]) assert.equal((await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: pluginId, expected_revision: await projectPluginRevisionAt(origin, id) })).status, 200);
     const directory = path.join(root, "repository"); await mkdir(join(directory, "src"), { recursive: true });
     await writeFile(join(directory, "note.txt"), "中文🙂\nfirst\n");
     await writeFile(join(directory, "chart.png"), PNG);

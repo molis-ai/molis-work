@@ -13,6 +13,9 @@ export const servicesConnectorHostContract = {
   ssot: "docs/horizontal/connector-host.md",
 } as const satisfies ContractDescriptor;
 
+/** The provider id the Host registers the person's own connection actions under: one name, shared by the Host and the AI kit's reporter table (`services/kit`). */
+export const CONNECTOR_PROVIDER_ID = "system.connectors";
+
 export interface ConnectorRawEvent {
   raw_event_id: string;
   provider_dedupe_id: string;

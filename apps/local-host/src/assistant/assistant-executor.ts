@@ -1,10 +1,11 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionExecutionContext, type ActionView, type BoundActionClient, type ExactActionReference,
   type WorkExecutorCalls, type WorkExecutorRole, type WorkExecutorRunControl, type WorkExecutorSession, type WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
-import { L } from "../web-locale.js";
 
 /** The person's own action client in a project, as far as the Assistant's reads of other plugins need it. */
 export interface PersonActions {
@@ -12,8 +13,11 @@ export interface PersonActions {
   invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }
 
-/** What says whether the call still counts (a follow-up not removed since it fired), joined to the person's own checks at each call's final boundary. */
-export type ExecutorControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
+/**
+ * What says whether the call still counts (a follow-up not removed since it fired), joined to the person's own checks at each call's final
+ * boundary; and, for a dispatch, the delegating round's language, which picks the executor's reply language and nothing else (§2.4).
+ */
+export type ExecutorControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "locale">;
 /** A dispatch's control from its own check (a follow-up removed or edited since it fired stops): asked at each call's final check and at each effect inside the executor's action. */
 export const dispatchControl = (assertCurrent: () => void): ExecutorControl => ({ beforeEffect: async () => assertCurrent(), assert_authority_current: assertCurrent });
 
@@ -54,7 +58,7 @@ export function unavailableReason(provider: ExecutorProvider): string | null {
   return null;
 }
 
-const unavailable = (reason?: string) => assistantErrors.executor_unavailable(reason || L("这个执行方现在不能用"), { action: L("在插件管理里检查它") });
+const unavailable = (reason?: string) => assistantErrors.executor_unavailable(reason || uiText.text("workbench.assistant-executor.executor-cannot-be-used-right-now"), { action: uiText.text("workbench.assistant-executor.check-plugin-management") });
 
 /**
  * A plugin as the executor of a work, driven only through the six actions of the work-executor protocol it publishes. The session is the
@@ -66,7 +70,7 @@ export class WorkExecutor {
   /** The provider a work is kept with, found again in the current directory: stopped, uninstalled, without a grant or short of a role, it is refused and no other one is used. */
   static async bind(actions: BoundActionClient, pluginId: string, dispatch?: ExecutorControl): Promise<WorkExecutor> {
     const provider = executorProviders(await actions.discover()).find(row => row.plugin_id === pluginId);
-    if (!provider) throw unavailable(L("这项工作的执行方现在找不到：它可能被停用、卸载或没有全套执行方动作"));
+    if (!provider) throw unavailable(uiText.text("workbench.assistant-executor.work-s-executor-cannot-be-found-now-may"));
     const reason = unavailableReason(provider);
     if (reason !== null) throw unavailable(reason);
     return new WorkExecutor(actions, provider, dispatch);
@@ -102,8 +106,13 @@ export class WorkExecutor {
   /** Change the session's next-round mode where the executor keeps it, so its page shows the same choice. */
   async setMode(sessionId: string, mode: string): Promise<void> { await this.call("session.update", { session_id: sessionId, mode }); }
 
-  /** A new round with the session's own settings, or the executor's defaults: it refuses in its own words when it cannot. */
-  async start(sessionId: string, task: string): Promise<string> { return (await this.call("run.start", { session_id: sessionId, task })).run_id; }
+  /**
+   * A new round with the session's own settings, or the executor's defaults: it refuses in its own words when it cannot. The Skills go
+   * by their exact references; whether a `manual` one was named is what the Host bound to this call, not this input (§2.3).
+   */
+  async start(sessionId: string, task: string, skills: readonly SkillRef[] = []): Promise<string> {
+    return (await this.call("run.start", { session_id: sessionId, task, ...(skills.length ? { skills: [...skills] } : {}) })).run_id;
+  }
 
   async control(sessionId: string, runId: string, control: ExecutorRunControl): Promise<void> {
     await this.call("run.control", { session_id: sessionId, run_id: runId, ...control } as WorkExecutorRunControl);

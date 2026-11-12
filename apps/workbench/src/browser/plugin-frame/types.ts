@@ -6,6 +6,9 @@ import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { frameAssets } from "./frame-assets.js";
+import type { AppearanceProjection } from "../appearance-view.js";
+import type { FrameLanguage, FrameLanguageUpdate, prepareFrameLanguages } from "./language.js";
+import type { BarReceiver, ComposerDown, ComposerUp } from "./composer-bridge.js";
 
 export type Translate = UiClientTranslate;
 export interface FrameScope extends UiClientScope {
@@ -15,7 +18,6 @@ export interface FrameScope extends UiClientScope {
 export interface FrameHost {
   root?: HTMLElement;
   scope?: FrameScope;
-  translate: Translate;
   mountPluginClient(root: HTMLElement): FrameScope | null;
   route?(path: string): string;
   projectId?(): string;
@@ -36,9 +38,12 @@ export interface FrameHost {
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
   recordRow?: { selector: string; idDataset: string };
   searchRow?: { selector: string; idDataset: string };
+  projection?: string;
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
   mount: UiClientMount | null;
+  appearance?: AppearanceProjection;
+  text: FrameLanguage;
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
   itemTab: { tabId: string; itemId: string } | null;
@@ -50,8 +55,10 @@ export interface FrameConfig {
   stage: { title: string; description: string };
   shortcuts: string[];
   search?: string;
+  /** The page is in a workbench pane under the bar: its AI composer is a receiver of the bar's one input (composer-bridge.ts). */
+  bar: boolean;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
-  messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
+  storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }
 export interface FrameFetch {
   type: "fetch"; id: number; url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null;
@@ -107,9 +114,9 @@ export type FrameUp =
   | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
-  | TaskGrantsUp | ConnectionNeedUp | ReturnUp
+  | TaskGrantsUp | ConnectionNeedUp | ReturnUp | ComposerUp
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
-  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string } }
+  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string }; input?: Readonly<Record<string, string>> }
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
   | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }
@@ -134,8 +141,10 @@ export type FrameDown =
   | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
   | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; error?: string; status?: number }
   | { type: "embedded"; id: number; error?: string }
-  | TaskGrantsDown | ConnectionNeedDown | ReturnDown
+  | TaskGrantsDown | ConnectionNeedDown | ReturnDown | ComposerDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
+  | { type: "environment"; snapshot: AppearanceProjection["snapshot"]; skin_href: string | null }
+  | FrameLanguageUpdate
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }
@@ -151,22 +160,22 @@ export type FrameDown =
 
 declare global {
   interface Window { molisPluginFrames: typeof globalThis.molisPluginFrames }
+  /** The bar's receivers (composer-parent.ts): the framed page in front that takes words, or none. */
+  var molisBarReceivers: { front(): BarReceiver | null } | undefined;
+  /** Set by the bar (the Dock island's composer): told when the receiver in front may have changed. */
+  var molisBarReceiverChanged: (() => void) | undefined;
+  /** Set by the bar's column (bar-column.ts): place the input again (the page in front, or its column, changed). */
+  var molisWorkBarPlace: (() => void) | undefined;
   var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
-  var molisFrameFillMessage: Translate;
   var molisPageTerminal: UiPageTerminal;
   var molisWorkControlHeaders: UiRequest["headers"];
-  var MOLIS_WORK_MESSAGES: Record<string, string>;
-  var MOLIS_WORK_PLUGIN_TITLES: Record<string, string>;
-  /** Each plugin's own English by plugin id: a frame takes its plugin's under the page's, and no other plugin's. */
-  var MOLIS_WORK_PLUGIN_WORDS: Record<string, Record<string, string>> | undefined;
-  var L: Translate;
   var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
-  var molisPluginFrames: { assets: typeof frameAssets; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
-  var molisFrameUi: (translate: Translate) => {
+  var molisPluginFrames: { assets: typeof frameAssets; prepareLanguage: typeof prepareFrameLanguages; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
+  var molisFrameUi: () => {
     mountPluginClient(root: HTMLElement): FrameScope | null;
     interaction: typeof import("@molis-ai/molis-work-design-system").createInteractionClient;
     receipts: unknown;
-    surfaceFocus(host: { translate: Translate; surfaceOnly: true }): void;
+    surfaceFocus(host: { surfaceOnly: true }): void;
   };
 }

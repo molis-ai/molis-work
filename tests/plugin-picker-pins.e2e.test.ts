@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 
@@ -21,7 +22,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   const b = await openGoalBrowser(t, "user");
   if (!b) return null;
   const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
-  await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule" });
+  await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(b.web, projectId!) });
   await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");
@@ -372,7 +373,8 @@ test("DOCK-08 Coding comes in place: its page and its row in the settings list, 
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
   await click('[data-directory-open="settings"]');
   await click(row);
-  await waitFor("Boolean(document.querySelector('[data-work-surface=settings] [data-coding-method-library]')) && document.querySelector('[data-work-surface=settings] [data-coding-method-library]').dataset.bound === 'true'", 15_000);
+  // Its MCP section's script answers once bound: the server-drawn "reading" line gives way to what it read.
+  await waitFor("(() => { const line = document.querySelector('[data-work-surface=settings] [data-coding-mcp-settings] [data-mcp-status]'); return !!line && !/MCP (配置…|settings…)$/.test(line.textContent.trim()); })()", 15_000);
   assert.equal(await stayed(), true, "still no reload");
   // Taking it away while its settings are showing: the row goes and the list falls back to its first section.
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");

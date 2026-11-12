@@ -178,6 +178,7 @@ export function resolveFontScheme(spec: UiSpecFile, baseline: UiFontSchemeFile, 
   if (baseline.id !== spec.baseline_font.id || baseline.revision !== spec.baseline_font.revision) problems.push({ file: `${baseline.id}.json`, path: "$.id", code: "ui.font_not_baseline", reason: `规格的基线字体是 ${spec.baseline_font.id} 第 ${spec.baseline_font.revision} 版`, fix: "把那一份传进来" });
   const tokens: Record<string, string> = {};
   const used = new Set<string>();
+  const bodyFamily = spec.font_roles.find(role => role.name === "body")?.tokens.family;
   const write = (token: string | undefined, value: string | undefined, role: string, field: keyof UiFontRole) => {
     if (token === undefined) return;
     if (value !== undefined) tokens[token] = value;
@@ -186,9 +187,13 @@ export function resolveFontScheme(spec: UiSpecFile, baseline: UiFontSchemeFile, 
   for (const { name, tokens: names } of spec.font_roles) {
     const role: UiFontRole = { ...baseline.roles[name], ...chosen.roles[name] };
     for (const family of role.families ?? []) if ("face" in family) used.add(family.face);
-    write(names.family, role.families?.map(cssFamily).join(", "), name, "families");
+    // Proportional roles that do not specify their own family inherit the scheme's body family.
+    const sharedFamily = name !== "body" && name !== "code" && bodyFamily ? cssVar(bodyFamily) : undefined;
+    write(names.family, role.families?.map(cssFamily).join(", ") ?? sharedFamily, name, "families");
     write(names.weight, role.weight === undefined ? undefined : String(role.weight), name, "weight");
     write(names.tracking, role.tracking_em === undefined ? undefined : role.tracking_em === 0 ? "0" : `${cssNumber(role.tracking_em)}em`, name, "tracking_em");
+    write(names.size, role.size_px === undefined ? undefined : cssLength(role.size_px), name, "size_px");
+    write(names.line_height, role.line_height === undefined ? undefined : cssNumber(role.line_height), name, "line_height");
   }
   if (problems.length > 0) return { ok: false, problems };
   const faces = [...chosen.faces, ...(scheme === undefined ? [] : baseline.faces)].filter((face, index, all) => used.has(face.family) && all.findIndex((other) => other.family === face.family && other.resource === face.resource) === index);

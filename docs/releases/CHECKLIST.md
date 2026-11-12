@@ -43,11 +43,11 @@
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
 | 项目库 | `projects/<project_id>/molis-work.db` | 2 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
-| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
-| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
+| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
+| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 2 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
-| 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
-| 目录库 | `projects/catalog.db` | 2 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
+| 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 2 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
+| 目录库 | `projects/catalog.db` | 3 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
 | Functions | `functions/functions.db` | 1 | `user_version` | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 个人同步队列 | `spaces/<spaceId>/sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 低版本升级，高版本拒绝 |
@@ -82,6 +82,7 @@
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；账号登录、设备授权、OAuth 与 MCP 的换令牌和刷新在发出请求之前就被拒（`assertSecretStoreWritable`，有别的条目坏了也一样），授权码不被用掉；低版本升级 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |
 | Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 低版本升级，高版本拒绝 |
+| 上次使用语言（JSON 文件，不是库） | `config/ui-locale.json` | 1 | 文件里的 `schema_version` | `horizontal/appearance/src/locale-memory.ts#SCHEMA_VERSION` | 低版本升级；高版本读成「没有记录」且不覆盖原文件 |
 | 新用户引导（JSON 文件，不是库） | `config/onboarding.json` | 1 | `schema_version` | `apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了（不是 JSON、没有版本号）时按没有引导过显示，日志记一行；完成或关掉引导时保存被拒并报错（高版本 `storage.store_too_new`，读不了 `storage.schema_version_mismatch`），文件不变。会先建东西的三个入口（整理后采用、「空白开始」进个人空间、`/api/onboarding/initialize`）在建项目、个人空间之前先查同一条，查不过就报这条拒绝，什么都不建，整理也不记下已采用。版本对时认不出的字段回默认值；文件不在当作没有引导过 |
 | 项目到达记录（JSON 文件，不是库） | `config/project-arrival.json` | 1 | `schema_version` | `apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了时当作空（项目选择器没有上次打开的顺序和项目介绍），日志记一行；打开项目、留下介绍时的写入被拒，这些写入本来就不报错，人看不到；文件不变。版本对时只留认得出的项目行；文件不在当作空 |
 | 侧栏浏览器的网站决定（JSON 文件，不是库） | `browser/sites.json` | 1 | `version` | `apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION` | 低版本由升级过程升。高版本或读不了时按没有决定处理：拦过的网站不再拦，助理可以用浏览器，日志记一行；设网站或开关助理时保存被拒并报错，文件不变，被拒的设定也不生效。版本对时只留形状对的网站行，`assistant` 不是 `false` 就算开；文件不在当作没有决定 |

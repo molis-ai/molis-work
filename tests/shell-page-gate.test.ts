@@ -145,10 +145,10 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
   "apps/workbench/src/shell-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
-  "apps/workbench/src/plugin-store-unavailable.ts": "Host static recovery document for an unreadable Home ledger; no plugin content or client (ac-trust-install §7.3, RAC-404)",
+  "apps/workbench/src/owner-unavailable.ts": "Host static recovery document when an owner's store is refused or the Home ledger is unreadable (was plugin-store-unavailable.ts); no plugin content or client (ac-trust-install §7.3, RAC-404; upgrade-continuity U3 §2–3)",
+  "apps/workbench/src/arrival/upgrade-opening.ts": "进入页：升级维护态的开场页（升级时宿主对页面请求给的整页，打开任何项目之前；upgrade-continuity U3 §4）",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
-  "apps/local-host/src/personal-http.ts": "Host 账号回调响应：仅 /account/callback 的失败提示；成功 303 返回工作台，不属于插件页面",
   "apps/workbench/src/arrival/shell.ts": "进入页",
   "apps/workbench/src/arrival/chooser.ts": "进入页：项目选择",
   "apps/workbench/src/onboarding-renderer.ts": "进入页：Onboarding",
@@ -174,6 +174,6 @@ test("only the listed source files produce a whole page", () => {
   assert.deepEqual(producers.filter(file => !(file in PAGE_PRODUCERS)), [], "a new page producer needs a registered Host workbench entrypoint or a documented exception");
   assert.deepEqual(Object.keys(PAGE_PRODUCERS).filter(file => !producers.includes(file)), [], "a producer that is gone leaves the list");
   const accountResponse = readFileSync("apps/local-host/src/personal-http.ts", "utf8");
-  assert.equal((accountResponse.match(/<!doctype html>/gi) ?? []).length, 1,
-    "the Host account registration covers only its existing failure response; another document requires review");
+  assert.equal((accountResponse.match(/<!doctype html>/gi) ?? []).length, 0,
+    "the Host account callback no longer returns a page; a new document requires review");
 });

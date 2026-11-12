@@ -1,3 +1,5 @@
+import type { PluginLocalesDeclaration, TextRef, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
+
 /** JSON-only contract shared by generated plugins and the trusted host. */
 export type SandboxJson = null | boolean | number | string | SandboxJson[] | { [key: string]: SandboxJson };
 
@@ -106,16 +108,21 @@ export interface SandboxOperationContract {
   examples: SandboxOperationExample[];
 }
 
+/** A string is the author’s literal. Generated interface words carry a reference to the owner’s language pack. */
+export type SandboxVisibleText = string | TextRef;
+
 export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
   revision: string;
+  /** The signed Manifest projects this declaration; each language is a file in the package's locales/ directory. */
+  ui?: { readonly locales: PluginLocalesDeclaration };
   operations: SandboxOperationContract[];
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   pages: Array<{
     id: string;
-    title: string;
-    regions: Array<{ id: string; title: string; description?: string; operationIds: string[] }>;
+    title: SandboxVisibleText;
+    regions: Array<{ id: string; title: SandboxVisibleText; description?: string; operationIds: string[] }>;
   }>;
   acceptance: Array<{
     id: string;
@@ -255,9 +262,18 @@ export interface SandboxImageRequest extends SandboxImageTarget {
   size?: string;
   aspect_ratio?: string;
 }
-/** At most `SANDBOX_IMAGE_LIMITS.max_images` pictures and `max_bytes` bytes of picture in all, as base64: the channel carries a megabyte of JSON in all, and a result takes under half of it. */
+/** What `generate` gives the package: at most `SANDBOX_IMAGE_LIMITS.max_images` pictures, each at most `max_image_bytes` and `max_bytes` in all, as base64. */
 export interface SandboxImageResult { images: Array<{ base64: string; mime?: string }>; revision: string }
-export const SANDBOX_IMAGE_LIMITS = Object.freeze({ max_images: 4, max_bytes: 360 * 1024 });
+/**
+ * How a result crosses the channel (BL-918). The Host holds the pictures for the operation call that asked, and `imageGeneration.generate` answers with
+ * their sizes; the worker reads them in parts of at most `part_bytes` with `imageGeneration.readRange` and forgets them with `imageGeneration.releaseResult`.
+ * The result id is the Host's own and good only inside that call; the worker assembles the base64 the package sees, so a package never handles parts.
+ */
+export interface SandboxImageDescriptor { result_id: string; revision: string; images: Array<{ byte_length: number; mime?: string }> }
+export interface SandboxImageRange { result_id: string; image_index: number; offset: number; length: number }
+/** One part of a held picture: at most `part_bytes` bytes, where it starts, and the picture's size. */
+export interface SandboxImagePart { offset: number; byte_length: number; size: number; data_base64: string }
+export const SANDBOX_IMAGE_LIMITS = Object.freeze({ max_images: 4, max_image_bytes: 4 * 1024 * 1024, max_bytes: 8 * 1024 * 1024, part_bytes: 256 * 1024 });
 export type SandboxModelAvailability =
   | { available: true; runtime_label?: string; vision?: boolean }
   | { available: false; code: string; reason: string; runtime_label?: string; vision?: boolean };
@@ -284,6 +300,10 @@ export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
 export interface SandboxSqlStatement { sql: string; parameters?: SandboxSqlValue[] }
 
 export interface SandboxSdk {
+  /** The same text tools as the public SDK, supplied by the sandbox's trusted bootstrap. */
+  readonly t: UiTextTool;
+  readonly say: UiSayTool;
+  readonly format: UiFormatTool;
   storage: {
     get(key: string): Promise<SandboxJson>;
     set(key: string, value: SandboxJson): Promise<void>;
@@ -381,7 +401,7 @@ export interface SandboxSdk {
   /**
    * The person's image generation (`effects.imageGeneration`). A connection is the person's: it reaches only the address they pinned it to, so
    * `bind` and `generate` fail for a connection that was never used at that address. `generate` runs inside one of the package's own concurrent actions
-   * and the result is bounded by `SANDBOX_IMAGE_LIMITS`.
+   * and the result is bounded by `SANDBOX_IMAGE_LIMITS`; it arrives whole or not at all.
    */
   imageGeneration: {
     connections(): Promise<SandboxImageConnection[]>;
@@ -418,6 +438,7 @@ export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' 
   | 'model.choices' | 'model.availability' | 'model.complete'
   | 'model.settings.read' | 'model.settings.save'
   | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate'
+  | 'imageGeneration.readRange' | 'imageGeneration.releaseResult'
   | 'background.start' | 'background.cancel'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
@@ -428,7 +449,8 @@ export type SandboxWorkerMessage =
   | { type: 'error'; id: string; code: string; message: string }
   | { type: 'sdk'; id: string; callId: string; method: SandboxSdkMethod; args: SandboxJson[] };
 export type SandboxHostMessage =
-  | { type: 'call'; id: string; operationId: string; input: SandboxJson }
+  | { type: 'call'; id: string; operationId: string; input: SandboxJson; locale: string | null }
+  | { type: 'locale-pack'; part: string }
   | { type: 'sdk-result'; id: string; value: SandboxJson }
   | { type: 'sdk-error'; id: string; code: string; message: string };
 

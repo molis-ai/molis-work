@@ -9,7 +9,7 @@ export type Version = DatasetVersionRecord;
 
 /** What the workbench hands Dataset's client: the shared host fields it uses. */
 export interface DatasetHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
-  "translate" | "download" | "pluginId" | "projectId" | "pluginRoute" | "readRefusal"> {
+  "download" | "pluginId" | "projectId" | "pluginRoute" | "readRefusal"> {
   mountPluginClient(root: HTMLElement): Scope | null;
 }
 
@@ -80,7 +80,7 @@ export interface DatasetState {
 export interface DatasetPage {
   readonly host: DatasetHost;
   readonly scope: Scope;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly el: Elements;
   readonly s: DatasetState;
   readonly request: DatasetRequest;

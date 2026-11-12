@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.loom",
+  "locale": "zh",
+  "messages": {
+    "loom.connection.auth-help": "Loom 没有公开 REST API；请使用官方 Rovo MCP。",
+    "loom.connection.inbound": "MCP 读取录像与评论",
+    "loom.connection.summary": "通过 Atlassian Rovo MCP 读取关联站点的录像。",
+    "loom.guide.mcp-link": "查看 Atlassian Rovo MCP",
+    "loom.guide.mcp-note": "Loom 工作区需关联 Atlassian 站点；不提供公开 REST API。",
+    "loom.setup.view-loom-api-guide": "查看 Loom API 说明"
+  }
+}

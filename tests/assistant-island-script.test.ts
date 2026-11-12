@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { pageText } from "./fixtures/page-text.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
+import { assistantWorkFixture } from "./fixtures/assistant-browser-contract.js";
 import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED, loginOpens } from "./fixtures/connection-login-urls.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
@@ -46,9 +47,9 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
 // ("Viewing：Notes") puts a full-width colon in English. The object the bottom bar says it is looking at is such a sentence.
 test("what the bottom bar is looking at is one translated sentence, with the object's name as a parameter", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看"\)/, "no word-plus-colon glue for the page's object");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
-  assert.equal(L("正在看：{title}", { title: "需求说明" }), "正在看：需求说明");
-  assert.equal(runWithLocale("en", () => L("正在看：{title}", { title: "Notes" })), "Viewing: Notes", "English keeps its own colon");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /readText\("workbench\.assistant-materials\.viewing-title", \{ title: name \}\)/);
+  assert.equal(pageText("zh")("workbench.assistant-materials.viewing-title", { title: "需求说明" }), "正在看：需求说明");
+  assert.equal(pageText("en")("workbench.assistant-materials.viewing-title", { title: "Notes" }), "Viewing: Notes", "English keeps its own colon");
   // The strip names it with that sentence, never with its prefix cut off by a pattern. (The 「材料」 button's short name is gone with
   // the button: the strip took its place, context-program §21.2 point 1.)
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /replace\(\/\^正在看/);
@@ -71,7 +72,9 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
 // measures nothing and takes no parts off. What it still does is tell the sheets above the bar how tall the bar is (one variable).
 test("the bottom bar measures no line of its own and gives the bar's height to the sheets above it through --dock-h", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const fitInput = |dataset\.crowded|dataset\.measuring/, "no line fitting left in the island");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{ const height = bar\.offsetHeight; if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\); \}\)/, "the bar's measured height is --dock-h");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{\s*const height = bar\.offsetHeight;\s*if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\);/, "the bar's measured height is --dock-h");
+  // BL-102: a bar that is not drawn says so, so the side panel's narrow-window rule does not make room for it.
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /bar\.toggleAttribute\("data-dock-hidden", !height\);/, "an undrawn bar is marked for the side panel");
 });
 
 // RAC-2571: the script is cut by job into twelve parts joined in place (W5-10 batch A, T-060), so the main file stays under the
@@ -119,4 +122,85 @@ test("S-plugin-connection-card B1 the Assistant's card checks the login address 
   const { opens, unchecked } = loginOpens(ASSISTANT_ISLAND_FACTORY_SCRIPT);
   assert.equal(opens, 2, "the card opens the login in the system browser or in the window it reserved");
   assert.deepEqual(unchecked, [], "each open comes after isConnectionLoginUrl");
+});
+
+test("D0007 D0337 actual list script rejects late A/B/A responses and preserves current drafts", async () => {
+  const begin = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  let worksRead = ");
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const reload = ", begin);
+  assert.ok(begin > 0 && end > begin);
+  const pending: Array<{ route: string; resolve(value: { works: Array<{ work_id: string; draft: string; draft_revision?: number }> }): void }> = [];
+  let route = "A";
+  const script = new Function("host", "api", `let works=[],curId=null,tabs=[],view=null;
+    const island={isConnected:true}, remember=()=>{},saveTabs=()=>{},openTab=()=>{},paintList=()=>{},paintAim=()=>{},paintSum=()=>{},drawTabs=()=>{};
+    ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(begin,end)}
+    return {loadWorks,read:()=>works,edit:(id,text,revision)=>{curId=id;works=works.map(work=>work.work_id===id?{...work,draft:text,draft_revision:revision}:work);}};`);
+  const list = script({ route: () => route }, (_path: string, _method: string, _body: unknown, at: string) => new Promise(resolve => pending.push({ route: at, resolve })));
+  const a = list.loadWorks(); route = "B"; const b = list.loadWorks(); route = "A"; const again = list.loadWorks();
+  assert.deepEqual(pending.map(item => item.route), ["A", "B", "A"]);
+  const work = assistantWorkFixture;
+  pending[2]!.resolve({ works: [work] }); await again;
+  pending[1]!.resolve({ works: [{ work_id: "foreign", draft: "" }] }); await b;
+  pending[0]!.resolve({ works: [] }); await a;
+  assert.deepEqual(list.read(), [work], "old replies cannot clear the latest work or unsent draft");
+  list.edit(work.work_id, "new local text", 7);
+  const refresh = list.loadWorks();
+  pending[3]!.resolve({ works: [{ ...work, draft: "older server text", draft_revision: 2 }] }); await refresh;
+  assert.equal(list.read()[0].draft, "new local text", "refresh preserves the person's current draft");
+  assert.equal(list.read()[0].draft_revision, 7, "the draft and its revision remain one observation");
+});
+
+test("D0007: served Assistant response fixtures compile against the owning public contract", async () => {
+  const ts = (await import("typescript")).default;
+  const fixture = new URL("./fixtures/assistant-browser-contract.ts", import.meta.url).pathname;
+  const program = ts.createProgram([fixture], { noEmit: true, strict: true, skipLibCheck: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
+  const errors = ts.getPreEmitDiagnostics(program);
+  assert.deepEqual(errors.map(item => ts.flattenDiagnosticMessageText(item.messageText, "\n")), [], "a renamed required field must fail this test, rather than be erased by tsx");
+});
+
+test("D0007 D0009: the served usage client reads empty, running and failed responses and never reuses an older round's model or tokens", async () => {
+  const { assistantViewFixtures } = await import("./fixtures/assistant-browser-contract.js");
+  const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("const usagePane = (") + "const usagePane = (".length;
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf(")({ readText, el, progress, api, toast:", start);
+  assert.ok(start > 0 && end > start, "execute the usage factory actually embedded in the served Assistant client");
+  const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end);
+  class Node {
+    children: Array<Node | string> = []; hidden = false; dataset: Record<string, string> = {};
+    querySelector() { return null; }
+    append(...values: Array<Node | string>) { this.children.push(...values); }
+    replaceChildren(...values: Array<Node | string>) { this.children = values; }
+    text(): string { return this.children.map(value => typeof value === "string" ? value : value.text()).join(" "); }
+  }
+  const create = new Function("globalThis", `return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)({ t: { text: pageText("zh") } });
+  for (const [name, view] of Object.entries(assistantViewFixtures)) {
+    const box = new Node();
+    const client = create({ readText: pageText("zh"), el: (_tag: string, _class: string, text?: string) => { const node = new Node(); if (text) node.append(text); return node; },
+      progress: () => new Node(), box: () => box, current: () => JSON.parse(JSON.stringify(view)) });
+    client.paint(view.work);
+    assert.equal(box.hidden, name === "empty");
+    assert.doesNotMatch(box.text(), /old-model|777|888/, name);
+    if (name === "running" || name === "latestWithoutUsage") assert.match(box.text(), /进行中/);
+    if (name === "failed") assert.match(box.text(), /暂不可用/);
+  }
+});
+
+// E3 (2026-11-11 review): the page's glyph in 「发给」 comes from the island's own rendered platform glyphs, not from the
+// composer's DOM: reaching into `.mw-composer__to svg` made the bottom bar depend on the component's internals.
+test("the page's glyph in 「发给」 is drawn from the assistant's own rendered glyphs, not read out of the composer", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  assert.doesNotMatch(script, /keepGlyph|pageGlyphs|\.mw-composer__to svg/, "no composer DOM is read for a glyph");
+  assert.match(script, /const glyphSprite = island\.querySelector\("\[data-assistant-glyphs\]"\)/);
+  assert.match(script, /const pageGlyph = \(name\) => \{/);
+  assert.match(script, /mark = pageGlyph\(named\.icon\)/, "the 「发给」 row's mark comes from the receiver's icon name");
+});
+
+// E8 (2026-11-11 review): files the side pane takes are dropped silently when a page in front has the bar. The path is
+// defensive today (the panel is the Assistant's, so that page does not take the bar then), but a silent drop is the wrong
+// failure: say why, so a later path that does reach it cannot lose the person's files without a word.
+test("files the side pane takes say why they were not added while a page has the bar", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  const addFiles = script.match(/function addFiles\(chosen\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.ok(addFiles, "addFiles is found");
+  assert.match(addFiles, /if \(boundPage\) \{ host\.showToast\?\.\(/);
+  assert.match(addFiles, /composer\?\.attach\(chosen\)/);
+  assert.doesNotMatch(addFiles, /^\s*if \(!boundPage\) composer\?\.attach\(chosen\);\s*$/m, "the old silent guard is gone");
 });

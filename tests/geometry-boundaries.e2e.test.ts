@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-07 (the engineering part of [人工]) and VUX-03: on the project page, the common plugin
 // pages, settings, the component board, the project chooser and onboarding —

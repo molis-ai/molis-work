@@ -47,6 +47,10 @@ function sandboxMethodProblems(manifest: PluginManifest): PluginDeclarationProbl
 export function parsePluginPackageManifest(input: unknown): PluginPackageManifest {
   if (!input || typeof input !== "object" || Array.isArray(input)) return parsePluginManifest(input);
   const raw = input as Record<string, unknown>;
+  if (raw.kind === "app" || raw.kind === "integration") {
+    if (raw.settings_entries !== undefined) refuseDeclarations([{ path: "settings_entries", reason: "签名沙箱包尚未接入设置读写处理器" }]);
+    if (raw.adopts !== undefined) refuseDeclarations([{ path: "adopts", reason: "签名沙箱包尚未接入内容采用处理器" }]);
+  }
   if (raw.kind !== "app") return parsePluginManifest(input);
   const { agent, ...common } = raw;
   const parsed = parsePluginManifest(common);
@@ -61,14 +65,19 @@ export function parsePluginPackageManifest(input: unknown): PluginPackageManifes
 /** A role material's stable protocol ids keep its complete name; the display name is never used as a path or authorization. */
 export function sandboxRoleIdentity(pluginId: string, name: string): { entry_id: string; prompt_id: string } {
   const digest = createHash("sha256").update(JSON.stringify([pluginId, "role", name]), "utf8").digest("hex");
-  return { entry_id: `role-${digest}`, prompt_id: `prompt-${digest}` };
+  return { entry_id: `role-${digest}`, prompt_id: sandboxPromptId(`role-${digest}`) };
+}
+
+/** The id of the prompt a signed role material carries, derived from the role's entry id (the one place this pairing is written). */
+export function sandboxPromptId(entryId: string): string {
+  return `prompt-${entryId.slice("role-".length)}`;
 }
 
 /**
  * The sole text-only runtime projection of the role materials; numeric versions do not represent the signed package's SemVer. The
  * methods are the package's own declarations, carried as written.
  */
-export function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods"> {
+export function sandboxAgentDeclarations(manifest: Pick<SandboxPackageManifest, "plugin_id" | "agent" | "methods">): Pick<PluginManifest, "agent" | "methods"> {
   const seen = new Set<string>();
   const roles = (manifest.agent ?? []).map(row => {
     const ids = sandboxRoleIdentity(manifest.plugin_id, row.name);

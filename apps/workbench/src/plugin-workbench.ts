@@ -1,6 +1,7 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { drawCatalogText } from "./plugin-text.js";
 import { splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
@@ -45,12 +46,10 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
   return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} } })`;
 }
 
-/** The Manifest `plugin_id` of a catalog entry: whose words translate what its client draws, never another plugin's. */
-const pluginIdOf = (catalog: readonly PluginRegistration[], projectPluginId: string): string => catalog.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? "";
-
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
 export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
-  const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
+  const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest]));
+  const shipped = catalog === BUILTIN_PLUGIN_CATALOG;
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
     .map((registered, _at, all) => {
@@ -66,7 +65,10 @@ export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BU
       if (declaresOwner(contribution.descriptor)) {
         throw new Error(`${pack.project_plugin_id} 的贡献 ${contribution.descriptor.contribution_id} 自己写了插件身份；插件身份由平台按 Manifest 填写，请删掉 plugin_id`);
       }
-      return ownedContribution(contribution, owners.get(pack.project_plugin_id)!);
+      const manifest = owners.get(pack.project_plugin_id)!;
+      const owned = ownedContribution(contribution, manifest.plugin_id);
+      // Only the canonical catalog can enter the Host's bound packaged text scope.
+      return shipped ? { ...owned, render: request => drawCatalogText(manifest, () => owned.render(request)) } : owned;
     }) }));
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
@@ -141,12 +143,12 @@ export function pluginRecordRows(packs: readonly BuiltinPluginWorkbenchPack[] = 
     : []);
 }
 
-export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false, catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
+export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false): string {
   return packs.flatMap((pack) => {
     const lines: string[] = [];
     if (pack.clientFactory && !deferClients) {
       // The page translates what the client draws with the words of the plugin it belongs to, never with another's.
-      lines.push(`(${pack.clientFactory})({ mountPluginClient, translate: LFor(${JSON.stringify(pluginIdOf(catalog, pack.project_plugin_id))}), projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", api, route });`);
+      lines.push(`(${pack.clientFactory})({ mountPluginClient, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", api, route });`);
     }
     if (pack.settingsClient) lines.push(pack.settingsClient);
     return lines;
@@ -155,6 +157,9 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 
 /** A surface's client: the bundle that carries its factory and what it prepares first (the bundles of the clients it uses among them). */
 export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly styles: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
+
+const pluginIdOf = (catalog: readonly PluginRegistration[], projectPluginId: string): string =>
+  catalog.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? "";
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): PluginSurfaceClient[] {

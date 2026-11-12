@@ -12,6 +12,8 @@
 
 版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
 
+**库不再被登记时没有自动处理（2026-11-11 复审）。** 删掉或改名一个库（同时删它的描述符、本表这一行、发布检查单第 3 节的行与金样覆盖）不会让旧 Home 里的文件被升级或提示：升级扫描只看当前登记，指纹也只由当前路径与版本算出。评审时必须一处一处核对这一类改动；补门禁的候选与归属见 [BL-storage-removed-library](../../specs/backlog/BL-storage-removed-library.md)，机制说明见 [升级链设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.3 末段。
+
 ## 1. 怎么读
 
 W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。离线 snapshot 与 restore 复用该 owner。
@@ -127,7 +129,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v2；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
+### 4.1 `projects/catalog.db`（v3；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
 
 | owner | 表 |
 | --- | --- |
@@ -135,7 +137,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列记这个文件夹对项目是输入、输出或两者）、`workspace_source_links`（另一台设备的目录对应到本机哪个文件夹，只在本机、不同步）（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`），`project_recycle` 与 `project_recycle_receipts`（`src/recycle.ts`，原项目事实保留，观察时刻不是服务端到期时刻） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
 | `modules/context-ledger` | `context_edges` |
-| `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`）：T-148 起只建表、没有读写；何时删随 #1633 定 |
+| `apps/local-host`（退役表升级） | `goal_desktop_panels`、`goal_desktop_panel_aliases`：已不再建表；`src/project-catalog-contract.ts` 的目录库 2→3 升级删除空表，有记录时拒绝升级并保留原库，等待明确的恢复决定 |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref`；`plugin_terminal_panels`、`plugin_terminal_panel_aliases`（`src/plugin-terminal-panels.ts`）：插件经 `services.terminal` 起的终端记录与运行时会话别名（S-103） |
 
 ### 4.2 `projects/<id>/molis-work.db`
@@ -261,7 +263,8 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
 | `config/onboarding.json` | `apps/local-host/src/onboarding.ts:6`：首次引导状态，0600（`:99`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/project-arrival.json` | `apps/local-host/src/project-arrival.ts:11`：最近打开的项目与到达状态，0600（`:66`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
-| `config/ui-locale.json` | `apps/local-host/src/ui-locale-memory.ts:12`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1 | 必备份（很小） | purge |
+| `interface/state.json` | `horizontal/appearance/src/state.ts`：Home 的精确外观选择、修订、恢复组合及应用／撤销回执 | JSON · `schema_version` = 1 | 必备份，选择与回执同次提交 | purge（`interface` 已登记） |
+| `config/ui-locale.json` | `horizontal/appearance/src/locale-memory.ts`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1（`format.ui.last-locale`）；低版本由升级过程升（`platform-upgrade-stores.ts`），高版本或读不了时按没有记录读取且不覆盖（升级链扫描仍会把读不了/更高版本/缺版本记为 unreadable/too_new/unversioned：不阻止打开，但这次不写当前标记、下次启动再扫） | 必备份（很小） | purge |
 | `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 feed 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |
 | `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 1 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |
@@ -270,11 +273,16 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `logs/action-calls.jsonl` | `apps/local-host/src/action-call-log.ts`：诊断记录，不存输入输出。每个命令一行，读取只在失败时一行，处理器之前就被拒的调用一行（标「未执行」）；被拒的行与失败的读取只存谁、什么动作、结果与错误码，执行过又失败的命令另存前 200 字的错误信息；每行带这次操作的编号 `call_id`；连续相同的结果合并成一行（另存最近 20 个编号）；超过 2000 行时重写，执行过的命令留最近 1000 条、其余留最近 200 条；没有编号的旧行不读，重写时去掉 | JSON Lines | 日志 | purge（`installer/uninstall.ts:48`） |
 | `bin/molis-work`、`molis-work-mcp`、`molis-work-web` | 安装器；`installer/home.ts:24`，名字 `installer/home-contract.ts:26` | 启动脚本 | 程序 | 普通（`installer/uninstall-files.ts:31`，改过的启动脚本算冲突并停止） |
 | `releases/molis-work-<version>/` | 安装器；`installer/home.ts`，清单 `release.json` 的 `schema_version` = 1（`installer/home-release.ts`）；暂存目录 `.staging-*`。只读当前完整 embedded 元数据，旧形状拒绝；当前元数据的程序文件损坏仍可修复 | 目录 | 程序 | 普通（`installer/uninstall-files.ts`，release 元数据不符合当前完整形状则冲突并停止） |
+| `releases/previous/` | 安装器；`apps/local-host/src/installer/home-rollback.ts` 的 `keepPreviousRelease`：换程序时留下的上一版，`installation.json`（换之前的安装记录原样）、`rollback.json`（`format.home.release.rollback` 第 1 版：版本、摘要、程序所在的相对路径、换程序那一刻的升级戳记、留下的时间）和同版本重建时搬进来的 `release/`；不同版本的旧程序留在 `releases/molis-work-<旧版本>/` 原处。只留一个，`home rollback` 用完即删（U3 §5） | 目录 + JSON · `schema_version` = 1 | 程序 | 普通（`installer/uninstall-files.ts`，记录读不了则冲突并停止） |
+| `config/rollback-hold.json` | 安装器；`home rollback` 写、任何真的换了程序的安装删（`installer/home-rollback.ts`）；桌面 `web_service.rs` 读，内置运行时不比 `rolled_back_from` 新就不自动装 | JSON · `format.home.release.rollback_hold` 第 1 版 | 程序 | 普通（同上，读不了则冲突并停止） |
+| `run/presence.json` | `apps/local-host/src/host-presence.ts`：宿主每 60 秒写一次还活着，正常退出写 `stopped_at`；下次启动据此记一段没在运行（`quit`／`crash`），两次之间隔了 3 分钟以上记一段 `sleep`；只留最近 20 段，只有时间、没有内容（resident-runtime-design §3） | JSON · `format.home.run.presence` 第 1 版 | 关于这一次运行，快照时 reset | purge（`homeStores()` 登记 `run`） |
+| `run/endpoint.json` | `apps/local-host/src/host-endpoint.ts`：宿主开始监听后写端口、进程号、开始时间，不含令牌，退出时只删自己写的那份；只是指路，桌面（`host_port.rs`）、启动器与命令行读了照旧核身份（S-07、S-14），核不过就当没有（§6，BL-108） | JSON · `format.home.run.endpoint` 第 1 版 | 同上 | 同上 |
+| `config/desktop.json` | 桌面 `apps/desktop/adapters/tauri/src/runtime.rs`：设置 › 运行的「关掉窗口后继续运行」，原子写、0600，宿主不读；没有文件或版本不认得都按默认「开」；「登录时启动」以系统的登录项为准，不存在这里（§5） | JSON · `format.home.desktop` 第 1 版 | 必备份（很小） | purge |
 | `runtime/connectors/` | Local Host 的受管连接工具安装器；`apps/local-host/src/connector-tool-download.ts` 的 `CONNECTOR_TOOLS_HOME_STORE` 声明整个 `runtime/`，由 `home-stores.ts` 登记；`connector-tool-install.ts` 拥有安装及所有权记录，`connector-tool-runtime.ts` 拥有共享运行时；`connector-cli-launch.ts` 将 HOME/XDG 指到安装的 `.home` | 安装专有目录、共享运行时与缓存；`installs/<id>/.home` 含第三方 CLI 自己的登录凭据和独有配置 | 安装所有权与固定版本记录必备；CLI 私有状态须由 owner 密封后按原路径/字节/权限恢复（W5-16 B2b 已提供密封/预检 owner，完整快照与恢复仍待），不能按包或缓存省略；包、共享运行时与已证缓存可重建 | 普通卸载保留，purge 随登记的 `runtime` 清除；移除连接只清理未引用的专有安装 |
 | `runtime-integrations/<runtime>.json` | `installer/runtime-integration.ts:315`：Molis Work 往用户 Runtime 配置里写了哪些条目的所有权收据 | JSON · `schema_version` = 1 | 必备份（很小；没有它，卸载无法证明条目是自己写的） | purge（`installer/uninstall.ts:55`）；移除接入时单独删（`installer/runtime-integration.ts:177`） |
 | `runtime-config-backups/<runtime>/<plan>.bak` | `installer/runtime-config-backups.ts`：原 Runtime 配置的 owner 引用，完整正文在现有 SecretStore 中密封；公开 `readRuntimeConfigBackup` 明确恢复读取 `{contents, mode}` | JSON · `schema_version` = 1，owner `molis-work-runtime-config-backup-v1`，含 Runtime/plan 身份、`auth_ref` 与原权限 | 必备份，引用与 vault 同点、依赖同 Home 原 master；旧原文条目仍拒绝，旧转换已取消且孤立维护标记分支删除；旧Home整体搬开，不带入新快照 | purge（`installer/uninstall.ts:54`） |
 | `runtime-integration-attempts/<plan>-<uuid>.json` | `installer/runtime-integration.ts:342`：回滚记录 | JSON · `schema_version` = 1 | 日志 | purge；真实 Home 里还没有 |
-| `upgrade/` | `apps/local-host/src/home-upgrade.ts`、`apps/local-host/src/home-upgrade-ledger.ts`：升级记录 `ledger.json`、戳记 `state.json`（持这个 Home 的存储主人锁才写）和每轮的快照 `upgrade/<run-id>/`（`packages/storage/src/upgrade-snapshot.ts`）；一轮全部成功后只留这一轮的快照 | JSON · `schema_version` = 1；快照是库和带版本文件的原样拷贝加 `manifest.json` | 不备份：Home 快照跳过（`reset`），恢复之后下次启动全量扫 | purge |
+| `upgrade/` | `apps/local-host/src/home-upgrade.ts`、`apps/local-host/src/home-upgrade-ledger.ts`：升级记录 `ledger.json`、戳记 `state.json`（持这个 Home 的存储主人锁才写）、中断的一轮被接着做完时给首页的提示 `notice.json`（人关掉就删，只对记录里那一轮有效；U3 §3）和每轮的快照 `upgrade/<run-id>/`（`packages/storage/src/upgrade-snapshot.ts`）；一轮全部成功后只留这一轮的快照 | JSON · `schema_version` = 1；快照是库和带版本文件的原样拷贝加 `manifest.json` | 不备份：Home 快照跳过（`reset`），恢复之后下次启动全量扫 | purge |
 | `backups/` | 没有任何代码写它；只出现在卸载的清除与保留清单里（`installer/uninstall.ts:47`、`:81`） | 保留名，没有内容可分类 | 无 | purge |
 
 MCP授权当前完整格式起点为1，保留owner代次、精确动作引用及客户端/范围/权限/启停字段。ACA005的旧转换已被2026-10-30干净重建取代，工具不再执行；旧Home整体搬开后由用户重授权，不在正常读取时转换。版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。
@@ -317,7 +325,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |
 | E 个人内容 | 10 个个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、Alchemist 工作室库、`characters/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；当前 v1 库的邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |
-| F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`ui-locale.json`、`mcp-tools.json`，`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
+| F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`ui-locale.json`、`mcp-tools.json`、`desktop.json`，`interface/state.json`、`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
 
 不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`、`lingguang/models/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
 
@@ -341,7 +349,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 ## 9. 卸载覆盖
 
-`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`context-onboarding`、`plugin-originals` 与 `alchemist/` 目录；模块的 `functions`、`characters`；存储层的 `memory`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
+`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`context-onboarding`、`plugin-originals` 与 `alchemist/` 目录；模块的 `functions`、`characters`；存储层的 `memory`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
 
 测试覆盖到哪里：
 

@@ -27,6 +27,9 @@ import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/na
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { chinesePagePacks, pageTextForPacks } from "./fixtures/page-text-packs.js";
+
+const placementText = pageTextForPacks("zh", chinesePagePacks());
 
 /** Goals' input actions run their own windows; here they are the body itself, and the materials service is never asked. */
 const windows = { read: <T>(body: () => T): T => body(), write: async <T>(_caller: unknown, body: () => T): Promise<T> => body(),
@@ -152,6 +155,7 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   };
   const service = new PlacementService({
     ledger,
+    text: placementText,
     beforeEffect: async () => { try { await hooks?.beforeEffect?.(); } catch (error) { dead = true; throw error; } },
     spaces: async () => projects.filter(id => !removed.has(id)).map(id => ({ project_id: id, title: id === "personal" ? "个人空间" : id === "q4" ? "Q4 新版发布" : "客户访谈计划", kind: id === "personal" ? "personal" as const : "project" as const })),
     scope: async projectId => { if (hooks?.deadLease && dead) throw new Error("这一轮被取消"); return open(projectId); },

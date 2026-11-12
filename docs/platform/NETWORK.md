@@ -13,7 +13,7 @@ Molis Work 是本地优先的工作台：你的目标、笔记和文件放在你
 | 类 | 功能 | 去哪里 | 发出去的 |
 | --- | --- | --- | --- |
 | 0 | 模型、图片、判断服务 | 你在「设置 › 模型设置」「服务连接」里配置的服务地址 | 这次要处理的材料和你的密钥（只发给你配置的那个服务）；保存模型设置时多一次很短的连通性检查 |
-| 1 | 服务连接 | 你连接的第三方服务（Gmail、GitHub、Notion、飞书等） | 你的授权，以及读取你选的内容的请求 |
+| 1 | 服务连接与工具安装 | 你连接的服务，以及工具的官方发布站和包源 | 对服务的授权与读取请求。准备或安装工具时，查询包名、版本和适合本机的发行文件。 |
 | 2 | 订阅源（RSS、YouTube） | 目录里的订阅源，和你填的公开 RSS 地址 | 普通的读取请求 |
 | 3 | 网页搜索（AnySearch） | `api.anysearch.com` | 搜索词和要提取的网页地址 |
 | 4 | 你点名的网页和链接 | 你给的网址 | 普通的读取请求，不带你的凭据 |
@@ -50,6 +50,10 @@ Molis Work 是本地优先的工作台：你的目标、笔记和文件放在你
 - **去哪里**：各服务自己的主机（目录里有数十个）。可选的 OAuth 经纪服务（`auth.molis.ai`，一个 Cloudflare Worker，只有配置了才用，不在你的电脑上运行）。
 - **限制**：访问令牌由连接提供，不从插件输入里读；不跟随跳转；单次请求有时限。
 - **本机命令行与 MCP 子进程**：有的连接用你本机的命令行（`gh`、`hf`、`sentry`、`lark-cli` 等）登录，联网的是那条命令。飞书和 Lark 的 MCP 连接器会在你的电脑上启动一个子进程：运行的是随 Molis Work 一起安装、版本固定的 `@larksuiteoapi/lark-mcp`（不再用 `npx` 临时下载），这个子进程只拿到 App ID、App Secret、令牌、你已经设置的代理与证书变量，以及系统的 `HOME`、`PATH` 这类基本变量，拿不到你的模型密钥或其他环境变量。每次启动它的工作目录都是一个新建的空目录（只有你的账号能写），用完即删：这个包会读工作目录里的 `.env` 文件，里面写一个代理变量就能改变带着 App Secret 的请求发往哪里，所以不在 `/tmp` 这类共用目录里运行。
+
+- **准备安装。** 准备原生客户端或 PowerShell 的方案时，Molis Work 会查询官方发布信息与校验值。原生客户端来自 GitHub、`gitlab.com` 或 `acli.atlassian.com`。GitHub 的发布与元数据也可能经 `api.github.com`、`raw.githubusercontent.com`、`release-assets.githubusercontent.com` 和 `objects.githubusercontent.com` 提供。
+- **执行安装。** 缺少合适的运行时时，Node.js 从 `nodejs.org` 下载，uv 和 PowerShell 从 GitHub 下载。uv 补装所选 Python 时使用 GitHub 上的 Python Standalone Builds。Molis Work 自行下载的发布文件逐跳核对地址，原生客户端的归档按方案核对 SHA-256。[uv 的 Python 下载来源](https://docs.astral.sh/uv/reference/settings/#python-install-mirror)
+- **包源收到的信息。** npm 和 Python 工具默认使用 `registry.npmjs.org` 或 `pypi.org` 的索引及其返回的分发地址，方案也可指定无凭据的 HTTPS 包源或本机包源。Microsoft Graph 的身份验证模块从 PowerShell Gallery（PSGallery）获取，Microsoft 列出的包分发域名有 `cdn.oneget.org` 和 `cdn.powershellgallery.com`。包管理器查询包名、版本和依赖，下载所选版本及适合本机系统与架构的文件。安装使用独立工具目录和环境，下载时项目内容、模型密钥和服务令牌留在本机。[PowerShell Gallery 的联网说明](https://learn.microsoft.com/en-us/powershell/gallery/getting-started#network-access-to-the-powershell-gallery)
 
 ### 2. 订阅源（RSS、YouTube）
 

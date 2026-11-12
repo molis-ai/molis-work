@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import { loadArtifacts, renderArtifacts } from "./artifacts.js";
 import type { ClickRule } from "./click-types.js";
@@ -8,7 +9,7 @@ import { api, sessionPath } from "./request.js";
 
 /** Makes the saved report the session's output (the Host checks the version it was read at); reads the state again when it cannot. */
 async function setReportOutput(page: Page, target: HTMLButtonElement) {
-  const { L, lifetime, q, s } = page;
+  const { lifetime, q, s } = page;
   if (!s.reportRun || target.disabled) return;
   const id = s.current, runId = s.reportRun, ticket = s.reportTicket;
   if (!s.reportOutput) {
@@ -23,7 +24,7 @@ async function setReportOutput(page: Page, target: HTMLButtonElement) {
     if (!lifetime.alive) return;
     if (ticket === s.reportTicket && id === s.current) {
       await loadReportOutput(page, id, runId, ticket);
-      if (ticket === s.reportTicket) q("[data-coding-report-output-status]").textContent = L("coding.report.output-reread", { reason: errorMessage(error) });
+      if (ticket === s.reportTicket) q("[data-coding-report-output-status]").textContent = uiText.text("coding.report.output-reread", { reason: errorMessage(error) });
     }
   }
 }

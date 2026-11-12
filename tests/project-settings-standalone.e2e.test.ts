@@ -406,44 +406,39 @@ async function fillSettings(surface: SettingsSurface, selector: string, value: s
   await surface.evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});n.value=${JSON.stringify(value)};n.dispatchEvent(new Event('input',{bubbles:true}));n.dispatchEvent(new Event('change',{bubbles:true}));})()`);
 }
 
-for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 ${mode}: real Coding and Shelf settings save once and survive reopening`, { timeout: 120_000 }, async t => {
+for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: real Coding and Shelf settings save once and survive reopening`, { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const traffic = await settingsTraffic(b); t.after(traffic.close); await b.setViewport(1440, 1000);
-  const workspace = join(b.homeDirectory, "method-workspace"); await mkdir(join(workspace, "skills", "pg070-method"), { recursive: true });
-  await writeFile(join(workspace, "skills", "pg070-method", "SKILL.md"), "---\nname: pg070-method\ndescription: PG070 browser fixture\n---\nRead the specified local file before editing.\n");
+  const workspace = join(b.homeDirectory, "mcp-workspace"); await mkdir(workspace, { recursive: true });
   const directories = "/projects/" + b.projectId + "/api/project-settings/directories";
   const { revision } = await b.web.get<{ revision: string }>(directories);
   await b.web.post(directories, { change: "add_input", input: { workspace_path: workspace, expected_revision: revision } });
   const prefix = "/projects/" + b.projectId, api = prefix + "/api/plugins/io.molis.work.coding";
   let surface = await settingsSurface(b, "/settings/coding-settings?project=" + b.projectId, mode === "B");
   if (mode === "A") assert.ok(traffic.responses.some(item => item.frame === surface.frameId && item.status === 200 && item.url === b.origin + "/settings/coding-settings?project=" + b.projectId));
-  await surface.waitFor("document.querySelector('[data-method-discover]')?.disabled===false");
+  // The MCP form has read the project's folders (the method library that was here is gone with the Runtime library, SKC-11).
+  await surface.waitFor("document.querySelector('[data-mcp-config] [name=workspace]')?.options.length>1");
   assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
-  // The folder is one input among the project's folders (the default output comes first): the method is looked for in it.
-  await surface.evaluate(`(()=>{const n=document.querySelector('[data-method-workspace]');n.value=[...n.options].find(option=>option.textContent.endsWith('/method-workspace')).value;n.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await fillSettings(surface, "[data-method-path]", "skills"); await surface.click("[data-method-discover]");
-  await surface.waitFor("!!document.querySelector('[data-method-candidates] summary')");
-  await surface.click("[data-method-candidates] summary"); await surface.click("[data-method-candidates] button");
-  await surface.waitFor("document.querySelector('[data-installed-methods]')?.textContent.includes('pg070-method')");
-  assert.equal(traffic.posts(api + "/methods/install", surface.frameId).length, 1);
-  const installed = await b.web.get<{ methods: { name: string; source: string }[] }>(api + "/state");
-  assert.equal(installed.methods.filter(item => item.name === "pg070-method" && item.source === "installed").length, 1);
-  await surface.click("[data-installed-methods] summary");
-  await surface.waitFor("document.querySelector('[data-installed-methods] .coding-method-body')?.textContent.includes('Read the specified local file')");
-  const styles = await surface.evaluate<{ whiteSpace: string; size: string; lineHeight: string; margin: string; cursor: string }>("(()=>{const p=document.querySelector('[data-installed-methods] .coding-method-body'),d=p.closest('details');return {whiteSpace:getComputedStyle(p).whiteSpace,size:getComputedStyle(p).fontSize,lineHeight:getComputedStyle(p).lineHeight,margin:getComputedStyle(d).marginBlockStart,cursor:getComputedStyle(d.querySelector('summary')).cursor}})()");
-  assert.deepEqual(styles, { whiteSpace: "pre-wrap", size: "12px", lineHeight: "19.8px", margin: "12px", cursor: "pointer" });
   await fillSettings(surface, "[data-mcp-config] [name=transport]", "stdio");
   await fillSettings(surface, "[data-mcp-config] [name=label]", "PG070 saved server " + mode);
   await fillSettings(surface, "[data-mcp-config] [name=executable]", "/bin/cat"); await fillSettings(surface, "[data-mcp-config] [name=argv]", "[]");
   await surface.evaluate("document.querySelector('[data-mcp-config] [name=enabled]').checked=false");
+  if (mode === "B") {
+    await b.evaluate(`(() => { window.mcpDraftInput = document.querySelector('[data-mcp-config] [name=label]'); mcpDraftInput.focus();
+      const link = document.createElement('a'); link.dataset.uiLanguage = 'en'; link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove(); })()`);
+    await b.waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
+    assert.deepEqual(await b.evaluate("[document.activeElement === mcpDraftInput, mcpDraftInput.value]"), [true, "PG070 saved server B"]);
+    assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 0, "changing the interface language does not submit the draft");
+  }
   await surface.click("[data-mcp-config] [type=submit]");
-  await surface.waitFor("document.querySelector('[data-mcp-status]')?.textContent.includes('已保存')");
+  const saved = mode === "A" ? "MCP 配置已保存，尚未连接；展开服务可连接。" : "MCP configuration saved but not connected; open the service to connect.";
+  await surface.waitFor(`document.querySelector('[data-mcp-status]')?.textContent === ${JSON.stringify(saved)}`);
   assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 1);
   const state = await b.web.get<{ mcp: { label: string; enabled: boolean }[] }>(api + "/state");
   assert.equal(state.mcp.filter(item => item.label === "PG070 saved server " + mode && !item.enabled).length, 1);
   await settingsShot(b, mode + "-coding");
   surface = await settingsSurface(b, "/settings/coding-settings?project=" + b.projectId, mode === "B");
-  await surface.waitFor("document.querySelector('[data-installed-methods]')?.textContent.includes('pg070-method') && document.querySelector('[data-mcp-servers]')?.textContent.includes('PG070 saved server')");
+  await surface.waitFor("document.querySelector('[data-mcp-servers]')?.textContent.includes('PG070 saved server')");
   assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
   const defaults = defaultShelfHotKeys().toggle;
   const shelfRoot = "/api/plugins/io.molis.work.shelf/settings";

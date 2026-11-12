@@ -12,9 +12,9 @@ import { createFeedOutRuleRouteHandlers } from "./out-rule-route-handlers.js";
  */
 export function createFeedRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
   return {
-    "feed.snapshot": async () => {
+    "feed.snapshot": async ({ request }) => {
       const [snapshot, { rules }, { recommendations }, connectorAuth] = await Promise.all([
-        options.actions.invoke(feedQueryActions.snapshot, { include_contents: true }), options.actions.invoke(feedRuleActions.list, {}),
+        options.actions.invoke(feedQueryActions.snapshot, Object.fromEntries(request.query)), options.actions.invoke(feedRuleActions.list, {}),
         options.actions.invoke(feedRuleActions.recommendations, {}), options.actions.invoke(feedQueryActions.connections, {})]);
       const suggested = new Map(recommendations.map(result => [result.item_id, result.suggested_behavior_ids]));
       return { status: 200, body: { ...snapshot, out_rules: rules,

@@ -67,14 +67,14 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b).
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 15)"),
-    ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "skills", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
+    ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "history", "update", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-settings-page=characters]').closest('[data-work-surface=settings]')");
   await waitFor("!!document.querySelector('[data-character-builtin-list] a.characters-row')");
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=characters]')"), null, "角色 is not a plugin in the switcher");
   await evaluate("document.querySelector('[data-character-builtin-list] a.characters-row').click()");
   await waitFor("!!document.querySelector('[data-work-surface=settings] .prompt-role-focus') && location.pathname === '/projects/" + projectId + "/'");
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=settings] [aria-current]')?.dataset.settingsSection"), "prompts");
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=settings] [aria-current]')?.dataset.settingsSection"), "kit", "a role's prompts open under 能力包 (09)");
   await click("[data-workspace-history=back]");
   await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-directory-panel=settings] [aria-current]')?.dataset.settingsSection === 'characters'");
   await click("[data-cover-close]");

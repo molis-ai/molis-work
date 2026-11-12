@@ -31,14 +31,16 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   // S11 moved the two production Modules (Goals and Governance) into their plugin; FI-5 merged four production packages (the Feed, Sources
   // and Signals Modules, the listener host) into the Feed plugin. PG-077 removes the Artifact plugin shell; its existing platform
   // Module remains production. Personal synchronization adds the slice module-sync-replication,
-  // and WORK-01 adds the account service as a slice (2026-11-05).
+  // and WORK-01 adds the account service as a slice (2026-11-05). Batch 09 adds the production AI-kits aggregator horizontal/kit.
+  // Batch 16 adds horizontal/appearance as a slice.
   const counts = {};
   for (const item of WORKSPACE_PACKAGES) {
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
-  assert.deepEqual(counts, { production: 47, experimental: 2, slice: 16 });
+  assert.deepEqual(counts, { production: 48, experimental: 2, slice: 17 });
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/account").map(item => item.maturity), ["slice"]);
+  assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/appearance").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "modules/artifacts").map(item => item.maturity), ["production"]);
   assert.equal(WORKSPACE_PACKAGES.some(item => item.path === "plugins/native/artifacts"), false, "only the retired shell disappears");
 });

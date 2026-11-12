@@ -1,4 +1,6 @@
-import type { FrameDown, FrameScope, FrameUp, Translate } from "./types.js";
+import type { FrameDown, FrameScope, FrameUp } from "./types.js";
+
+const uiText = globalThis.t;
 
 type PickUp = Extract<FrameUp, { type: "knowledge-pick" }>;
 type Picked = Extract<FrameDown, { type: "knowledge-picked" }>;
@@ -21,7 +23,7 @@ const shaped = (value: unknown): value is Item => {
  * answer, each confirmed reference is read once (its head) as this plugin page, so the frame receives only what the plugin itself
  * may read; reading it later still goes through the action's own authorization, and the picker grants nothing.
  */
-export function pageMaterialsPicker(port: MessagePort, scope: FrameScope, pageId: string, route: (path: string) => string, translate: Translate, toast: (text: string) => void) {
+export function pageMaterialsPicker(port: MessagePort, scope: FrameScope, pageId: string, route: (path: string) => string, toast: (text: string) => void) {
   let open: { id: string; asked: string; stop: AbortController } | null = null, sequence = 0;
   const reply = (detail: Omit<Picked, "type">) => { if (scope.alive) port.postMessage({ type: "knowledge-picked", ...detail } satisfies FrameDown); };
   const end = () => { const was = open; open = null; was?.stop.abort(); };
@@ -46,7 +48,7 @@ export function pageMaterialsPicker(port: MessagePort, scope: FrameScope, pageId
     void (async () => {
       const allowed = (await Promise.all(items.map(async item => (await readable(item) ? item : null)))).filter((item): item is Item => item !== null);
       if (!scope.alive || !scope.visible) return;
-      if (allowed.length < items.length) toast(translate("有 {count} 份资料这个插件读不到，没有加入。", { count: items.length - allowed.length }));
+      if (allowed.length < items.length) toast(uiText.text("workbench.materials-picker.count-pieces-were-not-added-plugin", { count: items.length - allowed.length }));
       reply({ request_id: asked.asked, outcome: "confirmed", items: allowed });
     })();
   });

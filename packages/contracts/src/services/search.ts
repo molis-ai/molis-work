@@ -16,6 +16,18 @@ export const SEARCH_READ_PERMISSION = "search:read";
 export const SEARCH_MANAGE_PERMISSION = "search:manage";
 export const SEARCH_PERMISSIONS = [SEARCH_READ_PERMISSION, SEARCH_MANAGE_PERMISSION] as const;
 
+/**
+ * What a route resolver refuses with when its own route cannot serve this request (the provider is unavailable): the one
+ * `SearchError` input the Host's web-query route (search-query-routes.ts) and the RSS integration's exact route
+ * (official-integrations/rss/src/exact-source-routes.ts) throw with, so the two cannot answer differently.
+ */
+export const SEARCH_PROVIDER_UNAVAILABLE = {
+  code: "provider_unavailable",
+  retryable: false,
+  sideEffectState: "none",
+  recoveryAction: "change_provider",
+} as const;
+
 /** `all` is the caller's project plus personal content; a caller without a project only has personal content. */
 export type SearchScope = "project" | "personal" | "all";
 export interface SearchQueryRequest {
@@ -205,6 +217,9 @@ export interface SearchIndexDocument {
   /** `context`: content came from the subject reader, so a caller must be able to read that kind to see it. */
   content_policy: "context" | "summary";
 }
+/** D0030: paged catalog metadata; original text is read separately for one selected subject. */
+export type SearchIndexMetadata = Omit<SearchIndexDocument, "content"> & { content_chars: number; has_content: boolean };
+export interface SearchIndexCatalogPage { entries: SearchIndexMetadata[]; next_cursor: string | null }
 export interface SearchIndexMatch {
   source_key: string;
   kind: string;
@@ -240,8 +255,8 @@ export interface SearchIndexPort {
   upsert(documents: readonly SearchIndexDocument[]): void;
   remove(sourceKey: string, keys: readonly { kind: string; object_id: string }[]): void;
   document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
-  /** Every document indexed for one project: the catalog project knowledge organizes (specs/project-knowledge §5). */
-  documents(projectId: string): SearchIndexDocument[];
+  /** Stable keyset pages, at most 200 entries, without any document body. */
+  catalog(projectId: string, cursor?: string): SearchIndexCatalogPage;
   search(query: SearchIndexQuery): { matches: SearchIndexMatch[]; total: number };
   /**
    * One project's documents that hold some of the words of a question (CJK adjacent pairs and words), best first: the loose

@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.gitlab",
+  "locale": "en",
+  "messages": {
+    "gitlab.connection.auth-help": "Use a GitLab PAT with read_api or read_user. The default host is gitlab.com.",
+    "gitlab.connection.inbound": "Feed retrieves issues and merge requests",
+    "gitlab.connection.summary": "Repositories, issues and merge requests.",
+    "gitlab.connection.token-label": "GitLab Personal Access Token",
+    "gitlab.guide.cli-link": "View GitLab CLI sign-in",
+    "gitlab.guide.mcp-connected-note": "The official GitLab MCP service is in beta.",
+    "gitlab.guide.mcp-link": "View the official GitLab MCP",
+    "gitlab.guide.mcp-note": "The official GitLab MCP service is in beta. Molis Work has not integrated it.",
+    "gitlab.guide.oauth-link": "View GitLab OAuth app",
+    "gitlab.guide.token-note": "Create a PAT with read_api or read_user access.",
+    "gitlab.setup.create-gitlab-personal-access-token": "Create GitLab Personal Access Token"
+  }
+}

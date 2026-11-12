@@ -180,3 +180,21 @@ test("BRC-06 · a Manifest decoded from a stored release is checked again after 
   assert.throws(() => releases.save(decoded), /发行物身份不一致/);
   assert.deepEqual(read(), original);
 });
+
+test("D0151 supervisor single and directory views expose starting while activation is pending", async () => {
+  const { definition } = probe();
+  const original = definition.start.bind(definition);
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  definition.start = async (...args) => { enter(); await held; return original(...args); };
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const supervisor = new PluginSupervisor(runtime);
+  const start = supervisor.start([{ definition, grants: [] }]); await entered;
+  try {
+    assert.equal(supervisor.state(ID)?.status, "starting");
+    assert.equal(supervisor.states().find(state => state.plugin_id === ID)?.status, "starting");
+  } finally { release(); await start; }
+  assert.equal(supervisor.state(ID)?.status, "running");
+  const installId = supervisor.state(ID)?.install_id; assert.ok(installId); await runtime.stop(installId);
+});

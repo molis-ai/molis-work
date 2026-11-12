@@ -1,7 +1,6 @@
 import type { StagePageModel, StagePagePrimitives } from "@molis-ai/molis-work-contracts/platform/ui";
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
-import { inWordsOf, withPluginWords } from "./i18n.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { declaredStageContributionId, stageDataAction, viewContributionId } from "./declared-stages.js";
 import type { MolisWorkWebView } from "./page-view.js";
@@ -16,7 +15,7 @@ import { shownPagePlugins } from "./page-plugin-visibility.js";
  * Host from the running instance (W5-06).
  */
 export function createWorkbenchStageRenderers(ports: {
-  L: RendererLocale["L"];
+  readText: RendererLocale["readText"];
   dateTimeLocale: RendererLocale["dateTimeLocale"];
   currentLocale: RendererLocale["currentLocale"];
   listJoin: RendererLocale["listJoin"];
@@ -24,10 +23,10 @@ export function createWorkbenchStageRenderers(ports: {
   settingsContextHref: (path: string, project: { project_id: string } | null, desktop: boolean) => string;
   helpers: ReturnType<typeof createRendererHelpers>;
 }) {
-  const { L, dateTimeLocale, currentLocale, listJoin } = ports;
+  const { readText, dateTimeLocale, currentLocale, listJoin } = ports;
   const { prefixLocalLinks, formatDate, renderList } = ports.helpers;
   const primitives: StagePagePrimitives = {
-    escape: escapeHtml, text: L, icon,
+    escape: escapeHtml, text: readText, icon,
     formatDate(value) {
       if (!value) return "";
       const date = new Date(value);
@@ -37,16 +36,15 @@ export function createWorkbenchStageRenderers(ports: {
   };
   const sharedStageModel = (projectPluginId: string, view?: Partial<MolisWorkWebView>): StagePageModel => {
     const pluginId = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? projectPluginId;
-    const text = inWordsOf(pluginId, L);
     return {
     route_prefix: view?.route_prefix ?? "", shown_plugins: view?.shown_plugins ?? view?.enabled_plugins ?? [],
     ...(view?.stage_data && projectPluginId in view.stage_data ? { data: view.stage_data[projectPluginId] } : {}),
-    ...(view?.stage_request?.[projectPluginId] ? { request: view.stage_request[projectPluginId] } : {}), primitives: { ...primitives, text },
+    ...(view?.stage_request?.[projectPluginId] ? { request: view.stage_request[projectPluginId] } : {}), primitives,
     context: { project: view?.project ?? null, demo: view?.demo ?? false, cli_availability: view?.cli_availability ?? {}, client_data: { inbox_judgment: view?.inbox_judgment } },
     drawing: { mount: mountContributionsOf(pluginId), currentLocale, listJoin, formatDocumentDate: formatDate, renderList, prefixLocalLinks,
-      renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L }),
+      renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: readText }),
       creatableKinds: creatableKinds(view ? shownPagePlugins(view) : [], pluginDirectoryFor(view?.plugin_directory)),
-      inPluginWords: (id, run) => withPluginWords(id, () => run(L)), renderTerminalPane, withDesktopQuery: ports.withDesktopQuery, settingsContextHref: ports.settingsContextHref,
+      renderTerminalPane, withDesktopQuery: ports.withDesktopQuery, settingsContextHref: ports.settingsContextHref,
       renderHint: options => renderHint({ ...options, iconName: options.iconName as PluginIconName | undefined }) },
   } satisfies StagePageModel;
   };
@@ -62,7 +60,10 @@ export function createWorkbenchStageRenderers(ports: {
     const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId || item.project_plugin_id === pluginId);
     const contributionId = entry && declaredStageContributionId(entry);
     if (!entry || !contributionId) return "";
-    return renderWorkbenchContribution(contributionId, surface, { ...sharedStageModel(entry.project_plugin_id, view), data, request });
+    const model = { ...sharedStageModel(entry.project_plugin_id, view), data, request };
+    const source = view.plugin_stage_views?.[`project:${entry.project_plugin_id}`] ?? view.plugin_stage_views?.[`home:${entry.project_plugin_id}`];
+    if (source) return source.render({ contribution_id: contributionId, surface, model });
+    return view.plugin_stage_views ? "" : renderWorkbenchContribution(contributionId, surface, model);
   }
 
   function declaredSettingsSurface<Data>(pluginId: string, surface: string, model: (stage: StagePageModel) => StagePageModel<Data>, view?: MolisWorkWebView): string {

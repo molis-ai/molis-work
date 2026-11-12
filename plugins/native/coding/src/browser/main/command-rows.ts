@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
 import { api, sessionPath } from "./request.js";
@@ -12,30 +13,28 @@ function commandRows(runs: readonly RunView[]): Row[] {
 }
 
 /** How the command ended, in words; empty when it simply exited. */
-function endedWith(page: Page, receipt: CommandReceipt): string {
-  const { L } = page;
-  if (receipt.stop_reason === "timed-out" || receipt.timed_out) return L("coding.commands.timed-out");
-  if (receipt.stop_reason === "cancelled" || receipt.cancelled) return L("coding.state.cancelled");
-  return receipt.exit_code === null ? L("coding.commands.exit-unknown") : "";
+function endedWith(_page: Page, receipt: CommandReceipt): string {
+  if (receipt.stop_reason === "timed-out" || receipt.timed_out) return uiText.text("coding.commands.timed-out");
+  if (receipt.stop_reason === "cancelled" || receipt.cancelled) return uiText.text("coding.state.cancelled");
+  return receipt.exit_code === null ? uiText.text("coding.commands.exit-unknown") : "";
 }
 
 /** The receipt of a command: what was run, how it ended, and what it printed. */
-function drawReceipt(page: Page, body: HTMLElement, receipt: CommandReceipt) {
-  const { L } = page;
-  body.replaceChildren(el("p", L("coding.commands.recorded", { command: receipt.command }), "coding-command-recorded"));
-  for (const [label, value] of [[L("coding.commands.stdout"), receipt.stdout], [L("coding.commands.stderr"), receipt.stderr]] as const) {
-    body.append(el("p", label), el("pre", value || L("coding.commands.no-output")));
+function drawReceipt(_page: Page, body: HTMLElement, receipt: CommandReceipt) {
+  body.replaceChildren(el("p", uiText.text("coding.commands.recorded", { command: receipt.command }), "coding-command-recorded"));
+  for (const [label, value] of [[uiText.text("coding.commands.stdout"), receipt.stdout], [uiText.text("coding.commands.stderr"), receipt.stderr]] as const) {
+    body.append(el("p", label), el("pre", value || uiText.text("coding.commands.no-output")));
   }
-  if (receipt.truncated) body.append(el("p", L("coding.commands.truncated")));
+  if (receipt.truncated) body.append(el("p", uiText.text("coding.commands.truncated")));
 }
 
 /** One command's row: its receipt is read from the Host when the row is opened. */
 function commandRow(page: Page, region: HTMLElement, row: Row, key: string) {
-  const { L, lifetime } = page, { s } = page, { ref, number, target } = row;
-  const detail = el("details", "", "coding-command"), summary = el("summary"), line = el("code", target ? "$ " + target : L("coding.commands.title")), state = el("span", "", "coding-command-state");
+  const { lifetime } = page, { s } = page, { ref, number, target } = row;
+  const detail = el("details", "", "coding-command"), summary = el("summary"), line = el("code", target ? "$ " + target : uiText.text("coding.commands.title")), state = el("span", "", "coding-command-state");
   detail.dataset.command = key;
   line.title = target;
-  summary.append(line, state, el("span", L("coding.turn.number", { number }), "coding-command-round"));
+  summary.append(line, state, el("span", uiText.text("coding.turn.number", { number }), "coding-command-round"));
   const body = el("div");
   detail.append(summary, body);
   region.insertBefore(detail, region.querySelector(":scope > h3")?.nextSibling || null);
@@ -43,7 +42,7 @@ function commandRow(page: Page, region: HTMLElement, row: Row, key: string) {
   const load = async () => {
     if (loaded || busy) return;
     busy = true;
-    body.textContent = L("coding.commands.loading");
+    body.textContent = uiText.text("coding.commands.loading");
     const id = s.current, ticket = s.generation;
     try {
       const receipt = await api<CommandReceipt>(page, sessionPath(id, ref.run_id) + "/commands/" + encodeURIComponent(ref.call_id));
@@ -59,7 +58,7 @@ function commandRow(page: Page, region: HTMLElement, row: Row, key: string) {
     } catch (error) {
       if (!lifetime.alive || id !== s.current || ticket !== s.generation) return;
       body.textContent = errorMessage(error);
-      const retry = el("button", L("coding.common.reload"), "mw-btn");
+      const retry = el("button", uiText.text("coding.common.reload"), "mw-btn");
       retry.type = "button";
       lifetime.listen(retry, "click", load);
       body.append(retry);

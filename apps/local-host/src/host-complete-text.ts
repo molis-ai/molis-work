@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
@@ -7,7 +8,6 @@ import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
-import { L } from "./web-locale.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 
 export interface HostTextRequestOptions {
@@ -31,12 +31,12 @@ const unavailable = () => new ActionError("actions.connection_required", "所选
 
 // No text model yet: what is missing and where the person adds one, by the name the settings page shows (settings-sections.ts).
 // The only place that names it; the person, the panel and the model all read this reason (handbook 13.4).
-const TEXT_MODEL_MISSING = "请先在「模型设置」里连接文字模型";
-const TEXT_MODEL_MISSING_FOR = "请先在「模型设置」里连接文字模型，再{purpose}";
+const TEXT_MODEL_MISSING = "workbench.host-complete-text.connect-text-model-settings-models-first";
+const TEXT_MODEL_MISSING_FOR = "workbench.host-complete-text.connect-text-model-settings-models-first-then-purpose";
 
 /** Why the work cannot start without a text model, in the person's language; `purpose` is what it was for, already translated. */
 export function textModelMissing(purpose?: string): string {
-  return purpose ? L(TEXT_MODEL_MISSING_FOR, { purpose }) : L(TEXT_MODEL_MISSING);
+  return purpose ? uiText.text(TEXT_MODEL_MISSING_FOR, { purpose }) : uiText.text(TEXT_MODEL_MISSING);
 }
 
 /** The same, thrown when the work starts anyway (the model went away after the action was offered). */
@@ -58,6 +58,11 @@ export function textModelAvailability(model: () => unknown, purpose?: string): A
 export function hostCompleteText(options: HostTextOptions = {}): HostCompleteText | undefined {
   const generate = hostTextGeneration(options);
   return generate && (async (prompt, request) => (await generate(prompt, request)).value);
+}
+
+/** Whether this Home has a usable text model set up: asks nothing of a model (the runtime overview's `waiting.model`). */
+export function hostHasTextModel(options: HostTextOptions = {}): boolean {
+  return hostTextGeneration(options) !== undefined;
 }
 
 /**

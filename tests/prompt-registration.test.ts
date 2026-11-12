@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { contentVersionKey } from "../scripts/gates/initial-versions.mjs";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import ts from "typescript";
 import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { BUILTIN_INSTRUCTIONS, UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
+import { BUILTIN_INSTRUCTIONS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -82,9 +84,8 @@ function ownerConstant(file: string, name: string, seen = new Set<string>()): st
 test("N31-ALL-PROMPTS-01 every registered instruction, Agent prompt and built-in method declares the version its entry in tooling/versions.json gives", () => {
   const versions = (JSON.parse(read("tooling/versions.json")) as { versions: Record<string, number> }).versions;
   for (const [id, prompt] of registeredPrompts()) {
-    // Plugin Builder registers its stage prompts as `builder-<stage>` and names their entries after the plugin; `review` is the one stage whose entry is named for what it reviews.
-    const entry = `prompt.${(prompt.prompt_id === "builder-review" ? "builder-ui-review" : prompt.prompt_id).replace(/^builder-/, "plugin-builder.")}`;
-    assert.ok(Object.hasOwn(versions, entry), `${id} has no entry`);
+    const entry = contentVersionKey("prompt", prompt.prompt_id, id.slice(0, id.lastIndexOf("/")), versions);
+    assert.ok(entry, `${id} has no entry`);
     assert.equal(prompt.version, versions[entry], id);
   }
   for (const definition of DEFINITIONS) for (const method of definition.manifest.methods ?? []) {
@@ -134,24 +135,52 @@ test("a Plugin's model port takes registered instructions, not a raw prompt stri
   assert.deepEqual(raw, [], "插件的 completeText 端口应接收 InstructedPrompt / ModelPromptInput");
 });
 
+/** A prepared instruction counts only when the call uses the binding imported from the owning registry module. */
+function callsPreparedInstruction(path: string): boolean {
+  const name = join(ROOT, path), owner = join(ROOT, "apps/local-host/src/agent-definitions/instructions.js");
+  const program = ts.createProgram([name], { noResolve: true, noLib: true, types: [] });
+  const file = program.getSourceFile(name);
+  if (!file) return false;
+  const checker = program.getTypeChecker(), bindings = new Set<ts.Symbol>();
+  for (const node of file.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) || node.importClause?.isTypeOnly
+      || join(dirname(name), node.moduleSpecifier.text) !== owner) continue;
+    const imports = node.importClause?.namedBindings;
+    if (!imports || !ts.isNamedImports(imports)) continue;
+    for (const specifier of imports.elements) {
+      if (specifier.isTypeOnly || (specifier.propertyName ?? specifier.name).text !== "prepareInstructionPrompt") continue;
+      const binding = checker.getSymbolAtLocation(specifier.name);
+      if (binding) bindings.add(binding);
+    }
+  }
+  function calls(node: ts.Node): boolean {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const binding = checker.getSymbolAtLocation(node.expression);
+      if (binding && bindings.has(binding)) return true;
+    }
+    return ts.forEachChild(node, calls) === true;
+  }
+  return bindings.size > 0 && calls(file);
+}
+
 test("Host modules reach a model only through the register, apart from the transitional list", () => {
   const direct = /host(?:CompleteText|TextGeneration)\(|\.completeText(Result)?\(\{|\.evaluateTypeSafe\(/;
   const offenders = HOST.filter(path => {
     const text = read(path);
     if (!direct.test(text)) return false;
-    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt|registeredInstructionBody/.test(text) && !TRANSITIONAL[path] && !FACTORIES.has(path);
+    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt|registeredInstructionBody|declaredInstructionBody/.test(text)
+      && !TRANSITIONAL[path] && !FACTORIES.has(path) && !callsPreparedInstruction(path);
   });
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);
-  // Every exception that is not the transport itself is shown to developers too, with the same reason.
-  assert.deepEqual(UNREGISTERED_MODEL_CALLS, [], "已迁移的消费者不再保留未登记指令例外");
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {
   const known = registered();
   for (const name of ["designer", "experience", "ui", "review", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
   const designer = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.prompts.find(prompt => prompt.prompt_id === "builder-designer")!;
-  assert.equal(designer.version, 1, "N31：当前设计者正文从统一起点的第 1 版登记");
+  assert.equal(designer.version, 3, "FSS-74: the translated designer ships as one current version");
+  assert.match(designer.body_by_locale?.en ?? "", /design/iu);
   const roles = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.roles;
   assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");
   assert.deepEqual(roles.find(role => role.role_id === "designer")!.prompt_ids, ["builder-designer", "builder-experience", "builder-ui", "builder-review"]);
@@ -167,19 +196,19 @@ test("a Host file that asks the judgment service through the TypeSafe provider f
 });
 
 /**
- * Each judgment wording the person can edit (设置 › 提示词), with every shipped version as [version, first 16 hex of the sha-256 of the default
- * text]. The registered version and the fingerprint of the registered text must equal the last row: changing the default text without
+ * Each judgment wording the person can edit (设置 › 提示词), with every shipped version as [version, first 16 hex of the sha-256 of the shipped
+ * body or the full language set]. The registered version and the fingerprint of the registered text must equal the last row: changing the default text without
  * raising the version, or raising the version without changing the text, fails, so "the default was updated" reaches the people who edited it.
  * A change adds a row; no row is edited or removed.
  */
 const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, string]>>> = {
-  "system:contextual/contextual.next": [[1, "96f7580dc4cc2f98"]],
-  "system:contextual/contextual.surface": [[1, "7df658138dab2107"]],
-  "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"]],
-  "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"]],
-  "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"]],
+  "system:contextual/contextual.next": [[1, "96f7580dc4cc2f98"], [2, "dec965681829cd19"]],
+  "system:contextual/contextual.surface": [[1, "7df658138dab2107"], [2, "30758305968dc65c"]],
+  "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"], [2, "52a31e1969853577"]],
+  "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"], [2, "a838a63b669ae189"]],
+  "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"], [2, "6ddc67034cf55f92"]],
   // N31: the current wording starts at 1. Earlier evaluations remain in specs/prologue-adoption §6.0e.
-  "io.molis.work.coding/coding-background": [[1, "1c6292f9e8eeaba8"]],
+  "io.molis.work.coding/coding-background": [[1, "1c6292f9e8eeaba8"], [2, "feacb285e133e257"]],
 };
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 
@@ -190,7 +219,7 @@ test("a registered judgment wording's version moves with its default text", () =
     assert.ok(prompt, `${key} is not registered`);
     const last = history.at(-1)!;
     assert.equal(prompt.version, last[0], `${key}: the registered version is not the last row of its history (a changed text needs a new version and a new row)`);
-    assert.equal(fingerprint(prompt.body), last[1], `${key}: the default text changed without a new row in the history`);
+    assert.equal(fingerprint(prompt.body_by_locale ? JSON.stringify([prompt.body, prompt.body_by_locale.en]) : prompt.body), last[1], `${key}: the default text changed without a new row in the history`);
     history.forEach((row, index) => { if (index) assert.ok(row[0] > history[index - 1]![0], `${key}: versions rise from row to row`); });
     assert.equal(new Set(history.map(row => row[1])).size, history.length, `${key}: a version that does not change the text`);
   }

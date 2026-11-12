@@ -12,6 +12,8 @@ import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-sourc
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pagePack } from "./fixtures/page-text.js";
 
 async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "coding-companion-inputs-"));
@@ -38,10 +40,13 @@ async function fixture() {
   bind("text-stats", "text", SNAPSHOT_SOURCE.plugin_id, "before");
   const outputs = (plugin: string) => contexts.get(id(plugin))!.services!.outputs!;
   await platform.wiring.drain();
-  const state = async (plugin: string) => {
-    const response = await platform.router().dispatch({ method: "GET", pathname: `/api/plugins/io.molis.work.${plugin}/state`, actor_id: "tester", query: {} });
-    assert.equal(response?.status, 200);
-    return (response!.body as { view: Record<string, any> }).view;
+  const state = async (plugin: "diff" | "text-stats") => {
+    const restore = installTextForTest({ locale: "zh", packs: [pagePack(plugin, "zh")] });
+    try {
+      const response = await platform.router().dispatch({ method: "GET", pathname: `/api/plugins/io.molis.work.${plugin}/state`, actor_id: "tester", query: {} });
+      assert.equal(response?.status, 200, JSON.stringify(response?.body));
+      return (response!.body as { view: Record<string, any> }).view;
+    } finally { restore(); }
   };
   return { artifacts, processItems, platform, outputs, state, close() { store.close(); rmSync(directory, { recursive: true, force: true }); } };
 }

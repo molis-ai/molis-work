@@ -18,7 +18,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
 import { goldenFailure } from "./failure.mjs";
-import { GOLDEN_HOMES_DIRECTORY } from "./versions.mjs";
+import { GOLDEN_HOMES_DIRECTORY, relativePathPattern } from "./versions.mjs";
 
 // Only reading a library with plugin tables needs it; the gates that list the golden files run before anything is built (CI's Gates job).
 const runtime = await import("@molis-ai/molis-work-plugin-runtime").catch(error => ({ unbuilt: error }));
@@ -41,6 +41,8 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "format.browser.site-decisions": { file: "browser/sites.json", field: "version" },
   "format.computer.settings": { file: "computer/settings.json", field: "version" },
   "format.computer.record": { file: "computer/records/*/record.json", field: "version" },
+  "format.ui.appearance-state": { file: "interface/state.json", field: "schema_version" },
+  "format.ui.last-locale": { file: "config/ui-locale.json", field: "schema_version" },
   "format.model.preference": { file: "jelly/preferences.json", field: "schema_version" },
   "format.home.installation": { absent: "config/installation.json is written by the installer, and a golden Home is made by running a Host, not by installing one" },
   "database.search.text-index": { absent: "search/ is a rebuildable index the snapshot leaves out (upgrade-chain-design §2.3); its first raise is the user's call" },
@@ -48,7 +50,7 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
 
 /** A Home path without the account Home's `spaces/<id>/`. */
 const inHome = relative => relative.replace(/^spaces\/[^/]+\//u, "");
-const pattern = location => new RegExp(`^${location.split("/").map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/")}$`, "u");
+const pattern = relativePathPattern;
 const located = (kind, relative, locations = PERSISTENT_FORMAT_LOCATIONS) => Object.entries(locations).filter(([, location]) => location[kind] && pattern(location[kind]).test(inHome(relative)));
 
 /** The version a format holds, or the failure that says the golden would record something that is not one. */

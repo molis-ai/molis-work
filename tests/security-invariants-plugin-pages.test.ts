@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
@@ -12,10 +13,12 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 test("ASR-07 page storage scopes isolate identical installations and projects by Home", () => {
   const homes = [mkdtempSync(join(tmpdir(), "page-scope-a-")), mkdtempSync(join(tmpdir(), "page-scope-b-"))];
+  const disconnect: Array<() => void> = [];
   try {
     const manifest = {plugin_id: "io.example.scope", ui: {}, actions: [], routes: []} as PluginManifest;
     const activation = {manifest, install_id: "same-install", project_id: "same-project", actor_id: "web-user", assertCurrent() {}};
-    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user", undefined, activation);
+    for (const home of homes) disconnect.push(pluginPagesFor(home).connect(activation));
+    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user");
     const a = open(homes[0]!), b = open(homes[1]!);
     assert.notEqual(a.storage_scope, b.storage_scope);
     const reopened = open(homes[0]!);
@@ -24,7 +27,10 @@ test("ASR-07 page storage scopes isolate identical installations and projects by
     pluginPagesFor(homes[0]!).close(a.page_id);
     pluginPagesFor(homes[0]!).close(reopened.page_id);
     pluginPagesFor(homes[1]!).close(b.page_id);
-  } finally { homes.forEach(home => rmSync(home, {recursive: true, force: true})); }
+  } finally {
+    disconnect.forEach(close => close());
+    homes.forEach(home => rmSync(home, {recursive: true, force: true}));
+  }
 });
 
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
@@ -271,6 +277,8 @@ test("RAC-2516 S-47 own object presentation checks exactly the selected declarat
   assert.equal((await check(granted, "detail")).status, 200);
   assert.equal((await check(granted, "foreign-surface")).status, 403);
   assert.equal((await f.request(prefix + `/api/stage/${probe.id}/objects/one?surface=detail`, { headers: { "x-molis-plugin-page": granted } })).status, 403);
+  // GAS-02: the text plugins keep about a Goal is the person's page's to read; a plugin page is refused it like any Host path it was not given.
+  assert.equal((await f.request(prefix + "/api/host/subject-context?kind=goal&id=one", { headers: { "x-molis-plugin-page": granted } })).status, 403);
   assert.equal(reads, 0, "a presentation check never executes the object reader");
   await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== probe.permissions[1]));
   const limited = await open();
@@ -293,7 +301,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   } });
   await grantHomeProbe(f.host, probe);
   const project = await f.project("External page visibility"), prefix = `/projects/${project.project_id}`;
-  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
   assert.equal(shown.status, 200, await shown.clone().text());
   const mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
   const open = () => f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
@@ -304,7 +312,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   block = true; const pending = action("availability");
   try {
     await entered.promise;
-    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
     assert.equal(hidden.status, 200, await hidden.clone().text());
     assert.equal(f.host.homePlugins!.installation(probe.id)!.state, "running", "hiding this project does not stop the Home instance");
   } finally { release.resolve(); }
@@ -336,7 +344,7 @@ test("SYS-15-U5 S-47 Coding and Git previews use declared public reads; raw fore
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
   for (const plugin_id of ["coding", "git", "diff", "text-stats"]) {
-    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
+    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);
@@ -567,6 +575,7 @@ type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
 
 import { createSettingsAddressHarness, type SettingsAddressSection } from "./fixtures/settings-address.js";
+import { pageText } from "./fixtures/page-text.js";
 
 /** A single address; lifecycle regressions below retain the harness across requests. */
 function openSettingsAddress(href: string, pluginSections: readonly SettingsAddressSection[] = [], via: "event" | "link" = "event"): string {
@@ -580,7 +589,7 @@ async function homeModelAddress(href: string): Promise<string> {
   const asked: string[] = [];
   const listeners = new Map<string, Listener[]>();
   const element = (): Record<string, unknown> => ({ dataset: {}, hidden: false, textContent: "", value: "", options: [], open: false,
-    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {},
+    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {}, prepend: () => {},
     removeAttribute: () => {}, setAttribute: () => {}, showModal: () => {}, close: () => {} });
   const dialog = element();
   const request = Object.assign((url: string) => { asked.push(url); return Promise.reject(new Error("captured")); }, { show: () => {} });
@@ -591,8 +600,8 @@ async function homeModelAddress(href: string): Promise<string> {
     dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
   };
   vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
-    document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
-    DOMParser: class {}, AbortController, setTimeout, clearTimeout,
+    document, t: { text: pageText("zh") }, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
+    DOMParser: class {}, AbortController, setTimeout, clearTimeout, requestAnimationFrame: () => 0,
   });
   const swallowed: unknown[] = [];
   const onRejection = (reason: unknown) => swallowed.push(reason);

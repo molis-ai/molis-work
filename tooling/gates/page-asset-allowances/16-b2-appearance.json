@@ -1,0 +1,38 @@
+{
+  "reason": "第 16 批 B2 在工作台、设置和 Issues 封套接入外观。新增 Folio 字体和按需样式，工作台与插件框脚本接入预览、保存和失效更新。四个默认页面各计顶层与 Issues 封套的首个完整失效事件。",
+  "review": "B2 产品接入已独立复核。相对 226ce892 的隔离 Host 构建实测见 specs/font-and-skin-system/resource-budget.md §6.6。assets 计响应体，pages 计默认外观的冷、热线缆净增。",
+  "userApproval": "用户于 2026-11-08 按 specs/font-and-skin-system/resource-budget.md §6.5 批准九份 Folio 字体与字体 CSS，按 §6.6 批准额外外观样式、脚本和默认首屏实测增量。",
+  "assets": {
+    "/assets/folio-nunito-latin.woff2": 39128,
+    "/assets/folio-rounded-400-common.woff2": 241172,
+    "/assets/folio-rounded-400-tail.woff2": 1192592,
+    "/assets/folio-rounded-500-common.woff2": 242752,
+    "/assets/folio-rounded-500-tail.woff2": 1201384,
+    "/assets/folio-rounded-600-common.woff2": 244748,
+    "/assets/folio-rounded-600-tail.woff2": 1205292,
+    "/assets/folio-rounded-700-common.woff2": 245688,
+    "/assets/folio-rounded-700-tail.woff2": 1210728,
+    "/assets/molis-work-plugin-frame.js": 5043,
+    "/assets/molis-work-workbench.js": 18520,
+    "/assets/ui-skin/folio-1.css": 40897
+  },
+  "entryApprovals": [
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/api/ui/appearance/events", "change": "new", "response": "sse-first-event" },
+    { "pages": ["arrival-empty", "chooser"], "locale": "both", "entry": "/api/ui/appearance/events", "change": "new", "response": "sse-first-event", "document": "/plugins/issues?side=capture" },
+    { "pages": ["workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/api/ui/appearance/events", "change": "new", "response": "sse-first-event", "document": "/projects/<project>/side/issues/capture" },
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "<page>", "change": "growth" },
+    { "pages": ["arrival-empty", "chooser"], "locale": "both", "entry": "/plugins/issues?side=capture", "change": "growth" },
+    { "pages": ["workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/projects/<project>/side/issues/capture", "change": "growth" },
+    { "pages": ["workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/assets/molis-work-workbench.js", "change": "growth" }
+  ],
+  "pages": {
+    "arrival-empty/zh": { "cold": 25759, "warm": 47698 },
+    "arrival-empty/en": { "cold": 30129, "warm": 52068 },
+    "chooser/zh": { "cold": 25759, "warm": 47698 },
+    "chooser/en": { "cold": 30129, "warm": 52068 },
+    "workbench-default/zh": { "cold": 61598, "warm": 46464 },
+    "workbench-default/en": { "cold": 66031, "warm": 50897 },
+    "workbench-all-plugins/zh": { "cold": 61598, "warm": 46464 },
+    "workbench-all-plugins/en": { "cold": 66031, "warm": 50897 }
+  }
+}

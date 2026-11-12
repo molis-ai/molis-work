@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { FONT_STACK, HIDDEN_SCROLLBAR_STYLES, renderShellTokens, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
 
 export interface CapsuleProjectNavigation {
@@ -9,8 +9,10 @@ export interface CapsuleProjectNavigation {
 export interface CapsuleShellEnvironment {
   translate(message: string): string;
   htmlLang: string;
-  clientI18nScript: string;
+  languageHead: string;
   themeBootstrapScript: string;
+  /** The 「运行」 section the workbench draws (what runs on its own here) and its arrangement; the workbench adds its program. */
+  runtimePanel: { html: string; styles: string };
 }
 
 
@@ -51,7 +53,7 @@ export const CAPSULE_STYLES = `
     transform: translateX(-50%) rotate(45deg); pointer-events: none;
   }
   .capsule {
-    position: relative; z-index: 1; display: grid; grid-template-rows: 45px 44px minmax(0, 1fr) 51px;
+    position: relative; z-index: 1; display: grid; grid-template-rows: 45px auto 44px minmax(0, 1fr) 51px;
     width: 100%; height: 100%; overflow: hidden; border: 1px solid var(--line-strong);
     border-radius: 8px; background: var(--paper); box-shadow: var(--shadow);
   }
@@ -70,6 +72,7 @@ export const CAPSULE_STYLES = `
   .capsule-shell[data-state="complete"] .capsule__dot,
   .capsule-shell[data-state="ready"] .capsule__dot { background: var(--green); }
   .capsule-shell[data-state="empty"] .capsule__dot,
+  .capsule-shell[data-state="cancelled"] .capsule__dot,
   .capsule-shell[data-state="disconnected"] .capsule__dot { background: var(--faint); }
   .capsule__tabs { min-width: 0; display: flex; align-items: stretch; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--paper); }
   .capsule__tab { position: relative; flex: 0 0 auto; min-width: 0; border: 0; padding: 0 8px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; cursor: pointer; }
@@ -242,14 +245,17 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (invoke) invoke("capsule_open_main", { path }).catch(() => { location.href = path; });
     else location.href = path;
   };
-  const capsuleLocale = document.documentElement.lang.toLowerCase().startsWith("en") ? "en" : "zh";
-  const capsuleRequestPath = (path) => path + (path.includes("?") ? "&" : "?") + "locale=" + capsuleLocale;
+  const capsuleRequestPath = (path) => {
+    const url = new URL(path, location.href), locale = document.documentElement.dataset.uiLanguageTag;
+    if (locale) url.searchParams.set("locale", locale);
+    return url.pathname + url.search;
+  };
   const appendFact = (list, label, value, emphasized = false) => {
     const row = element("div", "capsule__fact" + (emphasized ? " capsule__fact--next" : ""));
     row.append(element("dt", "", label), element("dd", "", value || "—"));
     list.append(row);
   };
-  const projectName = (id) => projects.find((project) => project.project_id === id)?.display_name || L("当前项目");
+  const projectName = (id) => projects.find((project) => project.project_id === id)?.display_name || globalThis.t.text("workbench.capsule-shell.current-project");
   const setCapsuleHeight = (height) => {
     document.documentElement.style.setProperty("--capsule-height", height + "px");
     if (height === lastHeight) return;
@@ -271,12 +277,12 @@ export const CAPSULE_CLIENT_SCRIPT = `
       spinner.setAttribute("aria-hidden", "true");
       loading.append(
         spinner,
-        element("strong", "", L("正在读取「{project}」", { project: projectName(id) })),
-        element("span", "", L("正在获取这个项目的最新工作状态")),
+        element("strong", "", globalThis.t.text("workbench.capsule-shell.loading-project", { project: projectName(id) })),
+        element("span", "", globalThis.t.text("workbench.capsule-shell.getting-project-s-latest-work-status")),
       );
       listRoot.replaceChildren(loading);
     }
-    setText("[data-capsule-status-text]", L("正在读取…"));
+    setText("[data-capsule-status-text]", globalThis.t.text("workbench.capsule-shell.loading"));
     document.querySelectorAll("[data-capsule-open-board]").forEach((button) => {
       button.dataset.path = "/projects/" + encodeURIComponent(id);
     });
@@ -318,8 +324,8 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (!tab) {
       const empty = element("div", "capsule__empty");
       empty.append(
-        element("strong", "", L("当前没有需要处理的 Goal")),
-        element("span", "", L("有新的工作、决定或可开始事项时，会自动出现在这里。")),
+        element("strong", "", globalThis.t.text("workbench.capsule-shell.no-goal-needs-attention-right-now")),
+        element("span", "", globalThis.t.text("workbench.capsule-shell.new-work-decisions-ready-goals-will-appear-here")),
       );
       listRoot.append(empty);
       syncCapsuleHeight();
@@ -335,13 +341,13 @@ export const CAPSULE_CLIENT_SCRIPT = `
       summary.title = item.goal_title;
       summary.setAttribute("aria-expanded", String(expanded));
       summary.setAttribute("aria-controls", "capsule-details-" + item.goal_id);
-      summary.setAttribute("aria-label", (expanded ? L("收起 Goal 详情：") : L("展开 Goal 详情：")) + item.goal_title);
+      summary.setAttribute("aria-label", (expanded ? globalThis.t.text("workbench.capsule-shell.collapse-goal-details") : globalThis.t.text("workbench.capsule-shell.expand-goal-details")) + item.goal_title);
       const title = element("span", "capsule__goal-title", item.goal_title);
       const status = element("span", "capsule__goal-state");
       status.dataset.statusSince = item.status_since || "";
       status.dataset.statusLabel = item.status_label;
       const next = element("span", "capsule__goal-next");
-      next.append(element("small", "", L("下一步")), element("span", "", item.next_step));
+      next.append(element("small", "", globalThis.t.text("workbench.capsule-shell.next")), element("span", "", item.next_step));
       const chevron = element("span", "capsule__chevron");
       chevron.setAttribute("aria-hidden", "true");
       summary.append(title, status, next, chevron);
@@ -357,11 +363,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
         const details = element("div", "capsule__goal-details");
         details.id = "capsule-details-" + item.goal_id;
         const why = element("p", "capsule__why");
-        why.append(element("strong", "", L("为什么做")), document.createTextNode(item.why || "—"));
+        why.append(element("strong", "", globalThis.t.text("workbench.capsule-shell.why-do")), document.createTextNode(item.why || "—"));
         const facts = element("dl", "capsule__facts");
-        appendFact(facts, L("当前情况"), item.current);
-        if (item.blocker) appendFact(facts, L("主要问题"), item.blocker);
-        appendFact(facts, L("下一步"), item.next, true);
+        appendFact(facts, globalThis.t.text("workbench.capsule-shell.current-status"), item.current);
+        if (item.blocker) appendFact(facts, globalThis.t.text("workbench.capsule-shell.main-issue"), item.blocker);
+        appendFact(facts, globalThis.t.text("workbench.capsule-shell.next"), item.next, true);
         const actions = element("div", "capsule__item-actions");
         const action = element("button", "capsule__item-action", item.action_label);
         action.type = "button";
@@ -443,6 +449,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
     renderTabs(keepTabFocus);
     renderList(focusedGoalId);
     invoke?.("capsule_update_menu_bar", {
+      languageRevision: Number(document.documentElement.dataset.uiNativeLanguageRevision || "0"),
       title: next.state.menu_bar_title,
       tooltip: next.state.menu_bar_tooltip,
       path: next.state.action_path,
@@ -454,26 +461,31 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (!projectId) {
       clearLoading();
       root.dataset.error = "true";
-      setText("[data-capsule-error]", L("还没有 Molis Work 项目"));
+      setText("[data-capsule-error]", globalThis.t.text("workbench.capsule-shell.there-no-molis-work-projects-yet"));
       return;
     }
     const requestedProjectId = projectId;
+    const menuOnly = document.hidden;
     const requestId = ++requestSequence;
     activeRequest?.controller.abort();
     const controller = new AbortController();
     activeRequest = { requestId, controller };
     if (showLoading) setLoading(requestedProjectId);
     try {
-      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), controller.signal);
+      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule" + (menuOnly ? "?view=menu" : "")), controller.signal);
       if (response.status === 404 && requestId === requestSequence && requestedProjectId === projectId) {
         stopPolling();
         return;
       }
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || L("无法读取工作状态"));
+      if (!response.ok) throw new Error(payload.error || globalThis.t.text("workbench.capsule-shell.could-not-load-work-status"));
       if (requestId !== requestSequence || requestedProjectId !== projectId) return;
-      if (payload.project?.project_id !== requestedProjectId) throw new Error(L("读取到的项目不一致，请重试"));
-      render(payload);
+      if (payload.project?.project_id !== requestedProjectId) throw new Error(globalThis.t.text("workbench.capsule-shell.loaded-project-did-not-match-please-try-again"));
+      if (menuOnly) {
+        clearLoading(); root.dataset.error = "false";
+        if (!polling) { polling = true; startTimers(); }
+        invoke?.("capsule_update_menu_bar", { title: payload.state.menu_bar_title, tooltip: payload.state.menu_bar_tooltip, path: payload.state.action_path }).catch(() => {});
+      } else render(payload);
     } catch (error) {
       if (controller.signal.aborted || requestId !== requestSequence || requestedProjectId !== projectId) return;
       // After a 404 only an outside nudge (the "online" event) reads again; a failure then is the ordinary "reconnecting", so it polls again.
@@ -481,12 +493,13 @@ export const CAPSULE_CLIENT_SCRIPT = `
       clearLoading();
       root.dataset.error = "true";
       root.dataset.state = "disconnected";
-      setText("[data-capsule-status-text]", L("连接中断"));
-      setText("[data-capsule-error-detail]", L("Molis Work 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。"));
+      setText("[data-capsule-status-text]", globalThis.t.text("workbench.capsule-shell.disconnected"));
+      setText("[data-capsule-error-detail]", globalThis.t.text("workbench.capsule-shell.molis-work-reconnecting-automatically-until-recovers-old-status"));
       setCapsuleHeight(252);
       invoke?.("capsule_update_menu_bar", {
-        title: L("连接中断"),
-        tooltip: L("暂时无法确认最新工作状态，Molis Work 正在自动重新连接"),
+        languageRevision: Number(document.documentElement.dataset.uiNativeLanguageRevision || "0"),
+        title: globalThis.t.text("workbench.capsule-shell.disconnected"),
+        tooltip: globalThis.t.text("workbench.capsule-shell.latest-work-status-cannot-be-confirmed-molis-work"),
         path: snapshot?.state?.action_path || "/projects/" + encodeURIComponent(requestedProjectId),
       }).catch(() => {});
     } finally {
@@ -517,14 +530,14 @@ export const CAPSULE_CLIENT_SCRIPT = `
     polling = false;
     stopTimers();
     clearLoading();
-    const gone = L("这个项目已不在 Molis Work 里。点「立即重试」重新读取项目列表。");
+    const gone = globalThis.t.text("workbench.capsule-shell.project-no-longer-molis-work-choose-retry-now");
     root.dataset.error = "true";
     root.dataset.state = "disconnected";
-    setText("[data-capsule-status-text]", L("项目已不在"));
+    setText("[data-capsule-status-text]", globalThis.t.text("workbench.capsule-shell.project-not-found"));
     setText("[data-capsule-error-detail]", gone);
     setCapsuleHeight(252);
     // "/projects/" is the shell's own "just bring the main window forward": the menu bar must not open the project that is gone.
-    invoke?.("capsule_update_menu_bar", { title: L("项目已不在"), tooltip: gone, path: "/projects/" }).catch(() => {});
+    invoke?.("capsule_update_menu_bar", { title: globalThis.t.text("workbench.capsule-shell.project-not-found"), tooltip: gone, path: "/projects/" }).catch(() => {});
   };
   // The page itself is fetched first: a Host that is restarting would turn the reload into an error page with no script in it.
   const reloadPage = () => {
@@ -579,6 +592,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
     event.preventDefault();
     invoke?.("capsule_hide").catch(() => {});
   });
+  document.addEventListener("molis-work:language-changed", () => load());
   load({ showLoading: true });
   window.addEventListener("online", () => load({ showLoading: true }));
   startTimers();
@@ -594,20 +608,20 @@ export function renderDesktopCapsuleShell(
   projects: CapsuleProjectNavigation[],
   environment: CapsuleShellEnvironment,
 ): string {
-  const L = environment.translate;
   const options = projectOptions(projects);
-  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${L("工作胶囊")} · Molis Work</title><script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
+  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title>${environment.languageHead}<script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}${environment.runtimePanel.styles}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
     <i class="capsule__arrow" aria-hidden="true"></i>
     <section class="capsule">
       <header class="capsule__head">
-        <label class="capsule__project-wrap"><span class="capsule__project-mark" aria-hidden="true"></span><select class="capsule__project" data-capsule-project aria-label="${L("切换查看的项目")}">${options}</select></label>
-        <span class="capsule__status"><i class="capsule__dot" aria-hidden="true"></i><span data-capsule-status-text>${L("正在读取…")}</span></span>
+        <label class="capsule__project-wrap"><span class="capsule__project-mark" aria-hidden="true"></span><select class="capsule__project" data-capsule-project aria-label="${uiText("workbench.capsule-shell.switch-viewed-project")}">${options}</select></label>
+        <span class="capsule__status"><i class="capsule__dot" aria-hidden="true"></i><span data-capsule-status-text>${uiText("workbench.capsule-shell.loading")}</span></span>
       </header>
-      <nav class="capsule__tabs" data-capsule-tabs role="tablist" aria-label="${L("按工作状态查看 Goal")}" aria-busy="true"></nav>
-      <section class="capsule__list" data-capsule-list role="tabpanel" aria-live="polite" aria-busy="true"><div class="capsule__loading"><i class="capsule__spinner" aria-hidden="true"></i><strong>${L("正在读取工作状态")}</strong><span>${L("正在获取这个项目的最新工作状态")}</span></div></section>
-      <footer class="capsule__actions"><p class="capsule__hint">Esc ${L("关闭")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${L("打开 Molis Work")}</button></div></footer>
-      <div class="capsule__error" data-capsule-error role="alert"><strong>${L("暂时无法确认最新状态")}</strong><span data-capsule-error-detail>${L("Molis Work 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。")}</span><button class="capsule__retry" type="button" data-capsule-retry>${L("立即重试")}</button></div>
+      ${environment.runtimePanel.html}
+      <nav class="capsule__tabs" data-capsule-tabs role="tablist" aria-label="${uiText("workbench.capsule-shell.view-goals-work-status")}" aria-busy="true"></nav>
+      <section class="capsule__list" data-capsule-list role="tabpanel" aria-live="polite" aria-busy="true"><div class="capsule__loading"><i class="capsule__spinner" aria-hidden="true"></i><strong>${uiText("workbench.capsule-shell.loading-work-status")}</strong><span>${uiText("workbench.capsule-shell.getting-project-s-latest-work-status")}</span></div></section>
+      <footer class="capsule__actions"><p class="capsule__hint">Esc ${uiText("common.control.close")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${uiText("workbench.capsule-shell.open-molis-work")}</button></div></footer>
+      <div class="capsule__error" data-capsule-error role="alert"><strong>${uiText("workbench.capsule-shell.latest-status-unavailable")}</strong><span data-capsule-error-detail>${uiText("workbench.capsule-shell.molis-work-reconnecting-automatically-until-recovers-old-status")}</span><button class="capsule__retry" type="button" data-capsule-retry>${uiText("workbench.capsule-shell.retry-now")}</button></div>
     </section>
-  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.clientI18nScript}${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
+  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
 }
 

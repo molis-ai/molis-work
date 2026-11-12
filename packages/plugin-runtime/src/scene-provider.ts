@@ -13,7 +13,7 @@ export function pluginSceneHandler(declaration: ActionSceneDefinition, handler: 
   const within = <C extends ActionCallContext, T>(caller: C, read_only: boolean, handle: (copy: C) => T, permissions = declaration.permissions): T => {
     // A callback that may write is handed a `beforeEffect` that notes it returned; the platform services a scene writes through ask for it.
     const effect = read_only ? undefined : { passed: false };
-    return runInPluginScene({ install_id: instance.install_id, installation_generation: instance.installation_generation, scene: declaration, read_only, caller, ...(effect ? { effect } : {}) },
+    return runInPluginScene({ install_id: instance.install_id, installation_generation: instance.installation_generation, activation: instance, scene: declaration, read_only, caller, ...(effect ? { effect } : {}) },
       () => {
         capturePermissions(permissions);
         const copy = pluginCallbackContext(caller, effect ? view => {

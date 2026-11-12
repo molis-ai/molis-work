@@ -29,7 +29,7 @@ export function connectorUsagesHandler(home: string, clientFor?: (caller: Action
     }
     await caller.beforeEffect();
     const current = await client.discover(nested);
-    const connectionActive = withConnectorConnections(home, store => { const row = store.get((value as ConnectorUsagesInput).connection_id); return !!row && row.enabled && !row.disconnected_at; });
+    const connectionActive = withConnectorConnections(home, store => { const row = store.get((value as ConnectorUsagesInput).connection_id); return !!row && row.enabled && !row.disconnected_at; }, true) ?? false;
     const valid: typeof reports = [];
     for (const report of reports) {
       try {

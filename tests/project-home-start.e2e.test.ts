@@ -92,7 +92,7 @@ test("The project button holds settings and the account, and opens settings in t
   assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
 });
 
-test("Home shows a seven-day strip and keeps a chosen day across midnight", { timeout: 90_000 }, async t => {
+test("BHI-01 Home shows a seven-day strip and keeps a chosen day across midnight", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
@@ -122,6 +122,10 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-03-01", "unpinned home follows midnight");
   await click('[data-home-day="2028-02-28"]');
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28");
+  await waitFor("document.querySelector('.home-start [data-home-today]')");
+  assert.equal(await evaluate("document.querySelector('.home-hero__sum').textContent"), "这一天没有事项");
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('.immersive-home').innerText"), /你的节奏|已有工作仍在/);
+  assert.ok(await evaluate("document.querySelector('.home-start [data-home-start=market]').getClientRects().length"));
   await evaluate("window.__clock=new Date(2028,2,2).getTime();window.__homeTimers[30000]()");
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28", "chosen day survives midnight while still in the week");
   assert.equal(await evaluate("document.querySelector('[data-quote-step], [data-quote-pause], [data-home-draft], [data-home-activity], [data-home-quote-next], .home-goals-entry')"), null);
@@ -132,7 +136,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   // Soft Workbench home (DESIGN.md → Home): the day strip runs across the top of the day column, and the margin
-  // (note and things at hand) sits beside that column on a wide home.
+  // (the things at hand) sits beside that column on a wide home.
   const homeStack = await evaluate<{ stripAbove: boolean; inColumn: boolean; marginBeside: boolean }>("(()=>{const d=document.querySelector('.home-dates').getBoundingClientRect();const list=document.querySelector('.home-tl').getBoundingClientRect();const m=document.querySelector('.home-margin').getBoundingClientRect();return {stripAbove:d.bottom<=list.top,inColumn:Math.abs(d.left-list.left)<2,marginBeside:m.left>=list.right}})()");
   assert.deepEqual(homeStack, { stripAbove: true, inColumn: true, marginBeside: true });
   await mkdir(captures, { recursive: true });
@@ -257,12 +261,13 @@ test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
   assert.ok(projectId);
   const feed = createLocalFeedApplication(store.db);
-  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
-  assert.ok(before);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry]')");
+  // D0041: Feed owns demo initialization after Runtime startup, before Home offers its seeded Inbox entry.
+  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
+  assert.ok(before);
   const row = '[data-home-subject-id="' + before.entry_id + '"]';
   await evaluate(`(() => {
     for (const day of [...document.querySelectorAll('[data-home-day]')].map(button => button.dataset.homeDay)) {

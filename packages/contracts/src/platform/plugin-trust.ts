@@ -1,5 +1,43 @@
+import { inputSchemaFor, type ActionDefinition } from "./actions.js";
+import { closedObjectSchema } from "./closed-object-schema.js";
+import type { PluginPackageFile } from "./plugin-package.js";
+
 // Install trust and consent (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md). Trust says who gave the evidence for
 // an install, never how important the plugin is; consent is one recorded row per declaration that changes a plugin's effect elsewhere.
+
+export const PLUGIN_INSTALL_WRITE = "plugin-install:write";
+
+/** The declaration and files the person wants to sign. The Host supplies the publisher and the package's manifest.json. */
+export interface LocalPackageSignInput {
+  readonly manifest: Record<string, unknown>;
+  readonly files: readonly PluginPackageFile[];
+}
+
+export interface LocalPackageSignResult {
+  readonly preview_id: string;
+}
+
+/** The Host's plugin-install provider signs a content package and holds an ordinary installation preview. */
+export const localPackageSignAction: ActionDefinition<LocalPackageSignInput, LocalPackageSignResult> = {
+  capability_id: "plugins.local_packages.sign",
+  version: /* @version action.plugins.local_packages.sign */ 1,
+  operation: "command",
+  action: {
+    title: "签名内容包",
+    description: "本人明确发布时，以这个 Home 的发布身份签名内容包，返回待确认的安装预览",
+    kind: "operation",
+    effect: "write",
+    audiences: ["user"],
+    scope: "home",
+    subject_kinds: [],
+    permissions: [PLUGIN_INSTALL_WRITE],
+    input_schema: inputSchemaFor<LocalPackageSignInput>()(closedObjectSchema({
+      manifest: { type: "object" },
+      files: { type: "array", items: closedObjectSchema({ path: { type: "string" }, content_base64: { type: "string" } }) },
+    })),
+    output_schema: closedObjectSchema({ preview_id: { type: "string", minLength: 1, maxLength: 80 } }),
+  },
+};
 
 /** Who vouches for an installation: the Host's own build, a signature a person pinned, or nobody. */
 export type PluginTrustLevel = "host" | "pinned" | "unsigned";
@@ -127,6 +165,39 @@ export interface PluginInstalledView {
   readonly pending_defaults: readonly PluginPendingDefaultSource[];
   /** Why the Host's plugin host could not start this installation when it last tried (its kept package missing, its start failing); null when nothing is wrong with it. The `state` is the record's own. */
   readonly recovery_error: string | null;
+  /** A signed sandbox installation the person can take off in the settings (BL-915), even when its package is gone or altered: the exact installation
+   * an uninstall made from this row names, so it reaches this generation and version and nothing installed after it. Absent on every other row. */
+  readonly uninstall_target?: PluginUninstallTarget;
+  /** Present while an uninstall of this installation has not finished its cleanup (`plugin.uninstall_cleanup_pending`): the data choice it was
+   * made with, which a retry keeps. The row stays listed, stopped, until the cleanup finishes. */
+  readonly pending_keep_data?: boolean;
+}
+
+/** The installation an uninstall from the settings names (BL-915); the Host checks every field against the trusted row, under the installation's lock. */
+export interface PluginUninstallTarget {
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly version: string;
+  readonly manifest_digest: string;
+}
+
+/** What an uninstall kept that it would otherwise have taken off (BL-915): the plugin's own Home library, its files, its bindings or declared rules. */
+export type PluginRetainedKind = "home_library" | "owner_files" | "network_credential" | "installation_binding" | "task_grant" | "declared_rule";
+/** Why it was kept: what owns it could not be proven, something else still holds it, or the Home could not be read all the way through to tell. */
+export type PluginRetainedReason = "ownership_unverified" | "other_holder" | "inventory_unavailable";
+
+/** One kind of thing an uninstall kept, and why; `label` only where its owner has a name that is safe to show. No path, reference or secret. */
+export interface PluginRetainedItem {
+  readonly kind: PluginRetainedKind;
+  readonly reason: PluginRetainedReason;
+  readonly label?: string;
+}
+
+/** What an uninstall answers: the installation is off; `retained` only when something stayed behind (absent when nothing did). */
+export interface PluginUninstallResult {
+  readonly plugin_id: string;
+  readonly state: string;
+  readonly retained?: readonly PluginRetainedItem[];
 }
 
 /** A background job a Manifest declares (`background.jobs`). */
@@ -147,6 +218,12 @@ const PLATFORM_PERMISSION_MEANINGS: Readonly<Record<string, string>> = {
   "model:invoke": "调用你配置的模型来生成内容，可能产生模型费用",
   "model:read": "查看有哪些模型、能不能用，不调用模型",
   "surface:browser": "在侧栏浏览器里打开它声明的网站",
+  // A sandboxed package's switches (BL-701): the targets are the exact ones approved at installation, named in its install preview.
+  "network:request": "访问这个插件安装时获准的网站；可以访问哪些网站，以安装时的批准为准",
+  "secret:use": "在已获准的请求中使用为这个插件保存的密钥，插件本身读不到密钥的值",
+  "capabilities:call": "调用安装时获准的那几项平台能力，不能借此调用别的动作",
+  "background:start": "在后台运行安装时获准的工作，不打开插件也会继续",
+  "connections:use": "通过你绑定的服务账号发请求",
   "network:": "连接到这个网站：",
   "secret:": "读取你存放的这项密钥：",
 };

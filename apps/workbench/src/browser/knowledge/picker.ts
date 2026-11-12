@@ -1,6 +1,8 @@
 import type { KnowledgeCard, KnowledgeCardsResponse, KnowledgeGlobResponse, KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { button, el, L, request } from "./common.js";
+import { button, el, request } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** One piece the person confirmed, by its exact reference; `hint` says which part of it (a quote, a snapshot) when not the whole. */
 interface Picked { ref: MaterialRef; title: string; hint?: string }
@@ -40,26 +42,26 @@ interface DialogHandlers { confirm(): void; closed(): void; typed(): void; kind(
 function buildDialog(on: DialogHandlers): HTMLDialogElement {
   const box = el("dialog", "mw-dialog mw-dialog--form knowledge-picker");
   box.setAttribute("aria-labelledby", "knowledge-picker-title");
-  const head = el("header"), close = button(L("关闭")), heading = el("h2", "", L("选择项目资料"));
+  const head = el("header"), close = button(uiText.text("common.control.close")), heading = el("h2", "", uiText.text("workbench.picker.choose-project-knowledge"));
   close.addEventListener("click", () => box.close());
   heading.id = "knowledge-picker-title";
   head.append(heading, close);
   const tools = el("div", "knowledge-picker-tools"), query = el("input", "mw-input");
-  query.type = "search"; query.placeholder = L("按标题或内容查找"); query.setAttribute("aria-label", L("查找资料")); query.dataset.knowledgePickerQuery = "";
+  query.type = "search"; query.placeholder = uiText.text("workbench.picker.find-title-content"); query.setAttribute("aria-label", uiText.text("workbench.picker.find-knowledge")); query.dataset.knowledgePickerQuery = "";
   const kind = el("select", "mw-select");
-  kind.setAttribute("aria-label", L("范围")); kind.dataset.knowledgePickerKind = "";
-  kind.append(new Option(L("项目资料"), "pieces"), new Option(L("工作区文件"), "files"));
+  kind.setAttribute("aria-label", uiText.text("workbench.picker.scope")); kind.dataset.knowledgePickerKind = "";
+  kind.append(new Option(uiText.text("workbench.picker.project-knowledge"), "pieces"), new Option(uiText.text("workbench.picker.workspace-files"), "files"));
   const source = el("select", "mw-select");
-  source.setAttribute("aria-label", L("来源")); source.dataset.knowledgePickerSource = "";
+  source.setAttribute("aria-label", uiText.text("workbench.picker.source")); source.dataset.knowledgePickerSource = "";
   tools.append(query, kind, source);
   const list = el("ul", "knowledge-picker-list"), stage = el("div", "knowledge-picker-stage");
-  list.dataset.knowledgePickerList = ""; list.setAttribute("aria-label", L("可选的资料"));
+  list.dataset.knowledgePickerList = ""; list.setAttribute("aria-label", uiText.text("workbench.picker.pieces-choose"));
   stage.append(list, buildPreview(on.back));
   const picked = el("ul", "knowledge-picker-chosen");
-  picked.dataset.knowledgePickerChosen = ""; picked.setAttribute("aria-label", L("已选的资料"));
+  picked.dataset.knowledgePickerChosen = ""; picked.setAttribute("aria-label", uiText.text("workbench.picker.chosen-material"));
   const status = el("p", "knowledge-picker-status");
   status.setAttribute("role", "status"); status.dataset.knowledgePickerStatus = "";
-  const foot = el("footer"), count = el("span", "knowledge-picker-count"), cancel = button(L("取消"), "mw-btn--secondary"), confirm = button(L("添加"), "mw-btn--primary");
+  const foot = el("footer"), count = el("span", "knowledge-picker-count"), cancel = button(uiText.text("common.control.cancel"), "mw-btn--secondary"), confirm = button(uiText.text("workbench.picker.add"), "mw-btn--primary");
   count.dataset.knowledgePickerCount = ""; confirm.dataset.knowledgePickerConfirm = "";
   cancel.addEventListener("click", () => box.close());
   confirm.addEventListener("click", () => { on.confirm(); box.close(); });
@@ -78,16 +80,16 @@ function buildDialog(on: DialogHandlers): HTMLDialogElement {
 function buildPreview(back: () => void): HTMLElement {
   const pane = el("section", "knowledge-picker-preview");
   pane.dataset.knowledgePickerPreview = ""; pane.hidden = true;
-  const head = el("header", "knowledge-picker-preview-head"), toList = button(L("返回列表")), title = el("strong");
+  const head = el("header", "knowledge-picker-preview-head"), toList = button(uiText.text("common.generated.back")), title = el("strong");
   toList.dataset.knowledgePickerBack = ""; toList.addEventListener("click", back);
   title.dataset.knowledgePickerPreviewTitle = "";
   head.append(toList, title);
   const tools = el("div", "side-materials-tools");
-  tools.dataset.pickerMaterialsTools = ""; tools.setAttribute("role", "toolbar"); tools.setAttribute("aria-label", L("取用这份资料")); tools.hidden = true;
+  tools.dataset.pickerMaterialsTools = ""; tools.setAttribute("role", "toolbar"); tools.setAttribute("aria-label", uiText.text("workbench.picker.use-material")); tools.hidden = true;
   const control = (action: string, text: string, variant = "mw-btn--ghost") => { const node = button(text, variant); node.dataset.pickerMaterials = action; return node; };
   const held = el("span", "side-materials-held"); held.dataset.pickerMaterialsHeld = ""; held.hidden = true;
   const problem = el("p", "side-materials-problem"); problem.dataset.pickerMaterialsProblem = ""; problem.setAttribute("role", "status"); problem.hidden = true;
-  tools.append(control("quote", L("引用选区")), control("pin", L("固定快照")), held, control("add", L("加入选择"), "mw-btn--secondary"), problem);
+  tools.append(control("quote", uiText.text("workbench.picker.quote-selection")), control("pin", uiText.text("workbench.picker.pin-snapshot")), held, control("add", uiText.text("workbench.picker.add-choice"), "mw-btn--secondary"), problem);
   const body = el("div", "side-files-body knowledge-picker-preview-body");
   body.dataset.knowledgePickerPreviewBody = ""; body.tabIndex = 0;
   pane.append(head, tools, body);
@@ -103,7 +105,7 @@ function rowItem(row: Row, checked: boolean, change: (box: HTMLInputElement) => 
   label.append(box, copy);
   item.append(label);
   if (open && row.file) {
-    const preview = button(L("预览"), "mw-btn--ghost", L("预览 {title}", { title: row.title }));
+    const preview = button(uiText.text("workbench.assistant-side-context.preview"), "mw-btn--ghost", uiText.text("workbench.picker.preview-title", { title: row.title }));
     preview.dataset.knowledgePickerOpen = row.file;
     preview.addEventListener("click", open);
     item.append(preview);
@@ -113,7 +115,7 @@ function rowItem(row: Row, checked: boolean, change: (box: HTMLInputElement) => 
 
 /** One chosen piece, quotes and snapshots included, with a way to take it out. */
 function chosenItem(item: Picked, drop: () => void): HTMLLIElement {
-  const row = el("li"), control = button("×", "mw-btn--ghost", L("不选 {title}", { title: item.title }));
+  const row = el("li"), control = button("×", "mw-btn--ghost", uiText.text("workbench.picker.remove-title", { title: item.title }));
   control.addEventListener("click", drop);
   row.append(el("span", "", item.title + (item.hint ? " · " + item.hint : "")), control);
   return row;
@@ -159,19 +161,19 @@ export function bindKnowledgePicker(): void {
     const kit = globalThis.molisWorkMaterials;
     if (!kit || !row.file || !dialog) return;
     const pane = $("preview"), body = $("preview-body"), id = row.file, ticket = viewing = id;
-    reader ??= kit.materialsReader({ name: "picker-materials", L, esc: (value: unknown) => String(value ?? "").replace(/[&<>"]/gu, ch => `&#${ch.charCodeAt(0)};`), body,
+    reader ??= kit.materialsReader({ name: "picker-materials", esc: (value: unknown) => String(value ?? "").replace(/[&<>"]/gu, ch => `&#${ch.charCodeAt(0)};`), body,
       tools: pane.querySelector("[data-picker-materials-tools]"), held: pane.querySelector("[data-picker-materials-held]"), problem: pane.querySelector("[data-picker-materials-problem]"),
-      post: (path: string, value: unknown) => request()(prefix() + path, { body: value, fallback: L("操作没有完成") }),
+      post: (path: string, value: unknown) => request()(prefix() + path, { body: value, fallback: uiText.text("workbench.settings-page.that-did-not-finish") }),
       renderFile: (file: { text?: string }) => { body.replaceChildren(el("pre", "side-materials-text", file.text ?? "")); },
-      take: (item: Picked) => { if (choose(item)) $("status").textContent = L("已加入：{title}", { title: item.title }); } });
+      take: (item: Picked) => { if (choose(item)) $("status").textContent = uiText.text("workbench.picker.added-title", { title: item.title }); } });
     reader.close();
     $("preview-title").textContent = row.title;
-    body.replaceChildren(el("p", "side-files-note", L("正在读取…")));
+    body.replaceChildren(el("p", "side-files-note", uiText.text("workbench.assistant-tabs.loading")));
     pane.hidden = false; dialog.classList.add("has-preview");
     try {
-      const file = await request()<unknown>(prefix() + "/api/materials/content?id=" + encodeURIComponent(id), { fallback: L("文件没有读到") });
+      const file = await request()<unknown>(prefix() + "/api/materials/content?id=" + encodeURIComponent(id), { fallback: uiText.text("workbench.side-panel-files.file-could-not-be-read") });
       if (viewing !== ticket) return;
-      if (!await reader.open({ item: { subject: { kind: FILE, id }, title: row.title }, file, isCurrent: () => viewing === ticket })) body.replaceChildren(el("p", "side-files-note", L("这个文件不能在这里预览。")));
+      if (!await reader.open({ item: { subject: { kind: FILE, id }, title: row.title }, file, isCurrent: () => viewing === ticket })) body.replaceChildren(el("p", "side-files-note", uiText.text("workbench.picker.file-cant-previewed")));
       body.focus();
     } catch (error) { if (viewing === ticket) { body.replaceChildren(); request().show(body, error); } }
   }
@@ -180,14 +182,14 @@ export function bindKnowledgePicker(): void {
   const $ = <T extends HTMLElement>(name: string) => dialog!.querySelector<T>(`[data-knowledge-picker-${name}]`)!;
   const choose = (item: Picked): boolean => {
     const max = asked?.max ?? MAX_PICKS, key = keyOf(item.ref);
-    if (!chosen.has(key) && chosen.size >= max) { $("status").textContent = L("一次最多选 {count} 份。", { count: max }); return false; }
+    if (!chosen.has(key) && chosen.size >= max) { $("status").textContent = uiText.text("workbench.picker.up-count-count-time", { count: max }); return false; }
     chosen.set(key, item); paintChosen(); return true;
   };
   const isChosen = (row: Row) => row.ref ? chosen.has(keyOf(row.ref)) : chosen.has(fileRefs.get(row.file!) ?? "");
 
   async function load(): Promise<void> {
     const ticket = ++seq, text = $<HTMLInputElement>("query").value.trim(), files = $<HTMLSelectElement>("kind").value === "files";
-    $("status").textContent = L("正在查找…");
+    $("status").textContent = uiText.text("workbench.picker.searching");
     let partial = false;
     try {
       if (files) {
@@ -209,9 +211,9 @@ export function bindKnowledgePicker(): void {
       return;
     }
     if (ticket !== seq) return;
-    $("status").textContent = partial ? L("只列出了一部分，输入文件名缩小范围。") : "";
+    $("status").textContent = partial ? uiText.text("workbench.picker.only-part-listed-type-file-name-narrow") : "";
     const source = $<HTMLSelectElement>("source"), was = source.value;
-    source.replaceChildren(new Option(L("全部来源"), ""), ...[...new Set(rows.map(row => row.plugin_title))].sort().map(title => new Option(title, title)));
+    source.replaceChildren(new Option(uiText.text("workbench.picker.all-sources"), ""), ...[...new Set(rows.map(row => row.plugin_title))].sort().map(title => new Option(title, title)));
     source.value = [...source.options].some(option => option.value === was) ? was : "";
     draw(rows);
   }
@@ -221,7 +223,7 @@ export function bindKnowledgePicker(): void {
     box.disabled = true;
     try {
       const read = await request()<{ read_revision: string; title: string }>(prefix() + "/api/materials/read",
-        { body: { ref: { subject: { kind: FILE, id: row.file }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" }, fallback: L("文件没有读到") });
+        { body: { ref: { subject: { kind: FILE, id: row.file }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" }, fallback: uiText.text("workbench.side-panel-files.file-could-not-be-read") });
       const ref: MaterialRef = { subject: { kind: FILE, id: row.file! }, pin: { mode: "current", read_revision: read.read_revision } };
       if (asked && choose({ ref, title: row.title })) fileRefs.set(row.file!, keyOf(ref)); else box.checked = false;
     } catch (error) { box.checked = false; request().show($("status"), error); }
@@ -237,7 +239,7 @@ export function bindKnowledgePicker(): void {
     const source = $<HTMLSelectElement>("source").value, kit = globalThis.molisWorkMaterials;
     const shown = all.filter(row => !source || row.plugin_title === source);
     $("list").replaceChildren(...shown.map(row => rowItem(row, isChosen(row), box => tick(row, box), row.file && kit ? () => void show(row) : null)));
-    if (!shown.length) $("list").append(el("li", "knowledge-picker-empty", L("没有找到相关的资料")));
+    if (!shown.length) $("list").append(el("li", "knowledge-picker-empty", uiText.text("workbench.picker.nothing-found")));
     paintChosen();
   }
   // What is chosen, quotes and snapshots included, each with a way to take it out. Adding nothing is allowed only to clear what
@@ -246,7 +248,7 @@ export function bindKnowledgePicker(): void {
     $("chosen").replaceChildren(...[...chosen].map(([key, item]) => chosenItem(item, () => {
       chosen.delete(key); for (const [file, ref] of fileRefs) if (ref === key) fileRefs.delete(file); draw(rows);
     })));
-    $("count").textContent = chosen.size ? L("已选 {count} 份", { count: chosen.size }) : "";
+    $("count").textContent = chosen.size ? uiText.text("workbench.picker.count-selected", { count: chosen.size }) : "";
     $<HTMLButtonElement>("confirm").disabled = !chosen.size && !asked?.selected?.length;
   }
 

@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 /**
  * One Send to the Host, whoever made it (the composer, a page's delegated words, search's 问助理), inside the resident Assistant's
  * client scope: the request, then what the page keeps of it. A Send whose outcome is unknown keeps its words and key across a
@@ -39,7 +40,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const carrier = res.work.executor?.kind === "plugin" ? executorOffer(res.work.executor.plugin_id) : null;
       if (carrier) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: carrier.capability_ids["run.start"], session_id: res.work.executor.session_id } }));
       // A supplement's fate is its receipt line in the thread, and words kept for the next turn the composer's status line.
-      if (visible && res.outcome === "answered") host.showToast?.(L("已作为回答发送"));
+      if (visible && res.outcome === "answered") host.showToast?.(readText("workbench.assistant-send.sent-answer"));
       // A lost Send that went again from another receiver went where it was first sent: the words in the box now are not its.
       return visible ? res : { ...res, elsewhere: true };
   }
@@ -66,8 +67,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     };
     let state;
     try { state = await check(); } catch { state = "unknown"; }
-    if (state === "unknown") throw Object.assign(new Error(L("没确认送到：再按一次，同一条不会重复。")), {
-      code: "ui_host.outcome_unknown", checkSend: () => check().then(state => state === "unknown" ? "unknown" : "not-sent") });
+    if (state === "unknown") throw Object.assign(new Error(readText("workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be")), {
+      code: ${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)}, checkSend: () => check().then(state => state === "unknown" ? "unknown" : "not-sent") });
     return state === "sent";
   }
   async function post(text, extra = {}) {
@@ -117,7 +118,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       return { ...await acceptSent(res, intent), consumed };
     } catch (error) {
       error.checkSend = () => checkSent(intent, consumed);
-      if (!["ui_host.outcome_unknown", "assistant.pending_request"].includes(error.code)) forgetIntent(intent);
+      if (![${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)}, "assistant.pending_request"].includes(error.code)) forgetIntent(intent);
       const data = error.body?.details || {}, visible = here();
       if (data.work) retainSent(data.work);
       if (visible) {
@@ -143,23 +144,28 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * tray comes the work's delivery note (receipts 3e-2a): the Host's record as it is, replaced whole only when its html changed,
  * so the step row binds it again; a supplement in it opens that supplement's receipt.
  *
- * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default in
- * its 「这次发送」 control: answer the question, or add to the round. The person switches it; the Host never decides it. When the round
+ * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the chip above the
+ * input shows what the next Send does, with the default on it (「这次发送」, as before K3): answer the question, or add to the round. One click
+ * switches it; the Host never decides it. When the round
  * waits on a questionnaire whose one text question is among others (the Host marks it `draft_from_composer` with that
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
-export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, api, work, reload, pact }) => {
-  const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
+export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ readText, shared, chip, api, work, reload, pact }) => {
+  const CHOICES = { answer: "workbench.assistant-send.answer-questions-above", draft: "workbench.assistant-send.write-into-form", steer: "workbench.assistant-send.add-turn" };
+  const NEXT = { answer: "workbench.assistant-send.switch-to-answer", draft: "workbench.assistant-send.switch-to-draft", steer: "workbench.assistant-send.switch-to-steer" };
   let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
   };
   const first = () => ask?.draft_from_composer ? "draft" : "answer";
-  const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
+  // The chip above the input: its words are the choice the next Send makes, and one click switches to the other.
+  const label = () => { chip.textContent = readText(CHOICES[choice]); chip.title = readText(NEXT[choice === "steer" ? first() : "steer"]); };
+  chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
+  const lost = (error) => { throw error.code === ${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)} ? new Error(readText("workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be")) : error; };
   const act = (round) => round && round.run_id ? {
     withdraw: (input_id) => api("/works/" + encodeURIComponent(work()) + "/control", "POST", { kind: "withdraw", run_id: round.run_id, input_id }).then(() => "", lost).finally(reload),
-    correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? L("已保存，下一轮开始生效") : "", lost).finally(reload),
+    correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? readText("workbench.assistant-send.saved-takes-effect-next-turn") : "", lost).finally(reload),
   } : undefined;
   return {
     /** The receipt under one of the person's supplements, placed after it; none for anything else. The thread is its surface. */
@@ -168,19 +174,17 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, api, w
       if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
       line.dataset.entry = key; put(line);
     },
-    /** Reads the round's question the composer can answer or fill; a new one starts at its default. */
+    /** Reads the round's question the composer can answer or fill; a new one starts at its default, and the chip shows only then. */
     paint(round) {
       ask = question(round); const id = ask ? ask.pending_id + ":" + ask.pending_revision : "";
-      if (id !== asked) { asked = id; choice = first(); }
+      if (id !== asked) { asked = id; choice = first(); label(); }
+      chip.hidden = !ask;
     },
-    /** The two things the next Send can do while the round waits on that question, and which one it does now; null otherwise. */
-    choices: () => ask ? { options: [first(), "steer"], value: choice } : null,
-    label: (one) => CHOICES[one],
-    choose: (one) => { if (ask && (one === first() || one === "steer")) choice = one; },
-    /** What the next Send does while there is a question; nothing otherwise (the words go to the round as a supplement). */
-    target: () => !ask || choice === "draft" ? undefined : choice,
+    retitle: label,
+    /** What the next Send does while the chip shows; nothing otherwise (the words go to the round as a supplement). */
+    target: () => chip.hidden || choice === "draft" ? undefined : choice,
     /** The question whose draft the next Send fills instead. */
-    into: () => ask && choice === "draft" ? ask : null,
+    into: () => !chip.hidden && choice === "draft" ? ask : null,
     /**
      * After the rounds are drawn: what is still open in the work (the tray; its queue left out when not read), and in the side
      * pane 「AI 记下的约定」 from the receipts just drawn, redrawn only when it reads differently so focus in it stays.

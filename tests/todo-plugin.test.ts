@@ -1,3 +1,4 @@
+import { assertPageWords, pagePack, pageText } from "./fixtures/page-text.js";
 import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
@@ -6,24 +7,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { deferredSurfaceClients, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import {
   TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
-  TODO_MESSAGES,
-  TODO_EN,
   TODO_PROJECT_PLUGIN_ID,
   createTodoPlugin,
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
-test("Todo is a personal plugin on the rail after Goals, listed in the market, with a purgeable Home store", () => {
+test("Todo is a personal plugin on the rail after Goals, listed in the market, with a purgeable Home store", () => runWithLocale("zh", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), false);
   assert.deepEqual(railEntries(["goals", "todo", "inbox"]).map(entry => [entry.id, entry.label, entry.glyph]),
@@ -31,7 +30,7 @@ test("Todo is a personal plugin on the rail after Goals, listed in the market, w
   const card = pluginMarketCards({}, builtinMarketDirectory()).find(entry => entry.id === "todo");
   assert.equal(card?.personal, true);
   assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
-});
+}));
 
 test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime, and the client bundle still parses with the quick-entry reader in it", { timeout: 60_000 }, async t => {
   const { request, project } = await serveHomeRuntime(t);
@@ -46,7 +45,9 @@ test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime
   assert.doesNotThrow(() => new Function(script));
   assert.doesNotThrow(() => new Function("return " + TODO_CLIENT_FACTORY_SCRIPT));
   // The page's script only knows Todo is there; Todo's own client loads when its surface opens (#150).
-  assert.match(script, /\["todo","io\.molis\.work\.todo"/);
+  const registration = deferredSurfaceClients().find(row => row.id === "todo");
+  assert.equal(registration?.plugin_id, "io.molis.work.todo");
+  assert.equal(registration.bundle, "todo");
   const client = pluginWorkbenchClientAsset("todo");
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));
@@ -63,22 +64,11 @@ test("RAC-130 every word the Todo page says has a stable key with both languages
   const calls = scan.calls.filter(call => call.file === "plugins/native/todo/src/ui.ts" || call.file.startsWith("plugins/native/todo/src/browser/"));
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "the gate sees no Chinese translator keys, including aliases and embedded programs");
   const used = new Set<string>(calls.map(call => call.key));
-  const missing = [...used].filter(key => !(key in TODO_MESSAGES));
-  assert.deepEqual(missing, []);
-  for (const [key, text] of Object.entries(TODO_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
   assert.ok(used.size > 200, "the page's keys were found");
-  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "database.ts", "manifest.ts", "roles.ts"].map(file => "plugins/native/todo/src/" + file));
-  for (const key of Object.keys(TODO_EN)) {
-    assert.ok(scan.calls.some(call => call.key === key && call.file.startsWith("plugins/native/todo/"))
-      || scan.files.some(file => dynamicOwners.has(file.file) && file.mentions.has(key)), `${key} must have a Todo translator or an existing dynamic declaration owner`);
-  }
-  const removed = ["取消选择", "周日", "周一", "周二", "周三", "周四", "周五", "周六", "昨天", "：", "查看", "明天", "提醒", "在等", "你", "稍后", "、", "，", "；"];
-  assert.deepEqual(removed.filter(key => key in TODO_EN), [], "foreign and unused keys cannot return to Todo's dynamic dictionary");
-  assert.deepEqual([...scan.missing.keys()], [], "moving shared words cannot leave another owner's live call untranslated");
+  assertPageWords("todo", used);
+  const rawNames = ["取消选择", "周日", "周一", "周二", "周三", "周四", "周五", "周六", "昨天", "：", "查看", "明天", "提醒", "在等", "你", "稍后", "、", "，", "；"];
+  assert.deepEqual(rawNames.filter(key => key in pagePack("todo", "en").messages), [], "raw text cannot become a Todo message key");
+  assert.deepEqual(scan.problems.filter(problem => problem.includes("plugins/native/todo/")), []);
 });
 
 test("RAC-134 stable Todo words keep the formerly displayed English after the global dictionary overrides", () => {
@@ -101,7 +91,7 @@ test("RAC-134 stable Todo words keep the formerly displayed English after the gl
     "todo.link.relation": "Relationships"
   };
   runWithLocale("en", () => {
-    for (const [key, expected] of Object.entries(displayed)) assert.equal(L(key), expected, key);
+    for (const [key, expected] of Object.entries(displayed)) assert.equal(pageText("en", "todo")(key), expected, key);
   });
 });
 
@@ -113,6 +103,7 @@ test("RAC-130 the actual English Skill catalog translates Todo names and usage g
   assert.equal(rows[0]!.description, "Use when the user wants tasks extracted from mail, files, meeting notes, web pages or current content, asks about missed tasks, or asks how an email changes existing plans. Present proposed tasks for confirmation first.");
   assert.equal(rows[1]!.description, "Use when the user asks to move a specific todo forward. Identify the next step and blockers, create useful drafts, and propose status changes without applying them unasked.");
   for (const row of rows) {
+    assert.equal(row.pack.title, "Todo");
     assert.ok(row.when_to_use && row.when_not_to_use, "the directory includes both usage boundaries");
     assert.doesNotMatch(row.when_to_use + row.when_not_to_use, /\p{Script=Han}/u);
   }
@@ -175,8 +166,8 @@ test("待办整理师 and both organizing methods are registered with the Host w
   assert.deepEqual(todo[0]!.prompts!.map(prompt => prompt.prompt_id).sort(), ["todo-organizer", "todo.organize.basic", "todo.organize.organizer"]);
   // “整理待办” is offered to other Agents (the Assistant, 待办整理师 as a Character) with business tools only.
   assert.deepEqual(todo[0]!.methods!.map(method => [method.skill_id, method.version, method.tools]), [
-    ["todo-organize", 1, ["find-capabilities", "read-capability", "change-capability", "ask-user"]],
-    ["todo-advance", 1, ["find-capabilities", "read-capability", "change-capability", "ask-user"]],
+    ["todo-organize", 2, ["find-capabilities", "read-capability", "change-capability", "ask-user"]],
+    ["todo-advance", 2, ["find-capabilities", "read-capability", "change-capability", "ask-user"]],
   ]);
   assert.match(todo[0]!.methods![1]!.body, /状态不擅改/u);
   assert.match(todo[0]!.methods![0]!.body, /todo\.organize\.extract/u);

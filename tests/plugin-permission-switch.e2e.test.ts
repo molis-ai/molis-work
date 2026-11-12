@@ -10,7 +10,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 // PG-002 and BL-700, S-94: the 插件 page's switches, with the page program the Host really sends (its HTML, inline scripts and the shared request
 // client) run in a real browser. The source-text checks in security-invariants-plugin-permissions-http.test.ts could not see a switch that did not
 // work at all (the project's list handed the row renderer its index as the send function); this clicks the switches and reads what the page sends.
-// Only the HTTP answers are stubbed: the Host's side of both doors is in that file and in security-invariants-plugin-permissions.test.ts.
+// Only the business HTTP answers are stubbed: the Host's side of both doors is in that file and in security-invariants-plugin-permissions.test.ts.
 
 const viewOf = (name: string, installId: string, permissions: Array<{ permission: string; required: boolean; granted: boolean; requested?: boolean }>) => ({
   install_id: installId, plugin_id: `io.molis.work.${name}`, name, version: "1.0.0", trust: "pinned", publisher_label: "example", publisher_signature: "ed25519:sha256:aa",
@@ -44,11 +44,23 @@ async function openPluginPage(t: TestContext, dual = false) {
   const model = { home: true };
   const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin], [dualHome.install_id, dualHome]]);
   const seen: Seen[] = [];
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
+    const url = request.url ?? "";
+    if (request.method === "GET" && url.startsWith("/assets/")) {
+      try {
+        const asset = await host.request(url, { authorized: false, headers: { "accept-encoding": "identity" } });
+        const bytes = Buffer.from(await asset.arrayBuffer());
+        response.writeHead(asset.status, Object.fromEntries(asset.headers));
+        response.end(bytes);
+      } catch (error) {
+        response.destroy(error instanceof Error ? error : undefined);
+      }
+      return;
+    }
     const chunks: Buffer[] = [];
     request.on("data", chunk => chunks.push(Buffer.from(chunk)));
     request.on("end", () => {
-      const url = request.url ?? "", text = Buffer.concat(chunks).toString();
+      const text = Buffer.concat(chunks).toString();
       const json = (status: number, value: unknown) => { response.writeHead(status, { "content-type": "application/json" }); response.end(JSON.stringify(value)); };
       if (request.method === "GET" && url.startsWith(`${prefix}/settings/plugins`)) { response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(html); return; }
       if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin, ...dual ? [dualProject] : []], publishers: [], home_managed_install_ids: dual ? [dualProject.install_id] : [] }); return; }
@@ -79,10 +91,20 @@ async function openPluginPage(t: TestContext, dual = false) {
   });
   harness = await ChromeHarness.start(directory, { executable });
   const page = await harness.page();
+  const scriptErrors: string[] = [];
+  t.after(harness.on("Runtime.exceptionThrown", params => {
+    const error = params.exceptionDetails as { text?: string; exception?: { description?: string } };
+    scriptErrors.push(error.exception?.description?.split("\n")[0] ?? error.text ?? "");
+  }));
   await page.command("Runtime.enable");
   await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}${prefix}/settings/plugins` });
-  await page.wait(`document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === ${dual ? 2 : 1}`,
-    { describe: "document.querySelector('[data-plugin-trust-error]')?.textContent" });
+  try {
+    await page.wait(`document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === ${dual ? 2 : 1}`,
+      { describe: "JSON.stringify({error:document.querySelector('[data-plugin-trust-error]')?.textContent, words:typeof globalThis.t, bound:document.querySelector('[data-plugin-trust-settings]')?.dataset.pluginTrustBound})" });
+  } catch (error) {
+    t.diagnostic(JSON.stringify(scriptErrors));
+    throw error;
+  }
   await page.evaluate("document.querySelectorAll('details.plugin-trust-item').forEach(item => { item.open = true; })");
   const switchOf = (permission: string) => `input[role=switch][aria-label="${permission}"]`;
   const checked = (permission: string) => page.evaluate<boolean>(`document.querySelector('${switchOf(permission)}').checked`);
@@ -94,13 +116,18 @@ async function openPluginPage(t: TestContext, dual = false) {
   return { page, seen, requests, switchOf, checked, prefix, model, dualHome };
 }
 
-test("RAC-2910 dual optional permissions have one Home switch, including stopped/crashed and missing Home states", { timeout: 120_000 }, async t => {
+test("RAC-2910 F-20: dual optional permissions have one Home switch, including stopped/crashed and missing Home states", { timeout: 120_000 }, async t => {
   const browser = await openPluginPage(t, true); if (!browser) return;
   const { page, requests, seen, model, dualHome } = browser;
   const project = "[data-plugin-trust-list]", personal = "[data-plugin-trust-home]";
   const optional = 'input[role=switch][aria-label="dual:optional"]';
   assert.equal(await page.evaluate(`document.querySelectorAll('${project} ${optional}').length`), 0);
   assert.match(await page.evaluate<string>(`document.querySelector('${project}').innerText`), /请在个人空间里管理这个插件的可选权限/u);
+  // F-20: a plugin in both groups says why on the project's row; no internal word for where it came from.
+  const copies = await page.evaluate<string[]>(`[...document.querySelectorAll('${project} .setting-copy')].map(copy => copy.innerText)`);
+  assert.match(copies.find(text => text.includes("双实例插件")) ?? "", /个人空间里也有一份/u);
+  assert.doesNotMatch(copies.find(text => text.includes("项目里的插件")) ?? "", /个人空间里也有一份/u, "only a plugin in both groups says so");
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-plugin-trust-settings]').innerText"), /宿主随带/u);
   await page.click(`${personal} ${optional}`);
   await requests(1); assert.deepEqual(seen[0], { url: "/api/settings/plugin-permissions/set", body: { install_id: "dual-install", permission: "dual:optional", granted: false } });
   await page.wait(`document.querySelector('${personal} ${optional}').disabled === false`);

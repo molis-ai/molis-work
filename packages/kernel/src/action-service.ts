@@ -16,7 +16,7 @@ import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallS
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk/execution";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;

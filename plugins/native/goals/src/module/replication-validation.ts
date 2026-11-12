@@ -1,5 +1,6 @@
 import type { ProjectReplicaRows, ProjectReplicaRow } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { goalRelationTypes, type GoalRelationRecord } from '../contract/goals.js';
+import { goalEventBasisGaps, goalEventBasisTiers, goalRelationTypes, type GoalEventJudgmentBasisInput, type GoalRelationRecord } from '../contract/goals.js';
+import { normalizeBasis } from './event-facts-validation.js';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { validatePlanningGraph } from './planning/goal-graph.js';
 
@@ -19,6 +20,9 @@ export function validateGoalReplication(rows: ProjectReplicaRows, projectId: str
     if (table.startsWith('goal_event_') && row.event_id && !events.has(row.event_id)) invalid();
     if (row.resolution_event_id && !events.has(row.resolution_event_id)) invalid();
     if (table === 'goal_work_event_judgments' && (!events.has(row.event_id) || events.get(row.event_id)!.goal_id !== requirements.get(row.requirement_id)!.goal_id)) invalid();
+    if (table === 'goal_work_event_judgments') validateJudgmentTrust(row);
+    if (table === 'goal_event_requirement_conclusions' && ((row.checked_artifact_id == null) !== (row.checked_version == null)
+      || (row.checked_version != null && !(Number.isSafeInteger(row.checked_version) && Number(row.checked_version) >= 1)))) invalid();
     if (table === 'goal_event_requirement_conclusions' && (!decisions.has(row.decision_id) || decisions.get(row.decision_id)!.goal_id !== row.goal_id)) invalid();
     if (row.scope_json) validateScope(row, JSON.parse(String(row.scope_json)), requirements, events);
   }
@@ -49,3 +53,16 @@ function validateScope(row: ProjectReplicaRow, value: unknown, requirements: Map
 }
 
 function invalid(): never { throw errors.replica_invalid('Goal 同步记录的关联无效'); }
+
+/** A judgment's tier, gap and basis (its whole shape) as Goals itself writes them: nothing else may arrive as a replicated row (the columns carry no CHECK). */
+function validateJudgmentTrust(row: ProjectReplicaRow): void {
+  if (!(goalEventBasisTiers as readonly unknown[]).includes(row.tier)) invalid();
+  if (row.gap != null && !(goalEventBasisGaps as readonly unknown[]).includes(row.gap)) invalid();
+  if (row.gap != null && row.tier !== 'self_reported') invalid();
+  if (row.reporter_session != null && typeof row.reporter_session !== 'string') invalid();
+  if (row.basis_json == null) { if (row.tier !== 'self_reported') invalid(); return; }
+  let basis: unknown;
+  try { basis = JSON.parse(String(row.basis_json)); } catch { invalid(); }
+  // The same shape a report is held to when Goals saves it: an exact version, how it was checked, and references only, at most eight.
+  try { normalizeBasis(basis as GoalEventJudgmentBasisInput, String(row.requirement_id)); } catch { invalid(); }
+}

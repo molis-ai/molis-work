@@ -478,8 +478,13 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     path.join(repositoryRoot, "plugins/native/goals/methods"),
     (filePath) => path.extname(filePath) === ".md",
   );
-  if (planningMethodAssets.length !== 37) {
-    errors.push(`plugins/native/goals/methods: expected 37 owned Planning method assets, found ${planningMethodAssets.length}`);
+  const methodSources = planningMethodAssets.filter(file => !file.endsWith(".en.md") && !file.endsWith("runtime.zh.md"));
+  const methodTranslations = new Set(planningMethodAssets.filter(file => file.endsWith(".en.md")));
+  if (methodSources.length !== 37 || methodTranslations.size !== methodSources.length + 1 ||
+      !methodSources.every(file => methodTranslations.has(file.replace(/\.md$/u, ".en.md"))) ||
+      !planningMethodAssets.includes(path.join(repositoryRoot, "plugins/native/goals/methods/runtime.zh.md")) ||
+      !methodTranslations.has(path.join(repositoryRoot, "plugins/native/goals/methods/runtime.en.md"))) {
+    errors.push("plugins/native/goals/methods: all 37 owned methods and their shared instruction template must ship in both languages");
   }
   const legacyPlanningMethodAssets = filesUnder(
     path.join(repositoryRoot, "skills/goal-advance/methods"),
@@ -562,7 +567,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  for (const relativePath of ["apps/local-host/src/demo-feed-library.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
+  for (const relativePath of ["apps/local-host/src/demo-feed-library.ts", "plugins/native/feed/src/demo-seed.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)].filter(file => fs.existsSync(path.join(repositoryRoot, file)))) {
     errors.push(...checkGoalReadOwnerSql(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
@@ -877,8 +882,8 @@ export function checkArtifactsOwnership(repositoryRoot) {
     }
   }
 
-  // The lifecycle rules live in the service and in the registration it checks a version with (service.ts, registration.ts).
-  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts");
+  // Lifecycle and compatibility rules stay in the Artifact owner, shared by the service and paginated consumers.
+  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts") + (fs.existsSync(path.join(repositoryRoot, "modules/artifacts/src/compatibility.ts")) ? read("modules/artifacts/src/compatibility.ts") : "");
   for (const required of [
     "artifacts.artifact.version_not_increasing",
     "artifacts.artifact.version_conflict",
@@ -888,7 +893,7 @@ export function checkArtifactsOwnership(repositoryRoot) {
     '"consumer_missing"',
   ]) {
     if (!hasInText(service, required)) {
-      errors.push(`modules/artifacts/src/{service,registration}.ts: Artifact lifecycle is missing ${required}`);
+      errors.push(`modules/artifacts/src/{service,registration,compatibility}.ts: Artifact lifecycle is missing ${required}`);
     }
   }
   if (/plugins\/(?:native|official-integrations)\//u.test(service + repository)) {

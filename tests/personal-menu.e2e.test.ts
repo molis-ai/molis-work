@@ -25,9 +25,11 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
       if (url.pathname === '/api/personal/status') {
         probe.calls.push(url.search);
         if(probe.complete)sessionStorage.setItem('accountPollProbeDone','1');
-        return Promise.resolve(Response.json({ configured: true, space: 'local',
-          identity: probe.complete ? { userId: 'test-alice', displayName: '测试用户', emails: ['alice@example.test'] } : null,
-          accountGeneration: probe.complete ? 2 : 1, ready: probe.complete, loginCompleted: probe.complete }));
+        const response=Response.json({ configured: true, space: 'local',
+          identity: probe.complete ? { userId: 'test-alice', displayName: '测试用户', email: 'alice@example.test' } : null,
+          accountGeneration: probe.complete ? 2 : 1, ready: probe.complete, loginCompleted: probe.complete });
+        if(probe.holdNext){probe.holdNext=false;return new Promise(resolve=>{probe.release=()=>resolve(response);});}
+        return Promise.resolve(response);
       }
       if (url.pathname === '/api/personal/login') return Promise.resolve(Response.json({
         loginUrl: location.origin + '/health', loginAttempt: 'presentation-only-attempt' }));
@@ -53,7 +55,10 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
   await waitFor("window.accountPollProbe.calls.some(query => new URLSearchParams(query).get('attempt') === 'presentation-only-attempt')");
   await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
   // Completion now replaces the document. Wait for that real navigation rather than keeping a Runtime promise in the old context.
-  await navigate(() => command('Runtime.evaluate', {expression:"setTimeout(() => { window.accountPollProbe.complete = true; window.accountPollProbe.ticks.forEach(tick => tick()); }, 0)", returnByValue:true}, sessionId));
+  await evaluate("window.accountPollProbe.holdNext=true;window.accountPollProbe.ticks.forEach(tick=>tick())");
+  await waitFor("Boolean(window.accountPollProbe.release)");
+  // ASR-10: a completion notification while a previous status read is pending is queued, not lost until the next poll.
+  await navigate(() => command('Runtime.evaluate', {expression:"setTimeout(() => { const probe=window.accountPollProbe;probe.complete=true;const channel=new BroadcastChannel('molis-work-account');channel.postMessage('changed');channel.close();setTimeout(()=>probe.release(),50); }, 0)", returnByValue:true}, sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent === '测试用户' && document.querySelector('#mw-account-menu').hidden && window.accountPollProbe.popupClosed");
   await waitFor("document.querySelector('.mw-account-toast:not([hidden])')?.textContent === '登录成功'");
   assert.equal(await evaluate("document.querySelector('.mw-account-toast:not([hidden])')?.textContent"), '登录成功');
@@ -77,7 +82,7 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const originalFetch = window.fetch.bind(window);
     window.fetch = (input, init) => new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
-      ? Promise.resolve(Response.json({configured:true,identity:null,syncEnabled:false}))
+      ? Promise.resolve(Response.json({configured:true,identity:null}))
       : originalFetch(input, init);
   }` }, sessionId);
   for (const width of [1440, 1024, 390]) for (const theme of ['light', 'dark']) {
@@ -122,7 +127,7 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window);
     window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
-      ? Promise.resolve(Response.json({configured:true,identity:{userId:'test-alice',displayName:'测试用户',emails:['alice@example.test']},space:'local',syncEnabled:false}))
+      ? Promise.resolve(Response.json({configured:true,identity:{userId:'test-alice',displayName:'测试用户',email:'alice@example.test'},space:'local'}))
       : original(input,init);
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
@@ -130,6 +135,7 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
   await click('[data-project-menu] > summary');
   await click('[data-personal-menu] [data-account-link]');
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
+  assert.equal(await evaluate("document.querySelector('[data-menu-email]').textContent"),'alice@example.test','the menu shows the contract user email instead of the signed-out placeholder');
   assert.equal(await evaluate("document.activeElement?.dataset.personalAction"), 'switch');
   assert.equal(await evaluate("document.querySelector('[data-personal-action=local], [data-personal-action=space]')"),null);
   assert.equal(await evaluate("document.querySelector('[data-personal-action=login]').hidden"),true);
@@ -148,7 +154,7 @@ test('account menu localizes its dynamic controls and accessible labels in Engli
     const original=window.fetch.bind(window);
     window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
       ? Promise.resolve(Response.json({configured:true,identity:window.accountEnglishSignedIn
-        ? {userId:'test-alice',displayName:'<img src=x onerror=alert(1)>',emails:[]} : null,space:'local',syncEnabled:false}))
+        ? {userId:'test-alice',displayName:'<img src=x onerror=alert(1)>',email:null} : null,space:'local'}))
       : original(input,init);
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
@@ -176,17 +182,17 @@ test('ASR-04/05 account switching waits for the Host preparation and cancellatio
   // Presentation harness: the separate HTTP/cohort tests exercise the real participant owner and lease.
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window), Source=window.EventSource;
-    window.preparationProbe={confirm:false,acks:0,cancels:0,logins:0};
+    window.preparationProbe={confirm:false,acks:0,cancels:0,logins:0,connections:0};
     const probe=window.preparationProbe;
     window.confirm=()=>probe.confirm;
     window.open=()=>({closed:false,opener:null,location:{replace(){}},close(){this.closed=true;}});
     window.EventSource=function(url,options){
-      if(new URL(url,location.href).pathname==='/api/personal/events')return probe.events={close(){}};
+      if(new URL(url,location.href).pathname==='/api/personal/events'){probe.connections++;return probe.events={close(){}};}
       return new Source(url,options);
     };
     window.fetch=(input,init)=>{
       const url=new URL(String(input),location.href);
-      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',email:null},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
       if(url.pathname==='/api/personal/prepare'){
         const action=url.searchParams.get('action');
         if(action==='start')probe.preparation={id:'test-preparation',ownerPageId:url.searchParams.get('page'),intent:'switch',ready:false};
@@ -217,6 +223,7 @@ test('ASR-04/05 account switching waits for the Host preparation and cancellatio
   assert.equal(await evaluate("window.preparationProbe.logins"),0,'a disconnected participant stream cancels the preparation before authentication');
   assert.equal(await evaluate("document.querySelector('[data-account-dirty-probe]').inert"),false);
   assert.equal(await evaluate("document.querySelector('[data-account-transition-notice]').hidden"),true);
+  await waitFor("window.preparationProbe.connections===2");
   await click('[data-personal-action=switch]');
   await waitFor("window.preparationProbe.acks===2");
   await evaluate("const probe=window.preparationProbe;probe.preparation.ready=true;probe.events.onmessage({data:JSON.stringify({type:'changed',preparation:probe.preparation})})");

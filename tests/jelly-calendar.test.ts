@@ -14,7 +14,7 @@ test("civil dates preserve leap days and weekday independent of DST", () => {
   assert.equal(jellyDaysBetween("2026-03-07", "2026-03-09"), 2); assert.equal(jellyWeekday("2026-09-21"), 1);
   assert.throws(() => jellyAddDays("2025-02-29", 1));
 });
-test("item commands validate atomically, preserve multi-day duration and completion timestamp", () => {
+test("JLY-27-05: item commands validate atomically, preserve multi-day duration and completion timestamp", () => {
   const state = emptyJellyWorkspace(); create(state, "trip", { end_date: "2026-09-24", start_time: 1320, end_time: 60 });
   apply(state, { type: "item.move", id: "trip", date: "2026-10-31" }); assert.equal(state.items[0]!.end_date, "2026-11-02");
   apply(state, { type: "item.complete", id: "trip", completed: true }); command(state, { type: "item.complete", id: "trip", completed: true }, "2026-09-23T01:00:00Z"); assert.equal(state.items[0]!.completed_at, now);

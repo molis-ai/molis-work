@@ -1,3 +1,4 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, retainActionAuthority, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
@@ -109,7 +110,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     const body = page.body.trim();
     return /^#\s/u.test(body) ? body : `# ${page.title}\n\n${body}`;
   };
-  const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
+  const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: t.text("ppt.actions.configure-model-first") };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, retainActionAuthority(caller, { capability_id: definition.capability_id, version: definition.version, provider_id: PPT_PLUGIN_ID }, caller.beforeEffect)), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
     project(caller);
@@ -123,7 +124,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       const ai = modelAvailability(), permitted = pptActions.outlineAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(pptActions.outlineAi.capability_id));
       return ports.read(store => ({ presentations: store.list(project(caller)), ai_available: ai.available && permitted,
-        ai_unavailable_reason: !permitted ? "当前调用方未获 AI 整理大纲的授权" : ai.available ? null : ai.reason ?? "请先配置可用的文字模型" }));
+        ai_unavailable_reason: !permitted ? t.text("ppt.actions.model-unavailable-permission") : ai.available ? null : ai.reason ?? t.text("ppt.actions.configure-model-first") }));
     }),
     bind(pptActions.get, (input, caller) => ports.read(store => ({ presentation: store.get(input.id, project(caller)) }))),
     bind(pptActions.create, (input, caller) => ports.write(caller, store => ({ presentation: store.create({ ...input, project_id: project(caller) }) }))),
@@ -154,9 +155,9 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       return { filename: pptxFilename(presentation.title), mime_type: PPTX_MIME_TYPE, content_base64: Buffer.from(buildPptx(presentation)).toString("base64"), slide_count: presentation.slides.length };
     })),
     bind(pptActions.outlinePages, async (_input, caller) => {
-      if (!ports.listPages) return { documents: [], unavailable_reason: "Pages 不可用" };
+      if (!ports.listPages) return { documents: [], unavailable_reason: t.text("ppt.actions.pages-unavailable") };
       try { return { documents: await ports.listPages(caller), unavailable_reason: null }; }
-      catch (error) { return { documents: [], unavailable_reason: error instanceof Error ? error.message : "读不到 Pages 文档" }; }
+      catch (error) { return { documents: [], unavailable_reason: error instanceof Error ? error.message : t.text("ppt.actions.pages-unreadable") }; }
     }),
     bind(pptActions.outline, async (input, caller) => {
       const current = ports.read(store => store.get(input.id, project(caller)));
@@ -172,7 +173,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
       caller.signal?.throwIfAborted();
-      if (!ports.complete) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
+      if (!ports.complete) throw new ActionError("actions.connection_required", t.text("ppt.actions.configure-model-first"));
       const result = await ports.complete(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal, beforeDispatch: caller.beforeEffect });
       caller.signal?.throwIfAborted();
       const markdown = result.text.trim();

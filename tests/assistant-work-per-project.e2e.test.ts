@@ -58,8 +58,11 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
   await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]').click()");
   await waitFor("!document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')");
 
-  // The words of a new work stay in the project they were written in.
+  // The words of a new work stay in the project they were written in (UIC-14: one home draft per project, so switching projects
+  // neither loses nor mixes them).
   await visit(projectId);
+  // The shell mounts before loadWorks/reload restores the receiver; wait for the actual remembered work before dismissing it.
+  await waitFor(`${CURRENT_WORK} === ${JSON.stringify(work)} && document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent === ${JSON.stringify(TITLE)}`);
   await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]').click()");
   await putInput(browser, "只想在 A 里新开的一件事");
   await waitFor(`localStorage.getItem(${JSON.stringify(`molis.assistant.new-draft:${projectId}`)}) === '只想在 A 里新开的一件事'`);

@@ -3,14 +3,12 @@ use crate::web_service::molis_work_home;
 use serde::Deserialize;
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const SHELF_ORIGIN: &str = "http://127.0.0.1:4173";
-const SHELF_HOST: &str = "127.0.0.1:4173";
 /// Shelf's routes on its Home instance, outside any project.
 const SHELF_API: &str = "/api/plugins/io.molis.work.shelf";
 /// The header that tells the Host the person chose this file here; the Host reads it, page script cannot send it.
@@ -45,10 +43,26 @@ impl AdmitReceipt {
     }
 }
 
+pub struct AdmissionFeedback {
+    outcome: Result<Option<&'static str>, String>,
+    original_warning: Option<&'static str>,
+}
+
+impl AdmissionFeedback {
+    pub fn notify(self, notify: impl FnOnce(&str, bool, Option<&str>)) -> bool {
+        match self.outcome {
+            Ok(None) => return false,
+            Ok(Some(message)) => notify(message, true, self.original_warning),
+            Err(error) => notify(&error, false, self.original_warning),
+        }
+        true
+    }
+}
+
 /// Collect a complete native batch before choosing its one visible outcome.
 pub fn collect_admissions(
     admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
-) -> (Vec<String>, Result<Option<&'static str>, String>) {
+) -> (Vec<String>, AdmissionFeedback) {
     let mut admitted = Vec::new();
     let mut warning = None;
     let mut last_error = None;
@@ -58,21 +72,23 @@ pub fn collect_admissions(
             Err(error) => last_error = Some(error),
         }
     }
-    let feedback = finish_capture(admitted.len(), warning, last_error);
-    (admitted, feedback)
+    let outcome = finish_capture(admitted.len(), warning, last_error);
+    (
+        admitted,
+        AdmissionFeedback {
+            outcome,
+            original_warning: warning,
+        },
+    )
 }
 
 /// Background entry points notify once, after every result; a later warning cannot replace an error.
 pub fn notify_admissions(
     admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
-    notify: impl FnOnce(&str, bool),
+    notify: impl FnOnce(&str, bool, Option<&str>),
 ) -> Vec<String> {
     let (admitted, feedback) = collect_admissions(admissions);
-    match feedback {
-        Ok(Some(message)) => notify(message, true),
-        Err(error) => notify(&error, false),
-        Ok(None) => {}
-    }
+    feedback.notify(notify);
     admitted
 }
 
@@ -368,10 +384,11 @@ pub(crate) fn post_json_with(
     let token = control_token()?;
     let encoded = body.to_string();
     let key = idempotency_key();
+    let (host, origin) = (crate::host_port::host(), crate::host_port::origin());
     let request = format!(
         "POST {path} HTTP/1.1\r\n\
-         Host: {SHELF_HOST}\r\n\
-         Origin: {SHELF_ORIGIN}\r\n\
+         Host: {host}\r\n\
+         Origin: {origin}\r\n\
          Content-Type: application/json\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\
@@ -402,21 +419,27 @@ fn percent_encode_path(path: &str) -> String {
     out
 }
 
-fn get_json(path: &str) -> Result<String, String> {
+pub(crate) fn get_json(path: &str) -> Result<String, String> {
+    get_json_within(path, Duration::from_secs(3))
+}
+
+/// A read the Host answers only after asking others (each owner has two seconds, `beforeDeadline`).
+pub(crate) fn get_json_within(path: &str, read: Duration) -> Result<String, String> {
     let token = control_token()?;
+    let (host, origin) = (crate::host_port::host(), crate::host_port::origin());
     let request = format!(
         "GET {path} HTTP/1.1\r\n\
-         Host: {SHELF_HOST}\r\n\
-         Origin: {SHELF_ORIGIN}\r\n\
+         Host: {host}\r\n\
+         Origin: {origin}\r\n\
          Connection: close\r\n\
          x-molis-work-control-token: {token}\r\n\
          \r\n"
     );
-    exchange_http(&request, Duration::from_millis(400), Duration::from_secs(3))
+    exchange_http(&request, Duration::from_millis(400), read)
 }
 
 fn exchange_http(request: &str, connect: Duration, read: Duration) -> Result<String, String> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 4173));
+    let addr = crate::host_port::address();
     let mut stream = TcpStream::connect_timeout(&addr, connect)
         .map_err(|error| format!("置物架服务连不上：{error}"))?;
     crate::web_identity::authenticate(&mut stream, &control_token()?)?;
@@ -621,15 +644,16 @@ mod tests {
                 admissions.reverse();
             }
             let mut notices = Vec::new();
-            let ids = notify_admissions(admissions, |message, partial| {
-                notices.push((message.to_string(), partial))
+            let ids = notify_admissions(admissions, |message, partial, original| {
+                notices.push((message.to_string(), partial, original.map(str::to_owned)))
             });
             assert_eq!(ids, ["saved-copy"]);
             assert_eq!(
                 notices,
                 [(
                     format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"),
-                    false
+                    false,
+                    Some(warning.into())
                 )]
             );
         }
@@ -646,7 +670,9 @@ mod tests {
                 ),
                 parse_admit_receipt(r#"{"item":{"item_id":"copy-only"}}"#.into()),
             ],
-            |message, partial| notices.push((message.to_string(), partial)),
+            |message, partial, original| {
+                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            },
         );
         assert_eq!(ids, ["registered", "copy-only"]);
         assert!(notices.is_empty());
@@ -659,23 +685,30 @@ mod tests {
                     r#"{"item":{"item_id":"second"},"original_registered":false}"#.into(),
                 ),
             ],
-            |message, partial| notices.push((message.to_string(), partial)),
+            |message, partial, original| {
+                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            },
         );
         assert_eq!(ids, ["first", "second"]);
         assert_eq!(
             notices,
             [(
                 "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into(),
-                true
+                true,
+                Some("副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into())
             )]
         );
         notices.clear();
         assert!(notify_admissions(
             [Err("第一个失败".into()), Err("最后一个失败".into())],
-            |message, partial| notices.push((message.to_string(), partial))
+            |message, partial, original| notices.push((
+                message.to_string(),
+                partial,
+                original.map(str::to_owned)
+            ))
         )
         .is_empty());
-        assert_eq!(notices, [("最后一个失败".into(), false)]);
+        assert_eq!(notices, [("最后一个失败".into(), false, None)]);
     }
 
     // PG-026-S1-S3-1/2: execute the parser and the same consumer used by all native admission paths.

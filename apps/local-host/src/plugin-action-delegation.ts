@@ -4,6 +4,7 @@ import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider, pluginActionView } from "./plugin-action-provider.js";
 import { checkedReference } from "./plugin-action-query.js";
+import { activeLocale } from "./web-locale.js";
 
 /** The Manifest permission that gives a plugin `services.actions.directory`. Declared and granted like any other; never implied by who published the plugin. */
 export const ACTIONS_DELEGATE_PERMISSION = "actions:delegate";
@@ -41,6 +42,9 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     // for that plugin's direct call, so the nested call can reach what that plugin could reach and nothing the delegating plugin can.
     const { plugin_install_id, host_plugin, beforeEffect, retainAuthority, retainBackgroundAuthority, ...inherited } = original;
     Reflect.deleteProperty(inherited, "stage_scene_metadata");
+    // Where the original was itself handed in from stays with it: one hop only. What this call carries is the running handler's own
+    // action, from the Runtime's scope of it (BL-803), never from the caller.
+    Reflect.deleteProperty(inherited, "delegated_action"); Reflect.deleteProperty(inherited, "direct_person_entry");
     const plugin = original.audience === "plugin";
     const source = () => { grant(); assertCapturedPluginActionCurrent(scope, context); };
     const check = async () => { source(); await original.beforeEffect(); source(); };
@@ -51,8 +55,8 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current?.()); } };
     const own: ActionCallContext = { ...inherited, validate_authority: async target => { await original.validate_authority?.(target); source(); },
       assert_authority_current: original.assert_authority_current };
-    const caller: ActionCallContext = { ...inherited, ...(plugin ? { plugin_install_id, host_plugin } : { audience: "workflow" as const }),
-      delegated_by: manifest.plugin_id, delegated_audience: original.audience,
+    const caller: ActionCallContext = { ...inherited, ...(plugin ? { plugin_install_id, host_plugin } : { audience: "workflow" as const }), locale: activeLocale() ?? undefined,
+      delegated_by: manifest.plugin_id, delegated_audience: original.audience, ...(scope.source ? { delegated_action: scope.source } : {}),
       ...(signal ? { signal } : {}), ...(control?.query_only ? { query_only: true as const } : {}), ...withControlChecks(own, fence),
       validate_permissions: async permissions => { source(); await original.validate_permissions?.(permissions); source(); } };
     return { caller, check, source, audience: plugin ? undefined : { audience: "workflow" as const } };

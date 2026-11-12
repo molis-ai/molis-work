@@ -197,7 +197,13 @@ test("S-52 PG-038 a job of another installation generation or an earlier activat
 test("S-52 PG-038 closing a project stops the jobs a Home plugin kept there, and its jobs in another project run on", { timeout: 60_000 }, async t => {
   const probe = jobProbe("jobprojects", "project"), entered = deferred();
   let waiting = 0;
-  const { release } = held(probe, () => { if (++waiting === 2) entered.resolve(); });
+  const releases = new Map<string, ReturnType<typeof deferred>>();
+  probe.behavior.work = async (context, control, id) => {
+    const release = deferred(); releases.set(id, release);
+    if (++waiting === 2) entered.resolve();
+    await release.promise; await control.beforeEffect(); context.services!.storage!.set(`result.${id}`, control.job);
+  };
+  t.after(() => { for (const release of releases.values()) release.resolve(); });
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await f.host.homePlugins!.ready();
   const closed = await f.project("Closed project"), open = await f.project("Open project");
@@ -209,8 +215,11 @@ test("S-52 PG-038 closing a project stops the jobs a Home plugin kept there, and
   const closing = f.host.closeProject(closed.reference);
   await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
   assert.equal(control(closed.project_id).signal.aborted, true); assert.equal(control(open.project_id).signal.aborted, false);
-  release.resolve(); await Promise.allSettled(probe.kept.map(job => job.done));
-  assert.equal(await closing, true);
+  releases.get(closed.project_id)!.resolve();
+  // D0039-05: closing must finish while the other project's work is still held.
+  assert.equal(await Promise.race([closing, setTimeout(2_000, "blocked-by-other-project")]), true);
+  assert.equal(control(open.project_id).signal.aborted, false);
+  releases.get(open.project_id)!.resolve(); await probe.kept[1]!.done;
   assert.equal(probe.stored(`result.${closed.project_id}`), null); assert.equal(probe.stored(`result.${open.project_id}`), "follow");
 });
 

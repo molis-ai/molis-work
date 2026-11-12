@@ -4,7 +4,7 @@ import { storageErrors, type SqliteUpgradeStep } from "@molis-ai/molis-work-stor
 import { upgradeProjectsCatalog1, verifyProjectOutputs } from "@molis-ai/molis-work-module-projects";
 import { isHostWriterWorktree } from "./workspace-git-worktrees.js";
 
-export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 2;
+export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 3;
 /**
  * Each step takes the catalog from `from` to `from + 1`. They sit beside the version, which is what they answer to.
  *
@@ -16,6 +16,15 @@ export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 2;
 export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [
   { from: 1, run: upgradeProjectsCatalog1(isHostWriterWorktree), verify: verifyProjectOutputs, rebuilds_tables: true,
     reduces_rows: ["workspace_project_memberships", "workspaces"] },
+  // D0057/D0273: only the explicit upgrade removes retired, empty desktop tables.
+  // Nonempty tables are preserved for an explicit recovery decision, never discarded.
+  { from: 2, reduces_rows: ["goal_desktop_panel_aliases", "goal_desktop_panels"], run: db => {
+    for (const table of ["goal_desktop_panel_aliases", "goal_desktop_panels"]) {
+      if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)) continue;
+      if (db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get()) throw catalogErrors.unsupported_schema("退役桌面面板表仍有记录，已保留原库，需先确认恢复方式");
+      db.exec(`DROP TABLE ${table}`);
+    }
+  } },
 ];
 export const CATALOG_OWNER = /* @version type.molis-work-project-catalog "molis-work-project-catalog-v{version}" */ "molis-work-project-catalog-v1";
 
@@ -56,6 +65,8 @@ export const catalogErrors = {
 export function catalogSchemaCompatibilityError(
   actualSchemaVersion: number,
   currentSchemaVersion: number = CATALOG_SCHEMA_VERSION,
+  /** The catalog's place in its Home (`projects/catalog.db`), when it is a Home's: the page names the part it stops by it (U3 §2.2). */
+  path?: string,
 ): ActionError | null {
   if (Number.isInteger(actualSchemaVersion) && actualSchemaVersion > currentSchemaVersion) {
     return storageErrors.store_too_new(
@@ -67,6 +78,7 @@ export function catalogSchemaCompatibilityError(
         supported_schema_min: currentSchemaVersion,
         supported_schema_max: currentSchemaVersion,
         recovery: "upgrade_then_context_resolve",
+        ...(path ? { path } : {}),
       },
     );
   }

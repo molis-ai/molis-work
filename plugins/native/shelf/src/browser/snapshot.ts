@@ -4,6 +4,8 @@ import { paintLists, setMultiMode } from "./rows.js";
 import { read } from "./request.js";
 import type { ShelfPage, Snapshot } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** The person asked to see `selectId` (an item or a clip): selects it, and says so when it is gone. */
 function followSelection(page: ShelfPage, selectId: string): void {
   page.editing = false;
@@ -14,7 +16,7 @@ function followSelection(page: ShelfPage, selectId: string): void {
   page.selection = page.selected ? new Set([page.selected.item_id]) : new Set();
   if (selectId === page.wantedId) {
     page.wantedId = null;
-    if (!page.selected && !page.selClip) page.stickyHint = page.L("shelf.snapshot.this-material-is-no-longer");
+    if (!page.selected && !page.selClip) page.stickyHint = uiText.text("shelf.snapshot.this-material-is-no-longer");
   }
   page.pending = null;
   page.compare = false;
@@ -52,7 +54,7 @@ export function applySnapshot(page: ShelfPage, next: Snapshot, selectId?: string
 
 export async function load(page: ShelfPage, selectId?: string, signal?: AbortSignal): Promise<void> {
   const version = ++page.loadVersion;
-  const next = await read<Snapshot>(page, "/", page.L("shelf.directory.could-not-read-the-shelf"), signal);
+  const next = await read<Snapshot>(page, "/", uiText.text("shelf.directory.could-not-read-the-shelf"), signal);
   page.lifetime.assertCurrent(signal);
   if (version === page.loadVersion) applySnapshot(page, next, selectId || page.wantedId || undefined);
 }

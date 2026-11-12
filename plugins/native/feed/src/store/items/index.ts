@@ -24,8 +24,11 @@ export class FeedModule implements FeedApi {
     const ingest = new FeedIngest(records, attention);
     const dispositions = new FeedDispositions(records, attention);
     this.query = {
-      list: (projectId: string) => records.list(projectId),
-      get: (projectId: string, itemId: string) => records.get(projectId, itemId),
+      list: (projectId, page) => records.list(projectId, page),
+      materials: (projectId, itemId, offset, limit) => records.materials(projectId, itemId, offset, limit),
+      hasPackage: (projectId, sourceId, externalId, hash) => records.hasPackage(projectId, sourceId, externalId, hash),
+      facets: projectId => records.facets(projectId),
+      get: (projectId, itemId, materials) => records.get(projectId, itemId, materials),
       exists: (projectId: string, itemId: string) => records.exists(projectId, itemId),
       countBySource: (projectId: string, sourceId: string) => records.countBySource(projectId, sourceId),
       findByLinkedGoal: (projectId: string, goalId: string, itemId?: string) =>

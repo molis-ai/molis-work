@@ -1,6 +1,8 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { scheduleServiceFor } from "./project-clock.js";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
@@ -10,13 +12,12 @@ import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-wo
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
-import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
+import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
 import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
-import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
+import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
-import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
 
 export interface ProjectPluginPorts {
@@ -47,7 +48,7 @@ export interface ProjectPluginState {
   error?: string;
   updateObservers?(): void;
   stopObservers?(): void;
-  refreshEnablement?(): Promise<void>;
+  refreshEnablement?(): Promise<ProjectPluginRefreshResult | null>;
   /** The `consentRevision` this project last reconciled its default wirings at. */
   reconciledAt?: number;
 }
@@ -68,6 +69,16 @@ const started = new WeakMap<LocalProjectDatabase, Map<string, StartedProject>>()
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);
   return opening ? (await opening.ready).platform : null;
+}
+
+/** Reconcile through the project's existing queue without starting a plugin platform. */
+export async function refreshRunningProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<ProjectPluginRefreshResult | null> {
+  const opening = started.get(store)?.get(projectId);
+  if (!opening) return null;
+  const state = await opening.ready;
+  const result = await state.refreshEnablement?.();
+  if (result == null) throw new ActionError("actions.service_unavailable", "项目插件平台当前无法刷新");
+  return result;
 }
 
 /** Drops a project's platform, so a closed project does not keep one alive. */
@@ -94,12 +105,12 @@ async function stopProjectPlugins(platform: PluginPlatform, projectId: string): 
 }
 
 export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
-  let boards = started.get(ports.store);
-  if (!boards) { boards = new Map(); started.set(ports.store, boards); }
+  const boards = started.get(ports.store) ?? new Map<string, StartedProject>();
   const existing = boards.get(ports.projectId);
   if (existing) {
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
+    if (inLanguagePreview()) return existing.ready;
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
     for (const key of ["routePrefix", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
@@ -111,6 +122,8 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (state.platform && state.reconciledAt !== consentRevision()) { state.reconciledAt = consentRevision(); bindDeclaredDefaults(state.platform, ports.projectId, ports.actorId); }
     return state;
   }
+  if (inLanguagePreview()) throw languagePreviewUnavailable();
+  started.set(ports.store, boards);
   const configuration = { ...ports };
   const opening = startPlatform(configuration);
   const project = { ports: configuration, ready: opening };
@@ -136,7 +149,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       journal: ports.store,
       artifacts: ports.artifacts,
       processItems: ports.processItems,
-      ui: new UiHost({ drawingAs: withPluginWords }),
+      ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
       deleteInstallationData: installId => storage.deleteInstallationData(installId),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),
@@ -180,7 +193,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
  */
 function projectPluginEntries(): PluginPlatformEntry[] {
   return projectRuntimeDeclarations().map(entry => ({
-    definition: entry.create(), trust: HOST_BUILD_TRUST,
-    releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory()),
+    ...registeredNativePlugin(entry), trust: HOST_BUILD_TRUST,
   }));
 }

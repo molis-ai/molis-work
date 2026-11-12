@@ -11,17 +11,17 @@ export function createHomeFlow() {
   function civilKey(date: Date) {
     return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
   }
-  function clockLabel(date: Date) { return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0"); }
+  function clockLabel(date: Date, locale?: string) { return new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(date); }
   /** An event shown on a day other than the one it happened on carries its own date, so "23:18" never reads as tonight. */
   function whenLabel(date: Date, shownOn: string, locale?: string) {
-    return civilKey(date) === shownOn ? clockLabel(date)
-      : new Intl.DateTimeFormat(locale || "zh-CN", { month: "numeric", day: "numeric" }).format(date) + " " + clockLabel(date);
+    return civilKey(date) === shownOn ? clockLabel(date, locale)
+      : new Intl.DateTimeFormat(locale, { month: "numeric", day: "numeric" }).format(date) + " " + clockLabel(date, locale);
   }
   function buildHomeDays(now: Date, locale?: string): HomeFlowDay[] {
     return Array.from({ length: 7 }, (_, index) => {
       const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + index - 3);
-      return { id: civilKey(date), n: date.getDate(), week: new Intl.DateTimeFormat(locale || "zh-CN", { weekday: "long" }).format(date),
-        w: new Intl.DateTimeFormat(locale || "zh-CN", { weekday: "narrow" }).format(date), today: index === 3 };
+      return { id: civilKey(date), n: date.getDate(), week: new Intl.DateTimeFormat(locale, { weekday: "long" }).format(date),
+        w: new Intl.DateTimeFormat(locale, { weekday: "narrow" }).format(date), today: index === 3 };
     });
   }
   function buildHomeWindow(now: Date): HomeEventWindow {

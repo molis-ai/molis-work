@@ -1,3 +1,5 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+
 /**
  * The reader of the project's folders (design A「就地预览」, specs/batch-06-shared-tools/materials-ui-contract §4), in the side
  * panel and in the main area:
@@ -11,17 +13,17 @@
  * a file it does not read, which the place then shows as before. A place that collects what is taken (the materials picker) passes
  * `take`, which gets `{ ref, title, hint }`; without it 「加入任务」 opens the Assistant with it. Without `ports`, 「固定快照」 fixes at once.
  */
-export function renderMaterialsTools(L: (text: string) => string, name: "side-materials" | "stage-materials"): string {
-  return `<div class="side-materials-tools" data-${name}-tools role="toolbar" aria-label="${L("取用这份资料")}" hidden>
-          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="quote">${L("引用选区")}</button>
-          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="pin" aria-haspopup="menu" aria-expanded="false">${L("固定快照")}</button>
+export function renderMaterialsTools(name: "side-materials" | "stage-materials"): string {
+  return `<div class="side-materials-tools" data-${name}-tools role="toolbar" aria-label="${uiText("workbench.picker.use-material")}" hidden>
+          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="quote">${uiText("workbench.picker.quote-selection")}</button>
+          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="pin" aria-haspopup="menu" aria-expanded="false">${uiText("workbench.picker.pin-snapshot")}</button>
           <span class="side-materials-held" data-${name}-held hidden></span>
-          <button class="mw-btn mw-btn--secondary mw-btn--sm side-materials-add" type="button" data-${name}="add">${L("加入任务")}</button>
+          <button class="mw-btn mw-btn--secondary mw-btn--sm side-materials-add" type="button" data-${name}="add">${uiText("workbench.materials-reader.add-task")}</button>
           <p class="side-materials-problem" data-${name}-problem role="status" hidden></p>
         </div>`;
 }
 
-export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=({name,L,esc,body,tools,held,problem,post,renderFile,take,ports})=>{
+export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=({name,esc,body,tools,held,problem,post,renderFile,take,ports})=>{
     let state=null;
     // Each place names its own controls (the side panel's, the main area's), so two readers on one page never answer each other.
     const sel=(value)=>value==null?'[data-'+name+']':'[data-'+name+'="'+value+'"]';
@@ -30,23 +32,23 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
     const lineOf=(text,at)=>text.slice(0,at).split('\n').length;
     // Where a quote is in the file, in the words the person reads: lines when the whole file is here, else how long it is.
     const labelOf=(start,end)=>{
-      if(state.whole){const a=lineOf(state.text,start),b=lineOf(state.text,Math.max(start,end-1));return a===b?L('第 {n} 行',{n:a}):L('第 {a}–{b} 行',{a,b});}
-      return L('节选 · {n} 字',{n:end-start});
+      if(state.whole){const a=lineOf(state.text,start),b=lineOf(state.text,Math.max(start,end-1));return a===b?globalThis.t.text("workbench.env.line",{n:a}):globalThis.t.text("workbench.materials-reader.lines-b",{a,b});}
+      return globalThis.t.text("workbench.materials-reader.excerpt-n-characters",{n:end-start});
     };
     const paintHeld=()=>{
       const item=state?.quote||state?.pinned;
       held.hidden=!item;
-      const drop=esc(L('不用这一项'));
+      const drop=esc(globalThis.t.text("workbench.materials-reader.remove-item"));
       held.innerHTML=item?'<span>'+esc(item.label)+'</span><button class="side-files-tool" type="button" data-'+name+'="drop" aria-label="'+drop+'" title="'+drop+'">×</button>':'';
       const pin=tools.querySelector(sel('pin'));
-      if(pin){pin.disabled=!state||!state.whole;pin.title=state&&!state.whole?L('长文件只能固定选区'):'';}
+      if(pin){pin.disabled=!state||!state.whole;pin.title=state&&!state.whole?globalThis.t.text("workbench.placement.long-file-can-only-pinned-selection"):'';}
     };
     // Each window is its own block, so a selection's place in the file is counted from where that block starts.
     const paintText=()=>{
       const markdown=state.whole&&/markdown/.test(state.media_type);
       if(markdown)renderFile({...state.file,truncated:false});
       else body.innerHTML=state.windows.map((part,index)=>'<pre class="side-materials-text" data-'+name+'-window="'+index+'">'+esc(part.text)+'</pre>').join('');
-      if(state.next)body.insertAdjacentHTML('beforeend','<p class="side-materials-more"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-'+name+'="next">'+esc(L('继续读取'))+'</button></p>');
+      if(state.next)body.insertAdjacentHTML('beforeend','<p class="side-materials-more"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-'+name+'="next">'+esc(globalThis.t.text("workbench.materials-reader.read"))+'</button></p>');
     };
     const subjectParts=(id)=>{const at=id.indexOf(':');return at<1?null:{workspace_id:id.slice(0,at),path:id.slice(at+1).split('/')};};
     // A long file: its first window, read through the materials service as the person, without fixing or remembering anything.
@@ -108,12 +110,12 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
     };
     const quote=async(range,button)=>{
       const label=labelOf(range.start,range.end),fixed=await fix(range,button);
-      if(fixed&&state){state.quote={ref:fixed.ref,label:L('选区')+' · '+label,title:state.title+' · '+label};paintHeld();}
+      if(fixed&&state){state.quote={ref:fixed.ref,label:globalThis.t.text("workbench.materials-reader.selection")+' · '+label,title:state.title+' · '+label};paintHeld();}
     };
     const choosePassage=(button)=>{
       unlist();
       const list=passages().slice(0,200);if(!list.length)return;
-      const box=document.createElement('ul');box.className='side-materials-passages';box.setAttribute('role','listbox');box.setAttribute('aria-label',L('选一段'));box.setAttribute('data-'+name+'-passages','');box.tabIndex=0;
+      const box=document.createElement('ul');box.className='side-materials-passages';box.setAttribute('role','listbox');box.setAttribute('aria-label',globalThis.t.text("workbench.materials-reader.choose-passage"));box.setAttribute('data-'+name+'-passages','');box.tabIndex=0;
       list.forEach((item,index)=>{const row=document.createElement('li');row.setAttribute('role','option');row.id=name+'-passage-'+index;row.textContent=item.text.slice(0,120);row.dataset.index=String(index);box.append(row);});
       let at=0;const mark=()=>{box.querySelectorAll('[role=option]').forEach((row,index)=>row.setAttribute('aria-selected',String(index===at)));box.setAttribute('aria-activedescendant',name+'-passage-'+at);box.children[at]?.scrollIntoView({block:'nearest'});};
       const done=(item)=>{box.remove();button.focus();if(item)void quote(item,button);};
@@ -130,18 +132,18 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       const item=state.quote||state.pinned||{ref:{subject:state.subject,pin:{mode:'current',read_revision:state.revision}},title:state.title};
       // A quote's title already says where it is; a snapshot says so in its hint.
       if(take){take({ref:item.ref,title:item.title||state.title,hint:item.title&&item.title!==state.title?'':item.label||''});return;}
-      document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{source:{surface:'materials',title:L('项目资料')},materials:[{title:item.title||state.title,ref:item.ref}]}}));
+      document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{source:{surface:'materials',title:globalThis.t.text("workbench.knowledge-entry.project-knowledge")},materials:[{title:item.title||state.title,ref:item.ref}]}}));
     };
     // A whole file fixed as it is now; handed to Diff as the version before or after when the person says so (one commit with the port).
     const pin=async(button,port)=>{
       const fixed=await fix({start:0},button,port);
-      if(fixed&&state){state.pinned={ref:fixed.ref,label:port?L('固定快照')+' · '+L(port==='before'?'对比前':'对比后'):L('固定快照'),title:state.title};state.quote=null;paintHeld();}
+      if(fixed&&state){state.pinned={ref:fixed.ref,label:port?globalThis.t.text("workbench.picker.pin-snapshot")+' · '+globalThis.t.text(port==='before'?'workbench.materials-reader.compare-before':'workbench.materials-reader.compare-after'):globalThis.t.text("workbench.picker.pin-snapshot"),title:state.title};state.quote=null;paintHeld();}
     };
     let menu=null;
     const pinMenu=(button)=>{
       if(!menu){
-        menu=document.createElement('div');menu.className='mw-menu mw-menu--context side-materials-menu';menu.setAttribute('popover','auto');menu.setAttribute('role','menu');menu.setAttribute('aria-label',L('固定快照'));menu.setAttribute('data-'+name+'-menu','');
-        for(const [port,label] of [['','只固定这一版'],['before','作为对比前（Diff）'],['after','作为对比后（Diff）']]){const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.port=port;item.textContent=L(label);menu.append(item);}
+        menu=document.createElement('div');menu.className='mw-menu mw-menu--context side-materials-menu';menu.setAttribute('popover','auto');menu.setAttribute('role','menu');menu.setAttribute('aria-label',globalThis.t.text("workbench.picker.pin-snapshot"));menu.setAttribute('data-'+name+'-menu','');
+        for(const [port,label] of [['','workbench.materials-reader.pin-only-this-version'],['before','workbench.materials-reader.pin-as-before'],['after','workbench.materials-reader.pin-as-after']]){const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.port=port;item.textContent=globalThis.t.text(label);menu.append(item);}
         menu.addEventListener('click',event=>{const item=event.target?.closest?.('[role=menuitem]');if(!item)return;menu.hidePopover();button.focus();void pin(button,item.dataset.port||undefined);});
         menu.addEventListener('keydown',event=>{
           const items=[...menu.querySelectorAll('[role=menuitem]')],at=items.indexOf(document.activeElement);
@@ -161,7 +163,7 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       say(null);
       if(action==='next'){await next(button);return;}
       if(action==='drop'){state.quote=null;state.pinned=null;paintHeld();return;}
-      if(action==='quote'){const range=selected();if(range==='split'){say(new Error(L('选区跨了两段，请在一段里选')));return;}if(range)await quote(range,button);else choosePassage(button);return;}
+      if(action==='quote'){const range=selected();if(range==='split'){say(new Error(globalThis.t.text("workbench.materials-reader.selection-spans-two-parts-select-within")));return;}if(range)await quote(range,button);else choosePassage(button);return;}
       if(action==='pin'){if(ports)pinMenu(button);else await pin(button);return;}
       if(action==='add')add();
     };

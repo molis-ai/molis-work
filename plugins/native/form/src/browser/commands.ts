@@ -11,6 +11,8 @@ import { queueSave, save } from "./save.js";
 import { ask, placed, setBusy, setTab, showNote } from "./status.js";
 import type { FormFailure } from "./types.js";
 
+const uiText = globalThis.t;
+
 type FormFile = { filename: string; content: string; count: number };
 
 /** Neighbours ease to their new places when a question or an option moves or goes (the page's `molisReflow`, VUX-16/21). */
@@ -34,7 +36,7 @@ const open = (page: FormPage) => page.sel!;
 /** Save first; if a half-filled preview would be lost, ask. False when the person stays. */
 const leaveEditing = async (page: FormPage) => {
   await save(page);
-  return !page.dirty || await ask(page, page.L("form.dialog.leave-confirm"), page.L("form.dialog.continue"));
+  return !page.dirty || await ask(page, uiText.text("form.dialog.leave-confirm"), uiText.text("form.dialog.continue"));
 };
 const closeMenu = (target: Element) => target.closest("details")?.removeAttribute("open");
 
@@ -43,7 +45,7 @@ const reload: Command = {
   async run(page) {
     clearTimeout(page.saveTimer);
     if (page.savePromise) await page.savePromise.catch(() => {});
-    if (hasUnsaved(page) && !await ask(page, page.L("form.dialog.reload-confirm"), page.L("form.action.reload"))) return;
+    if (hasUnsaved(page) && !await ask(page, uiText.text("form.dialog.reload-confirm"), uiText.text("form.action.reload"))) return;
     const payload = await page.request<FormAnswer>("GET", path(open(page).id));
     fillEditor(page, payload.form);
     await loadList(page);
@@ -55,7 +57,7 @@ const create: Command = {
   find: on("[data-form-new]", false),
   async run(page) {
     await save(page);
-    if (page.dirty && !await ask(page, page.L("form.dialog.leave-confirm"), page.L("form.dialog.continue"))) return;
+    if (page.dirty && !await ask(page, uiText.text("form.dialog.leave-confirm"), uiText.text("form.dialog.continue"))) return;
     const payload = await page.request<FormAnswer>("POST", "", {});
     await loadList(page);
     setTab(page, "editor");
@@ -85,7 +87,7 @@ const version: Command = {
     }
     if (page.noteScope === "publication") showNote(page, "", false);
     placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id }, artifact: payload.artifact,
-      note: page.L("form.fixed.done-note", { version: payload.artifact.version }) });
+      note: uiText.text("form.fixed.done-note", { version: payload.artifact.version }) });
     await loadList(page);
     if (payload.form && page.sel && page.sel.id === payload.form.id) remember(page, payload.form, false);
   },
@@ -203,11 +205,11 @@ const publish: Command = {
   async run(page) {
     await save(page);
     const sel = open(page);
-    if (!(sel.questions || []).length) { showNote(page, page.L("form.note.no-questions-collect"), true); return; }
+    if (!(sel.questions || []).length) { showNote(page, uiText.text("form.note.no-questions-collect"), true); return; }
     const payload = await page.request<FormAnswer>("POST", path(sel.id, "/publish"), { expected_version: sel.version });
     remember(page, payload.form, false);
     await loadList(page);
-    showNote(page, page.L("form.note.collecting"), false);
+    showNote(page, uiText.text("form.note.collecting"), false);
   },
 };
 
@@ -220,7 +222,7 @@ const stopCollecting: Command = {
     const payload = await page.request<FormAnswer>("POST", path(sel.id, "/close"), { expected_version: sel.version });
     remember(page, payload.form, false);
     await loadList(page);
-    showNote(page, page.L("form.note.stopped"), false);
+    showNote(page, uiText.text("form.note.stopped"), false);
   },
 };
 
@@ -242,13 +244,13 @@ const exportFile = async (page: FormPage, target: Element, tail: string, type: s
 const exportFill: Command = {
   find: on("[data-form-export-fill]"),
   run: (page, _found, target) => exportFile(page, target, "/fill-page", "text/html;charset=utf-8",
-    () => page.L("form.export.fill-file-format")),
+    () => uiText.text("form.export.fill-file-format")),
 };
 
 const exportCsv: Command = {
   find: on("[data-form-export-csv]"),
   run: (page, _found, target) => exportFile(page, target, "/results.csv", "text/csv;charset=utf-8",
-    (table) => page.L("form.export.csv-format", { count: table.count })),
+    (table) => uiText.text("form.export.csv-format", { count: table.count })),
 };
 
 const importFiles: Command = {
@@ -259,21 +261,20 @@ const importFiles: Command = {
 const toDataset: Command = {
   find: on("[data-form-to-dataset]"),
   async run(page) {
-    const { L } = page;
     await save(page);
     const sel = open(page);
     const table = await page.request<FormFile>("GET", path(sel.id, "/results.csv"));
-    if (!table.count) { showNote(page, L("form.note.no-responses-dataset"), true); return; }
+    if (!table.count) { showNote(page, uiText.text("form.note.no-responses-dataset"), true); return; }
     window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "form", id: sel.id }, station: "dataset",
-      title: sel.title + " · " + L("form.result.response-word"), payload: { title: sel.title + " · " + L("form.result.response-word"), body: table.content.replace(/^﻿/, "") },
-      note: L("form.note.dataset-made", { count: table.count }) } }));
+      title: sel.title + " · " + uiText.text("form.result.response-word"), payload: { title: sel.title + " · " + uiText.text("form.result.response-word"), body: table.content.replace(/^﻿/, "") },
+      note: uiText.text("form.note.dataset-made", { count: table.count }) } }));
   },
 };
 
 const remove: Command = {
   find: on("[data-form-delete]"),
   async run(page) {
-    if (!await ask(page, page.L("form.dialog.delete-confirm"), page.L("form.action.delete"), async () => {
+    if (!await ask(page, uiText.text("form.dialog.delete-confirm"), uiText.text("form.action.delete"), async () => {
       await save(page);
       const sel = open(page);
       await page.request("POST", path(sel.id, "/delete"), { expected_version: sel.version });
@@ -300,6 +301,6 @@ export const onClick = async (page: FormPage, event: MouseEvent) => {
   } catch (error) {
     const failure = error as FormFailure;
     if (failure.code === "form.conflict") page.saveError = failure;
-    showNote(page, failure.message || page.L("form.error.request"), true, page.saveError ? "save" : button.matches("[data-form-artifact]") ? "publication" : "");
+    showNote(page, failure.message || uiText.text("form.error.request"), true, page.saveError ? "save" : button.matches("[data-form-artifact]") ? "publication" : "");
   } finally { setBusy(page, false); }
 };

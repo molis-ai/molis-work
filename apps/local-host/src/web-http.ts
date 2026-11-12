@@ -1,13 +1,14 @@
+import { say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { webRequestAuthenticated, webBrowserReadAuthenticated, handleWebSessionHttp } from "./web-sessions.js";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHostname, isLoopbackHttpOrigin, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
+import { activeLocale } from "./web-locale.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -17,7 +18,7 @@ export function isTopLevelNavigation(request: IncomingMessage): boolean {
   return request.method === "GET" && requestHeader(request, "sec-fetch-mode") === "navigate" && requestHeader(request, "sec-fetch-dest") === "document";
 }
 
-export function requestHeader(request: IncomingMessage, name: string): string | undefined {
+export function requestHeader(request: Pick<IncomingMessage, "headers">, name: string): string | undefined {
   const candidates = [request.headers[name]];
   for (const value of candidates) {
     if (typeof value === "string" && value.trim()) return value;
@@ -60,7 +61,7 @@ export function sendUnhandledWebError(response: ServerResponse, error: unknown, 
   // A reset of this aborted body is request cancellation; unrelated upstream or handler errors retain their diagnostic.
   if(request?.aborted&&request.errored===error&&error instanceof Error&&"code" in error&&error.code==="ECONNRESET")return;
   hostLog.error("web", "request_failed", error);
-  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", L("请求未能完成，请重试。"));
+  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", uiText.text("workbench.http.request-could-not-be-completed-please-try-again"));
   const answer = actionErrorResponse(failed);
   sendLocalWebJson(response, answer.status, { ...answer.body, diagnostic_id: currentCallId() });
 }
@@ -69,7 +70,9 @@ export type LocalMutationState = "in_flight" | "complete";
 
 /** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
 function refuse(response: ServerResponse): false {
-  const refusal = actionErrorResponse(hostErrors.request_refused(L("本地控制请求校验失败")));
+  // Before the request has a trusted language, read the registered owner's default.
+  const message = say.text({ owner: "workbench", key: "workbench.http.local-control-request-was-rejected" }, { locale: activeLocale() });
+  const refusal = actionErrorResponse(hostErrors.request_refused(message));
   sendLocalWebJson(response, refusal.status, refusal.body);
   return false;
 }
@@ -82,7 +85,7 @@ export function requestHost(request: IncomingMessage): string | null {
 
 /**
  * A sandboxed plugin frame (srcdoc, no allow-same-origin) inherits this page policy. In that opaque frame WebKit does not
- * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface stays on "无法加载界面".
+ * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface never gets ready.
  * Naming the same loopback origin explicitly does not widen what the parent page can load. Chrome already treats 'self' as
  * the parent origin there, which is why the same page opens in Chrome.
  */
@@ -195,16 +198,16 @@ export function authorizeLocalWebRequest(
     || idempotencyKey.length < 8
     || idempotencyKey.length > 200
   ) {
-    sendLocalWebJson(response, 400, { error: L("请求缺少有效的一次性操作键") });
+    sendLocalWebJson(response, 400, { error: uiText.text("workbench.http.request-missing-valid-one-time-operation-key") });
     return false;
   }
   const prior = mutationKeys.get(idempotencyKey);
   if (prior === "in_flight") {
-    sendLocalWebJson(response, 409, { error: L("这次操作正在提交"), code: "request.in_flight" });
+    sendLocalWebJson(response, 409, { error: uiText.text("workbench.http.action-already-being-submitted"), code: "request.in_flight" });
     return false;
   }
   if (prior === "complete") {
-    sendLocalWebJson(response, 409, { error: L("这次操作已经提交，不会重复执行") });
+    sendLocalWebJson(response, 409, { error: uiText.text("workbench.http.action-was-already-submitted-will-not-run-again") });
     return false;
   }
   mutationKeys.set(idempotencyKey, "in_flight");

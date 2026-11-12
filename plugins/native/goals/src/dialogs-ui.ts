@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { sortGoalTreeItems } from "./tree-order.js";
 import type { GoalDisplayStatus } from "./tree-order.js";
@@ -18,18 +19,18 @@ export interface GoalsDialogPrimitives {
     icon(name: "archive" | "x" | "plus" | "info"): string;
 }
 function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
-    const { translate: L, escapeHtml, icon } = primitives;
+    const { escapeHtml, icon } = primitives;
     function renderGoalTrashDialog(): string {
         return `<dialog class="create-dialog goal-trash-dialog mw-dialog mw-dialog--alert" data-goal-trash-dialog aria-labelledby="goal-trash-dialog-title">
     <form method="dialog" class="dialog-shell mw-form mw-dialog__shell" data-goal-trash-form data-live-form="goal-trash">
-      <header class="mw-form__header"><div><span class="dialog-icon dialog-icon--danger" data-goal-trash-icon>${icon("archive")}</span><div><h2 id="goal-trash-dialog-title" data-goal-trash-title>${L("移入回收站")}</h2><p data-goal-trash-description>${L("请先确认这条 Goal 和本次操作原因。")}</p></div></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-goal-trash aria-label="${L("关闭")}">${icon("x")}</button></header>
+      <header class="mw-form__header"><div><span class="dialog-icon dialog-icon--danger" data-goal-trash-icon>${icon("archive")}</span><div><h2 id="goal-trash-dialog-title" data-goal-trash-title>${uiText("goals.dialogs-ui.move-trash")}</h2><p data-goal-trash-description>${uiText("goals.dialogs-ui.confirm-goal-reason-action")}</p></div></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-goal-trash aria-label="${uiText("goals.dialogs-ui.close")}">${icon("x")}</button></header>
       <div class="dialog-body mw-form__body">
-        <p class="goal-trash-target"><strong data-goal-trash-target-title>${L("未选择 Goal")}</strong><small data-goal-trash-target-id></small></p>
-        <p class="goal-trash-note" data-goal-trash-note>${L("该操作可恢复：Goal 历史会保留，当前仍生效的关联关系会暂时停止。若这条 Goal 仍有未结束的历史活动记录，系统不会改动它，而会指出还挡着的记录。")}</p>
-        <label class="mw-field"><span class="mw-field__label" data-goal-trash-reason-label>${L("移入原因")}</span><textarea class="mw-textarea" name="reason" rows="3" required maxlength="4000" placeholder="${L("说明为什么暂时不再保留这条 Goal")}"></textarea></label>
+        <p class="goal-trash-target"><strong data-goal-trash-target-title>${uiText("goals.dialogs-ui.no-goal-selected")}</strong><small data-goal-trash-target-id></small></p>
+        <p class="goal-trash-note" data-goal-trash-note>${uiText("goals.dialogs-ui.can-be-undone-goal-history-kept-currently-active")}</p>
+        <label class="mw-field"><span class="mw-field__label" data-goal-trash-reason-label>${uiText("goals.dialogs-ui.why-move")}</span><textarea class="mw-textarea" name="reason" rows="3" required maxlength="4000" placeholder="${uiText("goals.dialogs-ui.say-why-goal-should-leave-everyday-list-now")}"></textarea></label>
         <p class="form-error mw-alert mw-alert--danger" data-goal-trash-error role="alert" hidden></p>
       </div>
-      <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-close-goal-trash>${L("取消")}</button><button class="mw-btn mw-btn--danger" type="submit" data-goal-trash-submit>${L("移入回收站")}</button></footer>
+      <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-close-goal-trash>${uiText("goals.dialogs-ui.cancel")}</button><button class="mw-btn mw-btn--danger" type="submit" data-goal-trash-submit>${uiText("goals.dialogs-ui.move-trash")}</button></footer>
     </form>
   </dialog>`;
     }
@@ -42,38 +43,38 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
             .join("");
         return `<dialog class="create-dialog mw-dialog mw-dialog--form" data-create-dialog aria-labelledby="create-dialog-title">
     <form method="dialog" class="dialog-shell mw-form mw-dialog__shell" data-create-form>
-      <header class="mw-form__header"><h2 id="create-dialog-title">${L("新建 Goal")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-create aria-label="${L("关闭")}">${icon("x")}</button></header>
+      <header class="mw-form__header"><h2 id="create-dialog-title">${uiText("goals.dialogs-ui.new-goal")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-create aria-label="${uiText("goals.dialogs-ui.close")}">${icon("x")}</button></header>
       <div class="dialog-body mw-form__body">
         <div class="create-compose">
-          <input class="create-compose-title" data-plain-field name="title" required autocomplete="off" placeholder="${L("你想让什么变成现实？")}" aria-label="${L("目标名称")}">
-          <p class="create-compose-example" data-create-example>${L("例如：让新用户安装后知道下一步怎么开始")}</p>
-          <textarea class="create-compose-outcome" data-plain-field data-fit name="outcome" rows="2" placeholder="${L("完成后会有什么不一样？可以先空着")}" aria-label="${L("要得到的结果 ")}"></textarea>
+          <input class="create-compose-title" data-plain-field name="title" required autocomplete="off" placeholder="${uiText("goals.dialogs-ui.what-do-want-make-real")}" aria-label="${uiText("goals.dialogs-ui.goal-title")}">
+          <p class="create-compose-example" data-create-example>${uiText("goals.dialogs-ui.example-new-user-knows-what-do-next-right")}</p>
+          <textarea class="create-compose-outcome" data-plain-field data-fit name="outcome" rows="2" placeholder="${uiText("goals.dialogs-ui.what-will-be-different-once-done-can-leave")}" aria-label="${uiText("goals.dialogs-ui.result-want")}"></textarea>
         </div>
-        <details class="form-disclosure mw-collapsible create-more"><summary>${L("补充说明、归属与优先级")}</summary>
+        <details class="form-disclosure mw-collapsible create-more"><summary>${uiText("goals.dialogs-ui.notes-placement-priority")}</summary>
         <section class="create-more-group">
-          <label class="mw-field"><span class="mw-field__label">${L("为什么做 ")}</span><textarea class="mw-textarea" name="why" rows="2" placeholder="${L("这个问题为什么值得现在解决")}"></textarea></label>
-          <label class="mw-field"><span class="mw-field__label">${L("它会怎样运转 ")}</span><textarea class="mw-textarea" name="business_logic" rows="3" placeholder="${L("用简单语言说明实际使用方式和边界")}"></textarea></label>
-          <label class="mw-field"><span class="mw-field__label">${L("验收条件 ")}<small>${L("每行一条，可稍后补")}</small></span><textarea class="mw-textarea" name="acceptance_criteria" rows="3" placeholder="${L("例如：可以创建 Goal，并在左侧 Tree 中立即看到")}"></textarea></label>
+          <label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.why-do")}</span><textarea class="mw-textarea" name="why" rows="2" placeholder="${uiText("goals.dialogs-ui.why-problem-worth-solving-now")}"></textarea></label>
+          <label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.how-works")}</span><textarea class="mw-textarea" name="business_logic" rows="3" placeholder="${uiText("goals.dialogs-ui.explain-practical-flow-boundaries-plain-language")}"></textarea></label>
+          <label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.acceptance-criteria")}<small>${uiText("goals.dialogs-ui.one-per-line-can-be-filled-later")}</small></span><textarea class="mw-textarea" name="acceptance_criteria" rows="3" placeholder="${uiText("goals.dialogs-ui.example-goal-can-be-created-appears-left-tree")}"></textarea></label>
         </section>
         <section class="create-more-group" aria-labelledby="parent-relation-title">
-          <h3 id="parent-relation-title">${L("它属于哪个更大的 Goal？ ")}<small>${L("可选")}</small></h3>
-          <p id="parent-relation-hint">${L("表示“它是这个 Goal 的一部分”，只决定 Tree 中放在哪里，不要求上级 Goal 先完成。")}</p>
-          <label class="mw-field"><select class="mw-select" name="parent_goal_id" aria-label="${L("所属上级 Goal")}" aria-describedby="parent-relation-hint parent-relation-preview"><option value="">${L("作为独立 Goal，不指定上级")}</option>${options}</select></label>
-          <p class="relation-preview" id="parent-relation-preview" data-parent-preview>${L("关系预览：新 Goal 将作为独立 Goal 出现在 Tree 中。")}</p>
+          <h3 id="parent-relation-title">${uiText("goals.dialogs-ui.which-larger-goal-does-belong")}<small>${uiText("goals.dialogs-ui.optional")}</small></h3>
+          <p id="parent-relation-hint">${uiText("goals.dialogs-ui.means-part-that-goal-only-decides-tree-placement")}</p>
+          <label class="mw-field"><select class="mw-select" name="parent_goal_id" aria-label="${uiText("goals.dialogs-ui.parent-goal")}" aria-describedby="parent-relation-hint parent-relation-preview"><option value="">${uiText("goals.dialogs-ui.stand-alone-goal-no-parent")}</option>${options}</select></label>
+          <p class="relation-preview" id="parent-relation-preview" data-parent-preview>${uiText("goals.dialogs-ui.preview-new-goal-will-appear-tree-its-own")}</p>
         </section>
         <fieldset class="create-more-group relation-field mw-fieldset" aria-describedby="dependency-relation-hint dependency-relation-preview">
-          <legend>${L("收尾前需要哪些 Goal 先完成？ ")}<small>${L("可选")}</small></legend>
-          <p id="dependency-relation-hint">${L("只有确实要等对方完成后才能收尾时才选择。普通笔记和准备仍可先做。")}</p>
+          <legend>${uiText("goals.dialogs-ui.which-goals-must-finish-before-one-can-close")}<small>${uiText("goals.dialogs-ui.optional")}</small></legend>
+          <p id="dependency-relation-hint">${uiText("goals.dialogs-ui.choose-only-when-other-result-actually-required-before")}</p>
           <div class="goal-choice-list">${dependencyOptions}</div>
-          <p class="relation-preview" id="dependency-relation-preview" data-dependency-preview>${L("关系预览：当前没有执行前置，Goal 可以独立推进。")}</p>
+          <p class="relation-preview" id="dependency-relation-preview" data-dependency-preview>${uiText("goals.dialogs-ui.preview-there-no-execution-prerequisite-goal-can-move")}</p>
         </fieldset>
         <section class="create-more-group">
-          <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${L("可选")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${L("例如 GOAL-AUTHORING")}"></label><label class="mw-field"><span class="mw-field__label">${L("优先级")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
+          <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${uiText("goals.dialogs-ui.optional")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${uiText("goals.dialogs-ui.generated-if-empty")}"></label><label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.priority")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
         </section>
         </details>
         <p class="form-error mw-alert mw-alert--danger" data-create-error role="alert" hidden></p>
       </div>
-      <footer class="mw-form__footer"><kbd class="dialog-submit-hint" aria-hidden="true">⌘<span>↵</span></kbd><button class="mw-btn mw-btn--secondary" type="button" data-close-create>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit" data-create-submit>${L("创建 Goal")}</button></footer>
+      <footer class="mw-form__footer"><kbd class="dialog-submit-hint" aria-hidden="true">⌘<span>↵</span></kbd><button class="mw-btn mw-btn--secondary" type="button" data-close-create>${uiText("goals.dialogs-ui.cancel")}</button><button class="mw-btn mw-btn--primary" type="submit" data-create-submit>${uiText("goals.dialogs-ui.create-goal")}</button></footer>
     </form>
   </dialog>`;
     }

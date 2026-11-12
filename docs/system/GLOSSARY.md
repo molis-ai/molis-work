@@ -29,7 +29,9 @@
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
 | 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途、消费场景 | 判断场景、去向、消费入口 |
 | 推荐选项 | 判断结果里「建议做什么」的一项 | 推荐动作 | 行为（behavior） |
-| Skill | 按需读取的文字做法，不授予任何权限 | 方法（Character 流程里写 Skills） | 方法（指这个时）、Method |
+| Skill | 按需读取的文字做法，不授予任何权限 | 技能（设置 › 能力包）；Coding 的选择框、助理仍写「方法」，Character 流程里写 Skills | 方法（指这个时）、Method |
+| 能力包（kit） | 做一类事要用的东西放在一起看：技能、MCP、工具，以及搭配的角色和角色的提示词。是现算的聚合视图，不存：一个插件的安装就是一个包，另有「Molis Work 自带」和「你的角色」两个；条目由各自的事实主人上报，`horizontal/kit` 只汇总、拼包（`kit.catalog.list@1`）。定义见 2.3 | 能力包（设置 › 能力包；英文 AI kits） | 技能包（那是只带技能的内容插件）、套件、方法库；`kit` 只用在代码、路由和键里 |
+| 提示词改写文件 | 本人对提示词的改写导出成的文件（`format: "molis.prompt-overrides"`），导回时逐条看过、版本对得上才套用；是用户自己的数据，不是包，从不安装，也不随内容包走 | 能力包「导入文件」里的「提示词改写」 | 把它算进内容包；「提示词包」 |
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
 | 规划方法 | Goals 里可选采用的规划方法包 | 规划方法 | 方法包（method pack） |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
@@ -54,19 +56,20 @@
 | 随激活作业 | 插件这次激活保留、Manifest `background.jobs` 声明过的后台作业（`services.background.keep`）：属于安装，不属于登记它的调用，只有安装自己的授权；单次调用取消、撤权不停它，插件停止、项目关闭或删除、Home 关闭就停，不落盘、不重放（`docs/system/SECURITY-INVARIANTS.md` S-52，`docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」） | 无 | 后台作业（裸写，见 2.5）、activations 表（Coding 旧写法） |
 | 宿主事件 | 宿主自己发出、插件按 Manifest 声明订阅的事件（X-6），`host.` 前缀；投递方式由类型表固定：定向的只投给事件上记着的那个安装，广播的投给持有登记权限的每个订阅安装；即时、不落库、不重投，订阅不写来源插件（S-54） | 无（用户看不见） | 插件事件（指它时；插件事件由运行中的插件发、落项目库）、领域事件（X-6 的另一种来源，还没有订阅口） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
-| 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
+| 翻译键 | 界面文字在语言文件里的稳定标识，标识概念和位置，不含措辞；措辞是对应语言的值 | 无（用户看不见） | 中文原文当键（第 16 批前的写法，见 2.7） |
 | 文字主人 | 一句界面文字归谁：插件的 `plugin_id`，或平台主人的名字（今天只有 `workbench`）；每个主人一张词表，不合成一张 | 无（用户看不见） | 词典所有者；把 `common.*` 当作谁都能写的词（它归 `workbench`） |
-| 语言文件 | 一个文字主人一种语言的一份词表，`locales/<语言>.json`：插件在 Manifest 的 `ui.locales` 声明，平台主人在资源登记表登记语言目录（第 14 批起；工作台、宿主和内置插件第 16 批起才用） | 无 | `*_EN` 词典、`ui.messages`（第 16 批前的写法）、合成总表 `EN` |
+| 语言文件 | 一个文字主人一种语言的一份词表，`locales/<语言>.json`：插件在 Manifest 的 `ui.locales` 声明，平台主人在资源登记表登记语言目录；工作台、宿主、内置与外部插件沿同一套规则取词 | 无 | `*_EN` 词典、`ui.messages`（第 16 批前的写法）、合成总表 `EN` |
 | 文字引用（`TextRef`） | 存下来以后才显示的一句话：键加参数，或用户的原文（`literal`），不存译好的句子；平台绑上主人后叫 `OwnedTextRef`（`@molis-ai/molis-work-contracts/platform/ui`） | 无 | 存译文、存已格式化的日期和数字 |
 | 文字上下文 | 进程里装一次的「现在用哪种语言、去哪查词」，SDK 的 `t`、`say`、`format` 每次读它；由宿主装（`apps/local-host/src/ui-text-provider.ts`），测试用 `installTextForTest` | 无 | — |
 | 语言读取器 | 一个文字主人的语言文件在运行时的读口：哪种语言第一次用到才读那个文件，坏文件不抛（`pluginLocaleReader`，`packages/plugin-runtime/src/locale-packs.ts`） | 无 | — |
-| 基线文件 | `packages/design-system/resources/` 下的共同规格（`ui-spec.json`，有哪些令牌角色、哪些锁定）、基线皮肤（Soft Workbench）和基线字体方案；令牌的值只在这里 | 无 | 把 `palette.ts` 当来源（它只把值写成 CSS） |
-| 皮肤 | 一整套颜色、阴影、圆角、动效的值文件（`skins/<id>.json`），今天只有基线 Soft Workbench | 组件板上两种意思并存：旧的「皮肤」开关切 Tray、Pill；选外观的标本里「皮肤」已是这个意思 | DESIGN「Skins」里的 Tray、Pill：在基线上只换圆角和控件高度的差量，第 16 批删；第 16 批起「皮肤」只指值文件 |
+| 基线文件 | `packages/design-system/resources/` 下的共同规格（`ui-spec.json`，有哪些令牌角色、哪些锁定）、内置皮肤（Soft Workbench、Folio）和字体方案；令牌的值只在这里 | 无 | 把 `palette.ts` 当来源（它只把值写成 CSS） |
+| 皮肤 | 一整套颜色、阴影、圆角、动效的值文件（`skins/<id>.json`）；内置 Soft Workbench 与 Folio，Home 保存选中的准确引用 | 外观设置里的皮肤 | Tray、Pill：第 16 批前只换圆角和控件高度的差量，已删除 |
 | 字体方案 | 一套字族、字重、字距与离线字体的描述（`fonts/<id>.json`）；皮肤推荐一个 | 字体 | 字体栈（那是方案算出来的一个值） |
-| 展示快照 | 一页用的规格、皮肤、字体、语言的身份与问题，不带令牌值和译文（`UiEnvironmentSnapshot`，`resolveUiEnvironment` 算）；第 16 批进首屏 | 无 | — |
+| 展示快照 | 一页用的规格、皮肤、字体、语言的身份与问题，不带令牌值和译文（`UiEnvironmentSnapshot`，`resolveUiEnvironment` 算）；首屏与已打开入口共用 | 无 | — |
 | 成果（Artifact） | 人要留存、引用的固定版本与导入文件，存在成果库；类型在 Manifest 的 `artifacts.produces` 声明 | 成果 | 交给别的插件接着用的数据不是成果，叫过程项 |
 | 过程项（process item） | 交给别的插件接着用的数据，在 Manifest 的 `process_items.produces` 声明；不进成果库、侧栏文件和搜索 | 界面里没有单独的词 | 不要叫成果 |
-| 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`requires`、`upgrade_compatibility`、双语文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包是它，第 20 批的场景套组也用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
+| 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`blueprint`（场景包）、`requires`、`upgrade_compatibility`、界面文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包和场景包都用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
+| 场景包（blueprint） | 内容包的场景正文，定义起步步骤，以及角色、Skill、能力、账号、设置和内容建议。默认正文在 `blueprint.json`，Manifest 的 `blueprint.locales` 列出随包译文。 | 场景包 | 场景套组；场景方案、方案（不再用） |
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
 | 归属角色 | SSOT 各表「归属」列的角色词，由 `scripts/package-owners.mjs` 的 `ROLE_BY_KIND` 按包的类别生成：应用、平台包、Module、横向服务、内置插件、官方集成、工具；`packages/contracts`、`packages/kernel`、`packages/plugin-sdk`、`apps/local-host`、`apps/workbench`、`horizontal/agent-host` 另记「共享核心」。评审人写在 `.github/CODEOWNERS`，同一个脚本生成，`pnpm boundary:check` 校验 | 界面里没有 | — |
 | 组件板 | 设计系统的组件与状态标本页，本地宿主的 `/__ui/catalog`（`pnpm web` 起宿主，默认 `http://127.0.0.1:4173`）；不是 Goals 的看板 | 规格板、控件板混用 | 规格板、控件板、component board |
@@ -200,10 +203,19 @@
 
 - 定义：一份按需读取的文字做法，有名称、适用说明和正文，可声明它会用到的工具；它不授予任何权限，权限仍来自动作授权。同一种东西有三处载体：
   1. 仓库的 `skills/<名>/SKILL.md`，给外部编码 Runtime 和插件创作台用（`goal-advance` 随安装发进用户的 Runtime，创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
-  2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；也可从项目目录安装（`agent.skills.discover`、`agent.skills.install`，只存文本，不执行包内脚本）。起跑时只接受精确的 id 与版本。
+  2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；别的来源（内容包、从本机导入）都进同一个技能目录（`system.skills`）。Coding 旧的项目目录安装（`agent.skills.discover`、`agent.skills.install`）已在第 09 批删掉。起跑时只接受精确的 id 与版本。
   3. Character 里导入的 Skill 快照（`import_snapshot.skills`），每轮选用其中几个。
 - 取舍：Prologue SDK、导入来源和代码类型都叫 Skill；只有界面和少数标识符（Manifest 的 `methods` 键、`assistant.methods.*`）叫「方法」，而「方法」在界面里还指规划方法、研究方法、连接方式。所以文档统一写 Skill，其余三个「方法」必须写全名。
 - 旧称：方法（指 Skill 时）、Method。
+
+**能力包（kit）**
+
+- 定义：把做一类事要用的东西放在一起看的一个包：技能、MCP、工具，以及搭配的角色和角色的提示词。能力包只是聚合视图，不存任何东西，也没有注册表；每次读时由 `horizontal/kit` 按当前安装现算，界面在设置 › 能力包（`/settings/kit`；旧地址 `/settings/skills` 已删，没有兼容跳转）。
+- 三种包：一个插件的安装（`plugin:<install_id>`，应用插件与只有声明的插件都是，插件本身就是一个包，Manifest 不加键）；Molis Work 自带（`system:builtin`：宿主内置的角色与提示词、个人助理和没有归属角色的提示词、全部 Agent 工具、对外的 Molis Work MCP）；你的角色（`system:characters`，你写的 Character）。用户自己组包还没有做（[BL-kit-user-packs](../../specs/backlog/BL-kit-user-packs.md)）。
+- 条目五类，各有各的主人：技能（插件声明与 Agent 定义登记）、提示词与插件角色（插件声明与 Agent 定义登记）、Character（`modules/characters`）、工具（Agent Host 的工具全集）、MCP（项目 MCP 归 Agent Host 的 MCP 库，连接带的归连接器，对外的归对外接入）。每个主人写一个上报动作，能力包按登记盖上来源与所属的包，不由上报者自称。
+- 能开关的只有技能（关、自动、仅手动，存在 Agent 定义登记）；其余条目在能力包里看，改去它自己的页面。包没有整包停用。
+- 导出导回：包导出成一个文件，内容包原样带签名，加上本人的提示词改写和角色、工具、MCP 的引用（只带名字和版本，不带配置、地址和凭据）。导回时各部分走各自的路：内容包走插件的安装确认，提示词改写逐条确认后套用（见「提示词改写文件」），引用只核对这里有没有。
+- 合同与设计：`specs/capability-pack/contract-design.md`；代码：`horizontal/kit`、`apps/local-host/src/kit-*.ts`、`apps/workbench/src/settings-kit.ts` 与 `src/browser/kit/`。
 
 **其余三种「方法」（必须写全名）**
 
@@ -262,15 +274,15 @@
 
 ### 2.7 术语与翻译键
 
-- 现状：翻译键就是中文原文。`apps/workbench/src/i18n/en.ts` 的 `EN: Record<string, string>` 由工作台和各插件的词典展开合成，条目形如 `"连接不可用": "Connection unavailable"`。所以改一个界面用词要同时改源码里的文字和每份词典的键，同一句中文在不同词典里还可以有不同的英文，例如「判断规则」在 `apps/workbench/src/judgment-rules/en.ts:148` 是 Judgment rules，在 `plugins/native/lingguang/src/en.ts:47` 是 Rules，在 `plugins/native/workflows/src/en.ts:151` 是 Judgment rule。
-- 第 14 批起：新的一套已落地，但只在 `molis-work plugin dev` 跑的插件和组件板上用（文字主人、语言文件、`t`，见速查和 `skills/molis-plugin-dev/text-and-appearance.md`）；工作台、宿主和内置插件第 16 批一起换，在那之前照旧是上面的中文键加 `*_EN` 词典，以及 `ui.messages` 的稳定键。
+- 现行写法：代码用 `t("<主人>.<位置>.<元素>", 参数)`，各主人在自己的语言文件里提供中文、英文；日期和数字用 `format`，存下来以后才显示的系统句子存文字引用。工作台语言文件在 `apps/workbench/resources/locales/`，插件在自己的 `locales/`，不合成总表。用法见 `skills/molis-plugin-dev/text-and-appearance.md`。
+- 第 14 批先交合同、工具和样例，第 16 批将现有入口一次切换。此前的中文原文键、`*_EN` 聚合与 `ui.messages` 不再是作者写法；旧字段明确拒绝，不在运行时保留两套读取。用户自己的项目名、正文、历史对话和原始回执保留原文。
 - 决定（2026-10-08，`specs/archive/repository-anti-corruption/spec.md` §1「界面翻译」，用户没有选推荐）：全部换成稳定键，词典按主人分，CI 查缺失、无用与冲突；路线第 5 波的「翻译按主人分」改成「稳定键」，先做一个插件样板（W5-03）。
-- 术语怎样对应键（规则；样板落地时按实际调整，调整在同一个 PR 里改本节）：
-  1. 键标识概念和位置，不含措辞；中文和英文措辞都是词典的值。所以第 4 节的界面用词获批后只改词典的值，键、代码标识符和文档都不动；不获批就保持现值。英文值跟中文值同一批审批，例如「能力」今天译作 Capabilities（`apps/workbench/src/i18n/gap-en.ts:109`）。
+- 术语怎样对应键（规则；实际用法有调整时，在同一个 PR 里改本节）：
+  1. 键标识概念和位置，不含措辞；中文和英文措辞都是语言文件的值。所以第 4 节的界面用词获批后只改对应语言的值，键、代码标识符和文档都不动；不获批就保持现值。英文值跟中文值同一批审批，例如「能力」译作 Capabilities（`apps/workbench/resources/locales/en.json` 的 `workbench.settings-assistant.capabilities`）。
   2. 键用英文小写加点分层，形如 `<主人>.<位置>.<元素>`：主人是插件 `plugin_id` 的最后一段，或平台主人（`workbench`）；`settings`、`shell` 这类宿主区域写成 `workbench` 的第二段（`workbench.settings.*`），不另设主人。第一段只用小写字母、数字和连字符，所以下表「键里的词」用在第二段起。键里指本表概念的那一段，用下表「键里的词」；旧称不进新键。示例（不是现存的键）：`workbench.judgment_rule.editor.scene`。
   3. 下表的词与第 5 节 R-A 的新标识符同源，代码改名完成后键里的词与标识符一致。
-  4. 同一个键在合并后的全部词典里只能有一个值（现在中文键下的冲突，如上面「判断规则」的三个英文，换成稳定键后由 CI 的冲突检查拦）；同一概念被写成两个不同的键、各带不同措辞（如 U1 的「动作库」和「能力库」），CI 看不出，靠评审对照本表。
-  5. 现在词典里含旧术语的无用条目（R-A8 的 11 条）不带进稳定键，转换时作为无用键处理，不单独改名。
+  4. 同一主人、同一语言的词表不允许重复键；检查同时核对主人的声明、各语言缺键、多余键和参数。不同位置的键若指同一概念，措辞仍要对照本表；例如 U1 的「动作库」和「能力库」不能仅靠键不同而并存，语义一致性由评审核对。
+  5. 未使用的旧术语不通过改名继续保留；删去无用条目，避免把历史措辞带进新入口。
 
 | 术语 | 键里的词 |
 | --- | --- |
@@ -282,6 +294,7 @@
 | 消费场景 | `scene` |
 | 推荐选项 | `recommendation_option` |
 | Skill | `skill` |
+| 能力包 | `kit` |
 | 规划方法 | `planning_method` |
 | 研究方法 | `research_method` |
 | 连接方式 | `connection_method` |
@@ -453,7 +466,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 - 现状：助理说「工作」，Coding 与看板说「任务」，同一件被委托出去的事在助理里叫「子任务」、在 Coding 看板叫「子代理」；同一个「轮」在助理英文里是 round、在 Coding 英文里是 turn；排到下一轮的那一项有「下一轮再做」「这一轮结束后再做」「排队」三种写法；输入框的接收者有「发到」「发给」「目标」几种写法。「工作简报」「受托工作」「子工作」只在文档里。盘点见 `specs/post-anticorruption-roadmap/reference/batches/10.md`「H4 对外用词方案」。
 - 决定（用户 2026-11-04，看第 10 批定样 `docs/design/unified-input/` 时定）：方案一。工作＝助理里一项持续的事；任务＝交给执行者的具体一件；子任务＝再委托出去的一件；「受托工作」「子工作」不对外，界面写「受托于 X」和「子任务」；简报的产物名仍叫「工作简报」。三条小决定：送达方式叫补充、打断并改向、下一轮再做（键位说明里叫排队）；接收者那一行写「发给」，界面上「目标」只指 Goal；一轮的英文统一 turn。英文 work、task、sub-task。
-- 落地：第 1 节的六行；界面文案替换在第 10 批做完——H4 用词替换 #1851（助理 round 改 turn、subtask 改 sub-task、Coding 看板「子代理」标签），它留给 #1846 之后的工作台英文四处 sub-task 随本批补上，并与本批统一输入（接收者行「发给」、送达方式三名用稳定键 `workbench.composer.next-boundary` 等）。原计划：第 1 节的六行；界面文案替换随第 10 批实现做（助理约 38 处 round、若干 subtask，Coding 看板的「子代理」标签改成「子任务」或说明它是执行者）。
+- 落地：第 1 节的六行；界面文案替换在第 10 批做完——H4 用词替换 #1851（助理 round 改 turn、subtask 改 sub-task、Coding 看板「子代理」标签），它留给 #1846 之后的工作台英文四处 sub-task 随本批补上，并与本批统一输入（接收者行「发给」、送达方式三名用稳定键 `workbench.composer.next-boundary` 等）。接收者行英文保持 `Send to`（用户 2026-11-09 确认改回，本批把组件板英文词典与测试里的写法一并改回）。
 
 ## 5. 代码改名后续清单
 
@@ -501,7 +514,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - 构建期 UI 描述和内置插件的 `contribution_id` 里的 `.native.` 段（3.3 第 4 条）：贡献 id 的命名空间，不是插件 id。
 - R-B 里用户不确认改名的项，在这里补一行。
 - R-B1 `capability_id`：保持原名——就是动作的 id；写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里，改名收益小而数据和外部授权都要动。
-- R-B2 `functions.*` 动作 id、权限串、`FUNCTIONS_PLUGIN_ID`、`function_key`、`function_judgments` 等库表与 Home 的 `functions` 库名：保持原名。动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护。
+- R-B2 `functions.*` 动作 id、权限串、`function_key`、`function_judgments` 等库表与 Home 的 `functions` 库名：保持原名。动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护。
 - R-B3 Board 系的事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists` 与动作 id `goals.board.initialize`：保持原名。事件与动作 id 对外可见。两个旧宿主能力 id 已随 typed 通道退役，不在此列。
 - R-B4 推荐选项的 `molis.behavior-recommendation.v1`、`suggested_behavior_ids`、判断规则草稿里的 `scene_map`、库列 `suggested_json` 里的内容：保持原名。已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量。
 - R-B5 Skill 的 Manifest `methods` 键、`assistant.methods.*`、`method_id`、物料种类值 `"method"`：保持原名。Manifest 是插件 SDK 的公开合同；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。

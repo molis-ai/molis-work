@@ -4,7 +4,8 @@ import type {
   GoalEventUnmetReason,
   GoalEventUserConclusion,
 } from "../contract/goals.js";
-import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
+import { storedJson } from "../stored-json.js";
+import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
@@ -64,16 +65,19 @@ export class GoalEventOutcomeRecords {
     verdict: "accepted" | "rejected";
     at: string;
     journalSeq: number;
+    /** The version each requirement's report had checked when the person decided; absent where it named none. */
+    checked: ReadonlyMap<string, { artifact_id: string; version: number }>;
   }): void {
     const insert = this.db.prepare(`
       INSERT INTO goal_event_requirement_conclusions (
-        project_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        project_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq, checked_artifact_id, checked_version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const requirementId of input.requirementIds) {
+      const checked = input.checked.get(requirementId);
       insert.run(
         input.projectId, input.goalId, requirementId, input.decisionId,
-        input.actorId, input.verdict, input.at, input.journalSeq,
+        input.actorId, input.verdict, input.at, input.journalSeq, checked?.artifact_id ?? null, checked?.version ?? null,
       );
     }
   }
@@ -94,6 +98,8 @@ export class GoalEventOutcomeRecords {
         verdict: rowText(row.verdict) as GoalEventUserConclusion["verdict"],
         received_at: rowText(row.received_at),
         journal_seq: Number(row.journal_seq),
+        checked: typeof row.checked_artifact_id === "string" && row.checked_version != null
+          ? { artifact_id: row.checked_artifact_id, version: Number(row.checked_version) } : null,
       });
     }
     return latest;
@@ -131,7 +137,7 @@ export class GoalEventOutcomeRecords {
 
   latestClosure(projectId: string, goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
-      SELECT c.* FROM goal_event_closures c
+      SELECT c.*, c.rowid AS stored_row FROM goal_event_closures c
       JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
       WHERE c.project_id = ? AND c.goal_id = ?
       ORDER BY e.journal_seq DESC LIMIT 1
@@ -141,7 +147,7 @@ export class GoalEventOutcomeRecords {
 
   currentAppliedClosure(projectId: string, goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
-      SELECT c.* FROM goal_event_closures c
+      SELECT c.*, c.rowid AS stored_row FROM goal_event_closures c
       JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
       WHERE c.project_id = ? AND c.goal_id = ?
         AND c.completion_applied = 1 AND c.superseded = 0
@@ -152,7 +158,7 @@ export class GoalEventOutcomeRecords {
 
   closureByEventId(projectId: string, goalId: string, eventId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_event_closures WHERE event_id = ? AND project_id = ? AND goal_id = ?
+      SELECT *, rowid AS stored_row FROM goal_event_closures WHERE event_id = ? AND project_id = ? AND goal_id = ?
     `).get(eventId, projectId, goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
@@ -183,7 +189,7 @@ function mapClosure(row: Row): GoalEventClosureView {
     expected_agreement_version: Number(row.expected_agreement_version ?? 0),
     config_version: row.config_version == null ? null : Number(row.config_version),
     agreement_version: row.agreement_version == null ? null : Number(row.agreement_version),
-    unmet_reasons: rowJson(row.unmet_reasons_json, []),
+    unmet_reasons: storedJson(row, "goal_event_closures", "unmet_reasons_json", []),
     superseded: Number(row.superseded) === 1,
     superseded_reason: row.superseded_reason == null ? null : rowText(row.superseded_reason),
     recorded_at: rowText(row.recorded_at),

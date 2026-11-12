@@ -29,7 +29,6 @@ export {
 } from "./out-rules.js";
 export type { FeedArtifactProducer, FeedOutRuleWrite } from "./out-rules.js";
 
-export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from "./exact-source-routes.js";
 
 export { FeedSourceService } from "./source-service.js";
 export { syncResearchLibrary, type ResearchLibraryEntry, type ResearchLibrarySyncPorts } from "./research-library-sync.js";
@@ -57,7 +56,6 @@ export { FEED_ACTION_PERMISSIONS } from "./runtime-actions.js";
 
 export { FEED_STYLES } from "./styles.js";
 
-export { FEED_EN } from "./en.js";
 
 export { feedContentActions, createFeedContentHandlers } from "./content-actions.js";
 
@@ -84,3 +82,4 @@ export { createFeedWriter, type FeedWriter } from "./runtime-writes.js";
 export type { FeedHydrate } from "./item-hydration.js";
 
 export { syncBindings as createFeedSyncBindings } from "./sync-binding.js";
+export { createFeedRunsHandlers, decideMissedPull, feedRunsActions, feedRunsOverview, missedPullRunId } from "./missed-pulls.js";

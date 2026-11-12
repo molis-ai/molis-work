@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { drawBackground, drawBanner, drawSection } from "./cooperation-draw.js";
 import type { BackgroundTask, Coop, CooperationClient, CooperationPorts, Delegations, Mail } from "./cooperation-types.js";
 import { el, errorMessage } from "./dom.js";
@@ -56,18 +57,17 @@ const field = <Found extends HTMLElement>(dialog: Dialog, selector: string) => {
   return found;
 };
 
-function drawPicks(coop: Coop, dialog: Dialog) {
-  const L = coop.ports.translate;
-  field(dialog, "[data-coding-delegate-outputs]").replaceChildren(...(dialog.picks.length ? dialog.picks.map(pick => el("p", pick.title, "coding-coop-line")) : [el("p", L("coding.coop.no-materials"), "coding-coop-note")]));
+function drawPicks(_coop: Coop, dialog: Dialog) {
+  field(dialog, "[data-coding-delegate-outputs]").replaceChildren(...(dialog.picks.length ? dialog.picks.map(pick => el("p", pick.title, "coding-coop-line")) : [el("p", uiText.text("coding.coop.no-materials"), "coding-coop-note")]));
 }
 
 /** Opens the dialog that hands a task to a new session, with the composer's text as the start. */
 function openDialog(coop: Coop, dialog: Dialog) {
-  const { q, current } = coop.ports;
+  const { current, task } = coop.ports;
   if (!current()) return;
   field<HTMLFormElement>(dialog, "form").reset();
   field(dialog, "[data-coding-delegate-status]").textContent = "";
-  field<HTMLTextAreaElement>(dialog, "[data-coding-delegate-task]").value = q<HTMLTextAreaElement>("[data-coding-task]").value.trim();
+  field<HTMLTextAreaElement>(dialog, "[data-coding-delegate-task]").value = task().trim();
   dialog.picks = [];
   dialog.ticket++;
   drawPicks(coop, dialog);
@@ -78,22 +78,22 @@ function openDialog(coop: Coop, dialog: Dialog) {
 
 /** Creates the session the task is handed to. */
 async function createDelegation(coop: Coop, dialog: Dialog, reading: Reading, event: Event) {
-  const { ports } = coop, { translate: L, api, current, status, lifetime } = ports;
+  const { ports } = coop, { api, current, status, lifetime } = ports;
   event.preventDefault();
   const id = current(), message = field(dialog, "[data-coding-delegate-status]"), send = field<HTMLButtonElement>(dialog, "[data-coding-delegate-create]");
   const task = field<HTMLTextAreaElement>(dialog, "[data-coding-delegate-task]").value.trim(), title = field<HTMLInputElement>(dialog, "[data-coding-delegate-title]").value.trim();
   if (!task) {
-    message.textContent = L("coding.coop.write-task");
+    message.textContent = uiText.text("coding.coop.write-task");
     return;
   }
   const materials = dialog.picks;
   send.disabled = true;
-  message.textContent = L("coding.coop.creating");
+  message.textContent = uiText.text("coding.coop.creating");
   try {
     const result = await api<{ delivery_unconfirmed?: boolean; session: { title: string } }>("/sessions/" + encodeURIComponent(id) + "/delegations", "POST", { task, ...(title ? { title } : {}), materials });
     dialog.node.close();
     await ports.refreshSessions();
-    status(result.delivery_unconfirmed ? L("coding.coop.unconfirmed") : L("coding.coop.created", { title: result.session.title }), Boolean(result.delivery_unconfirmed));
+    status(result.delivery_unconfirmed ? uiText.text("coding.coop.unconfirmed") : uiText.text("coding.coop.created", { title: result.session.title }), Boolean(result.delivery_unconfirmed));
     await refresh(coop, reading, true);
   } catch (error) {
     if (!lifetime.alive) return;

@@ -1,7 +1,7 @@
 import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { UiPageDrafts, UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ReceiptActions } from "../input-receipts.js";
-import type { Lifetime, ReceiptLinks, ShowReviews, Translate } from "../types.js";
+import type { Lifetime, ReceiptLinks, ShowReviews } from "../types.js";
 
 /** What the workbench's shared receipt draws (`host.receipts`, the same as the Assistant's). */
 export interface HostReceipts extends ReceiptLinks {
@@ -16,7 +16,6 @@ export type HostInteraction = InteractionClient;
 
 /** What the workbench gives Coding's page (`host`): navigation, the shared receipts and reviews, and the page's own requests. */
 export interface CodingHost {
-  readonly translate: Translate;
   /** Makes the page's lifetime from its root; none when the root is gone or already mounted. */
   mountPluginClient(root: Element): Lifetime | null;
   /** The Manifest identity this page runs under; presentation only. */

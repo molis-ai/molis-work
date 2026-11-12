@@ -1,7 +1,8 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
-import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
@@ -398,33 +399,52 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
 
 /** The input as a person reads it: each field by its declared title, text as text; the exact JSON stays separate. */
 export function readableInput(schema: Record<string, unknown>, input: unknown): Array<{ label: string; value: string }> {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return [{ label: "内容", value: actionFieldValue("", input) }];
-  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { title?: string; description?: string; properties?: Record<string, { title?: string; description?: string }> }>;
-  const clip = (text: string) => cutWithEllipsis(text, 4000, { prefixLength: 4000 });
+  return inputFields(schema, input).map(({ label, value }) => ({ label, value }));
+}
+
+interface ReadableProperty { title?: string; description?: string; properties?: Record<string, ReadableProperty> }
+
+const booleanWords = (value: boolean) => [{ owner: "workbench", key: value ? "common.generated.yes" : "common.generated.no" }] as const;
+
+function inputField(key: string, value: unknown, declared?: ReadableProperty): ToolReviewField {
+  const label = actionFieldLabelSource(key, declared), words = actionFieldValue(key, value, declared);
+  return { label: label.label, value: cutWithEllipsis(words, 4000, { prefixLength: 4000 }), presentation: {
+    ...(label.defaultKey ? { label: [reviewText("field." + label.defaultKey)] } : {}),
+    ...(typeof value === "boolean" ? { value: booleanWords(value) } : {}),
+    ...(typeof value === "string" ? { subject: true } : {}),
+  } };
+}
+
+function inputFields(schema: Record<string, unknown>, input: unknown): ToolReviewField[] {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return [reviewField("内容", actionFieldValue("", input), "content", typeof input === "boolean" ? { value: booleanWords(input) } : {})];
+  }
+  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, ReadableProperty>;
   return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) => {
     if (value === undefined || value === null || value === "") return [];
     // One level of nesting reads field by field, as the person would name them.
     if (value && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc") {
       return Object.entries(value as Record<string, unknown>).flatMap(([child, inner]) => inner === undefined || inner === null || inner === "" ? []
-        : [{ label: actionFieldLabel(child, properties[key]?.properties?.[child]), value: clip(actionFieldValue(child, inner, properties[key]?.properties?.[child])) }]);
+        : [inputField(child, inner, properties[key]?.properties?.[child])]);
     }
-    return [{ label: actionFieldLabel(key, properties[key]), value: clip(actionFieldValue(key, value, properties[key])) }];
+    return [inputField(key, value, properties[key])];
   });
 }
 
 /** The readable review for a requested change: which capability, from whom, what it does, with the exact input. */
-export async function gatewayReview(gateway: Gateway, input: string): Promise<{ summary: string; fields: Array<{ label: string; value: string }> }> {
+export async function gatewayReview(gateway: Gateway, input: string) {
   const args = JSON.parse(input) as Record<string, unknown>;
   const parsed = parseCapability(args);
   const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
   if (!view) throw new Error("所请求的能力已不可用，不能批准");
   const effect = actionEffect(view.action, view.capability_id);
   const sent = gatewayInput(view, parsed);
-  return { summary: `${view.provider.title} · ${view.action.title}`, fields: [
-    { label: "效果", value: effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回" },
-    ...readableInput(view.action.input_schema, sent),
-    { label: "完整参数", value: JSON.stringify(sent, null, 2) },
-    { label: "能力", value: `${view.action.description}（${view.capability_id}@${view.version}，${view.provider.provider_id}）` },
-  ] };
+  return presentToolReview({ kind: "tool-operation", tool: GATEWAY_TOOLS.change, summary: `${view.provider.title} · ${view.action.title}` }, [
+    reviewField("效果", effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回", "effect",
+      { value: [reviewText(effect === "irreversible" ? "value.irreversible" : "value.reversible")] }),
+    ...inputFields(view.action.input_schema, sent),
+    reviewField("完整参数", JSON.stringify(sent, null, 2), "exact-arguments", { format: "exact" }),
+    reviewField("能力", `${view.action.description}（${view.capability_id}@${view.version}，${view.provider.provider_id}）`, "capability", { format: "exact" }),
+  ]);
 }
 

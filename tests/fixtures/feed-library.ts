@@ -1,13 +1,14 @@
+import { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions } from "./feed-assembly.js";
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { feedErrors } from "@molis-ai/molis-work-plugin-feed/contract";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { createDemoFeedApplication, createDemoFeedSourceService, homeIntegrationRegistry, withConnectorConnections, type DemoFeedApplicationOptions, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
-import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { homeIntegrationRegistry, withConnectorConnections, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import { ConnectorHost, pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
+import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
-  feedSourceCatalog, FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf, providerItemOf,
+  FEED_PLUGIN_ID, feedSourceCatalog, FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf, providerItemOf,
   type FeedApplication, type FeedSourceRecord, type FeedSourceSchedulerDispatch, type FeedSourceService, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
 import { listRegisterableFeeds, FEED_CATEGORY_LABEL } from "@molis-ai/molis-work-integration-rss";
@@ -32,42 +33,74 @@ export function feedSourceSyncLease(db: SqliteDatabase): FeedSourceSyncLease {
 }
 
 export function createLocalFeedSourceService(db: SqliteDatabase, projectId: string,
-  runtimeFactory?: (db: SqliteDatabase, source?: FeedSourceRecord) => SourcePullRuntime, now?: () => Date, homeDirectory?: string, feedOptions?: LocalFeedApplicationOptions): FeedSourceService {
+  runtimeFactory?: (db: SqliteDatabase, source?: FeedSourceRecord) => SourcePullRuntime, now?: () => Date, feedOptions?: LocalFeedApplicationOptions): FeedSourceService {
   return createDemoFeedSourceService(db, projectId, runtimeFactory, now, { ...feedOptions, acquireSync: feedSourceSyncLease(db) });
 }
 
 export function createLocalFeedSourceScheduler(db: SqliteDatabase, projectId: string, dispatch: FeedSourceSchedulerDispatch, now: () => Date = () => new Date(),
-  homeDirectory?: string, feedOptions?: LocalFeedApplicationOptions): FeedSourceScheduler {
-  return new FeedSourceScheduler(projectId, () => createLocalFeedSourceService(db, projectId, undefined, now, homeDirectory, feedOptions), dispatch, now);
+  feedOptions?: LocalFeedApplicationOptions): FeedSourceScheduler {
+  return new FeedSourceScheduler(projectId, () => createLocalFeedSourceService(db, projectId, undefined, now, feedOptions), dispatch, now);
 }
 
-/** What an integration plugin is given for one source: the references it holds, never a secret. */
-function bindingOf(source: FeedSourceRecord): IntegrationBinding {
-  return { source_id: source.source_id, connection_id: typeof source.config.connection_id === "string" ? source.config.connection_id : null,
-    credential_ref: source.credential_ref ?? null, config: source.config };
+// This fixture runs without a Plugin Runtime installation, but uses the same record key and connector owner's store as one.
+function accountTarget(source: FeedSourceRecord) {
+  const serviceId = integrationKeyOf(source);
+  if (serviceId === null) throw pluginErrors.integration_unavailable(`来源 ${source.source_id} 没有可用的账号集成`);
+  const scopeId = pluginBindingScope({ install_id: "feed-library-fixture", project_id: source.project_id, record_key: source.source_id });
+  return { scopeId, pluginId: FEED_PLUGIN_ID, slotId: serviceId, serviceId };
 }
 
-export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: string, providerFactory?: IntegrationProviderFactory,
-  feed: FeedApplication = createLocalFeedApplication(db), homeDirectory = resolveMolisWorkHome()): FeedConnectorSync {
+export function bindLocalFeedSourceAccount(homeDirectory: string, source: FeedSourceRecord, connectionId: string | null): void {
+  const target = accountTarget(source);
+  withConnectorConnections(homeDirectory, store => {
+    if (connectionId === null) store.unbind(target.scopeId, target.pluginId, target.slotId);
+    else store.bind({ ...target, connectionId });
+  });
+}
+
+/** Account preparation for tests that supply their own provider. */
+export function seedLocalFeedSourceAccount(homeDirectory: string, source: FeedSourceRecord): void {
+  const target = accountTarget(source);
+  withConnectorConnections(homeDirectory, store => {
+    const account = store.createToken({ serviceId: target.serviceId, displayName: source.name, token: "fixture-source-account" });
+    store.bind({ ...target, connectionId: account.connection_id });
+  });
+}
+
+export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: string, homeDirectory: string, providerFactory?: IntegrationProviderFactory,
+  feed: FeedApplication = createLocalFeedApplication(db)): FeedConnectorSync {
   const registry = homeIntegrationRegistry(homeDirectory, providerFactory);
   const journal = new LocalSqliteJournal(db);
+  const readAccount = ({ scopeId, pluginId, slotId, serviceId }: ReturnType<typeof accountTarget>) => withConnectorConnections(homeDirectory, store => {
+    const account = store.binding(scopeId, pluginId, slotId);
+    return account?.service_id === serviceId && store.state(account) === "connected" ? account : null;
+  });
+  const missingAccount = () => feedErrors.connector_failed("这个来源还没有选好可用的账号连接");
   return new FeedConnectorSync({
     feed, acquireSync: feedSourceSyncLease(db),
     connectionAuthority(source) {
-      const id = source.config.connection_id;
-      if (typeof id !== "string") return () => {};
-      const original = withConnectorConnections(homeDirectory, store => store.get(id));
-      return () => withConnectorConnections(homeDirectory, store => {
-        const current = store.get(id);
-        if (!original || !current || !current.enabled || current.disconnected_at || current.updated_at !== original.updated_at || current.credential_ref !== source.credential_ref) {
+      const target = accountTarget(source);
+      let original: ConnectorConnectionRecord | undefined;
+      return () => {
+        const current = readAccount(target);
+        if (!original) {
+          if (!current) throw missingAccount();
+          original = current;
+          return;
+        }
+        if (!current || current.connection_id !== original.connection_id || current.updated_at !== original.updated_at || current.credential_ref !== original.credential_ref) {
           throw feedErrors.source_connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
         }
-      });
+      };
     },
     async createListener(source, afterAccepted) {
-      const key = integrationKeyOf(source);
-      if (key === null) throw pluginErrors.integration_unavailable(`来源 ${source.source_id} 没有可用的账号集成`);
-      const integration = await (await registry).bind(key, "source", bindingOf(source));
+      const target = accountTarget(source);
+      const account = readAccount(target);
+      if (!account) throw missingAccount();
+      const config = source.sync_kind === "gmail" && typeof source.config.scope === "string" ? { scope: source.config.scope } : {};
+      const integration = await (await registry).bind(target.serviceId, "source", {
+        source_id: source.source_id, connection_id: account.connection_id, credential_ref: account.credential_ref, config,
+      });
       const connector = new ConnectorHost();
       const connectionId = `source:${source.source_id}`;
       connector.registerDriver(integration.connector_driver);

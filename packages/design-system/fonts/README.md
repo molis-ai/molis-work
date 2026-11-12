@@ -14,3 +14,9 @@ Noto Sans SC Regular (chinese-simplified)
 Source: https://fontsource.org/fonts/noto-sans-sc
 License: SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 Copyright 2022 The Noto Project Authors (https://github.com/notofonts/noto-cjk)
+
+## Folio
+
+Molis Folio Rounded SC is based on Resource Han Rounded CN v1.910. The 400, 500, 600 and 700 faces use the original weight outlines converted to TrueType. Each has a common-character WOFF2 and a tail WOFF2. The exact ranges and loading order are in [the Folio font scheme](../resources/fonts/folio-rounded.json). [Source release](https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910) · [Original SIL Open Font License 1.1](OFL-RHR.txt)
+
+Folio's Latin face is the original Nunito variable WOFF2 distributed by `@fontsource-variable/nunito` 5.3.0. It covers weights 200–1000. [Source package](https://www.npmjs.com/package/@fontsource-variable/nunito/v/5.3.0) · [Original SIL Open Font License 1.1](OFL-Nunito.txt)

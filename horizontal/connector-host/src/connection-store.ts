@@ -240,6 +240,7 @@ export class ConnectorConnectionStore {
       if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw connectorErrors["connector.connection.invalid"]("MCP 凭据引用无效");
     }
     if (input.credentialRef && !this.secrets.get(input.credentialRef)?.trim()) throw connectorErrors["connector.connection.disconnected"]("MCP 凭据尚未保存");
+    inConnectorTransaction(this.db, () => {
     const now = nextChange(this.db, input.connectionId, this.now());
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
@@ -250,6 +251,7 @@ export class ConnectorConnectionStore {
         input.refreshRef ?? null, input.expiresRef ?? null, "managed", null, existing?.created_at ?? now, now);
     if (endpoint) this.db.prepare("INSERT INTO connector_connection_targets(connection_id,origin) VALUES (?,?) ON CONFLICT(connection_id) DO UPDATE SET origin=excluded.origin").run(input.connectionId, endpoint.origin);
     else this.db.prepare("DELETE FROM connector_connection_targets WHERE connection_id=?").run(input.connectionId);
+    });
     if (existing) this.onChange?.(input.connectionId);
     return this.require(input.connectionId);
   }
@@ -416,10 +418,7 @@ export class ConnectorConnectionStore {
    * reports as its uses (`connectors.plugin_slot.usages`, T-121). A scope that is not a plugin's is a built-in consumer's, not listed.
    */
   pluginBindings(connectionId?: string): Array<PluginBindingTarget & { plugin_id: string; slot_id: string }> {
-    const rows = (connectionId === undefined
-      ? this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all()
-      : this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings WHERE connection_id = ? ORDER BY scope_id, plugin_id, slot_id").all(connectionId)) as Array<{ scope_id: string; plugin_id: string; slot_id: string }>;
-    return rows.flatMap(row => { const target = parsePluginBindingScope(row.scope_id); return target ? [{ ...target, plugin_id: row.plugin_id, slot_id: row.slot_id }] : []; });
+    return connectorBindingRows(this.db, connectionId).flatMap(row => { const target = parsePluginBindingScope(row.scope_id); return target ? [{ ...target, plugin_id: row.plugin_id, slot_id: row.slot_id }] : []; });
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {
@@ -427,6 +426,13 @@ export class ConnectorConnectionStore {
       .run(scopeId, pluginId, slotId);
     if (result.changes) this.onBindingChange?.({ scope_id: scopeId, plugin_id: pluginId, slot_id: slotId });
   }
+}
+
+/** The binding rows of one connection, or of every one: one statement, kept out of the class so the store stays inside its size limit. */
+function connectorBindingRows(db: DatabaseSync, connectionId?: string): Array<{ scope_id: string; plugin_id: string; slot_id: string }> {
+  return (connectionId === undefined
+    ? db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all()
+    : db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings WHERE connection_id = ? ORDER BY scope_id, plugin_id, slot_id").all(connectionId)) as Array<{ scope_id: string; plugin_id: string; slot_id: string }>;
 }
 
 /**

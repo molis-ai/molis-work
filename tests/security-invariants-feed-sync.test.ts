@@ -38,7 +38,7 @@ test('S-133 PCSYNC-01/11/12/22 Feed restores exact evidence bytes, fixed Signal 
 test('S-133 PCSYNC-01/12/14/15 Feed refuses foreign identity, missing/corrupt evidence, stale edits and revoked late writes',async t=>{
  const a=fixture(),b=fixture(),late=fixture();t.after(()=>{a.close();b.close();late.close();});const {ref,item,mutation}=seed(a),encoded=a.codec.encode(mutation.key,mutation.value);
  await assert.rejects(()=>b.codec.decode(JSON.stringify(['other','project_feed','other']),encoded.value,async()=>{throw new Error('must not read');}));
- await assert.rejects(()=>b.codec.decode(mutation.key,encoded.value,async()=>Buffer.from('damaged')));assert.equal(b.content.has(ref),false);assert.deepEqual(b.feed.query.list('project'),[]);
+ await assert.rejects(()=>b.codec.decode(mutation.key,encoded.value,async()=>Buffer.from('damaged')));assert.equal(b.content.has(ref),false);assert.deepEqual(b.feed.query.list('project', { limit: 200, offset: 0 }),[]);
  const bad=structuredClone(mutation.value) as {facts:{signals_content:{signal_revisions:{content_hash:string}[]}}};bad.facts.signals_content.signal_revisions[0]!.content_hash='0'.repeat(64);assert.throws(()=>a.codec.encode(mutation.key,bad));
  const coerced=structuredClone(mutation.value) as {facts:{feed_content:{feed_materials:{content_available:unknown}[]}}};coerced.facts.feed_content.feed_materials[0]!.content_available='1';assert.throws(()=>a.codec.encode(mutation.key,coerced),'current flags must not be silently coerced from text');
  const read=async(r:{digest:string;size:number})=>encoded.blobs.find(b=>b.digest===r.digest&&b.size===r.size)!.bytes;
@@ -48,4 +48,18 @@ test('S-133 PCSYNC-01/12/14/15 Feed refuses foreign identity, missing/corrupt ev
  assert.equal(second.operationId,mutation.operationId);a.replica.acknowledge(mutation.key,mutation.operationId,1);const changed=a.replica.next()!;
  b.replica.receive({...changed,revision:2});assert.throws(()=>b.feed.commands.setDisposition('project',item.item_id,'archived',shown.revision),{code:'feed.revision_conflict'});assert.equal(b.feed.query.get('project',item.item_id).disposition,'saved');
  a.content.delete(ref);assert.throws(()=>a.codec.encode(changed.key,changed.value),{code:'host.replica_content_unavailable'});
+});
+
+test('D0327 Feed signal reads are bounded and all equal-timestamp rows remain reachable',()=>{
+ const f=fixture();
+ try{
+  const at='2026-10-18T00:00:00.000Z';
+  for(let i=0;i<235;i++)f.signals.commands.submitDraft({project_id:'project',source_id:'source',provider_dedupe_id:String(i),kind:'update',occurred_at:at,observed_at:at,payload:{title:String(i)},content_refs:[],raw_event_id:'raw-'+i,adapter:{plugin_id:'fixture',version:'1.0.0'},provenance:{}});
+  assert.equal(f.signals.query.list('project').length,100);
+  assert.equal(f.signals.query.list('other').length,0);
+  const ids=new Set<string>();
+  for(let offset=0;;offset+=100){const page=f.signals.query.list('project',undefined,{limit:100,offset});for(const item of page){assert.ok(!ids.has(item.signal_id));ids.add(item.signal_id);}if(page.length<100)break;}
+  assert.equal(ids.size,235);
+  assert.equal(f.signals.events.list('project').length,100);
+ }finally{f.close();}
 });

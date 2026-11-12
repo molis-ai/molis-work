@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient, PluginModelImage } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -18,9 +19,6 @@ const bytes = (image: IssueImage, index: number): PluginModelImage => {
   return { bytes: Uint8Array.from(binary, char => char.charCodeAt(0)), label: `截图 ${index + 1}` };
 };
 
-/** What the person sees when there are screenshots, no words, and the model in use does not declare that it reads images: nothing can be named from nothing. */
-export const ISSUE_SCREENSHOTS_UNREAD = "当前模型未声明能看图或已设为不能看图，截图没有交给它；写一句话再整理，或在设置 → 模型 → 供应商的模型列表中将读图能力设为能看图并保存";
-
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
 /** The language the title is written in, decided here from the person's words (never left for the model to guess): English for words with Latin letters and no CJK, Chinese otherwise. */
 export const titleLanguage = (description: string): "zh" | "en" => !CJK.test(description) && /[A-Za-z]/.test(description) ? "en" : "zh";
@@ -32,7 +30,7 @@ export function issueNaming(value: unknown): IssueNaming {
   const reply = value && typeof value === "object" ? value as Record<string, unknown> : {};
   if (reply.status === "named" && line(reply.title, 200) && ISSUE_TYPES.includes(reply.type as IssueType)) return { status: "named", title: reply.title.trim(), type: reply.type as IssueType };
   if (reply.status === "needs_input" && line(reply.question, 200)) return { status: "needs_input", question: reply.question.trim() };
-  throw issueNamingErrors.model_reply_invalid("模型没有给出可用的标题和类型，点开补全后保存");
+  throw issueNamingErrors.model_reply_invalid(uiText.text("issues.naming.incomplete-answer"));
 }
 
 /**
@@ -43,9 +41,9 @@ export function issueNaming(value: unknown): IssueNaming {
  */
 export async function nameIssue(model: PluginModelClient | undefined, input: IssueNamingInput, signal: AbortSignal | undefined): Promise<{ naming: IssueNaming; validate: () => void }> {
   const state = model?.availability();
-  if (!model || !state?.available) throw new ActionError("actions.connection_required", state && !state.available ? state.reason : "请先在「模型设置」里连接文字模型");
+  if (!model || !state?.available) throw new ActionError("actions.connection_required", state && !state.available ? state.reason : uiText.text("issues.naming.connect-text-model"));
   // Screenshots that cannot be handed over and no words to go by: the model is not asked, and the person is told why and what to do.
-  if (state.vision !== true && input.images?.length && !input.description.trim()) return { naming: { status: "needs_input", question: ISSUE_SCREENSHOTS_UNREAD }, validate: () => {} };
+  if (state.vision !== true && input.images?.length && !input.description.trim()) return { naming: { status: "needs_input", question: uiText.text("issues.naming.screenshots-unread") }, validate: () => {} };
   const images = state.vision === true ? (input.images ?? []).map(bytes) : [];
   const data = { description: input.description, page: input.page?.title ?? null, title_language: titleLanguage(input.description), screenshots: { count: input.images?.length ?? 0, attached: images.length > 0 } };
   const result = await model.complete(instructed(ISSUES_NAME, fencedMaterials(data, "ISSUE_" + crypto.randomUUID().replaceAll("-", ""))),

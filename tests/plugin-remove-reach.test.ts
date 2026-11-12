@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 // BL-088 (PMR-15, user 2026-10-01): removing a personal plugin from a project turns it off there. With Pages removed, the project's
 // search no longer finds Pages documents, and its actions are out of reach for the person, the assistant and MCP alike; added back,
 // all of it returns, with the documents as they were. The refusals themselves are S-72's (security-invariants-hidden-personal-plugin).
@@ -42,7 +43,7 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   await reached();
   const before = await offered();
 
-  await home.web.delete(projectPlugins, { plugin_id: "pages" });
+  await home.web.delete(projectPlugins, { plugin_id: "pages", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const removed = await search();
   assert.deepEqual(pagesHits(removed), [], "a removed plugin's documents are not found in that project");
   const sources = removed.sources.filter(source => source.plugin_id === PAGES);
@@ -58,7 +59,7 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   assert.equal(called.isError, true);
   assert.equal(JSON.parse(called.content[0]!.text).code, "actions.plugin_disabled");
 
-  await home.web.post(projectPlugins, { plugin_id: "pages" });
+  await home.web.post(projectPlugins, { plugin_id: "pages", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   await reached();
   assert.deepEqual(await offered(), before, "the assistant is offered the same Pages actions again");
 });

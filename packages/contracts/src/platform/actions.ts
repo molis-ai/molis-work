@@ -1,19 +1,24 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-input.js";
+export { actionFieldInput, actionFieldLabel, actionFieldLabelSource, actionFieldOptions, actionFieldValue } from "./action-field-presentation.js";
 export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
+import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./home-background-tasks.js";
 export * from "./home-events.js";
 export * from "./due-reminders.js";
+export * from "./scheduled-runs.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
+export * from "./action-named-skills.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
@@ -78,7 +83,7 @@ export interface HostOfferedOriginalInput {
 }
 
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 /**
  * Which protected entry a person's operation came through, and where to find it: audit locators that grant nothing on their own (PG-029).
@@ -105,8 +110,16 @@ export interface StageSceneMetadataAuthority {
   readonly actions: readonly ExactActionReference[];
 }
 
+/** The identity the Host binds to one adopted homepage or preview in a project. */
+export interface HomePageSubject {
+  readonly kind: "home-page" | "home-page-preview";
+  readonly project_id: string;
+  readonly page_id: string;
+  readonly version: number;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
-export interface ActionCallContext extends ActionCallOrigin {
+export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
   readonly actor_id: string;
   /** Only the same stage entry may inspect its own saved scene bindings through these accepted exact refs. */
   readonly stage_scene_metadata?: StageSceneMetadataAuthority;
@@ -118,12 +131,14 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
-  /**
-   * The language of the page the call came from, which the Host resolves from the request (the page's language cookie, else
-   * Accept-Language). It only picks the words a handler sends back to be shown; it grants nothing and is never read from
-   * business input. Absent when no page asked (a model's tool call, a timer): the handler uses its own default.
-   */
+  /** The page's language (from the request: language cookie, else Accept-Language), or the one a delegating round hands on. It picks
+   * only shown words and a round's reply language; grants nothing, is never business input; absent otherwise (handlers use a default). */
   readonly locale?: ActionLocale;
+  /** Host-only: Skills named by the routed naming envelope or the Host's `run.start` call, bound to that installation and action; not
+   * carried by nested or gateway calls; freezes only that round's `system.skills` reads. A `SkillRef` in action input names nothing. */
+  readonly named_skills?: import("./action-named-skills.js").ActionNamedSkills;
+  /** Host-only, on a round's own `system.skills` calls: the reads' `consumer`, the frozen `named` list, `engine: "local"` for `native_only`. */
+  readonly skill_round?: import("./action-named-skills.js").ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /**
@@ -217,7 +232,7 @@ export interface RetainedActionAuthority {
   readonly assertCurrent: () => void;
 }
 
-export interface ActionExecutionContext extends ActionCallContext {
+export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
   readonly beforeEffect: () => Promise<void>;
   /** The action this handler runs, with the provider the dispatcher resolved: a plugin finds "its own action" here rather than naming itself (PG-030). */
   readonly current_action?: ExactActionReference;
@@ -715,81 +730,4 @@ export function parseExactActionReferences(value: unknown): ExactActionReference
   });
   if (new Set(refs.map(ref => JSON.stringify(ref))).size !== refs.length) throw new ActionError("actions.reference_invalid", "Duplicate action selection");
   return refs;
-}
-
-
-/**
- * How a person reads an input field that its schema did not title: the common names in plain words. A capability's own
- * `title` always wins; this only covers the fields most business actions share.
- */
-const COMMON_FIELD_LABELS: Readonly<Record<string, string>> = {
-  title: "标题", name: "名称", text: "内容", body: "正文", content: "内容", notes: "备注", note: "备注", description: "说明", summary: "摘要",
-  kind: "类型", type: "类型", status: "状态", priority: "优先级", category_id: "分类", tags: "标签", url: "链接",
-  date: "日期", start_date: "开始日期", end_date: "结束日期", due_date: "截止日期", start_time: "开始时间", end_time: "结束时间", time_zone: "时区",
-  starts_at: "开始时间", ends_at: "结束时间", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
-  markdown: "正文", folder_id: "文件夹", goal_id: "目标", project_id: "项目", starred: "加星标",
-};
-export function actionFieldLabel(key: string, declared?: { title?: string; description?: string }): string {
-  if (declared?.title) return declared.title;
-  if (COMMON_FIELD_LABELS[key]) return COMMON_FIELD_LABELS[key]!;
-  return declared?.description && declared.description.length <= 24 ? declared.description : key;
-}
-
-/**
- * The choices a field declares, each with the words a person reads: `oneOf`/`anyOf` entries `{ const, title }`, or an
- * `enum` whose description names them as `value=label` (e.g. "personal=个人，project=当前项目"). Null when none.
- */
-export function actionFieldOptions(declared?: unknown): Array<{ value: string; label: string }> | null {
-  if (!declared || typeof declared !== "object") return null;
-  const schema = declared as { enum?: unknown; oneOf?: unknown; anyOf?: unknown; description?: unknown };
-  const isNull = (item: unknown) => Boolean(item) && typeof item === "object" && (item as { type?: unknown }).type === "null";
-  const listedAll = [schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined;
-  // A nullable field wraps its choices with a null branch: read the choices inside.
-  const listed = listedAll?.filter(item => !isNull(item));
-  if (listed?.length === 1 && listed[0] && typeof listed[0] === "object" && (listed[0] as { const?: unknown }).const === undefined) return actionFieldOptions(listed[0]);
-  if (listed?.length && listed.every(item => item && typeof item === "object" && typeof (item as { const?: unknown }).const === "string")) {
-    return listed.map(item => ({ value: (item as { const: string }).const, label: typeof (item as { title?: unknown }).title === "string" ? (item as { title: string }).title : (item as { const: string }).const }));
-  }
-  if (!Array.isArray(schema.enum) || !schema.enum.length || !schema.enum.every(item => typeof item === "string")) return null;
-  const named = new Map<string, string>();
-  if (typeof schema.description === "string") for (const [, value, label] of schema.description.matchAll(/([A-Za-z0-9_.-]+)\s*=\s*([^，,；;、\n]+)/g)) named.set(value!, label!.trim());
-  return (schema.enum as string[]).map(value => ({ value, label: named.get(value) ?? value }));
-}
-
-/**
- * How a person fills a field that is a calendar day or a moment, from its JSON Schema `format` ("date", "date-time"),
- * through a nullable wrapper: picked rather than typed. Null for any other field.
- */
-export function actionFieldInput(declared?: unknown): "date" | "datetime" | null {
-  if (!declared || typeof declared !== "object") return null;
-  const schema = declared as { format?: unknown; oneOf?: unknown; anyOf?: unknown };
-  if (schema.format === "date") return "date";
-  if (schema.format === "date-time") return "datetime";
-  const listed = ([schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined)
-    ?.filter(item => !(item && typeof item === "object" && (item as { type?: unknown }).type === "null"));
-  return listed?.length === 1 ? actionFieldInput(listed[0]) : null;
-}
-
-/** A moment as a person reads it, in this machine's local time. */
-const localMoment = (value: string): string | null => {
-  const at = new Date(value);
-  if (!Number.isFinite(at.getTime())) return null;
-  const two = (part: number) => String(part).padStart(2, "0");
-  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}`;
-};
-
-/** A field's value as a person reads it: a declared choice by its label, a moment in local time, rich text as its text, minutes-of-day as a time, the rest as it is. */
-export function actionFieldValue(key: string, value: unknown, declared?: unknown): string {
-  if (typeof value === "string" && actionFieldInput(declared) === "datetime") return localMoment(value) ?? value;
-  if (typeof value === "string") return actionFieldOptions(declared)?.find(option => option.value === value)?.label ?? value;
-  if (typeof value === "number" && /_time$/.test(key) && Number.isInteger(value) && value >= 0 && value < 1440) {
-    return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
-  }
-  if (value && typeof value === "object" && (value as { type?: unknown }).type === "doc") {
-    const inline = (node: unknown): string => !node || typeof node !== "object" ? "" : typeof (node as { text?: unknown }).text === "string" ? (node as { text: string }).text
-      : Array.isArray((node as { content?: unknown }).content) ? ((node as { content: unknown[] }).content).map(inline).join("") : "";
-    return ((value as { content?: unknown[] }).content ?? []).map(inline).filter(Boolean).join("\n");
-  }
-  if (Array.isArray(value) && value.every(item => typeof item === "string")) return value.join("、");
-  return typeof value === "boolean" ? (value ? "是" : "否") : typeof value === "number" ? String(value) : JSON.stringify(value, null, 2);
 }

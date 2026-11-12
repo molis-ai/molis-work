@@ -1,10 +1,11 @@
+import { assertPageWords } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { GIT_CLIENT_FACTORY_SCRIPT, GIT_MESSAGES, GIT_SENTENCE_TABLE } from "@molis-ai/molis-work-plugin-git";
+import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 
 const SRC = "plugins/native/git/src";
 const BROWSER = join(SRC, "browser");
@@ -23,17 +24,10 @@ test("RAC-167 every word the Git page says has a stable key with both languages"
   // translator in one place, `S` of the page, so a new site that forwards something else cannot hide among them.
   const forwarding = browserFiles().flatMap(file => readFileSync(file, "utf8").split("\n").map((text, index) => ({ file, line: index + 1, text })))
     .filter(({ text }) => /\bL\((?!["'`])|\bsayHostSentence\(/u.test(text));
-  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [`${join(BROWSER, "page.ts")}: S: (sentence) => sayHostSentence(L, sentences, sentence),`], "one place hands the Host's sentences to the translator");
+  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [], "raw Host words stay as written");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in GIT_MESSAGES)), [], "every key the page asks for is defined");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(GIT_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  // The Host's sentence templates are said by the page from the table it is handed, not asked for by key: the bundle carries none.
-  assert.ok(GIT_SENTENCE_TABLE.length > 0);
-  for (const [key] of GIT_SENTENCE_TABLE) assert.ok(key in GIT_MESSAGES, `${key} is defined`);
+  assertPageWords("git", used);
+  assert.deepEqual(scan.files.filter(file => owns(file.file)).flatMap(file => file.retired), []);
 });
 
 test("RAC-168 the Git page's client is typed browser code bundled by esbuild, asks the Host only in request.ts and names no plugin route", () => {
@@ -46,7 +40,7 @@ test("RAC-168 the Git page's client is typed browser code bundled by esbuild, as
     if (!file.endsWith("/request.ts")) assert.doesNotMatch(source, /molisWorkRequest/u, `${file} asks the Host itself: request.ts owns the requests`);
     assert.doesNotMatch(source, /\.toLocaleString\(\)/u, `${file} shows a time in the browser's language, not the page's`);
   }
-  assert.match(readFileSync(join(BROWSER, "page.ts"), "utf8"), /toLocaleString\(document\.documentElement\.lang/, "the times the page shows follow the page's language");
+  assert.match(readFileSync(join(BROWSER, "page.ts"), "utf8"), /format\.date\(value, "datetime-with-seconds"\)/u, "the page formats its times with its own language and seconds");
   const pkg = JSON.parse(readFileSync("plugins/native/git/package.json", "utf8")) as { scripts: Record<string, string>; devDependencies?: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/factory\.ts --bundle/, "and bundles it");
@@ -54,13 +48,12 @@ test("RAC-168 the Git page's client is typed browser code bundled by esbuild, as
   const root = JSON.parse(readFileSync("package.json", "utf8")) as { devDependencies: Record<string, string> };
   assert.equal(pkg.devDependencies?.esbuild, root.devDependencies.esbuild, "esbuild is the package's own dev dependency, at the root's version");
   assert.doesNotThrow(() => new Function(`return ${GIT_CLIENT_FACTORY_SCRIPT}`), "the bundle is a function expression");
-  assert.match(GIT_CLIENT_FACTORY_SCRIPT, /^\(host\) => \(\(host, sentences, git\) => \{/u, "it takes the host, is given the sentence table and hands back what it mounted");
+  assert.match(GIT_CLIENT_FACTORY_SCRIPT, /^\(host, git\) => \{/u, "it takes the host and its embed port");
   for (const mark of ["/view-revision", "/prepare-index", "/pr-support", "molis-commit-draft:", "data-git-conflict-resolve", "git.decision.settled", "<<<<<<<"]) {
     assert.ok(GIT_CLIENT_FACTORY_SCRIPT.includes(mark), `the bundle carries ${mark}`);
   }
-  assert.ok(GIT_CLIENT_FACTORY_SCRIPT.includes(JSON.stringify(GIT_SENTENCE_TABLE)), "the table of the Host's sentence templates comes with it");
   assert.doesNotMatch(GIT_CLIENT_FACTORY_SCRIPT, /git\.outcome\.succeeded.*"zh"|"en":/u, "the bundle carries no dictionary");
   // Hand it a root without Git's elements: it mounts nothing and hands back nothing.
-  const factory = new Function(`return ${GIT_CLIENT_FACTORY_SCRIPT}`)() as (host: unknown) => unknown;
+  const factory = new Function(`return ${GIT_CLIENT_FACTORY_SCRIPT}`)() as (host: unknown, git?: unknown) => unknown;
   assert.equal(factory({ root: { querySelector: () => null }, translate: (key: string) => key, openResult() {}, closeResult() {}, route: (path: string) => path, pluginRoute: (path: string) => path, reviews: { show: async () => {} } }), null);
 });

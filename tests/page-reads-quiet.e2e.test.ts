@@ -175,10 +175,41 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   const counts = Object.fromEntries(PHASES.map(name => [name, { total: seen.filter(entry => entry.phase === name).length, by: tally(name) }]));
   const output = reviewEvidenceUrl("07-g2/"); await mkdir(output, { recursive: true });
   await writeFile(new URL("request-counts.json", output), JSON.stringify(counts, null, 2) + "\n");
+  const requestsIn = (name: string) => seen.filter(entry => entry.phase === name);
+  // 07-AUDIT (N53): two sets of numbers make this case a budget, not only a shape check. The 11-01 adversarial review measured what
+  // the fixes must not bring back: attention read 3× while one page loaded, the Assistant's works 4×, a favicon 404 on every page,
+  // the shared stylesheet asked twice. And b51cb696d1 (batch 07's request-count commit; it is not on main, it lives in PR #1981)
+  // measured, in an isolated Home with the seeded demo project on a local Mac, one step each: chooser 15 requests, the first project
+  // page (Todo) 39, the project page coming back with two tabs (Goals) 31, a tab switch 10, opening the side 10. The allowance covers
+  // CI timing; the ceilings are call budgets, so a duplicate read or a whole page read again lands above them.
+  const MEASURED = { chooser: 15, todo: 39, project: 31, tab: 10, side: 10 };
+  const CALL_SLACK = 3;
+  // Batch 16 adds one selected language script per document, words per authorized frame, and one appearance subscription.
+  const LANGUAGE_SCRIPT = /^\/assets\/locale\/workbench\.(zh|en)\.[a-f0-9]{24}\.js$/u;
+  for (const name of PHASES) {
+    const reads = requestsIn(name);
+    const words = reads.filter(one => one.method === "GET" && LANGUAGE_SCRIPT.test(one.path));
+    const frameWords = reads.filter(one => one.method === "GET" && one.path === "/api/ui/locales");
+    const appearance = reads.filter(one => one.method === "GET" && one.path === "/api/ui/appearance/events");
+    const registrations = reads.filter(one => one.method === "POST" && one.path === "/api/host/plugin-pages");
+    assert.equal(words.length, new Set(words.map(one => one.frame)).size, `${name}: at most one language script per document`);
+    assert.ok(frameWords.length <= registrations.length, `${name}: no repeated frame word reads`);
+    assert.ok(appearance.length <= 1, `${name}: one appearance subscription`);
+    const other = reads.length - words.length - frameWords.length - appearance.length;
+    assert.ok(other <= MEASURED[name] + CALL_SLACK, `${name}: ${other} existing requests, over the measured ${MEASURED[name]} + ${CALL_SLACK} allowance`);
+  }
+  // Each step really mounts a plugin frame, and a document asked for the shared stylesheet at least once: without this, the checks
+  // below could pass because nothing was mounted or fetched at all (b51cb696d1 counted a page registration in every step, 1-2
+  // each, and the sheet on each page load; a step whose document was already loaded may take it from the document's own cache).
+  for (const name of PHASES) {
+    assert.ok(requestsIn(name).some(one => one.method === "POST" && one.path === "/api/host/plugin-pages"), `${name}: a plugin frame registered its page`);
+  }
+  assert.ok(seen.some(one => one.path === "/assets/molis-work-workbench.css"), "a document asked for the shared stylesheet");
   // A page registered for a frame is kept while the frame is up: none of these steps takes one back as soon as it was made.
   assert.deepEqual(seen.filter(one => one.method === "DELETE" && one.path.startsWith("/api/host/plugin-pages")).map(one => one.phase), [], "no frame's page is taken back while it shows");
-  // What waits on the person is read once for a page that loads, however many readers ask.
-  for (const name of ["chooser", "todo", "project"]) assert.ok(seen.filter(one => one.phase === name && one.path === "/api/attention").length <= 1, `${name}: one attention read`);
+  // What waits on the person is read exactly once for a page that loads, however many readers ask (the review saw 3; b51cb696d1
+  // counted 1 in each of these steps).
+  for (const name of ["chooser", "todo", "project"]) assert.equal(requestsIn(name).filter(one => one.path === "/api/attention").length, 1, `${name}: one attention read`);
   // Each document asks for the shared stylesheet once (a plugin's frame is a document of its own, with its own cache).
   const sheets = new Map<string, number>();
   for (const one of seen.filter(entry => entry.path === "/assets/molis-work-workbench.css")) sheets.set(`${one.phase} ${one.frame}`, (sheets.get(`${one.phase} ${one.frame}`) ?? 0) + 1);

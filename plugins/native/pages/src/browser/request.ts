@@ -1,12 +1,14 @@
 import { pluginRequest } from "@molis-ai/molis-work-plugin-sdk/browser";
-import type { PagesHost, PagesRequest, Translate } from "./types.js";
+import type { PagesHost, PagesRequest } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Requests to Pages' routes in the current project (`tail` follows `/pages`). */
-export function pagesRequest(host: PagesHost, L: Translate): PagesRequest {
+export function pagesRequest(host: PagesHost): PagesRequest {
   const request = pluginRequest(host, {
-    project: { id: () => host.projectId(), missing: () => L("pages.error.no-project") },
+    project: { id: () => host.projectId(), missing: () => uiText.text("pages.error.no-project") },
     readRefusal: true,
-    fallback: () => L("pages.error.request"),
+    fallback: () => uiText.text("pages.error.request"),
   });
   return (method, tail, body) => request(method, "/pages" + tail, body);
 }

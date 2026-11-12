@@ -81,8 +81,12 @@ function feedHarness() {
   let fail = false;
   db.exec(ATTENTION_SCHEMA_SQL);
   const attention = new AttentionModule(db, { exists: (projectId, _type, itemId) => feed.query.exists(projectId, itemId) });
-  const open = (api: ContextLedgerApi = ledger) => {
-    feed = new FeedModule(fromBetterSqlite(db), attention, { ledger: feedLedgerPort(api), eventSink: () => { if (fail) throw new Error("event failed"); } });
+  const open = (api: ContextLedgerApi = ledger, observe?: (sql: string, count: number) => void) => {
+    const sql = fromBetterSqlite(db);
+    const measured = { ...sql, all: <Row = Record<string, unknown>>(query: string, ...params: unknown[]): Row[] => {
+      const rows = sql.all<Row>(query, ...params); observe?.(query, rows.length); return rows;
+    } };
+    feed = new FeedModule(measured, attention, { ledger: feedLedgerPort(api), eventSink: () => { if (fail) throw new Error("event failed"); } });
     return feed;
   };
   const ingest = (id: string) => feed.commands.ingest({ project_id: "project-a", source_id: "source-a",
@@ -132,5 +136,81 @@ test("Feed link and Attention changes roll back with Ledger when event persisten
     assert.deepEqual(h.attention.query.list("project-a"), beforeAttention);
     assert.deepEqual(feed.events.list("project-a"), beforeEvents);
     assert.deepEqual(h.ledger.query.history(access, feedLedgerKey(`feed.goal:${item.item_id}`)), []);
+  } finally { h.db.close(); }
+});
+
+test("D0195: exact-key ledger batches are bounded, isolated and preserve removals", () => {
+  const db = openTestSqlite(":memory:");
+  try {
+    const ledger = createContextLedger(db, { authorize: request => request.actor_id === "alice" });
+    for (let n = 0; n < 205; n++) ledger.commands.put(access, { key: `edge-${n}`, type: "feed.goal", source: reference("feed", `item-${n}`), target: reference("goals", `goal-${n}`), cause: "test" });
+    const keys = Array.from({ length: 200 }, (_, n) => `edge-${n}`);
+    assert.equal(ledger.query.list(access, { keys }).length, 200);
+    assert.deepEqual(ledger.query.list(access, { keys: [] }), []);
+    assert.deepEqual(ledger.query.list(access, { keys: ["edge-204", "absent"] }).map(edge => edge.key), ["edge-204"]);
+    ledger.commands.remove(access, "edge-204", "removed");
+    assert.deepEqual(ledger.query.list(access, { keys: ["edge-204"] }), []);
+    assert.equal(ledger.query.list(access, { keys: ["edge-204"], include_removed: true })[0]?.state, "removed");
+    assert.deepEqual(ledger.query.list({ ...access, scope: { kind: "personal", id: "other" } }, { keys }), []);
+    assert.throws(() => ledger.query.list(access, { keys: [...keys, "one-too-many"] }), { code: "context_ledger.invalid_reference" });
+    assert.throws(() => ledger.query.list(access, { keys: [""] }), { code: "context_ledger.invalid_reference" });
+  } finally { db.close(); }
+});
+
+test("D0195: Feed pages fetch only selected materials and one exact-key ledger batch", () => {
+  const h = feedHarness();
+  try {
+    const ingesting = h.open();
+    for (let n = 0; n < 405; n++) {
+      const item = h.ingest(`page-${String(n).padStart(3, "0")}`);
+      ingesting.commands.upsertMaterial({ project_id: "project-a", item_id: item.item_id, material_id: `material-${n}`, canonical_url: null,
+        title: item.title, source_name: "GitHub", published_at: null, preview: `Selected material ${n}`, content_hash: null, content_ref: null,
+        content_available: true, content_type: "text/plain", character_count: 10, captured_at: null, provenance: {}, selected_for_context: false,
+        imported_at: "2026-11-08T00:00:00Z", updated_at: "2026-11-08T00:00:00Z" });
+    }
+    let gets = 0;
+    const batches: number[] = [];
+    const reads: { sql: string; count: number }[] = [];
+    const feed = h.open({ ...h.ledger, query: { ...h.ledger.query, get: (...args) => { gets++; return h.ledger.query.get(...args); }, list: (...args) => { batches.push(args[1]?.keys?.length ?? -1); return h.ledger.query.list(...args); } } }, (sql, count) => reads.push({ sql, count }));
+    const first = feed.query.list("project-a", { limit: 200, offset: 0 });
+    const next = feed.query.list("project-a", { limit: 200, offset: 200 });
+    const last = feed.query.list("project-a", { limit: 200, offset: 400 });
+    assert.deepEqual([first.length, next.length, last.length], [200, 200, 5]);
+    assert.equal(new Set([...first, ...next, ...last].map(item => item.item_id)).size, 405);
+    assert.deepEqual(batches, [200, 200, 5]); assert.equal(gets, 0, "listing never adds per-item ledger reads");
+    assert.ok([...first, ...next, ...last].every(item => item.body === null && item.materials.length === 0));
+    // D0205/D0229/D0238: measure rows returned by the real SQL adapter, not just the final page size.
+    assert.deepEqual(reads.filter(read => read.sql.includes("FROM feed_items")).map(read => read.count), [200, 200, 5]);
+    assert.deepEqual(reads.filter(read => read.sql.includes("FROM feed_materials")), [], "FBR-02 list queries never load materials");
+    reads.length = 0; batches.length = 0;
+    assert.equal(feed.query.list("project-a", { limit: 10_000, offset: 0 }).length, 200, "oversized requests cannot bypass the page cap");
+    reads.length = 0; batches.length = 0;
+    assert.deepEqual(feed.query.list("project-a", { limit: 200, offset: 405 }), []);
+    assert.deepEqual(feed.query.list("project-b", { limit: 200, offset: 0 }), []);
+    assert.deepEqual(batches, [], "empty pages do not scan the relationship ledger");
+    assert.equal(reads.filter(read => read.sql.includes("FROM feed_materials")).length, 0, "empty pages do not scan materials");
+    // FBR-02: metadata pages select no bodies or materials, even when a single item has many attachments.
+    const target = feed.query.get("project-a", last[0]!.item_id);
+    for (let n = 0; n < 405; n++) feed.commands.upsertMaterial({ ...target.materials[0]!, material_id: `large-${String(n).padStart(4, "0")}` });
+    reads.length = 0;
+    const metadata = feed.query.list("project-a", { limit: 200, offset: 400 });
+    assert.ok(metadata.every(item => item.body === null && item.materials.length === 0));
+    assert.equal(reads.filter(read => read.sql.includes("FROM feed_materials")).length, 0);
+    assert.ok(reads.filter(read => read.sql.includes("FROM feed_items")).every(read => !read.sql.includes("SELECT *")));
+    // FBR-03: every material remains accessible through bounded pages and the exact detail reader.
+    assert.deepEqual([0, 200, 400].map(offset => feed.query.materials("project-a", target.item_id, offset, 200).length), [200, 200, 6]);
+    assert.equal(feed.query.get("project-a", target.item_id, { offset: 400, limit: 200 }).materials.length, 6);
+    assert.deepEqual(feed.query.materials("project-b", target.item_id, 0, 200), []);
+    const matched = feed.query.list("project-a", { limit: 200, offset: 0, search: target.title, source_id: "source-a" });
+    assert.deepEqual(matched.map(item => item.item_id), [target.item_id], "search reaches records outside the initial page");
+    // FBR-04: stable-key walks keep later records even if an earlier page's item is deleted.
+    const idPage = feed.query.list("project-a", { limit: 200, offset: 0, sort: "id" });
+    const after = idPage.at(-1)!.item_id;
+    h.db.prepare("DELETE FROM feed_items WHERE item_id = ?").run(idPage[0]!.item_id);
+    const remainder = feed.query.list("project-a", { limit: 200, offset: 0, sort: "id", after_id: after });
+    assert.equal(remainder.length, 200); assert.ok(remainder.every(item => item.item_id > after));
+    assert.equal(feed.commands.deleteBySource("project-a", "source-a"), 404, "source deletion processes every batch");
+    assert.deepEqual(feed.query.list("project-a", { limit: 200, offset: 0 }), []);
+
   } finally { h.db.close(); }
 });

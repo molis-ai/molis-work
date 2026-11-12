@@ -1,6 +1,7 @@
 import type {
   PluginAppContribution,
   PluginManifest,
+  PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginEventContract } from "./event-contract.js";
@@ -11,6 +12,13 @@ export interface PluginActiveInstance {
   /** False once the Host revoked or stopped this instance mid-flight. */
   active(): boolean;
   contribution: PluginAppContribution;
+  /** The exact redeemed definition and activation, available only while this offer is current. */
+  source?(): PluginContributionSource | undefined;
+}
+
+export interface PluginContributionSource {
+  readonly manifest: PluginManifest;
+  readonly activation: PluginStartContext;
 }
 
 /**

@@ -53,7 +53,7 @@ export function projectWorkspaceFiles(ports: ProjectCapabilityPorts): ProjectWor
   };
 }
 
-const NOT_MADE_GIT: WorkspaceGitResult = { outcome: "not-a-repository", message: "这个文件夹还没有建立，不是 Git 仓库" };
+const NOT_MADE_GIT = { outcome: "not-a-repository", message: "这个文件夹还没有建立，不是 Git 仓库" } as const;
 
 export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
@@ -74,7 +74,9 @@ export function registerProjectCapabilities(
     }
     const granted = await current(runtime.project_id);
     const accepted = granted.find(item => item.workspace_id === query.workspace_id);
-    if (accepted && !await made(runtime.project_id, accepted.workspace_id)) return NOT_MADE_GIT;
+    if (accepted && !await made(runtime.project_id, accepted.workspace_id)) {
+      return query.kind === "status" ? { ...NOT_MADE_GIT, reason: "directory_not_created" } : NOT_MADE_GIT;
+    }
     const result = await readWorkspaceGit(query, granted);
     if (!(await current(runtime.project_id)).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
     return result;

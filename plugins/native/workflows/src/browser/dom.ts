@@ -1,27 +1,24 @@
 import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { Translate } from "./types.js";
 import type { WorkflowLinkKind } from "../model.js";
+
+const uiText = globalThis.t;
 
 export const ico = (name: string) => `<svg aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
 
-/** Words the Host or another plugin wrote (a plugin's name, a reason, what an action returned), or one of our own keys carried in a reason: the Host's dictionary translates them. */
-export const said = (L: Translate, text: string) => L(text);
-
-export const kindName = (L: Translate, kind: WorkflowLinkKind) =>
-  kind === "judgment" ? L("workflows.kind.judgment") : kind === "function" ? L("workflows.kind.function") : kind === "manual" ? L("workflows.kind.manual") : "AI";
-export const kindHelp = (L: Translate, kind: WorkflowLinkKind) =>
-  kind === "judgment" ? L("workflows.kind.judgment-help") : kind === "function" ? L("workflows.kind.function-help") : kind === "manual" ? L("workflows.kind.manual-help") : L("workflows.kind.ai-help");
+export const kindName = (kind: WorkflowLinkKind) =>
+  kind === "judgment" ? uiText.text("workflows.kind.judgment") : kind === "function" ? uiText.text("workflows.kind.function") : kind === "manual" ? uiText.text("workflows.kind.manual") : "AI";
+export const kindHelp = (kind: WorkflowLinkKind) =>
+  kind === "judgment" ? uiText.text("workflows.kind.judgment-help") : kind === "function" ? uiText.text("workflows.kind.function-help") : kind === "manual" ? uiText.text("workflows.kind.manual-help") : uiText.text("workflows.kind.ai-help");
 
 export const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "") ? "⌘" : "Ctrl";
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
 export const when = (iso: string | null | undefined) => {
   if (!iso) return "";
-  const date = new Date(iso), lang = document.documentElement.lang || undefined;
-  return date.toDateString() === new Date().toDateString()
-    ? date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })
-    : date.toLocaleDateString(lang, { month: "short", day: "numeric" });
+  const date = new Date(iso);
+  return uiText.text("common.generated.formatted", { value: dateArg(iso, date.toDateString() === new Date().toDateString() ? "time" : "month-day") });
 };
 
 export const required = requiredQuery(selector => `Workflows page: ${selector} is missing`);

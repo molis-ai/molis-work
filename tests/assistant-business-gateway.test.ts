@@ -1,3 +1,5 @@
+import { pageText } from "./fixtures/page-text.js";
+import { inAssistantPage, noticeText } from "./fixtures/assistant-saved-text.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
@@ -7,16 +9,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AGENT_TOOLS, AgentHost, AgentReviewQueue, createPrologueNodeAdapter, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, actionFieldLabelSource, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
 import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
-import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, presentActivity, TOOL_ACTIVITY_VERBS } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -214,7 +216,7 @@ test("without a model the work and its text are kept, with a next step", { timeo
   const f = await fixture(t, [], { model: false });
   try {
     let retainedId: unknown; // W3-02-G3-03: the same work and original draft travel in owner details.
-    await assert.rejects(f.service.send({ text: "Plan my week", request_id: "req-00000005" }, {}), (error: unknown) => {
+    await assert.rejects(inAssistantPage("zh", () => f.service.send({ text: "Plan my week", request_id: "req-00000005" }, {})), (error: unknown) => {
       assert.ok(error instanceof ActionError);
       assert.equal(error.code, "assistant.model_missing");
       assert.equal(error.kind, "invalid");
@@ -229,7 +231,7 @@ test("without a model the work and its text are kept, with a next step", { timeo
     assert.equal(work!.draft, "Plan my week");
     assert.equal(work!.work_id, retainedId);
     // The failed Send released its id: trying again is a new attempt, not a replay of the failure.
-    await assert.rejects(f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {}), /模型/);
+    await assert.rejects(inAssistantPage("zh", () => f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {})), /模型/);
   } finally { await f.close(); }
 });
 
@@ -237,23 +239,28 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
   const f = await fixture(t, [], { model: false });
   try {
     const text = "Plan a review next week.";
-    await assert.rejects(runWithLocale("en", () => f.service.send({ text, request_id: "req-00000011" }, {})), (error: unknown) => {
+    await assert.rejects(inAssistantPage("en", () => f.service.send({ text, request_id: "req-00000011" }, {})), (error: unknown) => {
       assert.ok(error instanceof ActionError);
       assert.equal(error.code, "assistant.model_missing");
-      assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
+      assert.equal(error.message, "No usable model is configured yet, so the assistant can’t start");
       // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
-      const shown = error.message + EN["。输入已保留"];
-      assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
+      const shown = error.message + pageText("en")("workbench.assistant-send.text-kept");
+      assert.equal(shown, "No usable model is configured yet, so the assistant can’t start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
       assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
-      assert.equal(EN[String(error.details?.action)], "Open model settings");
+      assert.equal(pageText("en")("workbench.settings-connectors.open-model-settings"), "Open model settings");
       const kept = error.details?.work as { draft?: string } | undefined;
       assert.equal(kept?.draft, text, "the text is kept word for word");
       return true;
     });
     assert.equal((await f.service.list())[0]!.draft, text);
-    await assert.rejects(f.service.send({ text, request_id: "req-00000012" }, {}), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
+    await assert.rejects(inAssistantPage("zh", () => f.service.send({ text, request_id: "req-00000012" }, {})), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
+});
+
+test("CPK-07: the activity table names only Agent tools — by the tool set's name or the runtime's own name for one", () => {
+  const runtimeNames = [...AGENT_TOOLS.flatMap(tool => tool.runtime_name ? [tool.runtime_name] : []), ...RUNTIME_TOOLS_NOT_OFFERED.map(row => row.runtime_name)];
+  assert.deepEqual(Object.keys(TOOL_ACTIVITY_VERBS).filter(name => !isAgentTool(name) && !runtimeNames.includes(name)), []);
 });
 
 test("activity and review read in the person's terms", () => {
@@ -566,8 +573,8 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     state.value = "completed";
     view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.jobs?.[0]?.state === "completed" ? v : undefined; }, "job ended");
     assert.equal(typeof view.jobs![0]!.ended_at, "string");
-    await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
-    assert.match(f.service.notices.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
+    await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(noticeText(notice))), "the person is told");
+    assert.match(noticeText(f.service.notices.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(noticeText(notice)))!), /「Research · Start research」在后台完成了/);
     await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second round");
 
@@ -581,7 +588,7 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     state.value = "failed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成"]);
-    assert.equal(f.service.notices.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
+    assert.equal(f.service.notices.notices(null).filter(notice => /后台/.test(noticeText(notice))).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
 
@@ -607,13 +614,13 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"]);
-    await until(() => f.service.notices.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
+    await until(() => f.service.notices.notices(null).some(notice => /后台完成了/.test(noticeText(notice))), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
     try {
       assert.equal(await again.notices.attachSchedule(), true);
       await new Promise(resolve => setTimeout(resolve, 300));
-      assert.equal(f.service.notices.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+      assert.equal(f.service.notices.notices(null).filter(notice => /后台完成了/.test(noticeText(notice))).length, 1, "one completion notice");
     } finally { again.continuations.close(); }
   } finally { await f.close(); }
 });
@@ -638,7 +645,7 @@ test("W2-18-JOB-04: a work that 500 newer works have passed still answers for th
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
-    await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
+    await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(noticeText(notice))), "the person is told");
   } finally { await f.close(); }
 });
 
@@ -1339,6 +1346,9 @@ test("a review names common fields in words even when the plugin gave them no ti
   const fields = readableInput({ type: "object", properties: { markdown: { type: "string", description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档" }, folder_id: { type: "string" } } },
     { markdown: "# 周报", folder_id: "f1" });
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
+  assert.deepEqual(actionFieldLabelSource("markdown"), { label: "正文", defaultKey: "markdown" });
+  assert.deepEqual(actionFieldLabelSource("markdown", { title: "正文" }), { label: "正文" }, "an author's matching wording remains the author's text");
+  assert.deepEqual(actionFieldLabelSource("__proto__"), { label: "__proto__" });
 });
 
 test("the project layer of a project work is the project's guidance, read through the Goals action", async () => {

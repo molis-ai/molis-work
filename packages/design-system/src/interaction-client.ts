@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import type { UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { InteractionValues, InteractionPicked, InteractionClientHost, InteractionClient } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 
 
@@ -25,12 +26,11 @@ export function interactionFields(root: HTMLElement) {
     const current = radios.find(checked) ?? radios[0];
     for (const radio of radios) radio.tabIndex = radio === current ? 0 : -1;
   };
-  const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
   const refreshWeekday = (dateField: HTMLElement | null) => {
     const input = dateField && q<HTMLInputElement>(dateField, "input"), label = dateField && q(dateField, "[data-ix-weekday]");
     if (!input || !label) return;
     const day = /^\d{4}-\d{2}-\d{2}$/.test(input.value) ? new Date(`${input.value}T12:00:00Z`) : null;
-    label.textContent = day && !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === input.value ? weekdays[day.getUTCDay()]! : "";
+    label.textContent = day && !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === input.value ? new Intl.DateTimeFormat(root.ownerDocument.documentElement.lang || undefined, { weekday: "short", timeZone: "UTC" }).format(day) : "";
   };
   const referenceChips = (box: HTMLElement, refs: InteractionPicked[]) => q(box, "[data-ix-picked]")!.replaceChildren(...refs.map(ref => {
     const chip = q<HTMLTemplateElement>(box, "template[data-ix-chip]")!.content.firstElementChild!.cloneNode(true) as HTMLElement;
@@ -229,7 +229,8 @@ export function interactionReferences(host: InteractionClientHost, fields: Retur
     }));
     p.list.hidden = !items.length;
     p.input.ariaExpanded = String(!!items.length);
-    p.status.textContent = items.length ? p.labels.found!.replace("{n}", String(items.length)) : p.labels.empty!;
+    const readText = (globalThis as typeof globalThis & { t: UiTextTool }).t?.text;
+    p.status.textContent = items.length ? p.labels.found?.replace("{n}", String(items.length)) ?? (readText ? readText("common.interaction.reference-results", { count: items.length }) : String(items.length)) : p.labels.empty!;
   };
   const search = (p: Parts) => {
     const text = p.input.value.trim(), mine = ++asked;

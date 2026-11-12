@@ -1,3 +1,11 @@
+import { studioProblem, studioProblemWord } from "@molis-ai/molis-work-plugin-builder";
+import { effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
+import { studioManifestWords, studioWordReader } from "./studio-words.js";
+import { installedPluginWords, installedPluginPage } from "./installed-page.js";
+import { shellPageRead } from "../web-sessions.js";
+import { modelRoundLocale } from "../reply-language.js";
+import { htmlLang, runWithRegisteredText } from "../web-locale.js";
+import { registeredBuiltinText } from "../ui-text-provider.js";
 import { withPassiveSyncExecution } from '../passive-sync-execution.js';
 import { prepareStudioAction } from "./storage.js";
 import { publicBuild, publicRelease } from './authoring-view.js';
@@ -6,23 +14,22 @@ import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-agents.js';
 import { registeredInstructionBody } from '../agent-definitions/instructions.js';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import type { CapabilityImplementations } from './capabilities.js';
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, say, t as uiText, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
-import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
-import type { InstalledRelease } from '../installed-release.js';
-import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
+import { installedPluginBody, installedStageSurface } from '../installed-stage-section.js';
+import { installedStageSection } from '../workbench-renderer.js';
+import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
-import { generatedPluginManifest } from './installed.js';
 import { capabilityCatalog, type CatalogCapability, type ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
@@ -30,7 +37,7 @@ import { readStudioDistribution } from './studio-release.js';
 import { builderPorts } from './studio-ports.js';
 import { studioModels } from './studio-models.js';
 import { studioImages } from './studio-images.js';
-import { createStudioPreview } from './studio-preview.js';
+import { createStudioPreview, studioDraftManifest } from './studio-preview.js';
 
 export type { AgentBuild, AgentBuilderPorts, AgentRelease, AgentPublicationControl };
 
@@ -76,6 +83,30 @@ export interface Studio {
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
 const MODEL_KEY = INSTALLED_MODEL_KEY;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+/** The HTTP action has not finished. Its locale is still live, and these words are the shipped Builder's. */
+function studioWord(key: string, fallback: string): string {
+  const reader = registeredBuiltinText(builderManifest);
+  return reader ? runWithRegisteredText(reader, () => uiText.text(key)) : fallback;
+}
+function sendStudioProblem(response: ServerResponse, status: number, error: unknown, code?: string): void {
+  const problem = studioProblemWord(error), reader = problem && registeredBuiltinText(builderManifest);
+  const original = message(error), coded = code ? { code } : {};
+  const ref = reader && problem && tryOwnedTextRef(problem.text, reader.owner);
+  if (!problem || !reader || !ref || !("key" in ref) || reader.pack(reader.default)?.messages[ref.key] === undefined) {
+    sendLocalWebJson(response, status, { error: original, ...coded }); return;
+  }
+  const translated = runWithRegisteredText(reader, () => say.text(ref));
+  const detail = problem.detail === undefined ? {} : { detail: problem.detail };
+  sendLocalWebJson(response, status, { error: problem.detail === undefined ? translated : translated + " " + problem.detail,
+    text: problem.text, ...detail, ...coded });
+}
+
+function installedRecoveryHtml(error: string): string {
+  const title = studioWord("plugin-builder.request.recovery-title", "插件暂时无法运行");
+  const hint = studioWord("plugin-builder.request.recovery-hint", "请在插件创作工作台里检查安装。");
+  return '<main class="as-preview-page"><h1>' + escapeHtml(title) + '</h1><p role="alert" translate="no">' + escapeHtml(error)
+    + '</p><p>' + escapeHtml(hint) + '</p></main>';
+}
 
 /**
  * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
@@ -83,8 +114,8 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
   return (name, shipped) => {
-    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
-    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
+    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text, body_by_locale: BUILDER_PROMPTS[name].body_by_locale }, modelRoundLocale(home));
+    return { version: resolved.user_revision === undefined ? shipped.version : `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
   };
 }
 
@@ -129,16 +160,21 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   return studio;
 }
 
-function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string) {
+function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string, draft?: { build: AgentBuild; workflow: AgentBuilderWorkflow }) {
   if (!options.homeDirectory) throw new Error('插件页面需要 Home');
-  const installed = configuration.mode === 'installed', pluginId = installed ? String(configuration.plugin_id) : BUILDER_PLUGIN_ID;
+  const installed = configuration.mode === 'installed', design = draft?.build.design, pluginId = installed ? String(configuration.plugin_id) : design?.localePacks ? design.contract.pluginId : BUILDER_PLUGIN_ID;
+  const manifest = design?.localePacks ? studioDraftManifest({ pluginId, name: design.title, textDeclarations: studioManifestWords(design),
+    publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + draft!.build.id }, presentation: design.presentation !== undefined, effects: effectsFromContract(design.contract), contract: design.contract }) : builderManifest;
   const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
   const authorization = pluginPagesFor(options.homeDirectory).open(pluginId, options.projectId, options.actorId ?? 'web-user', undefined, installed ? undefined : {
-    manifest: builderManifest, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
-    assertCurrent() { if (!active || studios.get(options.store)?.get(options.projectId) !== active) throw new Error('试用页面已关闭'); },
-    requestAllowed: (method, path) => method === 'GET' && path === buildPath || method === 'POST' && path === buildPath + '/call',
+    manifest, ...(design?.localePacks ? { exact: true } : {}), registeredText: (design?.localePacks ? studioWordReader(design, manifest) : registeredBuiltinText(builderManifest)) ?? undefined, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
+    assertCurrent() {
+      if (!active || studios.get(options.store)?.get(options.projectId) !== active || draft && draft.workflow.store.get(draft.build.id)?.design?.contract.revision !== design?.contract.revision)
+        throw new Error('试用页面已关闭');
+    },
+    requestAllowed: (method, path) => method === 'POST' && path === buildPath + '/call',
   });
-  return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder',
+  return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
     title, html: body, accountRegistration:options.accountRegistration, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
 }
 function html(response: ServerResponse, body: string) {
@@ -158,8 +194,8 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
   return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
-    const surface = installedStageSurface(release), label = release.design.title;
-    const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
+    const surface = installedStageSurface(release), words = installedPluginWords(release), label = words.name;
+    const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, chosen: false, ...words };
     return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix }) }];
   });
 }
@@ -169,29 +205,31 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
  * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
  * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-107).
  */
-export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; accountRegistration?:boolean; projectId?: string | null; assertProject?(): Promise<void> }): string {
-  const { release } = input, pluginId = release.pluginId;
-  const projectId = input.projectId ?? null, prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
-  const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
-    connected: release.design.contract.operations.map(item => item.id) };
-  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title, accountRegistration:input.accountRegistration,
-    html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: projectId ?? '', route_prefix: prefix, control_token: input.controlToken,
-    page: { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view },
-    authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject) });
+export function renderHomePackageDocument(input: Omit<Parameters<typeof installedPluginPage>[0], 'prefix' | 'scope'> & {
+  controlToken: string; accountRegistration?: boolean; projection?: boolean;
+}) {
+  const { release, projectId } = input, pluginId = release.pluginId;
+  const prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
+  const document = installedPluginPage({ ...input, scope: 'home', prefix });
+  return input.projection ? document : renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
+    title: installedPluginWords(release).name, accountRegistration: input.accountRegistration, html: installedPluginBody(pluginId), project_id: projectId ?? '',
+    route_prefix: prefix, control_token: input.controlToken, ...document });
 }
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */
 export async function handleAgentStudioHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: AgentStudioOptions, controlToken: string): Promise<boolean> {
   const preview = /^\/plugin-builder\/studio\/preview\/([a-f0-9-]{36})$/u.exec(url.pathname);
   const api = /^\/api\/plugin-builder\/studio(\/.*)?$/u.exec(url.pathname);
-  const installedPage = /^\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
+  const installedPage = /^\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})$/u.exec(url.pathname);
+  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})\/call$/u.exec(url.pathname);
   if (!preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
   // These pages are frame documents: the studio's trial or the host's own acceptance run asks for them with the frame
   // marker. Opened directly, they open the workbench at their surface instead (specs/artifact-positioning S3). The studio
   // itself is drawn in the workbench's stage (S4) and has no page of its own.
   const framed = url.searchParams.get('frame') === 'workbench';
+  const projection = installedPage && framed && request.headers.accept === 'application/json';
+  if (projection && (method !== 'GET' || !shellPageRead(request, 'http://' + requestHost(request)))) { refuseLocalWebRequest(response); return true; }
   const openWorkbench = (query: string) => { response.writeHead(302, { location: prefix + '/?' + query, 'cache-control': 'no-store' }); response.end(); return true; };
   if (preview && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
   const pageAuthority = pluginPageRequest(request), disconnected = new AbortController();
@@ -211,22 +249,23 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (!record) return false;
       if (installedCall && method === 'POST') {
         const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
-        if (!result) { sendLocalWebJson(response, 409, { error: '这个插件当前没有运行，请在创作台里启用' }); return true; }
+        if (!result) { sendStudioProblem(response, 409, studioProblem("plugin-builder.request.plugin-not-running", '这个插件当前没有运行，请在创作台里启用')); return true; }
         sendLocalWebJson(response, result.status, result.body); return true;
       }
       if (installedPage && method === 'GET') {
         const release = installed.releaseFor(pluginId);
-        if (!release) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
-        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent('app-' + release.buildId));
+        if (!release) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.installation-not-found", '找不到这个插件的已安装版本')); return true; }
+        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent(installedStageSurface(release)));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
-          html(response, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
-            + '</p><p>请在插件创作工作台里检查安装。</p></main>'); return true;
+          html(response, installedRecoveryHtml(recoveryError)); return true;
         }
-        const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
-        // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
-        const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
-        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken));
+        const document = installedPluginPage({ home: options.homeDirectory, actorId: options.actorId ?? 'web-user', projectId: options.projectId,
+          prefix, release, scope: 'project', running: () => installed.records().find(item => item.plugin_id === pluginId) });
+        if (projection) sendLocalWebJson(response, 200, document);
+        else html(response, renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
+          title: installedPluginWords(release).name, html: installedPluginBody(pluginId), project_id: options.projectId, route_prefix: prefix, control_token: controlToken,
+          accountRegistration: options.accountRegistration, ...document }));
         return true;
       }
     }
@@ -236,16 +275,18 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (served && /:\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
     if (preview && method === 'GET') {
-      const build = workflow.store.require(preview[1]!);
-      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', { mode: 'preview', acceptance: url.searchParams.get('acceptance'), build: build.id }, options, controlToken));
+      const build = workflow.store.require(preview[1]!), design = build.design;
+      const view = design && { contract: design.contract, nodes: inDesignOrder(design, build.nodes), connected: build.connected, presentation: design.presentation,
+        deriveFieldWords: design.localePacks !== undefined };
+      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', { mode: 'preview', acceptance: url.searchParams.get('acceptance'), build: build.id, view }, options, controlToken, { build, workflow }));
       return true;
     }
     const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);
     if (mockup && method === 'GET') {
       const picture = workflow.store.require(mockup[1]!).candidates.find(item => item.id === mockup[2])?.mockup;
-      if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendLocalWebJson(response, 404, { error: '这个方案还没有效果图' }); return true; }
+      if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-not-ready", '这个方案还没有效果图')); return true; }
       const image = await studio.mockupImage!(picture.jobId, picture.imageId).catch(() => null);
-      if (!image) { sendLocalWebJson(response, 404, { error: '效果图读取失败' }); return true; }
+      if (!image) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-unreadable", '效果图读取失败')); return true; }
       response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
     }
     if (route === '/state' && method === 'GET') {
@@ -263,20 +304,20 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (route === '/settings' && method === 'POST') {
       const body = await readLocalWebBody(request), models = await options.models(); pageAuthority?.assertCurrent();
       const chosen = models.find(item => item.provider_id === body.provider_id && item.model_id === body.model_id);
-      if (!chosen) throw new Error('所选模型尚未配置，请在模型设置中完成配置');
+      if (!chosen) throw studioProblem("plugin-builder.request.model-not-configured", '所选模型尚未配置，请在模型设置中完成配置');
       studio.storage.set(MODEL_KEY, JSON.stringify({ provider_id: chosen.provider_id, model_id: chosen.model_id }));
       sendLocalWebJson(response, 200, { model: chosen }); return true;
     }
     if (route === '/builds' && method === 'POST') {
       const body = await readLocalWebBody(request); pageAuthority?.assertCurrent();
-      if (!studio.storage.get(MODEL_KEY) && !options.agents) throw new Error('请先选择构建使用的模型');
+      if (!studio.storage.get(MODEL_KEY) && !options.agents) throw studioProblem("plugin-builder.request.model-required", '请先选择构建使用的模型');
       sendLocalWebJson(response, 201, { build: publicBuild(workflow.create(String(body.brief ?? ''))) }); return true;
     }
     if (build && !build[2] && method === 'GET') { sendLocalWebJson(response, 200, { build: publicBuild(workflow.store.require(build[1]!)), versions: workflow.store.versions(build[1]!).map(publicRelease) }); return true; }
     if (build && build[2] === '/download' && method === 'GET') {
       workflow.store.require(build[1]!);
       const version = Number(url.searchParams.get('version')), release = workflow.store.versions(build[1]!).find(item => item.version === version);
-      if (!release) throw new Error('发布版本不存在');
+      if (!release) throw studioProblem("plugin-builder.request.version-not-found", '发布版本不存在');
       const bundle = await readStudioDistribution(studio.root, release); assertCurrent();
       response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
         'content-disposition': 'attachment; filename="' + release.pluginId + '-v' + release.version + '.json"' });
@@ -299,13 +340,13 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     }
     if (build && build[2] === '/call' && method === 'POST') {
       const body = await readLocalWebBody(request);
-      if (body.binding !== 'read' && body.binding !== 'submit') throw new Error('未知的组件操作');
+      if (body.binding !== 'read' && body.binding !== 'submit') throw studioProblem("plugin-builder.request.unknown-component-operation", '未知的组件操作');
       sendLocalWebJson(response, 200, { value: await (typeof body.acceptance === 'string' ? studio.callAcceptance(build[1]!, body.acceptance, String(body.componentId ?? ''), body.binding, body.payload ?? {}, execution) : workflow.call(build[1]!, String(body.componentId ?? ''), body.binding, body.payload ?? {}, execution)) }); return true;
     }
-    sendLocalWebJson(response, 404, { error: '未声明的创作台操作' }); return true;
+    sendStudioProblem(response, 404, studioProblem("plugin-builder.request.unknown-studio-operation", '未声明的创作台操作')); return true;
   } catch (error) {
     const code = (error as { code?: string }).code;
-    sendLocalWebJson(response, code === 'revision_conflict' ? 409 : 400, { error: message(error), ...(code ? { code } : {}) });
+    sendStudioProblem(response, code === 'revision_conflict' ? 409 : 400, error, code);
     return true;
   } finally { request.removeListener('aborted', disconnect); response.removeListener('close', disconnect); }
 }

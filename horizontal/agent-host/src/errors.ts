@@ -26,6 +26,7 @@ export const agentErrors = defineErrorCodes("agent", {
   review_not_permitted: "forbidden",
   review_unknown: "invalid",
   role_execution_exceeded: "invalid",
+  role_tool_unknown: "invalid",
   role_not_declared: "invalid",
   role_not_frozen: "invalid",
   run_unknown: "invalid",

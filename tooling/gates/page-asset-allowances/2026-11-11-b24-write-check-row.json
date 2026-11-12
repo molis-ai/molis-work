@@ -1,0 +1,8 @@
+{
+  "reason": "第 24 批第 1 项（原 BL-301、BL-303）：Coding 时间线在写入一行下面显示写后检查的结果（检查器名与版本、通过、未通过、超时、已取消、回执读不到）的文字与样式。第 3 项的证据等级本批不显示（BL-goal-evidence-display）。对 ef06fed603b9f732b0e14f0d97132888bc9e786f 的真实 Host 构建实测；不新增资源。",
+  "review": "第 24 批 PR，主会话按 11.1 收尾检查核对；两个现有资源各自增长远小于 10 KB，按资源规则一次性放行。",
+  "assets": {
+    "/assets/molis-work-plugins/coding.js": 682,
+    "/assets/molis-work-plugins/coding.css": 97
+  }
+}

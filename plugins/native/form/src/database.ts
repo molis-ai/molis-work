@@ -4,7 +4,7 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its forms go with every
  * answer people gave them, and the receipts of copies made into it.
  */
-const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Forms 问卷及收到的全部回答", order: 20,
+const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "form.project-deletion.data" }, order: 20,
   artifact_join: { table: "forms", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
     artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
   tables: [
@@ -13,10 +13,9 @@ const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Forms 问卷�
   { table: "form_copies", column: "project_id" },
 ] };
 /**
- * The form store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in. It is the library the Host's start
- * list gives the running plugin (`services.database`), read with `form:read` and written with `form:write`; the store's
- * own connection (deletion, tests) opens the same file at the same baseline.
+ * The Form baseline defines the schema for new stores and the expected version and column order for existing stores.
+ * The running plugin reads this library with `form:read` and writes it with `form:write` via `services.database`.
+ * The store's own connection for deletion and tests opens the same file at the same baseline.
  */
 export const FORM_DATABASE: HomePluginDatabaseDeclaration = { project_rows: FORM_PROJECT_ROWS, store_name: "form", version: /* @version database.form_database */ 1, read_permission: "form:read", write_permission: "form:write", schema: `
   CREATE TABLE forms (

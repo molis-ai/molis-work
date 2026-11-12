@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.clickup",
+  "locale": "en",
+  "messages": {
+    "clickup.connection.auth-help": "Create an API token in ClickUp Settings → Apps. Send it in the Authorization header without the Bearer prefix.",
+    "clickup.connection.inbound": "Feed retrieves tasks and documents",
+    "clickup.connection.summary": "Tasks and documents.",
+    "clickup.connection.token-label": "ClickUp API Token",
+    "clickup.guide.mcp-connected-note": "The official ClickUp MCP service is in public beta.",
+    "clickup.guide.mcp-link": "View the official ClickUp MCP",
+    "clickup.guide.mcp-note": "The official ClickUp MCP service is in public beta. Molis Work has not integrated it.",
+    "clickup.guide.oauth-link": "View ClickUp OAuth",
+    "clickup.setup.open-clickup-apps-settings": "Open ClickUp Apps settings"
+  }
+}

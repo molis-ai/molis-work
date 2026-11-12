@@ -5,9 +5,7 @@
  * translation channel (`#collab-words`, as `platform-area-words` does).
  */
 const root = document.getElementById("collab");
-const words: Record<string, string> = JSON.parse(document.getElementById("collab-words")?.textContent || "{}");
-const t = (text: string, values: Record<string, string | number> = {}) =>
-  (words[text] ?? text).replace(/\{(\w+)\}/g, (all, name: string) => String(values[name] ?? all));
+const t = globalThis.t.text;
 const pressed = (node: Element) => node.getAttribute("aria-pressed") === "true";
 const nodes = <T extends Element = HTMLElement>(scope: ParentNode, selector: string) => [...scope.querySelectorAll<T>(selector)];
 
@@ -23,7 +21,7 @@ function check(button: HTMLButtonElement): void {
   if (!row || !reqs) return;
   const on = !pressed(button), title = row.querySelector(".mw-req__title")?.textContent ?? "";
   button.setAttribute("aria-pressed", String(on));
-  button.setAttribute("aria-label", t(on ? "{title}：已验过，点一下取消" : "{title}：验过就勾上", { title }));
+  button.setAttribute("aria-label", t(on ? "workbench.collab-specimens.title-verified-tap-to-uncheck" : "workbench.collab-specimens.title-check-it-once-verified", { title }));
   row.dataset.state = on ? "done" : "open";
   countRequirements(reqs);
 }
@@ -34,7 +32,7 @@ function chooseTopic(topic: HTMLElement, scope: HTMLElement): void {
   topic.querySelector(".mw-sr-only")?.remove();
   const status = scope.querySelector<HTMLElement>("[data-topic-status]"), to = scope.querySelector("[data-topic-to]");
   if (status) { status.textContent = topic.dataset.status ?? ""; status.dataset.tone = topic.dataset.tone ?? ""; }
-  if (to) to.textContent = t("发给 {name}", { name: String(topic.firstChild?.textContent ?? "") });
+  if (to) to.textContent = t("workbench.collab-section.to-name", { name: String(topic.firstChild?.textContent ?? "") });
 }
 
 function answer(card: HTMLElement, said: string | null): void {
@@ -62,7 +60,7 @@ function review(button: HTMLElement): void {
   if (!box || pressed(button)) return;
   button.setAttribute("aria-pressed", "true");
   const label = button.querySelector("[data-slot=button-label]");
-  if (label) label.textContent = t("已过目");
+  if (label) label.textContent = t("workbench.collab-section.reviewed");
   const looks = nodes(box, "[data-review]"), seen = looks.filter(pressed).length;
   const count = box.querySelector("[data-review-count]"), send = box.querySelector<HTMLButtonElement>("[data-review-send]");
   if (count) count.textContent = `${seen}/${looks.length}`;
@@ -91,7 +89,7 @@ if (root) {
   if (previous) clearInterval(previous);
   let line = root.querySelector<HTMLElement>("[data-preparing-line]");
   if (line && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const LINES = [t("读了阿哲的文档"), t("查了现成的能力"), t("画好一版插件草图")];
+    const LINES = [t("workbench.collab-section.read-zhe-s-document"), t("workbench.collab-section.checked-the-ready-capabilities"), t("workbench.collab-section.drew-a-first-plugin-sketch")];
     let at = 0, timer = 0;
     const stop = () => { if (timer) { clearInterval(timer); timer = 0; } delete holder.dataset.collabPreparingTimer; };
     timer = window.setInterval(() => {

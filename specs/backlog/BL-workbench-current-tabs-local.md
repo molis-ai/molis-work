@@ -4,4 +4,4 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BL-workbench-current-tabs-local | `tests/workbench-current-tabs.e2e.test.ts`（RAC-2687）在本机（macOS，机器槽位 `--jobs 1`）干净 main 上反复失败：写手在 `05993c100` 上 3 次失败 2 次，评审台更早一次在干净 main 上 6 次全失败；CI 上能过 | 第 07 批写手用基线工作树比对时发现（开发流程第 8 节） | 待复现 | 第 07 批改动之外，同一失败在干净 main 上一样出现；要先分清是用例时序、夹具还是本机负载。不为变绿放宽断言 | 无 | 低 | 工作台浏览器验证线（具体会话待分配） |
+| BL-workbench-current-tabs-local | `tests/workbench-current-tabs.e2e.test.ts`（RAC-2687）在本机（macOS，机器槽位 `--jobs 1`）干净 main 上反复失败：写手在 `05993c100` 上 3 次失败 2 次，评审台更早一次在干净 main 上 6 次全失败；CI 上能过 | 第 07 批写手用基线工作树比对时发现（开发流程第 8 节） | 待复现 | 第 07 批改动之外，同一失败在干净 main 上一样出现；要先分清是用例时序、夹具还是本机负载。不为变绿放宽断言。同一文件在 CI 上的偶发 CDP 超时另见 [BL-workbench-current-tabs-flaky](BL-workbench-current-tabs-flaky.md) | 无 | 低 | 工作台浏览器验证线（具体会话待分配） |

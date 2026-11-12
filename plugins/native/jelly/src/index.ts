@@ -2,14 +2,15 @@ export * from "./contract.js";
 export * from "./manifest.js";
 export * from "./ui.js";
 export * from "./client.js";
-export { JELLY_MESSAGES } from "./messages.js";
 export * from "./styles.js";
-export * from "./en.js";
 export { JELLY_INSTRUCTIONS } from "./prompts.js";
-export * from "./calendar.js";
+export {
+  applyJellyCalendarCommand, compareJellyOccurrences, emptyJellyWorkspace, JELLY_UNCATEGORIZED_ID,
+  jellyOccurrences, jellyProgress, jellySchedulesOverlap, makeJellyItem, validateJellyWorkspace,
+} from "./calendar.js";
 export * from "./store.js";
 export * from "./replication.js";
-export * from "./content.js";
+export { applyJellyContentCommand, jellyHash, jellySourceHash, validateJellyContent } from "./content.js";
 export * from "./markdown.js";
 export * from "./import.js";
 export * from "./error.js";

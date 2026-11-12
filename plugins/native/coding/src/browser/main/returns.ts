@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderResumePrompt } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiReturnOutcome } from "@molis-ai/molis-work-plugin-sdk";
 import { errorMessage } from "../dom.js";
@@ -38,7 +39,7 @@ async function goForModel(page: Page, send: () => Promise<void>): Promise<void> 
 
 async function back(page: Page, outcome: UiReturnOutcome, send: () => Promise<void>): Promise<void> {
   const key = outcome.carry.draft_key ?? "", session = key.startsWith("composer:") ? key.slice("composer:".length) : "";
-  const { host, input, L, q, s } = page;
+  const { host, input, q, s } = page;
   if (session && outcome.status !== "ready") { await host.drafts.write(key, null); return; }
   if (outcome.status !== "ready" || outcome.carry.step !== "send" || !session) return;
   const words = await host.drafts.read(key);
@@ -46,7 +47,7 @@ async function back(page: Page, outcome: UiReturnOutcome, send: () => Promise<vo
   page.root.querySelector("[data-coding-resume]")?.remove();
   const holder = document.createElement("div");
   holder.dataset.codingResume = "";
-  holder.innerHTML = renderResumePrompt({ title: L("coding.resume.model-ready"), body: L("coding.resume.kept"), resume: L("coding.resume.send"), dismiss: L("coding.resume.dismiss") });
+  holder.innerHTML = renderResumePrompt({ title: uiText.text("coding.resume.model-ready"), body: uiText.text("coding.resume.kept"), resume: uiText.text("coding.resume.send"), dismiss: uiText.text("coding.resume.dismiss") });
   q("[data-coding-composer]").prepend(holder);
   holder.querySelector<HTMLElement>("[data-resume-prompt=resume]")?.focus({ preventScroll: true });
   holder.addEventListener("click", event => {
@@ -58,7 +59,7 @@ async function back(page: Page, outcome: UiReturnOutcome, send: () => Promise<vo
     void (async () => {
       if (s.current !== session) await select(page, session);
       if (s.current !== session) return;
-      if (!input.value.trim()) { input.value = words; window.molisFit?.(input); }
+      if (!input.value.trim()) { input.value = words; window.molisFit?.(input); input.dispatchEvent(new Event("input", { bubbles: true })); }
       await send();
     })().catch((error: unknown) => status(page, errorMessage(error), true));
   });

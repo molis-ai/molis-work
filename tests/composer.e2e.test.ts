@@ -424,11 +424,19 @@ test("UIV-14 §3.3: `@` in the text is the system search inside the component; a
   assert.deepEqual(await page.evaluate("globalThis.searchAsked"), [{ query: "访谈", scope: "all", limit: 8 }], "one search for the words after @, as the search palette asks it");
   assert.match(await page.evaluate<string>("document.querySelector('[data-composer-mention]').textContent"), /访谈记录.*测试笔记/, "each hit says which plugin it is from");
   await page.screenshot(join(EVIDENCE, "plain-mention-zh-1440-light.png"));
-  // Down from the text goes into the hits; choosing one takes the @words out and puts the reference in the strip.
-  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
-  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
-  assert.equal(await page.evaluate("document.activeElement?.dataset.composerMention"), "0");
-  await page.click("[data-composer-mention='1']");
+  // The first hit is marked as the list appears, so Enter alone takes it; Down marks the next while the caret stays in the text (the
+  // field names the marked one as its active descendant), so the words can still be changed. Enter takes the marked one: the @words
+  // come out and the reference goes on the strip.
+  const key = async (name: string, code: number) => {
+    await page.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: name, code: name, windowsVirtualKeyCode: code });
+    await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code });
+  };
+  assert.equal(await page.evaluate("document.querySelector('[data-composer-mention][data-active]')?.dataset.composerMention"), "0", "the first hit is marked");
+  assert.equal(await page.evaluate("document.querySelector('.mw-composer__input').getAttribute('aria-activedescendant') === document.querySelector('[data-composer-mention][data-active]').id"), true);
+  await key("ArrowDown", 40);
+  assert.equal(await page.evaluate("document.activeElement?.matches('.mw-composer__input')"), true, "the caret stays in the text");
+  assert.equal(await page.evaluate("document.querySelector('[data-composer-mention][data-active]')?.dataset.composerMention"), "1");
+  await key("Enter", 13);
   assert.deepEqual([(await state()).text, (await state()).files], ["对照 ", ["访谈提纲测试笔记"]]);
   assert.equal(await page.evaluate("document.activeElement?.matches('.mw-composer__input')"), true, "focus is back in the text");
   // A space ends the words; nothing found says so.
@@ -545,7 +553,7 @@ const AI_EN: MwComposerAiLabels = {
   enterHint: "Enter now starts a new line. To send, press {keys}", enterHintDismiss: "Got it", notice: "Note", sending: "Sending", sendingText: "Sending…",
   failed: "Not sent", retry: "Retry", unknown: "Unconfirmed", unknownText: "Could not confirm it arrived; do not send it again yet", check: "Check",
   notSent: "Checked: it did not arrive. Your text is still here",
-  to: "To:", stop: "Stop", stopTitle: "Stop this turn", delivery: "Choose how it is delivered", deliveryGroup: "Delivery",
+  to: "Send to:", stop: "Stop", stopTitle: "Stop this turn", delivery: "Choose how it is delivered", deliveryGroup: "Delivery",
   modes: {
     "next-boundary": { name: "Add", title: "Add (⌘↵)", description: "Read once the current reply or batch of tools ends; nothing is interrupted" },
     interrupt: { name: "Interrupt and redirect", title: "Interrupt and redirect", description: "Drops the reply being written and follows this instead; what is done stays done" },
@@ -618,43 +626,49 @@ for (const locale of ["zh", "en"] as const) {
       assert.ok(layout.descLines.every((lines) => lines >= 1 && lines <= 3), `${width}: a description wraps, never cut (${layout.descLines})`);
     }
     await page.viewport(1440, 900);
-    // UIV-17: the menu's choice is this send's only: 下一轮再做 goes as after-run and its receipt says it waits; the next ⌘↵ is 补充 again.
+    // UIV-17 + 2026-11-09 audit fix (user decision: idle queue): the menu's choice is this Send's, and when the turn ends the chosen
+    // 下一轮再做 is a real queue for a work that has run before — Send hands it to the Host, and its receipt says it waits.
     await page.click("[data-composer-delivery=after-run]");
     assert.equal(await page.evaluate("globalThis.aiSent.length"), 0, "B10-R6: choosing delivery never submits the draft");
     assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').textContent.trim()"), words.labels.modes["after-run"].name);
     await page.evaluate("globalThis.aiHandle.setRunning(false)");
     await page.click("[data-composer-send]");
-    assert.equal(await page.evaluate("globalThis.aiSent.length"), 0, "B10-R6: a turn ending cannot downgrade the selected delivery");
-    assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').textContent.trim()"), words.labels.modes["after-run"].name);
+    await page.wait("globalThis.aiSent.length === 1");
+    assert.equal(await page.evaluate("globalThis.aiSent[0].delivery"), "after-run", "idle, the chosen queue goes to the Host instead of being downgraded");
+    assert.match(await page.evaluate<string>("document.querySelector('.mw-composer__status').textContent"), words.queued, "the idle queue's receipt says it waits");
+    assert.equal(await page.evaluate("document.querySelector('.mw-composer__input').value"), "", "the queued words leave the box");
+    // While a turn runs again, the next choice is this Send's only, and the person can explicitly switch back to ordinary Send.
+    await page.evaluate("globalThis.aiHandle.setRunning(true)");
+    await type("再补一句");
     await page.click("[data-compose-menu-toggle]");
     assert.equal(await page.evaluate("document.querySelector('[data-composer-delivery=next-boundary]').disabled"), false, "the person can explicitly switch back to ordinary Send");
     await page.click("[data-composer-delivery=next-boundary]");
-    assert.equal(await page.evaluate("globalThis.aiSent.length"), 0);
-    await page.evaluate("globalThis.aiHandle.setRunning(true)");
+    assert.equal(await page.evaluate("globalThis.aiSent.length"), 1);
     await page.click("[data-compose-menu-toggle]"); await page.click("[data-composer-delivery=after-run]");
     await page.click("[data-composer-send]");
-    await page.wait("globalThis.aiSent.length === 1");
-    assert.equal(await page.evaluate("globalThis.aiSent[0].delivery"), "after-run");
+    await page.wait("globalThis.aiSent.length === 2");
+    assert.equal(await page.evaluate("globalThis.aiSent[1].delivery"), "after-run");
     assert.match(await page.evaluate<string>("document.querySelector('.mw-composer__status').textContent"), words.queued, "a queued receipt says so");
     await type("再补一句");
     await key(META);
-    await page.wait("globalThis.aiSent.length === 2");
-    assert.equal(await page.evaluate("globalThis.aiSent[1].delivery"), "next-boundary");
-    assert.deepEqual(await page.evaluate("globalThis.aiSent[1].controls"), { mode: "plan", web: "on" });
-    // ⌘⇧↵ is 下一轮再做 while a turn runs; with nothing running there is no turn to queue behind, so it sends nothing.
+    await page.wait("globalThis.aiSent.length === 3");
+    assert.equal(await page.evaluate("globalThis.aiSent[2].delivery"), "next-boundary");
+    assert.deepEqual(await page.evaluate("globalThis.aiSent[2].controls"), { mode: "plan", web: "on" });
+    // ⌘⇧↵ is 下一轮再做 while a turn runs.
     await type("下一轮");
     await key(META | SHIFT);
-    await page.wait("globalThis.aiSent.length === 3");
-    assert.equal(await page.evaluate("globalThis.aiSent[2].delivery"), "after-run");
+    await page.wait("globalThis.aiSent.length === 4");
+    assert.equal(await page.evaluate("globalThis.aiSent[3].delivery"), "after-run");
     await page.click("[data-composer-stop]");
     await page.wait("globalThis.aiStopped === true");
     await page.evaluate("globalThis.aiHandle.setRunning(false)");
     assert.equal(await page.evaluate("document.querySelector('[data-composer-stop]')"), null, "stop is there only while a turn runs");
-    // B10-R1: an explicit queue request cannot turn into an ordinary Send while idle.
-    await type("新的一轮");
+    // 2026-11-09 audit fix: with nothing running, ⌘⇧↵ queues for the next turn the person begins (no new round starts here).
+    await type("空闲排队");
     await key(META | SHIFT);
-    assert.equal(await page.evaluate("globalThis.aiSent.length"), 3);
-    assert.equal(await page.evaluate("document.querySelector('.mw-composer__input').value"), "新的一轮");
+    await page.wait("globalThis.aiSent.length === 5");
+    assert.equal(await page.evaluate("globalThis.aiSent[4].delivery"), "after-run", "the idle queue shortcut queues instead of only explaining");
+    assert.equal(await page.evaluate("document.querySelector('.mw-composer__input').value"), "", "the queued words leave the box");
     // 390: the scene controls fold behind 更多 and open above it.
     await page.viewport(390, 844, true);
     assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.mw-composer__controls')).display"), "none");

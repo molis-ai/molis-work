@@ -1,3 +1,4 @@
+import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -31,7 +32,8 @@ export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promis
 export async function handleProjectPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ProjectPluginHttpPorts): Promise<boolean> {
   const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
   const runtimeEvents = isPluginEventManagementPath(url.pathname);
-  const pluginRoute = url.pathname.match(/^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\/(.+)$/u);
+  const pluginRoute = runtimeUpdates || runtimeEvents ? null : url.pathname.match(/^\/api\/plugins\/([^/]+)\/(.+)$/u);
+  if (pluginRoute && !PLUGIN_ID.test(pluginRoute[1]!)) return false;
   if (!runtimeUpdates && !runtimeEvents && !pluginRoute) return false;
   const record = await ensureProjectPlugins(ports);
   if (!record.platform) { sendLocalWebJson(response, 503, { error: record.error ?? "插件运行平台未能启动" }); return true; }

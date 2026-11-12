@@ -1,8 +1,9 @@
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { L } from "./common.js";
 import { bindKnowledgeImport } from "./import.js";
 import { bindKnowledgePicker } from "./picker.js";
 import { bindKnowledgeSettings } from "./settings-page.js";
+
+const uiText = globalThis.t;
 
 /**
  * The bundle's entry: binds every 项目资料 page now, and one the settings cover places later (`molis-work:settings-embed`);
@@ -14,7 +15,7 @@ bindKnowledgePicker();
 document.addEventListener("molis-work:knowledge-picked", event => {
   const detail = (event as CustomEvent<{ request_id?: string; outcome?: string; items?: Array<{ ref: MaterialRef; title: string; hint?: string }> }>).detail;
   if (!detail?.request_id?.startsWith("assistant:") || detail.outcome !== "confirmed" || !detail.items?.length) return;
-  document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { source: { surface: "knowledge", title: L("项目资料") },
+  document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { source: { surface: "knowledge", title: uiText.text("workbench.knowledge-entry.project-knowledge") },
     materials: detail.items.map(item => {
       const title = item.hint ? item.title + " · " + item.hint : item.title;
       return item.ref.subject.kind === "workspace_file" || item.ref.pin.mode !== "current" || item.ref.range ? { title, ref: item.ref } : { title, subject: item.ref.subject };

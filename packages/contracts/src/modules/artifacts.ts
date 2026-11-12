@@ -212,10 +212,18 @@ export type ArtifactVersionResult = FixedVersionResult<ArtifactVersionRecord>;
 export type ProcessItemResult = FixedVersionResult<ProcessItemRecord>;
 
 export interface ArtifactListQuery {
+  /** An explicit page, up to 200 versions; omit for a complete owner-maintenance traversal. */
+  limit?: number;
+  offset?: number;
   artifact_type_id?: string;
   schema_version?: number;
   scope?: ArtifactScope;
   lifecycle_state?: ArtifactLifecycleState;
+  availability?: ArtifactAvailability;
+  /** A declaration set is filtered inside the owner, before paging or reading content. */
+  supported_types?: readonly ArtifactConsumerType[];
+  /** Only personal versions are narrowed; platform consumers supply their trusted actor. */
+  personal_owner_actor_id?: string;
 }
 
 export interface ArtifactConsumerType {
@@ -234,6 +242,8 @@ export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
   listArtifactVersions(projectId: string, artifactId: string): R[];
   latestArtifactVersion(projectId: string, artifactId: string): R | null;
   listArtifacts(projectId: string, query?: ArtifactListQuery): R[];
+  /** Exact existence only, without loading content; at most 200 fixed references. */
+  existingReferences(projectId: string, references: readonly ArtifactReference[]): ArtifactReference[];
   consumptionCompatibility(
     projectId: string,
     reference: ArtifactReference,

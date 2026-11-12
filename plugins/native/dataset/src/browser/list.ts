@@ -1,24 +1,34 @@
-import { shortDateLabel } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { textCell } from "./dom.js";
 import type { Dataset, DatasetPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 const firstLine = (value: unknown, fallback = "") => String(value || "").trim().split("\n")[0].trim() || fallback;
+
+const whenOf = (value: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameYear ? "month-day" : "date") });
+};
 
 /** The directory of tables: its rows, which one is open, and loading and failing to load it. */
 export function installList(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
   const fixedCell = (record: Dataset) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
-    if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("dataset.fixed.unfinished"); }
-    else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("dataset.fixed.label") + " v" + record.artifact_version; }
+    if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = uiText.text("dataset.fixed.unfinished"); }
+    else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = uiText.text("dataset.fixed.label") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
     return node;
   };
 
-  const artifactLabel = (record: Dataset | null) => record?.publication_pending ? L("dataset.fixed.resume") : record && record.artifact_version > 0 ? L("dataset.fixed.again") : L("dataset.fixed.save");
+  const artifactLabel = (record: Dataset | null) => record?.publication_pending ? uiText.text("dataset.fixed.resume") : record && record.artifact_version > 0 ? uiText.text("dataset.fixed.again") : uiText.text("dataset.fixed.save");
 
   const listRow = (record: Dataset) => {
     const item = document.createElement("article");
@@ -37,8 +47,8 @@ export function installList(page: DatasetPage): void {
     const columns = (record.columns || []).length, rows = (record.rows || []).length;
     row.append(
       leading,
-      textCell("plugin-stage-fact", columns ? L("dataset.list.size", { columns, rows }) : L("dataset.list.empty-table")),
-      textCell("plugin-stage-meta", firstLine(record.description, shortDateLabel(record.updated_at))),
+      textCell("plugin-stage-fact", columns ? uiText.text("dataset.list.size", { columns, rows }) : uiText.text("dataset.list.empty-table")),
+      textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
       fixedCell(record),
     );
     item.append(row);
@@ -86,11 +96,11 @@ export function installList(page: DatasetPage): void {
     el.generateAi.disabled = !s.aiAvailable;
     const reason = el.aiReason;
     reason.hidden = s.aiAvailable;
-    reason.replaceChildren(document.createTextNode(s.aiUnavailableReason || L("dataset.ai.no-model")));
+    reason.replaceChildren(document.createTextNode(s.aiUnavailableReason || uiText.text("dataset.ai.no-model")));
     if (!s.aiAvailable) {
       const link = document.createElement("a");
       link.href = "/settings/models";
-      link.textContent = L("dataset.ai.open-settings");
+      link.textContent = uiText.text("dataset.ai.open-settings");
       reason.append(document.createTextNode(" "), link);
     }
   };
@@ -117,15 +127,15 @@ export function installList(page: DatasetPage): void {
     box.setAttribute("role", "alert");
     box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
     const hint = box.querySelector("p")!, retry = box.querySelector("button")!;
-    box.querySelector("strong")!.textContent = L("dataset.list.failed-title");
-    hint.textContent = (error as Error | null)?.message || L("dataset.list.failed-hint");
-    retry.textContent = L("dataset.list.retry");
+    box.querySelector("strong")!.textContent = uiText.text("dataset.list.failed-title");
+    hint.textContent = (error as Error | null)?.message || uiText.text("dataset.list.failed-hint");
+    retry.textContent = uiText.text("dataset.list.retry");
     retry.addEventListener("click", () => {
       retry.disabled = true;
       void page.loadList().then(() => { if (page.scope.alive) box.remove(); }, (next: unknown) => {
         if (!page.scope.alive) return;
         retry.disabled = false;
-        hint.textContent = (next as Error | null)?.message || L("dataset.list.failed-hint");
+        hint.textContent = (next as Error | null)?.message || uiText.text("dataset.list.failed-hint");
       });
     }, { signal: page.scope.signal });
     el.rowsEl.replaceChildren(box);

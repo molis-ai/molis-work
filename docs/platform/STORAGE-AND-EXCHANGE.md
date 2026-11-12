@@ -36,7 +36,7 @@
 - 切换账号/空间会断开旧页面连接，停止不再被有效会话使用的个人 Host；同一 Home 关闭完成后才能重新打开。内部 MCP 网关必须持有对应 Home 的控制令牌，且个人空间已在有效登录会话中打开。独立 CLI/MCP 默认仍使用其配置的 Home，不跟随任意浏览器切换；终端启动时由 Host 固定 `MOLIS_WORK_HOME`。
 - 这是本机产品的数据归属与访问路由，不是对同一操作系统用户的文件访问沙箱。显式关联的外部工作目录仍是用户自己的磁盘文件，不会被复制到个人 Home。
 
-本阶段不实现 Outbox、上传/下拉、跨设备协同、团队授权或跨空间搬迁；`syncEnabled` 仍为 `false`。验证：`tests/space-ownership.test.ts`、`tests/personal-http.test.ts`、`tests/personal-menu.e2e.test.ts`。
+本阶段不实现 Outbox、上传/下拉、跨设备协同、团队授权或跨空间搬迁；账号同步仍未启用（页面状态不再有 `syncEnabled` 字段）。验证：`tests/space-ownership.test.ts`、`tests/personal-http.test.ts`、`tests/personal-menu.e2e.test.ts`。
 
 ## 2. Exchange
 

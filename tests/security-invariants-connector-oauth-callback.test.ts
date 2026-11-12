@@ -24,6 +24,7 @@ import {
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
+import { alternateAsanaIntegration } from "./fixtures/alternate-asana.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
@@ -329,11 +330,11 @@ for (const entry of ["intent choice", "session retain"] as const) for (const cha
     await registry.disable(owner.plugin_id);
     if (change !== "disabled") {
       const replacement = createCatalogIntegrationPlugin({ connectorId: "asana", providerFor: () => { throw new Error("the test reads no integration records"); } });
-      const manifest = change === "another plugin" ? { ...replacement.manifest, plugin_id: "io.molis.work.integration.asana.lookalike" }
-        // An upgrade: the same plugin and signature (so the same install) with another version that declares the flow as data.
-        : { ...replacement.manifest, version: replacement.manifest.version.replace(/\d+$/u, patch => String(Number(patch) + 1)), connection_services: replacement.manifest.connection_services!.map(service => service.service_id !== "asana" ? service
+      // An upgrade uses the same plugin and signature (so the same install), with another version that declares the flow as data.
+      const upgraded = { ...replacement.manifest, version: replacement.manifest.version.replace(/\d+$/u, patch => String(Number(patch) + 1)),
+        connection_services: replacement.manifest.connection_services!.map(service => service.service_id !== "asana" ? service
           : { ...service, auth: { ...service.auth, methods: [...service.auth.methods.filter(method => method.kind !== "oauth"), asanaFlow] } }) };
-      await registry.enable({ ...replacement, manifest });
+      await registry.enable(change === "another plugin" ? alternateAsanaIntegration() : { ...replacement, manifest: upgraded });
       const now = registry.oauthOwner("asana")!;
       if (change === "another plugin") assert.notEqual(now.plugin_id, owner.plugin_id);
       else assert.deepEqual([now.plugin_id, now.install_id, now.publisher_id], [owner.plugin_id, owner.install_id, owner.publisher_id], "only the method differs");

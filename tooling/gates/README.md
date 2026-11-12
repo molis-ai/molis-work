@@ -10,7 +10,7 @@
 | `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
 | `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
-| `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
+| `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK，以及别的工作区包的 `./contract` 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `schemas/stores.tsv` | 这个构建会建的每个库的结构快照（位置、主人、版本、结构哈希、升级段的 `from`） | `pnpm schemas:update`（见「库的结构快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
@@ -18,6 +18,14 @@
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
 | `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 | `sqlite-driver-owners.json` | 允许直接 import `better-sqlite3` 的目录（以 `/` 结尾）和理由：今天只有 `plugins/native/alchemist/`（已有审批的私有驱动，BL-377 重做前保留；其余项目库连接已由 storage 统一走 `node:sqlite`）。文件缺失、形状或理由不合格时 `pnpm boundary:check` 直接失败（`scripts/gates/project-sqlite-driver.mjs`） | 人，过评审；新增一个例外要加一条带理由的目录 |
+
+## 宿主源码行数报告（A2）
+
+`pnpm health:check` 显示 `apps/local-host/src/` 的总行数。有实际 merge-base 时，同时显示基点行数和净变化。按用户 2026-11-01 的决定，增长只报告。本地快查不保存这项数字。
+
+在 Git 跟踪的文件里统计 `.ts`、`.mts`、`.cts`、`.tsx`、`.js`、`.mjs`、`.cjs` 和 `.jsx`，各级目录中的生成源码、夹具、测试和声明都计入。空行、注释和未以换行结束的末行各算一行。LF 和 CRLF 都只换一次行，尾换行不多算一行，空文件是零行。
+
+`node scripts/check-health-gates.mjs --base origin/main --report` 按行数变化幅度列出变更文件，可以用 `--top N` 收窄。Git 识别到范围内的改名时，同时显示两个路径。省略 `--base` 则列当前文件的行数。再加 `--json` 可从 `hostLines` 读取两份总量与逐文件计数、净变化和变更明细。JSON 的明细完整输出。
 
 ## 按文件计数、只许减少的项
 
@@ -87,7 +95,7 @@
 | 没有标记的当前版本 | 属性、变量、类字段、解构默认值、枚举成员里名字像版本的（`version`、`*_version`、`*Version`、`*VERSION`、`format`、`schema`、`v`、`protocol`，引号键也算）取数字或像版本的字符串；赋值、相等比较、`switch/case`、`{enum:[…]}`、`{const:…}`、`z.literal(…)`、三元与 `??` 的值；名为 version 的参数的默认值。0 表示「还没有」，不算 |
 | 字符串里的版本 | 任何字符串和模板字符串按形状认：`.vN`、`-vN`、`_vN`、`/vN`、`@N`、整串的 `/N`；没有前缀名单；模板拼出来再看；字符串里的 `PRAGMA user_version = N` 和脚本文本也看。MCP 工具命名空间 `molis_work_v1_` 这一个字面量前缀不算版本：只放过前缀本身，名字其余部分照样读（`molis_work_v1_x_v2` 会报），不是按字段放行 |
 | 借用别人的条目 | 只有 `action`、`event`、`format`、`type`、`artifact`、`manifest`、`host`、`protocol`、`product` 种类和 `sync.protocol` 可跨包共用，其他种类被第二个包用就失败。共用种类里的裸数字要放在叫得出自己是版本的名字上；`format.<插件>.*` 别的插件不许用 |
-| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`prompt.*`、`role.*`、`manifest.schema`、`host.api` 在表里必须是 1 |
+| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`manifest.schema`、`host.api` 在表里必须是 1。日常检查按登记的当前版本核对提示词、角色和方法。显式检查统一起点时，这些内容仍须是第 1 版 |
 | 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
 | 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
 | 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |
@@ -133,7 +141,7 @@
 
 ## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
 
-分两半，每一项都要是 1，差一个就失败。扫描范围与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。测试文件只在两条边界都不扫时才跳过：那份共用的测试边界，和这个门禁原来的「任意深度的 `tests/`、`fixtures/` 目录」。所以包顶层 `tests/`、`fixtures/` 里的不扫；`*.test.*`、`test.*`、包顶层 `test/` 不在这两种目录里的照扫（如 `apps/sync-worker/*.test.mjs`），`src/tests/`、`src/fixtures/` 也扫。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
+分两半，每一项都要是 1，差一个就失败。扫描范围与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。测试文件只在两条边界都不扫时才跳过：那份共用的测试边界，和这个门禁原来的「任意深度的 `tests/`、`fixtures/` 目录」。所以包顶层 `tests/`、`fixtures/` 里的不扫；`*.test.*`、`test.*`、包顶层 `test/` 不在这两种目录里的照扫（如 `apps/sync-worker/*.test.mjs`），`src/tests/`、`src/fixtures/` 也扫。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。同一门禁也扫所有 `/* @version <entry> */` 标记紧邻的整数字面量（不只看 `*VERSION` 常量名；数值字符串也算，「恰好长成标记样子的注释在模板串里」不归它，`version-exceptions.json` 的内联例外也不适用）：持久化格式的条目 >1 要有连续升级段和旧版本金样，其余必须为 1；未登记的 `database.*` 条目这个门禁跳过（库版本由 store-schemas 与金样回放管，UPG-01）。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
 
 持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件的常量：`ONBOARDING_SCHEMA_VERSION`、`PROJECT_ARRIVAL_SCHEMA_VERSION`、`BROWSER_SITES_VERSION`、`COMPUTER_SETTINGS_VERSION`、`COMPUTER_RECORD_VERSION`、`MODEL_PREFERENCE_SCHEMA_VERSION`（`jelly/preferences.json`），按 `文件#名字` 认，别处的同名常量不算；还有三项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记由 `registeredUpgradeChains` 从源码读（`X_VERSION` 配同一文件的 `const X_UPGRADES` 数组，基线对象读 `upgrades`，和上一节同一个读法 `upgrade-steps.mjs`，读不出来的算没有链），接在这两半；`replay_passed` 读金样（U2-d）：`tests/fixtures/golden-homes/<版本>/manifest.json` 的 `formats` 按 `tooling/versions.json` 的条目名记着每个持久化格式的版本（位置写在 `scripts/golden/formats.mjs`，生成时读主人存版本的地方），从 1 到链的版本减 1，每个都要有一份金样存着，才是真；缺哪几个，提示里写出来。库那条（UPG-01）只要升级前的那个版本，两边不一样是有意的：UPG-01 和 merge-base 比，知道这次从哪个版本升；这条只读一棵树，只有每个都要才漏不掉。清单里记的版本由回放核对：还原后用生成时的读法把记下的每一项重读一遍，不符、读不出来或没有读法就失败（`golden.recorded_version_mismatch`）；没记的不核，所以格式表以后加条目不会让老金样失败，条目换位置或改名则要给老位置留读法。回放本身是 `golden-replay` 作业，`Verify` 要它过，所以这里只证明有东西可回放，不证明回放过了。`config/installation.json`（安装器写的，金样是跑宿主生成的）和 `search/`（可重建，快照不收）金样存不了，`computer/` 的两个文件第一份金样还没有（BL-golden-computer-settings），这几项大于 1 现在都过不了；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
 
@@ -174,20 +182,11 @@
 
 ## 界面翻译（`scripts/gates/translations.mjs`）
 
-翻译门禁在 `pnpm health:check` 里，CI 的 Health gates 步骤带 `--base` 跑它；它扫源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试与构建产物），认翻译调用里的中文字面量。规则细节、稳定键方案与迁移步骤见 `apps/workbench/README.md` 的「界面文字」一节，这里只记这个门禁的边界。
-
-| 项 | 结果 |
-| --- | --- |
-| 缺英文（翻译调用里的中文字面量，在所有词典里都没有） | 失败；头上必须为零 |
-| 词典没接上（某本 `*_EN` 没被 `src/i18n/en.ts` 的 `EN` 引用） | 失败；头上必须为零 |
-| 冲突（同一句中文有两条译文不同的条目） | CI 对照 merge-base 实测，`translationConflicts` 只许减少；本地快查仅作加速 |
-| 无用键（词典里的键，源码里没有字面量出现） | 只报告，不挡 |
-
-**看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
+随 `pnpm health:check` 检查源码与声明的词包，无须先构建。可静态识别的键必须在对应主人的默认语言与英文中存在；未声明文件、主人不符、重复键、参数不一致、已撤掉的翻译入口都失败。跨主人只能读平台公开的 `common.*`，平台代画则沿已验证的生产者来源。动态计算的键及未找到字面量的词条报告，不把静态扫描当运行证明。见 [工作台界面文字](../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 
-共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/archive/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块；登记的 `settingsStylesheet` 不拆、整张进设置与工作台两张共用表，所以它的规则块全部加进该插件的数（T-115）。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有框架，登记的 `stylesheet` 与 `settingsStylesheet` 整张在共用表里；数的仍是一直数的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个常量（PG-060 起由登记带进共用表，不再由 `page-assets.ts` 直接拼）。现在冻结五个插件：Coding 9、Feed 234、Form 6、Goals 321、插件创作台 5 —— Coding/Form 是注册里声明共用的属性/类规则，创作台是宿主预览页画的 `as-preview-page`/`pb-surface`，Feed/Goals 没有框架、由外壳画。
+共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/archive/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块；登记的 `settingsStylesheet` 不拆、整张进设置与工作台两张共用表，所以它的规则块全部加进该插件的数（T-115）。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有框架，登记的 `stylesheet` 与 `settingsStylesheet` 整张在共用表里；数的仍是一直数的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个常量（PG-060 起由登记带进共用表，不再由 `page-assets.ts` 直接拼）。现行冻结值见 `tooling/gates/plugin-styles.json`。Coding 和 Form 的共用规则来自注册声明，创作台的 `as-preview-page` 和 `pb-surface` 由宿主预览页绘制，Goals 由外壳绘制。
 
 - 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> }, prefixes: { "<project_plugin_id>": [<prefix>] } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
 - 前缀：预算里的每个插件前缀集合须与构建的 `stylesheetPrefixes` 相等，新增声明不能漏记，记过的前缀只许增加。第一次拆分只用当前声明，与生产 `splitOf` 相同；只在共享余量计数时用每个插件的「reference 记的 ∪ 当前预算记的 ∪ 构建声明的」，头部数组不能覆盖历史数组。余量不增长时，`--update` 允许新增并记录前缀，即使插件仍有正计数；删除声明和预算前缀会被拒绝，回到共享表的规则也仍可计数。
@@ -198,7 +197,7 @@
 
 ## 公开 API 快照
 
-`api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。
+`api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。别的工作区包（按根的 `pnpm-workspace.yaml` 找，测试根也一样，不写名单）只收它声明的精确 `./contract` 子路径，记在包目录下，如 `api/plugins/native/feed/contract.txt`、`api/modules/shelf/contract.txt`（BL-901）：插件或 Module 给调用方的合同；根入口、登记、样式等别的子路径不收。这些包都是 private，外部插件作者仍只装 contracts 与 SDK；快照只让工作区调用方依赖的合同变化不再悄悄发生。
 
 - 内容：用编译器对包自己的源码做声明输出（不需要先构建，`paths` 把包名指到 `src/`，旧的 `dist/` 不会被读到），**去掉注释**。每个导出名一段，按名字排序：函数签名、接口的每个字段、常量的类型或字面值都在里面。改注释或函数体不改变快照。
 - 一个名字有几条声明就写几段，一条不漏：函数的每个重载（按源码里的先后写，因为重载的顺序决定调用落到哪一个）、同名的类型和常量（`export const X = [...] as const; export type X = …`）、同一个声明以两个名字导出（别名那一段末尾注明 `exported from this entry as`）。重载的实现签名不是 API，不记。

@@ -264,3 +264,20 @@ test("RAC-2717 a WAL store at another version is refused with the database and i
   assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
   assert.deepEqual(readFileSync(`${path}-wal`), beforeWal, "and the WAL's pages are not written either");
 });
+
+// D0276: missing and empty stores are never initialized by pure reads.
+test("D0276 existing-only reads neither create a store nor initialize an empty file", async t => {
+  const { openExistingBaselineHomeSqlite, openBaselineHomeSqlite, homeSqlitePath } = await import("@molis-ai/molis-work-storage");
+  const { mkdtempSync, existsSync, mkdirSync, writeFileSync, statSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os"); const { join, dirname } = await import("node:path");
+  const home = mkdtempSync(join(tmpdir(), "molis-existing-read-")); t.after(() => rmSync(home, { recursive: true, force: true }));
+  const baseline = { version: 1, schema: "CREATE TABLE notes(id TEXT PRIMARY KEY);" };
+  const path = homeSqlitePath(home, "notes");
+  assert.equal(openExistingBaselineHomeSqlite(home, "notes", baseline), undefined); assert.equal(existsSync(path), false);
+  mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, "");
+  assert.equal(openExistingBaselineHomeSqlite(home, "notes", baseline), undefined); assert.equal(statSync(path).size, 0);
+  const writer = openBaselineHomeSqlite(home, "notes", baseline); writer.prepare("INSERT INTO notes VALUES (?)").run("kept"); writer.close();
+  const reader = openExistingBaselineHomeSqlite(home, "notes", baseline)!;
+  try { assert.equal(reader.prepare("SELECT id FROM notes").get()?.id, "kept"); assert.throws(() => reader.prepare("INSERT INTO notes VALUES (?)").run("refused")); }
+  finally { reader.close(); }
+});

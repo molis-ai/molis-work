@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.salesforce",
+  "locale": "en",
+  "messages": {
+    "salesforce.connection.auth-help": "Enter instanceUrl|accessToken. Use an instance URL such as https://yourorg.my.salesforce.com. If you omit https://, it is added for you.",
+    "salesforce.connection.inbound": "Feed retrieves CRM records",
+    "salesforce.connection.summary": "CRM objects and records.",
+    "salesforce.connection.token-label": "Salesforce instance and access token",
+    "salesforce.guide.cli-link": "View Salesforce CLI sign-in",
+    "salesforce.guide.cli-note": "Use the Salesforce CLI to sign in to an org and query data. Molis Work does not read local org authorization.",
+    "salesforce.guide.mcp-connected-note": "Hosted MCP may require enterprise setup and consume Flex Credits.",
+    "salesforce.guide.mcp-link": "View Salesforce Hosted MCP",
+    "salesforce.guide.mcp-note": "Hosted MCP may require enterprise setup and consume Flex Credits. Molis Work has not integrated it.",
+    "salesforce.guide.oauth-link": "View Salesforce OAuth",
+    "salesforce.guide.token-note": "Enter the Salesforce instance URL and access token.",
+    "salesforce.oauth.login-origin": "Salesforce sign-in address",
+    "salesforce.setup.view-salesforce-connected-app-guide": "View Salesforce Connected App guide"
+  }
+}

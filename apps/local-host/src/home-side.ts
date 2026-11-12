@@ -13,6 +13,7 @@ import type { PluginPlatformEntry } from "./plugin-platform.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions } from "./project-host.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import type { SettingsVersionClaims } from "./declaration-owners.js";
 
 /**
  * What a plugin platform is given of the Home it runs in. A platform that reaches no Home in this process is given `null`
@@ -30,6 +31,7 @@ export interface PluginPlatformHome {
   readonly stores: HomeStoreRegistry;
   /** What a person agreed to for the plugins of this Home, and the publishers they pinned (ac-trust): one answer for every project. */
   readonly consents: PluginConsentLedger;
+  readonly settingsVersionClaims?: SettingsVersionClaims;
   /** Captures the matching Home activation's permission, never exposes that activation to a project. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void;
   assertStorageOwner(): void;
@@ -41,7 +43,7 @@ type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginF
  * What each Home's Host was built with, by resolved path. A Home has one open Host at a time (its Agent service binds the
  * Home's inference once), so there is one entry per Home, and it leaves with its Host.
  */
-const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions; catalog?: LocalWebCatalogRunner }>();
+const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions; settingsVersionClaims: SettingsVersionClaims; catalog?: LocalWebCatalogRunner }>();
 
 /** Project activations read the same catalog owner that settings commit to. */
 export function bindPluginCatalog(host: MolisWorkLocalHost, home: string, catalog: LocalWebCatalogRunner): void {
@@ -57,9 +59,9 @@ export function pluginCatalogFor(home: string): LocalWebCatalogRunner | undefine
  * Binds a Host to its Home when it is built: the Home's Agent service, as before, and what a plugin platform reads of this Host
  * (its model injection, the fixtures it was given). Platforms read it when they start or when a call needs it, not here.
  */
-export function bindHomeSide(host: MolisWorkLocalHost, homeDirectory: string, options: HomeSideOptions): void {
+export function bindHomeSide(host: MolisWorkLocalHost, homeDirectory: string, options: HomeSideOptions, settingsVersionClaims: SettingsVersionClaims): void {
   ensureSystemAgentService(host, homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, directoriesFor: options.directoriesFor, prepareDirectory: options.prepareDirectory });
-  sides.set(path.resolve(homeDirectory), { host, options });
+  sides.set(path.resolve(homeDirectory), { host, options, settingsVersionClaims });
 }
 
 /** A closing Host stops offering its Home's inference at once (its successor can bind before teardown finishes) and leaves the Home side. */
@@ -72,7 +74,8 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 /** The Home for a platform to be given: what it reads of the Host is looked up on each call. */
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
-  return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
+  const settingsVersionClaims = sides.get(directory)?.settingsVersionClaims;
+  return { directory, ...(settingsVersionClaims ? { settingsVersionClaims } : {}), completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
     consents: new HomeConsentLedger(directory), capturePermission(project, permission) {
       const owner = sides.get(directory)?.host.homePlugins;
       if (!owner) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");

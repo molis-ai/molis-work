@@ -108,7 +108,7 @@ interface UnitPaths {
  * Where a unit lives, worked out from the trusted Home alone: nothing here reads a record, and the file the snapshot takes its name from
  * cannot point anywhere. Refuses a path that leaves the Home or passes through a link, before anything is opened or created.
  */
-function unitPaths({ home, runId, relativePath }: UpgradeSnapshotUnit): UnitPaths {
+function unitPaths({ home, runId, relativePath }: Pick<UpgradeSnapshotUnit, "home" | "runId" | "relativePath">): UnitPaths {
   const label = sqliteStoreLabel(join(home, relativePath), home);
   return attempt("invalid_path", label, () => {
     const inside = relativePath !== "" && !isAbsolute(relativePath) && normalize(relativePath) === relativePath && !relativePath.endsWith(sep)
@@ -266,6 +266,17 @@ function verifiedEntry(unit: UpgradeSnapshotUnit, paths: UnitPaths): UpgradeSnap
     if (found.size !== entry.size || found.sha256 !== entry.sha256) throw fail("snapshot_invalid", paths.label);
     return entry;
   });
+}
+
+/**
+ * Whether a run's snapshot lists this store and still has its copy, reading only the manifest and the directory (upgrade-continuity U3 §5.2):
+ * enough to say whether going back a version can put it back. The digest is checked when it is put back, under the lock.
+ */
+export function upgradeSnapshotListed(home: string, runId: string, relativePath: string): boolean {
+  try {
+    const paths = unitPaths({ home, runId, relativePath });
+    return readManifest(paths, runId).some(entry => entry.path === relativePath) && present(paths.snapshot);
+  } catch { return false; }
 }
 
 /** Whether a snapshot still is what was taken, without touching the store: a resumed run checks this before it starts the transaction again (§6). */

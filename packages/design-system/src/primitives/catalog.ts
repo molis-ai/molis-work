@@ -1,5 +1,5 @@
 import { renderCatalogExamples } from "../catalog-examples.js";
-import { icon, renderButton, renderDirectoryRow, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, renderDirectoryRow, renderStatusMark, t, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ICON_LIBRARY } from "../icons.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
@@ -11,30 +11,31 @@ import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_STYLES } from "../composer-styles.js";
-import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, writeChinese, type Say } from "./catalog-composer.js";
+import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
 import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
+import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
+import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, nowBlockSection, stateRowsSection, stickyDetailSection, usageSection } from "./catalog-capability-packs.js";
 
-export const PRIMITIVE_CATALOG_IDS = [
-  "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
-  "calendar", "card", "checkbox", "checkbox-group", "collapsible", "combobox", "command", "context-menu",
-  "date-picker", "dialog", "directory", "drawer", "empty", "field", "fieldset", "form", "frame", "group", "input",
-  "input-group", "kbd", "label", "menu", "meter", "number-field", "otp-field", "pagination", "popover",
-  "preview-card", "progress", "radio-group", "scroll-area", "select", "separator", "sheet", "sidebar",
-  "skeleton", "slider", "spinner", "switch", "table", "tabs", "textarea", "toast", "toggle", "toggle-group",
-  "toolbar", "tooltip",
-] as const;
+export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
+const catalogComponents = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
 
 
 /** Section index derived from the rendered sections, so a new section cannot be left out of it. */
-function catalogIndex(sections: string): string {
+function catalogIndex(sections: string, say: Say): string {
+  const specimens = new Set([...sections.matchAll(/data-primitive="([^"]+)"/gu)].map(([, id]) => id));
+  for (const kind of PRIMITIVE_CATALOG_IDS) {
+    if (!specimens.has(kind)) throw new Error(`组件板缺少 ${kind} 的标本。`);
+  }
   const entries = [...sections.matchAll(/<section class="mw-catalog__section" id="([^"]+)"[^>]*><h2>([^<]+)<\/h2>/g)];
   const links = entries.map(([, id, title]) => {
-    const short = title.split(" / ")[0];
-    return `<a href="#${id}" title="${title}">${short}</a>`;
+    const component = catalogComponents.get(id);
+    const short = component ? escapeHtml(componentText(component.name, say)) : title.split(" / ")[0];
+    const description = component ? escapeHtml(componentText(component.description, say)) : title;
+    return `<a href="#${id}" title="${description}">${short}</a>`;
   }).join("");
   return `<nav class="mw-catalog__index" data-catalog-index aria-label="控件目录" style="grid-row: 1 / span ${entries.length}">${links}</nav>`;
 }
@@ -65,8 +66,8 @@ function paletteSection(): string {
   </div>`);
 }
 
-function typefaceSection(): string {
-  return section("typeface", "字体", `<div class="mw-catalog__specimens">
+function typefaceSection(say: Say): string {
+  return section("typeface", say("workbench.env.font"), `<div class="mw-catalog__specimens">
     ${specimen("字重角色", `<div class="mw-type-sample">
       <p class="mw-type-sample__display">今天的工作</p>
       <p class="mw-type-sample__title">打磨 Molis Work 的第一印象</p>
@@ -136,7 +137,7 @@ function iconInventorySection(pluginIcons: readonly CatalogPluginIcon[]): string
       ${specimen("尺寸与描边", `<ul class="mw-icon-inventory mw-icon-inventory--sizes">${sizes}</ul>`)}
       ${specimen("空态纸张", `<div class="mw-craft-row"><div class="mw-empty"><span class="mw-empty__mark">${icon("clipboard")}</span><strong>还没有问卷</strong><p>新建一份，预览填写，再看结果。</p></div></div>`)}
       ${specimen("加载 · 超过 250ms 才出现", `<div class="mw-craft-row"><p class="mw-loading" role="status">正在读取问卷…</p></div><p class="mw-catalog__hint">结构已知的列表与卡片用静态占位（Skeleton）；结构未知或一次性的等待用这一行。</p>`)}
-      ${specimen("读取失败 · 总有下一步", `<div class="mw-craft-row"><div class="mw-empty mw-empty--error" role="alert"><span class="mw-empty__mark">${icon("circle-alert")}</span><strong>列表暂时读不到</strong><p>本地服务没有响应。</p>${renderButton({ label: "重试", variant: "secondary" })}</div></div>`)}
+      ${specimen("读取失败 · 总有下一步", `<div class="mw-craft-row"><div class="mw-empty mw-empty--error" role="alert"><span class="mw-empty__mark">${icon("circle-alert")}</span><strong>列表暂时读不到</strong><p>本地服务没有响应。</p>${renderButton({ label: "common.control.retry", variant: "secondary" })}</div></div>`)}
     </div>`);
 }
 
@@ -165,10 +166,10 @@ function arrivalSection(): string {
   const monogram = renderProjectMonogram("FlyLeaf-V0.1", "flyleaf", (value) => value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char));
   const goals = [["明确使用场景", "done"], ["确认首版范围", "done"], ["完成阅读页原型", "done"], ["连接笔记链路", "done"], ["打磨首次使用", "doing"], ["邀请首批内测", "todo"]] as const;
   const track = renderGoalTrack({ goals: goals.map(([title, state]) => ({ title, state })), label: "4 / 6 个目标完成" });
-  const next = renderBriefSection({ title: "接下来", body: `<div class="mw-brief__list">${renderDirectoryRow({ title: "检查空白状态与导入材料的完整路径", caption: "目标「打磨首次使用」", density: "meta", status: "进行中", statusTone: "progress", statusIcon: "status-progress" })}${renderDirectoryRow({ title: "确认首批内测名单", caption: "12 人", density: "meta", status: "等你确认", statusTone: "attention", statusIcon: "status-needs-you" })}</div>` });
+  const next = renderBriefSection({ title: "接下来", body: `<div class="mw-brief__list">${renderDirectoryRow({ title: "检查空白状态与导入材料的完整路径", caption: "目标「打磨首次使用」", density: "meta", status: "workbench.assistant-delivery.progress", statusTone: "progress", statusIcon: "status-progress" })}${renderDirectoryRow({ title: "确认首批内测名单", caption: "12 人", density: "meta", status: "等你确认", statusTone: "attention", statusIcon: "status-needs-you" })}</div>` });
   const recent = renderBriefSection({ title: "最近", body: renderBriefRecent([{ when: "昨天 22:14", text: "更新了《阅读页交互说明》" }, { when: "9月29日", text: "加入 4 份用户访谈记录" }]) });
   const brief = renderBrief({
-    kicker: `${renderBriefStatus({ label: "进行中", tone: "progress", glyph: "status-progress" })}<span>最近打开 2 小时前</span>`,
+    kicker: `${renderBriefStatus({ label: "workbench.assistant-delivery.progress", tone: "progress", glyph: "status-progress" })}<span>最近打开 2 小时前</span>`,
     title: "FlyLeaf-V0.1",
     description: "让阅读、笔记与灵感连成一条线：读到的段落直接变成笔记，笔记再长成新的创作。",
     focus: renderBriefFocus({ label: "当前目标", count: "<b>4</b> / 6 完成", title: "打磨首次使用", body: "检查空白状态、导入材料和创建项目的完整路径。", track }),
@@ -217,10 +218,10 @@ function iconSection(): string {
  * `delivery` is the running send's name (补充) by its stable key, where the page has the platform's words.
  */
 export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say; readonly delivery?: string } = {}): string {
-  const say = options.say ?? writeChinese;
+  const say = options.say ?? t;
   const sections = `
     ${paletteSection()}
-    ${typefaceSection()}
+    ${typefaceSection(say)}
     ${lookSections(say)}
     ${iconSection()}
     ${micSection(say)}
@@ -228,16 +229,16 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${craftSection()}
     ${motionSection()}
     ${arrivalSection()}
-    ${choiceSection()}
-    ${composeSection()}
+    ${choiceSection(say)}
+    ${composeSection(say)}
     ${renderCatalogExamples(section)}
-    ${buttonSection()}
+    ${buttonSection(say)}
     ${buttonGroupSection()}
     ${fieldSection()}
     ${groupsSection()}
     ${advancedFieldSection()}
     ${tagInputSection()}
-    ${formSection()}
+    ${formSection(say)}
     ${dropZoneSection()}
     ${composerSection(say, options.delivery)}
     ${badgeSection()}
@@ -246,21 +247,29 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${keepEditsSections(say)}
     ${separatorSection()}
     ${calendarSection()}
-    ${overlaySection()}
+    ${overlaySection(say)}
     ${menuSection()}
     ${menuDescSection(say, options.delivery)}
-    ${tabsSection()}
+    ${tabsSection(say)}
     ${directorySection()}
-    ${rowsSection()}
+    ${rowsSection(say)}
     ${itemChoiceSection(say)}
     ${itemDetailsSection(say)}
     ${listDetailSection(say)}
     ${statusLinkSection(say)}
+    ${nowBlockSection(say)}
+    ${itemGroupSection(say)}
+    ${cellGridSection(say)}
+    ${detailTrailSection(say)}
+    ${iconCountsSection(say)}
+    ${stateRowsSection(say)}
+    ${usageSection(say)}
+    ${stickyDetailSection(say)}
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
-    ${catalogIndex(sections)}
-    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}</style>
+    ${catalogIndex(sections, say)}
+    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

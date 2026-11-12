@@ -1,4 +1,6 @@
+import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
+import { handleKitSettingsHttp } from "./kit-settings-http.js";
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -7,7 +9,7 @@ import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, ty
 import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -40,7 +42,7 @@ import { homeAggregatePorts } from "./home-aggregate.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
-import { htmlLang, L } from "./web-locale.js";
+import { htmlLang } from "./web-locale.js";
 import { assistantPortsFor } from "./web-catalog-index-routes.js";
 import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { WebRoute } from "./web-route-table.js";
@@ -67,7 +69,7 @@ export const sideViewRoute: WebRoute<ProjectRequestContext> = { id: "side-view",
   if (!html) {
     // Shown inside the panel's frame: a sentence in the panel's colours, not a JSON body.
     response.writeHead(404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
-    response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(L("这个侧栏内容已经不在了（插件可能已停用）"))}</body></html>`);
+    response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(uiText.text("workbench.project-platform-routes.side-panel-content-gone-plugin-may-have-been"))}</body></html>`);
     return true;
   }
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
@@ -161,8 +163,9 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
  * code the action layer uses; anything else under `/api/plugins/` falls through to the next entry.
  */
 export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runtime-plugins", handle: async ({ request, response, url, options, composition, serverOptions, pluginPorts }) => {
-  const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
   const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates" || isPluginEventManagementPath(url.pathname);
+  const runtimePluginRoute = runtimeUpdatesRoute ? null : /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
+  if (runtimePluginRoute && !PLUGIN_ID.test(runtimePluginRoute[1]!)) return false;
   const runtimeEntry = runtimePluginRoute
     ? builtinPluginByManifestId(runtimePluginRoute[1]!) : undefined;
   if (!runtimeUpdatesRoute && !(runtimePluginRoute && (!runtimeEntry || runtimeEntry.manifest.kind === "app" || runtimeEntry.manifest.routes?.length))) return false;
@@ -211,6 +214,7 @@ export const agentReviewsRoute: WebRoute<ProjectRuntimeContext> = { id: "agent-r
   await agentReady();
   const projectId = options.projectId;
   return handleAgentReviewHttp(request, response, url, {
+    host: localHost,
     projectId,
     agentHost,
     actorId: LOCAL_PERSON_ACTOR_ID,
@@ -246,6 +250,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   // A project's plugins: what is installed with what it asked for, installing a signed package, taking an agreement back (ac-trust T7), as the person.
   { id: "plugin-trust", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSkillSettingsHttp(request, response, url, localHost, hostReference).then(handled => handled || handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference })) },
+  // The 「能力包」 page (specs/capability-pack §4.7, §4.9): the kit, its exports and prompt edits brought back, as the person in this project.
+  { id: "kit", handle: ({ request, response, url, localHost, hostReference }) => handleKitSettingsHttp(request, response, url, localHost, hostReference) },
   { id: "placement", handle: ({ request, response, url, localHost, hostReference }) =>
     handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).
@@ -292,6 +298,6 @@ export const projectNotFoundRoute: WebRoute<ProjectRuntimeContext> = { id: "not-
     response.end();
     return true;
   }
-  sendJson(response, 404, { error: L("页面或接口不存在") });
+  sendJson(response, 404, { error: uiText.text("workbench.project-platform-routes.page-api-not-found") });
   return true;
 } };

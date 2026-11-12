@@ -13,9 +13,11 @@ import { restoreDrafts } from "./save.js";
 import { toast, wireToast } from "./toast.js";
 import type { WorkflowsHost } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Opens what the shell asked for; a workflow the person cannot read leaves the list with a note saying so. */
 async function selectFlow(page: WorkflowsPage, id: string | null, revision: number) {
-  const { ui, root, L } = page;
+  const { ui, root } = page;
   if (id) {
     try { await showFlow(page, id, { revision }); }
     catch (error) {
@@ -25,7 +27,7 @@ async function selectFlow(page: WorkflowsPage, id: string | null, revision: numb
       root.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } }));
       ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(page); setMode(page, "list"); drawList(page);
       const note = required(root, "[data-wf-gone]");
-      if (!page.pickedQuiet || status === 403) { note.textContent = status === 403 ? messageOf(error) : L("workflows.flow.gone"); note.hidden = false; }
+      if (!page.pickedQuiet || status === 403) { note.textContent = status === 403 ? messageOf(error) : uiText.text("workflows.flow.gone"); note.hidden = false; }
     }
     return;
   }
@@ -65,7 +67,8 @@ export function workflowsClient(host: WorkflowsHost) {
 
   new MutationObserver(() => { void start(page); }).observe(root, { attributes: true, attributeFilter: ["hidden"] });
   root.addEventListener("molis-work:select-item", async (event) => {
-    const detail = (event as CustomEvent<{ itemId?: string; quiet?: boolean } | undefined>).detail;
+    const detail = (event as CustomEvent<{ itemId?: string | null; quiet?: boolean; invalidate?: boolean } | undefined>).detail;
+    if (detail?.invalidate && detail.itemId === undefined) return;
     const id = detail?.itemId || null;
     page.pickedItem = id; page.pickedQuiet = Boolean(detail?.quiet);
     const revision = ++page.navId;

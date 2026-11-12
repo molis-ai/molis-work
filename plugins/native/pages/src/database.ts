@@ -1,9 +1,6 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-/**
- * The Pages store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in.
- */
+/** The Pages baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const PAGES_SCHEMA = `
  CREATE TABLE pages_editor_versions(id TEXT PRIMARY KEY,version INTEGER NOT NULL);
   CREATE TABLE pages (
@@ -38,7 +35,7 @@ const PAGES_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its documents and folders go
  * (their comments with them), with the generation and import receipts and the edits that could still be taken back.
  */
-const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Pages 文稿与文件夹", order: 10,
+const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "pages.project-deletion.data" }, order: 10,
   artifact_join: { table: "pages", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
     artifact_version_column: "artifact_version", write_columns: ["updated_at", "goal_id"], pending_column: "publication_pending_json" },
   tables: [

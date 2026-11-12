@@ -19,11 +19,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, LocalProjectDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { FEED_SAVE_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
+import { pageText } from "./fixtures/page-text.js";
+
+function drawFeed(host: UiHost, request: Parameters<UiHost["render"]>[0]): string {
+  installHostUiText();
+  const words = registeredBuiltinText(feedManifest);
+  assert.ok(words);
+  return runWithLocale("zh", () => runWithRegisteredText(words, () => host.render(request)));
+}
 
 const primitives: FeedUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -32,10 +40,7 @@ const primitives: FeedUiModel["primitives"] = {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
-  text: (value, variables) => Object.entries(variables ?? {}).reduce(
-    (result, [key, replacement]) => result.replaceAll(`{${key}}`, String(replacement)),
-    value,
-  ),
+  text: pageText("zh", "feed"),
   formatDate: (value) => value,
   richText: (value) => `<p>${value ?? ""}</p>`,
   plainText: (value) => value ?? "",
@@ -216,7 +221,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     (error) => error instanceof ActionError && error.code === "ui_host.contribution_conflict",
   );
 
-  const directory = host.render({
+  const directory = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "directory",
     model: model(),
@@ -224,7 +229,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.equal(directory, "");
   assert.doesNotMatch(directory, /data-directory-panel="feed"/);
 
-  const workbench = host.render({
+  const workbench = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model(),
@@ -239,7 +244,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.doesNotMatch(workbench, /接入来源后，消息和 Feed 会出现在这里|选择一项查看详情/);
   assert.doesNotMatch(workbench, /data-directory-panel="feed"/);
 
-  const failed = host.render({
+  const failed = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench-fragment",
     model: model({ error: "temporary failure" }),
@@ -248,7 +253,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.match(failed, /temporary failure/);
   assert.match(failed, /data-retry-feed-detail/);
 
-  const overlays = host.render({
+  const overlays = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model(),
@@ -262,11 +267,11 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.doesNotMatch(overlays, /网站与博客|持续收集新文章|先选择你想关注的来源/);
   assert.doesNotMatch(overlays, /data-feed-choose-kind="rss"/);
 
-  const catalogOverlays = host.render({
+  const catalogOverlays = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({
-      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI" }],
+      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI", limited: false }],
     }),
   });
   assert.match(catalogOverlays, /data-feed-choose-kind="rss"/);
@@ -285,17 +290,17 @@ test("Feed capture rules belong to a task, not the directory", () => {
       { rule_id: "rule-global", name: "Global", enabled: true, contains: "global", source_id: null, source_kind: null, judgment: null },
     ],
   });
-  const directory = host.render({
+  const directory = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "directory",
     model: uiModel,
   });
-  const workbench = host.render({
+  const workbench = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: uiModel,
   });
-  const overlays = host.render({
+  const overlays = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: uiModel,
@@ -325,7 +330,7 @@ test("Feed capture rules belong to a task, not the directory", () => {
 test("Feed capture rule selector loads the shared directory instead of embedding a function list", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
-  const overlays = host.render({
+  const overlays = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({
@@ -344,7 +349,7 @@ test("Feed capture rule selector loads the shared directory instead of embedding
 test("the reader has no promotion button where promotion cannot run, and the other entries stay", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
-  const render = (model: PersistedFeedDetailModel) => host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "persisted-detail", model });
+  const render = (model: PersistedFeedDetailModel) => drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "persisted-detail", model });
   assert.match(render({ ...persistedDetail(), promote_available: true }), /data-feed-action="promote"/);
   assert.match(render(persistedDetail()), /data-feed-action="promote"/, "a model that says nothing keeps the button");
   const hidden = render({ ...persistedDetail(), promote_available: false });
@@ -359,7 +364,7 @@ test("the reader has no promotion button where promotion cannot run, and the oth
 test("Feed suggestions retain an explicit manual Inbox override", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
-  const defaults = host.render({
+  const defaults = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "persisted-detail",
     model: persistedDetail(),
@@ -370,7 +375,7 @@ test("Feed suggestions retain an explicit manual Inbox override", () => {
   assert.match(defaults, /data-feed-action="archive"/);
   assert.match(defaults, /打开原文/);
 
-  const stay = host.render({
+  const stay = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "persisted-detail",
     model: persistedDetail({ suggested_behavior_ids: ["feed.open"] }),
@@ -381,14 +386,14 @@ test("Feed suggestions retain an explicit manual Inbox override", () => {
   assert.match(stay, /data-feed-action="archive"/);
   assert.match(stay, /打开原文/);
 
-  const illegal = host.render({
+  const illegal = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "persisted-detail",
     model: persistedDetail({ suggested_behavior_ids: ["invented.behavior", "invented.other"] }),
   });
   assert.match(illegal, /data-feed-action="inbox"/);
 
-  const promote = host.render({
+  const promote = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "persisted-detail",
     model: persistedDetail({ suggested_behavior_ids: ["feed.promote"] }),
@@ -414,7 +419,7 @@ test("Gmail source detail opens Connectors with the current project", () => {
     status_kind: "attention",
     last_error_code: "connector.needs_auth",
   });
-  const html = host.render({
+  const html = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "source-workbench",
     model: model({ sources: [gmail] }),
@@ -427,7 +432,7 @@ test("RING-05 Feed pull history separates running, interrupted, failed and compl
   const host = new UiHost();
   host.register(feedUiContribution);
   const receipt = { outcome: null, error_code: null, created_count: 2, deduped_count: 1, started_at: "2026-10-13T00:00:00Z", completed_at: null };
-  const html = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: model({ sources: [source({ runs: [
+  const html = drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: model({ sources: [source({ runs: [
     { ...receipt, phase: "running" },
     { ...receipt, phase: "interrupted" },
     { ...receipt, phase: "terminal", error_code: "connector_rate_limited" },
@@ -437,8 +442,8 @@ test("RING-05 Feed pull history separates running, interrupted, failed and compl
   assert.equal(rows.length, 4);
   const expected = [
     ["running", "syncing", "正在拉取", "已开始，等待来源返回"],
-    ["error", "interrupted", "拉取已中断", "新增 2 · 去重 1"],
-    ["error", "failed", "拉取失败", "错误：connector_rate_limited · 可安全重试"],
+    ["error", "interrupted", "拉取已中断", "已有内容仍在，请稍后重试。"],
+    ["error", "failed", "拉取失败", "已有内容仍在，请稍后重试。"],
     ["complete", "done", "拉取完成", "新增 2 · 去重 1"],
   ];
   for (const [index, row] of rows.entries()) {
@@ -459,7 +464,7 @@ test("Feed stage list is one timeline and the source menu keeps each source's co
   const sourceB = source({ source_id: "source-b", name: "Gmail · product", ui_kind: "gmail" });
   const emptySource = source({ source_id: "source-empty", name: "空任务", ui_kind: "rss" });
   const pausedSource = source({ source_id: "source-paused", name: "暂停任务", ui_kind: "rss", status_kind: "paused" });
-  const workbench = host.render({
+  const workbench = drawFeed(host, {
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({
@@ -511,8 +516,8 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
   const host = new UiHost();
   host.register(feedUiContribution);
   const real = model({ entries: [entry], sources: [source({ source_id: "source-a", name: "GitHub · design", ui_kind: "github" })] });
-  const detail = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: real });
-  const sourceStage = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: real });
+  const detail = drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: real });
+  const sourceStage = drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: real });
   assert.match(detail, /data-feed-entry-task="source-a"/);
   assert.match(detail, /data-feed-entry-persisted="true"/);
   assert.match(detail, /class="feed-stage-entry directory-list-row"/);
@@ -532,7 +537,7 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
 test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
   const built = buildFeedStageUiModel({ route_prefix: "/projects/demo", shown_plugins: ["feed"], primitives,
     context: { project: { project_id: "demo", display_name: "Demo" }, demo: true, cli_availability: {} },
-    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
+    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
       connector_auth: { github: { bound: false }, gmail: { bound: false } } } });
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);
@@ -577,11 +582,11 @@ test("The Feed stylesheet keeps every rule whole: no selector list runs into the
 test("Feed with nothing to show says so: no sources, or a source with no messages, never fabricated rows", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
-  const none = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: model() });
+  const none = drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: model() });
   assert.match(none, /<strong data-feed-empty-title>还没有来源<\/strong>/);
   assert.equal(none.match(/data-feed-entry-id=/g)?.length ?? 0, 0);
   assert.equal(none.match(/data-feed-task="/g)?.length ?? 0, 1, "only the “all” row, no invented sources");
-  const quiet = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: model({ sources: [source()] }) });
+  const quiet = drawFeed(host, { contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: model({ sources: [source()] }) });
   assert.match(quiet, /<strong data-feed-empty-title>还没有消息，拉取后会出现在这里<\/strong>/);
   assert.equal(quiet.match(/data-feed-entry-id=/g)?.length ?? 0, 0);
   assert.doesNotMatch(none + quiet, /data-prototype|adeptify|Latent Space/);

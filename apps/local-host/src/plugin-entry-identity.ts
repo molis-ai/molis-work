@@ -1,3 +1,4 @@
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definitionOrigin, isHostTrust } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
@@ -15,6 +16,7 @@ export function pluginEntryIdentity() {
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
   const images = new WeakMap<PluginDefinition, PluginImageGenerationDeclaration>();
+  const locales = new WeakMap<PluginDefinition, (definition: PluginDefinition) => PluginTextReader | null>();
   const projectData = new WeakMap<PluginDefinition, PluginProjectCleanup>();
   const dual = new WeakSet<PluginDefinition>();
   const dualIds = new Set<string>();
@@ -25,15 +27,17 @@ export function pluginEntryIdentity() {
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definitionOrigin(definition)),
     modelConfigurationFor: (definition: PluginDefinition) => configurations.get(definitionOrigin(definition)),
     imageGenerationFor: (definition: PluginDefinition) => images.get(definitionOrigin(definition)),
+    localePacks: (definition: PluginDefinition) => locales.get(definitionOrigin(definition))?.(definition) ?? null,
     projectDataFor: (definition: PluginDefinition) => projectData.get(definitionOrigin(definition)),
     /** Whether the Host's start list said this definition is one half of a dual-instance plugin; nothing the plugin declares does. */
     dualInstance: (definition: PluginDefinition) => dual.has(definitionOrigin(definition)),
     dualInstanceId: (pluginId: string) => dualIds.has(pluginId),
     /** The files its Manifest declares, for a definition object the Host's start list holds. */
     remember(entries: readonly (PluginOwnerFilesEntry & { trust?: PluginTrust;
-      project_data?: PluginProjectCleanup })[]) {
+      project_data?: PluginProjectCleanup; localePacks?: (definition: PluginDefinition) => PluginTextReader | null })[]) {
       for (const entry of entries) {
         if (entry.trust && isHostTrust(entry.trust)) hostBuilt.add(entry.definition);
+        if (entry.localePacks) locales.set(entry.definition, entry.localePacks);
         if (entry.dual_instance) { dual.add(entry.definition); dualIds.add(entry.definition.manifest.plugin_id); }
         listed.add(entry.definition);
         const owned = entry.definition.manifest.owner_files;

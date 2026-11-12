@@ -30,16 +30,16 @@
       "reason": "要先连上一个真实的连接器 MCP，金样不联网"
     },
     {
+      "path": "config/desktop.json",
+      "reason": "桌面壳（Rust，runtime.rs）在设置 › 运行改「关掉窗口后继续运行」时才写，宿主不读不写；金样由宿主与 Node 的生成步骤产生、不启动桌面。文件只有一个开关，读法与版本拒绝由 Rust 用例 res11_keep_running_is_on_until_the_desktop_file_says_off 钉住"
+    },
+    {
       "path": "config/external-mcp-actions.json",
       "reason": "外部 MCP 能离线配（tests/external-mcp-actions.test.ts 用本地 stdio 夹具），但放不进金样：stdio 服务器必须挂在项目已授权的工作区里（horizontal/agent-host/src/adapters/prologue-mcp.ts:129），保存的配置记下工作区的真实路径和可执行文件的绝对路径。工作区放在临时 Home 里，金样拒绝记下生成 Home 的路径（golden.home_path_recorded）；放在别处是每次不同的临时目录，同一提交两次生成不再相同（UPG2-02）；可执行文件是生成机器上 Node 的路径，带用户目录。金样的项目也没有工作区"
     },
     {
       "path": "config/installation.json",
       "reason": "安装器写的收据，生成在构建好的工作区上跑，没有运行安装器；快照也排除它"
-    },
-    {
-      "path": "config/ui-locale.json",
-      "reason": "第 14 批 T10 新加的上次所用语言；金样 0.1.0 在它合入 main 之前生成，而且必须停在目录库第 1 版才能回放 05 的升级，不能为它重新生成。下一份金样（发版时）会带上它"
     },
     {
       "path": "feed/evidence/blobs/**",
@@ -226,6 +226,7 @@
     }
   },
   "other_writes": {
+    "appearance.ts": "经外观动作保存并读取 Home 的选择和回执，记录在 interface/state.json",
     "host-settings.ts": "写宿主的设置文件，不是 §3 里的库",
     "model-settings.ts": "写模型设置和密文，都在 feed/ 的文件里",
     "model-turn.ts": "走一轮真实对话，写 Prologue 的会话记录文件",

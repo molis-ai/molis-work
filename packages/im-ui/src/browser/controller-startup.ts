@@ -1,3 +1,5 @@
+import { imFailureText } from "./error-text.js";
+import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoom, ImRoomList, ImSessionState } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -6,7 +8,7 @@ export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
   const { s, root, v, q, e, projectId, api, storage, connectProject, resetHistory, drafts } = base;
   async function startup() {
     const c = context();
-    c.connection('连接中');
+    c.connection((uiText.text("im-ui.status.connecting")));
     try {
       s.events?.close();
       s.streamCache.clear();
@@ -21,10 +23,10 @@ export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
       s.authLost = false;
       s.inviteToken = s.inviteToken || new URLSearchParams(location.hash.slice(1)).get('invite') || new URLSearchParams(location.search).get('invite') || '';
       if (!s.member) {
-        c.connection('待加入');
+        c.connection((uiText.text("im-ui.status.not-joined")));
         q('[data-welcome]').hidden = false;
         q('[data-conversations]').hidden = true;
-        q('[data-welcome-body]').innerHTML = '<form data-name-form><label class="im-field">你的名字<input name="display_name" maxlength="40" required autocomplete="nickname" placeholder="你的名字"></label><p class="im-form-error" data-form-error role="alert"></p><div class="im-form-actions"><button class="im-primary" type="submit">继续</button></div></form>';
+        q('[data-welcome-body]').innerHTML = ("<form data-name-form><label class=\"im-field\">" + escapeImText(uiText.text("im-ui.member.your-name")) + "<input name=\"display_name\" maxlength=\"40\" required autocomplete=\"nickname\" placeholder=\"" + escapeImText(uiText.text("im-ui.member.your-name")) + "\"></label><p class=\"im-form-error\" data-form-error role=\"alert\"></p><div class=\"im-form-actions\"><button class=\"mw-btn mw-btn--primary mw-btn--sm\" type=\"submit\">" + escapeImText(uiText.text("im-ui.control.continue")) + "</button></div></form>");
         q<HTMLFormElement>('[data-name-form]').onsubmit = async (event) => {
           event.preventDefault(); const form = event.currentTarget as HTMLFormElement, button = form.querySelector('button')!; button.disabled = true; const name = form.querySelector<HTMLInputElement>('[name=display_name]')!.value; const id = form.dataset.requestName === name && form.dataset.requestId || crypto.randomUUID(); form.dataset.requestId = id; form.dataset.requestName = name; try {
             await api('/session', { display_name: name, client_id: id });
@@ -32,7 +34,7 @@ export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
           }
             catch (cause) {
               const error = cause as ApiError;
-              form.querySelector<HTMLElement>('[data-form-error]')!.textContent = error.message;
+              form.querySelector<HTMLElement>('[data-form-error]')!.textContent = imFailureText(error);
               button.disabled = false;
             }
         };
@@ -54,27 +56,27 @@ export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
       q('[data-own-avatar]').textContent = [...s.member.display_name].slice(-2).join('');
       s.rooms = (await api<ImRoomList>('/rooms')).rooms;
       v.roomList(s.rooms, s.roomId);
-      c.connection('已连接');
+      c.connection((uiText.text("im-ui.status.connected")));
       c.syncError('');
       if (s.rooms.length) {
         const saved = storage.read(c.key('room'), '');
         await c.selectRoom(s.rooms.some(room => room.id === saved) ? saved : s.rooms[0].id);
       }
       else {
-        q('[data-welcome-title]').textContent = '从一个群聊开始';
-        q('[data-welcome-copy]').textContent = '邀请一起工作的人，把消息、话题和讨论结果留在同一个地方。';
-        q('[data-welcome-body]').innerHTML = '<div class="im-form-actions"><button class="im-primary" type="button" data-action="create-room">创建群聊</button><button class="im-secondary" type="button" data-action="join">通过邀请加入</button></div>';
+        q('[data-welcome-title]').textContent = (uiText.text("im-ui.room.start"));
+        q('[data-welcome-copy]').textContent = (uiText.text("im-ui.room.start-description"));
+        q('[data-welcome-body]').innerHTML = ("<div class=\"im-form-actions\"><button class=\"mw-btn mw-btn--primary mw-btn--sm\" type=\"button\" data-action=\"create-room\">" + escapeImText(uiText.text("im-ui.room.create")) + "</button><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"join\">" + escapeImText(uiText.text("im-ui.invitation.join")) + "</button></div>");
       }
       if (s.inviteToken)
         c.joinRoom();
     }
     catch (cause) {
       const error = cause as ApiError;
-      c.connection('未连接', true);
+      c.connection((uiText.text("im-ui.status.disconnected")), true);
       q('[data-welcome]').hidden = false;
       q('[data-conversations]').hidden = true;
-      q('[data-welcome-body]').innerHTML = '<p class="im-form-error">' + e(error.message) + '</p><div class="im-form-actions"><button type="button" class="im-primary" data-action="retry">重新连接</button></div>';
-      c.syncError('群聊服务暂时不可用。');
+      q('[data-welcome-body]').innerHTML = '<p class="im-form-error">' + e(imFailureText(error)) + ("</p><div class=\"im-form-actions\"><button type=\"button\" class=\"mw-btn mw-btn--primary mw-btn--sm\" data-action=\"retry\">" + escapeImText(uiText.text("im-ui.status.reconnect")) + "</button></div>");
+      c.syncError((uiText.text("im-ui.status.service-unavailable")));
     }
   }
   return { startup };

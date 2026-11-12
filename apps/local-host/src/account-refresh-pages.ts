@@ -1,3 +1,4 @@
+import { channel } from 'node:diagnostics_channel';
 import { randomUUID } from 'node:crypto';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PersonalAccountLease } from './personal-auth.js';
@@ -5,30 +6,54 @@ import type { PersonalAccountLease } from './personal-auth.js';
 type Lease = Pick<PersonalAccountLease, 'signal' | 'assertCurrent'>;
 type Intent = 'switch' | 'logout';
 export interface AccountRefreshPreparation { id: string; ownerPageId: string; intent: Intent; ready: boolean }
-export interface AccountRefreshPageEvent { type: 'prepare' | 'changed' | 'cancelled' | 'revoked'; preparation: AccountRefreshPreparation | null }
-interface Page { lease: Lease; listeners: Set<(event: AccountRefreshPageEvent) => void>; abort(): void }
+export interface AccountRefreshPageEvent { type: 'prepare' | 'changed' | 'cancelled' | 'revoked'; preparation: AccountRefreshPreparation | null; reason?: string }
+interface Page {
+  binding: string; departed: boolean; lease: Lease; listeners: Set<(event: AccountRefreshPageEvent) => void>; abort(): void;
+  /** Set when this document opened the event stream; a page that never did may still be waiting to join. */
+  subscribedAt: number | undefined;
+  disconnectedAt: number | undefined;
+  /** A stream that died and did not come back cannot acknowledge; it must not block a later preparation forever. */
+  stale: boolean;
+}
 interface Preparation extends AccountRefreshPreparation { lease: Lease; required: Set<string>; acknowledged: Set<string>; committing: boolean; timer: NodeJS.Timeout }
+const diagnostics = channel('molis-work.account-pages');
 const refused = () => new ActionError('actions.forbidden', '账号切换准备已失效，请返回原页面重试');
+/**
+ * An event stream that has been gone this long is a closed or crashed document, not a page that is about to
+ * reconnect: EventSource backs off at most 10 s in `account-event-stream.ts`. Pages that never subscribed stay
+ * required (a page opened before its stream finished connecting), and an immediate disconnect stays required
+ * until the current preparation times out, so a live page that lost one connection can still save its drafts
+ * (ASR-04). A crashed tab can delay one preparation and is then dropped instead of blocking every retry. A page that
+ * registered but never subscribed is kept required on purpose (a slow load must not lose drafts); a document that
+ * crashes before its stream opens can therefore cost one timeout per preparation until it is gone. That trade is
+ * deliberate: dropping on age alone would hurt a genuinely slow page more than one extra 30 s wait.
+ */
+const CRASHED_AFTER_MS = 15_000;
 
 /** Ephemeral page coordination only. Identity and revocation remain the original account lease's facts. */
 export class AccountRefreshPages {
   private readonly pages = new Map<string, Page>();
   private preparation: Preparation | null = null;
-  constructor(private readonly timeoutMs = 30_000, private readonly onCancel: () => void = () => {}) {}
+  constructor(private readonly timeoutMs = 30_000, private readonly onCancel: () => void = () => {}, private readonly now: () => number = Date.now) {}
 
-  register(pageId: string, lease: Lease): void {
+  register(pageId: string, lease: Lease): string {
     lease.assertCurrent();
     if (!pageId || pageId.length > 128) throw refused();
     const existing = this.pages.get(pageId);
-    if (existing?.lease.signal === lease.signal) return;
+    if (existing?.lease.signal === lease.signal) {
+      if (existing.departed) throw refused();
+      existing.stale = false; // A status read proves this document is alive again.
+      return existing.binding;
+    }
     if (this.preparation?.committing && this.preparation.lease.signal === lease.signal) throw refused();
     if (existing) this.remove(pageId, existing);
-    const page: Page = { lease, listeners: new Set(), abort: () => {
+    const page: Page = { binding: randomUUID(), departed: false, stale: false, subscribedAt: undefined, disconnectedAt: undefined, lease, listeners: new Set(), abort: () => {
       this.emit(page, { type: 'revoked', preparation: null });
       if (this.preparation?.lease.signal === lease.signal) this.clear('revoked');
       this.remove(pageId, page);
     } };
     this.pages.set(pageId, page);
+    diagnostics.publish({ event: 'registered', pageId });
     lease.signal.addEventListener('abort', page.abort, { once: true });
     const preparation = this.preparation;
     if (preparation?.lease.signal === lease.signal) {
@@ -36,23 +61,45 @@ export class AccountRefreshPages {
       preparation.ready = false;
       this.broadcast('prepare');
     }
+    return page.binding;
+  }
+
+  connection(pageId: string, lease: Lease, binding: string): void {
+    if (!binding || this.page(pageId, lease).binding !== binding) throw refused();
   }
 
   subscribe(pageId: string, send: (event: AccountRefreshPageEvent) => void): () => void {
     const page = this.pages.get(pageId);
-    if (!page) throw refused();
+    if (!page || page.departed) throw refused();
     page.lease.assertCurrent();
     page.listeners.add(send);
+    page.subscribedAt ??= this.now();
+    page.disconnectedAt = undefined;
+    if (page.stale) {
+      // The stream came back after this page was dropped as crashed; it is a live participant again and must
+      // acknowledge drafts with everyone else in the current preparation.
+      page.stale = false;
+      const preparation = this.preparation;
+      if (preparation?.lease.signal === page.lease.signal && !preparation.required.has(pageId)) {
+        preparation.required.add(pageId);
+        preparation.ready = false;
+        this.broadcast('prepare');
+      }
+    }
+    diagnostics.publish({ event: 'connected', pageId });
     try { send({ type: this.preparation ? 'prepare' : 'changed', preparation: this.snapshot(page.lease) }); }
     catch (error) {
       page.listeners.delete(send);
-      if (this.preparation?.required.has(pageId)) this.clear('cancelled');
+      if (!page.listeners.size) page.disconnectedAt = this.now();
+      if (this.preparation?.required.has(pageId)) this.clear('cancelled', 'delivery-failed');
       throw error;
     }
     return () => {
       page.listeners.delete(send);
+      diagnostics.publish({ event: 'disconnected', pageId });
       const preparation = this.preparation;
-      if (this.pages.get(pageId) === page && !page.listeners.size && preparation?.lease.signal === page.lease.signal && preparation.required.has(pageId)) this.clear('cancelled');
+      if (!page.listeners.size) page.disconnectedAt = this.now();
+      if (this.pages.get(pageId) === page && !page.listeners.size && preparation?.lease.signal === page.lease.signal && preparation.required.has(pageId)) this.clear('cancelled', 'connection-lost');
     };
   }
 
@@ -63,6 +110,12 @@ export class AccountRefreshPages {
       ? { id: current.id, ownerPageId: current.ownerPageId, intent: current.intent, ready: current.ready } : null;
   }
 
+  /** A subscribed page whose stream has been gone beyond the reconnect window, or was dropped by a timed-out preparation. */
+  private crashed(page: Page): boolean {
+    return !page.stale && page.subscribedAt !== undefined && page.listeners.size === 0
+      && page.disconnectedAt !== undefined && this.now() - page.disconnectedAt > CRASHED_AFTER_MS;
+  }
+
   start(pageId: string, lease: Lease, intent: Intent): AccountRefreshPreparation {
     this.page(pageId, lease);
     if (intent !== 'switch' && intent !== 'logout') throw refused();
@@ -71,8 +124,10 @@ export class AccountRefreshPages {
       if (!current || current.intent !== intent) throw refused();
       return current;
     }
-    const required = new Set([...this.pages].filter(([, page]) => page.lease.signal === lease.signal).map(([id]) => id));
-    const timer = setTimeout(() => { if (!this.preparation?.committing) this.clear('cancelled'); }, this.timeoutMs);
+    // A closed or crashed tab cannot acknowledge; dropping it here keeps a later retry from waiting for it again.
+    for (const page of this.pages.values()) if (page.lease.signal === lease.signal && !page.departed && this.crashed(page)) page.stale = true;
+    const required = new Set([...this.pages].filter(([, page]) => page.lease.signal === lease.signal && !page.departed && !page.stale).map(([id]) => id));
+    const timer = setTimeout(() => { if (!this.preparation?.committing) this.clear('cancelled', 'timeout'); }, this.timeoutMs);
     timer.unref();
     this.preparation = { id: randomUUID(), ownerPageId: pageId, intent, ready: false, lease, required, acknowledged: new Set(), committing: false, timer };
     this.broadcast('prepare');
@@ -105,9 +160,16 @@ export class AccountRefreshPages {
   }
 
   leave(pageId: string, lease: Lease): void {
+    lease.assertCurrent();
+    const existing = this.pages.get(pageId);
+    if (existing?.lease.signal === lease.signal && existing.departed) return;
+    // pagehide can arrive before an in-flight initial status request registers this document.
+    if (!existing) this.register(pageId, lease);
     const page = this.page(pageId, lease);
-    if (this.preparation?.required.has(pageId)) this.clear('cancelled');
-    this.remove(pageId, page);
+    if (this.preparation?.required.has(pageId)) this.clear('cancelled', 'page-left');
+    page.departed = true;
+    page.listeners.clear();
+    diagnostics.publish({ event: 'left', pageId });
   }
 
   close(): void {
@@ -118,7 +180,7 @@ export class AccountRefreshPages {
   private page(pageId: string, lease: Lease): Page {
     lease.assertCurrent();
     const page = this.pages.get(pageId);
-    if (!page || page.lease.signal !== lease.signal) throw refused();
+    if (!page || page.departed || page.lease.signal !== lease.signal) throw refused();
     page.lease.assertCurrent();
     return page;
   }
@@ -141,16 +203,26 @@ export class AccountRefreshPages {
     const preparation = this.snapshot(current.lease);
     let delivered = true;
     for (const pageId of current.required) { const page = this.pages.get(pageId); if (page && !this.emit(page, { type, preparation })) delivered = false; }
-    if (!delivered) this.clear('cancelled');
+    if (!delivered) this.clear('cancelled', 'delivery-failed');
   }
-  private clear(type: 'cancelled' | 'revoked'): void {
+  private clear(type: 'cancelled' | 'revoked', reason: string = type): void {
     const current = this.preparation;
     if (!current) return;
     // Invalidate the original OAuth attempt before any old page is allowed to resume editing.
     if (type === 'cancelled' && current.committing) this.onCancel();
     clearTimeout(current.timer);
     this.preparation = null;
-    for (const id of current.required) { const page = this.pages.get(id); if (page) this.emit(page, { type, preparation: null }); }
+    diagnostics.publish({ event: type, reason, pageId: current.ownerPageId });
+    for (const id of current.required) { const page = this.pages.get(id); if (page) this.emit(page, { type, reason, preparation: null }); }
+    // Only a preparation that timed out may have waited on a page whose stream never came back. A connection-lost
+    // cancellation keeps that page required for the immediate retry (a network blip must not skip its drafts):
+    // the next start's `crashed()` window decides it once the stream has been gone long enough.
+    if (type === 'cancelled' && reason === 'timeout') {
+      for (const id of current.required) {
+        const page = this.pages.get(id);
+        if (page && page.subscribedAt !== undefined && page.listeners.size === 0) page.stale = true;
+      }
+    }
   }
   private remove(id: string, page: Page): void { page.lease.signal.removeEventListener('abort', page.abort); this.pages.delete(id); }
 }

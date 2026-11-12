@@ -7,10 +7,11 @@ import test from "node:test";
 import * as module from "@molis-ai/molis-work-module-artifacts";
 import { catalogProblems, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { artifactBrowserUiContribution, artifactReferenceUiContribution, BUILTIN_PLUGIN_CATALOG, clientPluginDirectory, createWorkbenchUiHost, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { withPageText } from "./fixtures/page-text.js";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("RAC-2340 platform Artifact navigation and declared surfaces remain reachable without any project Plugins", () => {
+test("RAC-2340 platform Artifact navigation and declared surfaces remain reachable without any project Plugins", () => withPageText("zh", [], () => {
   assert.equal(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "artifacts"), false);
   const nav = railEntries([], []);
   assert.deepEqual(nav.map(entry => [entry.id, entry.chosen]), [["artifacts", false]]);
@@ -20,7 +21,7 @@ test("RAC-2340 platform Artifact navigation and declared surfaces remain reachab
   const html = host.mountDeclared({ contribution_id: "io.molis.work.native.artifacts.reference.v1", surface: "reference",
     model: { value: "result", label: "kept", primitives: { text: (text: string) => text, escape: (text: string) => text, icon: () => "" } } }).html;
   assert.match(html, /data-copy-value="result"/u);
-});
+}));
 
 test("RAC-2341 resolved registrations cannot take the platform key or replace its declared UI", () => {
   assert.deepEqual(catalogProblems(BUILTIN_PLUGIN_CATALOG), []);

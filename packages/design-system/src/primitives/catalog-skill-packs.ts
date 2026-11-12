@@ -147,30 +147,30 @@ interface Skill {
   readonly used: string;
 }
 
-const MODE_WORD: Record<Mode, string> = { off: "关", auto: "自动", manual: "仅手动" };
+const MODE_WORD: Record<Mode, string> = { off: "workbench.catalog-skill-packs.off", auto: "workbench.catalog-skill-packs.automatic", manual: "workbench.catalog-skill-packs.manual-only" };
 const MODE_SAYS: Record<Mode, string> = {
-  off: "关：不会被用。",
-  auto: "自动：AI 按任务自己选用；你点名时优先用你点的。",
-  manual: "仅手动：只在你用 / 点名时用，AI 不会自己选。",
+  off: "workbench.catalog-skill-packs.off-never-used",
+  auto: "workbench.catalog-skill-packs.automatic-ai-picks-it-when-a-task-fits",
+  manual: "workbench.catalog-skill-packs.manual-only-used-only-when-you-name-it",
 };
 
 /** The skills the specimens show (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. */
 function skills(say: Say): { readonly weekly: Skill; readonly minutes: Skill; readonly invoice: Skill; readonly schedule: Skill; readonly contract: Skill } {
   return {
-    weekly: { id: "weekly", name: say("写周度复盘"), what: say("每周五把这一周的进展、风险和下周计划整理成一页"), pack: say("周报与复盘"), mode: "auto",
-      when: say("要整理一周的工作、写周报或复盘时"), tools: ["goals.list", "pages.create"],
-      files: [{ path: "templates/weekly.md", role: say("参考"), size: "2 KB" }], used: say("最近一次：昨天 17:40 · 助理") },
-    minutes: { id: "minutes", name: say("把会议录音整理成带行动项、负责人和截止日期的纪要，并发到团队频道"), what: say("会后把录音转写整理成纪要"), pack: say("会议助手：录音转写、纪要与行动项跟进（团队版）"), mode: "manual",
-      when: say("会议结束、手上有录音或转写时"), tools: ["files.read", "inbox.send"],
-      files: [{ path: "scripts/split-speakers.py", role: say("脚本，会执行"), size: "6 KB" }], used: say("最近一次：3 天前 · Coding") },
-    invoice: { id: "invoice", name: say("整理发票"), what: say("把发票照片识别成表格，按月归档"), pack: say("财务小工具"), mode: "off",
-      when: say("收到发票照片或 PDF 时"), tools: ["files.read"], files: [], used: say("还没用过") },
-    schedule: { id: "schedule", name: say("安排会议"), what: say("按大家的空闲时间提出会议时间"), pack: say("日程安排"), mode: "auto",
-      unavailable: { word: say("暂时用不了"), why: say("没有连接日历，暂时用不了（状态仍可改）"), fix: say("去连接") },
-      when: say("要约人开会、找共同空闲时间时"), tools: ["calendar.free_busy"], files: [], used: say("最近一次：上周 · 助理") },
-    contract: { id: "contract", name: say("审合同条款"), what: say("逐条标出合同里的风险条款"), pack: say("法务审阅"), mode: "auto",
-      unavailable: { word: say("已撤销"), why: say("发布者已撤销，只能卸载"), fix: say("卸载"), onlyRemove: true },
-      when: say("拿到要签的合同时"), tools: ["files.read"], files: [{ path: "reference/clauses.md", role: say("参考"), size: "18 KB" }], used: say("还没用过") },
+    weekly: { id: "weekly", name: say("workbench.catalog-skill-packs.write-the-weekly-review"), what: say("workbench.catalog-skill-packs.every-friday-puts-the-week-s-progress-risks"), pack: say("workbench.catalog-skill-packs.weekly-reports-and-reviews"), mode: "auto",
+      when: say("workbench.catalog-skill-packs.when-the-week-s-work-needs-gathering-into"), tools: ["goals.list", "pages.create"],
+      files: [{ path: "templates/weekly.md", role: say("workbench.catalog-skill-packs.reference"), size: "2 KB" }], used: say("workbench.catalog-skill-packs.last-used-yesterday-17-40-assistant") },
+    minutes: { id: "minutes", name: say("workbench.catalog-skill-packs.turn-a-meeting-recording-into-minutes-with-action"), what: say("workbench.catalog-skill-packs.after-a-meeting-turns-the-transcript-into-minutes"), pack: say("workbench.catalog-skill-packs.meeting-helper-transcripts-minutes-and-action-follow-up"), mode: "manual",
+      when: say("workbench.catalog-skill-packs.when-a-meeting-is-over-and-there-is"), tools: ["files.read", "inbox.send"],
+      files: [{ path: "scripts/split-speakers.py", role: say("workbench.catalog-skill-packs.script-runs"), size: "6 KB" }], used: say("workbench.catalog-skill-packs.last-used-3-days-ago-coding") },
+    invoice: { id: "invoice", name: say("workbench.catalog-skill-packs.sort-invoices"), what: say("workbench.catalog-skill-packs.reads-invoice-photos-into-a-table-filed-by"), pack: say("workbench.catalog-skill-packs.finance-tools"), mode: "off",
+      when: say("workbench.catalog-skill-packs.when-invoice-photos-or-pdfs-come-in"), tools: ["files.read"], files: [], used: say("workbench.catalog-skill-packs.never-used") },
+    schedule: { id: "schedule", name: say("workbench.catalog-skill-packs.schedule-a-meeting"), what: say("workbench.catalog-skill-packs.suggests-meeting-times-from-everyone-s-free-time"), pack: say("workbench.catalog-skill-packs.scheduling"), mode: "auto",
+      unavailable: { word: say("workbench.catalog-skill-packs.unavailable-for-now"), why: say("workbench.catalog-skill-packs.no-calendar-connection-so-it-can-t-be"), fix: say("workbench.catalog-skill-packs.connect") },
+      when: say("workbench.catalog-skill-packs.when-a-meeting-needs-a-time-everyone-is"), tools: ["calendar.free_busy"], files: [], used: say("workbench.catalog-skill-packs.last-used-last-week-assistant") },
+    contract: { id: "contract", name: say("workbench.catalog-skill-packs.review-contract-clauses"), what: say("workbench.catalog-skill-packs.marks-the-risky-clauses-of-a-contract-one"), pack: say("workbench.catalog-skill-packs.legal-review"), mode: "auto",
+      unavailable: { word: say("workbench.catalog-skill-packs.retracted"), why: say("workbench.catalog-skill-packs.publisher-revoked-it-can-only-be-uninstalled"), fix: say("workbench.catalog-skill-packs.uninstall"), onlyRemove: true },
+      when: say("workbench.catalog-skill-packs.when-a-contract-arrives-to-be-signed"), tools: ["files.read"], files: [{ path: "reference/clauses.md", role: say("workbench.catalog-skill-packs.reference"), size: "18 KB" }], used: say("workbench.catalog-skill-packs.never-used") },
   };
 }
 
@@ -200,14 +200,14 @@ export function alertWithActions(options: { tone: "danger" | "success" | "warnin
 /** 1 · The three-way choice; disabled while the plugin is off, revoked or broken. */
 function choice(say: Say, skill: Skill, disabled = false): string {
   return renderToggleGroup({
-    label: say("「{name}」怎么用", { name: skill.name }),
+    label: say("workbench.catalog-skill-packs.how-to-use-name", { name: skill.name }),
     items: (["off", "auto", "manual"] as const).map((mode) => ({ value: mode, label: say(MODE_WORD[mode]), current: skill.mode === mode, attrs: disabled ? { disabled: true } : {} })),
   });
 }
 
 function saveFailed(say: Say, skill: Skill): string {
-  return alertWithActions({ tone: "danger", title: say("没能保存"), body: say("「{name}」还是「{mode}」，什么都没改。", { name: skill.name, mode: say(MODE_WORD[skill.mode]) }),
-    actions: renderButton({ label: say("重试"), variant: "secondary", size: "sm" }) });
+  return alertWithActions({ tone: "danger", title: say("workbench.catalog-skill-packs.couldn-t-save"), body: say("workbench.catalog-skill-packs.name-is-still-mode-nothing-changed", { name: skill.name, mode: say(MODE_WORD[skill.mode]) }),
+    actions: renderButton({ label: say("common.control.retry"), variant: "secondary", size: "sm" }) });
 }
 
 /** 1 · One row of the enable step: the words, then the choice under them (and what stops it, or a failed save). */
@@ -220,16 +220,16 @@ function choiceRow(say: Say, skill: Skill, options: { locked?: Unavailable; fail
 
 export function itemChoiceSection(say: Say): string {
   const { weekly, minutes, invoice } = skills(say);
-  const plugin: Unavailable = { word: say("暂时用不了"), why: say("插件「法务审阅」停用了，暂时用不了；设置保留为「自动」，恢复后照旧"), fix: say("启用插件"), locked: true };
-  const revoked: Unavailable = { word: say("已撤销"), why: say("发布者已撤销，只能卸载"), fix: say("卸载"), onlyRemove: true };
-  const broken: Unavailable = { word: say("坏了"), why: say("正文或附带文件缺失"), fix: say("重新安装"), onlyRemove: true };
-  return section("item-choice", say("条目行里的分段 / Item Row Choice"), `<div class="mw-catalog__specimens">
-    ${specimen(say("装完就地启用：每项三档，默认关"), `<ul class="mw-items">${choiceRow(say, { ...weekly, mode: "off" })}${choiceRow(say, minutes)}${choiceRow(say, invoice)}</ul>`)}
-    ${specimen(say("用不了：三档变灰，状态旁给能做的事"), `<ul class="mw-items">${
-      choiceRow(say, { ...invoice, name: say("审合同条款"), what: say("逐条标出合同里的风险条款"), mode: "auto" }, { locked: plugin })}${
-      choiceRow(say, { ...invoice, name: say("比对合同版本"), what: say("标出两版合同之间改了哪些条款"), mode: "manual" }, { locked: revoked })}${
-      choiceRow(say, { ...invoice, name: say("生成报价单"), what: say("按模板生成报价单 PDF") }, { locked: broken })}</ul>`)}
-    ${specimen(say("保存失败：就地说清，原状态不变"), `<ul class="mw-items">${choiceRow(say, weekly, { failed: true })}</ul>`)}
+  const plugin: Unavailable = { word: say("workbench.catalog-skill-packs.unavailable-for-now"), why: say("workbench.catalog-skill-packs.plugin-legal-review-is-turned-off-so-it"), fix: say("workbench.home-plugin-page.enable-plugin"), locked: true };
+  const revoked: Unavailable = { word: say("workbench.catalog-skill-packs.retracted"), why: say("workbench.catalog-skill-packs.publisher-revoked-it-can-only-be-uninstalled"), fix: say("workbench.catalog-skill-packs.uninstall"), onlyRemove: true };
+  const broken: Unavailable = { word: say("workbench.catalog-skill-packs.broken"), why: say("workbench.catalog-skill-packs.its-text-or-files-are-missing"), fix: say("workbench.catalog-skill-packs.reinstall"), onlyRemove: true };
+  return section("item-choice", say("workbench.catalog-skill-packs.item-row-choice"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-skill-packs.enabling-right-after-install-three-settings-each-off"), `<ul class="mw-items">${choiceRow(say, { ...weekly, mode: "off" })}${choiceRow(say, minutes)}${choiceRow(say, invoice)}</ul>`)}
+    ${specimen(say("workbench.catalog-skill-packs.unavailable-the-three-settings-grey-out-the-status"), `<ul class="mw-items">${
+      choiceRow(say, { ...invoice, name: say("workbench.catalog-skill-packs.review-contract-clauses"), what: say("workbench.catalog-skill-packs.marks-the-risky-clauses-of-a-contract-one"), mode: "auto" }, { locked: plugin })}${
+      choiceRow(say, { ...invoice, name: say("workbench.catalog-skill-packs.compare-contract-versions"), what: say("workbench.catalog-skill-packs.marks-which-clauses-changed-between-two-versions"), mode: "manual" }, { locked: revoked })}${
+      choiceRow(say, { ...invoice, name: say("workbench.catalog-skill-packs.make-a-quote"), what: say("workbench.catalog-skill-packs.makes-a-quote-pdf-from-a-template") }, { locked: broken })}</ul>`)}
+    ${specimen(say("workbench.catalog-skill-packs.not-saved-said-in-place-the-setting-unchanged"), `<ul class="mw-items">${choiceRow(say, weekly, { failed: true })}</ul>`)}
   </div>`);
 }
 
@@ -237,23 +237,23 @@ export function itemChoiceSection(say: Say): string {
 function facts(say: Say, skill: Skill, withExcerpt: boolean): string {
   const files = skill.files.length
     ? `<ul>${skill.files.map((file) => `<li><code>${escapeHtml(file.path)}</code><span>${escapeHtml(file.role)} · ${escapeHtml(file.size)}</span></li>`).join("")}</ul>`
-    : `<span>${escapeHtml(say("没有附带文件"))}</span>`;
-  const excerpt = withExcerpt ? `<dt>${escapeHtml(say("正文开头"))}</dt><dd><blockquote>${escapeHtml(say("先列出这周完成的目标，再写没做完的和原因；风险单独一节，每条写清谁来跟。"))}</blockquote></dd>` : "";
-  return `<dl class="mw-facts"><dt>${escapeHtml(say("什么时候用"))}</dt><dd>${escapeHtml(skill.when)}</dd><dt>${escapeHtml(say("声明的工具（只是说明，不给权限）"))}</dt><dd>${
-    skill.tools.map((tool) => `<code>${escapeHtml(tool)}</code>`).join(" ")}</dd><dt>${escapeHtml(say("附带的文件"))}</dt><dd>${files}</dd>${excerpt}</dl>`;
+    : `<span>${escapeHtml(say("workbench.catalog-skill-packs.no-included-files"))}</span>`;
+  const excerpt = withExcerpt ? `<dt>${escapeHtml(say("workbench.catalog-skill-packs.start-of-the-text"))}</dt><dd><blockquote>${escapeHtml(say("workbench.catalog-skill-packs.first-list-the-goals-finished-this-week-then"))}</blockquote></dd>` : "";
+  return `<dl class="mw-facts"><dt>${escapeHtml(say("workbench.catalog-skill-packs.when-to-use"))}</dt><dd>${escapeHtml(skill.when)}</dd><dt>${escapeHtml(say("workbench.catalog-skill-packs.declared-tools-a-note-not-a-permission"))}</dt><dd>${
+    skill.tools.map((tool) => `<code>${escapeHtml(tool)}</code>`).join(" ")}</dd><dt>${escapeHtml(say("workbench.catalog-skill-packs.included-files"))}</dt><dd>${files}</dd>${excerpt}</dl>`;
 }
 
 function moreRow(say: Say, skill: Skill, open = false): string {
-  const fold = renderCollapsible({ summary: say("看详情"), body: facts(say, skill, true), open, className: "mw-item__more" })
-    .replace("<summary>", `<summary aria-label="${escapeHtml(say("看详情：{name}", { name: skill.name }))}">`);
+  const fold = renderCollapsible({ summary: say("workbench.catalog-skill-packs.details"), body: facts(say, skill, true), open, className: "mw-item__more" })
+    .replace("<summary>", `<summary aria-label="${escapeHtml(say("workbench.catalog-skill-packs.details-name", { name: skill.name }))}">`);
   return `<li class="mw-item mw-item--stack">${mark("book")}<span><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.what)}</small></span>${fold}</li>`;
 }
 
 export function itemDetailsSection(say: Say): string {
   const { weekly, minutes, invoice } = skills(say);
-  return section("item-details", say("条目行里的折叠详情 / Item Row Details"), `<div class="mw-catalog__specimens">
-    ${specimen(say("安装预览：每项可就地展开"), `<ul class="mw-items">${moreRow(say, weekly, true)}${moreRow(say, invoice)}</ul>`)}
-    ${specimen(say("长名字、会执行脚本"), `<ul class="mw-items">${moreRow(say, minutes, true)}</ul>`)}
+  return section("item-details", say("workbench.catalog-skill-packs.item-row-details"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-skill-packs.install-review-each-opens-in-place"), `<ul class="mw-items">${moreRow(say, weekly, true)}${moreRow(say, invoice)}</ul>`)}
+    ${specimen(say("workbench.catalog-skill-packs.a-long-name-runs-a-script"), `<ul class="mw-items">${moreRow(say, minutes, true)}</ul>`)}
   </div>`);
 }
 
@@ -267,10 +267,10 @@ function pick(say: Say, skill: Skill, key: string, current: boolean): string {
 function detail(say: Say, skill: Skill, key: string, shown: boolean): string {
   const u = skill.unavailable;
   const disabled = Boolean(u?.onlyRemove || u?.locked);
-  const radios = renderRadioGroup({ legend: say("怎么用"), name: `${key}-mode`, items: (["off", "auto", "manual"] as const).map((mode) => ({ value: mode, label: say(MODE_SAYS[mode]), checked: skill.mode === mode })) });
+  const radios = renderRadioGroup({ legend: say("workbench.catalog-skill-packs.how-to-use"), name: `${key}-mode`, items: (["off", "auto", "manual"] as const).map((mode) => ({ value: mode, label: say(MODE_SAYS[mode]), checked: skill.mode === mode })) });
   const why = u ? statusLine(statusOf(say, skill), u.why, u.fix) : "";
   return `<section class="mw-list-detail__detail" data-list-panel="${key}" aria-labelledby="${key}-title"${shown ? "" : " hidden"}${disabled ? " data-off" : ""}>
-    ${renderButton({ label: say("全部技能"), variant: "ghost", size: "sm", icon: "chevron-left", className: "mw-list-detail__back", attrs: { "data-list-back": "" } })}
+    ${renderButton({ label: say("workbench.catalog-skill-packs.all-skills"), variant: "ghost", size: "sm", icon: "chevron-left", className: "mw-list-detail__back", attrs: { "data-list-back": "" } })}
     <header><h3 id="${key}-title" tabindex="-1">${escapeHtml(skill.name)}</h3><p>${escapeHtml(skill.what)}</p></header>
     ${why}${disabled ? radios.replace("<fieldset ", "<fieldset disabled ") : radios}${facts(say, skill, false)}<p class="mw-list-detail__used">${escapeHtml(skill.used)}</p>
   </section>`;
@@ -280,39 +280,39 @@ function listDetail(say: Say, id: string, narrow: boolean): string {
   const list = Object.values(skills(say));
   const picks = list.map((skill, index) => pick(say, skill, `${id}-${skill.id}`, index === 0)).join("");
   const details = list.map((skill, index) => detail(say, skill, `${id}-${skill.id}`, index === 0)).join("");
-  return `<div class="mw-list-detail" data-list-detail${narrow ? " data-list-detail-narrow" : ""}><div class="mw-list-detail__body"><div class="mw-list-detail__list" role="region" aria-label="${escapeHtml(narrow ? say("技能列表（窄处标本）") : say("技能列表"))}"><ul class="mw-items">${picks}</ul></div>${details}</div></div>`;
+  return `<div class="mw-list-detail" data-list-detail${narrow ? " data-list-detail-narrow" : ""}><div class="mw-list-detail__body"><div class="mw-list-detail__list" role="region" aria-label="${escapeHtml(narrow ? say("workbench.catalog-skill-packs.skills-narrow-specimen") : say("workbench.catalog-skill-packs.skills"))}"><ul class="mw-items">${picks}</ul></div>${details}</div></div>`;
 }
 
 export function listDetailSection(say: Say): string {
-  const empty = renderEmpty({ icon: "book", title: say("还没有技能"), body: say("技能是一套做法，比如怎么写周报、怎么审合同。装一个技能包，或者把本机 Agent 里已有的技能导进来。"),
-    action: `<div class="mw-empty__actions">${renderButton({ label: say("从本机导入"), variant: "secondary", icon: "download" })}${renderButton({ label: say("去插件市场"), variant: "primary" })}</div>` });
-  return section("list-detail", say("列表与详情 / List and Detail"), `<div class="mw-catalog__specimens">
-    ${specimen(say("左边列表、右边详情：只在选中另一项时进场"), listDetail(say, "list-wide", false))}
-    ${specimen(say("窄处一次一边：选中后焦点到详情标题，「全部技能」回到列表"), listDetail(say, "list-narrow", true))}
-    ${specimen(say("还没有技能"), empty)}
+  const empty = renderEmpty({ icon: "book", title: say("workbench.catalog-skill-packs.no-skills-yet"), body: say("workbench.catalog-skill-packs.a-skill-is-a-way-of-doing-something"),
+    action: `<div class="mw-empty__actions">${renderButton({ label: say("workbench.characters.import-local"), variant: "secondary", icon: "download" })}${renderButton({ label: say("workbench.catalog-skill-packs.open-plugin-market"), variant: "primary" })}</div>` });
+  return section("list-detail", say("workbench.catalog-skill-packs.list-and-detail"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-skill-packs.list-on-the-left-detail-on-the-right"), listDetail(say, "list-wide", false))}
+    ${specimen(say("workbench.catalog-skill-packs.narrow-one-side-at-a-time-choosing-moves"), listDetail(say, "list-narrow", true))}
+    ${specimen(say("workbench.catalog-skill-packs.no-skills-yet"), empty)}
   </div>`);
 }
 
 export function skillAlertSpecimens(say: Say): string {
-  const bad = alertWithActions({ tone: "danger", title: say("这个包装不上"), body: say("下面这几处不对，什么都没装，原来的也没动。"),
-    problems: [`<code>skills/meeting-notes/SKILL.md</code>${escapeHtml(say("：包里找不到"))}`, `<code>skills/weekly/scripts/run.sh</code>${escapeHtml(say("：声明了却没有这个文件"))}`],
-    actions: renderButton({ label: say("重新选文件"), variant: "secondary", size: "sm" }) });
-  const failed = alertWithActions({ tone: "danger", title: say("没能保存"), body: say("「{name}」还是「{mode}」，什么都没改。", { name: say("写周度复盘"), mode: say("自动") }), actions: renderButton({ label: say("重试"), variant: "secondary", size: "sm" }) });
-  const done = alertWithActions({ tone: "success", title: say("已装好「{name}」{version}", { name: say("周报与复盘"), version: "1.4" }), body: say("{count} 个技能都还没启用。到「技能」里选哪些要用。", { count: 4 }), actions: renderButton({ label: say("去「技能」"), variant: "primary", size: "sm" }) });
-  const two = alertWithActions({ tone: "warning", title: say("有 1 个技能只有本地 Agent 能用"), body: say("「整理仓库提交」要执行本机命令，内置助理用不了；导入后在 Coding 里可以点名用它。"),
-    actions: renderButton({ label: say("照样导入"), variant: "secondary", size: "sm" }) + renderButton({ label: say("不导入这一个"), variant: "ghost", size: "sm" }) });
+  const bad = alertWithActions({ tone: "danger", title: say("workbench.catalog-skill-packs.this-package-can-t-be-installed"), body: say("workbench.catalog-skill-packs.these-are-wrong-so-nothing-was-installed-and"),
+    problems: [`<code>skills/meeting-notes/SKILL.md</code>${escapeHtml(say("workbench.catalog-skill-packs.not-in-the-package"))}`, `<code>skills/weekly/scripts/run.sh</code>${escapeHtml(say("workbench.catalog-skill-packs.declared-but-the-file-is-not-there"))}`],
+    actions: renderButton({ label: say("workbench.catalog-skill-packs.choose-another-file"), variant: "secondary", size: "sm" }) });
+  const failed = alertWithActions({ tone: "danger", title: say("workbench.catalog-skill-packs.couldn-t-save"), body: say("workbench.catalog-skill-packs.name-is-still-mode-nothing-changed", { name: say("workbench.catalog-skill-packs.write-the-weekly-review"), mode: say("workbench.catalog-skill-packs.automatic") }), actions: renderButton({ label: say("common.control.retry"), variant: "secondary", size: "sm" }) });
+  const done = alertWithActions({ tone: "success", title: say("workbench.catalog-skill-packs.installed-name-version", { name: say("workbench.catalog-skill-packs.weekly-reports-and-reviews"), version: "1.4" }), body: say("workbench.catalog-skill-packs.count-count-skill-skills-off-choose-which-to", { count: 4 }), actions: renderButton({ label: say("workbench.catalog-skill-packs.go-to-skills"), variant: "primary", size: "sm" }) });
+  const two = alertWithActions({ tone: "warning", title: say("workbench.catalog-skill-packs.one-local-agent-skill"), body: say("workbench.catalog-skill-packs.tidy-repository-commits-runs-commands-on-this-computer"),
+    actions: renderButton({ label: say("workbench.catalog-skill-packs.import-anyway"), variant: "secondary", size: "sm" }) + renderButton({ label: say("workbench.catalog-skill-packs.skip-this-one"), variant: "ghost", size: "sm" }) });
   const stack = (body: string) => `<div class="mw-keep-stack">${body}</div>`;
-  return `${specimen(say("装不上：逐条列出原因"), stack(bad))}${specimen(say("保存失败"), stack(failed))}${specimen(say("完成后的下一步"), stack(done))}${specimen(say("两个按钮，长句"), stack(two))}`;
+  return `${specimen(say("workbench.catalog-skill-packs.can-t-install-every-reason-listed"), stack(bad))}${specimen(say("workbench.client-events.could-not-save"), stack(failed))}${specimen(say("workbench.catalog-skill-packs.the-next-step-once-done"), stack(done))}${specimen(say("workbench.catalog-skill-packs.two-buttons-a-long-sentence"), stack(two))}`;
 }
 
 export function statusLinkSection(say: Say): string {
   const mode = (m: Mode) => `<p class="mw-status-line">${renderStatusMark({ label: say(MODE_WORD[m]), ...ring(m) })}</p>`;
   const hold = (word: string, why: string, fix?: string) => statusLine(renderStatusMark({ label: word, tone: "hold", state: "unavailable" }), why, fix);
   const blocked = (word: string, why: string, fix: string) => statusLine(renderStatusMark({ label: word, tone: "blocked", state: "blocked" }), why, fix);
-  return section("status-link", say("状态旁的链接 / Status with Link"), `<div class="mw-catalog__specimens">
-    ${specimen(say("在用与没在用"), `${mode("auto")}${mode("manual")}${mode("off")}`)}
-    ${specimen(say("能就地修好的用不了"), `${hold(say("暂时用不了"), say("没有连接日历，暂时用不了（状态仍可改）"), say("去连接"))}${hold(say("暂时用不了"), say("缺少 {name}", { name: say("插件「日程安排」") }), say("去添加"))}${
-      hold(say("暂时用不了"), say("插件「法务审阅」停用了，暂时用不了；设置保留为「自动」，恢复后照旧"), say("启用插件"))}${hold(say("只限本地 Agent"), say("只有本地 Agent 能用：{why}", { why: say("要执行本机命令") }))}`)}
-    ${specimen(say("只能卸载或重装"), `${blocked(say("已撤销"), say("发布者已撤销，只能卸载"), say("卸载"))}${blocked(say("坏了"), say("正文或附带文件缺失"), say("重新安装"))}`)}
+  return section("status-link", say("workbench.catalog-skill-packs.status-with-link"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-skill-packs.in-use-and-not"), `${mode("auto")}${mode("manual")}${mode("off")}`)}
+    ${specimen(say("workbench.catalog-skill-packs.unavailable-fixable-in-place"), `${hold(say("workbench.catalog-skill-packs.unavailable-for-now"), say("workbench.catalog-skill-packs.no-calendar-connection-so-it-can-t-be"), say("workbench.catalog-skill-packs.connect"))}${hold(say("workbench.catalog-skill-packs.unavailable-for-now"), say("workbench.catalog-skill-packs.missing-name", { name: say("workbench.catalog-skill-packs.the-plugin-scheduling") }), say("workbench.catalog-skill-packs.add-it"))}${
+      hold(say("workbench.catalog-skill-packs.unavailable-for-now"), say("workbench.catalog-skill-packs.plugin-legal-review-is-turned-off-so-it"), say("workbench.home-plugin-page.enable-plugin"))}${hold(say("workbench.catalog-skill-packs.local-agents-only"), say("workbench.catalog-skill-packs.only-local-agents-can-use-it-why", { why: say("workbench.catalog-skill-packs.it-runs-commands-on-this-computer") }))}`)}
+    ${specimen(say("workbench.catalog-skill-packs.only-uninstall-or-reinstall-left"), `${blocked(say("workbench.catalog-skill-packs.retracted"), say("workbench.catalog-skill-packs.publisher-revoked-it-can-only-be-uninstalled"), say("workbench.catalog-skill-packs.uninstall"))}${blocked(say("workbench.catalog-skill-packs.broken"), say("workbench.catalog-skill-packs.its-text-or-files-are-missing"), say("workbench.catalog-skill-packs.reinstall"))}`)}
   </div>`);
 }

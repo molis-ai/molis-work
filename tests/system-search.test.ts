@@ -803,16 +803,20 @@ test("D0244-02 indexed catalogs omit unavailable, failed and foreign sources and
   register(f.actions, notes, { provider_id: "notes", project_id: "a" });
   const caller = owner("a"), access = { client: f.actions, caller };
   await ask(f, caller, "试用");
-  assert.equal((await f.search.indexedCatalog(access)).documents("a")[0]?.content, "private indexed body");
-  assert.deepEqual((await f.search.indexedCatalog(access)).documents("b"), []);
+  const full = await f.search.indexedCatalog(access), metadata = full.catalog("a").entries[0]!;
+  assert.ok(metadata); assert.equal("content" in metadata, false, "catalog metadata never loads bodies");
+  assert.equal(full.document(metadata.source_key, metadata.kind, metadata.object_id)?.content, "private indexed body");
+  assert.deepEqual(full.catalog("b").entries, []);
   const listingOnly = { ...caller, allowed_actions: [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }] };
   const limited = await f.search.indexedCatalog({ client: f.actions, caller: listingOnly });
-  assert.equal(limited.documents("a")[0]?.content, ""); assert.equal(limited.documents("a")[0]?.content_policy, "summary");
+  const withheld = limited.catalog("a").entries[0]!;
+  assert.equal(withheld.has_content, false); assert.equal(withheld.content_chars, 0); assert.equal(withheld.content_policy, "summary");
+  assert.equal(limited.document(withheld.source_key, withheld.kind, withheld.object_id), null, "a metadata grant never grants body access");
   notes.availability = { available: false, code: "actions.plugin_disabled", reason: "disabled" };
-  assert.deepEqual((await f.search.indexedCatalog(access)).documents("a"), [], "stale indexed bytes are never catalog material");
+  assert.deepEqual((await f.search.indexedCatalog(access)).catalog("a").entries, [], "stale indexed bytes are never catalog material");
   notes.availability = { available: true }; notes.fail = true;
   f.tick(60_001); await ask(f, caller, "试用");
-  assert.deepEqual((await f.search.indexedCatalog(access)).documents("a"), [], "failed catch-up does not give stale content to a model");
+  assert.deepEqual((await f.search.indexedCatalog(access)).catalog("a").entries, [], "failed catch-up does not give stale content to a model");
 });
 
 for (const scope of ["project", "home"] as const) test(`D0244-03 ${scope} indexed catalog authority is not restored by a later provider registration`, async t => {
@@ -822,6 +826,6 @@ for (const scope of ["project", "home"] as const) test(`D0244-03 ${scope} indexe
   const snapshot = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") });
   snapshot.assertCurrent(); f.search.markRegistration("notes", scope === "project" ? "a" : null);
   assert.throws(() => snapshot.assertCurrent(), { code: "actions.forbidden" });
-  assert.throws(() => snapshot.documents("a"), { code: "actions.forbidden" });
+  assert.throws(() => snapshot.catalog("a"), { code: "actions.forbidden" });
   const fresh = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") }); fresh.assertCurrent();
 });

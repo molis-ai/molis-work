@@ -11,7 +11,7 @@ type ConnectionStore = Parameters<Parameters<typeof withConnectorConnections>[1]
 export const typeSafeBinding = (store: ConnectionStore) => store.binding("home", CONSUMER, "typesafe");
 
 export function selectedTypeSafeConnection(home: string) {
-  return withConnectorConnections(home, typeSafeBinding);
+  return withConnectorConnections(home, typeSafeBinding, true) ?? null;
 }
 
 export function bindTypeSafeConnection(home: string, connectionId: string): void {
@@ -33,7 +33,7 @@ export function typeSafeCredential(home: string): string | null {
       if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code))) return null;
       throw error;
     }
-  });
+  }, true) ?? null;
 }
 
 /** Source identity and sealed revision for a single inference; never returns plaintext. */
@@ -43,5 +43,5 @@ export function typeSafeConfiguration(home: string): unknown {
     const connection = binding && store.get(binding.connection_id);
     const ref = connection?.credential_ref;
     return { binding, connection, sealed: ref ? runWithMolisWorkHome(home, () => peekSealedEntry(ref)) : null };
-  });
+  }, true) ?? { binding: null, connection: null, sealed: null };
 }

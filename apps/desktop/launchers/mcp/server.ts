@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { runtimeContextHostFromEnvironment, createMcpResidentStarter } from "@molis-ai/molis-work-app-local-host";
+import { runtimeContextHostFromEnvironment, createMcpResidentStarter, homeHostUrl } from "@molis-ai/molis-work-app-local-host";
 import { serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
-import { readProductEnv } from "@molis-ai/molis-work-storage";
+import { readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { MolisWorkServer } from "@molis-ai/molis-work-app-desktop";
 export { MolisWorkServer } from "@molis-ai/molis-work-app-desktop";
 export { runtimeContextHostFromEnvironment } from "@molis-ai/molis-work-app-local-host";
@@ -14,7 +14,8 @@ async function runStdio(): Promise<void> {
   const runtimeHost = runtimeContextHostFromEnvironment();
   const resident = createMcpResidentStarter();
   const server = new MolisWorkServer(undefined, undefined, runtimeHost, undefined,
-    runtimeHost?.webBaseUrl ?? readProductEnv("WEB_URL") ?? "http://127.0.0.1:4173", resident.ensure);
+    // MOLIS_WORK_WEB_URL, then the Home's address file, then 4173 (resident-runtime-design §6).
+    runtimeHost?.webBaseUrl ?? readProductEnv("WEB_URL") ?? homeHostUrl(resolveMolisWorkHome()), resident.ensure);
   try {
     await serveMcpStdio({ handleMessage: (message, signal) => server.handleMessage(message, signal) });
   } finally {

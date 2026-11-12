@@ -2,13 +2,15 @@ import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/service
 import { loadList } from "./document.js";
 import type { PagesPage } from "./page.js";
 
+const uiText = globalThis.t;
+
 /**
  * Pages' part in 「放进左边」 and in the bar's choices. The landing — where something in hand would go in the open document, and the
  * preview there — is the editor's `mountPagesLanding` (landing-editor.ts); this joins it to the open document, its saving and its list.
  */
 export function bindLanding(page: PagesPage) {
-  const { Editor, bench, L, host } = page;
-  page.landing = Editor.mountPagesLanding({ bench, translate: L, view: () => (page.editor ? page.editor.view : null),
+  const { Editor, bench, readText, host } = page;
+  page.landing = Editor.mountPagesLanding({ bench, translate: readText, view: () => (page.editor ? page.editor.view : null),
     // Only the saved text has a landing: its positions belong to the version it is reported with.
     open: () => (page.sel && !page.unshowable && !page.saveTimer && !page.dirty ? { id: page.sel.id, version: page.sel.version, title: page.titleInput.value || page.sel.title } : null),
     refresh: () => loadList(page) });
@@ -27,11 +29,11 @@ export function bindLanding(page: PagesPage) {
     if (!sel) return;
     const documentId = sel.id;
     void editor.runCommand("", undefined, { ...(whole ? { scope: "object" as const } : { localId: focusNow!.local_id }), title: chosen.title,
-      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("pages.landing.replace") : L("pages.landing.insert-after"),
+      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? "pages.landing.replace" : "pages.landing.insert-after",
       prepare: async () => {
         const prepared = await chosen.prepare();
         const input = (prepared && prepared.input ? prepared.input : {}) as { id?: unknown; command?: unknown; style?: unknown; text?: unknown };
-        if (input.id !== documentId || typeof input.command !== "string") throw new Error(L("pages.landing.cannot-prepare"));
+        if (input.id !== documentId || typeof input.command !== "string") throw new Error(uiText.text("pages.landing.cannot-prepare"));
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });

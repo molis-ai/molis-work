@@ -1,18 +1,10 @@
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { openSqliteConnection, type SqliteDatabase } from "./sqlite-connection.js";
 export type { SqliteDatabase } from "./sqlite-connection.js";
 type Row = Record<string, unknown>;
 
 function json(value: unknown): string {
   return JSON.stringify(value ?? null);
-}
-
-function parseJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string" || value.length === 0) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }
 
 function text(value: unknown): string {

@@ -1,9 +1,6 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-/**
- * The presentation store's one current schema (repository-anti-corruption §4.1): new stores are created from it,
- * existing ones must already be at its version. Columns keep the order existing stores have them in.
- */
+/** The PPT baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const PPT_SCHEMA = `
   CREATE TABLE presentations (
     id TEXT PRIMARY KEY,
@@ -27,7 +24,7 @@ const PPT_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its presentations go with the
  * receipts of copies made into it.
  */
-const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "PPT 演示稿", order: 40,
+const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "ppt.project-deletion.data" }, order: 40,
   artifact_join: { table: "presentations", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
     artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
   tables: [

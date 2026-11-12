@@ -1,3 +1,5 @@
+import type { TextRef } from "./ui-text.js";
+
 /**
  * SQL over a plugin's own tables, in the Home (`services.database`) or in the project's library (`services.project_database`). The
  * Host owns the connections and checks every call: reads only through a read-only connection, writes only inside `transaction`.
@@ -213,8 +215,8 @@ export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration
  * plugin's code to do it. Tables are named without a schema (`main.`, an attached library's) and must be this declaration's own.
  */
 export interface PluginProjectRowsDeclaration {
-  /** What the confirmation dialog says goes with the project. A plugin the Host did not ship is shown as written, never translated. */
-  readonly label: string;
+  /** A fixed label in this plugin's default language file, or the author's original single line. */
+  readonly label: string | TextRef;
   /** Where this owner's step runs among the others, ascending; omitted, it runs after every numbered one. */
   readonly order?: number;
   /** Children before their parent: a child's rows go by the ids of the parent's rows of the project, so it is cleared first. */

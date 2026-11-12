@@ -2,6 +2,8 @@ import { required } from "./dom.js";
 import { datasetRequest } from "./request.js";
 import type { DatasetHost, DatasetPage, DatasetState, Elements, Scope } from "./types.js";
 
+const uiText = globalThis.t;
+
 const elementsOf = (bench: HTMLElement): Elements => {
   const optional = <T extends Element>(selector: string) => bench.querySelector<T>(selector);
   return {
@@ -44,9 +46,9 @@ const notInstalled = (name: string) => () => { throw new Error(`Dataset page: ${
 
 /** The page the parts share: what the server drew, the state, the requests. The parts install their operations on it. */
 export function createPage(host: DatasetHost, scope: Scope, bench: HTMLElement): DatasetPage {
-  const L = host.translate, el = elementsOf(bench);
+  const readText = uiText.text, el = elementsOf(bench);
   const page: DatasetPage = {
-    host, scope, L, el, s: initialState(), request: datasetRequest(host, scope, L), api: "/datasets",
+    host, scope, readText, el, s: initialState(), request: datasetRequest(host, scope), api: "/datasets",
     showNote(text, isError) {
       const { note } = el;
       if (!scope.alive || !note) return;

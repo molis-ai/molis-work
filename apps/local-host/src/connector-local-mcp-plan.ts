@@ -22,7 +22,7 @@ export function localMcpSetupPlan(home: string, input: LocalMcpSetupInput): Conn
   // The host executable validates shared launch fields before a package has produced its own command.
   const launch = validateLocalMcpLaunch({ executable: source.kind === "executable" ? source.executable : process.execPath,
     args: input.args, cwd: input.cwd, environment_names: input.environment_names });
-  const previous = input.connection_id ? withConnectorConnections(home, store => store.require(input.connection_id!, CUSTOM_MCP_SERVICE)) : undefined;
+  const previous = input.connection_id ? withConnectorConnections(home, store => store.require(input.connection_id!, CUSTOM_MCP_SERVICE), "required") : undefined;
   if (previous ? previous.updated_at !== input.expected_revision || previous.auth_method !== "mcp" : input.expected_revision !== null) throw connectorErrors["connector.connection.invalid"]("原连接或修订不符，请重新读取后准备接入");
   return { service_id: CUSTOM_MCP_SERVICE, method: "mcp", display_name: input.display_name.trim(), transport: "stdio",
     ...(previous ? { connection_id: previous.connection_id, expected_revision: previous.updated_at } : {}),

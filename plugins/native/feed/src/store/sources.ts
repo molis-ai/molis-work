@@ -1,9 +1,12 @@
 import type { FeedSql } from "./sql.js";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { sourceDeletedAt } from "../contract/sources.js";
 import { randomUUID } from "node:crypto";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type {
+  MissedPullRecord,
+  SourceMissedPulls,
   SourceEvent,
   SourceHistoryDecision,
   SourceRecord,
@@ -65,6 +68,15 @@ export const SOURCES_SCHEMA_SQL = `
       ON source_events(project_id, source_id, at, event_id);
 `;
 
+/** The pulls a source missed while Molis Work was not running, and the person's decision on each (`SourceMissedPulls`). */
+export const FEED_MISSED_PULLS_COLUMNS = `feed_missed_pulls (
+      project_id TEXT NOT NULL, run_id TEXT NOT NULL, source_id TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
+      decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
+      PRIMARY KEY (project_id, run_id)
+    )`;
+export const FEED_MISSED_PULLS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${FEED_MISSED_PULLS_COLUMNS};`;
+const DECIDED_KEPT_MS = 30 * 86_400_000;
+
 export class SourcesModule implements SourcesApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),
@@ -91,6 +103,20 @@ export class SourcesModule implements SourcesApi {
 
   readonly events = {
     list: (projectId: string, sourceId?: string) => this.listEvents(projectId, sourceId),
+  };
+
+  readonly missed: SourceMissedPulls = {
+    record: (projectId, entry) => this.db.transaction(() => {
+      this.db.run("DELETE FROM feed_missed_pulls WHERE project_id = ? AND decision IS NOT NULL AND decided_at < ?", projectId, new Date(Date.parse(entry.missed_at) - DECIDED_KEPT_MS).toISOString());
+      this.db.run(`INSERT INTO feed_missed_pulls (project_id, run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, run_id) DO NOTHING`, projectId, entry.run_id, entry.source_id, entry.title, entry.due_at, entry.missed_at);
+    }),
+    list: (projectId, limit) => (this.db.all("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND decision IS NULL ORDER BY due_at DESC LIMIT ?", projectId, limit) as Row[]).map(missedPull),
+    get: (projectId, runId) => {
+      const row = this.db.get("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND run_id = ?", projectId, runId) as Row | undefined;
+      return row ? missedPull(row) : null;
+    },
+    decide: (projectId, runId, decision, at) => { this.db.run("UPDATE feed_missed_pulls SET decision = ?, decided_at = ? WHERE project_id = ? AND run_id = ?", decision, at, projectId, runId); },
   };
 
   constructor(private readonly db: FeedSql) {}
@@ -286,11 +312,7 @@ function optionalText(value: unknown): string | null {
   return valueText || null;
 }
 
-function parseJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
+function missedPull(row: Row): MissedPullRecord {
+  const decision = row.decision === "run_now" || row.decision === "skip" ? row.decision : null;
+  return { run_id: String(row.run_id), source_id: String(row.source_id), title: String(row.title), due_at: String(row.due_at), missed_at: String(row.missed_at), decision };
 }

@@ -1,5 +1,5 @@
 import { isTimeZone } from "@molis-ai/molis-work-plugin-sdk";
-import type { JellyItem, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
+import type { JellyCategory, JellyItem, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
 import { jellyAssert } from "./error.js";
 
 export const JELLY_UNCATEGORIZED_ID = "uncategorized";
@@ -68,22 +68,37 @@ export function validateJellySeries(series: JellySeries, categoryIds: Set<string
     jellyAssert(completion && stamp(completion.completed_at) && typeof completion.completion_description === "string", "重复完成状态无效");
   }
 }
-function uniqueIds(values: { id: string }[], label: string): void { jellyAssert(new Set(values.map(value => value.id)).size === values.length && values.every(value => value && typeof value.id === "string" && value.id.length > 0), `${label} ID 重复或无效`); }
+export function uniqueJellyIds(values: { id: string }[], label: string): void { jellyAssert(new Set(values.map(value => value.id)).size === values.length && values.every(value => value && typeof value.id === "string" && value.id.length > 0), `${label} ID 重复或无效`); }
 export function validateJellyWorkspace(state: JellyWorkspace): void {
   jellyAssert(state && state.schema_version === /* @version format.jelly.workspace */ 1 && Number.isSafeInteger(state.revision) && state.revision >= 0, "工作区版本无效");
   for (const key of ["categories", "items", "series", "notes", "relations", "task_links", "applied_plan_ids"] as const) jellyAssert(Array.isArray(state[key]), `工作区 ${key} 无效`);
-  uniqueIds(state.categories, "分类"); uniqueIds(state.items, "事项"); uniqueIds(state.series, "系列"); uniqueIds(state.notes, "笔记");
-  const categoryIds = new Set(state.categories.map(value => value.id));
-  jellyAssert(categoryIds.has(JELLY_UNCATEGORIZED_ID), "缺少未分类");
-  jellyAssert(new Set(state.categories.map(value => value.name.trim().toLocaleLowerCase())).size === state.categories.length, "分类名称重复");
-  for (const category of state.categories) jellyAssert(typeof category.name === "string" && category.name.trim().length > 0 && /^#[\da-fA-F]{6}$/.test(category.color) && Number.isSafeInteger(category.sort_index), "分类名称、颜色或排序无效");
-  jellyAssert(!state.series.some(series => state.items.some(item => item.id === series.id)), "事项和系列 ID 冲突");
+  const categoryIds = validateJellyCategories(state.categories);
+  validateJellyCalendarIds(state);
+  uniqueJellyIds(state.notes, "笔记");
   state.items.forEach(item => validateJellyItem(item, categoryIds)); state.series.forEach(series => validateJellySeries(series, categoryIds));
   for (const note of state.notes) {
     jellyAssert(categoryIds.has(note.category_id) && typeof note.title === "string" && Array.isArray(note.blocks) && Number.isSafeInteger(note.revision) && note.revision >= 0 && stamp(note.archived_at), "笔记无效");
-    uniqueIds(note.blocks, "笔记块");
+    uniqueJellyIds(note.blocks, "笔记块");
     for (const block of note.blocks) jellyAssert(["paragraph", "heading1", "heading2", "heading3", "bullet", "numbered", "task", "quote", "code", "divider", "link"].includes(block.kind) && typeof block.text === "string" && Number.isInteger(block.indent) && block.indent >= 0 && block.indent <= 8 && stamp(block.completed_at) && typeof block.completion_description === "string", "笔记块无效");
   }
+  validateJellyRelations(state);
+  validateJellyTaskLinks(state);
+}
+export function validateJellyCategories(categories: JellyCategory[]): Set<string> {
+  uniqueJellyIds(categories, "分类");
+  const categoryIds = new Set(categories.map(value => value.id));
+  jellyAssert(categoryIds.has(JELLY_UNCATEGORIZED_ID), "缺少未分类");
+  jellyAssert(new Set(categories.map(value => value.name.trim().toLocaleLowerCase())).size === categories.length, "分类名称重复");
+  for (const category of categories) jellyAssert(typeof category.name === "string" && category.name.trim().length > 0 && /^#[\da-fA-F]{6}$/.test(category.color) && Number.isSafeInteger(category.sort_index), "分类名称、颜色或排序无效");
+  return categoryIds;
+}
+export function validateJellyCalendarIds({ items, series }: JellyWorkspace): void {
+  uniqueJellyIds(items, "事项");
+  uniqueJellyIds(series, "系列");
+  const itemIds = new Set(items.map(item => item.id));
+  jellyAssert(!series.some(value => itemIds.has(value.id)), "事项和系列 ID 冲突");
+}
+export function validateJellyRelations(state: JellyWorkspace): void {
   const relations = new Set<string>(); const primaries = new Set<string>();
   for (const relation of state.relations) {
     jellyAssert(state.notes.some(note => note.id === relation.note_id), "笔记关联指向不存在的笔记");
@@ -106,6 +121,9 @@ export function validateJellyWorkspace(state: JellyWorkspace): void {
     for (const id of [...override.added_reference_ids, ...override.removed_reference_ids]) jellyAssert(state.notes.some(note => note.id === id), "关联覆盖的参考笔记不存在");
     jellyAssert(new Set(override.added_reference_ids).size === override.added_reference_ids.length && new Set(override.removed_reference_ids).size === override.removed_reference_ids.length && !override.added_reference_ids.some(id => override.removed_reference_ids.includes(id)), "参考笔记覆盖重复或冲突");
   }
+}
+
+export function validateJellyTaskLinks(state: JellyWorkspace): void {
   const linkedItems = new Set<string>(); const linkedBlocks = new Set<string>();
   for (const link of state.task_links) {
     const item = state.items.find(value => value.id === link.item_id); const note = state.notes.find(value => value.id === link.note_id); const block = note?.blocks.find(value => value.id === link.block_id);

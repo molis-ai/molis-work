@@ -1,7 +1,22 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "./dom.js";
 import { keyLabel, matches } from "./matching.js";
-import type { Command } from "./slash-menu.js";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PagePorts } from "./types.js";
+
+/** A command the composer's `/` (and ＋, for one that adds to the next round), the palette and the shortcuts offer. */
+export interface Command {
+  readonly slash: string;
+  readonly label: string;
+  readonly hint?: string;
+  readonly keywords?: readonly string[];
+  /** The shortcut, written `Mod+Alt+N`. */
+  readonly keys?: string;
+  readonly enabled?: boolean;
+  /** It sets what the next round is given (materials, a method, a Character…): offered in the composer's ＋ too, with this glyph. */
+  readonly adds?: PluginIconName;
+  readonly run: () => unknown;
+}
 
 /** A session the palette lists. */
 export interface SessionLine { readonly session_id: string; readonly title: string; readonly state_label?: string }
@@ -36,9 +51,9 @@ interface Palette {
 const LIMIT = 60;
 
 function entriesOf(palette: Palette): Entry[] {
-  const { ports } = palette, L = ports.translate;
-  const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: L("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
-  const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: L("coding.palette.session"), label: session.title, detail: session.state_label || "", run: () => ports.openSession(session.session_id, session.title), words: [] }));
+  const { ports } = palette;
+  const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: uiText.text("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
+  const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: uiText.text("coding.palette.session"), label: session.title, detail: session.state_label || "", run: () => ports.openSession(session.session_id, session.title), words: [] }));
   return [...commands, ...sessions];
 }
 
@@ -61,7 +76,7 @@ function draw(palette: Palette) {
   palette.entries = entriesOf(palette).filter(entry => matches(field.value, entry.label, entry.detail, ...entry.words)).slice(0, LIMIT);
   palette.selected = Math.min(palette.selected, Math.max(palette.entries.length - 1, 0));
   list.replaceChildren();
-  if (!palette.entries.length) list.append(el("li", palette.ports.translate("coding.palette.none"), "coding-palette-empty"));
+  if (!palette.entries.length) list.append(el("li", uiText.text("coding.palette.none"), "coding-palette-empty"));
   palette.entries.forEach((entry, index) => list.append(entryRow(palette, entry, index)));
   field.setAttribute("aria-activedescendant", palette.entries.length ? "coding-palette-" + palette.selected : "");
   list.children[palette.selected]?.scrollIntoView({ block: "nearest" });

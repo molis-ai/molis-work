@@ -1,4 +1,4 @@
-import { messageOf, type ActionRef, type CharacterRequest, type FindPart } from "./common.js";
+import { el, messageOf, type ActionRef, type CharacterRequest, type FindPart } from "./common.js";
 
 /** A row of the common Agent action catalog (`GET /actions`): only what this view reads. */
 interface ActionRow {
@@ -22,37 +22,22 @@ export interface ActionClient {
   describe(value: ActionRef[] | null | undefined): string;
 }
 
-const INHERIT_TEXT = "沿用任务选择";
-const NONE_TEXT = "不使用动作能力";
-
 const key = (ref: ActionRef): string => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
 const exact = (view: ActionRow): ActionRef => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
-
-/** Markup from an older Characters release has no action fields: the rest of the page keeps working, and a draft saved from it keeps the action choice it already had rather than clearing it. */
-function keepingView(): ActionClient {
-  let kept: ActionRef[] | null = null;
-  return {
-    controls() {},
-    async refresh() {},
-    value: () => structuredClone(kept),
-    render: value => { kept = value == null ? null : structuredClone(value); },
-    describe: value => value == null ? INHERIT_TEXT : value.length ? value.map(ref => ref.capability_id + " · v" + ref.version).join("、") : NONE_TEXT,
-  };
-}
 
 /** What the catalog offers to an Agent, then the selected references the catalog no longer offers (kept, shown unavailable). */
 function choicesOf(rows: ActionRow[], refs: ActionRef[]): Choice[] {
   const found: Choice[] = rows.filter(row => row.action.audiences.includes("agent")).map(row => ({ ref: exact(row), title: row.action.title, source: row.provider.title,
     available: row.availability.available, description: row.availability.available ? row.action.description : row.availability.reason }));
   for (const ref of refs) {
-    if (!found.some(row => key(row.ref) === key(ref))) found.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, description: "原能力、版本或授权不可用；引用保留，可明确移除。" });
+    if (!found.some(row => key(row.ref) === key(ref))) found.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, description: globalThis.t.text("workbench.characters.actions-kept-unavailable") });
   }
   return found;
 }
 
 function describeRefs(rows: ActionRow[], value: ActionRef[] | null | undefined): string {
-  if (value == null) return INHERIT_TEXT;
-  if (!value.length) return NONE_TEXT;
+  if (value == null) return globalThis.t.text("workbench.characters.actions-inherit-task");
+  if (!value.length) return globalThis.t.text("workbench.characters.actions-none");
   return value.map(ref => {
     const row = rows.find(item => key(exact(item)) === key(ref));
     return (row?.action.title || ref.capability_id) + " · v" + ref.version + " · " + (row?.provider.title || ref.provider_id);
@@ -62,55 +47,60 @@ function describeRefs(rows: ActionRow[], value: ActionRef[] | null | undefined):
 /** A view of the common Agent catalog; selected references remain in the original Character draft. */
 export function characterActionClient(host: ActionHost): ActionClient {
   const { q, request, changed } = host;
-  if (!q("actions-inherit") || !q("actions-list")) return keepingView();
   const part = <T extends HTMLElement = HTMLElement>(name: string): T => {
     const node = q<T>(name);
     if (!node) throw new Error("Characters page part missing: data-character-" + name);
     return node;
   };
+  const inherit = part<HTMLInputElement>("actions-inherit");
+  const container = part("actions-list");
+  const field = part("actions-field");
+  const status = part("actions-status");
+  const refreshButton = part<HTMLButtonElement>("actions-refresh");
   let rows: ActionRow[] = [], refs: ActionRef[] = [], busy = false, reading = false;
 
   const controls = (value: boolean): void => {
     busy = value;
-    part<HTMLInputElement>("actions-inherit").disabled = busy;
-    part<HTMLButtonElement>("actions-refresh").disabled = busy || reading;
-    part("actions-list").querySelectorAll("input").forEach(input => { input.disabled = busy || (input.dataset.available !== "true" && !input.checked); });
+    inherit.disabled = busy;
+    refreshButton.disabled = busy || reading;
+    container.querySelectorAll("input").forEach(input => { input.disabled = busy || (input.dataset.available !== "true" && !input.checked); });
   };
   const choiceRow = (row: Choice): HTMLLabelElement => {
     const label = document.createElement("label"), input = document.createElement("input"), copy = document.createElement("span");
     label.className = "characters-check"; input.type = "checkbox"; input.className = "mw-check";
     input.checked = refs.some(ref => key(ref) === key(row.ref)); input.dataset.available = String(row.available);
-    copy.textContent = row.title + " · " + row.source + " · v" + row.ref.version + " — " + row.description;
+    const identity = el("span", row.title + " · " + row.source + " · v" + row.ref.version); identity.translate = false;
+    copy.append(identity, " — ", el("span", row.description));
     input.onchange = () => { refs = refs.filter(ref => key(ref) !== key(row.ref)); if (input.checked) refs.push(row.ref); changed(); };
     label.append(input, copy);
     return label;
   };
   const list = (): void => {
-    const container = part("actions-list");
-    container.replaceChildren(); part("actions-field").hidden = part<HTMLInputElement>("actions-inherit").checked;
+    container.replaceChildren(); field.hidden = inherit.checked;
     const shown = choicesOf(rows, refs);
     for (const row of shown) container.append(choiceRow(row));
-    if (!shown.length) container.textContent = "还没有可用能力。请先在能力服务中为内置 Agent 授权，再刷新目录。";
+    if (!shown.length) container.textContent = globalThis.t.text("workbench.characters.actions-empty");
     controls(busy);
   };
   const refresh = async (): Promise<void> => {
     if (reading) return;
-    reading = true; controls(busy); part("actions-status").textContent = "正在读取当前项目的能力…";
+    reading = true; controls(busy); status.textContent = globalThis.t.text("workbench.characters.actions-reading");
     try {
       const data = await request<{ actions: ActionRow[] }>("GET", "/actions");
-      rows = data.actions; list(); part("actions-status").textContent = "目录已更新；选中能力不会自动授权或执行。";
+      rows = data.actions; list(); status.textContent = globalThis.t.text("workbench.characters.actions-updated");
     } catch (error) {
-      part("actions-status").textContent = messageOf(error) + "；已有选择保持。";
+      const original = el("span", messageOf(error)); original.translate = false;
+      status.replaceChildren(el("span", globalThis.t.text("workbench.characters.actions-failed")), original);
     } finally {
       reading = false; controls(busy);
     }
   };
-  part<HTMLInputElement>("actions-inherit").onchange = () => { list(); changed(); };
-  part<HTMLButtonElement>("actions-refresh").onclick = () => void refresh();
+  inherit.onchange = () => { list(); changed(); };
+  refreshButton.onclick = () => void refresh();
   return {
     controls, refresh,
-    value: () => part<HTMLInputElement>("actions-inherit").checked ? null : structuredClone(refs),
-    render: value => { refs = structuredClone(value || []); part<HTMLInputElement>("actions-inherit").checked = value == null; list(); },
+    value: () => inherit.checked ? null : structuredClone(refs),
+    render: value => { refs = structuredClone(value || []); inherit.checked = value == null; list(); },
     describe: value => describeRefs(rows, value),
   };
 }

@@ -151,7 +151,11 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const a = make("A"), b = make("B");
   await pluginFrameInitScript(t, browser, `
     window.t403Tagged=[];window.t403HiddenSignals=0;
-    addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},true);
+    const listen=MessagePort.prototype.addEventListener;
+    MessagePort.prototype.addEventListener=function(type,listener,options){
+      if(type==='message')listen.call(this,type,event=>{if(event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},{once:true});
+      return listen.call(this,type,listener,options);
+    };
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){const port=this;descriptor.set.call(port,typeof handler!=='function'?handler:event=>{if(event.data?.type==='ui'&&event.data.name==='openItem')window.t403Tagged.push({tab:event.data.itemTabId,id:event.data.args[1]});handler.call(port,event);});}});
     let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed'){const request=globalThis.molisWorkRequest;let pollingSignal,polls=0;globalThis.molisWorkRequest=Object.assign(async(...args)=>{const own=root.dataset.pluginSurface==='workbench'&&String(args[0]).endsWith('/io.molis.work.feed/view-revision')&&args[1]?.signal&&args[1].headers?.['x-molis-plugin-page']===root.dataset.pluginPage;if(own){if(pollingSignal!==args[1].signal){pollingSignal=args[1].signal;polls=0;}window.t403OwningPolls=++polls;window.t403PollingPage=root.dataset.pluginPage;}const value=await request(...args);if(own&&!args[1].signal.aborted)window.t403PolledRevision=value.revision;return value;},request);window.t403TrustedRefresh=()=>host.invalidateView(root);root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});}return mount(root,host,pack);};frameApi=api;}});
@@ -297,6 +301,19 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await evaluate(`(() => {
     const transfer = new DataTransfer(), body = document.querySelector('[data-tab-pane-body]'), r = body.getBoundingClientRect();
     document.querySelector('${plugin("feed")}').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+    // D0029: browsers can still send pointermove during native drag; this must not cancel the tab's drag state.
+    document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:r.left+10,clientY:r.top+10}));
+    if(!document.querySelector('.is-tab-dragging'))throw new Error('D0029 pointermove cancelled native drag');
+    const target=document.querySelector('${plugin("goals")}'), surface=target.closest('[data-tab-panes],[data-titlebar-tabs]'), box=target.getBoundingClientRect();
+    if(!surface)throw new Error("D0029 target has no real drag surface");
+    surface.dispatchEvent(new DragEvent('dragenter',{bubbles:true,dataTransfer:transfer}));
+    target.dispatchEvent(new DragEvent('dragenter',{bubbles:true,dataTransfer:transfer}));
+    target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:box.left+box.width/2,clientY:box.top+box.height/2}));
+    const preview=document.querySelector('[data-tab-reorder-slot]:not([data-tab-slot-leaving])');
+    if(!preview)throw new Error('D0029 real tab reorder slot was not painted');
+    target.dispatchEvent(new DragEvent('dragleave',{bubbles:true,dataTransfer:transfer,relatedTarget:null}));
+    if(!preview.isConnected||preview!==document.querySelector('[data-tab-reorder-slot]:not([data-tab-slot-leaving])'))throw new Error('D0029 nested leave changed the reorder slot while still inside the surface');
+
     const at = { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: r.left + r.width * 0.95, clientY: r.top + r.height / 2 };
     body.dispatchEvent(new DragEvent('dragover', at)); body.dispatchEvent(new DragEvent('drop', at));
   })()`);
@@ -368,8 +385,17 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   const a = makePage("A"), b = makePage("B"), c = makePage("C"), d = makePage("D"); store.close();
   let holdSaves = false, heldStatus = 0, saveArrived!: () => void;
   const saveHeld = new Promise<void>(resolve => { saveArrived = resolve; });
+  const appearanceStreams = new Set<import("node:http").ServerResponse>();
+  const appearanceSources: string[] = [];
+  let peakAppearanceStreams = 0;
   const handlers = server.listeners("request"); server.removeAllListeners("request");
   server.on("request", (request, response) => {
+    if (request.method === "GET" && request.url === "/api/ui/appearance/events") {
+      appearanceStreams.add(response);
+      appearanceSources.push(new URL(request.headers.referer ?? "/", origin).search);
+      peakAppearanceStreams = Math.max(peakAppearanceStreams, appearanceStreams.size);
+      response.once("close", () => appearanceStreams.delete(response));
+    }
     if (holdSaves && request.method === "POST" && new URL(request.url!, origin).pathname === `/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${a.id}`) {
       const end = response.end;
       response.end = (...args: Parameters<typeof end>) => {
@@ -384,8 +410,12 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
     window.t405HeldItemIntents=[];window.t405TaggedCount=0;window.t405IntentBarriers=0;
     addEventListener('message',event=>{
       if(event.data?.type==='t405-record-intent-barrier')window.t405IntentBarriers++;
-      if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t405InitialItem=event.data.config.itemTab;
     },true);
+    const listen=MessagePort.prototype.addEventListener;
+    MessagePort.prototype.addEventListener=function(type,listener,options){
+      if(type==='message')listen.call(this,type,event=>{if(event.data?.type==='molis:plugin-connect')window.t405InitialItem=event.data.config.itemTab;},{once:true});
+      return listen.call(this,type,listener,options);
+    };
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){
       const port=this;
@@ -506,13 +536,23 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await bRight.evaluate(`window.t405Host.openItem('pages',${JSON.stringify(c.id)},'Item C')`);
   await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)}).tabs.some(t=>t.itemId===${JSON.stringify(c.id)})`);
   assert.equal(await itemCount(c.id), 1, "the existing untagged legal openItem still works");
-  await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger`);
-  await evaluate(`document.querySelector('iframe[data-pane-owner="${right}"]:not([hidden])').dataset.full16Owner='right-default'`);
+  const defaultTrigger = `[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger`;
+  await click(defaultTrigger);
+  const defaultOwner = JSON.stringify(ownerSelector(right!, right + ":view"));
+  await waitFor(`document.querySelector(${defaultOwner})?.checkVisibility()`);
+  await evaluate(`document.querySelector(${defaultOwner}).dataset.full16Owner='right-default'`);
   await defaultPage.waitFor("window.t405InitialItem===null && document.querySelector('[data-pages-rows]')");
-  const defaultTab = (await layout()).panes.find(p => p.id === right)!.activeTabId;
   await defaultPage.click(`button[data-page-id="${c.id}"]`);
   await defaultPage.waitFor("document.querySelector('[data-pages-title]').value==='Item C'");
-  assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, defaultTab, "a default plugin page still selects in place");
+  assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, null, "a default plugin page still selects in place");
+  // FSS-07: active and retained split documents update on the same connection, including after an in-page link.
+  await evaluate(`document.querySelector(${defaultOwner}).contentWindow.history.replaceState(null, '', '#pages')`);
+  await evaluate(`molisWorkRequest('/api/ui/appearance', { body: { request_id: 'split-pages-folio', expected_revision: 0,
+    choice: { kind: 'selection', selection: { skin: { id: 'folio', revision: 1 }, font: { policy: 'follow-skin' }, mono: null } } } })`);
+  await waitFor(`document.querySelector(${defaultOwner}).contentDocument.documentElement.dataset.uiSkin==='folio@1'
+    && ${ownerWindow}.document.documentElement.dataset.uiSkin==='folio@1'`);
+  assert.equal(peakAppearanceStreams, 1, JSON.stringify(appearanceSources));
+  assert.ok(appearanceSources.every(source => !source.includes('workbenchPane=')), JSON.stringify(appearanceSources));
   await selectTab(bTab); await browser.reloadPage();
   await waitFor(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))})`);
   await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).dataset.full16Owner='right-b'`);

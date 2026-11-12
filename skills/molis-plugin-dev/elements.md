@@ -40,9 +40,9 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 | `network:<host>` | 访问该主机 |
 | `secret:<name>` | 凭据引用，不要自己存可导出密钥 |
 
-`requires[]`：`capability_id`、`version`、`reason`。可选的写 `optional: true`。每一条的 `capability_id` 必须同时出现在 `capabilities.consumes`，否则解析拒绝。消费判断用 `action_scenes`，不声明 `functions.evaluate`（Feed、Inbox 都已不声明）。
+`requires[]`：`capability_id`、`version`、`reason`。可选的写 `optional: true`。每一条的 `capability_id` 必须同时出现在 `capabilities.consumes`，否则解析拒绝。消费判断用 `action_scenes`，不再声明旧的判断能力（Feed、Inbox 都已不声明）。
 
-`capabilities.provides` 是契约 id，不是别的插件包名。不带 `@` 时版本按 1：`functions.evaluate` 对得上 requires 里的 version 1；`functions.evaluate.v1` 是另一个 id。`consumes` 写不带版本的 id。Kernel 里任意满足者都可以。必需项没有提供者、依赖成环、或依赖的插件被挡住，才不激活。
+`capabilities.provides` 是契约 id，不是别的插件包名。不带 `@` 时版本按 1：`<能力 id>` 对得上 requires 里的 version 1；`<能力 id>.v1` 是另一个 id。`consumes` 写不带版本的 id。Kernel 里任意满足者都可以。必需项没有提供者、依赖成环、或依赖的插件被挡住，才不激活。
 
 经 `context.services.actions.invoke` 调的动作，必须列在 `capabilities.consumes` 里；它可以是宿主的，也可以是别的插件的（用户 2026-10-14 定）。宿主以插件受众、本插件自己的授权去调，提供方固定为项目目录里唯一的那一个；没列出的是 `actions.forbidden`，缺授权的是 `plugin.grant_denied`，目录里没有或不止一个提供方的是 `actions.dependency_missing` / `actions.provider_ambiguous`。只对 `user` 开放、声明了 `plugin: false` 或不可撤销的动作，插件受众够不到。要像工作流那样替原调用者调目录里的动作、不事先列出，声明权限 `actions:delegate` 用 `services.actions.directory`（写法与限制见 `host.md` 的「动作目录委托」，S-43）。
 

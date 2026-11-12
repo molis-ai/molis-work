@@ -2,7 +2,7 @@ import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/
 import type { PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { definitionOrigin, loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 import { developmentDeclarationOwners } from "./declaration-owners.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
@@ -57,7 +57,7 @@ function refuseBrokenLocaleFiles(words: PluginLocaleReader, locale: string): voi
 
 async function developPlugin(input: PluginDevelopmentInput, options: Parameters<typeof runPluginDevelopment>[1], definition: Awaited<ReturnType<typeof loadDevelopmentPlugin>>,
   words: PluginLocaleReader | null, locale: string | null): Promise<PluginDevelopmentResult> {
-  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id), localePacks: given => given.manifest.plugin_id === definition.manifest.plugin_id ? words : null }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set([definition]) }, reservedRuleKeys: hostReservedRuleKeys });
+  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id), localePacks: given => definitionOrigin(given) === definition ? words : null }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set([definition]) }, reservedRuleKeys: hostReservedRuleKeys });
   const installed = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
   const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };

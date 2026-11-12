@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
+import { chinesePagePacks, installPageClientText, pageTextForPacks } from "./fixtures/page-text-packs.js";
 
 // LOGIC-08: the placement bar asks the open form to store editor edits before it moves the form.
 
@@ -43,7 +44,9 @@ function element(): Node {
   return node;
 }
 
-test("LOGIC-08 moving the open form stores its unsaved editor edits first", async () => {
+test("LOGIC-08 moving the open form stores its unsaved editor edits first", async t => {
+  const packs = chinesePagePacks("form");
+  t.after(installPageClientText("zh", packs));
   const calls: Array<{ method: string; url: string; body?: Record<string, unknown> }> = [];
   const form = { id: "f1", project_id: "p", title: "试用反馈", description: "", status: "draft", questions: [], version: 3, updated_at: "2026-10-16T00:00:00.000Z", created_at: "2026-10-16T00:00:00.000Z", artifact_version: 0 };
   const bench = element();
@@ -78,7 +81,7 @@ test("LOGIC-08 moving the open form stores its unsaved editor edits first", asyn
       },
     });
     const factory = Function(`return (${FORM_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: () => string; pluginId: string; route: (path: string) => string; pluginRoute: (path: string) => string }) => void;
-    factory({ translate: text => text, projectId: () => "p", pluginId: "io.molis.work.form", route: path => path, pluginRoute: path => path });
+    factory({ translate: pageTextForPacks("zh", packs), projectId: () => "p", pluginId: "io.molis.work.form", route: path => path, pluginRoute: path => path });
     for (let i = 0; i < 8; i += 1) await new Promise(resolve => setImmediate(resolve));
     const row = element();
     row.dataset.formId = "f1";

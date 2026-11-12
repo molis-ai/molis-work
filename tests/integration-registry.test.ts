@@ -12,19 +12,24 @@ import type {
   PluginConnectionServiceDeclaration,
   PluginIntegrationDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { IntegrationRegistry, connectorDirectory, homeIntegrationRegistry, PluginInstallService, SandboxPackageStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { MemoryPluginConsentLedger, signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import { IntegrationRegistry, connectorDirectory, homeIntegrationRegistry, oauthEndpointFingerprint, PluginInstallService, readSandboxIntegrationPackage, resolveOAuthSettings, runWithLocale, SandboxPackageStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MemoryPluginConsentLedger, pluginLocaleReader, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { integrationPackage } from "./fixtures/home-upgrade-source.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { integrationKeyOf } from "@molis-ai/molis-work-plugin-feed";
+import { UI_TEXT_UNAVAILABLE, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { definePollingIntegrationPlugin, parsePluginManifest, pollingIntegrationBinding } from "@molis-ai/molis-work-plugin-sdk";
 import { rssIntegrationManifest, rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
 import { gmailIntegrationManifest, gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
 
 test("RAC-2507 presentation declarations use schema/API 1 and the packaged JSON keeps the same unreleased plugin identity", () => {
   assert.equal(rssIntegrationManifest.version, "1.0.0");
-  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version: 2, host_api_version: 2 }), /schema_version 与 host_api_version 必须都是 1/u);
-  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, host_api_version: 2 }), /schema_version 与 host_api_version 必须都是 1/u);
+  for (const [schema_version, host_api_version] of [[2, 2], [1, 2]]) {
+    assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version, host_api_version }), {
+      code: "plugin.manifest_version_invalid", kind: "invalid",
+      details: { found: { schema_version, host_api_version }, expected: { schema_version: 1, host_api_version: 1 } },
+    });
+  }
   for (const [id, manifest] of [["rss", rssIntegrationManifest], ["gmail", gmailIntegrationManifest]] as const) {
     assert.deepEqual(parsePluginManifest(JSON.parse(source(`plugins/official-integrations/${id}/manifest.json`))), parsePluginManifest(manifest));
   }
@@ -601,4 +606,86 @@ test("RAC-2615-HELD a binding retains its provider before waiting; replacement c
     await registry.detach(id);
     assert.throws(current[0]!, { code: "plugin.integration_unavailable" });
   } finally { await pending; }
+});
+
+
+test("FSS-36 a signed connection service projects only its exact Home and current release words", async () => {
+  const publisher = newPublisher(), original = integrationPackage(publisher);
+  const manifest = original.payload.manifest as PluginManifest;
+  const service = manifest.connection_services![0]!, prefix = textKeyPrefix(manifest.plugin_id), key = prefix + ".card.title";
+  const localized = (version: string, words: Partial<Record<"zh" | "en", unknown>>, title: PluginConnectionServiceDeclaration["title"] = { key }) => {
+    const changed: PluginManifest = { ...manifest, version, ui: { ...manifest.ui, locales: { default: "en", available: ["en", "zh"] } },
+      connection_services: [{ ...service, title }] };
+    const file = (path: string, body: unknown) => ({ path, content_base64: Buffer.from(JSON.stringify(body)).toString("base64") });
+    const files = original.payload.files.map(entry => {
+      if (entry.path === "manifest.json") return file(entry.path, changed);
+      if (entry.path !== "contract.json") return entry;
+      const contract = JSON.parse(Buffer.from(entry.content_base64, "base64").toString());
+      return file(entry.path, { ...contract, ui: { locales: changed.ui.locales } });
+    });
+    for (const locale of ["zh", "en"] as const) files.push(file(`locales/${locale}.json`, { format_version: 1, owner: changed.plugin_id, locale, messages: words[locale] }));
+    const bundle = signPluginPackage({ payload: { ...original.payload, manifest: changed, files }, signature: null, publisher_key: null }, publisher.signer);
+    return readSandboxIntegrationPackage(verifyPluginPackageSignature(bundle).bundle.payload);
+  };
+  const words = (zh: string, en: string) => ({ zh: { [key]: zh }, en: { [key]: en } });
+  const homeA = new IntegrationRegistry(), homeB = new IntegrationRegistry();
+  const first = localized("1.0.0", words("甲的连接", "A’s connection"));
+  const second = localized("1.0.0", words("乙的连接", "B’s connection"));
+  let liveA = true;
+  assert.equal(await homeA.attach(first.manifest, "same-install", () => null, () => liveA, first.localePacks), true);
+  assert.equal(await homeB.attach(second.manifest, "same-install", () => null, () => true, second.localePacks), true);
+  const old = homeA.connectionServices()[0]!;
+  const titles = (locale: string) => runWithLocale(locale, () => [connectorDirectory(homeA)[0]?.title, connectorDirectory(homeB)[0]?.title]);
+  assert.deepEqual(titles("en"), ["A’s connection", "B’s connection"]);
+  assert.deepEqual(titles("zh"), ["甲的连接", "乙的连接"]);
+  assert.deepEqual(old.declaration, first.manifest.connection_services![0], "projecting words did not write to the declaration");
+  assert.throws(() => localized("1.1.0", { en: {}, zh: {} }), { code: "plugin.declaration_invalid", message: /默认语言/ });
+  assert.throws(() => localized("1.1.0", words("错误 {value}", "Bad {value}")), { code: "plugin.declaration_invalid", message: /无参/ });
+  assert.throws(() => localized("1.1.0", words("错误", "Bad"), { key: "other.card.title" }), /本插件|文字/u);
+  assert.throws(() => localized("1.1.0", words("错误", "Bad"), { key, args: [{ name: "value", kind: "text", text: "x" }] }), { code: "plugin.declaration_invalid", message: /无参键/ });
+  const next = localized("1.1.0", words("新的连接", "New connection"));
+  const bad = pluginLocaleReader(next.manifest, () => null);
+  await assert.rejects(homeA.attach(next.manifest, "same-install", () => null, () => true, bad), { code: "plugin.declaration_invalid" });
+  assert.equal(homeA.connectionServices()[0], old, "a rejected replacement keeps the prior registration");
+  assert.equal(await homeA.attach(next.manifest, "same-install", () => null, () => false, next.localePacks), false);
+  assert.deepEqual(titles("en"), ["A’s connection", "B’s connection"]);
+  let liveNext = true;
+  assert.equal(await homeA.attach(next.manifest, "same-install", () => null, () => liveNext, next.localePacks), true);
+  assert.equal(runWithLocale("en", () => old.word({ key })), UI_TEXT_UNAVAILABLE);
+  assert.deepEqual(titles("en"), ["New connection", "B’s connection"]);
+  liveA = liveNext = false;
+  const newSource = homeA.connectionServices()[0]!;
+  assert.equal(runWithLocale("en", () => newSource.word({ key })), UI_TEXT_UNAVAILABLE, "withdrawal revokes the words before queued detach");
+  await homeA.detach(manifest.plugin_id);
+  assert.equal(runWithLocale("en", () => newSource.word({ key })), UI_TEXT_UNAVAILABLE);
+  assert.deepEqual(titles("zh"), [undefined, "乙的连接"]);
+});
+
+test("FSS-36 OAuth validation and directory labels share the declaring reader without changing the authorization identity", async () => {
+  const registry = await homeIntegrationRegistry("/tmp/batch16-connector-words-directory-test");
+  const owner = registry.oauthOwner("jira");
+  assert.ok(owner?.method?.kind === "oauth" && "authorize_url" in owner.method && owner.word);
+  const method = owner.method, fingerprint = oauthEndpointFingerprint(method), label = "site_url";
+  for (const [locale, expected] of [["zh", "Atlassian 站点"], ["en", "Atlassian site"]]) {
+    runWithLocale(locale!, () => {
+      const card = connectorDirectory(registry).find(row => row.connector_id === "jira");
+      const option = card?.method_options?.find(row => row.kind === "oauth")?.oauth;
+      assert.equal(option?.fields.find(field => field.key === label)?.label, expected);
+      assert.throws(() => resolveOAuthSettings("jira", method, {}, owner.word), error => error instanceof Error && error.message.includes(expected!));
+      const input = { [label]: "https://example.atlassian.net" };
+      assert.deepEqual(resolveOAuthSettings("jira", method, input, owner.word), { values: input, tenant: input[label] });
+      assert.equal(oauthEndpointFingerprint(method), fingerprint);
+    });
+  }
+});
+
+
+test("FSS-36 a locale preview cannot start an unopened integration registry", async () => {
+  const home = "/tmp/batch16-connector-words-cold-registry";
+  let bound = 0;
+  const provider = () => { bound++; return assert.fail("a locale preview cannot acquire a provider"); };
+  await assert.rejects(runWithLocale("en", () => homeIntegrationRegistry(home, provider), "explicit", true), { code: "actions.unavailable" });
+  assert.equal(bound, 0);
+  const registry = await homeIntegrationRegistry(home);
+  assert.equal(await runWithLocale("en", () => homeIntegrationRegistry(home, provider), "explicit", true), registry);
 });

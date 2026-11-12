@@ -2,13 +2,16 @@ import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import type { PluginPlatformHome } from "./home-side.js";
-import { openHostSession, type HostSession } from "./plugin-host-services.js";
+import { openHostSession, pluginTextViews, type HostSession } from "./plugin-host-services.js";
+import { runWithPluginText } from "./web-locale.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { directoryForHome } from "./plugin-directory-service.js";
+import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -27,7 +30,7 @@ export interface PluginHostExecutorOptions {
    * The language files of a definition, registered for the text tools while its session is open and taken back when it is released
    * (specs/font-and-skin-system/a-section-contract.md §8.3). Absent, or `null` for a definition: it has none, and nothing is read or registered.
    */
-  localePacks?(definition: PluginDefinition): import("@molis-ai/molis-work-app-workbench").PluginTextReader | null;
+  localePacks?(definition: PluginDefinition): PluginTextReader | null;
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**
@@ -99,6 +102,8 @@ export interface PluginHostExecutorOptions {
 export class PluginHostExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, HostSession>();
   private readonly stoppedCalls = new StoppedServiceCalls();
+  /** How each running activation was admitted (in process or sandboxed), captured at start: it decides how its stop is waited for (BL-367). */
+  private readonly executions = new Map<string, PluginStopExecution>();
   private options: PluginHostExecutorOptions;
 
   constructor(options: PluginHostExecutorOptions) {
@@ -157,11 +162,13 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
+    const execution = definition.execution;
     const session = await openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
-      const contribution = await session.starting(() => definition.start(session.context));
+      const contribution = await runWithPluginText(context, () => session.starting(() => definition.start(session.context)));
       this.sessions.set(context.install_id, session);
-      return { contribution };
+      this.executions.set(context.install_id, execution);
+      return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       await session.dispose();
       throw error;
@@ -176,8 +183,9 @@ export class PluginHostExecutor implements PluginExecutor {
     this.options.events?.revoke(this.options.project_id, definition.manifest.plugin_id);
     this.options.hostEvents?.revoke(this.options.project_id, definition.manifest.plugin_id);
     try {
-      await definition.stop?.(session?.context ?? context);
+      await awaitPluginStopHook(definition, session?.context ?? context, "project", this.executions.get(context.install_id) ?? definition.execution);
     } finally {
+      this.executions.delete(context.install_id);
       try { await session?.dispose(); } finally { this.sessions.delete(context.install_id); }
     }
   }

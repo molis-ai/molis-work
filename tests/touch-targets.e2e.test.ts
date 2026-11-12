@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Script } from "node:vm";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { layoutFindings } from "./fixtures/layout-audit.js";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 import { CLIENT_SCRIPT, assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
@@ -189,18 +189,25 @@ const CARRIED_BY_CODING = `(async () => {
 const popoversScript = (floor: number) => `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const notices = [
-    { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
-    { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
-    { notice_id: "t3", kind: "finished", text: "整理待办已完成", work_id: "w3" },
-    { notice_id: "t4", kind: "finished", text: "一条被规则压下的结果", work_id: "w4", held: { reason: "安静时段" } },
+    { notice_id: "t1", kind: "needs-decision", text: { original: "需要你决定发布时间" }, work_id: "w1" },
+    { notice_id: "t2", kind: "reminder", text: { original: "下午三点的评审" }, work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
+    { notice_id: "t3", kind: "finished", text: { original: "整理待办已完成" }, work_id: "w3" },
+    { notice_id: "t4", kind: "finished", text: { original: "一条被规则压下的结果" }, work_id: "w4", held: { reason: "安静时段" } },
   ];
   const real = window.fetch;
   // The notices come with the page's one attention read (W4-10): the test's notices replace the Assistant's in its answer.
   window.fetch = (input, init) => /\\/api\\/attention\\b/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
     ? real(input, init).then(response => response.json()).then(body => new Response(JSON.stringify({ ...body, notices }), { status: 200, headers: { "content-type": "application/json" } }))
     : real(input, init);
-  document.dispatchEvent(new Event("visibilitychange"));
-  await wait(400);
+  await new Promise((resolve, reject) => {
+    const listen = event => {
+      if (!event.detail?.notices?.some(notice => notice.notice_id === "t1")) return;
+      clearTimeout(timer); document.removeEventListener("molis-work:attention", listen); resolve();
+    };
+    const timer = setTimeout(() => { document.removeEventListener("molis-work:attention", listen); reject(new Error("Test notices did not reach the bell")); }, 10000);
+    document.addEventListener("molis-work:attention", listen);
+    document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  });
   const out = {};
   for (const [name, button, popover, present] of ${JSON.stringify(POPOVER_CONTENTS)}) {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.
@@ -385,24 +392,108 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plu
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
+/** What a phone's scrolling glyph row was asked about a Home tool (see assertHomeToolsReachable). */
+type HomeToolPhone = {
+  count: number;
+  first: boolean;
+  left: boolean;
+  right: boolean;
+  overflow: boolean;
+  scrolled: boolean;
+  staticPast: boolean;
+  inStrip: boolean;
+  inWindow: boolean;
+  hits: boolean[];
+  clickable: boolean;
+};
+
 /**
- * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached, without scrolling
- * anything to it. Since 07-1 S4b a Home tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no
- * longer a titlebar button of its own; on a phone the glyph row scrolls, and the Home tool leads it there, so it is in view as the
- * page draws (the always-there entry the person kept at the top right, 10-12).
+ * ISSUE-30 / 07-AUDIT: declared Home tools stay inside the viewport, and the visible target can actually be reached, without
+ * scrolling anything to it. Since 07-1 S4b a Home tool with a chord (Issue) is reached by its glyph on the right side of the
+ * titlebar, no longer a titlebar button of its own; on a phone the glyph row scrolls, and the Home tool leads it there, so it is
+ * in view as the page draws (the always-there entry the person kept at the top right, 10-12).
+ *
+ * BL-phone-home-tools-stay-visible: leading the row is not enough once the row scrolls — revealing the current side tab at the
+ * row's end used to scroll the Home tool out of sight at the left. So on a phone this also scrolls the row to its end and requires
+ * the Home tool to stay in the strip's box and in the window, to take the press at its top, middle and bottom (nothing above it),
+ * and to lead the arrow keys in the order the glyphs are drawn. `side-panel.ts` keeps it in place with `position:sticky` at a
+ * phone's width; the checks that follow fail without that rule.
  */
-async function assertHomeToolsReachable(browser: Browser): Promise<void> {
-  const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
+async function assertHomeToolsReachable(browser: Browser, width: number): Promise<void> {
+  const report = await browser.evaluate<{ count: number; blocked: string[]; phone: HomeToolPhone | null }>(`(async () => {
     const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
     const blocked = nodes.filter(el => {
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
       return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
     }).map(el => el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title);
-    return { count: nodes.length, blocked };
+    // BL-phone-home-tools-stay-visible / 07-AUDIT: a phone's glyph row scrolls to its end; the Home tool must still be drawn first,
+    // in view, and able to take the press there.
+    let phone = null;
+    const strip = document.querySelector('[data-side-tabs]'), button = nodes[0] ?? null;
+    if (button && strip && matchMedia('(max-width: 600px)').matches) {
+      const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // The tabs the strip draws, as its own arrow keys take them (side-panel.ts): a hidden context tab is not one.
+      const tabs = () => [...strip.querySelectorAll('[data-side-tab]')].filter((tab) => !tab.hidden);
+      const before = strip.scrollLeft, rest = button.getBoundingClientRect(), stripLeft = strip.getBoundingClientRect().left;
+      strip.scrollLeft = strip.scrollWidth;
+      await frame();
+      const stripBox = strip.getBoundingClientRect(), box = button.getBoundingClientRect(), style = getComputedStyle(button), x = box.left + box.width / 2;
+      // A press has to land on it: hit-test at three heights, plus the styles that would take the press away. Opening the Issue
+      // panel here would change the side's state in the middle of the shell's measurements, so the press is proven, not taken.
+      const hits = [box.top + 2, box.top + box.height / 2, box.bottom - 2].map((y) => { const at = document.elementFromPoint(x, y); return !!at && (at === button || button.contains(at)); });
+      const scrolled = strip.scrollLeft > 0;
+      const seen = { overflow: strip.scrollWidth > strip.clientWidth + 1, scrolled,
+        staticPast: scrolled && strip.scrollLeft + 0.5 >= rest.left - stripLeft + before + rest.width,
+        inStrip: box.left >= stripBox.left - 0.5 && box.right <= stripBox.right + 0.5,
+        inWindow: box.width > 0 && box.height > 0 && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight,
+        hits, clickable: hits.every(Boolean) && style.pointerEvents !== 'none' && !button.disabled };
+      strip.scrollLeft = 0;
+      await frame();
+      // The order the glyphs are drawn in is the order the strip's arrows walk: ← from the current tab follows it to the Home tool.
+      const ordered = tabs().sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      const first = ordered[0] === button;
+      let left = false, right = false;
+      if (first && ordered.length > 1) {
+        const selected = ordered.find((tab) => tab.getAttribute('aria-selected') === 'true') ?? ordered[1];
+        const startAt = ordered.indexOf(selected);
+        selected.focus({ preventScroll: true });
+        let steps = 0, followed = true;
+        while (document.activeElement !== button && steps <= ordered.length) {
+          const from = ordered.indexOf(document.activeElement);
+          document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+          steps += 1;
+          followed = followed && document.activeElement === ordered[(from - 1 + ordered.length) % ordered.length];
+        }
+        left = followed && steps === startAt && document.activeElement === button;
+        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        right = document.activeElement === ordered[1];
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      }
+      strip.scrollLeft = before;
+      phone = { ...seen, count: ordered.length, first, left, right };
+    }
+    return { count: nodes.length, blocked, phone };
   })()`);
   assert.ok(report.count > 0, "the current Home tools are present");
   assert.deepEqual(report.blocked, [], "Home tools are neither clipped nor covered, including their target's top and bottom");
+  const phone = report.phone;
+  if (!phone) return;
+  assert.equal(phone.first, true, `ISSUE-30 07-AUDIT: the Home tool is the first glyph a phone draws in the right side's row (${width}px)`);
+  if (phone.count > 1) {
+    assert.equal(phone.left, true, `ISSUE-30 07-AUDIT: ← from the current tab walks the drawn order and reaches the Home tool first (${width}px)`);
+    assert.equal(phone.right, true, `ISSUE-30 07-AUDIT: → from the Home tool goes to the glyph drawn after it (${width}px)`);
+  }
+  if (width <= 360) {
+    assert.equal(phone.overflow, true, `ISSUE-30 07-AUDIT: at ${width}px the glyph row overflows, so its end is the case measured`);
+    assert.equal(phone.scrolled, true, `ISSUE-30 07-AUDIT: at ${width}px the row really scrolled to its end`);
+    assert.equal(phone.staticPast, true, `ISSUE-30 07-AUDIT: at ${width}px the scroll passes where the Home tool would sit without staying in place`);
+  }
+  if (!phone.staticPast) return;
+  assert.equal(phone.inStrip, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: the Home tool stays inside the strip's box at the row's end (${width}px)`);
+  assert.equal(phone.inWindow, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: and inside the window, not scrolled out of sight (${width}px)`);
+  assert.deepEqual(phone.hits, [true, true, true], `ISSUE-30 / BL-phone-home-tools-stay-visible: its top, middle and bottom take the press, with nothing above them (${width}px)`);
+  assert.equal(phone.clickable, true, `ISSUE-30 / BL-phone-home-tools-stay-visible: it is enabled and takes pointer input (${width}px)`);
 }
 
 /** The windows of one test: open a size on a path, measure the shell, and put the Assistant line in a state. */
@@ -426,7 +517,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     assert.equal(await evaluate(`matchMedia('(pointer: coarse)').matches`), touch, `the window is a ${touch ? "coarse" : "fine"}-pointer one`);
     // The Dock folds what does not fit after its first paint; let it settle before measuring.
     await settle();
-    await assertHomeToolsReachable(browser);
+    await assertHomeToolsReachable(browser, width);
     return evaluate<Control[]>(SHELL_CONTROLS);
   };
   // The directory's resize grip runs the full height of the window's grid and crosses the bar between 601 and about 900px wide
@@ -522,7 +613,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const moreLabels = () => evaluate<string[]>(`(async () => {
     const attach = document.querySelector("[data-assistant-composer] [data-composer-add]"), more = document.querySelector("[data-assistant-composer] .mw-composer__start [data-compose-menu]");
     attach.click(); await new Promise((resolve) => setTimeout(resolve, 300));
-    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => (row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent);
+    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => [(row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent, row.querySelector(".mw-menu__shortcut")?.textContent].filter(Boolean).join(" "));
     attach.click();
     return labels;
   })()`);
@@ -921,7 +1012,8 @@ for (const scheme of ["light", "dark"] as const) {
       // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14), as a `/` command.
       const labels = await w.moreLabels();
       assert.equal(labels[0], "添加文件或图片…", `${name} · 620: the "+" menu starts with files (${labels})`);
-      assert.ok(labels.includes("/资料 选择项目资料…"), `${name} · 620: and offers the project's material (${labels})`);
+      // Since batch 11 a command's row is its name, with the `/word` that finds it where a shortcut stands (composer-parts.ts).
+      assert.ok(labels.includes("选择项目资料… /资料"), `${name} · 620: and offers the project's material (${labels})`);
     }
   });
 }

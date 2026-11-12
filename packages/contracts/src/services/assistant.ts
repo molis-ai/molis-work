@@ -1,5 +1,6 @@
 import type { MaterialRef } from "../platform/project-materials.js";
-import type { SignedAgentReference, SignedAgentInstallation } from "./agent-definitions.js";
+import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
+import type { SkillCatalogEntry } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
@@ -7,6 +8,8 @@ export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js"
 import type { AssistantActivity } from "./assistant-activity.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
+import type { OwnedTextRef } from "../platform/ui-text.js";
 import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput, AgentSteerMode } from "./agent-inputs.js";
@@ -63,12 +66,10 @@ export interface AssistantSurfaceRef {
 }
 
 /**
- * How a surface tells the Assistant what the person is looking at: the root element of a plugin surface carries this
- * attribute with an `AssistantSurfaceContext` as JSON, and keeps it current. The Assistant reads it when the person
+ * How a surface tells the Assistant what the person is looking at: the root element of a plugin surface carries the
+ * `data-assistant-context` attribute with an `AssistantSurfaceContext` as JSON, and keeps it current. The Assistant reads it when the person
  * focuses the composer; nothing is sent until they send, and every item stays visible and removable before that.
  */
-export const ASSISTANT_CONTEXT_ATTRIBUTE = "data-assistant-context";
-
 export interface AssistantSurfaceContext {
   plugin_id: string;
   /** What the person calls this surface, e.g. "Pages". */
@@ -221,7 +222,7 @@ export interface AssistantMaterial {
    * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
   reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
-  /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
+  /** For `method`: the Skill or role material the person chose with “/” for this round; the Host reads its body from its owner. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
@@ -598,42 +599,44 @@ export interface AssistantUsage {
   daily_tokens: number | null;
 }
 
-/** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
-export interface AssistantMethodSelection {
-  method_id: string;
-  version?: number;
-  default_ref?: SignedAgentReference;
-  installation?: SignedAgentInstallation;
-}
+/**
+ * What the person chose with “/” for one round (specs/capability-pack/contract-design.md §2.2): a Skill of the shared catalog by its exact
+ * reference, or a signed package's role material by its signed default and installation. Nothing else names a method.
+ */
+export type AssistantMethodSelection =
+  | { kind: "skill"; ref: SkillRef }
+  | { kind: "role"; /** `signed/<role_id>`. */ method_id: string; version?: number; default_ref: SignedAgentReference; installation: SignedAgentInstallation };
 
-export interface AssistantMethod extends AssistantMethodSelection {
-  kind?: "role" | "method";
-  /** `<plugin_id>/<skill_id>`. */
-  method_id: string;
-  plugin_id: string;
-  plugin_title: string;
-  version: number;
-  name: string;
-  summary: string;
-}
+/**
+ * What a work in this scope may follow: a Skill the shared catalog (`skills.catalog.list@1`) offers the Assistant here, or a signed
+ * package's role material.
+ */
+export type AssistantMethod =
+  | { kind: "skill"; skill: SkillCatalogEntry }
+  | (Extract<AssistantMethodSelection, { kind: "role" }> & { plugin_id: string; plugin_title: string; version: number; name: string; summary: string });
 
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.
  * `reminder`: a reminder the person set in a Plugin came due (a time on a to-do); it belongs to no work.
- * `directory-read`: a Plugin read a local directory the person authorized (PG-049; every read is told, whoever started it); its text is a host translation template with required text_params, drawn in the current UI language.
+ * `directory-read`: a Plugin read a local directory the person authorized (PG-049); the source is kept as a fact and named when shown.
  * `connection`: one of the person's service connections needs them (ASC-53, ASC-58): it must be logged in again, its key or permission was
  * refused more than once, or it kept failing; raised once for one problem of one connection version, never for a connection the person
  * disconnected, disabled or removed, and settled once the problem is gone. It belongs to no work; `settings_path` opens the connection settings of its service (the settings have no
- * address for one account of a service). Its text is a host translation template whose `{name}` is the connection's name, given as `work_title`. */
+ * address for one account of a service). The connection's own name remains as given. */
 export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read" | "connection";
+type AssistantTextKey = Extract<OwnedTextRef, { readonly key: string }>;
+/** Host words stay a bound key; an original refusal, receipt or other text is kept without a display length limit. */
+export type AssistantSavedText = AssistantTextKey | { readonly original: string; readonly label?: AssistantTextKey };
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
   /** The work it is about; empty for a reminder. */ work_id: string;
   /** The work's title, or for a reminder the Plugin that holds it. */
   work_title: string;
-  text: string;
-  text_params?: { plugin: string; folder: string; origin: string };
+  text: AssistantSavedText;
+  directory_origin?: DirectoryReadOrigin;
+  /** Other new items of the same work, projected with the newest material notice. */
+  additional_count?: number;
   created_at: string;
   /**
    * For a `connection` notice: the settings address that opens the connection settings of its service, a same-origin path that starts with
@@ -712,7 +715,9 @@ export interface AssistantFollowUp {
   time_zone: string;
   enabled: boolean;
   created_at: string;
-  last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: string };
+  last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: AssistantSavedText };
+  /** The times it missed that the person has not decided on yet (「现在做」 or 「跳过」), newest last, at most ten. */
+  missed?: Array<{ due_at: string; missed_at: string }>;
 }
 
 /**

@@ -9,10 +9,10 @@ import { connectorRecordActions } from "./connector-record-actions.js";
 import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
-import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
+import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_RUNS_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
-import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { MATERIALS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
@@ -25,6 +25,8 @@ import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/mo
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
+import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
+import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 /**
  * What the person carries to read their project's folders through the materials service. Not in `LOCAL_OWNER_PERMISSIONS`: before
@@ -53,19 +55,26 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
-    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
+    [APPEARANCE_PROVIDER_ID, [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION]],
+    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, KIT_READ_PERMISSION]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
     [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks(Object.values(skillImportActions))]],
     [SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS],
+    // The AI kit and the Host's own reporters it gathers: the person's to read (specs/capability-pack/contract-design.md §4.7).
+    [KIT_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_TOOLS_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_DEFINITIONS_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_MCP_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
-    [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
+    [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
     // The platform's materials service reads the person's own project folders, as Files did for them (Files retirement, BSH-08).
     // Held over this provider only; a route carries it in its cap only when it reads folders (`MATERIALS_OWNER_PERMISSIONS`).
     [MATERIALS_PROVIDER_ID, MATERIALS_OWNER_PERMISSIONS],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
-    [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(assistantThreadActions)])],
+    [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_RUNS_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],

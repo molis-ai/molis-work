@@ -25,7 +25,7 @@ Host 经 background service 公开装配返回值等待；Home 实例沿 executo
 2. **D0039-02** 删除项目的插件清理也等待真实收尾，不能在 done 拒绝时提前返回。
 3. **D0039-03** 分区在取消作业的同一轮封住新读写，但真实作业未退出时不关闭或删除库；收尾完成后才删分区。
 4. **D0039-04** 项目级插件的激活作业也经同一等待合同，项目库不在真实收尾前关闭。
-5. 目标项目取消／删除不取消也不等待其他项目作业；旧作业不能保留后继，后来的合法调用仍可登记。
+5. **D0039-05** 目标项目取消／删除不取消也不等待其他项目作业；旧作业不能保留后继，后来的合法调用仍可登记。关闭回归须只放行目标项目，另一项目仍保持悬挂，关闭照常完成。
 
 01、02、04 在 tests/security-invariants-activation-jobs.test.ts；03 在 tests/plugin-database-partition-deletion.test.ts；其他项目隔离及后继拒绝由既有 S-52 测试证明，保留原断言，只把测试外部放行移到取消后、等待关闭前以符合新合同。分区删除与真实清理由 plugin-database-partition-deletion、home-plugin-project-cleanup 等回归补证。
 

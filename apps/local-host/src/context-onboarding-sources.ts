@@ -110,7 +110,7 @@ export async function readOnboardingGmail(home: string, source: ContextSource, f
     const connection = access.connection;
     const assertConnection = () => {
       signal.throwIfAborted();
-      const latest = withConnectorConnections(home, store => store.require(id, "gmail"));
+      const latest = withConnectorConnections(home, store => store.require(id, "gmail"), "required");
       if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) throw new Error("Gmail 连接已改变，请重新执行");
     };
     let refreshed = false;

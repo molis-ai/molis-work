@@ -4,6 +4,7 @@ import type { ConnectorCallObservation } from "@molis-ai/molis-work-contracts/se
 import { homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { hostLog } from "../host-log.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
+import { assistantWords } from "./assistant-saved-text.js";
 
 /**
  * The Assistant's side of a connection's notices (ASC-53, ASC-58): the connection code says when one of the person's connections needs
@@ -13,13 +14,6 @@ import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
  */
 
 export type ConnectionFailureClass = NonNullable<ConnectorCallObservation["failure_class"]>;
-
-/** Translation templates the page draws in the current UI language, `{name}` filled with the notice's `work_title` (the connection's name). */
-const TEXT: Record<ConnectionFailureClass, string> = {
-  reauth: "服务连接「{name}」的登录已失效，需要重新登录。",
-  denied: "服务连接「{name}」的密钥或权限连续被服务拒绝，打开连接看看。",
-  unavailable: "服务连接「{name}」连续几次没连上服务，打开连接看看。",
-};
 
 /**
  * A settings address a connection notice may carry: a path on this origin under `/settings/`, plain characters only (no scheme or host,
@@ -59,7 +53,8 @@ export function raiseConnectionNotice(home: string, input: ConnectionNoticeInput
     const version = `${dedupePrefix(input.connection_id)}${input.revision}:`;
     return withAssistantNotices(home, true, store => {
       store.settleNoticesByDedupe(LOCAL_PERSON_ACTOR_ID, dedupePrefix(input.connection_id), "resolved", version);
-      return store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "connection", work_id: "", work_title: input.name, text: TEXT[input.failure_class], ...(path ? { settings_path: path } : {}) },
+      return store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "connection", work_id: "", work_title: input.name,
+        text: assistantWords(`workbench.assistant-connection.${input.failure_class}`, { name: input.name }), ...(path ? { settings_path: path } : {}) },
       `${version}${input.failure_class}:${input.failing_since}`) !== null;
     }) ?? false;
   } catch (error) {

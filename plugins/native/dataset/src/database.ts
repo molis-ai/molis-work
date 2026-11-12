@@ -1,9 +1,6 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-/**
- * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in.
- */
+/** The Dataset baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const DATASET_SCHEMA = `
   CREATE TABLE datasets (
     id TEXT PRIMARY KEY,
@@ -33,7 +30,7 @@ const DATASET_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its datasets go with their
  * saved versions and the receipts of datasets made into it.
  */
-const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Dataset 数据表", order: 30,
+const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "dataset.project-deletion.data" }, order: 30,
   artifact_join: { table: "datasets", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
     artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
   tables: [

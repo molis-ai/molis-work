@@ -2,7 +2,8 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginManifest, PluginRouteBinding, PluginRouteRequest, PluginRouteResponse, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 
-import { endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
+import { currentPluginInvocation, endPluginRoute, pluginActivationOpen, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
+import type { PluginContributionSource } from "./lifecycle.js";
 
 /**
  * What each running activation offers, keyed by installation. A route an activation offers runs as a call of its own (BL-403,
@@ -15,11 +16,13 @@ import { endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action
  * answers it with its generic sentence and keeps the raw message out of the answer.
  */
 export class OfferedContributions {
-  readonly #offered = new Map<string, Offer>();
+  readonly #offered = new Map<string, Offer & { source?: PluginContributionSource }>();
   constructor(private readonly context: (installId: string) => PluginStartContext | undefined) {}
 
-  get(installId: string): PluginContribution | undefined {
-    return this.#offered.get(installId)?.contribution;
+  get(installId: string, readSource?: (source: PluginContributionSource) => void): PluginContribution | undefined {
+    const offered = this.#offered.get(installId);
+    if (readSource && offered?.source && pluginActivationOpen(offered.source.activation)) readSource(offered.source);
+    return offered?.contribution;
   }
 
   has(installId: string): boolean {
@@ -29,7 +32,8 @@ export class OfferedContributions {
   /** `manifest` is the one the activation was redeemed against: it says which routes stream. */
   set(installId: string, contribution: PluginContribution, manifest: PluginManifest): void {
     this.delete(installId);
-    this.#offered.set(installId, offer(contribution, manifest, this.context(installId)));
+    const activation = this.context(installId);
+    this.#offered.set(installId, { ...offer(contribution, manifest, activation), source: activation && { manifest, activation } });
   }
 
   delete(installId: string): void {
@@ -53,7 +57,7 @@ function offer(contribution: PluginContribution, manifest: PluginManifest, conte
   let withdrawn = false;
   const answer = (binding: PluginRouteBinding, request: PluginRouteRequest): Promise<PluginRouteResponse> => {
     if (withdrawn) return Promise.resolve(stoppedAnswer());
-    const route: PluginRouteCall = { route_id: binding.route_id, ...(context ? { instance: context } : {}) };
+    const route: PluginRouteCall = { route_id: binding.route_id, instance: context, caller: request.execution, parent: currentPluginInvocation() };
     let answerStopped: (response: PluginRouteResponse) => void = () => undefined;
     const ended = new Promise<PluginRouteResponse>(resolve => { answerStopped = resolve; });
     const end = () => { endPluginRoute(route); answerStopped(stoppedAnswer()); };

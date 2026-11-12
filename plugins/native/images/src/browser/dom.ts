@@ -1,4 +1,7 @@
 import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+const uiText = globalThis.t;
 
 /** An element the server drew; the page cannot work without it. */
 export const required = requiredQuery(selector => `Images page is missing ${selector}`);
@@ -26,7 +29,7 @@ export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 export function dateLabel(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? "" : date.toLocaleString(document.documentElement.lang || undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.valueOf()) ? "" : uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), "datetime") });
 }
 
 /** The first `max` characters of `value`, for names and titles a person reads. One character can be two UTF-16 units (an emoji, say); a cut by

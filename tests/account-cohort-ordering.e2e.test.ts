@@ -16,7 +16,7 @@ for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed sta
     };
     window.fetch=(input,init)=>{
       const url=new URL(String(input),location.href);
-      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',email:null},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
       if(url.pathname==='/api/personal/prepare'){
         const action=url.searchParams.get('action');
         if(action==='start'){
@@ -66,7 +66,7 @@ test('ASR-04 a current start failure still reports its original error and does n
     };
     window.fetch=(input,init)=>{
       const url=new URL(String(input),location.href);
-      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',email:null},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
       if(url.pathname==='/api/personal/prepare' && url.searchParams.get('action')==='start')return Promise.reject(new Error('current start failed'));
       if(url.pathname==='/api/personal/prepare')return Promise.resolve(Response.json({preparation:null}));
       if(url.pathname==='/api/personal/switch'){probe.logins++;return Promise.resolve(Response.json({}));}
@@ -78,7 +78,7 @@ test('ASR-04 a current start failure still reports its original error and does n
   await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
   await click('[data-personal-action=switch]');
   // The existing request owner turns a failed POST delivery into this outcome-unknown error; begin must propagate it unchanged.
-  await waitFor("document.querySelector('#mw-account-menu [role=alert]')?.textContent===L('不知道这次操作有没有完成，请刷新后核对') && !document.querySelector('[data-personal-action=switch]').disabled");
+  await waitFor("document.querySelector('#mw-account-menu [role=alert]')?.textContent==='不知道这次操作有没有完成，请刷新后核对' && !document.querySelector('[data-personal-action=switch]').disabled");
   assert.equal(await evaluate('window.currentStartFailure.logins'),0);
   assert.equal(await evaluate('window.currentStartFailure.popupClosed'),true);
   assert.equal(await evaluate('molisWorkAccountTransition.preparing'),false,'an unchanged failed start keeps the original error and leaves editing available');

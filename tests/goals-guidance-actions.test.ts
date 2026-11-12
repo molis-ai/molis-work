@@ -97,7 +97,7 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "user", audience: "user", project_id: project.project_id, permissions: ["goals:write"] }));
     await bound.invoke(goalsActions.create, { goal_id, title: "使用项目说明", idempotency_key: "create" });
     const promptPath = `/api/plugins/io.molis.work.goals/goals/${goal_id}/advance-prompt`;
-    const prompt = await request(promptPath);
+    const prompt = await request(promptPath, {});
     assert.equal(prompt.status, 200, await prompt.clone().text());
     assert.match((await prompt.json() as { prompt: string }).prompt, /所有导出必须由用户发起/);
     const editPath = `/api/plugins/io.molis.work.goals/project-guidance/${added.entry.guidance_id}`;
@@ -107,7 +107,7 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     assert.deepEqual(await (await request("/api/plugins/io.molis.work.goals/project-guidance")).json(), added.project_guidance);
     denied.clear();
     assert.equal((await request(editPath, update, "PATCH")).status, 200);
-    assert.doesNotMatch((await (await request(promptPath)).json() as { prompt: string }).prompt, /所有导出必须由用户发起/);
+    assert.doesNotMatch((await (await request(promptPath, {})).json() as { prompt: string }).prompt, /所有导出必须由用户发起/);
     denied.add(goalsActions.guidanceRead.capability_id);
     assert.equal((await request("/api/plugins/io.molis.work.goals/project-guidance")).status, 403);
     assert.equal((await request("/settings/guidance")).status, 403);
@@ -116,7 +116,7 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     const receipt = await savedWithoutRefresh.json() as { created: boolean; project_guidance: unknown; project_guidance_error: string };
     assert.equal(receipt.created, true); assert.equal(receipt.project_guidance, null); assert.match(receipt.project_guidance_error, /说明停用/);
     assert.equal(await host.withProject(ref, runtime => goalApplicationOf(runtime).goalQueries.readProjectGuidance(project.project_id).entries[0]?.content), "保留恢复记录。");
-    const deniedPrompt = await request(promptPath);
+    const deniedPrompt = await request(promptPath, {});
     assert.ok(deniedPrompt.status >= 400); assert.match(await deniedPrompt.text(), /说明停用/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

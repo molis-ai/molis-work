@@ -4,7 +4,7 @@ import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-brows
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { EN } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -80,8 +80,10 @@ test("RAC-406 plugins.installed.list is the person's read of one project: other 
 
 test("RAC-2600 the installed list says why an installation is not running when its plugin host knows, and null when nothing is wrong", () => {
   const manifest = sandboxPluginManifest({ pluginId: PACKAGE_PLUGIN_ID, version: "1.0.0", name: "Example notes", publisher: { publisher_id: "example", signature: "ed25519:sha256:aa" }, presentation: false });
-  const [broken, fine] = installedPluginViews([{ record: record({}), manifest, recoveryError: "找不到已安装的插件包" }, { record: record({ install_id: "install-2", plugin_id: "io.molis.work.other" }), manifest }], new MemoryPluginConsentLedger());
-  assert.equal(broken!.recovery_error, "找不到已安装的插件包");
+  const [broken, fine] = installedPluginViews([{ record: record({}), manifest, recoveryCode: "plugin.package_missing" }, { record: record({ install_id: "install-2", plugin_id: "io.molis.work.other" }), manifest }], new MemoryPluginConsentLedger());
+  assert.equal(broken!.recovery_error, "plugin.package_missing", "BL-915: a missing package is said apart from an invalid one");
+  const [unread] = installedPluginViews([{ record: record({ last_error_code: "plugin.process_crashed" }), manifest, recoveryCode: "plugin.package_invalid" }], new MemoryPluginConsentLedger());
+  assert.equal(unread!.recovery_error, "plugin.process_crashed", "a reason without a code of its own gives way to the record's");
   assert.equal(broken!.state, "running", "the state is the record's own; the reason is said beside it");
   assert.equal(fine!.recovery_error, null);
   assert.deepEqual([fine!.name, fine!.trust, fine!.manifest_available, fine!.permissions.length], ["Example notes", "pinned", true, 1], "the other fields are what they were");
@@ -122,5 +124,5 @@ test("RAC-2619-VIEW service rows preserve multiple exact origins as text and omi
     await page.click("[data-plugin-trust-preview] .mw-btn--secondary");
     await page.wait("document.querySelector('[data-plugin-trust-preview]').hidden");
   }
-  assert.equal(EN["可访问的服务地址"], "Service addresses it may access");
+  assert.equal(pageText("en")("workbench.settings-plugins.service-addresses-may-access"), "Service addresses it may access");
 });

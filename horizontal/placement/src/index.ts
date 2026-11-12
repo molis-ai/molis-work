@@ -9,7 +9,7 @@ import type {
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 
-import { readPlacementIn, PROJECT_GONE, type PlacementRead } from "./subject-reader.js";
+import { readPlacementIn, type PlacementRead } from "./subject-reader.js";
 export {previewProjectCopy,type ProjectCopyPreviewInput,type ProjectCopySource,type ProjectCopyPreview,type ProjectCopyPreviewView,type ProjectCopyPreviewEntry,type ProjectCopyBlocker} from './project-copy-preview.js';
 export {projectCopyIdentities,type ProjectCopyIdentityInput} from './project-copy-identity.js';
 export {createProjectCopyJournal,type ProjectCopyJournal,type ProjectCopyPlan,type ProjectCopyReceipt} from './project-copy-journal.js';
@@ -34,8 +34,8 @@ export interface PlacementPorts {
   beforeEffect?(): void | Promise<void>;
   /** Last title seen for an object, so a deleted one is still named where it was used. A cache, never a fact. */
   titles: { get(kind: string, id: string): string | null; set(kind: string, id: string, title: string): void };
-  /** Text in the reader's language. Strings are Chinese with `{name}` slots; without it the slots are only filled in. */
-  text?(zh: string, vars?: Record<string, string | number>): string;
+  /** Reads a Workbench key in the caller's language. */
+  text?(key: string, vars?: Record<string, string | number>): string;
   /** Which declared relation (`placement_relation`) the Goal-shaped parts of this service keep; `goal`, the name the wire vocabulary uses. */
   relation?: string;
 }
@@ -80,7 +80,7 @@ export class PlacementService {
     for (const edge of this.edges(TYPES.used).filter(edge => edge.target.id === projectId)) {
       const object = this.locate({ kind: edge.source.object_type ?? "", id: edge.source.id, project_id: null }).object;
       const read = await this.read(object);
-      items.push({ key: edge.key, object, title: read.context?.title || this.ports.titles.get(object.kind, object.id) || placementText(this.ports, "未命名"),
+      items.push({ key: edge.key, object, title: read.context?.title || this.ports.titles.get(object.kind, object.id) || placementText(this.ports, "workbench.index.untitled"),
         state: read.state, reason: read.reason, location: read.state === "ok" ? placementLocation(this.ports, object.project_id, spaces) : null, plugin: read.plugin,
         since: edge.recorded_at, open: read.context?.open ? { project_id: placementOpenProject(object, read), surface: read.context.open.surface, id: read.context.open.id } : null });
     }
@@ -91,12 +91,12 @@ export class PlacementService {
   async link(input: PlacedObject, projectId: string): Promise<{ key: string }> {
     const spaces = await this.ports.spaces();
     const target = spaces.find(space => space.project_id === projectId);
-    if (!target || target.kind !== "project") throw new ActionError("placement.project_missing", placementText(this.ports, "找不到这个项目"));
+    if (!target || target.kind !== "project") throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.project-not-found"));
     const object = this.locate(input).object;
-    if (object.project_id === projectId) throw new ActionError("placement.already_here", placementText(this.ports, "它就放在这个项目里，不需要再关联"));
+    if (object.project_id === projectId) throw new ActionError("placement.already_here", placementText(this.ports, "workbench.index.s-already-stored-project-no-link-needed"));
     const read = await this.read(object);
-    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "暂时读不到这个对象"));
-    if (placementBelongsOf(read) === projectId) throw new ActionError("placement.already_here", placementText(this.ports, "它就放在这个项目里，不需要再关联"));
+    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
+    if (placementBelongsOf(read) === projectId) throw new ActionError("placement.already_here", placementText(this.ports, "workbench.index.s-already-stored-project-no-link-needed"));
     await this.ports.beforeEffect?.();
     this.remember(object);
     const linkKey = key("used_in", object.kind, object.id, projectId);
@@ -112,10 +112,10 @@ export class PlacementService {
       const [, projectId, goalId, bindingId] = parts as string[];
       const scope = await this.ports.scope(projectId!);
       const { release } = await placementRelationOf(this.ports, scope);
-      if (!release) throw new ActionError("placement.target_unavailable", placementText(this.ports, "这个位置没有启用 Goals"));
+      if (!release) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.goals-isn-t-enabled-here"));
       return { removed: (await scope.client.invoke(scope.caller, release, { goal_id: goalId, binding_id: bindingId }) as { released: boolean }).released };
     }
-    if (!Array.isArray(parts) || parts[0] !== "used_in") throw new ActionError("placement.not_removable", placementText(this.ports, "这条关系由插件自己管理，请在原处修改"));
+    if (!Array.isArray(parts) || parts[0] !== "used_in") throw new ActionError("placement.not_removable", placementText(this.ports, "workbench.index.link-managed-plugin-change-there"));
     await this.ports.beforeEffect?.();
     const edge = this.ports.ledger.commands.remove(ACCESS, linkKey, "placement.unlink");
     return { removed: !!edge && edge.state === "removed" };
@@ -130,12 +130,12 @@ export class PlacementService {
   async bindGoal(input: PlacedObject, projectId: string, goalId: string, readRevision?: string): Promise<{ key: string }> {
     const object = this.locate(input).object;
     const read = await this.read(object);
-    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "暂时读不到这个对象"));
+    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
     const scope = await this.ports.scope(projectId);
     const { bind } = await placementRelationOf(this.ports, scope);
-    if (!bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "这个位置没有启用 Goals，不能关联目标"));
+    if (!bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.goals-isn-t-enabled-here-so-can-t"));
     // What the person saw when they took it goes with it: Goals keeps its digest so the Goal can say later whether the original changed.
-    const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || placementText(this.ports, "未命名"),
+    const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || placementText(this.ports, "workbench.index.untitled"),
       ...(readRevision ? { read_revision: readRevision } : {}) }) as { binding: { binding_id: string } };
     await this.ports.beforeEffect?.();
     this.remember(object);
@@ -155,12 +155,12 @@ export class PlacementService {
   /** Something new made in one place (from a Goal or the placement panel); bound to a Goal when asked. */
   async create(request: PlacementCreateRequest): Promise<PlacementConvertResponse & { goal_key: string | null }> {
     const spaces = await this.ports.spaces();
-    if (!spaces.some(space => space.project_id === request.project_id)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到这个位置"));
+    if (!spaces.some(space => space.project_id === request.project_id)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.location-not-found"));
     const scope = await this.ports.scope(request.project_id);
     const views = await scope.client.discover(scope.caller);
     const create = views.find(view => view.action.workflow_content?.id === request.station && view.action.workflow_content.role === "create" && view.availability.available);
-    if (!create) throw new ActionError("placement.target_unavailable", placementText(this.ports, "这个位置不能新建这类内容"));
-    const title = (request.title ?? "").trim() || placementText(this.ports, "未命名");
+    if (!create) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.kind-item-can-t-be-created-here"));
+    const title = (request.title ?? "").trim() || placementText(this.ports, "workbench.index.untitled");
     const item = await scope.client.invoke(scope.caller, ref(create), { title }) as WorkflowItemRef;
     const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === create.provider.provider_id);
     const created: PlacedObject = { kind: readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : request.station, id: item.item_id, project_id: request.project_id };
@@ -175,14 +175,14 @@ export class PlacementService {
     const spaces = await this.ports.spaces();
     const object = this.locate(input).object;
     if (object.project_id === null) return this.moveHome(object, to, spaces);
-    if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到要移到的位置"));
-    if (object.project_id === to) throw new ActionError("placement.same_location", placementText(this.ports, "它已经在这个位置"));
+    if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.couldn-t-find-where-move"));
+    if (object.project_id === to) throw new ActionError("placement.same_location", placementText(this.ports, "workbench.index.s-already-here"));
     const { mover } = await placementTools(this.ports, object, "move");
-    if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "这个插件的内容还不能移动；可以复制或用于项目"));
+    if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
     const scope = await this.ports.scope(object.project_id);
     const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
-      throw new ActionError("placement.result_mismatch", placementText(this.ports, "插件返回的移动结果与请求不一致，请刷新后核对"));
+      throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-s-move-result-doesn-t-match-request"));
     }
     const from = object.project_id;
     await settleMove(this.ports, object, to, from, () => writeProjectLocation(this.ports, object, from, to), text => placementText(this.ports, text));
@@ -195,18 +195,18 @@ export class PlacementService {
    * Home-scoped mover, and keeps reading it at Home. Where it belonged before is kept for “从 … 移来”.
    */
   private async moveHome(object: PlacedObject, to: string, spaces: readonly PlacementSpaceView[]): Promise<PlacementMoveResponse> {
-    if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到要移到的位置"));
+    if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.couldn-t-find-where-move"));
     const { mover } = await placementTools(this.ports, object, "move");
-    if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "这类内容只放在个人空间；可以用于项目，但不能移动"));
+    if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "workbench.index.kind-item-only-lives-personal-space-can-be"));
     const read = await this.read(object);
-    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "暂时读不到这个对象"));
+    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
     const from = placementBelongsOf(read) ?? PERSONAL_SPACE_PROJECT_ID;
-    if (from === to) throw new ActionError("placement.same_location", placementText(this.ports, "它已经在这个位置"));
+    if (from === to) throw new ActionError("placement.same_location", placementText(this.ports, "workbench.index.s-already-here"));
     // Called from where it belongs now, so a plugin that scopes its objects by project finds it.
     const scope = await this.ports.scope(from === PERSONAL_SPACE_PROJECT_ID ? null : from);
     const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
-      throw new ActionError("placement.result_mismatch", placementText(this.ports, "插件返回的移动结果与请求不一致，请刷新后核对"));
+      throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-s-move-result-doesn-t-match-request"));
     }
     await settleMove(this.ports, object, to === PERSONAL_SPACE_PROJECT_ID ? null : to, from, () => {
       this.remember(object);
@@ -320,9 +320,9 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   // from the partition it just arrived in, so the caller's project is the place the plugin already wrote.
   const scope = await (ports.revert ?? ports.scope)(object.project_id === null ? null : at);
   const mover = placementToolOf(ports, await scope.client.discover(scope.caller), object.kind, "move");
-  if (!mover) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
+  if (!mover) throw new ActionError("placement.not_movable", t("workbench.index.no-move-action-was-found-to-put"));
   const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
-  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("移回原处的结果与请求不一致"));
+  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.putting-it-back-did-not-return-the"));
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
@@ -344,14 +344,14 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
   const located = self.locate(input);
   const object = located.object;
   const read = await self.read(object);
-  const title = read.context?.title || ports.titles.get(object.kind, object.id) || placementText(ports, "未命名");
-  const location = read.state === "missing" && read.reason === PROJECT_GONE ? null
+  const title = read.context?.title || ports.titles.get(object.kind, object.id) || placementText(ports, "workbench.index.untitled");
+  const location = read.state === "missing" && read.plugin === null ? null
     : object.project_id === null ? homePlacementLocation(ports, placementBelongsOf(read), spaces) : placementLocation(ports, object.project_id, spaces);
   const associations: PlacementAssociation[] = [];
   for (const edge of self.edges(TYPES.used).filter(edge => sameObject(edge.source, object.kind, object.id))) {
     const project = spaces.find(space => space.project_id === edge.target.id);
-    associations.push({ key: edge.key, type: "used_in", label: project ? placementText(ports, "用于 项目「{name}」", { name: project.title }) : placementText(ports, "用于 一个已删除的项目"),
-      target: { kind: "project", project_id: edge.target.id, title: project?.title ?? placementText(ports, "已删除的项目") }, since: edge.recorded_at, removable: true });
+    associations.push({ key: edge.key, type: "used_in", label: project ? placementText(ports, "workbench.index.used-project-name", { name: project.title }) : placementText(ports, "workbench.index.used-deleted-project"),
+      target: { kind: "project", project_id: edge.target.id, title: project?.title ?? placementText(ports, "workbench.index.deleted-project") }, since: edge.recorded_at, removable: true });
   }
   // Goals keep the bindings in their own project: the one it lives in, and every project it was bound in from elsewhere or before a move.
   const boundIn = new Set<string>(object.project_id === null ? [] : [object.project_id]);
@@ -369,10 +369,10 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
   }
   for (const binding of bound) {
     const goal = await self.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
-    const name = goal ?? placementText(ports, "（读不到标题）");
+    const name = goal ?? placementText(ports, "workbench.index.title-unavailable");
     associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
-      label: binding.project_id === object.project_id ? placementText(ports, "{noun}「{name}」", { noun: binding.noun, name })
-        : placementText(ports, "{noun}「{name}」 · {place}", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
+      label: binding.project_id === object.project_id ? placementText(ports, "workbench.placement.related-goal", { noun: binding.noun, name })
+        : placementText(ports, "workbench.placement.related-goal-with-place", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
       target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
   }
   const kept = read.context?.goal_ids ?? [];
@@ -382,15 +382,15 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     if (bound.some(binding => binding.goal_id === goalId && binding.project_id === object.project_id)) continue;
     const goal = object.project_id === null ? null : await self.targetTitle(object.project_id, keptRelation!.target_kind, goalId);
     // Kept by the plugin itself (a document's “挂到 Goal”): changed there, not here.
-    associations.push({ key: null, type: "goal", label: placementText(ports, "{noun}「{name}」 · {plugin}里挂接", { noun: keptRelation!.noun, name: goal ?? placementText(ports, "（读不到标题）"), plugin: read.plugin?.title ?? "" }),
+    associations.push({ key: null, type: "goal", label: placementText(ports, "workbench.index.noun-name-linked-plugin", { noun: keptRelation!.noun, name: goal ?? placementText(ports, "workbench.index.title-unavailable"), plugin: read.plugin?.title ?? "" }),
       target: { kind: "goal", project_id: object.project_id, goal_id: goalId, title: goal ?? "" }, since: null, removable: false });
   }
   // A conversion names what the other end is (a Goal, or the plugin that keeps it), so a document and a Goal made from one spark read apart.
   const origin = (label: (title: string, noun: string | null) => string, kind: PlacementAssociation["type"]) => async (edge: ContextEdge, other: ObjectRef) => {
     const found = self.locate({ kind: other.object_type ?? "", id: other.id, project_id: null }).object;
     const otherRead = await self.read(found);
-    const otherTitle = otherRead.context?.title || ports.titles.get(found.kind, found.id) || placementText(ports, "未命名");
-    const where = otherRead.state === "missing" ? placementText(ports, "原对象已删除") : placementLocation(ports, found.project_id, spaces).title;
+    const otherTitle = otherRead.context?.title || ports.titles.get(found.kind, found.id) || placementText(ports, "workbench.index.untitled");
+    const where = otherRead.state === "missing" ? placementText(ports, "workbench.index.original-was-deleted") : placementLocation(ports, found.project_id, spaces).title;
     const foundRelation = await relationIn(found.project_id);
     const noun = found.kind === foundRelation.target_kind ? foundRelation.noun : null;
     const what = kind.startsWith("derived") && !noun ? otherRead.plugin?.title ?? "" : "";
@@ -399,14 +399,14 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
       since: edge.recorded_at, removable: false });
   };
   const derivedFrom = ports.ledger.query.get(ACCESS, key("derived_from", object.kind, object.id));
-  if (derivedFrom) await origin((title, noun) => noun ? placementText(ports, "来自 {noun}《{title}》", { noun, title }) : placementText(ports, "来自《{title}》", { title }), "derived_from")(derivedFrom, derivedFrom.target);
+  if (derivedFrom) await origin((title, noun) => noun ? placementText(ports, "workbench.index.noun-title", { noun, title }) : placementText(ports, "workbench.index.title", { title }), "derived_from")(derivedFrom, derivedFrom.target);
   for (const edge of self.edges(TYPES.derived).filter(edge => sameObject(edge.target, object.kind, object.id))) {
-    await origin((title, noun) => noun ? placementText(ports, "已建成 {noun}《{title}》", { noun, title }) : placementText(ports, "已转成《{title}》", { title }), "derived_into")(edge, edge.source);
+    await origin((title, noun) => noun ? placementText(ports, "workbench.index.made-into-noun-title", { noun, title }) : placementText(ports, "workbench.index.turned-into-title", { title }), "derived_into")(edge, edge.source);
   }
   const copiedFrom = ports.ledger.query.get(ACCESS, key("copied_from", object.kind, object.id));
-  if (copiedFrom) await origin(title => placementText(ports, "复制自《{title}》", { title }), "copied_from")(copiedFrom, copiedFrom.target);
+  if (copiedFrom) await origin(title => placementText(ports, "workbench.index.copied-title", { title }), "copied_from")(copiedFrom, copiedFrom.target);
   for (const edge of self.edges(TYPES.copied).filter(edge => sameObject(edge.target, object.kind, object.id))) {
-    await origin(title => placementText(ports, "复制到《{title}》", { title }), "copied_into")(edge, edge.source);
+    await origin(title => placementText(ports, "workbench.index.copied-title-2", { title }), "copied_into")(edge, edge.source);
   }
   const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null };
   const here = object.project_id ?? placementBelongsOf(read);
@@ -439,15 +439,15 @@ function placementBelongsOf(read: Read): string | null {
 /** A Home-kept object belonging to a project is shown in it, but still read at Home: its access stays the Home one. */
 function homePlacementLocation(ports: PlacementPorts, belongs: string | null, spaces: readonly PlacementSpaceView[]): PlacementLocation {
   if (!belongs || belongs === PERSONAL_SPACE_PROJECT_ID) return placementLocation(ports, null, spaces);
-  return { ...placementLocation(ports, belongs, spaces), access: "home", access_label: placementText(ports, "只有你和获授权的助理") };
+  return { ...placementLocation(ports, belongs, spaces), access: "home", access_label: placementText(ports, "workbench.index.only-assistants-authorize") };
 }
 
 function placementLocation(ports: PlacementPorts, projectId: string | null, spaces: readonly PlacementSpaceView[]): PlacementLocation {
   // Home-level plugins answer any project that was granted them, so their content is not “only you”.
-  if (projectId === null) return { kind: "personal", project_id: null, title: placementText(ports, "个人空间"), access: "home", access_label: placementText(ports, "只有你和获授权的助理") };
-  if (projectId === PERSONAL_SPACE_PROJECT_ID) return { kind: "personal", project_id: projectId, title: placementText(ports, "个人空间"), access: "private", access_label: placementText(ports, "只有你") };
+  if (projectId === null) return { kind: "personal", project_id: null, title: placementText(ports, "workbench.index.personal-space"), access: "home", access_label: placementText(ports, "workbench.index.only-assistants-authorize") };
+  if (projectId === PERSONAL_SPACE_PROJECT_ID) return { kind: "personal", project_id: projectId, title: placementText(ports, "workbench.index.personal-space"), access: "private", access_label: placementText(ports, "workbench.index.only") };
   const space = spaces.find(entry => entry.project_id === projectId);
-  return { kind: "project", project_id: projectId, title: placementText(ports, "项目「{name}」", { name: space?.title ?? placementText(ports, "已删除的项目") }), access: "project", access_label: placementText(ports, "项目内可见") };
+  return { kind: "project", project_id: projectId, title: placementText(ports, "workbench.index.project-name", { name: space?.title ?? placementText(ports, "workbench.index.deleted-project") }), access: "project", access_label: placementText(ports, "workbench.index.visible-project") };
 }
 
 function placementToolOf(ports: PlacementPorts, views: readonly ActionView[], kind: string, operation: "move" | "copy"): ActionReference | null {
@@ -455,7 +455,7 @@ function placementToolOf(ports: PlacementPorts, views: readonly ActionView[], ki
   const matches = views.filter(view => protocol(view.action) && view.action.subject_kinds.includes(kind) && view.availability.available);
   if (matches.length > 1) {
     throw new ActionError("placement.target_unavailable", placementText(ports, operation === "move"
-      ? "这个插件的内容还不能移动；可以复制或用于项目" : "这个插件的内容还不能复制到别处"),
+      ? "workbench.index.items-plugin-can-t-be-moved-yet-copy" : "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet"),
     { kind: "conflict", details: { operation, subject_kind: kind, actions: matches.map(ref) } });
   }
   return matches[0] ? ref(matches[0]) : null;
@@ -504,7 +504,7 @@ async function placementRelationOf(ports: PlacementPorts, scope: PlacementScope)
   const declared = (await scope.client.discover(scope.caller)).filter(view => view.availability.available && view.action.placement_relation?.relation === name);
   const providers = [...new Set(declared.map(view => view.provider.provider_id))];
   if (providers.length > 1) {
-    throw placementErrors.relation_ambiguous(placementText(ports, "不止一个插件在管「{relation}」这层关联：{providers}。请只启用其中一个", { relation: name, providers: providers.join("、") }), { relation: name, providers });
+    throw placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation: name, providers: providers.join("、") }), { relation: name, providers });
   }
   const views = declared.filter(view => view.provider.provider_id === providers[0]);
   const play = (role: PlacementRelationRole) => {
@@ -558,13 +558,13 @@ async function placementGoals(ports: PlacementPorts, projectId: string): Promise
 async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAccess, input: PlacedObject, to: string, requestId: string): Promise<PlacementMoveResponse> {
   const spaces = await ports.spaces();
   const object = access.locate(input).object;
-  if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "这类内容只放在个人空间，请在插件里另存"));
-  if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(ports, "找不到要复制到的位置"));
+  if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.kind-item-only-lives-personal-space-save-another"));
+  if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(ports, "workbench.index.couldn-t-find-where-copy"));
   const { copier } = await placementTools(ports, object, "copy");
-  if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "这个插件的内容还不能复制到别处"));
+  if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet"));
   const scope = await ports.scope(object.project_id);
   const result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
-  if (result.project_id !== to || result.subject.kind !== object.kind) throw new ActionError("placement.result_mismatch", placementText(ports, "插件返回的副本与请求不一致，请刷新后核对"));
+  if (result.project_id !== to || result.subject.kind !== object.kind) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
   const copy = { kind: result.subject.kind, id: result.subject.id, project_id: to };
   await ports.beforeEffect?.();
   access.remember(object);
@@ -577,12 +577,12 @@ async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAcc
 /** The source hands its content (or what it chooses to hand over) to another plugin; the new object records where it came from. */
 async function convertPlacement(ports: PlacementPorts, access: PlacementInstanceAccess, request: PlacementConvertRequest): Promise<PlacementConvertResponse> {
   const spaces = await ports.spaces();
-  if (!spaces.some(space => space.project_id === request.to_project_id)) throw new ActionError("placement.project_missing", placementText(ports, "找不到要存到的位置"));
+  if (!spaces.some(space => space.project_id === request.to_project_id)) throw new ActionError("placement.project_missing", placementText(ports, "workbench.index.couldn-t-find-where-save"));
   const source = access.locate(request.source).object;
   const read = await access.read(source);
   // A plugin that hands its content over itself (payload) may have no object reader yet; a deleted source never converts.
-  if (read.state === "missing" || (read.state !== "ok" && !request.payload)) throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(ports, "暂时读不到原对象"));
-  const title = (request.payload?.title ?? read.context!.title).trim() || placementText(ports, "未命名");
+  if (read.state === "missing" || (read.state !== "ok" && !request.payload)) throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(ports, "workbench.index.can-t-read-original-right-now"));
+  const title = (request.payload?.title ?? read.context!.title).trim() || placementText(ports, "workbench.index.untitled");
   const body = request.payload?.body ?? read.context!.content;
   const sourceTitle = read.context?.title ?? request.payload!.title;
   if (!read.context) await ports.beforeEffect?.();
@@ -592,14 +592,14 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   let created: PlacedObject;
   if ("goal" in request.to) {
     const relation = await placementRelationOf(ports, scope);
-    if (!relation.create) throw new ActionError("placement.target_unavailable", placementText(ports, "这个位置没有启用 Goals，不能建成 Goal"));
+    if (!relation.create) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.goals-isn-t-enabled-here-so-can-t-2"));
     const result = await scope.client.invoke(scope.caller, relation.create, { title: title.slice(0, 200), outcome: body.slice(0, 2000),
-      why: placementText(ports, "来自 {source}", { source: from }), source_kind: "web", idempotency_key: `placement:${request.request_id}` }) as { goal: { goal_id: string } };
+      why: placementText(ports, "workbench.index.source", { source: from }), source_kind: "web", idempotency_key: `placement:${request.request_id}` }) as { goal: { goal_id: string } };
     created = { kind: relation.target_kind, id: result.goal.goal_id, project_id: request.to_project_id };
   } else {
     const station = request.to.station;
     const receive = views.find(view => view.action.workflow_content?.id === station && view.action.workflow_content.role === "receive" && view.availability.available);
-    if (!receive) throw new ActionError("placement.target_unavailable", placementText(ports, "这个位置没有可以接收内容的插件"));
+    if (!receive) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.no-plugin-here-can-receive-content"));
     const item = await scope.client.invoke(scope.caller, ref(receive), { title, body, source: from, request_id: `placement:${request.request_id}` }) as WorkflowItemRef;
     const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === receive.provider.provider_id);
     // The station says what its content is when its provider reads several kinds (Jelly: calendar entries and notes).

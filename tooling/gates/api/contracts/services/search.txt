@@ -12,6 +12,13 @@ export declare const SEARCH_PERMISSIONS: readonly ["search:read", "search:manage
 
 export declare const SEARCH_PROVIDER_ID = "system.search";
 
+export declare const SEARCH_PROVIDER_UNAVAILABLE: {
+    readonly code: "provider_unavailable";
+    readonly retryable: false;
+    readonly sideEffectState: "none";
+    readonly recoveryAction: "change_provider";
+};
+
 export declare const SEARCH_READ_PERMISSION = "search:read";
 
 export interface SearchHit {
@@ -40,6 +47,11 @@ export interface SearchHit {
 }
 
 export type SearchHitField = "title" | "summary" | "content";
+
+export interface SearchIndexCatalogPage {
+    entries: SearchIndexMetadata[];
+    next_cursor: string | null;
+}
 
 export interface SearchIndexDocument {
     source_key: string;
@@ -75,6 +87,11 @@ export interface SearchIndexMatch {
     };
 }
 
+export type SearchIndexMetadata = Omit<SearchIndexDocument, "content"> & {
+    content_chars: number;
+    has_content: boolean;
+};
+
 export interface SearchIndexPort {
     sources(): SearchIndexSourceRecord[];
     source(sourceKey: string): SearchIndexSourceRecord | null;
@@ -89,7 +106,7 @@ export interface SearchIndexPort {
         object_id: string;
     }[]): void;
     document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
-    documents(projectId: string): SearchIndexDocument[];
+    catalog(projectId: string, cursor?: string): SearchIndexCatalogPage;
     search(query: SearchIndexQuery): {
         matches: SearchIndexMatch[];
         total: number;

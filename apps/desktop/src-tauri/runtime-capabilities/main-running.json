@@ -1,0 +1,9 @@
+{
+  "identifier": "main-running",
+  "description": "Settings › Running: open at login and keep running with the window closed, only from that page in the trusted local main window.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:{port}/settings/running*"]
+  },
+  "permissions": ["allow-runtime-settings"]
+}

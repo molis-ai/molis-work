@@ -10,8 +10,6 @@ import {
 import { DIFF_ACTIONS } from "./actions.js";
 import { DIFF_UI_CONTRIBUTION_ID } from "./ui.js";
 
-import { DIFF_MESSAGES } from "./messages.js";
-import { DIFF_EN } from "./en.js";
 export const DIFF_PLUGIN_ID = "io.molis.work.diff";
 /** What the project database stores for this Plugin. */
 export const DIFF_PROJECT_PLUGIN_ID = "diff";
@@ -42,7 +40,7 @@ export const diffManifest: PluginManifest = {
   plugin_id: DIFF_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Diff",
-  summary: "比较固定版本，逐项阅读差异。",
+  summary: "比较固定版本，逐项阅读差异。", summary_text: { key: "diff.directory.summary" },
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -119,9 +117,7 @@ export const diffManifest: PluginManifest = {
     ],
   },
   routes: [{ route_id: "diff.state", method: "GET", path: "/state" }],
-  ui: {
-    messages: DIFF_MESSAGES,
-    translations: DIFF_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [DIFF_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", hue: "cyan", order: 65 },

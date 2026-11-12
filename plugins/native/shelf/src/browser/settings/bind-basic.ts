@@ -4,6 +4,8 @@ import { paintPanelKeys, paintPanes, refreshSettings, save, savePatch, say, stop
 import type { SettingsPage } from "./types.js";
 import type { ShelfCustomRuntime, ShelfPanelKeySlot } from "@molis-ai/molis-work-module-shelf/contract";
 
+const uiText = globalThis.t;
+
 /** A control is bound once, however often the block is redrawn. */
 export const fresh = (node: HTMLElement): boolean => {
   if (node.dataset.shelfSettingsBound === "1") return false;
@@ -18,7 +20,7 @@ export function startRecording(page: SettingsPage, row: HTMLElement, scope: Pare
   page.recording = panel ? { row, root: scope, panel: true } : { row, root: scope };
   row.classList.add("is-recording");
   record.setAttribute("aria-pressed", "true");
-  record.textContent = page.L("shelf.settings.hotkey-recording");
+  record.textContent = uiText.text("shelf.settings.hotkey-recording");
   record.focus();
 }
 

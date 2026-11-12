@@ -1,3 +1,6 @@
+import {v2AccountPeer} from './fixtures/v2-account-peer.js';
+import {completeInstallationLogin} from './fixtures/installation-login.js';
+import {trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 import {accountRefreshFixture,accountProbeCore} from './fixtures/account-refresh.js';
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 import { syncRoundResponse } from './fixtures/sync-round.js';
@@ -31,67 +34,60 @@ test('native identity requires an owner-only header capability, never a cookie o
 
 test('S-141 native login and restart remain isolated from ordinary browser sessions and UI hints',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-native-login-'));
-  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, remote='', user='native-alice';
+  // A restarted listener has a new transport; do not reuse undici's sockets from the stopped server.
+  // Existing connection-revocation assertions remain in account-process-connection.test.ts.
+  const request=(input:string,init:RequestInit={})=>globalThis.fetch(input,{...init,headers:{...Object.fromEntries(new Headers(init.headers)),Connection:'close'}});
+  let remote='', user='native-alice';
   let authUnavailable=false;
-  const upstream=createServer(async(req,res)=>{
-    let raw='';for await(const chunk of req)raw+=chunk;
-    res.setHeader('content-type','application/json');
-    if(req.url==='/api/v1/auth/transactions') {transaction=JSON.parse(raw);res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
-    else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-native',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me') {
-      if(authUnavailable){res.statusCode=503;res.end('{}');}
-      else res.end(JSON.stringify({data:{userId:user,displayName:'Alice',emails:[],applicationId:'work',clientId:'desktop-test'}}));
-    }
-    else res.end('{}');
-  });
-  const listen=async(server:ReturnType<typeof createServer>)=>{
-    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const addr=server.address();assert.ok(addr&&typeof addr==='object');return 'http://127.0.0.1:'+addr.port;
+  const peer=v2AccountPeer(()=>user,async()=>{if(authUnavailable)throw Error('offline');}),upstream=peer.server;
+  const listen=async(server:ReturnType<typeof createServer>,port=0)=>{
+    await new Promise<void>(resolve=>server.listen(port,'127.0.0.1',resolve));const addr=server.address();assert.ok(addr&&typeof addr==='object');return 'http://127.0.0.1:'+addr.port;
   };
   const close=async(server:ReturnType<typeof createServer>)=>new Promise<void>(resolve=>server.close(()=>resolve()));
   remote=await listen(upstream);
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
-  const before=names.map(name=>process.env[name]);[remote,'web-test','desktop-test',remote].forEach((value,i)=>process.env[names[i]]=value);
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
+  const before=names.map(name=>process.env[name]);process.env.MOLIS_WORK_ACCOUNT_CONFIG='';
   const controlToken='synthetic-native-control-token-0123456789';
   let server=createMolisWorkWebServer({homeDirectory:home,controlToken}), origin=await listen(server), seq=0;
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
   const proof=readFileSync(join(home,NATIVE_SESSION_FILE),'utf8');
-  const native=(path:string,post=false)=>fetch(origin+path,{method:post?'POST':'GET',headers:{Origin:origin,[NATIVE_SESSION_HEADER]:proof,
-    'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'native-test-'+(++seq)},...(post?{body:'{}'}:{})});
+  const native=(path:string,post=false,body:unknown={},extra:Record<string,string>={})=>request(origin+path,{method:post?'POST':'GET',headers:{Origin:origin,[NATIVE_SESSION_HEADER]:proof,
+    'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'native-test-'+(++seq),...extra},...(post?{body:JSON.stringify(body)}:{})});
   try {
-    const spoof=await fetch(origin+'/api/personal/status?desktop=1',{headers:{'x-molis-work-desktop':'1'}});
+    const spoof=await request(origin+'/api/personal/status?desktop=1',{headers:{'x-molis-work-desktop':'1'}});
     assert.equal((await spoof.json()).identity,null);
     assert.equal(existsSync(join(home,'feed','secrets.json')),false);
     const begin=await native('/api/personal/login?returnTo=%2F',true);
-    assert.equal(begin.status,200);const attempt=(await begin.json()).loginAttempt;
-    assert.equal(transaction.clientId,'desktop-test');
-    const callback=await fetch(origin+'/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});
-    assert.equal(callback.status,303);assert.equal(callback.headers.get('location'),'/?desktop=1');
+    assert.equal(begin.status,200);const started=await begin.json(),attempt=started.loginAttempt;
+    const callback=await completeInstallationLogin((path,init)=>native(path,true,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),started.loginUrl,'native-alice@example.test');
+    assert.equal(callback.status,200);
     assert.doesNotMatch(callback.headers.get('set-cookie')??'',new RegExp(proof));
     const status=await (await native('/api/personal/status?attempt='+attempt)).json();
     assert.equal(status.identity.userId,'native-alice');assert.equal(status.loginCompleted,true);
     assert.equal(status.space,'account','ASR-02 login selects the installation account Home');
     for(const path of ['/api/personal/status','/api/personal/status?desktop=1']) {
-      const response=await fetch(origin+path,{headers:{'x-molis-work-desktop':'1',cookie:'molis-work-native-session='+proof}});
+      const response=await request(origin+path,{headers:{'x-molis-work-desktop':'1',cookie:'molis-work-native-session='+proof}});
       assert.equal((await response.json()).identity,null);
     }
-    const ordinary=await fetch(origin+'/api/personal/logout?desktop=1',{method:'POST',headers:{Origin:origin,'content-type':'application/json',
+    const ordinary=await request(origin+'/api/personal/logout?desktop=1',{method:'POST',headers:{Origin:origin,'content-type':'application/json',
       'x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'spoof-native-logout'},body:'{}'});
     assert.equal(ordinary.status,401);assert.equal((await(await native('/api/personal/status')).json()).identity.userId,'native-alice');
     assert.equal((await native('/api/personal/space',true)).status,400,'space selection must name an allowed kind');
-    const attached=await fetch(origin+'/api/personal/native-attach?ticket='+status.browserSessionTicket,{method:'POST',headers:{Origin:origin,
+    const attached=await request(origin+'/api/personal/native-attach?ticket='+status.browserSessionTicket,{method:'POST',headers:{Origin:origin,
       'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'native-attach-test'},body:'{}'});
     assert.equal(attached.status,200);
     const webCookie=attached.headers.get('set-cookie')!.split(';')[0];
-    assert.equal((await(await fetch(origin+'/api/personal/status',{headers:{Cookie:webCookie}})).json()).identity.userId,'native-alice');
+    assert.equal((await(await request(origin+'/api/personal/status',{headers:{Cookie:webCookie}})).json()).identity.userId,'native-alice');
     assert.equal((await native('/api/personal/space?kind=personal',true)).status,200);
-    const scopes=await(await fetch(origin+'/api/spaces',{headers:{Cookie:webCookie}})).json();
+    const scopes=await(await request(origin+'/api/spaces',{headers:{Cookie:webCookie}})).json();
     assert.equal(scopes.current.kind,'personal');assert.equal(scopes.current.ownerUserId,'native-alice');
-    await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken});origin=await listen(server);
+    await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken});origin=await listen(server,Number(new URL(origin).port));
     authUnavailable=true;
     const offline=await(await native('/api/personal/status')).json();
     assert.equal(offline.identity.userId,'native-alice','host shutdown must preserve native login');
     assert.equal(offline.offline,true);
     assert.equal(typeof offline.browserSessionTicket,'string','only the native caller can reattach while Auth is unavailable');
-    const staleWeb=await(await fetch(origin+'/api/personal/status?desktop=1',{headers:{Cookie:webCookie,'x-molis-work-desktop':'1'}})).json();
+    const staleWeb=await(await request(origin+'/api/personal/status?desktop=1',{headers:{Cookie:webCookie,'x-molis-work-desktop':'1'}})).json();
     assert.equal(staleWeb.identity,null);
     assert.equal(staleWeb.browserSessionTicket,undefined,'old WebView cookie and desktop hint are not native proof');
     authUnavailable=false;
@@ -103,10 +99,10 @@ test('S-141 native login and restart remain isolated from ordinary browser sessi
     };
     const staleTicket=offline.browserSessionTicket;
     const prepared=await prepareNative('switch');
-    user='native-bob';assert.equal((await native('/api/personal/switch?returnTo=%2F'+prepared,true)).status,200);
-    assert.equal((await fetch(origin+'/account/callback?code=synthetic-bob&state='+transaction.state,{redirect:'manual'})).status,303);
+    user='native-bob';const switched=await native('/api/personal/switch?returnTo=%2F'+prepared,true);assert.equal(switched.status,200);
+    assert.equal((await completeInstallationLogin((path,init)=>native(path,true,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),(await switched.json()).loginUrl,'native-bob@example.test')).status,200);
     const bob=await(await native('/api/personal/status')).json();assert.equal(bob.identity.userId,'native-bob');
-    const attachTicket=(ticket:string,id:string)=>fetch(origin+'/api/personal/native-attach?ticket='+ticket,{method:'POST',headers:{Origin:origin,
+    const attachTicket=(ticket:string,id:string)=>request(origin+'/api/personal/native-attach?ticket='+ticket,{method:'POST',headers:{Origin:origin,
       'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':id},body:'{}'});
     const stale=await attachTicket(staleTicket,'stale-alice-ticket');
     assert.equal(stale.status,401,'S-141 an old login generation ticket is refused');
@@ -126,22 +122,15 @@ test('S-141 native login and restart remain isolated from ordinary browser sessi
 test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves opted-in sync across explicit logout/login',async t=>{
   t.mock.timers.enable({apis:['setInterval']});
   const home=mkdtempSync(join(tmpdir(),'sync-host-device-'));
-  let state='',remote='',syncRequests=0;
-  const upstream=createServer(async(req,res)=>{
-    let raw='';for await(const chunk of req)raw+=chunk;
-    res.setHeader('content-type','application/json');
-    if(req.url==='/api/v1/auth/transactions'){state=JSON.parse(raw).state;res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
-    else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-sync',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:'alice',displayName:'Alice',emails:[],applicationId:'work',clientId:'web-test'}}));
-    else res.end('{}');
-  });
-  const listen=async(value:ReturnType<typeof createServer>)=>{
-    await new Promise<void>(resolve=>value.listen(0,'127.0.0.1',resolve));const address=value.address();assert.ok(address&&typeof address==='object');return 'http://127.0.0.1:'+address.port;
+  let remote='',syncRequests=0;
+  const peer=v2AccountPeer(()=> 'alice'),upstream=peer.server;
+  const listen=async(value:ReturnType<typeof createServer>,port=0)=>{
+    await new Promise<void>(resolve=>value.listen(port,'127.0.0.1',resolve));const address=value.address();assert.ok(address&&typeof address==='object');return 'http://127.0.0.1:'+address.port;
   };
   const close=async(value:ReturnType<typeof createServer>)=>new Promise<void>(resolve=>value.close(()=>resolve()));
   remote=await listen(upstream);
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SYNC_LOCAL'];
-  const previous=names.map(name=>process.env[name]);[remote,'web-test',remote,'1'].forEach((value,index)=>process.env[names[index]]=value);
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG','MOLIS_WORK_SYNC_LOCAL'];
+  const previous=names.map(name=>process.env[name]);process.env.MOLIS_WORK_ACCOUNT_CONFIG='';process.env.MOLIS_WORK_SYNC_LOCAL='1';
   let spaceId='',historyKey='';const original=fetch;
   const historyCollection=pagesManifest.sync!.collections.find(row=>row.id==='documents')!;
   const historySelection={plugin_id:pagesManifest.plugin_id,publisher_id:pagesManifest.publisher.publisher_id,publisher_signature:pagesManifest.publisher.signature,collection_id:historyCollection.id,schema_version:historyCollection.schema_version};let syncSelections:typeof historySelection[]=[];const historyWrites:unknown[]=[];
@@ -159,8 +148,9 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
   }) as typeof fetch);
   const rootToken='synthetic-device-root-control-0123456789';
   let server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken}),origin=await listen(server),cookie='',token=rootToken,sequence=0;
-  const request=async(path:string,method='GET',body:object={})=>{
-    const response=await fetch(origin+path,{method,headers:{Cookie:cookie,Origin:origin,'content-type':'application/json',...(method!=='GET'||path.startsWith('/api/sync')?{'x-molis-work-control-token':token}:{}),'x-molis-work-idempotency-key':'device-'+(++sequence)},...(method==='GET'?{}:{body:JSON.stringify(body)}),redirect:'manual'});
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
+  const request=async(path:string,method='GET',body:object={},extra:Record<string,string>={})=>{
+    const response=await fetch(origin+path,{method,headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'device-'+(++sequence),...extra},...(method==='GET'?{}:{body:JSON.stringify(body)}),redirect:'manual'});
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     assert.ok(response.status<400,'unexpected HTTP '+response.status+' for '+path+': '+(response.status>=400?await response.clone().text():''));return response;
   };
@@ -170,7 +160,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
   };
   let historyProject: {project_id:string} | undefined;
   const login=async()=>{
-    await request('/api/personal/login','POST');await request('/account/callback?code=synthetic&state='+state);
+    const begun=await request('/api/personal/login','POST');await completeInstallationLogin((path,init)=>request(path,'POST',JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),(await begun.json()).loginUrl,'alice@example.test');
     await request('/api/personal/space?kind=personal','POST');
     const scopes=await(await request('/api/spaces')).json();spaceId=scopes.current.spaceId;
     token=readFileSync(join(home,'spaces',spaceId,'config/web-control-token'),'utf8').trim();
@@ -210,7 +200,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     t.mock.timers.tick(60000);assert.equal(syncRequests,enabled,'ASR-10 explicit logout cancels the old timer');
     token=rootToken;await login();
     await request('/api/sync/run','POST');assert.ok(syncRequests>enabled,'re-entering restores the opted-in loop');
-    await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken});origin=await listen(server);cookie='';token=rootToken;
+    await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken});origin=await listen(server,Number(new URL(origin).port));cookie='';token=rootToken;
     const before=syncRequests;await login();await request('/api/sync/run','POST');assert.ok(syncRequests>before);
     assert.deepEqual((await(await request('/api/sync')).json()).device,{automatic:true});
     await request('/api/personal/logout'+await prepareLogout(),'POST');const signedOut=syncRequests;t.mock.timers.tick(60000);assert.equal(syncRequests,signedOut);
@@ -220,15 +210,14 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
   }
 });
 
-test('web sessions expire, rotate identifiers, reject duplicate cookies and do not survive restart',()=>{
+test('web sessions expire, reject duplicate cookies and do not survive restart',()=>{
   let now=1000;const sessions=new PersonalWebSessions(()=>now);
-  const config={authOrigin:'https://auth.example',clientId:'web',cloudOrigin:'https://cloud.example'};
+  const config=trialAccountConfig('http://127.0.0.1:8787','http://127.0.0.1:4173');
   const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{},assertWritable:()=>{}});
   const a=sessions.adopt(auth),b=sessions.adopt(auth);
   const before=sessions.cookie(a,true).split(';')[0];
   assert.equal(sessions.get(before),a);assert.match(sessions.cookie(a,true),/HttpOnly; SameSite=Lax; Max-Age=28800; Secure/);
   assert.equal(sessions.get(before+'; '+before),null);
-  sessions.rotate(a);assert.equal(sessions.get(before),null);
   assert.equal(sessions.get(sessions.cookie(b,false).split(';')[0]),b);
   assert.equal(new PersonalWebSessions().get(sessions.cookie(a,false).split(';')[0]),null);
   const current=sessions.cookie(a,false).split(';')[0];now+=8*60*60*1000;
@@ -244,48 +233,43 @@ test('account scripts parse and return destinations reject external and auth rou
 
 test('ASR-02/03 web login binds the installation account and stale browser cookies never select another account',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-flow-'));
-  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, user='alice';
-  const upstream=createServer(async(req,res)=>{
-    let raw='';for await(const chunk of req)raw+=chunk;
-    res.setHeader('content-type','application/json');
-    if(req.url==='/api/v1/auth/transactions'){
-      transaction=JSON.parse(raw);res.end(JSON.stringify({data:{loginUrl:remote+'/login#transaction=synthetic'}}));
-    }else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-access',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:user,displayName:user,emails:[user+'@example.test'],applicationId:'work',clientId:transaction.clientId}}));
-    else res.end('{}');
-  });
+  let user='alice';
+  const peer=v2AccountPeer(()=>user),upstream=peer.server;
   await new Promise<void>(resolve=>upstream.listen(0,'127.0.0.1',resolve));
   const address=upstream.address();assert.ok(address&&typeof address==='object');const remote=`http://127.0.0.1:${address.port}`;
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
-  const old=names.map(name=>process.env[name]);[remote,'work-local',remote].forEach((value,i)=>process.env[names[i]]=value);
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
+  const old=names.map(name=>process.env[name]);process.env.MOLIS_WORK_ACCOUNT_CONFIG='';
   const controlToken='synthetic-control-token-0123456789abcdef';
   const server=createMolisWorkWebServer({homeDirectory:home,controlToken});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const local=server.address();assert.ok(local&&typeof local==='object');const origin=`http://127.0.0.1:${local.port}`;
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
   let sequence=0, cookie='';
   const browser=async(path:string,init:RequestInit={})=>{
-    const response=await fetch(origin+path,{...init,headers:{Cookie:cookie,...init.headers}});
+    const response=await fetch(origin+path,{...init,headers:{Cookie:cookie,Origin:origin,'x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'account-request-'+(++sequence),...init.headers}});
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     return response;
   };
   const post=(path:string)=>browser(path,{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'account-flow-'+(++sequence)},body:'{}'});
   const status=async(query='')=>(await browser('/api/personal/status'+query)).json();
   try{
+    // WAS-11: an external top-level entry issues no credentials or login; only its same-origin follow-up may do so.
+    const external=await fetch(origin+'/',{headers:{'sec-fetch-site':'cross-site','sec-fetch-dest':'document'}});
+    assert.equal(external.status,200);assert.equal(external.headers.get('set-cookie'),null);
+    const entry=await external.text();assert.match(entry,/location\.replace\(location\.href\)/);assert.doesNotMatch(entry,/molis-work-page-session|molisWorkRequest/);
+    const crossWrite=await fetch(origin+'/api/personal/login',{method:'POST',headers:{Origin:'https://outside.invalid','content-type':'application/json','sec-fetch-site':'cross-site'},body:'{}'});
+    assert.equal(crossWrite.status,403);assert.equal(crossWrite.headers.get('set-cookie'),null);
     const start=await post('/api/personal/login?returnTo='+encodeURIComponent('/projects/demo?view=work#task'));
     assert.equal(start.status,200);
-    const login=await start.json();assert.ok(login.loginAttempt);assert.equal(transaction.forceLogin,undefined);
-    const preLoginCookie=cookie;
-    const stolen=await fetch(origin+'/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});assert.equal(stolen.status,401);assert.match(stolen.headers.get('content-type')??'',/application\/json/);
-    const invalid=await browser('/account/callback?code=synthetic&state=wrong',{redirect:'manual'});assert.equal(invalid.status,400);
-    // Host account protocol response, not plugin content (user confirmed 2026-10-18).
-    assert.match(invalid.headers.get('content-type')??'',/^text\/html/);assert.equal(invalid.headers.get('cache-control'),'no-store');
-    assert.equal(invalid.headers.get('referrer-policy'),'no-referrer');assert.equal(invalid.headers.get('x-frame-options'),'DENY');
-    const failure=await invalid.text();assert.equal((failure.match(/<!doctype html>/gi)??[]).length,1);
-    assert.match(failure,/登录未完成或请求已失效/);assert.deepEqual([...failure.matchAll(/href="([^"]*)"/g)].map(match=>match[1]),['/']);
-    assert.doesNotMatch(failure,/<(?:script|form|iframe|nav|main)\b|data-plugin|synthetic|wrong|access_token|refresh_token|code=|state=/i);
-    const callback=await browser('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});
-    assert.equal(callback.status,303);assert.equal(callback.headers.get('location'),'/','login enters the authenticated account workspace');assert.equal(await callback.text(),'');
-    assert.match(callback.headers.get('set-cookie')!,/HttpOnly; SameSite=Lax/);assert.notEqual(cookie,preLoginCookie);
+    const login=await start.json();assert.ok(login.loginAttempt);const preLoginCookie=cookie;
+    // WUA-29: reload/reopen resumes the owner's anonymous attempt, never steals a different browser's attempt.
+    const resumed=await post('/api/personal/login');assert.equal(resumed.status,200);assert.deepEqual(await resumed.json(),login);
+    const foreign=await fetch(origin+'/api/personal/login',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'foreign-resume'},body:'{}'});
+    assert.equal(foreign.status,409);assert.equal(foreign.headers.get('set-cookie'),null,'a refused parallel entry cannot overwrite the pending login cookie');assert.equal((await status()).loginPending,true);
+    const nonce=new URL(login.loginUrl).searchParams.get('accountLogin')!;
+    const stolen=await fetch(origin+'/api/account/auth/transactions',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-account-login':nonce,'x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'stolen-login'},body:JSON.stringify({purpose:'LOGIN',method:'EMAIL_PASSWORD'})});
+    assert.equal(stolen.status,403,'a page control token without the browser login cookie cannot use the pending login');
+    const callback=await completeInstallationLogin(browser,login.loginUrl,'alice@example.test');assert.equal(callback.status,200);assert.match(callback.headers.get('set-cookie')!,/HttpOnly; SameSite=Lax/);assert.notEqual(cookie,preLoginCookie);
     const another=await fetch(origin+'/api/personal/status',{headers:{Cookie:preLoginCookie}});assert.equal((await another.json()).identity,null);
     assert.equal((await(await fetch(origin+'/api/personal/status')).json()).identity,null);
     assert.doesNotMatch(JSON.stringify(await status()),/access_token|refresh_token|synthetic-access|synthetic-refresh/,'account controls never return installation credentials');
@@ -296,11 +280,11 @@ test('ASR-02/03 web login binds the installation account and stale browser cooki
     };
     const switchPrepared=await prepare('switch');
     const switchResponse=await post('/api/personal/switch?returnTo=%2Fprojects%2Fdemo'+switchPrepared);
-    const switching=await switchResponse.json();assert.equal(transaction.forceLogin,true);
+    const switching=await switchResponse.json();
     const waiting=await status('?pending=1&attempt='+switching.loginAttempt);assert.equal(waiting.identity.userId,'alice');assert.equal(waiting.loginCompleted,undefined);
     user='bob';
-    const switched=await browser('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});
-    assert.equal(switched.status,303);assert.equal(switched.headers.get('location'),'/');
+    const switched=await completeInstallationLogin(browser,switching.loginUrl,'bob@example.test');
+    assert.equal(switched.status,200);
     assert.equal((await status('?pending=1&attempt='+login.loginAttempt)).loginCompleted,undefined);
     const done=await status('?pending=1&attempt='+switching.loginAttempt);assert.equal(done.loginCompleted,true);assert.equal(done.identity.userId,'bob');
     const logoutPrepared=await prepare('logout');const logout=await post('/api/personal/logout?returnTo=%2Fprojects%2Fdemo'+logoutPrepared);
@@ -315,16 +299,16 @@ test('ASR-02/03 web login binds the installation account and stale browser cooki
 
 test('account page works without cloud, never exposes credentials, and rejects cross-origin login',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-http-'));
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
   const old=names.map(name=>process.env[name]);names.forEach(name=>delete process.env[name]);
   const server=createMolisWorkWebServer({homeDirectory:home,controlToken:'synthetic-control-token-0123456789abcdef'});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const address=server.address();assert.ok(address&&typeof address==='object');const origin=`http://127.0.0.1:${address.port}`;
   try{
     const account=await fetch(`${origin}/account`,{redirect:'manual'});assert.equal(account.status,303);
-    const html=await(await fetch(origin)).text();assert.match(html,/data-account-link/);
+    const html=await(await fetch(origin)).text();assert.match(html,/data-account-entry/);assert.match(html,/api\/personal\/login/);assert.doesNotMatch(html,/data-account-link/);
     assert.doesNotMatch(html,/refresh_token|access_token/);
-    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
+    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,accountChanged:false,ready:false,switching:false});
     const rejected=await fetch(`${origin}/api/personal/login`,{method:'POST',headers:{Origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
     assert.equal(rejected.status,403);
   }finally{
@@ -336,9 +320,9 @@ test('account page works without cloud, never exposes credentials, and rejects c
 
 test('ASR-02 first launch shows the login entry and refuses an anonymous business workspace',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-local-'));
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
   const old=names.map(name=>process.env[name]);
-  const values=['https://auth.example.test','work-local','https://cloud.example.test'];
+  const values=[JSON.stringify({...trialAccountConfig('https://auth.example.test','http://127.0.0.1:4173'),environmentKind:'TEST'})];
   names.forEach((name,i)=>process.env[name]=values[i]);
   const controlToken='synthetic-control-token-0123456789abcdef';
   const server=createMolisWorkWebServer({homeDirectory:home,controlToken});
@@ -348,7 +332,7 @@ test('ASR-02 first launch shows the login entry and refuses an anonymous busines
     const first=await fetch(origin+'/?desktop=1',{redirect:'manual'});
     assert.notEqual(first.headers.get('location'),'/welcome?desktop=1');
     const welcome=await fetch(origin+'/welcome',{redirect:'manual'});assert.equal(welcome.status,303);assert.equal(welcome.headers.get('location'),'/');
-    const html=await(await fetch(origin+'/')).text();assert.match(html,/data-account-link/);assert.doesNotMatch(html,/欢迎使用 molis-work/);
+    const html=await(await fetch(origin+'/')).text();assert.match(html,/data-account-entry/);assert.match(html,/api\/personal\/login/);assert.doesNotMatch(html,/data-account-link/);assert.doesNotMatch(html,/欢迎使用 molis-work/);
     const bad=await fetch(origin+'/api/personal/local',{method:'POST',headers:{Origin:'https://attacker.example'},body:'{}'});
     assert.equal(bad.status,403);
     const choice=await fetch(origin+'/api/personal/local?desktop=1',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'test-local-choice-001'},body:'{}'});
@@ -356,7 +340,7 @@ test('ASR-02 first launch shows the login entry and refuses an anonymous busines
     assert.match((await choice.json()).error,/不能切换匿名工作区/);
     const headers={};
     const status=await fetch(origin+'/api/personal/status',{headers});
-    assert.deepEqual(await status.json(),{configured:true,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
+    assert.deepEqual(await status.json(),{configured:true,identity:null,accountChanged:false,ready:false,switching:false});
     const denied=await fetch(origin+'/api/settings/projects',{headers});assert.equal(denied.status,401,'anonymous installation control never reaches business data');
     const account=await fetch(origin+'/account',{headers,redirect:'manual'});assert.equal(account.headers.get('location'),'/');
     assert.equal(existsSync(join(home,'feed','secrets.key')),false,'onboarding and local account must not open credentials');
@@ -397,11 +381,11 @@ for(const replacement of ['native','same-browser'] as const)test(`ASR-03 delayed
    const start=await native('/api/personal/prepare?action=start&page=native-status-owner&intent=switch',true);assert.equal(start.status,200);const {id}=await start.json();
    const oldPage=await f.request('/api/personal/prepare?action=ack&page=account-refresh-page&id='+id,'POST');assert.equal(oldPage.status,200);
    const owner=await native('/api/personal/prepare?action=ack&page=native-status-owner&id='+id,true);assert.equal((await owner.json()).ready,true);
-   f.setAuthUser('bob');const begin=await native('/api/personal/switch?page=native-status-owner&preparation='+id,true);assert.equal(begin.status,200);state=f.loginState;
+   f.setAuthUser('bob');const begin=await native('/api/personal/switch?page=native-status-owner&preparation='+id,true);assert.equal(begin.status,200);state=new URL((await begin.json()).loginUrl).searchParams.get('accountLogin')!;
   }else state=await f.begin('bob');
   f.authWaits.identity=async user=>{if(user==='alice'){reached();await gate;throw new Error('synthetic delayed identity network failure');}};
   const originalCookie=f.cookie,oldStatus=f.request('/api/personal/status');await waiting;
-  const complete=await f.complete(state);assert.equal(complete.status,303);
+  const complete=await f.complete(state);assert.equal(complete.status,200);
   const current=await(await native('/api/personal/status')).json();assert.equal(current.identity.userId,'bob');assert.equal(current.ready,true);assert.notEqual(current.viewScope,alice.viewScope);
   release();const response=await oldStatus;assert.equal(response.status,200);const refused=await response.json();
   assert.equal(refused.accountChanged,true);assert.equal(refused.identity,null);assert.equal(refused.ready,false);assert.notEqual(refused.viewScope,current.viewScope);

@@ -1,8 +1,8 @@
 /**
  * Code blocks in the Assistant's streamed replies (specs/visual-ui-experience §code-diff, VUX-33). A reply is drawn again
  * whole on the Host as it streams; `assistantCodeColours(grow, tokens)` (given the SDK's `growCodeTokens` and `codeTokens`, `/highlight`)
- * colours a code block that a recent drawing differs from only in its last line or below (the block being written) from
- * that line on, which gives the same pieces as colouring it whole. In the page, `createAssistantCodeGrow` gives
+ * passes the same-language block with the longest matching prefix to the SDK. This lets the SDK resume colouring at
+ * the affected line when a block grows or an earlier line is corrected. In the page, `createAssistantCodeGrow` gives
  * `molisStreamText`'s `grow` for the code figure and its fold button.
  */
 type Colouring = { text: string; language: string; pieces: Array<[string | null, string]> };
@@ -10,10 +10,10 @@ const sharedLength = (a: string, b: string) => { let at = 0; while (at < a.lengt
 export function assistantCodeColours<C extends Colouring, T>(grow: (last: C | null, text: string, language: string, tokens: T) => C, tokens: T) {
   const recent: C[] = [];
   return (text: string, language: string): Array<[string | null, string]> => {
-    let last: C | null = null, best = -1;
+    let last: C | null = null, best = 0;
     for (const entry of recent) {
-      const shared = entry.language === language ? sharedLength(entry.text, text) : -1;
-      if (shared > best && shared > entry.text.lastIndexOf("\n")) { last = entry; best = shared; }
+      const shared = entry.language === language ? sharedLength(entry.text, text) : 0;
+      if (shared > best) { last = entry; best = shared; }
     }
     const next = grow(last, text, language, tokens);
     if (last) recent.splice(recent.indexOf(last), 1);
@@ -50,12 +50,12 @@ declare function requestAnimationFrame(step: () => void): number;
  * is bound, a later one only while it is in the page, so no frame builds the nodes of the whole block (about a millisecond
  * per thousand characters). A block that grows keeps the coloured pieces that did not change and goes on from there.
  */
-export function createAssistantCodeGrow(L: (text: string, values?: Record<string, string>) => string) {
+export function createAssistantCodeGrow(readText: (key: string, values?: Record<string, string | number>) => string) {
   type Mark = [string, number];
   type Job = { text: string; marks: Mark[]; at: number; done: number; nodes: GrowNode[]; rest: GrowText };
   const SLICE = 16000, jobs = new WeakMap<GrowElement, Job>();
   const marksOf = (paint: string): Mark[] => {
-    const [legend = "", list = ""] = paint.split("|"), kinds = legend.split(" ");
+    const [legend = "", list] = paint.split("|"), kinds = legend.split(" ");
     return list ? list.split(".").map((mark) => [mark[0] === "-" ? "" : kinds[parseInt(mark[0]!, 36)] ?? "", parseInt(mark.slice(1), 36)]) : [];
   };
   const step = (code: GrowElement, job: Job, first = false) => {
@@ -88,13 +88,13 @@ export function createAssistantCodeGrow(L: (text: string, values?: Record<string
     job.rest.data = text.slice(done);
     if (code.lastChild?.nodeName === "BR") code.lastChild.remove();
     code.append(job.rest);
-    if (text.endsWith("\n")) code.append(document.createElement("br"));
+    if (/[\r\n]$/.test(text)) code.append(document.createElement("br"));
     jobs.set(code, job); step(code, job, true);
   };
   // Folding is the person's once they used it: a block still being written does not fold again past them.
   const bindMore = (figure: GrowElement) => figure.querySelector(".assistant-code-more")?.addEventListener("click", (event) => {
     figure.toggleAttribute("data-folded"); figure.dataset.foldChosen = "";
-    event.currentTarget.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行", { n: figure.dataset.lines ?? "" }) : L("收起");
+    event.currentTarget.textContent = figure.hasAttribute("data-folded") ? readText("workbench.assistant-code-grow.show-all-n-n", { n: figure.dataset.lines ?? "" }) : readText("workbench.assistant-code-grow.collapse");
   });
   // A code block that changed stays the same figure: its leading pieces that did not change stay, the rest is put in, and
   // its line count, copy text and fold follow. Another language puts the block in anew.
@@ -116,7 +116,7 @@ export function createAssistantCodeGrow(L: (text: string, values?: Record<string
     if (lines) lines.textContent = next.querySelector(".assistant-code-lines")?.textContent ?? "";
     const more = next.querySelector(".assistant-code-more"), mine = kept.querySelector(".assistant-code-more");
     if (more && !mine) { kept.append(more); bindMore(kept); if (!("foldChosen" in kept.dataset)) kept.setAttribute("data-folded", ""); }
-    else if (mine && kept.hasAttribute("data-folded")) mine.textContent = L("展开全部 {n} 行", { n: kept.dataset.lines ?? "" });
+    else if (mine && kept.hasAttribute("data-folded")) mine.textContent = readText("workbench.assistant-code-grow.show-all-n-n", { n: kept.dataset.lines ?? "" });
     return true;
   };
   return { bindMore, growCode, paint };

@@ -109,6 +109,8 @@ export interface SqliteBaseline {
 | Prologue 的存储 `agent-runtime/records` | - | 上游 | 不进链（spec §4.5），靠金样回放 |
 | 账号 Home `spaces/<spaceId>/` | 每个登录过的账号 1 | 同上面各行 | 一个完整的 Home，上面每一行都有一份，记录和戳记也各有一份（在它自己的 `upgrade/` 下）。怎样进升级过程见 §4.1、§4.2 |
 
+**库从构建里消失时（删掉描述符，或把它改名成新库）没有门禁，也没有运行期兜底（2026-11-11 复审）。** `scripts/gates/store-schemas.mjs` 明说「一个不在构建里的库从这一条过，它意味着什么归另一个门禁」，而那个门禁今天不存在；`home-upgrade.ts` 的扫描只看当前描述符，指纹也只由当前 pattern 与版本算出，删掉的库不再被扫描、不会升级、不会提示，旧 Home 里的文件就留在那里。现在能做的只有两处人工检查：发布检查单第 4 节（对照真实 Home 的库清单）和评审时看 `docs/system/HOME-DATA.md` 的库行有没有在同一 PR 里被删。补门禁要另立规则（用户 2026-11-11 只批了 inline 版本门禁），处置与候选见 [`BL-storage-removed-library`](../backlog/BL-storage-removed-library.md)。
+
 ### 2.4 插件的表
 
 `PluginDatabaseDeclaration`（`packages/contracts/src/platform/plugin-database.ts:150`）加可选字段：
@@ -197,7 +199,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
 | `installed-plugin-libraries.ts:121`（已装的库） | 自写 | 留下，这是 U4 的版本；错误码改 §9.1 的码，空文件也报 `storage.schema_version_mismatch`（版本 0，不是低版本） |
 | `catalog-schema.ts:47-52`、`project-catalog-contract.ts:41-46` | `catalogSchemaCompatibilityError`、`catalog.reader_too_old` | 用适配读版本，走同一分类。`reader_too_old` 的提示语是 MCP 用的，码改成 `storage.store_too_new`；文字先说升级 Molis Work，已升级的再重启并新开 Session |
 | `project-catalog-replication.ts:12`（读 `inspectCatalogFile`） | #1877 新增，宿主运行中，只读 | 同目录库走同一分类 |
-| `aggregate-copy-store.ts:28`（`openOwnerCopyStore`，#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | U1-d 核过没有调用方，整个文件删掉，所以不用改。`verify-release-versions.mjs` 的名单里还留着这两个名字，不影响判定，不为此改门禁；这条残留是第 05 批审计的清理项，登记在 [`BL-b05-gate-residues`](../backlog/BL-b05-gate-residues.md) |
+| `aggregate-copy-store.ts:28`（`openOwnerCopyStore`，#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | U1-d 核过没有调用方，整个文件删掉，所以不用改。`verify-release-versions.mjs` 的豁免与 `openOwnerCopyStore`/`openAggregateCopyOwner` 两个 opener 名单随 #1998 一起删掉了（`UPG1-i-verify-03` 钉住它们不再回来）；同一 PR 里没有清掉的只剩 `tooling/gates/secret-allowlist.txt` 的两条旧金样密文（#1998 删过、#2004 又加回），它是密钥扫描的允许表、不在本条门禁里，处置见 [`BL-b05-gate-residues`](../backlog/BL-b05-gate-residues.md) |
 | Alchemist `sync/open.ts:27-29`（#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | **不改**（用户 2026-11-08 定）：这组不动 Alchemist，这一处照旧，保持自己的拒绝 |
 | `home-store-snapshot.ts:54` | 快照按现行版本核，核账漏 | 不改语义（§5.3） |
 | `snapshot-sqlite.ts:94-96`、`catalog-schema.ts:63-77` | 恢复侧检查 | 不改语义（§5.3） |

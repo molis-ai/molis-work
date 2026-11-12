@@ -100,12 +100,13 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 状态变化只经 `src/module/` 的公开入口，页面不另算完成。
+  - 逐项依据（第 24-3 批，用户 2026-11-11 定；安全不变量 S-goal-evidence-tier）：`goals.events.report` 的判断可附依据（核对的确切交付版本、检查方法、观察结果、至多 8 条证据引用：成果版本或某一轮里某条命令的回执）。可信层级（`self_reported`、`machine_verified`、`peer_reviewed`）与缺口只由 `src/evidence-check.ts` 的 `assessGoalReport` 在保存前核对得出，放在输入之外、由插件自己的包装作为第三个参数直接交给处理器，输入 schema 不收层级；同一个幂等键重发的报告先认出是重放，不再重新核对；依据里引用的成果版本读不到或不存在时按自述保存并记缺口；依据点名的版本不是目标已确认的交付物时整批拒绝，其余查不到的一律按自述保存并记缺口。会话只认宿主绑定给 Agent 轮次的：外部客户端经 MCP 自报的会话不算，它的报告只是自述；不是从某一轮固定出来的版本认不出做出者，不算复查；同一轮同一组命令只问平台一次。同步导入的判断行由 `src/module/replication-validation.ts` 的 `validateJudgmentTrust` 校验取值。为此这个动作声明并发调度，在写窗口之前以调用方身份委托 `artifacts.read` 与 `agent.evidence.check`，不替调用方加权限。满足规则在 `src/module/event-state-authorization.ts` 的 `requirementSatisfaction`：用户认可记下它针对的版本，之后的报告核对了另一版（或认可没记版本、之后的报告写明了版本），这一条回到待认可（`conclusion_superseded`），其余要求不受影响；不要求用户决定的要求可由有据的报告满足，前提是所核对的版本仍是已确认的交付物、用户没有不认可；要求用户决定的要求只认用户。每条判断的依据、层级、缺口随事件保存，后来的报告不改它。项目库为此升到第 2 版（判断表与结论表各加列，新列不带 CHECK：平台的升级段不放行带 CHECK 的加列）。改这里跑 `tests/goal-event-evidence.test.ts`、`tests/security-invariants-goal-evidence.test.ts`。
   - CLI 与管理 MCP 使用同一 owner 动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
   - Goals 管理业务只走注册动作，没有 typed 管理写入桥；输入类型不含 `actor_id`、`actor_kind` 或决定 authority，结构提交不含 `submitted_session_id`，结构决定不含 `runtime_actor_id`。真实 CLI/MCP 由 Host 私有管理工厂固定本人和出处；两个管理 authority 的证据规则仍归 `src/management-evidence.ts`。`tests/management-door-identity.test.ts` 核公开入口和动作输入类型，`tests/goal-management-identity.test.ts` 核十四个旧 v1 引用即使伪造描述符也拒绝，AST 门禁不许恢复 typed 定义/注册/导出/消费者。Coding 在自己的 `goals-actions.ts` 里按动作 id 与版本就地声明（`GOALS_ACTIONS`，不 import Goals 合同）；四项受限读写核当前内置实例资格，身份仍取原调用上下文，其余测试用现行动作验证业务。
   - Feed 升格为 Goal 经 `goals.directory.read`、`goals.create`、`goals.inputs.confirm` 写 Goals（升格动作用 `required_actions` 声明了这三项，授权设置要一起授权），Feed 不写 Goals 的表；Goals 不在项目里时升格不可用，Feed 的入口也不再出现。
-  - 个人规划方法住在 Home 那一半（`GOALS_HOME_DATABASE` 的 `personal_planning_method_packs`），项目半的动作读它只经 `goals.planning.personal.list` 的快照：`runtime-ports.ts` 的 `PersonalMethodsSnapshot` 在数据库窗口之外按需取一次，窗口里同步读这份快照。没有取过时第一次读抛 `goals.planning.personal_not_loaded`，`run` 取一次后整个调用从头再跑一遍（第一次写的随失败的事务回滚）；Home 半没有回应抛 `goals.planning.personal_unavailable`，事务回滚、不留半写，不造临时 Home、不返回空的个人方法。
+  - 个人规划方法住在 Home 那一半（`GOALS_HOME_DATABASE` 的 `personal_planning_method_packs`），项目半的动作读它只经 `goals.planning.personal.list` 的快照：`runtime-ports.ts` 的 `PersonalMethodsSnapshot` 在数据库窗口之外按需取一次，窗口里同步读这份快照。没有取过时第一次读抛 `goals.planning.personal_not_loaded`，`run` 取一次后整个调用从头再跑一遍（第一次写的随失败的事务回滚）；取的时候失败（BL-819）：调用已取消的照旧是取消；再问一次原调用的授权，已撤权的按原拒绝落码；Home 自己的个人方法包读坏了，把那条 `goals.storage.record_unreadable`（`internal`，带位置）原样交给调用方；其余都是 Home 半没有回应，抛 `goals.planning.personal_unavailable`。都是事务回滚、不留半写，不造临时 Home、不返回空的个人方法。
   - `src/module/`（原 `modules/goals`）的不变量：
     - Repository 只由包内装配；公开 Module、查询服务和只读装配不提供 `repository` 成员，调用方通过命令、查询、事件及生命周期服务工作。
     - `events` 是当前工作状态与完成效果的唯一写入者。
@@ -115,7 +116,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
     - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有这一轮、这份约定的可信用户结论（点头）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。点头有两种：某条要求上已接受且仍然成立的结论，和针对 `complete` 的最近一条决定（要是授权）。两种按同一个办法判断，看写下结论的那份决定：它是在这一轮工作里做出的（Goal 被继续或重新打开之后，更早的授权和接受都不再放行），并且它记下的整份约定的承诺（授权 `complete` 和接受要求的决定都记整份：结果说明、每条要求的原文、是否需要用户验收、绑定的事件类型）和现在的约定逐字相同（有一处变了就不放行，不论谁改；改了又改回，逐字相同就又放行）。要求上的结论是否还在，仍是要求自己的规则：要求被改写、退休、结果说明被改写（每条要求的结论都过期）、结论之后被拒绝，结论就没了，改回原文也不恢复。授权按决定的效果判断，不按范围里写的动作：范围里写了 `complete`、效果只有接受要求的决定是接受，不是授权。被别的原因挡住的收尾和成立的收尾都不会用掉点头，同一轮同一份约定里可以再收尾。带「需要用户验收」的要求本身不受影响（结论还成立就算已验收），项目规则另外要点头，授权不能代替那条要求自己的验收。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`（`specs/archive/goal-closure-identity`）。
     - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
     - 结果合同只认现行取值；存量数据由维护改成现行形状，读取不兜底历史取值。
-    - 库里存的项目 JSON（`policy_json`、`in_scope_json`、`pack_json`、`source_refs_json`、`baseline_versions_json`、`scope_json` 等）与 Home 里个人方法包的 `pack_json`（`personal_planning_method_packs`）读不出来时抛 `goals.storage.record_unreadable`（`internal`），不按空值处理；SQL NULL 仍用备用值，错误不带列名、表名、行号。
+    - 库里存的项目 JSON（`policy_json`、`in_scope_json`、`pack_json`、`source_refs_json`、`baseline_versions_json`、`scope_json` 等）与 Home 里个人方法包的 `pack_json`（`personal_planning_method_packs`）读不出来时抛 `goals.storage.record_unreadable`（`internal`），不按空值处理；SQL NULL 仍用备用值。解码只经 `src/stored-json.ts` 的 `storedJson(row, 表, 列, 备用值)`：读它的语句都投影 `rowid AS stored_row`（漏了第一次读就报错），错误详情正好是 `{ storage: { table, column, row_ref } }`（`row_ref` 是这一行的 rowid，十进制字符串，只在当前这份库里有效，重建后会变），不带存的原文、解析器的报错、业务键（各种 id）和路径（BL-821，用户 2026-11-09 定）。
   - `src/governance/`（原 `modules/governance-collaboration`）的不变量：
     - 本包直接声明并抛出共同 `ActionError`；装配不注入错误工厂，现行用户来源拒绝与聚合输入详情由本包保留。
     - 记录谁在什么来源下批准了哪一项变化，不替 Goals 计算完成。
@@ -130,3 +131,5 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 共享的五个 Goals 插件动作合同与schema在 `plugins/native/goals/src/contract/goal-actions.ts`，由 Goals 自己的动作注册引用（`src/actions.ts`、`src/event-command-actions.ts`）；Coding、CLI、MCP 不 import 它，按动作 id 与版本调用、用到的字段就地声明（Coding 在 `plugins/native/coding/src/goals-actions.ts`；MCP 的描述与字段从宿主自带的 Goals 定义读，与登记进动作目录的是同一份，提供方按 BL-501 固定，不查运行时目录）。contract/state/progress/receipt的plugin受众要求Host实际登记且仍有效的内置caller，项目、操作者与安装都须一致；输入不提供资格。list与note保留原plugin边界。四个Goals context/progress typed协议已移除，Host与SDK均答不可用，不通过伪造描述符恢复。
 
 规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为1；其他动作版本保持。review_action指向goals.planning.impact@1，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。
+
+菜单栏只读摘要：`goals.capsule.menu.read@1` 由 Goals 查询本包事实表，只返回当前一条摘要及同组数量，不展开事件正文。隐藏胶囊经此动作读取；显示胶囊仍读取原完整视图。

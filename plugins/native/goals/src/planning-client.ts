@@ -1,7 +1,7 @@
-// These scripts run in the Host page, where the page-wide `L` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
+// These scripts run in the Host page, where the page-wide `readText` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
 export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
 (()=>{
-  const L = (key, vars) => LF("io.molis.work.goals", key, vars);
+  const readText = globalThis.t.text;
   const bindFilters = (root)=>{
     const scope = root && root.querySelector ? root : document;
     const board = scope.matches?.(".work-planning, .planning-catalog") ? scope : scope.querySelector(".work-planning, .planning-catalog");
@@ -43,22 +43,22 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
       const current=()=>request===detailRequest&&!abort.signal.aborted&&board.isConnected&&board.contains(detail);
       board.dataset.planningSplit="detail";
       detail.innerHTML='<button type="button" class="mw-btn mw-btn--link" data-planning-close></button><p class="mw-loading" role="status"></p>';
-      detail.querySelector("button").textContent=L("返回");detail.querySelector("p").textContent=L("正在加载设置");
+      detail.querySelector("button").textContent=globalThis.t.text("goals.planning-client.back");detail.querySelector("p").textContent=globalThis.t.text("goals.planning-client.loading-settings");
       try{
-        const html=await molisWorkRequest(path,{headers:{Accept:"text/html"},signal:abort.signal,as:"text",fallback:L("无法加载设置")});
+        const html=await molisWorkRequest(path,{headers:{Accept:"text/html"},signal:abort.signal,as:"text",fallback:globalThis.t.text("goals.planning-client.couldn-t-load-settings")});
         if(!current())return;
         const parsed=new DOMParser().parseFromString(html,"text/html");
         const content=parsed.querySelector(".planning-detail, .planning-edit");
-        if(!content) throw new Error(L("无法加载设置"));
+        if(!content) throw new Error(globalThis.t.text("goals.planning-client.couldn-t-load-settings"));
         detail.replaceChildren(document.importNode(content,true));
         globalThis.molisWorkBindPlanningSettings?.(detail);
       }catch(error){
         if(!current())return;
         // The reason and Retry in place, like every list that cannot be read.
         detail.innerHTML='<div class="mw-empty mw-empty--error" role="alert"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button></div>';
-        detail.querySelector("strong").textContent=L("无法加载设置");
-        detail.querySelector("p").textContent=error?.message&&!error.status&&error.message!==L("无法加载设置")?error.message:L("请稍后重试");
-        const retry=detail.querySelector("button");retry.textContent=L("重试");
+        detail.querySelector("strong").textContent=globalThis.t.text("goals.planning-client.couldn-t-load-settings");
+        detail.querySelector("p").textContent=error?.message&&!error.status&&error.message!==globalThis.t.text("goals.planning-client.couldn-t-load-settings")?error.message:globalThis.t.text("goals.planning-client.try-again-moment");
+        const retry=detail.querySelector("button");retry.textContent=globalThis.t.text("goals.planning-client.retry");
         retry.addEventListener("click",()=>{retry.disabled=true;void loadDetail(path);});
       }
     };
@@ -103,9 +103,9 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
     form.addEventListener("click",(event)=>{const add=event.target.closest("[data-add-planning-row]");if(add){const list=form.querySelector('[data-planning-row-list="'+add.dataset.addPlanningRow+'"]');if(list)cloneRow(list);return}const remove=event.target.closest("[data-remove-planning-row]");if(!remove)return;const row=remove.closest("[data-planning-row]");const list=row?.parentElement;if(!row||!list)return;if(list.querySelectorAll("[data-planning-row]").length===1){row.querySelectorAll("input, textarea").forEach((input)=>{input.value=""})}else row.remove()});
     form.addEventListener("submit",async(event)=>{event.preventDefault();if(saving || !form.reportValidity())return;
       const requiredGroups = [
-        { selector: '[data-planning-row-list="steps"]', fields: ['steps'], message: L("请填写至少一个规划步骤。") },
-        { selector: '[data-planning-row-list="coverage"]', fields: ['coverage_label', 'coverage_question'], message: L("请填写至少一个完整的拆分问题。") },
-        { selector: '[data-planning-row-list="dependencies"]', fields: ['dependency_statement', 'dependency_direction'], message: L("请填写至少一条完整的依赖判断。") },
+        { selector: '[data-planning-row-list="steps"]', fields: ['steps'], message: globalThis.t.text("goals.planning-client.fill-least-one-planning-step") },
+        { selector: '[data-planning-row-list="coverage"]', fields: ['coverage_label', 'coverage_question'], message: globalThis.t.text("goals.planning-client.fill-least-one-complete-breakdown-question") },
+        { selector: '[data-planning-row-list="dependencies"]', fields: ['dependency_statement', 'dependency_direction'], message: globalThis.t.text("goals.planning-client.fill-least-one-complete-dependency-judgment") },
       ];
       for (const group of requiredGroups) {
         const list = form.querySelector(group.selector);
@@ -116,7 +116,7 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
         rows[0].querySelector('input, textarea').focus();
         return;
       }
-      saving=true;form.setAttribute("aria-busy","true");form.querySelector(".planning-edit-fields").inert=true;cancelLinks.forEach(link=>link.setAttribute("aria-disabled","true"));error.hidden=true;error.textContent="";const submit=form.querySelector('button[type="submit"]');submit.disabled=true;const label=submit.textContent;submit.textContent=L("正在保存…");const values=(name)=>[...form.querySelectorAll('[name="'+name+'"]')].map((input)=>input.value.trim()).filter(Boolean);const internalId=(prefix,value,index)=>{const readable=String(value||"").normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,32);return prefix+"-"+(readable||String(index+1))+"-"+String(index+1)};try{const coverage=[...form.querySelectorAll("[data-coverage-row]")].map((row,index)=>{const label=row.querySelector('[name="coverage_label"]').value.trim();const question=row.querySelector('[name="coverage_question"]').value.trim();return label||question?{area:internalId("coverage",label,index),label,question}:null}).filter(Boolean);const dependencies=[...form.querySelectorAll("[data-dependency-row]")].map((row,index)=>{const statement=row.querySelector('[name="dependency_statement"]').value.trim();const direction=row.querySelector('[name="dependency_direction"]').value.trim();return statement||direction?{rule_id:internalId("dependency",statement,index),statement,direction_hint:direction}:null}).filter(Boolean);const method={...JSON.parse(form.dataset.eventConfig),method_id:form.elements.method_id.value,kind:form.elements.kind.value,name:form.elements.name.value.trim(),summary:form.elements.summary.value.trim(),instructions:form.elements.instructions.value.trim(),applies_to:String(form.elements.applies_to.value||"").split(",").map((item)=>item.trim()).filter(Boolean),domain_tags:String(form.elements.domain_tags.value||"").split(",").map((item)=>item.trim()).filter(Boolean),steps:values("steps"),required_coverage:coverage,dependency_rules:dependencies,evidence_requirements:values("evidence_requirements"),completion_checks:values("completion_checks"),failure_modes:values("failure_modes"),source_refs:String(form.elements.source_refs.value||"").split(/\\n/).map((item)=>item.trim()).filter(Boolean),confidence:Number(form.elements.confidence.value),enabled:form.elements.enabled.checked};await molisWorkRequest(form.dataset.apiEndpoint,{method:"POST",body:{scope:form.dataset.saveScope,method},fallback:L("保存失败")});location.assign(form.dataset.returnHref)}catch(reason){error.textContent=reason instanceof TypeError||reason?.code==="ui_host.outcome_unknown"?L("无法连接本地服务，输入已保留，请重试。"):reason instanceof Error?reason.message:String(reason);error.hidden=false;saving=false;form.removeAttribute("aria-busy");form.querySelector(".planning-edit-fields").inert=false;cancelLinks.forEach(link=>link.removeAttribute("aria-disabled"));submit.disabled=false;submit.textContent=label;submit.focus()}});
+      saving=true;form.setAttribute("aria-busy","true");form.querySelector(".planning-edit-fields").inert=true;cancelLinks.forEach(link=>link.setAttribute("aria-disabled","true"));error.hidden=true;error.textContent="";const submit=form.querySelector('button[type="submit"]');submit.disabled=true;const label=submit.textContent;submit.textContent=globalThis.t.text("goals.planning-client.saving");const values=(name)=>[...form.querySelectorAll('[name="'+name+'"]')].map((input)=>input.value.trim()).filter(Boolean);const internalId=(prefix,value,index)=>{const readable=String(value||"").normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,32);return prefix+"-"+(readable||String(index+1))+"-"+String(index+1)};try{const coverage=[...form.querySelectorAll("[data-coverage-row]")].map((row,index)=>{const label=row.querySelector('[name="coverage_label"]').value.trim();const question=row.querySelector('[name="coverage_question"]').value.trim();return label||question?{area:internalId("coverage",label,index),label,question}:null}).filter(Boolean);const dependencies=[...form.querySelectorAll("[data-dependency-row]")].map((row,index)=>{const statement=row.querySelector('[name="dependency_statement"]').value.trim();const direction=row.querySelector('[name="dependency_direction"]').value.trim();return statement||direction?{rule_id:internalId("dependency",statement,index),statement,direction_hint:direction}:null}).filter(Boolean);const method={...JSON.parse(form.dataset.eventConfig),method_id:form.elements.method_id.value,kind:form.elements.kind.value,name:form.elements.name.value.trim(),summary:form.elements.summary.value.trim(),instructions:form.elements.instructions.value.trim(),applies_to:String(form.elements.applies_to.value||"").split(",").map((item)=>item.trim()).filter(Boolean),domain_tags:String(form.elements.domain_tags.value||"").split(",").map((item)=>item.trim()).filter(Boolean),steps:values("steps"),required_coverage:coverage,dependency_rules:dependencies,evidence_requirements:values("evidence_requirements"),completion_checks:values("completion_checks"),failure_modes:values("failure_modes"),source_refs:String(form.elements.source_refs.value||"").split(/\\n/).map((item)=>item.trim()).filter(Boolean),confidence:Number(form.elements.confidence.value),enabled:form.elements.enabled.checked};await molisWorkRequest(form.dataset.apiEndpoint,{method:"POST",body:{scope:form.dataset.saveScope,method},fallback:globalThis.t.text("goals.planning-client.could-not-save")});location.assign(form.dataset.returnHref)}catch(reason){error.textContent=reason instanceof TypeError||reason?.code==="ui_host.outcome_unknown"?globalThis.t.text("goals.planning-client.could-not-reach-local-service-input-kept-please"):reason instanceof Error?reason.message:String(reason);error.hidden=false;saving=false;form.removeAttribute("aria-busy");form.querySelector(".planning-edit-fields").inert=false;cancelLinks.forEach(link=>link.removeAttribute("aria-disabled"));submit.disabled=false;submit.textContent=label;submit.focus()}});
   };
   globalThis.molisWorkBindPlanningSettings = (root)=>{
     bindFilters(root);
@@ -127,7 +127,7 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
 `;
 export const PLANNING_ADOPTION_CLIENT_SCRIPT = `
 (()=>{
-  const L = (key, vars) => LF("io.molis.work.goals", key, vars);
+  const readText = globalThis.t.text;
   globalThis.molisWorkBindPlanningAdoption = (root)=>{
     const scope = root && root.querySelector ? root : document;
     const errorBox=scope.querySelector("[data-planning-adoption-error]");
@@ -137,10 +137,10 @@ export const PLANNING_ADOPTION_CLIENT_SCRIPT = `
       button.addEventListener("click",async()=>{
         const label=button.textContent;
         button.disabled=true;
-        button.textContent=L("正在加入…");
+        button.textContent=globalThis.t.text("goals.planning-client.adding");
         if(errorBox){errorBox.hidden=true;errorBox.textContent=""}
         try{
-          await molisWorkRequest(button.dataset.adoptEndpoint,{method:"POST",body:{method_id:button.dataset.adoptPlanningMethod,user_confirmed:true},fallback:L("加入失败")});
+          await molisWorkRequest(button.dataset.adoptEndpoint,{method:"POST",body:{method_id:button.dataset.adoptPlanningMethod,user_confirmed:true},fallback:globalThis.t.text("goals.planning-client.could-not-add-composition")});
           if(button.closest("[data-goal-work-planning]") && globalThis.molisWorkOpenGoalWorkPlanning){globalThis.molisWorkOpenGoalWorkPlanning();return}
           location.reload();
         }catch(reason){

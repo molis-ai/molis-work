@@ -20,11 +20,11 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 | [src/goal-promotion.ts](src/goal-promotion.ts) | Feed 推进为 Goal |
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 用例适配 |
 
-Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据的装配见 [apps/local-host/src/demo-feed-library.ts](../../../apps/local-host/src/demo-feed-library.ts)。
+Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据由 [src/demo-seed.ts](src/demo-seed.ts) 的 Manifest 动作写入，平台在可重建演示项目的 Runtime 就绪后调用；离线测试装配仅在测试 fixture 中。
 
 ## 接入与边界
 
-本包不拥有 Source/Signal/Feed 数据表，也不直接实现 GitHub/Gmail 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
+本包拥有 Source/Signal/Feed 数据表，Attention 与情境账经平台服务读写；不直接实现 GitHub/Gmail/RSS 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
 
 `research_library` 来源由 Host 注入 `syncRepository`（Feed 自己的 `syncResearchLibrary`，读仓库的一步由注入的读取端口做：宿主版是宿主自己的读取器，Runtime 版是平台的 `repository.read`），沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 
@@ -52,6 +52,12 @@ Feed 是双实例插件：每个项目一个项目实例（`createFeedPlugin`）
 
 `createFeedExactRouteResolver` 只负责 Feed 的 catalog RSS、自定义 RSS 和 YouTube 来源。公共 web query 路由、SEL intent 装配与证据密文保存由 Host/Storage 提供；Feed 通过注入端口使用它们，继续拥有来源策略、游标和同步提交。
 
+## 有界读取
+
+页面列表经 `feed.snapshot` / `feed.stage.read` 每页最多 200 条，只读元数据；`offset` 为十进制字符串，`filter` 为筛选字段的 JSON 字符串（`item_id`、`source_id`、`search`、`status`、`unread`、`since`、`provider`、`source_label`、`sort`）。按 `next_offset` 取后页，`null` 表示结束。来源汇总与筛选选项覆盖整个集合，不随当前页截断。阅读器的 `material_offset` 单独控制材料页；明确请求一项完整内容的动作仍保持完整内容语义。
+
+来源管理直接调用来源 owner；后台保留引用和历史清理通过 Feed 自己的数据库分页去重，单次返回最多 200 个引用或操作编号，不聚合项目快照。公开搜索与工作流列表仍返回合同要求的完整元数据，不读取无关正文或材料。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
@@ -64,7 +70,7 @@ pnpm --filter @molis-ai/molis-work-plugin-feed build
 已有行为示例与回归：[feed-native-plugin.test.ts](../../../tests/feed-native-plugin.test.ts)、[feed-goal-promotion.test.ts](../../../tests/feed-goal-promotion.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-promotion.test.ts
+node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-promotion.test.ts tests/feed-goal-promotion-authority.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -84,7 +90,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
   - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
   - 连同本地历史删除来源时，只删没有任何项目的 Material 或拉取收据引用的加密正文；数不清引用（有项目库读不出来）就一律保留。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts tests/feed-source-actions.test.ts tests/feed-inbox-scene-runtime.test.ts tests/feed-inbox-schedule-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-goal-promotion-authority.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts tests/feed-source-actions.test.ts tests/feed-inbox-scene-runtime.test.ts tests/feed-inbox-schedule-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
@@ -122,3 +128,5 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 首页通过 `feed.home.events` 读取 Feed 的原事项与来源状态。已进入 Inbox 的材料或来源故障由 Inbox 提供，完成或忽略后不会作为原始 Feed 事项重复出现。普通材料按请求窗口筛选；需要处理的来源放到今天，并提供“查看来源”的分组导航。断连和同步异常分别说明，不把任意错误称为需要重新授权。关联 Goal 名称通过共同对象查询读取；无权读取 Goal 时保留 Feed 自己拥有的关联 ID。首页不再持有 Feed 分类或数据拼装分支。
 
 来源用哪个账号是本人在平台上按来源绑定的（`connectors.plugin_slot.record.bind@1`，槽即服务、记录即来源；T-121），Feed 不在来源配置里写连接 id、凭据引用或 token 引用；换账号是先断开（`feed.sources.disconnect`，清游标并释放绑定）再选。账号来源由 `feed.sources.add_account@1` 新建（GitHub、Gmail），新建时不带账号。连接的使用位置由平台的 `connectors.plugin_slot.usages@1` 报，Feed 不另报。
+
+Feed 主区声明通用 `data-frame-assets-input` / `data-frame-assets-next-input`，使冷启动内容选择器经 owner 的分页舞台读取全部元数据（包含归档），而普通列表继续使用当前筛选；不把完整正文、材料或全量元数据塞回页面快照。

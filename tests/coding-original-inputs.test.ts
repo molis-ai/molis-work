@@ -14,6 +14,7 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 const coding = "/api/plugins/io.molis.work.coding";
 type Environment = Awaited<ReturnType<typeof codingProductHost>>;
@@ -142,7 +143,8 @@ test("a second start in one Session is refused while the original is in flight, 
 
 test("the shipped Coding input sender retains a failed command's identity and excludes derived starts", async () => {
   const sent: Array<{ original_input?: { input_id: string; text: string } }> = []; let fail = true;
-  const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, { crypto: { randomUUID }, JSON });
+  const factory = vm.runInNewContext(`${pageTextScript("zh", "coding")}\n(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`,
+    { crypto: { randomUUID }, JSON, document: { documentElement: {} } });
   const client = factory({ translate: (key: string) => key, api: async (_path: string, _method: string, body: { original_input?: { input_id: string; text: string } }) => {
     sent.push(structuredClone(body)); if (fail) { fail = false; throw new Error("lost response"); } return {};
   } });

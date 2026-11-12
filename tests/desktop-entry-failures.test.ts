@@ -63,7 +63,7 @@ async function web(t: TestContext, mode: string, prepare?: (directory: string) =
   const businessHome = await account.prepareHome(directory);
   try { await prepare?.(businessHome); }
   catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
-  const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", "0"], {
+  const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", String(account.webPort)], {
     cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "",
       ...account.environment,
@@ -76,7 +76,8 @@ async function web(t: TestContext, mode: string, prepare?: (directory: string) =
     child.once("error", reject);
     child.once("close", (code, signal) => resolve({ code, signal }));
   });
-  const deadline = setTimeout(() => child.kill("SIGKILL"), 15_000);
+  // D0169: permit the 10s startup observation plus the production 12s shutdown deadline.
+  const deadline = setTimeout(() => child.kill("SIGKILL"), 25_000);
   deadline.unref();
   child.once("close", () => clearTimeout(deadline));
   t.after(async () => {
@@ -235,14 +236,25 @@ test("RAC-119 Desktop Web unfinished cleanup keeps its deadline alive and repeat
     assert.equal((await closing).type, "closing");
     if (mode === "transport-blocked") assert.equal(f.child.kill("SIGINT"), true);
     assert.deepEqual(await f.exited, { code: 1, signal: null });
-    assert.ok(Date.now() - started >= 1800, "unfinished cleanup must retain the real two-second deadline");
+    assert.ok(Date.now() - started >= 11_800, "D0169 unfinished cleanup retains the real twelve-second deadline");
     const observed = f.observed();
     assert.equal(observed.transport, 1);
     assert.equal(observed.host, mode === "transport-blocked" ? 0 : 1);
     assert.equal(observed.hostClosed, mode !== "transport-blocked");
     if (mode === "socket-close-blocked") assert.equal(observed.socketCloseDropped, true);
     assert.deepEqual(log(f.stderr(), f.directory, "shutdown_timed_out", "web", false).fields, {
-      deadline_ms: 2000, remaining_cleanup_skipped: true,
+      deadline_ms: 12_000, remaining_cleanup_skipped: true,
     });
   });
+});
+
+test("D0169 Desktop Web lets a slow Home close finish beyond two seconds without a hard exit", async t => {
+  const f = await web(t, "host-delayed");
+  const closing = message(f.child, f.exited), started = Date.now();
+  assert.equal(f.child.kill("SIGTERM"), true);
+  assert.equal((await closing).type, "closing");
+  assert.deepEqual(await f.exited, { code: 0, signal: null });
+  assert.ok(Date.now() - started >= 3_300, "the Home's delayed cleanup actually ran");
+  assert.equal(f.observed().hostClosed, true);
+  assert.doesNotMatch(f.stderr(), /shutdown_timed_out|shutdown_failed/);
 });

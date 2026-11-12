@@ -42,7 +42,8 @@ test("RCPT-350/351 a new task the AI names is not a step until the person adds i
       return sse({ tool: { name: "board-read", input: { board: place.board } } }, round);
     }
     if (round === 2) return sse({ tool: { name: "acknowledge-inputs", input: { items: [{ input, treatment: "new-task", impacts: ["scope"], note: "另起一步" }] } } }, round);
-    // RCPT-351: the round tries to add the step itself, pointing at the supplement; the Host's hook refuses it.
+    // RCPT-351: the round tries to add the step itself, pointing at the supplement. No role is given board-revise (the Agent tool set does not
+    // offer it: the person confirms a plan), so the call is refused and nothing is written.
     if (round === 3) return sse({ tool: { name: "board-revise", input: { board: place.board, version, node: `${place.prefix}.extra`, change: "add", title: "覆盖注册接口", forInputs: [input] } } }, round);
     return sse({ text: "记下了，等你确认。" }, round);
   });
@@ -54,7 +55,7 @@ test("RCPT-350/351 a new task the AI names is not a step until the person adds i
   const session = await adapter.createSession({ ...owner, directory, title: "origins" });
   const handle = await adapter.start({ ...owner, directory, session, task: "改登录", role_id: "builder", execution_plan: plan,
     text_materials: [{ material_id: "plan", source_artifact_id: "plan-a", source_version: 1, title: plan.title, text: JSON.stringify(plan) }],
-    role: { role_id: "builder", version: 1, execution: "text-edit", prompts: [], host_tools: ["board-read", "board-report", "board-revise", "acknowledge-inputs"] } } as never);
+    role: { role_id: "builder", version: 1, execution: "text-edit", prompts: [], host_tools: ["board-read", "board-report", "acknowledge-inputs"] } } as never);
   await until(() => round >= 1, "the first model request");
   input = (await adapter.inputs!.send(handle.ref, { text: "顺便把注册接口也覆盖一下" })).input_id;
   release();
@@ -62,7 +63,7 @@ test("RCPT-350/351 a new task the AI names is not a step until the person adds i
 
   const steer = done.turns.find(turn => turn.steer?.id === input)?.steer;
   assert.equal(steer?.model_claim?.treatment, "new-task", `the AI says it is a new task: ${JSON.stringify(done.turns)}`);
-  assert.match(requests[3] ?? "", /只能读取或回报本项目的任务图/u, "RCPT-351 the round's own board-revise is refused by the Host");
+  assert.match(requests[3] ?? "", /requested a tool not declared for that request\. Nothing in that batch changed anything/u, "RCPT-351 the round's own board-revise is refused: no round is given it");
   assert.deepEqual(done.step_board?.nodes.map(node => [node.id, node.origins]), [["step-1", undefined]], "RCPT-351 the claim and the refused add leave the board as it was: no step, no pointer");
 
   const board = await adapter.collaboration!.revise(handle.ref, { kind: "insert", after: "step-1", title: "覆盖注册接口", acceptance: "注册的测试通过", origin: input }, done.step_board!.version, "user");

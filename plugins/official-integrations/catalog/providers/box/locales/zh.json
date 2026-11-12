@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.box",
+  "locale": "zh",
+  "messages": {
+    "box.connection.auth-help": "Box 开发者令牌或 OAuth access token。",
+    "box.connection.inbound": "项目资料可读 Box 文件",
+    "box.connection.summary": "云盘文件。",
+    "box.connection.token-label": "Box 访问令牌",
+    "box.guide.cli-link": "查看 Box 官方 CLI",
+    "box.guide.mcp-connected-note": "Box 企业管理员可能需要先启用 MCP。",
+    "box.guide.mcp-link": "查看 Box 官方 MCP",
+    "box.guide.mcp-note": "Box 企业管理员可能需要先启用 MCP；Molis Work 尚未接入。",
+    "box.guide.oauth-link": "查看 Box OAuth 认证",
+    "box.guide.token-note": "Box Developer Console 可创建应用和临时开发者令牌；开发者令牌会过期。",
+    "box.oauth.note": "读权限在 Box 应用后台配置。",
+    "box.setup.open-box-developer-console": "打开 Box 开发者控制台"
+  }
+}

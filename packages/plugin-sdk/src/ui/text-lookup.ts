@@ -1,5 +1,5 @@
 import type { OwnedTextRef, TextArg, UiLocalePack, UiMessage, UiSayOptions, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PLATFORM_TEXT_OWNER } from "../message-declarations.js";
+import { PLATFORM_TEXT_OWNER } from "./text-keys.js";
 import { formatMessage } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";
 import { refuseSharedTextPrefix, textKeyPrefix, textRefProblems } from "./text-ref.js";
@@ -83,9 +83,9 @@ export function wordText(provider: UiTextProvider, word: Word, locale: string | 
   const about = { ...(word.owner === null ? {} : { owner: word.owner }), key: word.key, ...(locale === null ? {} : { locale }) };
   const problem = (code: string) => report(provider, { code, ...about });
   const found = word.owner === null || locale === null ? null : findMessage(provider, word.owner, word.key, locale);
-  if (found !== null) return formatMessage(found.message, word.args, found.locale, { problem });
+  if (found !== null) return formatMessage(found.message, word.args, provider.intlLocale?.(found.locale) ?? found.locale, { problem });
   problem("ui.text_missing");
-  return word.fallback === undefined ? unavailableText(provider, locale) : formatMessage(word.fallback, word.args, locale ?? undefined, { problem });
+  return word.fallback === undefined ? unavailableText(provider, locale) : formatMessage(word.fallback, word.args, locale === null ? undefined : provider.intlLocale?.(locale) ?? locale, { problem });
 }
 
 /** `say`, in plain text. A reference that cannot be read is reported and shows the platform's sentence: a page does not break over one sentence. */
@@ -121,6 +121,7 @@ export function prefixIndex(packs: readonly UiLocalePack[]): ReadonlyMap<string,
 export interface PacksProviderInput {
   readonly packs: readonly UiLocalePack[];
   readonly locale: string | null;
+  readonly intlLocale?: UiTextProvider["intlLocale"];
   readonly noContext: "default" | "throw";
   readonly prefixes?: ReadonlyMap<string, string>;
   readonly problem?: UiTextProvider["problem"];
@@ -132,6 +133,7 @@ export function packsProvider(input: PacksProviderInput): UiTextProvider {
   for (const pack of input.packs) byOwner.set(pack.owner, (byOwner.get(pack.owner) ?? new Map<string, UiLocalePack>()).set(pack.locale, pack));
   return {
     locale: () => input.locale,
+    intlLocale: input.intlLocale,
     noContext: () => input.noContext,
     ownerOfPrefix: (prefix) => input.prefixes?.get(prefix) ?? null,
     message(owner, key, locale) {

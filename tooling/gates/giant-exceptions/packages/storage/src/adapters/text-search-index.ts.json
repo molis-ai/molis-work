@@ -2,8 +2,8 @@
   "exceptions": {
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
       "kind": "cohesive-unit",
-      "reason": "全文搜索索引的打开：架构版本检查、预备语句和返回体的操作集合（92 行），共享同一个数据库连接；一个适配器对象，超 150 行 1 行。",
-      "size": 151
+      "reason": "全文搜索索引的单连接装配：版本检查、预备语句与公开操作共享连接生命周期；分页元数据与单份正文读取属于同一索引适配器，拆开会分散连接的所有权。",
+      "size": 159
     }
   }
 }

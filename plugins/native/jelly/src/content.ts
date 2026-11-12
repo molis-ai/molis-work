@@ -2,8 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import type { JellyBlock, JellyCommand, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "./contract.js";
 import { makeJellyItem, jellyOccurrences, jellySchedulesOverlap } from "./calendar.js";
 import { jellyAssert, jellyErrors } from "./error.js";
-import { validateJellySchedule } from "./calendar-validation.js";
+import { validateJellySchedule, validateJellyWorkspace } from "./calendar-validation.js";
 import { jellyMarkdownToBlocks, jellyHtmlToBlocks } from "./markdown.js";
+import { validateJellyContent } from "./content-validation.js";
+import { JellyWorkspaceEdit } from "./workspace-edit.js";
+export { validateJellyContent } from "./content-validation.js";
 
 export const jellyHash = (value: string): string => createHash("sha256").update(value).digest("hex");
 export function jellySourceHash(state: JellyWorkspace, sourceType: "note" | "text", sourceId: string | null, sourceText = ""): string {
@@ -19,36 +22,51 @@ function priorityOf(value: unknown, fallback: JellyItem["priority"] = "none"): J
   if (value === "P0" || value === "P1" || value === "P2" || value === "none") return value;
   jellyAssert(false, "优先级无效");
 }
-function touch(note: JellyNote, now: string): void { note.updated_at = now; note.revision++; }
+function touch(note: JellyNote, now: string, edit: JellyWorkspaceEdit): void {
+  note.updated_at = now;
+  note.revision++;
+  edit.notes.add(note);
+}
 function blocks(value: unknown): JellyBlock[] {
   jellyAssert(Array.isArray(value), "区块必须是数组");
   return value.map(v => { const b = record(v); return { ...b, id: string(b.id) || randomUUID(), kind: b.kind ?? "paragraph", text: string(b.text), indent: b.indent ?? 0, completed_at: b.completed_at ?? null, completion_description: string(b.completion_description) } as JellyBlock; });
 }
-function createNote(state: JellyWorkspace, input: Record<string, unknown>, now: string): JellyNote {
+function createNote(state: JellyWorkspace, input: Record<string, unknown>, now: string, edit: JellyWorkspaceEdit): JellyNote {
   const note: JellyNote = { id: input.id === undefined ? randomUUID() : string(input.id), title: string(input.title, "新笔记"), category_id: category(state, input.category_id), blocks: input.blocks ? blocks(input.blocks) : input.html !== undefined ? jellyHtmlToBlocks(string(input.html)) : jellyMarkdownToBlocks(string(input.markdown), [], now), pinned: false, archived_at: null, revision: 0, created_at: now, updated_at: now };
-  state.notes.push(note); return note;
+  state.notes.push(note);
+  edit.notes.add(note);
+  return note;
 }
 function taskBlock(state: JellyWorkspace, command: JellyCommand): { note: JellyNote; block: JellyBlock } {
   const note = noteById(state, command.note_id), block = note.blocks.find(b => b.id === command.block_id); jellyAssert(block?.kind === "task", "任务区块不存在"); jellyAssert(!note.archived_at, "请先恢复笔记"); return { note, block };
 }
-function synchronizeNoteTasks(state: JellyWorkspace, note: JellyNote, now: string): void {
+function synchronizeNoteTasks(state: JellyWorkspace, note: JellyNote, now: string, edit: JellyWorkspaceEdit): void {
   for (const link of state.task_links.filter(l => l.note_id === note.id)) {
     const block = note.blocks.find(b => b.id === link.block_id); jellyAssert(block?.kind === "task", "先取消该任务的日历关联，再删除或转换任务区块", jellyErrors.linked_task);
     const item = state.items.find(i => i.id === link.item_id)!; jellyAssert(block.text.trim(), "已排期任务的标题不能为空"); item.title = block.text.trim(); item.completed_at = block.completed_at; item.completion_description = block.completion_description; item.updated_at = now;
+    edit.items.add(item);
   }
 }
-function scheduleTask(state: JellyWorkspace, command: JellyCommand, now: string): void {
+function scheduleTask(state: JellyWorkspace, command: JellyCommand, now: string, edit: JellyWorkspaceEdit): void {
   const { note, block } = taskBlock(state, command), schedule = record(command.schedule);
   const link = state.task_links.find(l => l.note_id === note.id && l.block_id === block.id);
   if (link) {
     const item = state.items.find(i => i.id === link.item_id)!;
     Object.assign(item, schedule, { title: block.text.trim(), category_id: category(state, command.category_id ?? item.category_id), priority: priorityOf(command.priority, item.priority), updated_at: now });
+    edit.items.add(item);
+    if (item.id !== link.item_id) edit.relations = true;
   } else {
     const item = makeJellyItem({ ...schedule, title: block.text.trim(), category_id: category(state, command.category_id ?? note.category_id), priority: priorityOf(command.priority), completed_at: block.completed_at, completion_description: block.completion_description }, now);
-    state.items.push(item); state.task_links.push({ item_id: item.id, note_id: note.id, block_id: block.id }); state.relations.push({ owner_id: item.id, original_date: null, note_id: note.id, role: "primary" });
+    state.items.push(item);
+    state.task_links.push({ item_id: item.id, note_id: note.id, block_id: block.id });
+    state.relations.push({ owner_id: item.id, original_date: null, note_id: note.id, role: "primary" });
+    edit.items.add(item);
+    edit.relations = true;
   }
+  edit.taskLinks = true;
 }
-function relation(state: JellyWorkspace, command: JellyCommand): void {
+function relation(state: JellyWorkspace, command: JellyCommand, edit: JellyWorkspaceEdit): void {
+  edit.relations = true;
   const ownerId = string(command.owner_id), date = command.original_date == null ? null : string(command.original_date), note = noteById(state, command.note_id), role = command.role ?? "reference";
   jellyAssert(role === "primary" || role === "reference", "关联角色无效");
   jellyAssert(state.items.some(i => i.id === ownerId) || state.series.some(s => s.id === ownerId), "事项不存在");
@@ -75,16 +93,27 @@ function relation(state: JellyWorkspace, command: JellyCommand): void {
   else jellyAssert(!state.relations.some(r => same(r) && r.role === "primary" && r.note_id === note.id), "主笔记不能重复作为参考笔记");
   if (!state.relations.some(r => same(r) && r.note_id === note.id && r.role === role)) state.relations.push({ owner_id: ownerId, original_date: date, note_id: note.id, role });
 }
+/** As for calendar commands, publish only after the command has succeeded. */
 export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCommand, now: string): boolean {
+  const next = structuredClone(state);
+  if (!editJellyContentCommand(next, command, now, new JellyWorkspaceEdit())) return false;
+  validateJellyWorkspace(next);
+  validateJellyContent(next);
+  Object.assign(state, next);
+  return true;
+}
+
+/** Apply to a store-owned working state. The caller checks the edit before publishing it. */
+export function editJellyContentCommand(state: JellyWorkspace, command: JellyCommand, now: string, edit: JellyWorkspaceEdit): boolean {
   switch (command.type) {
-    case "note.create": createNote(state, command, now); return true;
+    case "note.create": createNote(state, command, now, edit); return true;
     case "note.import": {
       const note = noteById(state, command.id);
       jellyAssert(command.expected_note_revision === undefined || command.expected_note_revision === note.revision, "笔记已在其他窗口修改，请重新载入", jellyErrors.conflict);
       const previous = command.mode === "replace" ? note.blocks : [];
       const imported = command.format === "markdown" ? jellyMarkdownToBlocks(string(command.source), previous, now) : jellyHtmlToBlocks(string(command.source), previous);
       note.blocks = command.mode === "append" ? [...note.blocks, ...imported] : imported;
-      synchronizeNoteTasks(state, note, now); touch(note, now); return true;
+      synchronizeNoteTasks(state, note, now, edit); touch(note, now, edit); return true;
     }
     case "note.update": {
       const note = noteById(state, command.id), patch = record(command.patch);
@@ -95,16 +124,16 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       if (patch.blocks !== undefined) note.blocks = blocks(patch.blocks);
       else if (patch.markdown !== undefined) note.blocks = jellyMarkdownToBlocks(string(patch.markdown), note.blocks, now);
       else if (patch.html !== undefined) note.blocks = jellyHtmlToBlocks(string(patch.html), note.blocks);
-      synchronizeNoteTasks(state, note, now); touch(note, now); return true;
+      synchronizeNoteTasks(state, note, now, edit); touch(note, now, edit); return true;
     }
-    case "note.archive": case "note.restore": case "note.pin": { const n = noteById(state, command.id); if (command.type === "note.pin") { jellyAssert(command.pinned === undefined || typeof command.pinned === "boolean", "置顶值无效"); n.pinned = command.pinned === undefined ? !n.pinned : command.pinned; } else n.archived_at = command.type === "note.archive" ? now : null; touch(n, now); return true; }
+    case "note.archive": case "note.restore": case "note.pin": { const n = noteById(state, command.id); if (command.type === "note.pin") { jellyAssert(command.pinned === undefined || typeof command.pinned === "boolean", "置顶值无效"); n.pinned = command.pinned === undefined ? !n.pinned : command.pinned; } else n.archived_at = command.type === "note.archive" ? now : null; touch(n, now, edit); return true; }
     case "note.delete": {
       const n = noteById(state, command.id); jellyAssert(n.archived_at, "请先归档，再永久删除笔记");
       state.notes = state.notes.filter(x => x.id !== n.id); state.relations = state.relations.filter(r => r.note_id !== n.id); state.task_links = state.task_links.filter(l => l.note_id !== n.id);
       for (const o of state.relation_overrides ?? []) { if (o.primary === n.id) o.primary = "clear"; o.added_reference_ids = o.added_reference_ids.filter(id => id !== n.id); o.removed_reference_ids = o.removed_reference_ids.filter(id => id !== n.id); }
       return true;
     }
-    case "relation.attach": case "relation.detach": relation(state, command); return true;
+    case "relation.attach": case "relation.detach": relation(state, command, edit); return true;
     case "relation.reset": {
       const owner = string(command.owner_id), date = string(command.original_date);
       jellyAssert(date && state.series.some(series => series.id === owner), "请指定重复事项及实例日期");
@@ -118,15 +147,18 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       if (date) jellyAssert(series && !series.exceptions[date]?.deleted, "重复实例不存在");
       const text = date && series ? series.exceptions[date]?.patch?.notes ?? series.notes : owner.notes;
       jellyAssert(typeof text === "string" && text.trim(), "该事项没有待迁移的随记");
-      const note = command.mode === "append" ? noteById(state, command.note_id) : createNote(state, { title: owner.title, category_id: owner.category_id, blocks: [] }, now);
-      jellyAssert(!note.archived_at, "请先恢复目标笔记"); note.blocks.push(...jellyMarkdownToBlocks(text, [], now)); touch(note, now);
-      relation(state, { type: "relation.attach", owner_id: ownerId, original_date: date, note_id: note.id, role: "primary" });
+      const note = command.mode === "append" ? noteById(state, command.note_id) : createNote(state, { title: owner.title, category_id: owner.category_id, blocks: [] }, now, edit);
+      jellyAssert(!note.archived_at, "请先恢复目标笔记"); note.blocks.push(...jellyMarkdownToBlocks(text, [], now)); touch(note, now, edit);
+      relation(state, { type: "relation.attach", owner_id: ownerId, original_date: date, note_id: note.id, role: "primary" }, edit);
       if (date && series) series.exceptions[date] = { patch: { ...(series.exceptions[date]?.patch ?? {}), notes: "" } };
       else owner.notes = "";
-      owner.updated_at = now; return true;
+      owner.updated_at = now;
+      if (series) edit.series.add(series);
+      if (item) edit.items.add(item);
+      return true;
     }
-    case "task.schedule": scheduleTask(state, command, now); return true;
-    case "task.complete": { const { note, block } = taskBlock(state, command); block.completed_at = command.completed ? now : null; block.completion_description = command.completed ? string(command.completion_description, block.completion_description) : ""; synchronizeNoteTasks(state, note, now); touch(note, now); return true; }
+    case "task.schedule": scheduleTask(state, command, now, edit); return true;
+    case "task.complete": { const { note, block } = taskBlock(state, command); block.completed_at = command.completed ? now : null; block.completion_description = command.completed ? string(command.completion_description, block.completion_description) : ""; synchronizeNoteTasks(state, note, now, edit); touch(note, now, edit); return true; }
     case "task.unlink": { const { note, block } = taskBlock(state, command); state.task_links = state.task_links.filter(l => !(l.note_id === note.id && l.block_id === block.id)); return true; }
     case "plan.apply": {
       const plan = record(command.plan) as unknown as JellyPlan;
@@ -156,42 +188,18 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
         jellyAssert(command.note_id === undefined || command.note_id === source.id, "选区提案必须写回原笔记"); insertionAfter = ids.at(-1) as string;
       }
       const target = command.note_id ?? (plan.source_type === "note" ? plan.source_id : null);
-      const n = target ? noteById(state, target) : createNote(state, { title: plan.title || "行动计划", markdown: plan.source_text }, now); jellyAssert(!n.archived_at, "请先恢复目标笔记");
+      const n = target ? noteById(state, target) : createNote(state, { title: plan.title || "行动计划", markdown: plan.source_text }, now, edit); jellyAssert(!n.archived_at, "请先恢复目标笔记");
       for (const action of actions) {
         category(state, action.category_id);
         const block: JellyBlock = { id: randomUUID(), kind: "task", text: action.title.trim(), indent: 0, completed_at: null, completion_description: "" };
         const added = [block]; if (action.notes) added.push({ id: randomUUID(), kind: "paragraph", text: string(action.notes), indent: 0, completed_at: null, completion_description: "" });
         if (insertionAfter) { const index = n.blocks.findIndex(existing => existing.id === insertionAfter); n.blocks.splice(index + 1, 0, ...added); insertionAfter = added.at(-1)!.id; } else n.blocks.push(...added);
-        if (action.schedule) scheduleTask(state, { type: "task.schedule", note_id: n.id, block_id: block.id, schedule: action.schedule, category_id: action.category_id, priority: action.priority }, now);
+        if (action.schedule) scheduleTask(state, { type: "task.schedule", note_id: n.id, block_id: block.id, schedule: action.schedule, category_id: action.category_id, priority: action.priority }, now, edit);
       }
-      touch(n, now);
+      touch(n, now, edit);
+      jellyAssert(typeof plan.id === "string" && plan.id.length > 0, "提案 ID 重复或为空");
       state.applied_plan_ids.push(plan.id); return true;
     }
     default: return false;
-  }
-}
-
-/** Validate content independently of storage; imported and recovered state uses the same gate. */
-export function validateJellyContent(state: JellyWorkspace): void {
-  const unique = (values: string[], label: string) => jellyAssert(values.every(x => typeof x === "string" && x.length > 0) && new Set(values).size === values.length, `${label} ID 重复或为空`);
-  const time = (value: unknown, nullable = false) => (nullable && value === null) || (typeof value === "string" && Number.isFinite(Date.parse(value)));
-  unique(state.notes.map(n => n.id), "笔记"); unique(state.applied_plan_ids, "提案");
-  for (const n of state.notes) {
-    jellyAssert(typeof n.title === "string" && typeof n.pinned === "boolean" && Number.isSafeInteger(n.revision) && n.revision >= 0, "笔记数据无效");
-    jellyAssert(time(n.created_at) && time(n.updated_at) && time(n.archived_at, true), "笔记时间戳无效");
-    category(state, n.category_id); jellyAssert(Array.isArray(n.blocks), "笔记区块无效"); unique(n.blocks.map(b => b.id), "区块");
-    for (const b of n.blocks) {
-      jellyAssert(["paragraph", "heading1", "heading2", "heading3", "bullet", "numbered", "task", "quote", "code", "divider", "link"].includes(b.kind) && typeof b.text === "string" && Number.isInteger(b.indent) && b.indent >= 0 && b.indent <= 8 && typeof b.completion_description === "string", "区块内容无效");
-      jellyAssert(b.completed_at === null || (b.kind === "task" && time(b.completed_at)), "任务完成时间无效");
-      jellyAssert(b.language === undefined || typeof b.language === "string", "代码语言无效");
-      if (b.inline_spans !== undefined) {
-        jellyAssert(Array.isArray(b.inline_spans), "内联格式无效");
-        for (const span of b.inline_spans) jellyAssert(span && typeof span.text === "string" && Array.isArray(span.marks) && new Set(span.marks).size === span.marks.length && span.marks.every(mark => ["bold", "italic", "code"].includes(mark)) && (span.link_url === undefined || typeof span.link_url === "string"), "内联格式内容无效");
-      }
-    }
-  }
-  if (state.imported_sources !== undefined) {
-    jellyAssert(Array.isArray(state.imported_sources), "原始导入包无效"); unique(state.imported_sources.map(s => s.sha256), "原始导入包");
-    for (const s of state.imported_sources) jellyAssert(/^[a-f0-9]{64}$/.test(s.sha256) && Number.isSafeInteger(s.schema_version) && s.schema_version > 0 && time(s.imported_at) && s.source && typeof s.source === "object", "原始导入包内容无效");
   }
 }

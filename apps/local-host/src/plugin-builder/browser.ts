@@ -1,3 +1,4 @@
+import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -18,7 +19,7 @@ interface AcceptanceTrial {
 
 /** Host-owned G7 driver. Contract steps never supply JavaScript, selectors, URLs or browser launch arguments. */
 /** Each case starts from empty data, as the designer is told: `reset` empties the preview and the page is reopened. */
-export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { url: string; signal: AbortSignal; executable?: string; reset?: () => Promise<void>; trial?: AcceptanceTrial; capture?: (browser: BuilderBrowser, pageId: string) => Promise<void> }): Promise<NonNullable<AgentBuild['browserResult']>> {
+export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { url: string; signal: AbortSignal; executable?: string; locale?: string; reset?: () => Promise<void>; trial?: AcceptanceTrial; capture?: (browser: BuilderBrowser, pageId: string) => Promise<void> }): Promise<NonNullable<AgentBuild['browserResult']>> {
   if (!build.design) throw new Error('缺少界面验收合同');
   const browser = await BuilderBrowser.open(options.signal, options.executable);
   const cases: NonNullable<AgentBuild['browserResult']>['cases'] = [];
@@ -26,6 +27,7 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
   const detailsCaptured = new Set<string>();
   let blocked: string | undefined;
   try {
+    if (options.locale) { await browser.command('Network.enable'); await browser.command('Network.setExtraHTTPHeaders', { headers: { 'Accept-Language': options.locale } }); }
     await browser.navigate(options.url);
     try { await browser.wait(`globalThis.__molisPluginReady===true`); }
     catch { throw new Error('试用页没有在 20 秒内打开完成：请确认功能都已接通后重新验收'); }
@@ -42,7 +44,7 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
       }
       let position = 0;
       try { const selected = new Map<string, string>(); for (const step of test.steps) {
-        await executeStep(browser, step, selected, options.trial); position++;
+        await executeStep(browser, step, selected, build, options.trial); position++;
         if (options.capture && ['expect', 'select'].includes(step.action)) {
           const page = await browser.evaluate<string>('document.querySelector(".pc-page:not([hidden])")?.dataset.page??""');
           if (page && !captured.has(page) && await browser.evaluate<boolean>('!!document.querySelector(".pc-page:not([hidden]) [data-record-id]")')) { await options.capture(browser, page); captured.add(page); }
@@ -59,7 +61,7 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
     }
     for (const test of build.design.acceptance) if (!cases.some(row => row.id === test.id)) cases.push({ id: test.id, passed: false, detail: '尚未执行：' + blocked });
     if (!blocked && options.capture) {
-      try { for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); } }
+      try { for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map(), build); await options.capture(browser, page.id); } }
       catch (error) {
         options.signal.throwIfAborted();
         blocked = browser.unavailable ? '验收浏览器连接不可用：' + browser.unavailable.message : '验收截图未能完成：' + (error instanceof Error ? error.message : String(error));
@@ -123,7 +125,7 @@ async function reach(browser: BuilderBrowser, id: string, target: string) {
 /** Folded records (the catalog's accordion) are opened before their text is read. */
 const unfold = (root: string) => `(${root})?.querySelectorAll('details:not([open])').forEach(el=>{el.open=true})`;
 /** `selected` remembers, per collection, the record a case chose, for actions that sit on that record. */
-async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['steps'][number], selected: Map<string, string>, trial?: AcceptanceTrial) {
+async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['steps'][number], selected: Map<string, string>, build: AgentBuild, trial?: AcceptanceTrial) {
   if (step.action === 'reload') { await browser.evaluate('globalThis.__molisPluginReady=false'); await browser.command('Page.reload'); await browser.wait('globalThis.__molisPluginReady===true'); return; }
   if (step.action === 'page') {
     // A one-page plugin shows no page switcher: asking for its only page is already done.
@@ -132,7 +134,15 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
     await browser.click(tab); return;
   }
   const root = component(step.componentId);
-  if (step.action === 'fill') {
+  if (step.action === 'expectWord') {
+    const word = build.nodes.find(node => node.id === step.componentId)?.props[step.word];
+    const ref = tryOwnedTextRef(typeof word === 'string' ? { literal: word } : word, build.design!.contract.pluginId);
+    if (!ref) throw new Error('验收的界面文字没有可用引用');
+    const selectors = { title: '[data-pc-title]', description: '[data-pc-description]', submitLabel: '[type=submit]', emptyText: '[data-slot=empty] p', requiredText: '[data-pc-feedback]' };
+    const label = `(${root})?.querySelector(${literal(selectors[step.word])})`;
+    if (step.word === 'submitLabel') await reach(browser, step.componentId, label);
+    await browser.wait(`(()=>{const label=${label};return !!label?.getClientRects().length&&label.textContent.trim()===globalThis.say.text(${literal(ref)}).trim()})()`);
+  } else if (step.action === 'fill') {
     const field = `[...(${root})?.querySelectorAll('[data-field]')??[]].find(el=>el.name===${literal(step.field)})`;
     await reach(browser, step.componentId, field);
     // A short set of choices shows as chips: pick the chip, as a person would.

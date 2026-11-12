@@ -32,8 +32,8 @@ export type { PluginProjectsClient } from "./plugin-projects.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient, PluginTerminalDirectory, PluginTerminalPanel, PluginTerminalProgram } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
-export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginLocalesDeclaration, PluginMessagesDeclaration, PluginTranslationsDeclaration } from "./plugin-manifest.js";
-export { PLUGIN_LOCALE_LIMITS, SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
+export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginLocalesDeclaration, SubjectContextAnswer, UiSubjectContextDeclaration, UiSubjectContextKind } from "./plugin-manifest.js";
+export { PLUGIN_LOCALE_LIMITS, SUBJECT_CONTEXT_PATH, SURFACE_BROWSER_PERMISSION, UI_SUBJECT_CONTEXT_KINDS, UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
 export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
 import type { PluginRouteBinding } from "./plugin-routes.js";
@@ -45,6 +45,9 @@ export const platformPluginContract = {
   maturity: "partial",
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;
+
+/** The provider id the Host registers its plugin install service under (installing, and importing Skills as a package): one name, shared by the Host and the AI kit's reporter table (`services/kit`). */
+export const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
 
 export type PluginLifecycleState =
   | "installed"
@@ -292,6 +295,24 @@ export type IntegrationProviderFailure =
   | "provider"
   | "rate_limited"
   | "stale_history";
+
+/** The failed live sync result an integration provider answers with (catalog, GitHub): `ok:false`, `mode:"live"` and its
+ * typed failure, built in one place so the two providers cannot answer with different fields. */
+export function integrationLiveFailure(
+  failure: IntegrationProviderFailure,
+  message: string,
+  options: { readonly action?: string; readonly httpStatus?: number; readonly retryAfterAt?: string } = {},
+): Extract<IntegrationProviderSyncResult, { ok: false }> {
+  return {
+    ok: false,
+    mode: "live",
+    failure,
+    message,
+    action: options.action,
+    httpStatus: options.httpStatus,
+    retryAfterAt: options.retryAfterAt,
+  };
+}
 
 export type IntegrationProviderSyncResult =
   | {

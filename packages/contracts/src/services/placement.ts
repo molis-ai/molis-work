@@ -1,6 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
-import { ACTION_SUBJECT_SCHEMA } from "../platform/actions.js";
 
 export const servicesPlacementContract = {
   contractId: /* @version contract.io.molis.work.service.placement "io.molis.work.service.placement.v{version}" */ "io.molis.work.service.placement.v1",
@@ -166,7 +165,6 @@ export const placementGoalActions = {
 };
 
 export type PlacementSubject = ActionSubject;
-export const PLACEMENT_SUBJECT_SCHEMA = ACTION_SUBJECT_SCHEMA;
 
 /** Frozen, owner-interpreted saved data. No execution or storage handle is a transferable asset. */
 export interface ProjectCopyAsset { readonly key:string; readonly value:unknown }

@@ -22,10 +22,6 @@ export const governanceErrors = defineErrorCodes("goals.governance", {
   transition_invalid: "invalid",
 });
 
-export const storageErrors = defineErrorCodes("goals.storage", {
-  record_unreadable: "internal",
-});
-
 export const proposalErrors = {
   "goals.goal_tree_proposal.source_required": treeErrors.source_required,
   "goals.goal_tree_proposal.reason_required": treeErrors.reason_required,

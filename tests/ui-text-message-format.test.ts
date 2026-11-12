@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatDate, formatMessage, formatNumber, numberArg, textArgs, type MessageFormatOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, formatDate, formatMessage, formatNumber, numberArg, ownedTextRef, textArgs, type MessageFormatOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import type { TextArgs, UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -122,4 +122,48 @@ test("FSS-70: numbers: decimal groups, the plain argument does not, and a long f
   assert.equal(formatNumber(0.25, "en", "percent"), "25%");
   assert.equal(fill("{n}", { n: 1234567 }), "1234567");
   assert.equal(fill("{n}", { n: 1.23456789 }), "1.23456789");
+});
+
+test("FSS-39 zoned dates preserve the original place through the DST boundary", () => {
+  const previous = process.env.TZ;
+  process.env.TZ = "Asia/Shanghai";
+  try {
+    const options = { time_zone: "America/Los_Angeles" };
+    const before = "2026-03-08T09:59:00Z", after = "2026-03-08T10:00:00Z";
+    assert.match(formatDate(before, "time", "en", options), /^1:59\sAM$/u);
+    assert.match(fill("Due at {at}", { at: dateArg(after, "time", options) }), /^Due at 3:00\sAM$/u);
+    assert.equal(formatDate("2026-03-08", "datetime", "en", options), "Mar 8, 2026");
+    assert.equal(formatDate(before, "relative", "en", { ...options, now: Date.parse(after) }), "1 minute ago");
+    const problems: string[] = [];
+    const invalid = { time_zone: "Unsupported/Place" };
+    assert.equal(formatDate(after, "time", "en", { ...invalid, problem: code => problems.push(code) }), after);
+    assert.deepEqual(problems, ["ui.text_bad_time_zone"]);
+    assert.throws(() => ownedTextRef({ key: "workbench.reminder.due", args: textArgs({ at: dateArg(after, "time", invalid) }) }, "workbench"), /time_zone/u);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
+test("FSS-39 second-precision formats preserve the instant and leave short and date-only output as before", () => {
+  const first = "2026-03-08T10:04:02Z", later = "2026-03-08T10:04:37Z";
+  const options = { time_zone: "America/Los_Angeles" }, intl = { timeZone: options.time_zone };
+  for (const locale of ["en-US", "zh-CN"]) {
+    for (const at of [first, later]) {
+      assert.equal(formatDate(at, "time-with-seconds", locale, options), new Date(at).toLocaleTimeString(locale, intl));
+      assert.equal(formatDate(at, "datetime-with-seconds", locale, options), new Date(at).toLocaleString(locale, intl));
+    }
+    assert.notEqual(formatDate(first, "time-with-seconds", locale, options), formatDate(later, "time-with-seconds", locale, options));
+    assert.equal(formatDate(first, "time", locale, options), formatDate(later, "time", locale, options));
+    assert.equal(formatDate(first, "datetime", locale, options), formatDate(later, "datetime", locale, options));
+    for (const style of ["time-with-seconds", "datetime-with-seconds"] as const) {
+      assert.equal(formatDate("2026-03-08", style, locale, options), formatDate("2026-03-08", "date", locale, options));
+      const problems: string[] = [];
+      assert.equal(formatDate("2026-03-08T03:04:37", style, locale, { ...options, problem: code => problems.push(code) }), "2026-03-08T03:04:37");
+      assert.deepEqual(problems, ["ui.text_bad_date"]);
+      const ref = ownedTextRef({ key: "workbench.reminder.due", args: textArgs({ at: dateArg(later, style, options) }) }, "workbench");
+      assert.equal(fill("Due at {at}", { at: dateArg(later, style, options) }), `Due at ${formatDate(later, style, "en", options)}`);
+      assert.deepEqual("args" in ref ? ref.args : null, [{ name: "at", kind: "date", at: later, style, ...options }]);
+    }
+  }
 });

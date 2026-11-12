@@ -5,6 +5,7 @@ import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
 import { pagesHost } from "./fixtures/pages-host.js";
+import { chinesePagePacks, installPageClientText } from "./fixtures/page-text-packs.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/context-actions.ts";
 
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes
@@ -150,6 +151,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   // The Workbench page installs the shared request helper (ui-host) before any of its programs runs, and the toolbar program
   // calls it as molisWorkRequest; the real helper runs here over the stubbed fetch.
   Object.assign(globalThis, { location: new URL("http://workbench.test/"), molisWorkRequest: undefined, molisWorkControlHeaders: undefined });
+  t.after(installPageClientText("zh", chinesePagePacks("pages")));
   Function(UI_REQUEST_CLIENT_SCRIPT)();
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
   pages(pagesHost(fakeLifetime(), { projectId: () => "project-a", mountPluginClient: undefined }));

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
@@ -41,21 +42,22 @@ export const textStatsUiContribution: UiContribution<TextStatsUiModel | Companio
 };
 
 /** Text Stats' stage in the project page: a refresh, a way to the materials, and the counts the page's client fills. */
-export function renderTextStatsStage(model: CompanionStageModel): string {
-  const { text } = model.primitives;
-  return renderCompanionListStage({ surface: "text-stats", label: "Text Stats", refresh: text("text-stats.stage.refresh"),
-    materials: text("text-stats.stage.open-materials") });
+export function renderTextStatsStage(_model: CompanionStageModel): string {
+  return renderCompanionListStage({ surface: "text-stats", label: "Text Stats", refresh: uiText.text("text-stats.stage.refresh"),
+    materials: uiText.text("text-stats.stage.open-materials") });
 }
 
 export function renderTextStats(model: TextStatsUiModel): string {
-  const { escape, icon } = model.primitives, p = model.primitives;
+  const { escape, icon } = model.primitives;
   const view = model.view;
   if (view.phase !== "ready" || view.source === undefined) {
     // The shared empty block: the plugin's glyph, what is missing, and what to do about it.
     // Beside the reason in the view, what the page says while it has nothing to count.
-    const detail = view.recovery !== undefined ? p.text(view.recovery) : view.phase === "waiting" ? p.text("text-stats.empty.waiting-detail") : undefined;
+    const waiting = view.phase === "waiting";
+    const label = waiting ? uiText.text("text-stats.empty.waiting") : uiText.text("text-stats.empty.unavailable");
+    const detail = waiting ? uiText.text("text-stats.empty.waiting-detail") : uiText.text("text-stats.empty.recapture");
     // The block is the page's whole content, so the stage centres it like any plugin's empty list.
-    return `<div class="mw-empty" data-phase="${escape(view.phase)}"><span class="mw-empty__mark">${icon("hash")}</span><strong>${escape(p.text(view.message))}</strong>`
+    return `<div class="mw-empty" data-phase="${escape(view.phase)}"><span class="mw-empty__mark">${icon("hash")}</span><strong>${escape(label)}</strong>`
       + `${detail === undefined ? "" : `<p>${escape(detail)}</p>`}</div>`;
   }
   // The source line is not decoration: two numbers that disagree are only
@@ -64,8 +66,8 @@ export function renderTextStats(model: TextStatsUiModel): string {
     + `<p class="stats-source">${escape(view.source.path)}`
     + `<span class="stats-origin">${escape(view.source.source_plugin_id)} · v${escape(view.source.content_version)}</span></p>`
     + `<dl class="stats-counts">`
-    + `<dt>${p.text("text-stats.count.characters")}</dt><dd>${escape(view.characters ?? 0)}</dd>`
-    + `<dt>${p.text("text-stats.count.bytes")}</dt><dd>${escape(view.utf8_bytes ?? 0)}</dd>`
-    + `<dt>${p.text("text-stats.count.lines")}</dt><dd>${escape(view.lines ?? 0)}</dd>`
+    + `<dt>${uiText("text-stats.count.characters")}</dt><dd>${escape(view.characters ?? 0)}</dd>`
+    + `<dt>${uiText("text-stats.count.bytes")}</dt><dd>${escape(view.utf8_bytes ?? 0)}</dd>`
+    + `<dt>${uiText("text-stats.count.lines")}</dt><dd>${escape(view.lines ?? 0)}</dd>`
     + `</dl></section>`;
 }

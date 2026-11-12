@@ -18,18 +18,18 @@ import { SIDE_FRAME_FROM_SCRIPT } from "./pane-messages.js";
 // The factory is one closure, so the four files are joined into one script, in the order of the original text.
 // What a surface's own document runs: the selection reader, the naming of an opened item and, in a split pane or a side
 // view, the toolbar it draws for the top document. A side view's document runs this part alone (side-view-document.ts).
-const PANE_PART = String.raw`  const L = host.translate;
+const PANE_PART = String.raw`  const readText = host.translate;
   const embedded = window.parent !== window && document.body.matches("[data-pane-embedded],[data-side-view]");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
   const panes = host.paneMessages;
-  const post=(path,body,signal,page)=>molisWorkRequest(host.route(path),{body,signal,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
+  const post=(path,body,signal,page)=>molisWorkRequest(host.route(path),{body,signal,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:globalThis.t.text("workbench.context-actions.can-t-do-that-right-now-try-again")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   // Cut to at most n UTF-16 units (the Host counts units too) without ending on half of a two-unit character; inside the limit as it is.
   const cutWhole = (s, n) => s.length <= n ? s : s.slice(0, n).replace(/[\ud800-\udbff]$/u, "");
   const quoted = (focus) => cutWhole(focus.targets.map((target) => target.text).join("\n\n"), 20000);
   // What is in hand, for the Assistant's strip: the passage and the object it is from, never words written for the person.
   const inHand = (focus) => ({ new: true, source: { surface: focus.plugin_id, title: focus.object.title || "" }, object: focus.object,
-    materials: [{ title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
+    materials: [{ title: globalThis.t.text("workbench.context-actions.selection") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
 
   const makeToolbar = ${CONTEXT_TOOLBAR_CLIENT_SCRIPT};
   const coarse = () => matchMedia("(pointer: coarse)").matches || innerWidth <= 760;
@@ -157,6 +157,7 @@ const PANE_PART = String.raw`  const L = host.translate;
     document.addEventListener("molis-work:select-item", (event) => {
       const surf = event.target;
       if (!(surf instanceof Element) || !surf.hasAttribute("data-work-surface")) return;
+      if (event.detail?.invalidate && event.detail.itemId === undefined) return;
       const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
       // After the plugin's own handler, which may name the object itself.
       setTimeout(async () => {
@@ -183,7 +184,7 @@ const PANE_PART = String.raw`  const L = host.translate;
     let shown = null;
     const say = (message) => { if (shown) parent.postMessage({ ...message, context_id: shown.context_id }, location.origin); };
     const toolbar = makeToolbar({
-      translate: L, inset: { top: 0, bottom: 0 }, width: () => innerWidth,
+      translate: readText, inset: { top: 0, bottom: 0 }, width: () => innerWidth,
       choose: (key) => say({ type: "workbench-context-action-choose", key }),
       assistant: () => say({ type: "workbench-context-assistant" }),
       dismiss: () => say({ type: "workbench-context-dismiss" }),

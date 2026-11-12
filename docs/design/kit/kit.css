@@ -516,7 +516,7 @@
 
   /* Form fields and floating surfaces: one border, corner and ground. */
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not([data-feed-search]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
   .theme-menu,
@@ -791,7 +791,7 @@
   html[data-resolved-theme="dark"] .trash-restore-row,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]):not([data-inline-title]),
+  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not([data-feed-search]):not([data-inline-title]),
   html[data-resolved-theme="dark"] textarea:not(.mw-textarea),
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,
@@ -3215,6 +3215,7 @@
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
   .mw-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
+
   .mw-btn {
     position: relative;
     display: inline-flex;
@@ -3249,7 +3250,7 @@
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
   .mw-btn--sm { min-height: 28px; }
   .mw-btn--md { min-height: 32px; }
-  .mw-btn--lg { min-height: 36px; padding-inline: 16px; font-size: 15px; }
+  .mw-btn--lg { min-height: 36px; padding-inline: 16px; }
   .mw-btn--lg svg { width: 16px; height: 16px; }
   .mw-btn--icon, .mw-btn--icon-only {
     width: var(--control-h, 28px);
@@ -3272,8 +3273,8 @@
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
-  .mw-btn--primary:active:not(:disabled) {
-    background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
+  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
+    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
      (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
@@ -3336,6 +3337,7 @@
   .mw-btn[data-loading] > svg { display: none; }
   .mw-btn[data-loading]:has(> svg) > .mw-spinner { position: static; width: 14px; height: 14px; }
   @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
+
 
   .mw-input, .mw-textarea, .mw-select {
     width: 100%;
@@ -3595,6 +3597,13 @@
   .mw-alert--danger { background: var(--red-soft); border-color: color-mix(in srgb, var(--red) 16%, transparent); }
   .mw-alert--success { background: color-mix(in srgb, var(--green) 12%, var(--paper)); }
   .mw-alert--warning { background: color-mix(in srgb, var(--amber) 14%, var(--paper)); }
+  /* The settings' return bar and a page's resume prompt (specs/draft-and-return §9): an alert with its answers under it, at any width. */
+  .mw-return-bar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mw-return-bar__actions { padding-top: 4px; }
+  .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
+  .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
 
   .mw-empty {
     display: grid; justify-items: start; align-content: start; gap: 8px; padding: 16px 12px; color: var(--ink-soft);
@@ -3628,7 +3637,7 @@
   .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 14px; top: 16.5px; }
   .mw-toast.is-error { animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both, mw-toast-nudge var(--dur-arrive, 420ms) var(--ease-quint) var(--dur-hover, 130ms); }
   .mw-toast__action {
-    min-height: 28px; margin-block: -5px; margin-inline-end: -6px; padding: 0 12px; border: 0; border-radius: 999px;
+    min-height: 28px; margin-block: -5px; margin-inline-end: -4px; padding: 0 12px; border: 0; border-radius: 999px;
     background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer;
     transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
@@ -3743,6 +3752,13 @@
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mw-menu__item:disabled { background: transparent; color: var(--faint); cursor: default; }
   .mw-menu__item:disabled :is(svg, .mw-menu__shortcut) { color: var(--faint); }
+  /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
+  .mw-menu__item--described { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; }
+  .mw-menu__item--described > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
+  .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; overflow: visible; }
+  .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
+  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; overflow-wrap: anywhere; }
   .mw-menu__label { padding: 4px 12px 2px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 20px; }
   .mw-menu__group + .mw-menu__group::before { content: ""; display: block; margin: 4px 8px; border-top: 1px solid var(--line); }
   .mw-tooltip {
@@ -4616,7 +4632,7 @@
   .mw-file-group__text small { font-size: 12px; line-height: 16px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-file-group__count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mw-file-group__x { opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint); }
-  .mw-file-group__head:hover .mw-file-group__x, .mw-file-group__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-group__x { opacity: 1; } }
+  .mw-file-group__head:hover .mw-file-group__x, .mw-file-group__head:focus-within .mw-file-group__x, .mw-file-group__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-group__x { opacity: 1; } }
   .mw-file-group__note { margin: 0; padding: 4px 0 0 40px; color: var(--faint); font-size: 12px; }
   .mw-file-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 0 0 40px; list-style: none; }
   .mw-file-row { display: grid; grid-template-columns: minmax(6em, 1fr) auto auto; align-items: center; gap: 12px; min-height: 36px; padding: 2px 4px 2px 8px; margin-left: -8px; border-radius: var(--r-row, 10px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
@@ -4630,7 +4646,7 @@
   /* A size is short; a receipt's detail (why a file was not read) may be long. It gives way with an ellipsis, and its title carries the whole of it. */
   .mw-file-row__size { max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
   .mw-file-row__x { opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint); }
-  .mw-file-row:hover .mw-file-row__x, .mw-file-row__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-row__x { opacity: 1; } }
+  .mw-file-row:hover .mw-file-row__x, .mw-file-row:focus-within .mw-file-row__x, .mw-file-row__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-row__x { opacity: 1; } }
   .mw-file-row.is-todo { grid-template-columns: minmax(0, 1fr) auto; }
   .mw-file-list.is-receipts { padding-left: 0; margin-top: 12px; }
   .mw-file-kind { display: inline-grid; place-items: center; flex: none; min-width: 34px; height: 18px; padding: 0 5px; border-radius: 6px; font-size: 11px; font-weight: var(--weight-title, 600); letter-spacing: .02em; background: color-mix(in srgb, var(--mark-text, var(--ink-soft)) 12%, transparent); color: var(--mark-text, var(--ink-soft)); }
@@ -4790,9 +4806,9 @@
   body.immersive-workbench .tab-strip .tab-item[data-dragging] { box-shadow: var(--lift-3); background: var(--paper); }
   body.immersive-workbench .tab-strip .tab-item-close { border-radius: 5px; }
   body.immersive-workbench .tab-strip .tab-item-close:hover { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench :is(.tab-add-button, .tab-split-button, .workspace-history-button) { border-radius: 7px; }
-  body.immersive-workbench :is(.tab-add-button, .tab-split-button, .workspace-history-button):active:not(:disabled) svg { transform: scale(.86); }
-  body.immersive-workbench :is(.tab-add-button, .tab-split-button, .workspace-history-button) svg { transition: transform var(--dur-move) var(--ease-spring); }
+  body.immersive-workbench :is(.tab-add-button, .workspace-history-button) { border-radius: 7px; }
+  body.immersive-workbench :is(.tab-add-button, .workspace-history-button):active:not(:disabled) svg { transform: scale(.86); }
+  body.immersive-workbench :is(.tab-add-button, .workspace-history-button) svg { transition: transform var(--dur-move) var(--ease-spring); }
 
   /* A cover (market, settings) names itself ahead of the tabs. */
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) .tab-view-chip {
@@ -4931,14 +4947,16 @@
   /* ─── Bottom bar: the Dock, the resident Assistant, the project ─── */
   /* No global sidebar: the work spans the window and the resident bar under it holds the way around.
      Controls sit straight on the desk; only the composer and the current Dock item are raised. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-h: 76px; --dock-btn: 38px; --composer-h: 50px; }
-  @media (max-height: 560px) and (min-width: 601px) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-h: 52px; --dock-btn: 34px; --composer-h: 40px; } }
+  /* --dock-min is the bar at rest; the bar grows with the composer (its words, its strip), and the island writes the height it
+     really has into --dock-h, the one value everything that sits above the bar reads (the panel, the side panel, popovers, toasts). */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-min: 76px; --dock-h: var(--dock-min); --dock-btn: 38px; }
+  @media (max-height: 560px) and (min-width: 601px) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-min: 52px; --dock-btn: 34px; } }
   body.immersive-workbench[data-pane-embedded] .workbench-bar { display: none; }
   @media (min-width: 601px) {
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage), :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage):not([data-navigation-labels="false"]) { --plugin-rail-width: var(--sheet-inset); }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace,
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace.is-directory-collapsed,
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace.is-plugin-directory-empty { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) var(--dock-h); }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace.is-plugin-directory-empty { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) minmax(var(--dock-min), auto); }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace > .tree-pane { grid-row: 2; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-plugin-stage { grid-row: 2; }
   }
@@ -4946,13 +4964,14 @@
     grid-column: 1 / -1; grid-row: 3; position: relative; z-index: 30; min-width: 0;
     /* The end column is at least as wide as its fixed buttons (Shelf, 灵光, chat, project), so they are never squeezed;
        the Assistant keeps 200px down to the 601px desktop minimum. */
-    display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: center; gap: 24px;
+    display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: end; gap: 24px;
     padding: 0 var(--sheet-inset); background: var(--desk);
   }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+  /* The composer grows upward; the two sides stay in the rest band at the bottom, level with its foot. */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: var(--dock-min); }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center { position: relative; min-width: 0; container: assistant-bar / inline-size; }
-  html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+  html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; min-height: var(--dock-min); }
 
   /* One Dock button everywhere in the bar: 38px, soft corners, neutral glyph; hover washes and lifts a hair,
      the current one becomes a small raised piece of the work surface with a copper point under it. */
@@ -5035,23 +5054,40 @@
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-pin.is-fixed { margin-right: 8px; }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-pin.is-fixed:not(:only-child)::before { content: ""; position: absolute; right: -7px; top: 12px; width: 1px; height: 14px; background: var(--line); pointer-events: none; }
 
-  /* The resident Assistant: one raised white line with the plugin switcher in front of it. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer {
-    position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px;
-    width: 100%; height: var(--composer-h); min-height: var(--composer-h); max-height: none; margin: 0; padding: 0 8px 0 8px; border: 0; border-radius: var(--r-composer); overflow: visible;
-    background: var(--paper); box-shadow: var(--composer-shadow, var(--lift-2));
-    transition: box-shadow var(--dur-move) var(--ease-quint);
+  /* The resident Assistant: the platform composer (unified-input K3) as wide as its column allows; the bar keeps its rest
+     height and grows with it. */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer { width: 100%; }
+  /* The receipt chip above the input (specs/ai-input-receipts §4.1; 2026-11-09 audit fix): shown only while a question waits, its words
+     are what the next Send does and one click switches it. 44px to a finger, as every target. */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer {
+    display: inline-flex; align-items: center; max-width: calc(100% - 12px); height: 28px; margin: 0 0 4px 6px; padding: 0 8px;
+    border: 0; border-radius: 7px; background: var(--nav-hover); color: var(--ink-soft);
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  html[data-resolved-theme="dark"] :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer { --composer-shadow: 0 0 0 1px var(--edge-highlight), var(--lift-1); }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
-  html[data-resolved-theme="dark"] :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { flex: 1; min-width: 0; font-size: 13px; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input::placeholder { color: var(--muted); }
-  /* Search opens from the same line: a quiet glyph with its shortcut, the one mouse entry to ⌘K. */
-  /* Send: graphite when there is something to send, a quiet wash while the line is empty. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer [data-assistant-send] { flex: none; width: 34px; height: 34px; min-height: 34px; padding: 0; border-radius: 10px; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer [data-assistant-send]:disabled { background: var(--rail); color: var(--muted); border-color: transparent; opacity: 1; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer [data-assistant-send] svg { width: 16px; height: 16px; }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer[hidden] { display: none; }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer:hover { background: var(--nav-active); color: var(--ink); }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  @media (max-width: 600px), (pointer: coarse) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer { height: 44px; } }
+  /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
+  /* The receiver's name opens its conversation (the island's click). */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
+  /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): at rest the composer is one row (its own
+     rule, composer-styles.ts); once something is written it starts at one line and sits tighter, so the panel above keeps room;
+     it still grows with what is written, and its targets keep their size: the text row's top padding moves into the input, so the
+     input itself stays the target (30px with a mouse, 44px to a finger). */
+  @media (max-height: 560px) {
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer { padding-block: 4px; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer:not([data-rest]) { gap: 2px; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text { padding-top: 0; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; min-height: 30px; padding-block: 6px 2px; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__foot { padding-block: 2px 4px; }
+  }
+  @media (max-height: 560px) and (pointer: coarse), (max-height: 560px) and (max-width: 600px) {
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text > .mw-composer__input:not(#mw-composer) { min-height: 44px; }
+  }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; padding-right: 8px; }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker::after { content: ""; position: absolute; right: 0; top: 50%; width: 1px; height: 18px; margin-top: -8px; background: var(--line); pointer-events: none; }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger {
@@ -5070,7 +5106,7 @@
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .plugin-picker-popover {
-    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 560px; max-height: min(80dvh, 760px); overflow: auto; padding: 8px;
+    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 560px; max-height: min(80dvh, 760px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px)); overflow: auto; padding: 8px;
     border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);
   }
   html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .plugin-picker-popover[hidden] { display: none; }
@@ -5206,7 +5242,8 @@
     --assistant-side-w: 272px;
     /* --assistant-room: space left before the platform side panel, set only while it is open. */
     position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px) + var(--context-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
-    height: min(620px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
+    /* No higher than the title bar, or than a settings return bar's foot while one shows (--return-bar-bottom, settings-return.ts), so 回去 stays in reach. */
+    height: min(620px, calc(100dvh - max(var(--desktop-titlebar-height, 0px), var(--return-bar-bottom, 0px)) - var(--dock-h, 76px) - 32px));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-panel[hidden] { display: none; }
@@ -5266,10 +5303,15 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip { flex: none; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px 6px 12px; background: var(--paper); box-shadow: inset 0 -1px 0 var(--line); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-strip[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-strip[data-tone="running"] { background: color-mix(in srgb, var(--tone-done) 8%, var(--paper)); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip .assistant-state { flex: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-now { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+
+.nav-warn-dot{display:inline-block;flex:none;width:6px;height:6px;border-radius:50%;background:var(--amber)}
+:is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-own{flex:0 1 auto;min-width:0}
+:is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-own:empty{display:none}
+:is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-pin>.nav-warn-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;box-shadow:0 0 0 2px var(--desk);pointer-events:none}
   /* 概况: the state, what it is doing now, where it belongs, who carries it, and what can be done to it now. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary { display: flex; flex-direction: column; gap: 2px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary-state { margin: 0; }
@@ -5310,9 +5352,10 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-block:not([hidden], .assistant-block--usage) { /* opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr row; folded, out of reach */ display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-block[data-folded] { grid-template-rows: auto 0fr; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-block[data-folded] .assistant-block-body { visibility: hidden; transition: visibility 0s var(--dur-move); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-block:not([hidden], .assistant-block--usage) { display: block; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-block > .mw-collapsible { padding-top: 0; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-block-head { list-style: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-block-head::-webkit-details-marker { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
@@ -5336,15 +5379,13 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-usage-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 2px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-usage-input { width: 9em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface, transparent); color: var(--ink); font: inherit; font-size: 12px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
-  /* With the panel open, its tab says where the next message goes; with the side pane shown, it lists what goes with it and who carries it. */
-  body.immersive-workbench:not([data-pane-embedded]) [data-assistant-island]:has(> .assistant-panel:not([hidden])) .assistant-target { display: none; }
-  body.immersive-workbench:not([data-pane-embedded]) [data-assistant-island][data-side-shown] :is([data-assistant-executor], [data-assistant-character], [data-assistant-mode]) { display: none; }
+
   /* The side pane speaks in shapes, not only lines: the overview is a card toned by the state; what waits on you are
      cards with their buttons; the path is a line with markers; materials drop into a zone and sit as tiles; results are
      cards you open or take back. Colour only says state: amber waits on you, green is done, copper is a suggestion. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary { padding: 12px; border-radius: 12px; background: var(--wash); transition: background-color var(--dur-move) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done) 8%, var(--paper)); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary[data-tone="failed"] { background: color-mix(in srgb, var(--tone-blocked, #c53030) 8%, var(--paper)); }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-summary, .assistant-strip) .assistant-state { background: var(--paper); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-summary .assistant-summary-meta { margin-top: 12px; padding-top: 10px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -5352,7 +5393,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph-icon svg { width: 15px; height: 15px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--wash); color: var(--ink-soft); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph.is-done { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 14%, transparent); color: var(--tone-done, #3a8f5c); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph.is-done { background: color-mix(in srgb, var(--tone-done) 14%, transparent); color: var(--tone-done); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph.is-suggest { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-glyph.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, #c53030); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-state-ring { display: inline-flex; width: 20px; height: 20px; flex: none; }
@@ -5411,16 +5452,16 @@
     box-shadow: 0 0 0 1.5px var(--line-strong); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-step-marker .assistant-glyph-icon svg { width: 12px; height: 12px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-step-marker.is-attention { box-shadow: 0 0 0 1.5px var(--tone-attention, #c27c0e); color: var(--tone-attention, #c27c0e); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-step-marker.is-done { background: var(--tone-done, #3a8f5c); box-shadow: none; color: var(--paper); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-step-marker.is-done { background: var(--tone-done); box-shadow: none; color: var(--paper); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-step-marker.is-later { box-shadow: none; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-step-label { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 18px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-progress { display: block; height: 4px; border-radius: 2px; background: var(--wash); overflow: hidden; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--tone-done, #3a8f5c); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--tone-done); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask { position: relative; display: flex; align-items: center; gap: 8px; min-height: 28px; margin: 0 -6px; padding: 2px 6px; border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask:hover { background: var(--nav-hover); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 9%, transparent); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask-mark { flex: none; display: inline-grid; place-items: center; width: 16px; color: var(--muted); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask-mark.is-done { color: var(--tone-done, #3a8f5c); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask-mark.is-done { color: var(--tone-done); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask-mark.is-attention { color: var(--tone-attention, #c27c0e); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask-mark.is-blocked { color: var(--tone-blocked, #c53030); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-subtask-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
@@ -5467,7 +5508,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-rich .assistant-task { position: relative; list-style: none; margin-left: -18px; padding-left: 20px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-task-box { position: absolute; left: 0; top: 0.36em; width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-task.is-done { color: var(--muted); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-task.is-done .assistant-task-box { background: var(--tone-done, #3a8f5c); box-shadow: none; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-task.is-done .assistant-task-box { background: var(--tone-done); box-shadow: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-task.is-done .assistant-task-box::after { content: ""; position: absolute; left: 4px; top: 1.5px; width: 3px; height: 6px; border: solid var(--paper); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-task > ul, body.immersive-workbench:not([data-pane-embedded]) .assistant-task > ol { color: var(--ink); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-rich blockquote { margin: 0 0 8px; padding: 6px 12px; border-radius: 8px; background: var(--wash); color: var(--ink-soft); }
@@ -5493,7 +5534,7 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy, body.immersive-workbench:not([data-pane-embedded]) .assistant-code-more { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-code-copy[data-copy=done] { color: var(--tone-done); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-rich .assistant-code pre, body.immersive-workbench:not([data-pane-embedded]) .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; tab-size: var(--code-tab, 4); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
@@ -5609,48 +5650,11 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 12px; border-radius: 10px; background: var(--wash); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-problem p { margin: 0; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding-left: 16px; font-size: 12px; }
-  /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
-  /* The Assistant's choosers read like the plugin switcher: quiet words with a hover wash, never a row of outlined chips. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 8px; box-shadow: none; transition: background-color var(--dur-hover) var(--ease-quint); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target:hover { background: var(--nav-hover); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-main {
-    min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
-    font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
-  }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-main > span { display: block; overflow: hidden; text-overflow: ellipsis; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 4px; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-main:hover { color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-clear[hidden] { display: none; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-target-clear svg { width: 12px; height: 12px; }
-  /* What goes with this Send, and ways to begin: small popovers rising from the composer. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-executor { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; box-shadow: none; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-executor[hidden] { display: none; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-executor svg { width: 12px; height: 12px; color: var(--muted); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-executor:hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .bar-composer-attach {
-    display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
-    background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
-  }
-  body.immersive-workbench:not([data-pane-embedded]) .bar-composer-attach svg { width: 14px; height: 14px; }
-  body.immersive-workbench:not([data-pane-embedded]) .bar-composer-attach:hover { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .bar-composer-attach:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-popover {
     position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 4px; width: min(420px, 100%);
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
   }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-popover[hidden] { display: none; }
-  /* One “+” beside the input: adding files and every choice about the next work, each with its current value. */
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-more { left: auto; right: 0; width: min(300px, 100%); gap: 2px; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-more-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-more-item:hover { background: var(--nav-hover); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-more-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-more-value { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
   /* News alone is a quiet bell; a number means something waits for the person. */
   /* The work's own menu: where it belongs, who carries it, handing over, usage. */
   /* A long message of the person's folds after six lines. */
@@ -5674,17 +5678,19 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-chip.is-landing{background:var(--accent-soft);box-shadow:none}
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-note{color:var(--faint);white-space:nowrap} body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-chip.is-failed{max-width:320px;box-shadow:inset 0 0 0 1px var(--danger)} body.immersive-workbench:not([data-pane-embedded]) .is-failed>.assistant-strip-label{max-width:120px} body.immersive-workbench:not([data-pane-embedded]) .is-failed>.assistant-strip-note{min-width:0;overflow:hidden;color:var(--danger);text-overflow:ellipsis}
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-note{color:var(--faint);white-space:nowrap}
   body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-strip-act,.is-work):hover{background:var(--nav-hover);color:var(--ink)}
   body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-strip-act,.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
-  /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
+  /* Attention: a count only for what the person's rules let through here; the list says what waits and why. It sits at the
+     right of the composer's receiver row, one line tall, so the row and the bar keep their height. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-attention {
-    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    position: absolute; top: 8px; right: 4px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border: 0; border-radius: 6px;
     background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
   }
+  /* The target reaches past the drawn line, to the bar's 28px floor (44px to a finger, in the touch rules). */
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-attention::after { content: ""; position: absolute; inset: -4px 0; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-attention[hidden] { display: none; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-attention svg { width: 14px; height: 14px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
@@ -5694,32 +5700,9 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-mention { display: grid; gap: 2px; text-align: left; } body.immersive-workbench:not([data-pane-embedded]) .assistant-mention.is-stale { opacity: .5; cursor: default; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-starter:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 12px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  /* The input always keeps room to type; the Assistant's choosers give way first and end in an ellipsis. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { flex: 1 1 120px; min-width: 120px; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-target { flex: 0 1 auto; min-width: 72px; max-width: 180px; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-executor { flex: 0 1 auto; min-width: 0; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* A narrower bar compacts the choosers first (short labels, tighter gaps); below 860px it keeps one beside the input,
-     the rule main's phone bar uses: the executor or Character shows once chosen or while the panel is open. */
-  @media (max-width: 1100px) {
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer { gap: 4px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-target { min-width: 56px; max-width: 96px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-executor { max-width: 72px; } :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-mode-word { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { min-width: 96px; }
-  }
-  @media (max-width: 860px) and (min-width: 601px) {
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-  }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 4px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
@@ -5811,43 +5794,23 @@
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-window-action svg { width: 14px; height: 14px; }
 
-  /* A narrow Assistant column (a 640–900px window, a side-by-side layout) keeps one chooser beside a usable input, as on
-     a phone: unchosen Character and executor chips fold away while the panel is closed, the plugin chip narrows. */
-  @container assistant-bar (max-width: 460px) {
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer { gap: 4px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
-    /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-attention) { display: none; }
-  }
-  /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
-     present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-fit] { gap: 4px; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) [data-assistant-island]:has(.assistant-panel[hidden]) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-  /* With the panel open the choosers are back; the ones nobody changed give up their width before the input does. */
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { flex: 0 1 auto; min-width: 0; }
-  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-executor > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* The input's floor holds only where the column has room for it; a narrow column's own steps above take over there. */
-  @container assistant-bar (min-width: 461px) {
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-target { min-width: 56px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-fit="narrow"] .assistant-target { max-width: 96px; }
-  }
   /* A phone: two rows at the foot, the Assistant line first, then the Dock and the project (a plugin's own list opens
      in a drawer from the button left of the project). */
   @media (max-width: 600px) {
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --composer-h: 50px; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-min: 116px; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace,
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace.is-directory-collapsed,
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar {
-      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 4px;
+      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 50px; gap: 0 4px;
       padding: 4px 8px max(8px, env(safe-area-inset-bottom));
     }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start { grid-column: 1; grid-row: 2; }
-    html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start { grid-column: 1; grid-row: 2; min-height: 0; }
+    html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; min-height: 0; }
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer { padding-block: 4px; }
+    /* At rest the composer is one row (composer-styles.ts): the Assistant line comes back to the bar's rest height. */
+    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-pins { gap: 0; margin-left: 0; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-pins::before { left: -1px; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .dock-pin.is-fixed { margin-right: 0; }
@@ -5876,7 +5839,6 @@
     body.immersive-workbench:not([data-pane-embedded]) .bar-center > .assistant-context-strip { inset: auto -8px calc(100% + var(--next-row, 0px)); max-width: none; padding: 6px 8px 0; background: var(--desk); }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
-    /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
@@ -5888,15 +5850,6 @@
     body.immersive-workbench:not([data-pane-embedded]) .assistant-tab:not([data-current]) { display: none; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-tabs { flex: 1 1 auto; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
-    /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-executor { flex: 0 1 auto; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
-    body.immersive-workbench:not([data-pane-embedded]) .assistant-executor > svg { display: none; }
-    /* One chooser beside the input: the Character shows while the panel is open or once chosen, and then replaces the executor. */
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-    /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-attention) { display: none; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
@@ -6063,8 +6016,8 @@
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   body.immersive-workbench .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu, .assistant-composer) { transform-origin: top left; }
-  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu, .assistant-composer):is(:popover-open, [open], .is-open, :not([hidden])):where(:not(details > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]))) { animation: craft-drop var(--dur-move) var(--ease-quint); }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu) { transform-origin: top left; }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu):is(:popover-open, [open], .is-open, :not([hidden])):where(:not(details > :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu):not([popover]))) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) details[open] > .navigator-project-menu-popover { transform-origin: top left; }
   /* Closing plays the opening backwards on the short clock and a closing menu keeps its box, takes no pointer. Only closing holds the content (held on opening, an opening menu was undrawn and unclickable). The hold is a custom property on the menu's details, read by the closed-details rule at zero specificity so a disclosure's own transition wins: a :has() on a ::details-content subject cost every node put in the page 30 ms of style (VUX-36). */
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) details:has(> :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu)) { --exit-hold: var(--dur-hover); }
@@ -6384,7 +6337,7 @@
   .mw-catalog-bar-frame { display: block; width: min(100%, 1100px); height: 440px; border: 0; border-radius: 14px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); }
   body.mw-bar-specimen-page { background: var(--desk); }
   .mw-catalog-bar-stage { box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; height: 100dvh; padding: 0 16px; background: var(--desk); }
-  .mw-catalog-bar-stage .workbench-bar { height: var(--dock-h); padding: 0; background: transparent; }
+  .mw-catalog-bar-stage .workbench-bar { min-height: var(--dock-min); padding: 0; background: transparent; }
   .mw-catalog .mw-craft-space { display: grid; grid-template-columns: 70px 1fr; grid-template-rows: 1fr 30px; column-gap: 0; width: min(100%, 440px); height: 200px; padding: 12px 12px 0; border-radius: 14px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
   .mw-catalog .mw-craft-space__dir { grid-row: 1; margin: 16px 0 0; border-radius: 10px 0 0 10px; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--ink) 9%, transparent) 0 6px, transparent 6px 14px) 10px 12px / 44px 100% no-repeat, var(--surface-soft); }
   .mw-catalog .mw-craft-space__main { grid-row: 1; display: grid; grid-template-rows: 18px 1fr; }
@@ -6457,22 +6410,10 @@
 
   @media (max-width: 600px), (pointer: coarse) {
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-btn: 44px; --menu-row: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { height: 44px; font-size: 16px; line-height: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer [data-assistant-send] { width: 44px; height: 44px; min-height: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .bar-composer-attach { position: relative; justify-content: center; min-width: 44px; height: 44px; padding: 0; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .plugin-picker-trigger { justify-content: center; min-width: 44px; }
     html :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar .bar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-attention) { height: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer :is(.assistant-executor, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { min-width: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-crowded] :is([data-assistant-character], [data-assistant-executor], [data-assistant-mode]) { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target-clear { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target[data-mode="work"] { min-width: 44px; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-crowded="chips"] .assistant-attention { display: none; }
-    :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer[data-crowded="chips"]:has(.assistant-attention:not([hidden])) .bar-composer-attach::after {
-      content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); pointer-events: none;
-    }
+    /* The bell on the composer's receiver row: the row stays one line, the target reaches past it. */
+    body.immersive-workbench:not([data-pane-embedded]) .assistant-attention { min-width: 44px; } body.immersive-workbench:not([data-pane-embedded]) .assistant-attention::after { content: ""; position: absolute; inset: -12px 0; }
     body.immersive-workbench:not([data-pane-embedded]) .assistant-strip-chip { height: 44px; }
     body.immersive-workbench:not([data-pane-embedded]) .bar-center:has(>.assistant-context-strip:not([hidden])) { --context-row: 50px; }
     :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
@@ -6487,8 +6428,7 @@
     [data-molis-call-id] {--reach:16px;padding-block:var(--reach);margin-block:calc(-1*var(--reach));}
   }
   @media (max-width: 374px) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .workbench-bar { column-gap: 0; padding-inline: 0; } :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center { margin-inline: 8px; } }
-  @media (pointer: coarse) and (min-width: 601px) { @container assistant-bar (max-width: 460px) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-composer .assistant-composer-input { flex: 1 1 44px; min-width: 44px; } } }
-  @media (pointer: coarse) and (max-height: 560px) and (min-width: 601px) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-h: 60px; --composer-h: 50px; } }
+  @media (pointer: coarse) and (max-height: 560px) and (min-width: 601px) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) { --dock-min: 60px; } }
 
   .assistant-rules { margin-bottom: 18px; }
   .assistant-rule-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; font-size: 13px; }
@@ -6504,10 +6444,10 @@ html body.immersive-workbench [data-assistant-island][data-assistant-stage] .ass
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar{justify-content:flex-end;flex:none;min-height:44px;padding:4px 12px;background:var(--paper);box-shadow:inset 0 -1px var(--line)}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-tabs,.assistant-tab-new,[data-assistant-panel-close]){display:none}
 html body.immersive-workbench [data-assistant-stage] .assistant-stage-footer{position:relative;flex:none;min-width:0}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{flex:none;width:calc(100% - 40px);max-width:800px;min-height:56px;margin:12px auto 20px}
+html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{flex:none;width:calc(100% - 40px);max-width:800px;margin:12px auto 20px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-context-strip,.assistant-next-row){flex:none;position:static;width:calc(100% - 40px);max-width:800px;margin:8px auto -4px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{scrollbar-gutter:stable;padding:24px max(20px,calc((100% - 800px)/2));font-size:15px;line-height:1.7}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer-input{font-size:15px}
+html body.immersive-workbench [data-assistant-island][data-assistant-stage] .mw-composer__input:not(#mw-composer){font-size:15px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar-actions{gap:8px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar [data-assistant-retract]{display:inline-flex;width:auto;gap:6px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar [hidden]{display:none}
@@ -6516,7 +6456,7 @@ html body.immersive-workbench [data-assistant-island][data-assistant-stage] .ass
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-block-head,.assistant-usage>summary){padding-top:0;box-shadow:none}
 html body.immersive-workbench .assistant-stage-launcher{min-width:120px;margin:auto}
 html body.immersive-workbench .assistant-stage-launcher[hidden]{display:none}
-@media(max-width:760px){html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{width:calc(100% - 24px);margin:8px auto 12px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{padding:16px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer-input{font-size:16px}}
+@media(max-width:760px){html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{width:calc(100% - 24px);margin:8px auto 12px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{padding:16px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .mw-composer__input:not(#mw-composer){font-size:16px}}
 @media(max-width:420px){html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabbar{height:auto;flex-wrap:wrap}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabs{flex:1 1 calc(100% - 44px)}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabbar-actions{flex:0 0 100%;justify-content:flex-end}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-works{top:94px}}
 
 body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)::details-content{display:grid;grid-template-rows:0fr;overflow:clip;transition:grid-template-rows var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)[open]::details-content{grid-template-rows:1fr}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps-body,.assistant-activity-detail){min-height:0;overflow:clip}@media (prefers-reduced-motion:reduce){body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)::details-content,body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>*{transition:none}}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps{font-size:12px;line-height:1.6;color:var(--muted)}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary{width:fit-content;max-width:100%;margin-left:-4px;border-radius:6px;list-style:none;cursor:pointer}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary::-webkit-details-marker{display:none}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary{padding:2px 4px}body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-fold>summary{padding:0 4px}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary::before,body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-fold>summary::after{content:"›";flex:none;transition:transform var(--dur-hover) var(--ease-quint)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary::before{display:inline-block;width:12px}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps[open]>summary::before,body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-fold[open]>summary::after{transform:rotate(90deg)}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary:hover{background:var(--nav-hover)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps>summary:hover{color:var(--ink-soft)}body.immersive-workbench:not([data-pane-embedded]) :is(.assistant-steps,.assistant-activity-fold)>summary:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps[data-state="failed"]>summary{color:var(--danger)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps[data-state="unknown"]>summary{color:var(--tone-attention)}body.immersive-workbench:not([data-pane-embedded]) .assistant-steps-body>*{padding:2px 0 0 12px}
@@ -6527,7 +6467,7 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>summa
 body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{margin:2px 0 0}
 
   html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *,
-    dialog[open], :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu, .assistant-composer), details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
+    dialog[open], :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu), details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
   html[data-craft-still] dialog[open]::backdrop,
@@ -6628,6 +6568,7 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 [data-ix-focus], .mw-ix-preview, .mw-ix-result, .mw-ix-operation { scroll-margin-block: 24px; }
 :is(.mw-ix-options, .mw-ix-choices, .mw-ix-refs)[aria-invalid="true"] { border-radius: var(--r-control, 8px); box-shadow: 0 0 0 1px var(--red); }
 :is(.mw-ix-options, .mw-ix-choices):focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
+
 /* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
 .mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
 .mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
@@ -6646,11 +6587,15 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 .mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check, .mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
 .mw-ix-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 18px; }
 .mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
+.mw-ix-option:disabled { cursor: default; opacity: .6; }
+@media (max-width: 760px), (pointer: coarse) { .mw-ix-option { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  :is(.mw-ix-option, .mw-ix-option__check) { animation: none; transition: none; }
+}
 .mw-ix-choices .mw-choice { min-width: 0; min-height: 34px; }
 .mw-ix-banner { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--r-control, 8px); background: var(--rail); color: var(--ink); }
 .mw-ix-banner[data-tone="waiting"] { background: color-mix(in srgb, var(--amber) 12%, var(--paper)); }
 .mw-ix-banner[data-tone="failed"] { background: color-mix(in srgb, var(--red) 10%, var(--paper)); }
-.mw-ix-option:disabled { cursor: default; opacity: .6; }
 .mw-ix-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mw-ix-actions--end { justify-content: flex-end; }
 .mw-ix-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); }
@@ -6671,9 +6616,6 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
   .mw-ix-card { padding: 12px 12px 14px; }
   .mw-ix-foot .mw-ix-actions { width: 100%; }
   .mw-ix-foot [data-ix-action="submit"] { flex: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.mw-ix-option, .mw-ix-option__check) { animation: none; transition: none; }
 }
 
 .mw-ix-date { position: relative; display: inline-flex; align-items: center; gap: 4px; }
@@ -6725,11 +6667,11 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 /* What it acts on and what it will do sit on one row as two tags of their own colours: the target in the accent's wash, the
    effect in amber. */
 .mw-ix-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.mw-ix-target, .mw-ix-impact { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 24px; padding: 2px 8px; border-radius: 8px; font-size: 12px; line-height: 18px; }
+.mw-ix-target, .mw-ix-impact { display: inline-flex; align-items: start; gap: 6px; max-width: 100%; min-height: 24px; padding: 2px 8px; border-radius: 8px; font-size: 12px; line-height: 18px; }
 .mw-ix-target { justify-self: start; background: var(--accent-soft); color: var(--ink-soft); }
 .mw-ix-target strong { color: var(--ink); font-weight: var(--weight-control, 500); }
 .mw-ix-impact { background: color-mix(in srgb, var(--amber) 11%, transparent); color: var(--ink-soft); }
-.mw-ix-target svg, .mw-ix-impact svg { width: 13px; height: 13px; flex: none; }
+.mw-ix-target svg, .mw-ix-impact svg { width: 13px; height: 13px; margin-top: 3px; flex: none; }
 .mw-ix-target svg { color: var(--accent); }
 .mw-ix-impact svg { color: var(--amber); }
 .mw-ix-preview { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); outline: 0; }
@@ -6841,4 +6783,235 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 [data-overflow-fade]{scroll-padding-inline:28px}[data-overflow-fade][data-more]{--mw-fs:0px;--mw-fe:0px;--mw-fd:to right;mask-image:linear-gradient(var(--mw-fd),#0000 0,rgb(0 0 0/.05) calc(var(--mw-fs)*.15),rgb(0 0 0/.15) calc(var(--mw-fs)*.3),rgb(0 0 0/.3) calc(var(--mw-fs)*.45),rgb(0 0 0/.5) calc(var(--mw-fs)*.6),rgb(0 0 0/.7) calc(var(--mw-fs)*.75),rgb(0 0 0/.85) calc(var(--mw-fs)*.87),#000 var(--mw-fs),#000 calc(100% - var(--mw-fe)),rgb(0 0 0/.85) calc(100% - var(--mw-fe)*.87),rgb(0 0 0/.7) calc(100% - var(--mw-fe)*.75),rgb(0 0 0/.5) calc(100% - var(--mw-fe)*.6),rgb(0 0 0/.3) calc(100% - var(--mw-fe)*.45),rgb(0 0 0/.15) calc(100% - var(--mw-fe)*.3),rgb(0 0 0/.05) calc(100% - var(--mw-fe)*.15),#0000 100%)}[data-overflow-fade][data-more]:dir(rtl){--mw-fd:to left}[data-overflow-fade]:is([data-more=start],[data-more=both]){--mw-fs:28px}[data-overflow-fade]:is([data-more=end],[data-more=both]){--mw-fe:28px}@media (forced-colors:active){[data-overflow-fade][data-more]{mask-image:none}}
 .mw-num{display:inline-flex;flex-direction:column;font-variant-numeric:tabular-nums;white-space:nowrap}.mw-num[data-align=end]{align-items:flex-end}.mw-num::after{content:attr(data-num-ghost);height:0;overflow:hidden;visibility:hidden}
  :is(.pf-group,.pf-step)::details-content{display:grid;grid-template-rows:0fr;overflow:clip;transition:grid-template-rows var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete} :is(.pf-group,.pf-step)[open]::details-content{grid-template-rows:1fr} :is(.pf-group__body,.pf-step__body){min-height:0;overflow:clip}@media (prefers-reduced-motion:reduce){ :is(.pf-group,.pf-step)::details-content, :is(.pf-group,.pf-step)>*{transition:none}} .pf-group{font-size:12px;line-height:1.6;color:var(--muted)} :is(.pf-group,.pf-step)>summary{width:fit-content;max-width:100%;margin-left:-4px;border-radius:6px;list-style:none;cursor:pointer} :is(.pf-group,.pf-step)>summary::-webkit-details-marker{display:none} .pf-group>summary{padding:2px 4px} .pf-step>summary{padding:0 4px} .pf-group>summary::before, .pf-step>summary::after{content:"›";flex:none;transition:transform var(--dur-hover) var(--ease-quint)} .pf-group>summary::before{display:inline-block;width:12px} .pf-group[open]>summary::before, .pf-step[open]>summary::after{transform:rotate(90deg)} :is(.pf-group,.pf-step)>summary:hover{background:var(--nav-hover)} .pf-group>summary:hover{color:var(--ink-soft)} :is(.pf-group,.pf-step)>summary:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)} .pf-group[data-state="failed"]>summary{color:var(--danger)} .pf-group[data-state="unknown"]>summary{color:var(--tone-attention)} .pf-group__body>*{padding:2px 0 0 12px}
+
+  .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; border: 1px solid var(--sk-card-edge, var(--line)); border-radius: var(--sk-r-card, 12px); background: var(--sk-raised, var(--paper)); box-shadow: var(--sk-card-shadow, none); }
+  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
+  /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
+  .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .mw-item strong { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark svg { width: 16px; height: 16px; }
+
+  /* 1 · An item row whose words stack (name, what it is for, its marks) with the three-way choice under them, not at the row's end:
+     the choice is the row's one control, and under the words it keeps the same place whatever the name's length. The name wraps
+     instead of being cut: a finger has no hover to read a cut name by. */
+  .mw-item.mw-item--stack { align-items: flex-start; flex-wrap: wrap; row-gap: 0; padding-block: 10px; }
+  .mw-item--stack > .mw-mark { margin-top: 2px; }
+  .mw-item.mw-item--stack > span:nth-child(2) { display: grid; gap: 4px; flex: 1 1 0; align-items: start; }
+  .mw-item--stack > span:nth-child(2) > small { white-space: normal; text-wrap: pretty; }
+  .mw-item.mw-item--stack > span:nth-child(2) > strong { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: break-word; line-height: 1.45; }
+  .mw-item--stack[data-off] strong { color: var(--muted); }
+  /* The choice's own row in the item, indented to the words where there is room. */
+  .mw-item > .mw-item__under { display: flex; flex: 1 0 100%; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; margin-top: 8px; padding-left: 44px; }
+  .mw-item__under > .mw-alert { flex: 1 1 100%; }
+  .mw-item__under .mw-toggle { white-space: nowrap; }
+
+  /* 2 · A fold inside an item row: indented to the words (the 32px mark and the row's 12px gap), its summary a quiet 13px action
+     instead of the standalone fold's 12px of room above and below. Its readable name carries the item's name. */
+  .mw-item > .mw-item__more { flex: 1 0 100%; min-width: 0; padding: 0 0 0 44px; }
+  .mw-item__more > summary { padding: 4px 0; color: var(--muted); font-size: 13px; }
+  .mw-item__more > summary:hover { color: var(--ink-soft); }
+  .mw-item__more > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-item__more .mw-collapsible__body { padding: 4px 0 6px; }
+  .mw-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; max-width: 640px; font-size: 13px; line-height: 1.55; }
+  .mw-facts dt { color: var(--muted); font-size: 12px; }
+  .mw-facts dd { min-width: 0; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+  .mw-facts dd:last-child { margin-bottom: 0; }
+  .mw-facts code { font-size: 12px; }
+  .mw-facts ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .mw-facts li { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .mw-facts li > span { color: var(--muted); font-size: 12px; }
+  .mw-facts blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
+
+  /* 4 · Buttons inside an alert: under its words, so the next step reads as the answer to what the alert says. */
+  .mw-alert__problems { display: grid; gap: 2px; margin: 4px 0 0; padding-left: 18px; color: var(--ink-soft); }
+  .mw-alert__problems code { overflow-wrap: anywhere; }
+
+  /* 5 · A link beside a status mark: one paragraph that starts with the mark, so the mark, its reason and the link share a line
+     while they fit and wrap as words when they do not. The link's padding reaches a finger without taking line room. */
+  .mw-status-line { margin: 0; min-width: 0; color: var(--ink-soft); font-size: 12px; line-height: 20px; text-wrap: pretty; }
+  .mw-status-line > .mw-status { margin-right: 6px; vertical-align: middle; }
+  .mw-status-line > .mw-btn--link { --reach: 6px; min-height: 0; margin-left: 6px; padding-block: var(--reach); margin-block: calc(-1 * var(--reach)); font-size: 13px; line-height: 20px; vertical-align: middle; }
+
+  /* 3 · List and detail: the list on the left keeps each entry a list item (a screen reader says "3 of 5") and a real button fills
+     it; the detail on the right is everything about one entry. Where the room is narrow it is one side at a time. */
+  .mw-list-detail { container: mw-list-detail / inline-size; min-width: 0; }
+  .mw-list-detail__body { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
+  .mw-list-detail__list { min-width: 0; }
+  .mw-list-detail__list > .mw-items { width: 100%; }
+  .mw-item.mw-item--pick { min-height: 0; padding: 0; }
+  .mw-item--pick:is(:hover, :focus-within) { background: transparent; }
+  .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item__pick:hover { background: var(--nav-hover); }
+  .mw-item__pick[aria-current="true"] { background: var(--nav-active); }
+  .mw-item__pick:active:not(:disabled) { background: var(--nav-press); }
+  .mw-item__pick:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item__pick > span:nth-child(2) { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
+  /* The name wraps as it is; the pack it lives in takes one line, cut where room runs out, its whole name on hover. */
+  .mw-item__pick > span:nth-child(2) > strong { overflow: visible; white-space: normal; overflow-wrap: break-word; line-height: 1.4; }
+  .mw-item__pick > span:nth-child(2) > small { flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-item__pick > .mw-item__end { color: inherit; }
+  .mw-list-detail__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
+  .mw-list-detail__detail[hidden] { display: none; }
+  /* Only when another entry is chosen; the first view and a reload show the detail at once. */
+  .mw-list-detail__detail.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  .mw-list-detail__detail > header { display: grid; gap: 6px; }
+  .mw-list-detail__detail h3 { margin: 0; color: var(--ink); font-size: 20px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
+  .mw-list-detail__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-list-detail__detail[data-off] h3 { color: var(--muted); }
+  .mw-list-detail__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+  /* The radios fade by their own .42; their words go muted, as the title does, without a second opacity. */
+  .mw-list-detail__detail .mw-radio-group:disabled .mw-check-row { color: var(--muted); }
+  .mw-list-detail__used { margin: 0; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__detail > .mw-list-detail__back { display: none; justify-self: start; }
+  @container mw-list-detail (max-width: 640px) {
+    .mw-list-detail__body { grid-template-columns: minmax(0, 1fr); }
+    .mw-list-detail__detail { padding: 0; border-left: 0; }
+    .mw-list-detail:not([data-detail]) .mw-list-detail__detail { display: none; }
+    .mw-list-detail[data-detail] .mw-list-detail__list { display: none; }
+    .mw-list-detail__detail > .mw-list-detail__back { display: inline-flex; }
+  }
+  /* A phone's list keeps its room for the names: the glyph, the same for every entry, gives way. */
+  @container mw-list-detail (max-width: 480px) {
+    .mw-item__pick > .mw-mark { display: none; }
+    /* Only here may the status word be cut (its whole word on hover, and in the detail one tap away). */
+    .mw-item__pick > .mw-item__end { min-width: 0; max-width: 45%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mw-list-detail__detail.is-entering { animation: none; }
+    .mw-item__pick { transition: none; }
+  }
+  /* A phone or a finger: each of these is a 44px target, the link by its padding (it sits in a sentence). */
+  @media (max-width: 600px), (pointer: coarse) {
+    /* On a phone the choice takes the row from the glyph's edge and its three settings share it equally, so a longer word in
+       another language narrows the others instead of running past the row. */
+    .mw-item > .mw-item__under { padding-left: 0; }
+    .mw-item__under > .mw-toggle-group { display: flex; flex: 1 1 100%; min-width: 0; }
+    .mw-item__under .mw-toggle { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 6px; }
+    .mw-item__more > summary { min-height: 44px; padding-block: 0; }
+    .mw-status-line > .mw-btn--link { --reach: 12px; }
+    .mw-alert__actions .mw-btn, .mw-list-detail__back { min-height: 44px; }
+  }
+
+  .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"], [data-primitive="alert-actions"], [data-primitive="status-link"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"]) .mw-items { width: 100%; }
+  .mw-catalog [data-primitive="list-detail"] .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog [data-primitive="list-detail"] .mw-catalog__row { display: block; }
+  .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-primitive="status-link"] .mw-catalog__row { display: grid; gap: 10px; justify-items: start; }
+
+
+  /* 1 · State and next steps: the status line (08's), an optional note, then a row of buttons; one of them may open a menu anchored
+     under it (a mw-menu in the top layer, so no scrolling box clips it; placed by the anchored-menu client). */
+  .mw-now { display: grid; gap: 10px; min-width: 0; padding: 12px 14px; border-radius: var(--r-card, 12px); background: var(--surface-soft); }
+  .mw-now > .mw-status-line { color: var(--ink-soft); font-size: 13px; line-height: 20px; }
+  .mw-now__note { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+  .mw-now__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .mw-now__actions:empty { display: none; }
+  .mw-anchored-menu[popover] { position: fixed; inset: auto; margin: 0; overflow-y: auto; width: 320px; max-width: calc(100vw - 32px); }
+
+  /* 2 · An item group: a parent row (choosable, with where it applies) and, indented under it, its own entries. */
+  .mw-item-groups { container: mw-item-groups / inline-size; display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+  .mw-item-group { display: grid; min-width: 0; padding: 6px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
+  .mw-item-group__head { appearance: none; display: flex; align-items: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item-group__head:hover { background: var(--nav-hover); }
+  .mw-item-group__head[aria-current="true"] { background: var(--nav-active); }
+  .mw-item-group__head:active { background: var(--nav-press); }
+  .mw-item-group__head:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item-group__text { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .mw-item-group__text strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: break-word; }
+  .mw-item-group__text small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .mw-item-group__text .mw-item-group__where { color: var(--ink-soft); }
+  .mw-item-group__head > .mw-item__end { margin-top: 4px; }
+  .mw-item-group__children { display: grid; gap: 4px; min-width: 0; margin: 2px 0 0 54px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+  .mw-item-group__label { padding: 0 4px; color: var(--faint); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .mw-item-group__children > .mw-items { width: 100%; padding: 0; background: transparent; box-shadow: none; }
+  .mw-item-group__empty { margin: 0; padding: 4px; color: var(--muted); font-size: 12px; }
+  @container mw-item-groups (max-width: 360px) { .mw-item-group__children { margin-left: 0; } }
+
+  /* 3 · Compact cells: each a button with a name, a code name and one tag; two columns where the room is narrow. */
+  .mw-cells { container: mw-cells / inline-size; min-width: 0; }
+  .mw-cells > ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  @container mw-cells (max-width: 480px) {
+    .mw-cells > ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Two narrow columns: the tag goes under the name, so the name keeps the cell's width. */
+    .mw-cell { flex-wrap: wrap; row-gap: 4px; padding-block: 8px; }
+    .mw-cell__name { flex-basis: 100%; }
+  }
+  .mw-cell { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 10px; border: 0; border-radius: var(--r-row, 10px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-cell:hover { background: var(--nav-hover); }
+  .mw-cell[aria-current="true"] { background: var(--nav-active); }
+  .mw-cell:active { background: var(--nav-press); }
+  .mw-cell:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-cell__name { display: grid; flex: 1 1 auto; min-width: 0; }
+  .mw-cell__name > :is(strong, code) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-cell__name > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-cell__name > code { color: var(--muted); font-size: 11px; }
+  .mw-cell > .mw-badge { flex: none; white-space: nowrap; }
+
+  /* 4 · List and detail, third level: back to the entry it came from (the same button as 08's __back), then the path. */
+  .mw-list-detail__trail { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .mw-list-detail__trail > .mw-btn { max-width: calc(100% + 8px); height: auto; margin-left: -8px; white-space: normal; text-align: start; overflow-wrap: anywhere; }
+  .mw-list-detail__path { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__path > li { min-width: 0; overflow-wrap: anywhere; }
+  .mw-list-detail__path > li + li::before { content: "/"; margin-right: 6px; color: var(--faint); }
+  .mw-list-detail__path > [aria-current] { color: var(--ink-soft); }
+
+  /* 5 · Icon counts: one glyph and one number per kind; the whole name on hover (title) and for a screen reader (its own words). */
+  .mw-counts { display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-count { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .mw-count > svg { width: 12px; height: 12px; flex: none; }
+
+  /* 6 · State rows: one row per state, its name and what it means, its status mark, and where it is changed. Laid out by the list's
+     own width: under 520px the words take a line and the state and the way there share the next; under 320px one each. */
+  .mw-state-rows { container: mw-state-rows / inline-size; display: grid; gap: 1px; min-width: 0; margin: 0; padding: 0; list-style: none; border-radius: var(--r-row, 10px); overflow: hidden; background: var(--line); }
+  .mw-state-rows > li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px 8px 12px; background: var(--paper); }
+  .mw-state-row__what { display: grid; gap: 1px; min-width: 0; }
+  .mw-state-row__what > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-state-row__what > small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .mw-state-row__state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+  .mw-state-row__state > .mw-status { height: auto; min-height: 22px; white-space: normal; text-align: start; }
+  .mw-state-row__state > small { color: var(--muted); font-size: 12px; }
+  .mw-state-row__go { justify-self: end; }
+  @container mw-state-rows (max-width: 520px) {
+    .mw-state-rows > li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+    .mw-state-row__what { grid-column: 1 / -1; }
+  }
+  @container mw-state-rows (max-width: 320px) {
+    .mw-state-rows > li { grid-template-columns: minmax(0, 1fr); }
+    .mw-state-row__go { justify-self: start; }
+  }
+
+  /* 7 · Usage: a figure only when there are recent uses, one line of what it counts, and under them what the count covers. */
+  .mw-usage { display: grid; gap: 6px; min-width: 0; }
+  .mw-usage__figure { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .mw-usage__num { min-width: 40px; color: var(--ink); font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1; font-variant-numeric: tabular-nums; }
+  .mw-usage__text { display: grid; gap: 2px; min-width: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.45; }
+  .mw-usage__text > strong { color: var(--ink); font-weight: var(--weight-control, 500); }
+  .mw-usage__scope { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+  /* 8 · List and detail with the detail kept in view, only where a page asks (data-sticky-detail): it stays at the top of the
+     scrolling area and scrolls itself when taller; at its end the scroll goes on to the page (no overscroll containment). The
+     area's height comes from the settings shell (--settings-view-h); outside it, the window's. One side at a time, it is in flow. */
+  .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: sticky; top: 16px; max-height: calc(var(--settings-view-h, 100dvh) - 32px); overflow-y: auto; }
+  @container mw-list-detail (max-width: 640px) { .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: static; max-height: none; overflow: visible; } }
+  /* A titled group inside a detail (an entry's usage, a pack's roles), quiet heading over its body. */
+  .mw-list-detail__group { display: grid; gap: 8px; min-width: 0; }
+  .mw-list-detail__group > .mw-items { width: 100%; }
+  .mw-list-detail__group > h4 { margin: 0; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
+
+  @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
+
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__row { display: grid; gap: 10px; min-width: 0; }
+  .mw-catalog [data-primitive="icon-counts"] .mw-items { width: 100%; }
+  .mw-catalog :is([data-primitive="sticky-detail"], [data-primitive="state-rows"]) .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog [data-primitive="sticky-detail"] .mw-catalog__row { display: block; }
+  .mw-catalog [data-sticky-frame] { height: var(--settings-view-h); overflow: auto; padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-sticky-frame] > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+
 html{--hue-gray: #5c6570; --hue-gray-fill: #95a2b3; --hue-gray-soft: #eef0f2; --hue-brown: #9c5f1a; --hue-brown-fill: #c4894a; --hue-brown-soft: #f6eee4; --hue-orange: #8a5c18; --hue-orange-fill: #f2994a; --hue-orange-soft: #f8f0e2; --hue-yellow: #8a6d12; --hue-yellow-fill: #e2b203; --hue-yellow-soft: #f7f3e0; --hue-green: #2d7a5a; --hue-green-fill: #4cb782; --hue-green-soft: #e8f4ee; --hue-mint: #26785f; --hue-mint-fill: #4cb8a5; --hue-mint-soft: #e6f4f0; --hue-cyan: #3d6f78; --hue-cyan-fill: #4db7c9; --hue-cyan-soft: #e7f2f3; --hue-blue: #3c6fc6; --hue-blue-fill: #5b8def; --hue-blue-soft: #e8eef9; --hue-indigo: #5e6ad2; --hue-indigo-fill: #5e6ad2; --hue-indigo-soft: #eef0fb; --hue-purple: #7f5eb0; --hue-purple-fill: #a78bda; --hue-purple-soft: #f1ebf7; --hue-pink: #a15571; --hue-pink-fill: #e39eb6; --hue-pink-soft: #f8eef2; --hue-red: #b03d45; --hue-red-fill: #eb5757; --hue-red-soft: #fbecec; --hue-steel: #4f6470; --hue-steel-fill: #7d93a0; --hue-steel-soft: #eef1f3; --hue-slate: #66709e; --hue-slate-fill: #8b95c4; --hue-slate-soft: #eef0f6; --tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber); --tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint); --content-side: var(--surface-soft); --content-paper: var(--paper); --content-hover: var(--nav-hover); --content-press: var(--nav-press); --content-ink: var(--ink); --content-muted: var(--muted); --content-line: var(--line); --content-accent: var(--action); --content-accent-press: var(--action-hover); --content-on-accent: var(--action-ink); --content-select: var(--nav-active); --content-tty: #F8F7F4; --content-tty-ink: #383A43; --content-danger: var(--red); --content-field: var(--rail); --mark-slate: #647DB5; --mark-slate-fill: #E7EAF2; --mark-blue: #5684AA; --mark-blue-fill: #E6ECF3; --mark-ochre: #A7803E; --mark-ochre-fill: #F2EBDF; --mark-plum: #9270B1; --mark-plum-fill: #EFE6EF; --mark-clay: #B27460; --mark-clay-fill: #F2E7E1;} html[data-resolved-theme="dark"]{--hue-gray: #b3b8c2; --hue-gray-fill: #95a2b3; --hue-gray-soft: #24262a; --hue-brown: #dcab6d; --hue-brown-fill: #c4894a; --hue-brown-soft: #32281c; --hue-orange: #d4a15c; --hue-orange-fill: #f2994a; --hue-orange-soft: #342a1c; --hue-yellow: #e0c56a; --hue-yellow-fill: #e2b203; --hue-yellow-soft: #332e18; --hue-green: #6bc49a; --hue-green-fill: #4cb782; --hue-green-soft: #173026; --hue-mint: #86c9b1; --hue-mint-fill: #4cb8a5; --hue-mint-soft: #17302a; --hue-cyan: #86c0c7; --hue-cyan-fill: #4db7c9; --hue-cyan-soft: #1b2e32; --hue-blue: #8fb2f5; --hue-blue-fill: #5b8def; --hue-blue-soft: #1c2740; --hue-indigo: #8b93f1; --hue-indigo-fill: #8b93f1; --hue-indigo-soft: #262848; --hue-purple: #c0a0ea; --hue-purple-fill: #a78bda; --hue-purple-soft: #2c2438; --hue-pink: #e39eb6; --hue-pink-fill: #e39eb6; --hue-pink-soft: #3a242c; --hue-red: #ee858c; --hue-red-fill: #eb5757; --hue-red-soft: #3a2024; --hue-steel: #9bb0bc; --hue-steel-fill: #7d93a0; --hue-steel-soft: #22282c; --hue-slate: #a6afd5; --hue-slate-fill: #8b95c4; --hue-slate-soft: #242636; --tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber); --tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint); --content-side: var(--surface-soft); --content-paper: var(--paper); --content-hover: var(--nav-hover); --content-press: var(--nav-press); --content-ink: var(--ink); --content-muted: var(--muted); --content-line: var(--line); --content-accent: var(--action); --content-accent-press: var(--action-hover); --content-on-accent: var(--action-ink); --content-select: var(--nav-active); --content-tty: #222329; --content-tty-ink: #E2E3E9; --content-danger: var(--red); --content-field: var(--rail); --mark-slate: #91A8DC; --mark-slate-fill: #3A4155; --mark-blue: #8AB2D5; --mark-blue-fill: #354454; --mark-ochre: #C9A566; --mark-ochre-fill: #4B4133; --mark-plum: #BC9ADA; --mark-plum-fill: #4C3C4D; --mark-clay: #D29C87; --mark-clay-fill: #4D3D37;}

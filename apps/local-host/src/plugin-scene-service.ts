@@ -53,7 +53,10 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
     if (change === "wait" && scope.definition.action.scheduling !== "concurrent") throw new ActionError("actions.forbidden", "运行场景要等判断结果，只能由并行动作调用");
     const check = () => { holding(); requireSynchronous(original.assert_authority_current?.(), "最终授权检查必须同步完成"); };
     check();
-    const result = await run({ ...original, delegated_by: manifest.plugin_id }, scope);
+    const nested: ActionExecutionContext = { ...original, delegated_by: manifest.plugin_id };
+    // Where the action that runs the scene was handed in from is that action's own fact, one hop; the scene's targets are not told it (BL-803).
+    Reflect.deleteProperty(nested, "delegated_action"); Reflect.deleteProperty(nested, "direct_person_entry");
+    const result = await run(nested, scope);
     check();
     return result;
   };

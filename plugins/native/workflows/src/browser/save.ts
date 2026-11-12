@@ -11,6 +11,8 @@ import { label, stateKey, stnMeta } from "./state.js";
 import { toast } from "./toast.js";
 import type { Chain, Edit, Flow, Patch, SaveAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 type SaveMode = "error" | "unsaved" | "saved" | "saving";
 
 const draftId = (page: WorkflowsPage) => stateKey(page) + ":drafts";
@@ -26,7 +28,7 @@ function retain(page: WorkflowsPage) {
 export function restoreDrafts(page: WorkflowsPage) {
   try {
     const saved = JSON.parse(sessionStorage.getItem(draftId(page)) || "[]") as [string, Pick<Edit, "flow" | "patch" | "error">][];
-    for (const [id, edit] of saved) page.edits.set(id, { ...edit, pending: 0, error: edit.error || page.L("workflows.save.failed") });
+    for (const [id, edit] of saved) page.edits.set(id, { ...edit, pending: 0, error: edit.error || uiText.text("workflows.save.failed") });
   } catch { /* An unreadable saved draft does not prevent opening the stored workflow. */ }
 }
 
@@ -45,14 +47,14 @@ export function adoptFlow(page: WorkflowsPage, row: Flow): Flow {
 }
 
 export function paintSave(page: WorkflowsPage, mode?: SaveMode) {
-  const { ui, root, view, L } = page;
+  const { ui, root, view } = page;
   const edit = ui.workflow && page.edits.get(ui.workflow.workflow_id);
   const state: SaveMode = mode || (edit?.error ? "error" : edit?.pending ? "unsaved" : "saved");
   const el = root.dataset.wfMode === "workflow" ? view.querySelector<HTMLElement>("[data-wf-save-state]") : null;
   if (!el) return;
   el.dataset.state = state; el.dataset.mwState = state === "error" ? "failed" : state; el.title = edit?.error || "";
-  el.innerHTML = state === "error" ? esc(L("workflows.save.failed")) + ` <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"${edit?.pending ? " disabled" : ""}>${esc(L("workflows.save.retry"))}</button>`
-    : state === "saving" ? `<span class="mw-spinner" aria-hidden="true"></span><span>${esc(L("workflows.save.saving"))}</span>` : state === "unsaved" ? esc(L("workflows.save.unsaved")) : `${ico("check")}<span>${esc(L("workflows.save.saved"))}</span>`;
+  el.innerHTML = state === "error" ? esc(uiText.text("workflows.save.failed")) + ` <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"${edit?.pending ? " disabled" : ""}>${esc(uiText.text("workflows.save.retry"))}</button>`
+    : state === "saving" ? `<span class="mw-spinner" aria-hidden="true"></span><span>${esc(uiText.text("workflows.save.saving"))}</span>` : state === "unsaved" ? esc(uiText.text("workflows.save.unsaved")) : `${ico("check")}<span>${esc(uiText.text("workflows.save.saved"))}</span>`;
 }
 
 /** Sends the changes waiting out their delay now. */
@@ -68,16 +70,16 @@ export function debounce(page: WorkflowsPage, flow: Flow, patch: Patch, field: s
 }
 
 export function undo(page: WorkflowsPage) {
-  const { ui, pop, L } = page;
+  const { ui, pop } = page;
   const flow = ui.workflow, last = page.undos.pop();
   if (!flow || !last || last.id !== flow.workflow_id) { page.undos.length = 0; return false; }
   if (pop.matches(":popover-open")) pop.hidePopover();
-  saveFlow(page, { chain: last.chain }); toast(page, L("workflows.toast.undone"));
+  saveFlow(page, { chain: last.chain }); toast(page, uiText.text("workflows.toast.undone"));
   return true;
 }
 
 export function saveFlow(page: WorkflowsPage, patch: Patch, flow: Flow | null = page.ui.workflow) {
-  const { ui, L } = page;
+  const { ui } = page;
   if (!flow) return;
   flushSave(page);
   if (patch.chain && patch.undoable) {
@@ -91,8 +93,8 @@ export function saveFlow(page: WorkflowsPage, patch: Patch, flow: Flow | null = 
   if (!edit.error) edit.pending += 1;
   if (ui.workflow === flow) {
     drawFlow(page); drawList(page);
-    if (patch.announce) toast(page, patch.announce, "", { label: L("workflows.toast.undo"), run: () => undo(page) });
-    else if (lost > 0) toast(page, L("workflows.toast.back-to-manual", { count: lost }), "", { label: L("workflows.toast.undo"), run: () => undo(page) });
+    if (patch.announce) toast(page, patch.announce, "", { label: uiText.text("workflows.toast.undo"), run: () => undo(page) });
+    else if (lost > 0) toast(page, uiText.text("workflows.toast.back-to-manual", { count: lost }), "", { label: uiText.text("workflows.toast.undo"), run: () => undo(page) });
   }
   if (edit.error) { if (ui.workflow === flow) paintSave(page); return; }
   clearTimeout(page.saveId); page.saveId = setTimeout(() => { if (ui.workflow === flow && edit.pending) paintSave(page, "saving"); }, 260);
@@ -126,7 +128,7 @@ export function retrySave(page: WorkflowsPage) {
 export const chainOf = (page: WorkflowsPage): Chain => ({ stations: [...page.ui.workflow!.stations], links: [...page.ui.workflow!.links] });
 
 export async function removeAt(page: WorkflowsPage, index: number, { keyboard = false } = {}) {
-  const { ui, view, root, L } = page;
+  const { ui, view, root } = page;
   const flow = ui.workflow; if (!flow) return;
   const station = flow.stations[index]!;
   const leaving = motion(view.querySelector(`[data-wf-chain] [data-wf-station="${index}"]`), [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.88)" }], { duration: 130, easing: EASE_STANDARD, fill: "forwards" });
@@ -135,7 +137,7 @@ export async function removeAt(page: WorkflowsPage, index: number, { keyboard = 
   const at = flow.stations.findIndex((item) => item.station_id === station.station_id);
   if (at < 0) return;
   if (keyboard) { const next = flow.stations[at + 1] || flow.stations[at - 1]; page.focusNext = next ? next.station_id : null; }
-  saveFlow(page, { chain: removeStn(chainOf(page), at), undoable: true, announce: L("workflows.toast.removed", { plugin: label(page, flow.stations[at]!) }) });
+  saveFlow(page, { chain: removeStn(chainOf(page), at), undoable: true, announce: uiText.text("workflows.toast.removed", { plugin: label(page, flow.stations[at]!) }) });
 }
 
 export function insertAt(page: WorkflowsPage, gap: number, plugin: string, { focus = false } = {}) {

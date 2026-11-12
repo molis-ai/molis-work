@@ -1,4 +1,6 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -115,13 +117,38 @@ test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next 
     projectId: project.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: f.home,
     actions: { registry: f.host.actionRegistry(project.reference), client: f.host.actionClient(project.reference), project_id: project.project_id } }));
   assert.ok(state.platform, state.error);
-  const port = () => state.platform!.wiring.view().plugins.find(item => item.plugin_id === id)!.ports.find(item => item.port === "text")!;
+  const wiring = state.platform.wiring;
+  const port = () => wiring.view().plugins.find(item => item.plugin_id === id)!.ports.find(item => item.port === "text")!;
   assert.deepEqual(port().source, { source_plugin_id: source.plugin_id, source_port: source.port }); assert.equal(port().origin, "default");
+
+  // An independent project request can reconcile before the revoke response reaches the caller.
+  // Follow the revoke action and the work it starts through nested call scopes.
+  const revokeScope = new AsyncLocalStorage<true>();
+  t.after(() => revokeScope.disable());
+  const homeActionClient = f.host.homeActionClient.bind(f.host);
+  t.mock.method(f.host, "homeActionClient", () => {
+    const client = homeActionClient();
+    return { ...client, invoke(caller, action, input) {
+      if (action.capability_id === pluginConsentActions.revoke.capability_id) {
+        return revokeScope.run(true, () => client.invoke(caller, action, input));
+      }
+      return client.invoke(caller, action, input);
+    } };
+  });
+  const unboundByRevoke: boolean[] = [];
+  const unbind = wiring.unbind.bind(wiring);
+  t.mock.method(wiring, "unbind", (target: string, inputPort: string) => {
+    if (target === id && inputPort === "text") unboundByRevoke.push(revokeScope.getStore() === true);
+    unbind(target, inputPort);
+  });
+
   const revoked = await settings(f, "revoke", { consent_id: row.consent_id });
   assert.equal(revoked.status, 200); assert.ok(ledger.consents(id)[0]!.revoked_at);
-  assert.ok(port().source, "revoking alone keeps the agreed next-request timing; no synchronous broadcast was added");
+  assert.ok(!unboundByRevoke.includes(true), "the revoke action leaves the default wiring for project reconciliation");
   for (let round = 0; round < 2; round += 1) {
     assert.equal((await f.request(path)).status, 200);
     assert.equal(port().source, undefined, `project request ${round + 1}: the revoked default is off and stays off`);
   }
+  assert.ok(unboundByRevoke.length > 0, "the wiring observer saw the target default being removed");
+  assert.ok(!unboundByRevoke.includes(true), "work started by the revoke action leaves the default wiring for project reconciliation");
 });

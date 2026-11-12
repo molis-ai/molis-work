@@ -1,3 +1,6 @@
+import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
+import { directoryWordResolver } from './ui-text-provider.js';
+import { activeLocale } from './web-locale.js';
 /**
  * Installing a plugin from a signed package (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.1): a sandbox
  * package, or the content package of a plugin with only declarations (specs/skill-packs/contract-design.md §3, §5). One path for every
@@ -7,11 +10,11 @@
  * its format stops at the preview, and the confirmation takes only a preview the Host itself made.
  */
 import { randomUUID } from 'node:crypto';
-import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SkillInstallPreview } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
@@ -21,11 +24,14 @@ import { packagedRelease, type SandboxPackageStore } from './sandbox-package-sto
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
 import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
+import { isPendingUninstall } from './installed-plugin-lifecycle.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
-import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { sandboxProjectedPermissions, sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { assertConnectorText, connectorWords } from "./connector-words.js";
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 import { readBundledPackages } from './bundled-packages.js';
+import type { PackageControlOutcome } from './uninstall-retained.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -49,14 +55,14 @@ export interface PluginInstallPorts {
   /** Whether some provider offers this action in the project now: what the preview says of each of a package's `requires`. A Host without it previews no package that requires any. */
   offers?(projectId: string, reference: { capability_id: string; version: number }): boolean;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
-  control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
+  control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PackageControlOutcome>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
   homeInstalled?(): Promise<InstalledPluginEntry[]>;
   homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
-  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
+  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PackageControlOutcome>;
   /** The release's folder of the packages it ships uninstalled (`bundledPackagesDirectory`); a Host without one ships none. */
   bundledDirectory?: string;
   now?(): string;
@@ -70,7 +76,6 @@ export interface BundledPluginView {
   plugin_id: string;
   version: string;
   name: string;
-  name_en: string | null;
   summary: string | null;
   runtime_scope: 'home' | 'project';
   publisher: { publisher_id: string; key_id: string; pinned_label: string | null; revoked: boolean };
@@ -95,7 +100,7 @@ export interface PluginInstallPreviewResult {
   effects: SandboxEffects;
   publisher: { key_id: string; pinned_label: string | null };
   /** The role materials the package ships, and in an upgrade how each changed. Its methods are Skills, listed in `skills`. */
-  agent_bodies?: Array<{ kind: 'role'; name: string; excerpt: string; change?: 'added' | 'changed' | 'removed' }>;
+  agent_bodies?: Array<{ kind: 'role'; name: string; excerpt: string; body: string; total_chars: number; truncated: boolean; change?: 'added' | 'changed' | 'removed' }>;
   /** Every Skill the package declares (its Manifest's `methods`), and in an upgrade what changed (specs/skill-packs/contract-design.md §5). */
   skills?: SkillInstallPreview[];
   /** The actions the Manifest `requires`, each with whether a provider offers it in this project now. */
@@ -110,7 +115,26 @@ export interface PluginInstallPreviewResult {
 /** One of a Manifest's `requires`, as the preview says it: an unmet required one makes its Skills unavailable, an unmet optional one only less. */
 export interface PluginRequirementPreview { capability_id: string; version: number; optional: boolean; reason: string; satisfied: boolean }
 
-interface Held { bundle: PluginPackageBundle; pkg: KeptPackage; runtime_scope: 'home' | 'project'; key_id: string; spki: string; project_id: string; actor_id: string; expires: number }
+type PreviewOwner = { project_id: string; actor_id: string };
+type InstallAuthority = Pick<ActionExecutionContext, 'beforeEffect' | 'signal' | 'assert_authority_current'>;
+
+interface Held extends PreviewOwner {
+  bundle: PluginPackageBundle;
+  pkg: KeptPackage;
+  view: PluginInstallPreviewResult;
+  spki: string;
+  expires: number;
+}
+
+export function assertInstallAuthority(caller?: InstallAuthority): void {
+  caller?.signal?.throwIfAborted();
+  requireSynchronous(caller?.assert_authority_current?.());
+}
+
+function requireHeldPreview(held: Held | undefined, who: PreviewOwner): Held {
+  if (!held || held.expires <= Date.now() || held.project_id !== who.project_id || held.actor_id !== who.actor_id) throw pluginErrors.preview_unknown('没有这次安装的预览，或它已过期；请重新预览');
+  return held;
+}
 
 const scopeOf = (manifest: KeptSandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
 
@@ -140,7 +164,7 @@ const assertIdPathFree = (pluginId: string, keyId: string, installed: readonly I
 /** A package's role materials as the preview lists them, and in an upgrade how each changed against the installed package's. */
 function rolePreviews(bodies: readonly SandboxAgentBody[], installed?: readonly SandboxAgentBody[]): NonNullable<PluginInstallPreviewResult['agent_bodies']> {
   const roles = (all: readonly SandboxAgentBody[]) => all.filter(body => body.kind === 'role'), next = roles(bodies), old = installed && roles(installed);
-  const preview = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: 'role' as const, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), ...(change ? { change } : {}) });
+  const preview = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: 'role' as const, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), body: body.body, total_chars: Array.from(body.body).length, truncated: Array.from(body.body).length > 200, ...(change ? { change } : {}) });
   const previews = next.map(body => {
     const previous = old?.find(item => item.entry_id === body.entry_id);
     return preview(body, old === undefined ? undefined : !previous ? 'added' : previous.body !== body.body ? 'changed' : undefined);
@@ -161,10 +185,12 @@ export class PluginInstallService {
   async bundled(): Promise<BundledPluginList> {
     const { packages, refused } = this.ports.bundledDirectory ? await readBundledPackages(this.ports.bundledDirectory) : { packages: [], refused: [] };
     const pins = this.ports.ledger.publishers();
+    const locale = activeLocale();
     return {
-      plugins: packages.map(({ manifest, key_id }) => {
+      plugins: packages.map(({ manifest, key_id, localePacks }) => {
         const pin = pins.find(item => item.key_id === key_id);
-        return { plugin_id: manifest.plugin_id, version: manifest.version, name: manifest.name, name_en: manifest.name_en ?? null, summary: manifest.summary ?? null,
+        const { name, summary } = projectDirectoryWords(manifest, localePacks && locale ? directoryWordResolver(localePacks, locale) : undefined);
+        return { plugin_id: manifest.plugin_id, version: manifest.version, name, summary: summary ?? null,
           runtime_scope: scopeOf(manifest), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
       }),
       refused: refused.map(({ file, error }) => ({ file, code: error.code, message: error.message })),
@@ -186,19 +212,17 @@ export class PluginInstallService {
   }
 
   /** Checks a package and says what installing it means. Writes nothing durable: the preview is held in memory for the confirmation. */
-  async preview(input: PluginInstallPreviewInput, who: { project_id: string; actor_id: string }): Promise<PluginInstallPreviewResult> {
+  async preview(input: PluginInstallPreviewInput, who: PreviewOwner, caller?: InstallAuthority): Promise<PluginInstallPreviewResult> {
     const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled) : input.bundle);
     const pkg = readKeptPackage(bundle.payload);
-    const pin = this.pinOf(key_id);
-    if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+    this.assertPublisherStanding(key_id);
     const { manifest } = pkg, runtime_scope = scopeOf(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
+    if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
     assertNotHostId(manifest.plugin_id);
-    for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
-    if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
     const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
     const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
     // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
@@ -211,14 +235,35 @@ export class PluginInstallService {
     }
     const requires = (manifest.requires ?? []).map(({ capability_id, version, optional, reason }) => ({ capability_id, version, optional: optional === true, reason,
       satisfied: this.offers(who.project_id, { capability_id, version }) }));
+    if (caller) await caller.beforeEffect();
+    assertInstallAuthority(caller);
+    const pin = this.assertPublisherStanding(key_id);
+    const word = connectorWords(manifest.plugin_id, pkg.localePacks);
     const preview_id = randomUUID();
-    this.held.set(preview_id, { bundle, pkg, runtime_scope, key_id, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: Date.now() + PREVIEW_TTL_MS });
-    return { preview_id, name: manifest.name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
+    const locale = activeLocale();
+    const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
+    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
+        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
-        ? [{ service_id: service.service_id, title: service.title, origins: [...service.origins] }] : []) } : {} };
+        ? [{ service_id: service.service_id, title: word(service.title), origins: [...service.origins] }] : []) } : {} };
+    const now = Date.now();
+    for (const [id, entry] of this.held) if (entry.expires <= now) this.held.delete(id);
+    if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value!);
+    this.held.set(preview_id, { bundle, pkg, view, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: now + PREVIEW_TTL_MS });
+    return structuredClone(view);
+  }
+
+  /** Read what the person would have seen at preview, with the same owner and expiry checks as confirmation. */
+  readPreview(previewId: string, who: PreviewOwner): PluginInstallPreviewResult {
+    return structuredClone(requireHeldPreview(this.held.get(previewId), who).view);
+  }
+
+  private assertPublisherStanding(keyId: string): PluginPublisherPin | undefined {
+    const pin = this.pinOf(keyId);
+    if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+    return pin;
   }
 
   private offers(projectId: string, reference: { capability_id: string; version: number }): boolean {
@@ -244,64 +289,64 @@ export class PluginInstallService {
    * Installs what a preview showed. The preview is used up by this call, whatever happens. A publisher the person has not pinned is pinned
    * here only when they said so (`pin_label`); the install then runs under that pin.
    */
-  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: { project_id: string; actor_id: string }, caller?: ActionExecutionContext): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
-    const held = this.held.get(input.preview_id);
+  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: PreviewOwner, caller?: ActionExecutionContext): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
+    const entry = this.held.get(input.preview_id);
     this.held.delete(input.preview_id);
-    if (!held || held.expires <= Date.now() || held.project_id !== who.project_id || held.actor_id !== who.actor_id) throw pluginErrors.preview_unknown('没有这次安装的预览，或它已过期；请重新预览');
+    const held = requireHeldPreview(entry, who), { runtime_scope, publisher: { key_id } } = held.view;
     if (input.consent !== true) throw pluginErrors.consent_required('安装前请确认插件要使用的权限');
     // The range the person saw is the range of the package: checked again, as another preview may have been confirmed since.
-    if (scopeOf(held.pkg.manifest) !== held.runtime_scope) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
+    if (scopeOf(held.pkg.manifest) !== runtime_scope) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
     this.assertScopeKept(held.pkg.manifest, message => pluginErrors.preview_unknown(message + '；请重新预览'));
     // Another package may have taken one of its ids since the preview.
     await this.assertIntegrationsFree(held.pkg.manifest);
-    const pin = this.pinOf(held.key_id);
-    if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+    this.assertPublisherStanding(key_id);
     // Each scope checks its own installations. Only the installed publisher can upgrade a signed package; another publisher is refused
     // before it can be pinned or kept. An id belonging to the Host's own plugins was already refused at preview.
-    const inHome = held.runtime_scope === 'home';
+    const inHome = runtime_scope === 'home';
     const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
     const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
-    if (present && present.record.publisher_signature !== held.key_id) {
+    // An uninstall whose clean-up has not finished is listed until the person retries it; nothing is installed over it meanwhile (BL-915).
+    if (present && isPendingUninstall(present.record)) throw pluginErrors.uninstall_cleanup_pending('上次卸载还没有清理完：请先在设置里重试卸载，再安装');
+    if (present && present.record.publisher_signature !== key_id) {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
     // The two refusals the install makes after the package is kept, asked here instead: an id on the dotted path of another publisher's installed
     // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
-    assertIdPathFree(held.pkg.manifest.plugin_id, held.key_id, entries);
+    assertIdPathFree(held.pkg.manifest.plugin_id, key_id, entries);
     if (present) {
       assertUpgradeOf(held.pkg.manifest, present.record.version);
       // The installed package may have moved since the preview: its Skills' versions are asked again against the one installed now (SKC-04).
       skillInstallPreviews(held.pkg, this.ports.packages.load(present.record.plugin_id, present.record.publisher_signature, present.record.version).packaged);
     }
     await caller?.beforeEffect();
-    const assertCurrent = () => { caller?.signal?.throwIfAborted(); caller?.assert_authority_current?.(); };
+    const assertCurrent = () => assertInstallAuthority(caller);
     assertCurrent();
     // The caller may have waited while the publisher was revoked, so use the live pin at the commit boundary.
-    const currentPin = this.pinOf(held.key_id);
-    if (currentPin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+    const currentPin = this.assertPublisherStanding(key_id);
     if (!currentPin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
       if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
-      this.ports.ledger.pinPublisher({ key_id: held.key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: who.actor_id });
+      this.ports.ledger.pinPublisher({ key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: who.actor_id });
       consentsChanged();
     }
     const directory = this.ports.packages.save(held.bundle, held.pkg);
     const release = packagedRelease(held.pkg, directory, this.now());
-    if (held.runtime_scope === 'home') await this.ports.installInHome(release, assertCurrent);
+    if (inHome) await this.ports.installInHome(release, assertCurrent);
     else await this.ports.installInProject(held.project_id, release, assertCurrent);
-    return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: held.key_id };
+    return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
   }
 
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
-  async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, who: { project_id: string }): Promise<string> {
-    return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data });
+  async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, who: { project_id: string }, caller?: InstallAuthority): Promise<PackageControlOutcome> {
+    return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {}, assertCurrent: () => assertInstallAuthority(caller) });
   }
 
   /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
-  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }): Promise<string> {
+  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<PackageControlOutcome> {
     const { homeControl } = this.ports;
     if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
-    return homeControl(input.plugin_id, action, { keep_data: input.keep_data });
+    return homeControl(input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {}, assertCurrent: () => assertInstallAuthority(caller) });
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }
@@ -361,7 +406,7 @@ export class PluginInstallService {
   private views(entries: InstalledPluginEntry[]): PluginInstalledView[] {
     return installedPluginViews(entries.map(entry => {
       try { return { ...entry, requestedPermissions: this.requested(entry) }; }
-      catch (error) { return { ...entry, manifest: undefined, recoveryError: error instanceof Error ? error.message : String(error) }; }
+      catch (error) { const code = (error as { code?: unknown } | null)?.code; return { ...entry, manifest: undefined, recoveryCode: typeof code === 'string' ? code : 'plugin.package_invalid' }; }
     }), this.ports.ledger);
   }
 

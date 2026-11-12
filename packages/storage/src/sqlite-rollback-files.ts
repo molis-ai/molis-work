@@ -1,6 +1,7 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, rmSync, type Stats } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { snapshotFileStat } from "./snapshot-files.js";
+import { rollbackPreservingError } from "./transaction-errors.js";
 
 const journalMagic = Buffer.from("d9d505f920a163d7", "hex");
 const sqliteMagic = Buffer.from("SQLite format 3\0");
@@ -136,5 +137,6 @@ export function removeUnflushedRollbackJournal(db: { exec(sql: string): unknown 
   if (!journalLooksUnflushed(journal)) return;
   db.exec("BEGIN EXCLUSIVE");
   try { if (journalLooksUnflushed(journal)) rmSync(journal, { force: true }); }
-  finally { db.exec("ROLLBACK"); }
+  catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
+  db.exec("ROLLBACK");
 }

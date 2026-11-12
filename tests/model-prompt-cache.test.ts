@@ -17,6 +17,7 @@ import {
   renderModelSettingsDocument,
   type ModelSettingsPrimitives,
 } from "@molis-ai/molis-work-app-workbench";
+import { withPageText } from "./fixtures/page-text.js";
 
 /**
  * 提示缓存是一个**选择**，不是我们替用户做的优化。
@@ -27,7 +28,6 @@ import {
  */
 
 const p: ModelSettingsPrimitives = {
-  L: (text) => text,
   escape: (value) => String(value)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
@@ -152,20 +152,20 @@ test("设置页在给不了「要求缓存支持」的格式上不摆这个选�
   const openai = record({
     provider_id: "openai", api_format: "openai-chat-completions", base_url: "https://api.openai.com/v1",
   });
-  const html = renderModelSettingsDocument({
+  const html = withPageText("zh", [], () => renderModelSettingsDocument({
     templates: [],
     providers: [openai], health: [], selected_provider_id: "openai", primitives: p,
-  });
+  }));
   assert.equal(html.includes('data-model-prompt-cache="openai"'), true);
   assert.equal(html.includes('value="required"'), false,
     "摆一个永远选不了的选项，用户学不到任何东西");
   assert.match(html, /没有我们能打开的开关/);
 
-  const anthropic = renderModelSettingsDocument({
+  const anthropic = withPageText("en", [], () => renderModelSettingsDocument({
     templates: [],
     providers: [record()], health: [], selected_provider_id: "minimax", primitives: p,
-  });
-  assert.equal(anthropic.includes('value="required"'), true);
+  }));
+  assert.match(anthropic, /<option value="required">Required \(fail if unsupported\)<\/option>/);
 });
 
 test("能不能打开断点是按格式判的，不是按供应商名字", () => {

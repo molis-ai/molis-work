@@ -39,6 +39,7 @@ const SPEC: UiSpecFile = {
   format_version: UI_FORMAT_VERSIONS.spec, id: "molis-interface", revision: 1, baseline_skin: { id: "soft-workbench", revision: 1 }, baseline_font: { id: "system-sans", revision: 1 },
   groups: [{ group: "shell", roles: [{ name: "page", type: "color", varies_by: "theme" }, { name: "nav-bg", type: "color", varies_by: "theme", follows: "page" }, { name: "shadow", type: "shadow", varies_by: "none" }] }],
   font_roles: [],
+  components: [],
 };
 const SKIN: UiSkinFile = {
   format_version: UI_FORMAT_VERSIONS.skin, id: "soft-workbench", revision: 1, spec: { id: "molis-interface", revision: 1 }, name: { literal: "Soft" }, recommended_font: { id: "system-sans", revision: 1 },
@@ -66,6 +67,25 @@ test("FSS-48: the same input gives the same JSON in Node and bundled for a brows
   const browser = await load(text) as typeof nodeUi;
   assert.deepEqual(JSON.parse(JSON.stringify(SAME_INPUT(browser))), JSON.parse(JSON.stringify(SAME_INPUT(nodeUi))));
   assert.equal(SAME_INPUT(browser).messages[0], "1.2K files", "it did run");
+});
+
+test("FSS-39 zoned dates agree in the host and a browser bundle with different process zones", async () => {
+  const { text } = await bundle(`export { formatDate } from ${JSON.stringify(SDK_UI)};`);
+  const browser = await load(text) as Pick<typeof nodeUi, "formatDate">;
+  const at = "2026-03-08T10:00:00Z", time_zone = "America/Los_Angeles";
+  const previous = process.env.TZ;
+  try {
+    process.env.TZ = "America/New_York";
+    const hostText = nodeUi.formatDate(at, "time", "en", { time_zone });
+    const hostDefault = nodeUi.formatDate(at, "time", "en");
+    process.env.TZ = "Asia/Shanghai";
+    assert.notEqual(browser.formatDate(at, "time", "en"), hostDefault, "an unspecified zone follows the environment");
+    assert.equal(browser.formatDate(at, "time", "en", { time_zone }), hostText);
+    assert.match(hostText, /^3:00\sAM$/u);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
 });
 
 test("FSS-50: `/ui` bundled for a browser has no Node built-in module", async () => {

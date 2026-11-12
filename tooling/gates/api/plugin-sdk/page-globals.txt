@@ -15,12 +15,15 @@ export interface ComposerCommand {
     slash: string;
     label: string;
     hint?: string;
+    keywords?: readonly string[];
+    icon?: PluginIconName;
+    add?: false;
     run(): void;
 }
 
 export interface ComposerCommonOptions {
     entry: string;
-    draft: {
+    draft?: {
         conversation: string;
     } | {
         adapter: ComposerDraftAdapter;
@@ -28,6 +31,7 @@ export interface ComposerCommonOptions {
     submitKeys?: false;
     controls?: readonly ComposerControl[];
     commands?: readonly ComposerCommand[];
+    mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
     attachments?: {
         accept?: string;
         upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>;
@@ -49,19 +53,24 @@ export type ComposerControl = {
     options: readonly {
         value: string;
         label: string;
+        disabled?: boolean;
     }[];
     value: string;
+    disabled?: boolean;
     change?(value: string): void;
 } | {
     kind: "toggle";
     id: string;
     label: string;
     on: boolean;
+    disabled?: boolean;
     change?(on: boolean): void;
 } | {
     kind: "button";
     id: string;
     label: string;
+    title?: string;
+    disabled?: boolean;
     run(): void;
 };
 
@@ -85,9 +94,16 @@ export interface ComposerHandle {
     refresh(): void;
     focus(): void;
     insert(text: string): void;
+    hold(reason: string | null): void;
     attach(files: readonly File[]): void;
     materials(): readonly ComposerMaterial[];
     destroy(): void;
+}
+
+export interface ComposerMention {
+    title: string;
+    hint?: string;
+    insert: string;
 }
 
 export type ComposerOptions = ComposerCommonOptions & ({
@@ -98,12 +114,17 @@ export type ComposerOptions = ComposerCommonOptions & ({
     labels: MwComposerAiLabels;
     receiver?: () => {
         label: string;
+        icon?: PluginIconName;
+        detail?: string;
+        others?: ComposerReceiverChoice[];
+        choose?: (id: string) => void;
         open?: () => void;
         reset?: () => void;
         resetLabel?: string;
     } | null;
     delivery?: () => ComposerDelivery;
     stop?(signal: AbortSignal): Promise<void>;
+    pause?: () => ComposerPause | null;
 });
 
 export type ComposerOutcome = {
@@ -120,6 +141,19 @@ export type ComposerOutcome = {
     state: "unknown";
     check(): Promise<"sent" | "not-sent" | "unknown">;
 };
+
+export interface ComposerPause {
+    label: string;
+    title: string;
+    busy?: boolean;
+    run(signal: AbortSignal): Promise<void>;
+}
+
+export interface ComposerReceiverChoice {
+    id: string;
+    label: string;
+    detail?: string;
+}
 
 export interface ComposerSubmission {
     text: string;

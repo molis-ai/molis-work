@@ -1,12 +1,15 @@
+import { withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN, SKILL_PACK_BOARD_EN, listedIconNames, renderIconSprite, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { listedIconNames, renderIconSprite, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 
 // The unified input's three new board parts (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row
 // composer shell, the menu item's description line and the microphone glyph. K0c's renderComposer() and K2's client use these
 // class names, so the board pins them.
+
+const board = (options?: Parameters<typeof renderPrimitiveCatalog>[0]) => withPageText("zh", [], () => renderPrimitiveCatalog(options));
 
 const sectionOf = (html: string, id: string) => {
   const start = html.indexOf(`<section class="mw-catalog__section" id="${id}"`);
@@ -15,7 +18,7 @@ const sectionOf = (html: string, id: string) => {
 };
 
 test("UIC-04: the board has a composer section with every state on one attribute", () => {
-  const composer = sectionOf(renderPrimitiveCatalog(), "composer");
+  const composer = sectionOf(board(), "composer");
   assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 12, "ten states and the two at rest in one row");
   // At rest in one row (user 11-08): a phone's (a finger's targets) and a short window's, each the empty composer marked at rest.
   for (const mark of ['<div data-catalog-compact="touch">', "<div data-catalog-compact>"]) {
@@ -42,17 +45,12 @@ test("UIC-04: the board has a composer section with every state on one attribute
   assert.match(composer, /<textarea class="mw-composer__input" data-fit rows="1"/, "the text area grows with data-fit");
   assert.match(composer, /class="mw-btn-group" role="group"[^>]*>.*data-compose-menu-toggle/s, "running sends from a split button with a ▾ menu");
   assert.match(composer, /mw-btn--danger-outline/, "stop is the danger-outline button");
+  const english = withPageText("en", [], renderPrimitiveCatalog);
+  const text = sectionOf(english, "composer").replace(/访谈记录\.docx|首页草图\.png|年度报告\.pdf/g, "");
+  assert.doesNotMatch(text, /\p{Script=Han}/u);
   // The board still shows the microphone (a product page draws it only once it takes voice, user 11-08): first in the end group,
   // aria-disabled so it keeps its focus stop and says why, never `disabled`.
   assert.match(composer, /<div class="mw-composer__end"><button(?![^>]* disabled\b)(?=[^>]*aria-disabled="true")[^>]*aria-label="语音输入（还没有接上）"[^>]*>(?:(?!<\/button>).)*href="#icon-mic"/s, "the microphone holds its place first in the end group, unavailable and saying why");
-  // Seen through the board's English: no specimen text is left without a translation (the board's dictionary also carries the
-  // keep-edits and look sections' words, which go through the same translator; the few words the product already says are not
-  // written twice).
-  const board: Record<string, string> = { ...COMPOSER_BOARD_EN, ...KEEP_EDITS_BOARD_EN, ...LOOK_BOARD_EN, ...SKILL_PACK_BOARD_EN };
-  const english = renderPrimitiveCatalog({ say: (text, values = {}) => {
-    assert.ok(text in board || /^(助理|发送|补充|停止|重试|失败|运行中|待确认|不可用|聚焦|让助理做点什么…|保存|取消|更多|移除|知道了|提示|没有找到|命令|浅色|深色|再试一次|进行中|内置|没通过检查|项目名称)$/.test(text), `English for ${text}`);
-    return (board[text] ?? text).replace(/\{(\w+)\}/g, (whole, name: string) => String(values[name] ?? whole));
-  } });
   assert.match(sectionOf(english, "composer"), /<h2>Composer<\/h2>/);
 });
 
@@ -68,11 +66,11 @@ test("UIC-04: a menu item's description line sits under its name; an unavailable
   const given = renderMenuItem({ id: "c1-delivery-interrupt", label: "打断并改向", description: "x" });
   assert.match(given, /aria-labelledby="c1-delivery-interrupt-label" aria-describedby="c1-delivery-interrupt-desc"/, "a caller's id is used");
   assert.doesNotMatch(renderMenuItem({ label: "重命名" }), /mw-menu__desc|--described/, "an item without one is unchanged");
-  const board = sectionOf(renderPrimitiveCatalog(), "menu-desc");
-  assert.match(board, /mw-menu__shortcut/, "with shortcuts");
-  assert.ok((board.match(/mw-menu__item--described"[^>]*disabled/g)?.length ?? 0) >= 2, "unavailable items with reasons");
+  const menu = sectionOf(board(), "menu-desc");
+  assert.match(menu, /mw-menu__shortcut/, "with shortcuts");
+  assert.ok((menu.match(/mw-menu__item--described"[^>]*disabled/g)?.length ?? 0) >= 2, "unavailable items with reasons");
   // The same delivery menu is drawn more than once on the board; every copy names its own items.
-  const ids = [...renderPrimitiveCatalog().matchAll(/<(?:span|small)(?: class="mw-menu__desc")? id="([^"]+-(?:label|desc))"/g)].map((match) => match[1]!);
+  const ids = [...board().matchAll(/<(?:span|small)(?: class="mw-menu__desc")? id="([^"]+-(?:label|desc))"/g)].map((match) => match[1]!);
   assert.ok(ids.length >= 20, `read ${ids.length} described items' ids`);
   assert.deepEqual(ids.filter((id, index) => ids.indexOf(id) !== index), [], "no described item's id is repeated on the board");
 });
@@ -81,18 +79,24 @@ test("UIC-04: the microphone is in the icon set, the sprite and the board at 16 
   assert.ok((PLUGIN_ICON_NAMES as readonly string[]).includes("mic"));
   assert.ok(listedIconNames().includes("mic"));
   assert.match(renderIconSprite(), /<symbol id="icon-mic" viewBox="0 0 24 24">/);
-  const mic = sectionOf(renderPrimitiveCatalog(), "mic");
+  const mic = sectionOf(board(), "mic");
   assert.match(mic, /--mic-size: 16px/);
   assert.match(mic, /--mic-size: 20px/);
 });
 
 test("UIC-04: the running send is named by its stable key on the board, so the board and the product say the same word (Add, not the receipts' Supplement)", async (t) => {
+  // D0292: catalog HTTP specimens are development tools; the production Host deliberately refuses this route.
+  const previous = process.env.MOLIS_WORK_DEVELOPER_MODE;
+  process.env.MOLIS_WORK_DEVELOPER_MODE = "1";
+  t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_DEVELOPER_MODE; else process.env.MOLIS_WORK_DEVELOPER_MODE = previous; });
   const label = (html: string) => /<span id="catalog-composer-running-delivery-next-boundary-label">([^<]*)<\/span>/.exec(sectionOf(html, "composer"))?.[1];
-  assert.equal(label(renderPrimitiveCatalog()), "补充", "without the platform's words, the Chinese");
-  assert.equal(label(renderPrimitiveCatalog({ delivery: "Add" })), "Add");
+  assert.equal(label(board()), "补充", "without the platform's words, the Chinese");
+  assert.equal(label(board({ delivery: "Add" })), "Add");
   const f = await serveHomeRuntime(t);
   for (const [lang, word] of [["en", "Add"], ["zh", "补充"]] as const) {
-    const page = await (await f.request(`/__ui/catalog?lang=${lang}`)).text();
+    const response = await f.request(`/__ui/catalog?lang=${lang}`);
+    assert.equal(response.status, 200, "the development catalog is actually served");
+    const page = await response.text();
     assert.equal(label(page), word, lang);
     assert.match(sectionOf(page, "menu-desc"), new RegExp(`<span id="catalog-menu-desc-delivery-next-boundary-label">${word}</span>`), `${lang}: the menu section too`);
   }

@@ -2,7 +2,7 @@ import { nullableSchema as nullable, arraySchema as array, objectSchema } from "
 export { nullable, array };
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
-  goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
+  goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventBasisGaps, goalEventBasisTiers, goalEventSatisfactionGrounds, GOAL_EVENT_EVIDENCE_MAX, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
   goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,
   goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "./goals.js";
 
@@ -62,15 +62,26 @@ const closureFields = { kind: enumeration(goalEventClosureKinds), result: maybeT
   expected_config_version: count, expected_agreement_version: count, unmet_reasons: array(reason) };
 export const closure = object({ ...closureFields, closure_id: text, event_id: text, recorded: { const: true }, config_version: maybeCount, agreement_version: maybeCount,
   superseded: boolean, superseded_reason: maybeText, recorded_at: text });
-export const judgment = object({ requirement_id: text, verdict });
+const checked = object({ artifact_id: identifier, version: { type: "integer", minimum: 1 } });
+const said = { type: "string", minLength: 1, maxLength: 500 };
+const evidence = { type: "array", maxItems: GOAL_EVENT_EVIDENCE_MAX, items: { oneOf: [
+  object({ kind: { const: "artifact_version" }, artifact_id: identifier, version: { type: "integer", minimum: 1 } }),
+  object({ kind: { const: "command_receipt" }, run_id: { ...identifier, maxLength: 500 }, call_id: { ...identifier, maxLength: 500 } })] } };
+const basisFields = { checked, method: said, observed: said, evidence };
+/** What a reporter may say of one requirement: nothing here lets it state how far its own word is backed. */
+export const judgmentInput = object({ requirement_id: text, verdict, basis: object(basisFields, ["checked", "method", "observed"]) }, ["requirement_id", "verdict"]);
+const basis = nullable(object(basisFields));
+const tier = enumeration(goalEventBasisTiers), gap = enumeration([...goalEventBasisGaps, null]);
+export const judgment = object({ requirement_id: text, verdict, basis, tier, gap });
 const requirementReport = object({ event_id: text, actor_id: text, actor_kind: actorKind, verdict, received_at: text, journal_seq: count,
-  independent_verification: { const: false }, substitutes_human_decision: { const: false } });
-const conclusion = object({ decision_id: text, actor_id: text, verdict: enumeration(goalEventUserConclusionVerdicts), received_at: text, journal_seq: count });
+  basis, tier, gap, substitutes_human_decision: { const: false } });
+const conclusion = object({ decision_id: text, actor_id: text, verdict: enumeration(goalEventUserConclusionVerdicts), received_at: text, journal_seq: count, checked: nullable(checked) });
 const requirement = object({ requirement_id: text, goal_id: text, statement: text,
   origin: object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),
     decision_method: recordedDecisionMethod, pass_condition: text, config_version: count,
     planning: planningRequirement, policy_binding_ids: strings }, ["kind"]), bound_type_ids: strings, human_decision_required: boolean,
-  current_report: nullable(requirementReport), user_conclusion: nullable(conclusion), currently_satisfied: boolean });
+  current_report: nullable(requirementReport), user_conclusion: nullable(conclusion), currently_satisfied: boolean,
+  satisfied_by: enumeration([...goalEventSatisfactionGrounds, null]), conclusion_superseded: boolean });
 
 export const agreement = object({ version: count, outcome: text, has_minimum_result_agreement: boolean, missing: strings, updated_at: maybeText, updated_by: maybeText });
 

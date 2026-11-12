@@ -1,7 +1,6 @@
-import type { ConnectorCapability } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
-const live = (label: string): ConnectorCapability => ({ label, fulfillment: "live" });
+const live = (key: string) => ({ label: { key }, fulfillment: "live" as const });
 
 /**
  * The connection services the platform itself consumes, declared in the same shape a plugin declares its own and registered in the
@@ -10,27 +9,27 @@ const live = (label: string): ConnectorCapability => ({ label, fulfillment: "liv
  */
 export const PLATFORM_CONNECTION_SERVICES: readonly PluginConnectionServiceDeclaration[] = [
   {
-    service_id: "model-api", title: "模型 API", group_id: "work", auth_kind: "token",
-    summary: "为模型供应商保存多个 API Key，并在模型设置与 Jelly 中选择。",
-    auth: { methods: [{ kind: "token", label: "模型 API Key", placeholder: "sk-…" }] },
-    capabilities: [live("模型推理"), live("Jelly 摘要与拆解")],
+    service_id: "model-api", title: { key: "workbench.connection-service.model-api.title" }, group_id: "work", auth_kind: "token",
+    summary: { key: "workbench.connection-service.model-api.summary" },
+    auth: { methods: [{ kind: "token", label: { key: "workbench.connection-service.model-api.token" }, placeholder: "sk-…" }] },
+    capabilities: [live("workbench.connection-service.model-api.inference"), live("workbench.connection-service.model-api.jelly")],
   },
   {
     service_id: "typesafe", title: "TypeSafe", group_id: "work", auth_kind: "token",
-    summary: "Functions 使用这里保存的账号连接。",
+    summary: { key: "workbench.connection-service.typesafe.summary" },
     auth: { methods: [{ kind: "token", label: "TypeSafe API Key" }] },
-    capabilities: [live("Functions 调用"), live("Functions 账号选择")],
+    capabilities: [live("workbench.connection-service.typesafe.invoke"), live("workbench.connection-service.typesafe.choose")],
   },
   {
-    service_id: "image-api", title: "图像模型 API", group_id: "design", auth_kind: "token",
-    summary: "图像生成服务的 API Key；Images 中选择要使用的连接。",
-    auth: { methods: [{ kind: "token", label: "图像 API Key" }] },
-    capabilities: [live("Images 生成"), live("图像任务")],
+    service_id: "image-api", title: { key: "workbench.connection-service.image-api.title" }, group_id: "design", auth_kind: "token",
+    summary: { key: "workbench.connection-service.image-api.summary" },
+    auth: { methods: [{ kind: "token", label: { key: "workbench.connection-service.image-api.token" } }] },
+    capabilities: [live("workbench.connection-service.image-api.generate"), live("workbench.connection-service.image-api.tasks")],
   },
   {
-    service_id: "mcp-bearer", title: "远程 MCP", group_id: "code", auth_kind: "token",
-    summary: "远程 MCP 服务的 Bearer 凭据；在 Coding 的 MCP 配置中选择。",
+    service_id: "mcp-bearer", title: { key: "workbench.connection-service.mcp-bearer.title" }, group_id: "code", auth_kind: "token",
+    summary: { key: "workbench.connection-service.mcp-bearer.summary" },
     auth: { methods: [{ kind: "token", label: "Bearer Token" }] },
-    capabilities: [live("MCP 工具与资源"), live("Coding Agent")],
+    capabilities: [live("workbench.connection-service.mcp-bearer.tools"), { label: "Coding Agent", fulfillment: "live" }],
   },
 ];

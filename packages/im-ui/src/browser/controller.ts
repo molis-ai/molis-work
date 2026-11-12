@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { createViews } from '../views.js';
 import type { createMessageFormat } from '../message-format.js';
 import type { createHistory } from './history.js';
@@ -16,7 +17,7 @@ import type { createImStartup } from './controller-startup.js';
 import type { createImPage } from './controller-page.js';
 import type { createImClicks } from './controller-clicks.js';
 
-/** The factories the page serializes into the browser; each is self-contained and gets its dependencies as arguments. */
+/** The factories installed by the discussion browser entry. */
 export interface ImFactories {
   createViews: typeof createViews;
   createMessageFormat: typeof createMessageFormat;
@@ -56,7 +57,7 @@ export function startIm(factories: ImFactories) {
   const elements = { root, v, q, e, icon, dialog, dialogBody, projectId, s };
   // Cross-layer calls happen in the returned handlers, once the full context is assembled.
   const context = (): ImCtx => c;
-  const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError('身份连接已失效，请重新连接。已输入的内容会保留。'); });
+  const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError((uiText.text("im-ui.status.session-expired"))); });
   const { merge, latest, reset: resetHistory } = factories.createHistory(api);
   const base: ImBaseCtx = Object.assign(elements, { api, storage, connectProject, subscribe, merge, latest, resetHistory, drafts: factories.createDrafts(storage) });
   // One typed source avoids Object.assign's variadic any overload; all factories run before base receives the methods.
@@ -74,6 +75,6 @@ export function startIm(factories: ImFactories) {
     open: methods.openDialog, escape: e, icon, toast: methods.toast }) });
   factories.createImPage(c);
   factories.createImClicks(c);
-  parent.postMessage({ type: 'molis:im-ready' }, location.origin);
+  if (parent !== window) parent.postMessage({ type: 'molis:im-ready' }, location.origin);
   void c.startup();
 }

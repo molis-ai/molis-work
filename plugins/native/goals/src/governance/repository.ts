@@ -71,7 +71,7 @@ export class GovernanceRepository {
     const decisionsByProposal = new Map<string, GoalTreeProposalDecisionRecord[]>();
     const latestDecisionByItem = new Map<string, GoalTreeProposalDecisionRecord>();
     for (const row of this.db.prepare(`
-      SELECT * FROM goal_tree_proposal_decisions WHERE project_id = ?
+      SELECT *, rowid AS stored_row FROM goal_tree_proposal_decisions WHERE project_id = ?
       ORDER BY proposal_id, item_id, created_at, decision_id
     `).all(projectId) as GovernanceRow[]) {
       const decision = mapGoalTreeProposalDecision(row);
@@ -82,13 +82,13 @@ export class GovernanceRepository {
     }
     const itemsByProposal = new Map<string, GoalTreeProposalItemRecord[]>();
     for (const row of this.db.prepare(
-      "SELECT * FROM goal_tree_proposal_items WHERE project_id = ? ORDER BY proposal_id, ordinal, item_id",
+      "SELECT *, rowid AS stored_row FROM goal_tree_proposal_items WHERE project_id = ? ORDER BY proposal_id, ordinal, item_id",
     ).all(projectId) as GovernanceRow[]) {
       const item = mapGoalTreeProposalItem(row, latestDecisionByItem.get(text(row.item_id)) ?? null);
       itemsByProposal.set(item.proposal_id, [...(itemsByProposal.get(item.proposal_id) ?? []), item]);
     }
     return (this.db.prepare(
-      "SELECT * FROM goal_tree_proposals WHERE project_id = ? ORDER BY created_at DESC, proposal_id",
+      "SELECT *, rowid AS stored_row FROM goal_tree_proposals WHERE project_id = ? ORDER BY created_at DESC, proposal_id",
     ).all(projectId) as GovernanceRow[]).map((row) => mapGoalTreeProposal(
       row,
       itemsByProposal.get(text(row.proposal_id)) ?? [],

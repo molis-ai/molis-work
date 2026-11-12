@@ -4,7 +4,7 @@ import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.j
 import { parseCodingPlan } from "./plan-content.js";
 import { confirmedPlan, planFromRun, planMaterial, planReference, portableCodingPlan } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
-import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
+import { bodyOf, savedActions } from "./route-selections.js";
 import { codingActions, codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
 import { libraryRuntime, limitsCharacters, runtimeDirectory } from "./runtime-choice.js";
@@ -14,7 +14,7 @@ import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerI
 import { isDeepStrictEqual } from "node:util";
 import { codingFailure, codingText } from "./words.js";
 
-/** Coding routes for what the next round takes: materials, action tools, MCP, methods, plans, Characters, and the files named with @. */
+/** Coding routes for what the next round takes: materials, action tools, MCP, plans, Characters, and the files named with @. */
 
 type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBinding[];
 
@@ -29,7 +29,7 @@ const ROUTES: RouteMaker[] = [
       // The tools the session's Character allows: none when it sets no limit; Characters' own refusal (the version is off, gone) is shown beside each action.
       let characterTools: Awaited<ReturnType<typeof execution.characters.actionTools>>;
       let character_error: string | undefined;
-      const say = codingText(execution.locale);
+      const say = codingText;
       try { if (characterRef) characterTools = await execution.characters.actionTools(characterRef, codingActionControl(beforeWrite)); }
       catch (error) { beforeWrite.assert_current(); character_error = error instanceof Error ? error.message : say("coding.server.character-gone"); }
       return { actions: tools.map(view => ({ ...view, availability: character_error
@@ -63,33 +63,6 @@ const ROUTES: RouteMaker[] = [
       const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "mcp");
       await codingActions(context, beforeWrite).invoke(agent.controlMcp, [runtime.runtime_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
-    });
-  },
-  (a) => {
-    const { context, route } = a;
-    return route("coding.discover-methods", async (request, api, _execution, beforeWrite) => {
-      const body = bodyOf(request);
-      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      const workspaces = await projectFolders(api!);
-      const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
-      if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
-      return { candidates: await codingActions(context, beforeWrite).invoke(agent.discoverSkills, [runtime.runtime_id,
-        { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "coding.field.method-path", 1000)]) };
-    });
-  },
-  (a) => {
-    const { context, route } = a;
-    return route("coding.install-method", async (request, api, _execution, beforeWrite) => {
-      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      return { method: await codingActions(context, beforeWrite).invoke(agent.installSkill, [runtime.runtime_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
-    });
-  },
-  (a) => {
-    const { context, route } = a;
-    return route("coding.read-method", async (request, api, _execution, beforeWrite) => {
-      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
-      return { method: await codingActions(context, beforeWrite).invoke(agent.readSkill, [runtime.runtime_id, ref]) };
     });
   },
   (a) => {

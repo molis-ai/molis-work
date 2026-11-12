@@ -1,3 +1,4 @@
+import { initializeDemoPlugins } from "./plugin-demo-seed.js";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
 import { SYSTEM_OUTPUT_SOURCES } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
@@ -16,7 +17,6 @@ import type {
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 
-import { registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
 import {
   PluginEventBus,
   PluginHostEvents,
@@ -48,6 +48,7 @@ import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
+import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -72,7 +73,9 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  * One entry of the Host's own start list. A plugin on it is given the library in the Home its Manifest declares
  * (`databases.home`, as `services.database`); `assertDatabaseEntries` says what a list may declare.
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "dual_instance"> {}
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "dual_instance"> {
+  readonly localePacks?: PluginHostExecutorOptions["localePacks"];
+}
 
 export interface PluginPlatformOptions {
   project_id: string;
@@ -177,7 +180,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     installations: installations.client,
     record: installId => records.get(installId),
     invalidateView,
-    providerFor,
+    providerFor, localePacks: identity.localePacks,
     databaseFor: identity.databaseFor,
     dualInstance: identity.dualInstance,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
@@ -199,7 +202,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
         if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         return options.home.capturePermission(record, permission);
@@ -247,9 +250,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // it never acknowledged once it is running again.
   let stopArtifactRefresh: (() => void) | undefined;
   const detachActivation = supervisor.observeActivation(pluginId => {
-    // The words the Manifest declares (`ui.messages`) reach the pages' catalog the same way for a built-in and an installed plugin.
-    const manifest = supervisor.manifest(pluginId);
-    if (manifest) registerPluginMessages(manifest);
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
@@ -305,6 +305,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);
+      await initializeDemoPlugins({ home: options.home?.directory, projectId: options.project_id, actorId: options.actor_id, client: options.actions.client,
+        assertCurrent: control?.assertCurrent, entries: entries.flatMap(entry => {
+          const state = supervisor.state(entry.definition.manifest.plugin_id);
+          if (!state?.install_id || state.status !== "running") return [];
+          const installId = state.install_id;
+          return [{ manifest: entry.definition.manifest, providerId: providerFor(entry.definition, installId),
+            current: () => !closed && supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
+        }) });
       return report;
     },
   };

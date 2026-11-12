@@ -1,6 +1,7 @@
-import type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
+import type { PluginActiveInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { directoryWordResolver, drawRegisteredText } from "./ui-text-provider.js";
+import { pluginTextReader, projectDirectoryWords, type DirectoryWordSource, type PluginDirectory, type PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
@@ -9,14 +10,9 @@ import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginBy
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
 export interface DirectorySource {
   enabledPluginIds(): readonly string[];
+  activeInstance?(pluginId: string): PluginActiveInstance | undefined;
   state(pluginId: string): { readonly status: string } | null;
-  manifest(pluginId: string): {
-    readonly plugin_id: string;
-    readonly name: string;
-    readonly name_en?: string;
-    readonly publisher: { readonly signature: string };
-    readonly ui: { readonly views?: readonly UiViewDeclaration[] };
-  } | undefined;
+  manifest(pluginId: string): (DirectoryWordSource & { readonly publisher: { readonly signature: string } }) | undefined;
 }
 
 /**
@@ -34,12 +30,14 @@ export interface DirectorySource {
 export function runningPluginDirectory(source: DirectorySource, home?: string): PluginDirectoryEntry[] {
   const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
   return source.enabledPluginIds().flatMap(pluginId => {
-    const manifest = source.manifest(pluginId), state = source.state(pluginId);
+    const state = source.state(pluginId), running = source.activeInstance?.(pluginId)?.source?.();
+    const producer = running?.manifest.plugin_id === pluginId ? running : null;
+    const manifest = producer ? producer.manifest : source.manifest(pluginId);
     if (!manifest || !state || state.status === "blocked") return [];
     const registration = builtinPluginByManifestId(manifest.plugin_id);
     const builtin = registration?.manifest.publisher.signature === manifest.publisher.signature ? registration : undefined;
-    return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
-      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ui: { views: manifest.ui.views ?? [] } }];
+    return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id,
+      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ...projectDirectoryWords(manifest, directoryWordResolver(producer ? pluginTextReader(producer.activation) : null)) }];
   });
 }
 
@@ -55,8 +53,8 @@ function builtinMarks(builtin: PluginRegistration, alwaysOn: readonly string[]):
  */
 export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
   const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
-  return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}),
-    chosen: true, ...builtinMarks(entry, alwaysOn), ui: { views: entry.manifest.ui.views ?? [] } }));
+  return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id,
+    chosen: true, ...builtinMarks(entry, alwaysOn), ...drawRegisteredText(entry.manifest, resolve => projectDirectoryWords(entry.manifest, resolve)) }));
 }
 
 /**
@@ -76,11 +74,16 @@ export async function homePluginDirectory(host?: HomePluginHost, home?: string):
     let installed: ReturnType<HomePluginHost["registered"]> = [];
     try { installed = host.registered(); } catch { /* A library that cannot be read now has no stalled package to add; the running ones stay. */ }
     const stalled = installed.filter(({ manifest }) => !present.has(manifest.plugin_id) && host.packageError(manifest.plugin_id) !== undefined)
-      .map(({ key, manifest }): PluginDirectoryEntry => ({ id: key, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
-        chosen: false, personal: true, home: true, ui: { views: manifest.ui.views ?? [] } }));
+      .map(({ key, manifest }): PluginDirectoryEntry => ({ id: key, plugin_id: manifest.plugin_id,
+        chosen: false, personal: true, home: true, ...projectDirectoryWords(manifest) }));
     return [...running, ...stalled];
   }
   catch (error) { hostLog.warn("plugins", "home_directory_unavailable", error); return []; }
+}
+
+/** The directory a Home's pages read (the project list's as well as each project's): its own Runtimes' plugins, then the market's. */
+export async function pagePluginDirectory(host: HomePluginHost | undefined, home: string | undefined): Promise<PluginDirectoryEntry[]> {
+  return mergePluginDirectories(await homePluginDirectory(host, home), builtinMarketDirectory(home));
 }
 
 /** Several Runtimes' entries as one directory: a plugin that runs in more than one (a dual-instance one) is listed once, by its first. */

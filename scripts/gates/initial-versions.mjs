@@ -1,15 +1,17 @@
 // N41: inspect the live first-party declarations used by this build. The unified origin is not a date inferred from this check.
-// Two halves. The source constants and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
-// (versionOriginProblems, user 2026-11-07). The registered actions, Manifests, prompts and roles, and the prompt and method entries, only
-// this script checks, and only when someone runs it: the rebuild window does (docs/releases/CHECKLIST.md §4.1). A prompt or method goes up
-// when its text changes (tests/prompt-registration.test.ts), so those stay out of the rule. tooling/gates/README.md has the rules.
+// Two halves. The source versions and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
+// (versionOriginProblems, user 2026-11-07). A source version is either a `const …VERSION` declaration or any literal a `/* @version */`
+// marker names (property, return, type), so the same rule reaches the values `pnpm versions:generate` writes but no constant declares.
+// The registered content versions (actions, Manifests, prompts, roles, methods) are checked strictly in the explicit origin run; the
+// everyday content check (`--content-current`) compares them with `tooling/versions.json`, so a content change doesn't need the origin rule.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { CODE_FILE, isMainScript } from "../script-paths.mjs";
 import { isTestFile, isUnderSourceRoots, markerAtEnd, REPOSITORY, SOURCE_ROOTS, versionSource } from "../version-source.mjs";
-import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
+import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
+import { contentVersionChanges } from "./content-versions.mjs";
 import { goldenManifests } from "../golden/formats.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
@@ -28,6 +30,8 @@ const PERSISTENT_CONSTANTS = new Map([
   ["modules/shelf/src/catalog-shape.ts#CATALOG_VERSION", "format.shelf.catalog"],
   ["apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION", "format.home.installation"],
   ["packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION", "database.search.text-index"],
+  ["horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION", "format.ui.appearance-state"],
+  ["horizontal/appearance/src/locale-memory.ts#SCHEMA_VERSION", "format.ui.last-locale"],
   // The six files §2.6 of the design puts in the chain and §11.1 did not name (the user agreed to them on 2026-11-07). The last is jelly/preferences.json.
   ["apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION", "format.home.onboarding"],
   ["apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION", "format.project.arrival"],
@@ -35,6 +39,7 @@ const PERSISTENT_CONSTANTS = new Map([
   ["apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION", "format.computer.settings"],
   ["apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION", "format.computer.record"],
   ["apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION", "format.model.preference"],
+  // The last-used language (batch 14 T10, #1976): a small versioned file in the chain since the 2026-11-11 review found it had none.
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
@@ -54,6 +59,9 @@ const PRODUCT_CONSTANT = "apps/local-host/src/product-version.ts#PRODUCT_VERSION
 
 /** Each persistent format's tooling/versions.json entry, by its definition: what a golden records it under. */
 export const PERSISTENT_FORMAT_ENTRIES = Object.freeze(Object.fromEntries([...PERSISTENT_CONSTANTS, ...[...PERSISTENT_ENTRIES].map(([entry, definition]) => [definition, entry])]));
+
+/** The other direction: a marker's entry name, back to the definition whose chain and old goldens it has to have. */
+export const PERSISTENT_DEFINITION_BY_ENTRY = Object.freeze(Object.fromEntries(Object.entries(PERSISTENT_FORMAT_ENTRIES).map(([definition, entry]) => [entry, definition])));
 
 /** Whether `froms` are the steps a chain to `version` needs: 1 to version - 1, each once. Empty when they are. */
 export function upgradeStepProblems(version, froms) {
@@ -94,7 +102,7 @@ function chainInSource(file, source, name) {
   const value = constants.get(name);
   if (!value) return undefined;
   if (ts.isNumericLiteral(value)) {
-    const steps = name.replace(/(?:_?SCHEMA)?_?VERSION$/, match => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES"));
+    const steps = upgradesNameFor(name);
     const list = constants.get(steps), froms = list && ts.isArrayLiteralExpression(list) ? stepFroms(list, constants) : undefined;
     return froms && { version: Number(value.text), froms };
   }
@@ -147,15 +155,29 @@ export function registeredUpgradeChains({ files = [], read }) {
   return chains;
 }
 
-export function initialVersionProblems({ manifests, hostViews, registrations, versionEntries = {}, chains = new Map() }) {
+export function contentVersionKey(kind, id, owner, versions) {
+  const suffix = owner.split(".").at(-1);
+  const names = kind === "prompt" && id.startsWith("builder-")
+    ? ["plugin-builder." + (id === "builder-review" ? "ui-review" : id.slice("builder-".length))]
+    : kind === "role" ? [suffix + "." + id, suffix + ".main-" + id, id] : [id];
+  return names.map(name => kind + "." + name).find(key => Object.hasOwn(versions, key));
+}
+
+export function initialVersionProblems({ manifests, hostViews, registrations, methods = [], versionEntries = {}, chains = new Map(), currentContent = false }) {
   const problems = new Set();
   const check = (owner, kind, id, version) => {
     if (version !== 1) problems.add(`${owner}: ${kind} ${id} = ${String(version)} (expected 1)`);
   };
+  const content = (owner, kind, id, version) => {
+    if (!currentContent) { check(owner, kind, id, version); return; }
+    const key = contentVersionKey(kind === "child role" ? "role" : kind, id, owner, versionEntries);
+    if (!key) problems.add(`${owner}: ${kind} ${id} has no entry in tooling/versions.json`);
+    else if (versionEntries[key] !== version) problems.add(`${owner}: ${kind} ${id} = ${String(version)} (tooling/versions.json ${key} = ${String(versionEntries[key])})`);
+  };
   const agent = (owner, declaration) => {
-    for (const prompt of declaration.prompts) check(owner, "prompt", prompt.prompt_id, prompt.version);
-    for (const role of declaration.roles) check(owner, "role", role.role_id, role.version);
-    for (const role of declaration.subagents?.roles ?? []) check(owner, "child role", role.role_id, role.version);
+    for (const prompt of declaration.prompts) content(owner, "prompt", prompt.prompt_id, prompt.version);
+    for (const role of declaration.roles) content(owner, "role", role.role_id, role.version);
+    for (const role of declaration.subagents?.roles ?? []) content(owner, "child role", role.role_id, role.version);
   };
   for (const manifest of manifests) {
     const owner = manifest.plugin_id;
@@ -163,14 +185,16 @@ export function initialVersionProblems({ manifests, hostViews, registrations, ve
     check(owner, "Manifest", "host_api_version", manifest.host_api_version);
     for (const action of manifest.actions ?? []) check(owner, "action", action.capability_id, action.version);
     if (manifest.agent) agent(owner, manifest.agent);
-    for (const method of manifest.methods ?? []) check(owner, "method", method.skill_id, method.version);
+    for (const method of manifest.methods ?? []) content(owner, "method", method.skill_id, method.version);
   }
   for (const view of hostViews) check(view.provider.plugin_id ?? view.provider.provider_id, "action", view.capability_id, view.version);
   for (const owner of registrations) agent(owner.owner_id, owner);
+  for (const method of methods) content("goals", "method", "goals." + method.method_id, method.version);
   // Instructions a running plugin carries and the Markdown methods reach the register only while a Home runs; their source entries say the same.
   for (const [key, version] of Object.entries(versionEntries)) {
     const kind = /^(prompt|method)\./.exec(key)?.[1];
-    if (kind) check("tooling/versions.json", kind, key, version);
+    if (kind && !currentContent) check("tooling/versions.json", kind, key, version);
+    else if (kind && (!Number.isSafeInteger(version) || version < 1)) problems.add(`tooling/versions.json: ${key} must be a positive integer`);
     if (PERSISTENT_ENTRIES.has(key) && version !== 1) for (const problem of persistentVersionProblems(PERSISTENT_ENTRIES.get(key), version, chains)) problems.add(problem);
   }
   return [...problems].sort();
@@ -182,17 +206,32 @@ const exceptionNames = (text) => new Set(JSON.parse(text).filter(entry => entry.
 let thisRepository;
 const repositoryExceptions = () => (thisRepository ??= exceptionNames(readFileSync(new URL("../../tooling/gates/version-exceptions.json", import.meta.url), "utf8")));
 
+/** A literal behind a `/* @version *\/` marker, when it is a whole number: the form a version can be compared in. */
+const markedNumber = (node) => ts.isNumericLiteral(node) || (ts.isStringLiteralLike(node) && /^\d+$/u.test(node.text)) ? Number(node.text) : undefined;
+
+/**
+ * Whether an entry that is not a registered persistent format may be above 1 here. It may not: everything else stays at the unified origin,
+ * including the `action.*` and `format.*` values no source constant names. The one exception is a library (`database.*` baselines and a
+ * plugin's project tables): those are the version of a store, and `scripts/gates/store-schemas.mjs` with the golden replay is what lets one go
+ * up (UPG-01), so this half skips them rather than reading them twice with a weaker rule.
+ */
+const libraryEntry = (entry) => entry.startsWith("database.") && !PERSISTENT_DEFINITION_BY_ENTRY[entry];
+
 export function sourceVersionProblems(file, source, chains = new Map(), exceptions = repositoryExceptions()) {
-  if (!/\b[A-Z_\d]*VERSION\b/.test(source)) return [];
+  if (!/\b[A-Z_\d]*VERSION\b|@version/u.test(source)) return [];
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest);
-  const problems = [];
+  const problems = [], named = new Set();
   const visit = (node) => {
     if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const)) {
       for (const declaration of node.declarations) {
         const name = declaration.name.getText(tree);
-        if (!/^[A-Z_\d]*VERSION$/.test(name) || exceptions.has(`${file}#${name}`)) continue;
+        if (!/^[A-Z_\d]*VERSION$/u.test(name)) continue;
         let value = declaration.initializer;
         while (value && (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value))) value = value.expression;
+        // A version written as a named constant is judged once, here (or not at all, when an exception names it); the marker pass below
+        // skips the same literal, so one literal never produces two problems.
+        if (value) named.add(value.getStart(tree));
+        if (exceptions.has(`${file}#${name}`)) continue;
         if (value && ts.isRegularExpressionLiteral(value)) continue;
         if (value && `${file}#${name}` === PRODUCT_CONSTANT && ts.isStringLiteralLike(value) && markerAtEnd(source.slice(value.pos, value.getStart(tree))) === "product.release") continue;
         if (value && ts.isNumericLiteral(value) && Number(value.text) === 1) continue;
@@ -205,6 +244,28 @@ export function sourceVersionProblems(file, source, chains = new Map(), exceptio
     ts.forEachChild(node, visit);
   };
   visit(tree);
+  // Every other literal a marker names: an inline value (a property, a return, a type) whose version no constant declaration would show.
+  // The same marker grammar `pnpm versions:generate` rewrites, so a value it can write is a value this reads.
+  const marked = (node) => {
+    if (named.has(node.getStart(tree))) return;
+    const entry = markerAtEnd(source.slice(node.pos, node.getStart(tree)));
+    if (entry === undefined) return;
+    const value = markedNumber(node);
+    if (value === undefined) return;
+    const definition = PERSISTENT_DEFINITION_BY_ENTRY[entry];
+    if (definition !== undefined) {
+      if (value !== 1) problems.push(...persistentVersionProblems(definition, value, chains));
+    } else if (libraryEntry(entry)) return;
+    // Prompts, methods and roles are content versions: their text follows `tooling/versions.json` (the content check reads that table),
+    // so an inline marker above 1 there is not the persistent-format rule's business.
+    else if (/^(?:prompt|method|role)\./u.test(entry)) return;
+    else if (value !== 1) problems.push(`${file}: /* @version ${entry} */ = ${value} (expected 1; only a registered persistent format may be above the unified origin)`);
+  };
+  const visitMarkers = (node) => {
+    if (ts.isNumericLiteral(node) || ts.isStringLiteralLike(node)) marked(node);
+    ts.forEachChild(node, visitMarkers);
+  };
+  visitMarkers(tree);
   return problems;
 }
 
@@ -233,19 +294,22 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
   const exceptions = table("tooling/gates/version-exceptions.json", exceptionNames, new Set());
   problems.push(...initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, chains }));
   for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, read(file) ?? "", chains, exceptions));
+  try { problems.push(...contentVersionChanges({ files, read }, readBase)); }
+  catch (error) { problems.push("Cannot compare the content version table: " + error.message); }
   return problems;
 }
 
 // What a running Host registers, from this repository's build, on a throwaway Home.
 const builtDeclarations = () => withIsolatedHome(async home => {
-  const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-registrations.js");
+  const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-agents.js");
+  const { BUILTIN_PLANNING_METHOD_PACKS: methods } = await import("@molis-ai/molis-work-plugin-goals/module");
   const { manifests } = await loadManifests();
   const { hostViews } = await collectHost(home);
-  return { manifests, hostViews, registrations: builtinRegistrations() };
+  return { manifests, hostViews, registrations: builtinRegistrations(), methods };
 });
 
 /** Both halves over the repository at `root`: its tracked source and its two tables, and the `declarations` of a running Host. */
-export async function checkRepository(root = REPOSITORY, declarations = builtDeclarations) {
+export async function checkRepository(root = REPOSITORY, declarations = builtDeclarations, currentContent = false) {
   const files = execFileSync("git", ["ls-files", "-z", "--", ...SOURCE_ROOTS], { cwd: root, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }).split("\0").filter(Boolean);
   // A definition whose file is not there (another repository, --root) declares no chain, so a persistent format above 1 there fails.
   // The goldens this repository keeps: what a chain's replay must cover (U2-d).
@@ -253,15 +317,17 @@ export async function checkRepository(root = REPOSITORY, declarations = builtDec
   const chains = registeredUpgradeChains({ files: goldens, read: file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), "utf8") : null) });
   const versionEntries = versionSource(root).versions;
   const exceptions = exceptionNames(readFileSync(path.join(root, "tooling/gates/version-exceptions.json"), "utf8"));
-  const problems = initialVersionProblems({ ...await declarations(), versionEntries, chains });
+  const problems = initialVersionProblems({ ...await declarations(), versionEntries, chains, currentContent });
   for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, readFileSync(path.join(root, file), "utf8"), chains, exceptions));
   return problems;
 }
 
 // --root checks another repository's source and tables, with this repository's build as the Host (tests/initial-versions-check.test.ts).
 if (isMainScript(import.meta.url)) {
-  const problems = await checkRepository(process.argv[2] === "--root" ? path.resolve(process.argv[3]) : REPOSITORY);
+  const args = process.argv.slice(2), rootAt = args.indexOf("--root"), currentContent = args.includes("--content-current");
+  const problems = await checkRepository(rootAt >= 0 ? path.resolve(args[rootAt + 1]) : REPOSITORY, builtDeclarations, currentContent);
   for (const problem of problems) console.error(problem);
   if (problems.length) process.exitCode = 1;
+  else if (currentContent) console.log("The registered content versions match tooling/versions.json; actions, Manifests and persistent formats still meet the origin rules.");
   else console.log("The registered actions, manifests, prompts, instructions, roles, methods and first-party version constants are at the unified origin; a persistent format above it has its upgrade chain and a passed replay.");
 }

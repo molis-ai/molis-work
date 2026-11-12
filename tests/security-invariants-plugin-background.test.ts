@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -174,7 +175,7 @@ for (const hidden of [false, true]) {
       assert.equal(response.status, 200, await response.clone().text()); await entered.promise;
       assert.equal(probe.controls[0]!.project_id, project.project_id); await assert.rejects(probe.requests[0]!.execution!.beforeEffect());
       if (hidden) {
-        const hide = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues" } });
+        const hide = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
         assert.equal(hide.status, 200); await assert.rejects(probe.controls[0]!.beforeEffect(), { code: "actions.plugin_disabled" });
         const rejected = assert.rejects(probe.handles[0]!.result, { code: "actions.plugin_disabled" }); release.resolve(); await rejected;
         assert.equal(probe.stored("result.project"), null); assert.equal(probe.stored("failure.project"), null);
@@ -257,7 +258,7 @@ test("SYS-22 S-18 PG-038 deleting a project stops the background work a Home plu
   for (const project of ["p1", "p2"]) await actions.invoke(person(probe.permissions, project), probe.start, { id: project });
   await entered.promise;
   const hooks = projectDeletedHooksFor(home), owner = `plugin-background:${probe.id}`;
-  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: "{name} 的后台工作（将停止）" }],
+  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: { key: "workbench.project-deletion.background" } }],
     "the confirmation lists the work that stops even without project data");
   const accepted = (projectId: string) => probe.controls.find(control => control.project_id === projectId)!;
   const stopped = assert.rejects(probe.handles[0]!.result, { code: "actions.cancelled" });

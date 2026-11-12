@@ -142,7 +142,12 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
       { name: "molis_work_v1_context_bind", arguments: { project_id: "x", user_confirmed: true, actor_id: "forged" } },
     ]) {
       const answer = await peer.request("tools/call", params).promise;
-      assert.equal((answer.result as { isError: boolean }).isError, true);
+      if (params.arguments === false) {
+        // D0113: malformed protocol parameters are rejected before tool dispatch or resident startup.
+        assert.deepEqual(answer.error, { code: -32602, message: "Tool call parameters must be a named object" });
+        assert.equal(answer.result, undefined);
+      } else assert.equal((answer.result as { isError: boolean }).isError, true);
+      assert.equal((await readdir(f.attempts)).length, count, "invalid calls cannot start a resident");
     }
     const missing = await f.connect("no-home", { MOLIS_WORK_HOME: "" });
     assert.match(JSON.stringify(await missing.request("tools/call", { name: "molis_work_v1_context_resolve", arguments: {} }).promise), /home_required/);

@@ -24,7 +24,7 @@ async function within(name: string, operation: Promise<unknown>) {
 }
 
 /** An isolated Host behind the actual desktop HTTP composition, with the Catalog's directory list. No store writes or grant shortcuts. */
-export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}, webOptions: Pick<WebServerOptions, "chooseDirectory"> = {}) {
+export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}, webOptions: Pick<WebServerOptions, "chooseDirectory" | "webSessions"> = {}) {
   const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "home-runtime-"));
   let host: MolisWorkLocalHost | undefined, server: ReturnType<typeof createSingleHomeTestWebServer> | undefined;
   t.after(async () => {

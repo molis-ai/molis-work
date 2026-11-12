@@ -16,6 +16,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   event_type_missing: "invalid",
   event_type_undeclared: "invalid",
   executor_failed: "invalid",
+  /** A package that cannot be exported (`details.reason`: `host_build`, `not_content_package`, `package_missing`; capability-pack §4.9). */
+  export_unavailable: "not_found",
   grant_denied: "invalid",
   home_scope_unavailable: "invalid",
   id_namespace_conflict: "invalid",
@@ -25,7 +27,10 @@ export const pluginErrors = defineErrorCodes("plugin", {
   integration_unavailable: "unavailable",
   kept_data_incompatible: "invalid",
   manifest_invalid: "invalid",
+  manifest_version_invalid: "invalid",
   package_invalid: "invalid",
+  /** The signed package an installation names is not in the package store: no bundle, or no entry file (BL-915). Not the same as one there and not valid. */
+  package_missing: "not_found",
   permission_invalid: "invalid",
   preview_unknown: "not_found",
   publisher_revoked: "invalid",
@@ -36,8 +41,12 @@ export const pluginErrors = defineErrorCodes("plugin", {
   signature_invalid: "invalid",
   signer_mismatch: "invalid",
   state_invalid: "invalid",
+  /** An in-process stop hook still pending when the Host stopped waiting (BL-367); a local diagnostic, never a lifecycle failure. */
+  stop_timeout: "timeout",
   storage_denied: "invalid",
   storage_input_invalid: "invalid",
+  /** An uninstall stopped the installation and wrote its tombstone but did not finish the Host's cleanup (BL-915): kept on the row, listed, retried with the first data choice; nothing installs, enables or upgrades over it. */
+  uninstall_cleanup_pending: "unavailable",
   upgrade_required: "invalid",
   upgrade_rollback_failed: "invalid",
   upgrade_validation_failed: "invalid",

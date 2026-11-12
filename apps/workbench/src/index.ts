@@ -1,10 +1,11 @@
-export { workbenchClientSource } from "./page-assets.js";
+export { renderMolisWorkArrivalStylesheet, workbenchClientSource } from "./page-assets.js";
+export { renderUpgradeOpeningPage } from "./arrival/upgrade-opening.js";
+export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
-export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
 export { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
@@ -20,11 +21,12 @@ export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type Brie
 export type { WebSettingsProject, WebInstallationDiagnostics, WebPeriodicTask, MolisWorkSettingsView } from "./settings-view.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export { renderMcpAccessRows, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
-export type { MolisWorkWebView } from "./page-view.js";
+export type { MolisWorkWebView, PreparedStageView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
-export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, registerPluginMessages, unregisterPluginMessages, WEB_LOCALES, withPluginWords, type WebLocale } from "./i18n.js";
-// The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
-export { hasPluginText, pluginTextDefault, pluginTextMessage, pluginTextOwnerOfPrefix, registerPluginText, type PluginTextReader } from "./plugin-text.js";
+export { createWorkbenchLocale, DEFAULT_WEB_LOCALE, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, webLanguage, type WebLocale, type WebLocalePreference } from "./i18n.js";
+export { WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
+export { workbenchLanguageResource } from "./language-resource.js";
+export { installCatalogTextScope } from "./plugin-text.js";
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
@@ -43,17 +45,19 @@ export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condit
 export { renderMolisWorkNavigationSpecimen } from "./navigation-specimens.js";
 export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
+export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
+export { readAssistantReviewWords } from "./assistant-review-html.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
-export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
+export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
+export { renderAgentReviewRecovery } from "./agent-review-recovery.js";
 export {
   isDecidable,
   leakedMarkup,
   renderAgentReviewSurface,
-  renderAgentReviewRecovery,
   reviewPhase,
   type AgentReviewPrimitives,
   type AgentReviewRow,
@@ -88,6 +92,8 @@ export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
+export { renderMolisWorkKitClientScript } from "./settings-kit.js";
+export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 
@@ -95,9 +101,16 @@ export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assista
 export { connectionNeedHtml, isConnectionLoginUrl, type ConnectionNeedView } from "./connection-need-card.js";
 
 export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
-export {renderPersonalAccountEntry} from './arrival/shell.js';
+export {renderPersonalAccountEntry,renderAccountSameOriginEntry} from './arrival/shell.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
-export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
+export { renderOwnerUnavailablePage } from "./owner-unavailable.js";
+export { renderOwnerUnavailableCard, type OwnerUnavailableCard, type OwnerUnavailableReason } from "./owner-unavailable-card.js";
+// 设置 › 更新 goes out with the renderer that draws it (the execution-adapter check reads this file for SQL words, and a module name is not one).
+export { renderUpdateSettings } from "./settings-renderer.js";
+export { hostSettingsSectionLabel } from "./settings-sections.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";
+
+export { accountCacheOwner, ACCOUNT_CACHE_SCOPE_MISSING } from './account-cache-owner.js';
+export { pageSessionScope } from './account-cache-key.js';

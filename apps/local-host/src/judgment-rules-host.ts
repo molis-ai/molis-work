@@ -1,6 +1,5 @@
 import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
-import { selectedTypeSafeConnection, typeSafeBinding, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { JudgmentRuleSceneMap, JudgmentRuleSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -69,20 +68,17 @@ export interface FunctionsHostOptions {
 
 /** Discovery inspects configuration without unlocking the user's Keychain. Execution resolves the secret. */
 export function functionsCredentialConfigured(home: string, options: FunctionsHostOptions = {}): boolean {
-  if ((options.env ?? process.env).TYPESAFE_API_KEY?.trim()) return true;
-  if (options.credential) return !!options.credential()?.trim();
-  // The binding and the record it names are read in one opening of their owner's library (N45): one view, not two moments.
-  const ref = withConnectorConnections(home, store => {
-    const selected = typeSafeBinding(store);
-    const connection = selected ? store.get(selected.connection_id) : undefined;
-    return connection && connection.service_id === "typesafe" && connection.enabled && !connection.disconnected_at ? connection.credential_ref : null;
-  });
-  return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
+  return functionsConnectionSnapshot(home, options).available;
 }
 
-/** Test/development overrides do not use the saved account binding. */
-export function functionsConnectionId(home: string, options: FunctionsHostOptions): string | null {
-  return (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || options.credential ? null : selectedTypeSafeConnection(home)?.connection_id ?? null;
+/** Read binding, connection and sealed presence once; never retain this display snapshot as execution authority. */
+export function functionsConnectionSnapshot(home: string, options: FunctionsHostOptions): { connection_id: string | null; available: boolean } {
+  if ((options.env ?? process.env).TYPESAFE_API_KEY?.trim()) return { connection_id: null, available: true };
+  if (options.credential) return { connection_id: null, available: !!options.credential()?.trim() };
+  const connection = selectedTypeSafeConnection(home);
+  const ref = connection && connection.service_id === "typesafe" && connection.enabled && !connection.disconnected_at ? connection.credential_ref : null;
+  return { connection_id: connection?.connection_id ?? null,
+    available: !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null) };
 }
 
 export function functionsConnectionStatus(home: string, options: FunctionsHostOptions = {}): JudgmentRuleSettingsStatus {

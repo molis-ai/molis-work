@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { captureHostLog, homeAgentDefinitions, HomePluginHost, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, collectRetained, homeAgentDefinitions, HomePluginHost, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -86,9 +86,10 @@ test("S-71 RAC-861 the installation slot and the record bindings stay while anot
   for (const [pluginId, scope, binding] of [...mine, ...theirs]) w.bind(pluginId, scope, binding);
   const state = () => [...mine, ...theirs].map(([pluginId, scope, binding]) => w.bound(pluginId, scope, binding));
 
-  await w.uninstall(0, id, false);
+  // B27-UN-02: what stays behind is said to the person taking it off, by kind and reason; the last uninstall keeps nothing and says nothing.
+  assert.deepEqual(await collectRetained(w.projects[0]!.project_id, id, async () => { await w.uninstall(0, id, false); }), [{ kind: "installation_binding", reason: "other_holder" }]);
   assert.deepEqual(state(), [true, false, true, true, true, true], "project A took its own record binding; the slot and B's binding stay while B installs it");
-  await w.uninstall(1, id, false);
+  assert.deepEqual(await collectRetained(w.projects[1]!.project_id, id, async () => { await w.uninstall(1, id, false); }), []);
   assert.deepEqual(state(), [false, false, false, true, true, true], "the last installation took the slot and its record bindings; nothing of the identity next to it");
   assert.equal(w.account()?.connection_id, w.connection.connection_id, "the account itself stays");
 });
@@ -111,8 +112,10 @@ test("S-71 RAC-863 a Home that cannot be read all the way through keeps the bind
   // Project 2's library is gone from disk: whether it installs this plugin cannot be told.
   rmSync(w.projects[2]!.database_path, { force: true });
   const entries: HostLogEntry[] = [], restore = captureHostLog(entries);
-  try { await w.uninstall(0, id, false); } finally { restore(); }
+  let retained: unknown;
+  try { retained = await collectRetained(w.projects[0]!.project_id, id, async () => { await w.uninstall(0, id, false); }); } finally { restore(); }
   assert.equal(w.bound(w.probe.id, slot, "account"), true, "the slot is kept: a binding left is an unused row, one taken from an installation in use is not");
+  assert.deepEqual(retained, [{ kind: "installation_binding", reason: "inventory_unavailable" }], "B27-UN-02: and the person taking it off is told why");
   assert.ok(entries.some(entry => entry.area === "connections" && entry.event === "installation_holders_unreadable"), JSON.stringify(entries));
 });
 

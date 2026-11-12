@@ -204,7 +204,7 @@ export const PROJECT_HOME_STYLES = `
   }
 
 
-  /* The margin: the things at hand and one quiet line. */
+  /* The margin: the things at hand. */
   .immersive-home .home-margin { min-width: 0; padding-top: 4px; }
   .immersive-home .home-launch > h2 { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
   .immersive-home :is(.home-quick, .home-shortcuts) { list-style: none; margin: 0; padding: 0; }
@@ -230,8 +230,6 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-shortcut:hover .home-shortcut-edit, .immersive-home .home-shortcut-edit:focus-visible { opacity: 1; }
   .immersive-home .home-shortcut:not(.home-shortcut-add) .home-shortcut-main { padding-right: 32px; }
   .immersive-home .home-shortcut-error { margin: 12px 0 0; color: var(--red); font-size: 12px; line-height: 1.6; }
-  .immersive-home .home-margin-note { display: flex; align-items: center; gap: 8px; margin: 32px 0 0; color: var(--muted); font-size: 12px; }
-  .immersive-home .home-margin-note svg { width: 14px; height: 14px; }
   .immersive-home :is(button, a, input, textarea):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @media (prefers-reduced-motion: reduce) {
     .immersive-home :is(.home-day, .home-quick__item, .home-shortcut-main, .home-erow__chev svg) { transition: none; }
@@ -252,7 +250,6 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-launch { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); column-gap: 24px; }
     .immersive-home .home-launch > :is(h2, .home-shortcut-error) { grid-column: 1 / -1; }
     .immersive-home :is(.home-quick, .home-shortcuts) { display: contents; }
-    .immersive-home .home-margin-note { display: none; }
   }
   @container project-home (max-width: 640px) {
     .immersive-home .home-scroll { padding: 24px 16px 24px; }
@@ -295,8 +292,6 @@ export const PROJECT_HOME_STYLES = `
   @media (pointer: coarse) { body.immersive-workbench .home-shortcut-dialog header button { width: 44px; height: 44px; } .immersive-home .home-shortcut-edit { width: 30px; height: 30px; } }
 
   .immersive-home .home-start { padding: 4px 0 0; }
-  .immersive-home .home-start__lead { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
-  .immersive-home .home-start__lead b { margin-right: 8px; color: var(--ink-soft); font-weight: var(--weight-control, 500); }
   .immersive-home .home-start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .immersive-home .home-start-action {
     display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 8px;

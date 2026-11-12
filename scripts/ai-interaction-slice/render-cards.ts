@@ -2,7 +2,7 @@
 // the preview is their first live consumer. Both layouts render exactly this markup; only the frame differs.
 // Every optional part is rendered up front and shown or hidden by paint.ts, so fields are never re-rendered.
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderInteractionOperation, renderInteractionQuestion, type InteractionField } from "../../packages/design-system/src/index.ts";
+import { renderInteractionOperation, renderInteractionQuestion, type InteractionField } from "../../packages/design-system/src/interaction.ts";
 import { formats, topics, labels, timeLimits, zone, type Layout } from "./model.ts";
 
 const copy = {

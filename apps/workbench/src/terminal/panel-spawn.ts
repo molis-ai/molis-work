@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PtyServerMessage } from "./connection.js";
 import type { PanelRecord, SpawnMode, TerminalPanelState, TerminalScreens, TerminalStatusSetter } from "./types.js";
 
@@ -27,7 +28,7 @@ const attachMessage = (panel: PanelRecord, size: { cols: number; rows: number } 
 
 /** Own one attach queue per panel and the answers the channel owes it; the controller owns loading, opening and the list. */
 export function createPanelSpawner(options: PanelSpawnOptions) {
-  const { state, screens, text: L, errorText, setStatus } = options;
+  const { state, screens, errorText, setStatus } = options;
   const pendingSpawns = new Map<string, { resolve: (value: PtyServerMessage) => void; reject: (error: Error) => void }>();
   const spawnTail = new Map<string, Promise<unknown>>();
 
@@ -55,7 +56,7 @@ export function createPanelSpawner(options: PanelSpawnOptions) {
   const expectSpawn = (panelId: string) => new Promise<PtyServerMessage>((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingSpawns.delete(panelId);
-      reject(new Error(L("终端通道连接失败")));
+      reject(new Error(uiText.text("workbench.panel-spawn.could-not-connect-terminal")));
     }, 20_000);
     pendingSpawns.set(panelId, {
       resolve: (value) => { clearTimeout(timer); resolve(value); },
@@ -70,9 +71,9 @@ export function createPanelSpawner(options: PanelSpawnOptions) {
   };
 
   const spawnBusyText = (mode: SpawnMode) => {
-    if (mode === "reconnect") return L("正在重新连接终端…");
-    if (mode === "attach") return L("正在连接终端…");
-    return L("正在启动终端…");
+    if (mode === "reconnect") return uiText.text("workbench.panel-spawn.reconnecting-terminal");
+    if (mode === "attach") return uiText.text("workbench.panel-spawn.connecting-terminal");
+    return uiText.text("workbench.panel-spawn.starting-terminal");
   };
 
   const showSpawned = (panel: PanelRecord, mode: SpawnMode, session: TerminalSession, result: PtyServerMessage) => {
@@ -93,7 +94,7 @@ export function createPanelSpawner(options: PanelSpawnOptions) {
       if (state.activeId === panel.panel_id) session.term.focus();
     });
     if (state.activeId === panel.panel_id) {
-      setStatus(result.type === "spawned" && result.attached ? L("已回到正在运行的终端") : L("终端已连接"), "live");
+      setStatus(result.type === "spawned" && result.attached ? uiText.text("workbench.panel-spawn.reconnected-running-terminal") : uiText.text("workbench.panel-spawn.terminal-connected"), "live");
     }
   };
 

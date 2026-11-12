@@ -29,7 +29,7 @@ const ROUTES: RouteMaker[] = [
       // The tools the session's Character allows: none when it sets no limit; Characters' own refusal (the version is off, gone) is shown beside each action.
       let characterTools: Awaited<ReturnType<typeof execution.characters.actionTools>>;
       let character_error: string | undefined;
-      const say = codingText(execution.locale);
+      const say = codingText;
       try { if (characterRef) characterTools = await execution.characters.actionTools(characterRef, codingActionControl(beforeWrite)); }
       catch (error) { beforeWrite.assert_current(); character_error = error instanceof Error ? error.message : say("coding.server.character-gone"); }
       return { actions: tools.map(view => ({ ...view, availability: character_error

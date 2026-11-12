@@ -15,16 +15,18 @@ interface AccountStatus {
 }
 interface AccountActionResult { loginUrl?: string; loginAttempt?: string; signedOut?: boolean }
 import type {} from "@molis-ai/molis-work-plugin-sdk";
+
+const uiText = globalThis.t;
 declare global {
   var molisWorkOpenExternalUrl: ((url: string) => Promise<void>) | undefined;
   interface Window { molisWorkUiTransport?: UiRequestPorts['intercept'] }
 }
 
 function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message || fallback : fallback; }
-function guardAccountRequests(transition: ReturnType<typeof accountTransition>, L: (text: string) => string): void {
+function guardAccountRequests(transition: ReturnType<typeof accountTransition>): void {
   const originalTransport = window.molisWorkUiTransport;
   window.molisWorkUiTransport = (input, options) => {
-    if (transition.preparing && !new URL(input, location.href).pathname.startsWith('/api/personal/')) return Promise.reject(new Error(L('账号正在切换，请稍候')));
+    if (transition.preparing && !new URL(input, location.href).pathname.startsWith('/api/personal/')) return Promise.reject(new Error(uiText.text('workbench.personal-account.switching-accounts-please-wait')));
     return originalTransport?.(input, options) ?? null;
   };
 }
@@ -44,8 +46,8 @@ function observeAccountNavigation(cohort: Pick<ReturnType<typeof accountCohort>,
   });
 }
 
-async function prepareAccountChange(notice: HTMLElement, L: (text: string) => string, signal?: AbortSignal): Promise<boolean> {
-  requiredElement(notice, '[data-account-transition-message]').textContent = L('账号正在切换，请稍候');
+async function prepareAccountChange(notice: HTMLElement, signal?: AbortSignal): Promise<boolean> {
+  requiredElement(notice, '[data-account-transition-message]').textContent = uiText.text('workbench.personal-account.switching-accounts-please-wait');
   await transition.prepare();
   signal?.throwIfAborted();
   const unsaved = [...document.querySelectorAll('[data-assistant-context]')].some(node => {
@@ -54,7 +56,7 @@ async function prepareAccountChange(notice: HTMLElement, L: (text: string) => st
   const drafts = window.parent === window && await transition.hasDrafts();
   signal?.throwIfAborted();
   const tasks = [...document.querySelectorAll('[data-background-tasks-count]')].some(node => Number(node.textContent) > 0);
-  if ((unsaved || drafts || tasks) && !confirm(L('还有未保存的修改或运行中的任务。取消可返回原页面保存；继续将放弃未保存的修改并停止任务。继续切换账号？'))) { transition.resume(); return false; }
+  if ((unsaved || drafts || tasks) && !confirm(uiText.text('workbench.personal-account.there-unsaved-edits-running-tasks-cancel-return-save'))) { transition.resume(); return false; }
   return true;
 }
 
@@ -66,16 +68,15 @@ const init = () => {
   const closeLoginWindow = () => { loginWindow?.close(); loginWindow = null; };
   let identity: AccountIdentity | null = null;
   let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', loginNonce = '', expires = 0, revocationPending = false, refreshPending = false;
-  const L = globalThis.L || (text => text);
-  const menuController = createAccountMenuController(L, () => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
+  const menuController = createAccountMenuController(() => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
   const {menu,notice,paint,feedback} = menuController;
-  const reportRequestFailure = (error: unknown) => feedback(errorMessage(error, '请求失败，请重试。'), true);
+  const reportRequestFailure = (error: unknown) => feedback(errorMessage(error, uiText.text("workbench.personal-account.request-failed")), true);
   const syncConsent=createSyncConsent();
-  const registration = accountRegistration(L, () => update(true));
+  const registration = accountRegistration(uiText.text, () => update(true));
   let generation: number | undefined;
   const destination = desktop ? '/?desktop=1' : '/';
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('molis-work-account') : null;
-  guardAccountRequests(transition, L);
+  guardAccountRequests(transition);
   let leaving = false;
   const leaveOldPage = () => {
     const cleared = transition.invalidate();
@@ -88,8 +89,8 @@ const init = () => {
       location.replace(destination);
     }, () => { leaving = false; });
   };
-  const prepare = (signal?: AbortSignal) => prepareAccountChange(notice, L, signal);
-  const cohort = accountFrameCohort(prepare) ?? accountCohort(prepare, leaveOldPage, error => feedback(errorMessage(error, L('草稿保存未完成，请返回原页面重试')), true));
+  const prepare = (signal?: AbortSignal) => prepareAccountChange(notice, signal);
+  const cohort = accountFrameCohort(prepare) ?? accountCohort(prepare, leaveOldPage, error => feedback(errorMessage(error, uiText.text('workbench.personal-account.draft-could-not-be-saved-return-page-try')), true));
   const cancelAttempt = async () => {
     const previous = attempt;
     if (previous) await molisWorkRequest('/api/personal/login-cancel?' + new URLSearchParams({attempt:previous}), {method:'POST',body:{}});
@@ -108,7 +109,7 @@ const init = () => {
     setBusy(true); feedback(''); feedback('', true);
     try {
       if (action === 'retry') {
-        await molisWorkRequest('/api/personal/space?kind=personal',{method:'POST',body:{},fallback:L('无法切换空间')});
+        await molisWorkRequest('/api/personal/space?kind=personal',{method:'POST',body:{},fallback:uiText.text("workbench.personal-account.could-not-switch-space")});
         location.assign(destination); return;
       }
       if (action === 'login' || action === 'switch') {
@@ -116,7 +117,7 @@ const init = () => {
         if (!globalThis.molisWorkOpenExternalUrl) {
           // Open synchronously during the click, before awaiting the transaction.
           loginWindow = window.open('about:blank', '_blank');
-          if (!loginWindow) throw new Error('浏览器阻止了登录窗口，请允许本站打开新标签页后重试。');
+          if (!loginWindow) throw new Error(uiText.text("workbench.personal-account.popup-blocked"));
           loginWindow.opener = null;
         }
         if (attempt) await cancelAttempt();
@@ -132,8 +133,8 @@ const init = () => {
         attempt = result.loginAttempt ?? ''; loginNonce = new URL(result.loginUrl,location.href).searchParams.get('accountLogin') ?? ''; expires = Date.now() + 600000;
         if (globalThis.molisWorkOpenExternalUrl) {
           await globalThis.molisWorkOpenExternalUrl(result.loginUrl);
-        } else { if (!loginWindow) throw new Error("登录窗口已关闭"); loginWindow.location.replace(result.loginUrl); }
-        feedback('请在浏览器完成登录，此页面会自动更新。');
+        } else { if (!loginWindow) throw new Error(uiText.text("workbench.personal-account.window-closed")); loginWindow.location.replace(result.loginUrl); }
+        feedback(uiText.text("workbench.personal-account.finish-signing-in"));
       } else if (result.signedOut) {
         channel?.postMessage('changed'); await transition.invalidate();
         revocationPending = false; attempt = ''; closeLoginWindow(); identity = null; paint();
@@ -145,7 +146,7 @@ const init = () => {
   const update = async (force = false) => {
     if (checking) { if (force) refreshPending = true; return; }
     if (document.hidden && !attempt && !force) return;
-    if (attempt && Date.now() > expires) { await cancelAttempt().catch(reportRequestFailure); feedback('登录等待已结束，可重新登录。', true); }
+    if (attempt && Date.now() > expires) { await cancelAttempt().catch(reportRequestFailure); feedback(uiText.text('workbench.personal-account.login-timeout'), true); }
     checking = true;
     try {
       const statusQuery = new URLSearchParams();
@@ -158,7 +159,7 @@ const init = () => {
       // The Host reports completion only after the selected account environment is ready.
       // Queue feedback before any generation/entry navigation can replace this document.
       if (attempt && state.loginCompleted) {
-        try { sessionStorage.setItem('molis-work-account-toast', '登录成功'); } catch { /* The completed login does not depend on a toast. */ }
+        try { sessionStorage.setItem('molis-work-account-toast', 'workbench.personal-account.signed-in'); } catch { /* The completed login does not depend on a toast. */ }
         attempt = ''; channel?.postMessage('changed'); leaveOldPage(); return;
       }
       if (state.accountChanged && !document.body.hasAttribute('data-account-entry') || loaded && generation !== undefined && generation !== state.accountGeneration) { if (attempt) channel?.postMessage('changed'); leaveOldPage(); return; }
@@ -166,16 +167,16 @@ const init = () => {
       if (attempt && state.loginPending === false && !state.loginCompleted) { await cancelAttempt(); closeLoginWindow(); }
       if (loaded && identity && !state.identity && !state.offline) { leaveOldPage(); return; }
       if (state.error || state.switching || state.ready === false && state.identity) {
-        transition.lock(); feedback(state.error || L('账号正在切换，请稍候'), Boolean(state.error));
+        transition.lock(); feedback(state.error || uiText.text("workbench.personal-account.switching-accounts-please-wait"), Boolean(state.error));
         registration.failure();
-        const note = document.querySelector('[data-account-entry-status]'); if (note) note.textContent = state.error || L('账号正在切换，请稍候');
+        const note = document.querySelector('[data-account-entry-status]'); if (note) note.textContent = state.error || uiText.text("workbench.personal-account.switching-accounts-please-wait");
         const retry = document.querySelector<HTMLButtonElement>('[data-personal-action=retry]'); if (retry) retry.hidden = !state.error;
         return;
       }
       if (desktop && state.browserSessionTicket) {
         const browserState = await molisWorkRequest<AccountStatus>('/api/personal/status?browser=1');
         if (browserState.identity?.userId !== state.identity?.userId || browserState.identity?.applicationId !== state.identity?.applicationId) {
-          await molisWorkRequest('/api/personal/native-attach?ticket=' + encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{},fallback:L('无法连接账号空间')});
+          await molisWorkRequest('/api/personal/native-attach?ticket=' + encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{},fallback:uiText.text("workbench.personal-account.could-not-connect-account-space")});
         }
       }
       if (registration.pending && !state.identity) { leaveOldPage(); return; }
@@ -189,10 +190,10 @@ const init = () => {
         await transition.invalidate(); closeLoginWindow(); location.assign(destination); return;
       }
       registration.complete();
-      if (requiredElement(menu,'[role=status]').textContent === L('正在读取账号状态…')) feedback('');
-      if (attempt && loginWindow?.closed) { await cancelAttempt(); loginWindow = null; feedback('登录窗口已关闭，未完成登录；可以重新尝试。'); }
-      if (state.offline) feedback('暂时无法连接账号服务，本地工作不受影响。');
-    } catch (error) { registration.failure(); if (!menu.hidden) feedback(errorMessage(error, '暂时无法读取账号状态。'), true); }
+      menuController.clearLoading();
+      if (attempt && loginWindow?.closed) { await cancelAttempt(); loginWindow = null; feedback(uiText.text("workbench.personal-account.login-not-finished")); }
+      if (state.offline) feedback(uiText.text("workbench.personal-account.account-offline"));
+    } catch (error) { registration.failure(); if (!menu.hidden) feedback(errorMessage(error, uiText.text("workbench.personal-account.status-unavailable")), true); }
     finally { checking = false; if (refreshPending) { refreshPending = false; void update(true); } }
   };
   void update();

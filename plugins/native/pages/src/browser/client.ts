@@ -7,6 +7,8 @@ import { bindLanding } from "./landing.js";
 import { createPage } from "./page.js";
 import type { PagesHost } from "./types.js";
 
+const uiText = globalThis.t;
+
 /**
  * The Pages workbench client: library, autosave, ProseMirror host. In the side view it mounts the comments panel; in the stage it
  * binds the page the server drew. Listeners are bound in the order the page's parts depend on each other: the context and the
@@ -15,7 +17,7 @@ import type { PagesHost } from "./types.js";
 export function pagesClient(host: PagesHost) {
   const Editor = window.MolisWorkPagesEditor;
   if (host.side) {
-    Editor.mountComments({ messages: host.messages, translate: host.translate, projectId: host.projectId, pluginRoute: (path) => host.pluginRoute(path) });
+    Editor.mountComments({ messages: host.messages, translate: uiText.text, projectId: host.projectId, pluginRoute: (path) => host.pluginRoute(path) });
     return;
   }
   const page = createPage(host, Editor);

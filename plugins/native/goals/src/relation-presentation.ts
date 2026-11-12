@@ -1,4 +1,4 @@
-import type { GoalRelationRecord } from "./contract/goals.js";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const GOALS_RELATION_LABELS: Record<string, { out: string; in: string }> = {
   part_of: { out: "属于", in: "包含" },
@@ -12,18 +12,11 @@ export const GOALS_RELATION_LABELS: Record<string, { out: string; in: string }> 
   migrates_from: { out: "迁移自", in: "迁移到" },
 };
 
-export const GOALS_RELATION_TYPES: Array<{
-  type: GoalRelationRecord["type"];
-  label: string;
-  description: string;
-}> = [
-  { type: "part_of", label: "属于 / 包含", description: "只改变 Goal Tree 层级，不要求上级先完成" },
-  { type: "depends_on", label: "依赖 / 被依赖", description: "左侧 Goal 必须等待右侧 Goal 完成，才具备收尾所需输入。普通笔记和准备仍可先做。" },
-  { type: "conflicts_with", label: "冲突", description: "两项工作无法同时成立，或会相互干扰" },
-  { type: "mitigates", label: "缓解", description: "左侧 Goal 用来降低右侧风险或负面影响" },
-  { type: "extends", label: "扩展", description: "左侧 Goal 在右侧结果上继续增加能力" },
-  { type: "replaces", label: "替代", description: "左侧 Goal 将取代右侧 Goal" },
-  { type: "corrects", label: "修正", description: "左侧 Goal 修正右侧的错误或偏差" },
-  { type: "invalidates", label: "使其失效", description: "左侧 Goal 使右侧事实或结果不再有效" },
-  { type: "migrates_from", label: "迁移自", description: "左侧 Goal 从右侧旧实现或旧结构迁移而来" },
-];
+/** Both renderers select a word by the relation's saved type and the part of the interface being drawn. */
+export function relationWordKey(type: string, part: "out" | "in" | "label" | "description"): string {
+  return "goals.relation-kind." + type.replaceAll("_", "-") + "." + part;
+}
+
+export function goalRelationLabel(type: string, part: "out" | "in"): string | undefined {
+  if (Object.hasOwn(GOALS_RELATION_LABELS, type)) return t.text(relationWordKey(type, part));
+}

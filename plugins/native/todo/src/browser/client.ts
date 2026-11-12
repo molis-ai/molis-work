@@ -8,6 +8,8 @@ import { installReminders } from "./reminders.js";
 import { installReview } from "./review.js";
 import type { TodoClientHost } from "./types.js";
 
+const uiText = globalThis.t;
+
 /**
  * The Todo page in the workbench: views, quick entry, inline completion, batch changes, the detail editor and undo.
  * Saving failures block navigation and follow-up writes; explicit reload/delete may discard. Pending input survives outside
@@ -32,5 +34,5 @@ export function todoClient(host: TodoClientHost): void {
   if (batchProject) { batchProject.textContent = page.hereName(); batchProject.hidden = !page.projectId(); }
   page.paintPlaces(page.el.quickPlacement, page.quickDefaultPlacement(), "data-todo-quick-placement-choice");
   page.publishContext();
-  void page.load().catch((error: Error) => { page.el.loading.hidden = true; page.showNote(error.message || host.translate("todo.error.not-open"), { error: true }); });
+  void page.load().catch((error: Error) => { page.el.loading.hidden = true; page.showNote(error.message || uiText.text("todo.error.not-open"), { error: true }); });
 }

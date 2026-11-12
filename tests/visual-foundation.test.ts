@@ -3,12 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  BASELINE_SKIN,
   COSS_CONTROL_STYLES,
   PRIMITIVE_STYLES,
   INTERACTION_TEXTURE_STYLES,
-  SKIN_STYLES,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
-  MOLIS_WORK_SKIN_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
@@ -17,7 +16,7 @@ import {
   VISUAL_FOUNDATION_STYLES,
   interVariableFontFilePath,
   notoSansScFontFilePath,
-  renderShellTokens,
+  renderSkinScope,
 } from "@molis-ai/molis-work-design-system";
 import { STYLES } from "@molis-ai/molis-work-app-workbench";
 import {
@@ -39,16 +38,14 @@ test("PAS-14 page styles apply each shared control overlay once and standalone f
   }
 });
 
-test("Soft Workbench shell tokens come from one helper", () => {
-  const light = renderShellTokens("light");
-  const dark = renderShellTokens("dark");
-  assert.ok(VISUAL_FOUNDATION_STYLES.includes(light));
-  assert.ok(VISUAL_FOUNDATION_STYLES.includes(dark));
-  assert.ok(COSS_CONTROL_STYLES.includes(light));
-  assert.ok(COSS_CONTROL_STYLES.includes(dark));
-  assert.ok(INTERACTION_TEXTURE_STYLES.includes(light));
-  assert.ok(INTERACTION_TEXTURE_STYLES.includes(dark));
-  assert.ok(STYLES.includes(light));
+test("FSS-58 the baseline skin defines the shell colors once before the component styles", () => {
+  const baseline = renderSkinScope(BASELINE_SKIN, true);
+  for (const sheet of [VISUAL_FOUNDATION_STYLES, renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet(), renderMolisWorkWorkbenchStylesheet()]) {
+    assert.equal(sheet.split(baseline).length - 1, 1);
+  }
+  for (const sheet of [STYLES, COSS_CONTROL_STYLES, INTERACTION_TEXTURE_STYLES]) {
+    assert.doesNotMatch(sheet, /--(?:page|paper|ink):\s*#/u);
+  }
 });
 
 test("visual foundation enhances visible selects onto mw-menu", () => {
@@ -160,20 +157,11 @@ test("visual foundation keeps Standard and Compact as local presentation choices
   assert.doesNotMatch(compactSelectorHeaders, /\.tui-/);
 });
 
-test("visual foundation keeps skins local and draws nothing for the default skin", () => {
-  assert.equal(MOLIS_WORK_SKIN_STORAGE_KEY, "molis-work:skin");
-  assert.match(THEME_BOOTSTRAP_SCRIPT, /molis-work:skin/);
-  assert.match(THEME_BOOTSTRAP_SCRIPT, /dataset\.skin = skin/);
-  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-skin-option/);
-  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /applySkin/);
-  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /localStorage\.setItem\(skinKey/);
-  // Every rule names a non-default skin, so Soft Workbench keeps exactly the cascade it had; the layer wins by order, not !important.
-  const skinSelectorHeaders = [...SKIN_STYLES.matchAll(/([^{}]+)\{/g)].map((match) => (match[1] ?? "").trim()).filter(Boolean);
-  assert.ok(skinSelectorHeaders.length > 0);
-  for (const header of skinSelectorHeaders) assert.match(header, /^:root(:is\(\[data-skin="tray"\], \[data-skin="pill"\]\)|\[data-skin="(tray|pill)"\])/, header);
-  assert.doesNotMatch(SKIN_STYLES, /data-skin="soft"|!important/);
+test("visual foundation leaves Home appearance to the document", () => {
+  assert.doesNotMatch(THEME_BOOTSTRAP_SCRIPT, /molis-work:skin|dataset\.skin/);
+  assert.doesNotMatch(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-skin-option|applySkin/);
   for (const render of [renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet]) {
-    assert.ok(render().trimEnd().endsWith(SKIN_STYLES.trimEnd()), "the skin layer comes after every other layer");
+    assert.doesNotMatch(render(), /data-skin="(?:tray|pill)"/u);
   }
 });
 
@@ -414,26 +402,30 @@ test("visual foundation gives every Focus detail one responsive section deck", (
 // Soft Workbench (DESIGN.md → Colors, Focus): mist-blue focus replaces the inset ink stroke, `--blue` now
 // resolves to the accent, and the reading surface aliases the shell family (ink-blue primary).
 test("final interaction texture keeps Light and Dark type readable on distinct surfaces", () => {
-  assert.match(INTERACTION_TEXTURE_STYLES, /--page: #eef3f7;[\s\S]*--paper: #fcfdfe;[\s\S]*--ink: #1f2b37;[\s\S]*--muted: #586574;[\s\S]*--faint: #616d7a;/); // 4.5:1 captions
-  assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--blue: var\(--accent\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--focus-stroke: 2px solid var\(--focus-ring\);/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--focus-stroke-inset: 1px;/);
-  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /--focus-stroke: 1px solid var\(--ink\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--mark-slate: #647DB5;/);
+  const baseline = renderSkinScope(BASELINE_SKIN, true);
+  const light = baseline.match(/color-scheme: light;([^}]+)/u)?.[1] ?? "";
+  const dark = baseline.match(/color-scheme: dark;([^}]+)/u)?.[1] ?? "";
+  for (const word of ["--page: #eef3f7;", "--paper: #fcfdfe;", "--ink: #1f2b37;", "--muted: #586574;", "--faint: #616d7a;"]) {
+    assert.ok(light.includes(word), word);
+  }
+  for (const word of ["--page: #141a20;", "--paper: #1b2229;", "--ink: #e8eef3;", "--muted: #9aa8b5;", "--faint: #8e9ba8;"]) {
+    assert.ok(dark.includes(word), word);
+  }
+  assert.match(light, /--hue-indigo: #5e6ad2;/);
+  assert.match(light, /--blue: var\(--accent\)/);
+  assert.match(light, /--focus-stroke: 2px solid var\(--focus-ring\);/);
+  assert.match(light, /--focus-stroke-inset: 1px;/);
+  assert.doesNotMatch(baseline, /--focus-stroke: 1px solid var\(--ink\)/);
+  assert.match(light, /--content-accent: var\(--action\)/);
+  assert.match(light, /--mark-slate: #647DB5;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
-  assert.match(
-    INTERACTION_TEXTURE_STYLES,
-    /data-resolved-theme="dark"[\s\S]*--page: #141a20;[\s\S]*--paper: #1b2229;[\s\S]*--ink: #e8eef3;[\s\S]*--muted: #9aa8b5;[\s\S]*--faint: #8e9ba8;/, // Dark faint lifted a step for 4.5:1 (spec → 第三轮 · 对比度)
-  );
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const arrival = renderMolisWorkArrivalStylesheet();
   assert.match(TYPEFACE_STYLES, /font-family: "Inter Variable"/);
   assert.match(TYPEFACE_STYLES, /font-family: "Noto Sans SC"/);
   // Soft Workbench (DESIGN.md → Typography): weights are roles (400/500/600), never forced globally.
   assert.doesNotMatch(TYPEFACE_STYLES, /font-weight: 400 !important/);
-  assert.match(TYPEFACE_STYLES, /--weight-body: 400; --weight-control: 500; --weight-title: 600;/);
+  assert.match(TYPEFACE_STYLES, /--weight-body: 400;[^}]*--weight-control: 500;[^}]*--weight-title: 600;/);
   assert.match(TYPEFACE_STYLES, /font-synthesis-weight: none/);
   assert.doesNotMatch(TYPEFACE_STYLES, /--font-quote|QUOTE_FONT|immersive-home blockquote/);
   assert.equal(existsSync(interVariableFontFilePath()), true);

@@ -12,6 +12,7 @@ import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, dockDefaultPins, extendPluginIds
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, renderCodingSettings } from "@molis-ai/molis-work-plugin-coding";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID, renderShelfSettings } from "@molis-ai/molis-work-plugin-shelf";
 import { defaultShelfDeviceSettings } from "@molis-ai/molis-work-module-shelf";
+import { withPageText } from "./fixtures/page-text.js";
 
 const source = (path: string) => readFileSync(fileURLToPath(new URL(`../apps/workbench/src/${path}`, import.meta.url)), "utf8");
 const pack = (id: string) => pluginWorkbenchPacks().find(item => item.project_plugin_id === id);
@@ -79,7 +80,7 @@ test("RAC-697 the Host has one route for a plugin's settings page: no plugin is 
   assert.equal(findPluginSettingsNavItem("shelf")?.settings_runtimes, false);
 });
 
-test("RAC-698 the Shelf and Coding settings pages come out as before when drawn from the platform's context and the declared data", () => {
+test("RAC-698 the Shelf and Coding settings pages come out as before when drawn from the platform's context and the declared data", () => withPageText("zh", ["shelf", "coding"], () => {
   const settings = defaultShelfDeviceSettings();
   const context = { projects: [{ project_id: "p1", name: "项目一" }, { project_id: "p2", name: "项目二" }],
     project: { project_id: "p1", name: "项目一", href: "/projects/p1/" }, runtimes: [runtime("r-write"), runtime("r-read", ["text-edit", "command"])] };
@@ -93,7 +94,7 @@ test("RAC-698 the Shelf and Coding settings pages come out as before when drawn 
     methods: codingAgentManifest.skills ?? [], projects: context.projects, project_name: "项目一", project_href: "/projects/p1/", primitives }));
   assert.match(coding, /data-coding-settings/);
   assert.ok(coding.includes("运行时 r-write") && coding.includes("/projects/p1/"));
-});
+}));
 
 test("RAC-695 the directory the shell takes in drops a backbone place, an extend place and a default pin from a plugin installed at run time", () => {
   const entry = (id: string, chosen: boolean) => ({ id, plugin_id: `io.molis.work.probe.${id}`, name: id, chosen,

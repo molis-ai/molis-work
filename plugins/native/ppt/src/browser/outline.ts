@@ -1,6 +1,7 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { OutlineAttempt, Ppt, PptPage } from "./types.js";
-import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 interface OutlinePages { documents?: { id: string; title?: string }[]; unavailable_reason?: string | null }
 interface OutlineReply { presentation: Ppt; slide_count: number }
@@ -9,8 +10,8 @@ interface OutlineReply { presentation: Ppt; slide_count: number }
  * stopped a two-unit character at half of it, so the box is cut to whole characters at the same limit and says it in the page's words.
  * Returns the error line to show, or null to leave it as it is. */
 const OUTLINE_MAX_CHARS = 20_000;
-const capOutlineText = (area: HTMLTextAreaElement, error: HTMLElement | null, L: Translate): string | null => {
-  const characters = [...area.value], limit = L("ppt.outline.too-long");
+const capOutlineText = (area: HTMLTextAreaElement, error: HTMLElement | null): string | null => {
+  const characters = [...area.value], limit = uiText.text("ppt.outline.too-long");
   if (characters.length <= OUTLINE_MAX_CHARS) return error?.textContent === limit ? "" : null;
   area.value = characters.slice(0, OUTLINE_MAX_CHARS).join("");
   return limit;
@@ -18,11 +19,11 @@ const capOutlineText = (area: HTMLTextAreaElement, error: HTMLElement | null, L:
 
 /** The outline dialog: pasted text or a Pages document turned into slides, locally or through the model. */
 export function installOutline(page: PptPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
   const box = el.outBox;
   const q = <T extends Element>(selector: string): T | null => box?.querySelector<T>(selector) ?? null;
   // A reason the server gave is a sentence it wrote; the common translator knows it by its Chinese original.
-  const noModel = () => (s.aiUnavailableReason ? L(s.aiUnavailableReason) : L("ppt.outline.no-model"));
+  const noModel = () => (s.aiUnavailableReason || uiText.text("ppt.outline.no-model"));
 
   const endOutline = () => {
     const attempt = s.outline;
@@ -41,7 +42,7 @@ export function installOutline(page: PptPage): void {
   };
 
   box?.querySelector<HTMLTextAreaElement>("[data-ppt-outline-text]")?.addEventListener("input", (event) => {
-    const text = capOutlineText(event.target as HTMLTextAreaElement, q("[data-ppt-outline-error]"), L);
+    const text = capOutlineText(event.target as HTMLTextAreaElement, q("[data-ppt-outline-error]"));
     if (text !== null) showOutlineError(text);
   });
   const markCurrent = (selector: string, current: (button: HTMLElement) => boolean) => {
@@ -66,7 +67,7 @@ export function installOutline(page: PptPage): void {
     if (!usePage) { if (pageNote) pageNote.hidden = true; return; }
     const select = q<HTMLSelectElement>("[data-ppt-outline-page]");
     if (select && select.dataset.loaded === "true") return;
-    if (pageNote) { pageNote.hidden = false; pageNote.textContent = L("ppt.outline.loading"); }
+    if (pageNote) { pageNote.hidden = false; pageNote.textContent = uiText.text("ppt.outline.loading"); }
     try {
       const payload = await page.request<OutlinePages>("GET", page.api + "/outline-pages");
       const documents = payload.documents || [];
@@ -74,17 +75,17 @@ export function installOutline(page: PptPage): void {
         select.replaceChildren(...documents.map((doc) => {
           const option = document.createElement("option");
           option.value = doc.id;
-          option.textContent = doc.title || L("ppt.outline.untitled-doc");
+          option.textContent = doc.title || uiText.text("ppt.outline.untitled-doc");
           return option;
         }));
         select.dataset.loaded = "true";
       }
       if (pageNote) {
         pageNote.hidden = documents.length > 0;
-        pageNote.textContent = documents.length ? "" : (payload.unavailable_reason ? L(payload.unavailable_reason) : L("ppt.outline.no-docs"));
+        pageNote.textContent = documents.length ? "" : (payload.unavailable_reason || uiText.text("ppt.outline.no-docs"));
       }
     } catch (error) {
-      if (pageNote) { pageNote.hidden = false; pageNote.textContent = messageOf(error) || L("ppt.outline.docs-failed"); }
+      if (pageNote) { pageNote.hidden = false; pageNote.textContent = messageOf(error) || uiText.text("ppt.outline.docs-failed"); }
     }
   };
 
@@ -122,8 +123,8 @@ export function installOutline(page: PptPage): void {
     const textarea = q<HTMLTextAreaElement>("[data-ppt-outline-text]");
     const text = (textarea?.value || "").trim();
     const pageId = s.outlineKind === "page" ? (q<HTMLSelectElement>("[data-ppt-outline-page]")?.value || "") : "";
-    if (s.outlineKind === "page" && !pageId) { showOutlineError(L("ppt.outline.pick-first")); return; }
-    if (s.outlineKind === "text" && !text) { showOutlineError(L("ppt.outline.empty-text")); textarea?.focus(); return; }
+    if (s.outlineKind === "page" && !pageId) { showOutlineError(uiText.text("ppt.outline.pick-first")); return; }
+    if (s.outlineKind === "text" && !text) { showOutlineError(uiText.text("ppt.outline.empty-text")); textarea?.focus(); return; }
     const submit = q<HTMLButtonElement>("[data-ppt-outline-submit]");
     if (!submit) return;
     const replace = Boolean(q<HTMLInputElement>("[data-ppt-outline-replace]")?.checked);
@@ -132,7 +133,7 @@ export function installOutline(page: PptPage): void {
     const label = submit.textContent ?? "";
     const attempt: OutlineAttempt = { controller: new AbortController(), submit, label, id: open.id, revision: s.editRev, mode: s.outlineMode, source: s.outlineKind, text: textarea?.value || "" };
     s.outline = attempt;
-    submit.textContent = s.outlineMode === "ai" ? L("ppt.outline.working") : label;
+    submit.textContent = s.outlineMode === "ai" ? uiText.text("ppt.outline.working") : label;
     try {
       await page.save();
       if (s.outline !== attempt || !box.open || s.selected?.id !== attempt.id || s.editRev !== attempt.revision) return;
@@ -147,9 +148,9 @@ export function installOutline(page: PptPage): void {
       const unchanged = (textarea?.value || "") === attempt.text && s.outlineMode === attempt.mode && s.outlineKind === attempt.source
         && (!pageId || q<HTMLSelectElement>("[data-ppt-outline-page]")?.value === pageId);
       if (unchanged) { if (textarea) textarea.value = ""; endOutline(); box.close(); }
-      page.showNote(L("ppt.outline.done", { count: payload.slide_count }), false);
+      page.showNote(uiText.text("ppt.outline.done", { count: payload.slide_count }), false);
     } catch (error) {
-      if (s.outline === attempt && !attempt.controller.signal.aborted) showOutlineError(messageOf(error) || L("ppt.error.request"));
+      if (s.outline === attempt && !attempt.controller.signal.aborted) showOutlineError(messageOf(error) || uiText.text("ppt.error.request"));
     } finally {
       if (s.outline === attempt) endOutline();
     }

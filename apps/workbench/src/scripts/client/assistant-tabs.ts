@@ -3,7 +3,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   // A tab's mark says at a glance which work waits on the person, which runs, and which has news not yet seen.
   const markOf = (work) => !work ? "" : WAITING.has(work.state) || urgentWorks.has(work.work_id) ? "waiting" : work.state === "running" ? "running"
     : unreadWorks.has(work.work_id) ? "unread" : work.state === "failed" ? "failed" : "";
-  const MARK_LABEL = { waiting: "等你", running: "进行中", unread: "有新结果", failed: "没有完成" }; const tabMark = (mark, work) => { const node = el("span", "assistant-tab-mark"); if (mark) node.dataset.mwState = mark === "waiting" ? (work && WAITING.has(work.state) ? ringState(work.state) : "answer") : mark; node.setAttribute("aria-hidden", "true"); return node; };
+  const MARK_LABEL = { waiting: "workbench.assistant-tabs.needs", running: "workbench.assistant-tabs.progress", unread: "workbench.assistant-tabs.new-results", failed: "workbench.assistant-tabs.not-finished" }; const tabMark = (mark, work) => { const node = el("span", "assistant-tab-mark"); if (mark) node.dataset.mwState = mark === "waiting" ? (work && WAITING.has(work.state) ? ringState(work.state) : "answer") : mark; node.setAttribute("aria-hidden", "true"); return node; };
   const workById = (id) => works.find((work) => work.work_id === id) || (view && view.work.work_id === id ? view.work : null);
   function drawTabs() {
     if (!tabsEl) return;
@@ -19,21 +19,21 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       main.setAttribute("aria-selected", String(cur)); main.tabIndex = cur ? 0 : -1;
       main.setAttribute("aria-controls", "assistant-side");
       main.append(tabMark(mark, workById(id)), el("span", "assistant-tab-title", title));
-      main.title = title + (mark ? " · " + L(MARK_LABEL[mark]) : "");
+      main.title = title + (mark ? " · " + globalThis.t.text(MARK_LABEL[mark]) : "");
       main.addEventListener("click", () => { if (id === "new") void switchTo(null); else void switchTo(id); });
       wrap.append(main);
       if (id !== "new") wrap.addEventListener("auxclick", (event) => { if (event.button !== 1) return; event.preventDefault(); closeTab(id); });
       if (closable) {
         const close = el("button", "assistant-tab-close", "×"); close.type = "button"; close.tabIndex = -1;
-        close.setAttribute("aria-label", L("关闭标签") + "：" + title);
-        close.title = L("关闭标签（工作仍在“全部工作”里）");
+        close.setAttribute("aria-label", globalThis.t.text("workbench.assistant-tabs.close-tab") + "：" + title);
+        close.title = globalThis.t.text("workbench.assistant-tabs.close-tab-work-stays-all-work");
         close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") void switchTo(tabs[tabs.length - 1] || null); else closeTab(id); });
         wrap.append(close);
       }
       tabsEl.append(wrap);
     };
-    ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : L("正在读取…"), markOf(work), true); });
-    if (!curId) tab("new", L("新工作"), "", ids.length > 0);
+    ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : globalThis.t.text("workbench.assistant-tabs.loading"), markOf(work), true); });
+    if (!curId) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", ids.length > 0);
     const cur = tabsEl.querySelector("[data-current]");
     if (cur) {
       const left = cur.offsetLeft, right = left + cur.offsetWidth;
@@ -56,7 +56,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   const paintJump = () => {
     if (!jump) return;
     if (unseen && !nearBottom()) {
-      jump.textContent = "↓ " + L("新消息");
+      jump.textContent = "↓ " + globalThis.t.text("workbench.assistant-tabs.new-messages");
       jump.onclick = () => { unseen = false; scrollOwner()?.toLatest(); paintJump(); }; jump.hidden = false; return;
     }
     unseen = false; jump.hidden = true;
@@ -73,7 +73,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     emptyList.dataset.signature = signature;
     const parts = [];
     if (starters.length) {
-      parts.push(el("p", "assistant-empty-title", L("从这一页开始")));
+      parts.push(el("p", "assistant-empty-title", globalThis.t.text("workbench.assistant-tabs.start-page")));
       starters.forEach((starter) => {
         const btnEl = el("button", "assistant-start"); btnEl.type = "button";
         btnEl.append(el("span", "assistant-start-title", starter.label));
@@ -84,7 +84,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       });
     }
     if (recent.length) {
-      parts.push(el("p", "assistant-empty-title", L("继续最近的工作")));
+      parts.push(el("p", "assistant-empty-title", globalThis.t.text("workbench.assistant-tabs.continue-recent-work")));
       recent.forEach((work) => {
         const btnEl = el("button", "assistant-start assistant-start--work"); btnEl.type = "button";
         const mark = markOf(work); if (mark) btnEl.dataset.mark = mark;
@@ -93,6 +93,6 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
         parts.push(btnEl);
       });
     }
-    parts.push(el("p", "assistant-empty-hint", L("输入 @ 引用项目里的内容，/ 用一个能力或方法；文件和图片可以直接拖进输入框。")));
+    parts.push(el("p", "assistant-empty-hint", globalThis.t.text("workbench.assistant-tabs.type-bring-project-content-use-capability-method-drop")));
     emptyList.replaceChildren(...parts);
   }`;

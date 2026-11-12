@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageReviewQuery } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageDialogs } from "./dialogs.js";
 import { overFrame } from "./over-frame.js";
@@ -17,7 +18,7 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
   pageId: string, route: (path: string) => string, host: FrameHost) {
   const slots = new Map<number, { holder: HTMLDivElement; content: HTMLDivElement; lifetime: FrameScope; signal: AbortSignal;
     show: ReturnType<typeof molisFrameReviews> }>();
-  const dialogs = pageDialogs(scope, host.translate, true);
+  const dialogs = pageDialogs(scope, uiText.text, true);
   const close = (id: number) => { const entry = slots.get(id); entry?.lifetime.dispose(); entry?.holder.remove(); slots.delete(id); };
   scope.own(() => { for (const id of slots.keys()) close(id); });
   return async (message: ReviewMessage) => {

@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.bitbucket",
+  "locale": "en",
+  "messages": {
+    "bitbucket.connection.auth-help": "Bitbucket app passwords have been retired. For an API token, enter the Atlassian email and API token separated by a colon. You can paste an OAuth user access token directly.",
+    "bitbucket.connection.inbound": "Feed retrieves repositories and pull requests",
+    "bitbucket.connection.summary": "Repositories and pull requests.",
+    "bitbucket.connection.token-label": "Bitbucket token",
+    "bitbucket.guide.mcp-connected-note": "The Bitbucket workspace must be linked to an Atlassian organization.",
+    "bitbucket.guide.mcp-link": "View Atlassian Rovo MCP",
+    "bitbucket.guide.mcp-note": "The Bitbucket workspace must be linked to an Atlassian organization. Molis Work has not integrated this service.",
+    "bitbucket.guide.oauth-link": "View Bitbucket OAuth 2.0",
+    "bitbucket.guide.token-note": "Bitbucket app passwords have been retired. Use an API token or an OAuth user access token.",
+    "bitbucket.oauth.note": "Configure account, repository and pullrequest read permissions in the consumer.",
+    "bitbucket.setup.create-atlassian-api-token": "Create Atlassian API Token"
+  }
+}

@@ -51,11 +51,11 @@ export function inboxReasonLabel(
   text: (value: string, values?: Record<string, string | number>) => string,
 ): string {
   return ({
-    manual: text("你手工加入"),
-    source_rule: text("来源规则命中"),
-    goal_decision: text("Molis Work 等待决定"),
-    source_fault: text("来源需要人工恢复"),
-    artifact_out_failed: text("存为成果失败"),
+    manual: text("inbox.projection.added-manually"),
+    source_rule: text("inbox.projection.matched-source-rule"),
+    goal_decision: text("inbox.projection.molis-work-waiting-decision"),
+    source_fault: text("inbox.projection.source-needs-manual-recovery"),
+    artifact_out_failed: text("inbox.projection.artifact-capture-failed"),
   } as const)[reason];
 }
 
@@ -64,10 +64,10 @@ export function inboxStatusLabel(
   text: (value: string, values?: Record<string, string | number>) => string,
 ): string {
   return ({
-    open: text("待处理"),
-    in_progress: text("处理中"),
-    done: text("已完成"),
-    dismissed: text("已忽略"),
+    open: text("inbox.projection.open"),
+    in_progress: text("inbox.projection.working"),
+    done: text("inbox.projection.completed"),
+    dismissed: text("inbox.projection.ignored"),
   } as const)[status];
 }
 
@@ -76,10 +76,10 @@ export function inboxKindLabel(
   reason: AttentionReason,
   text: (value: string, values?: Record<string, string | number>) => string,
 ): string {
-  if (subjectType === "source_fault") return text("Inbox · 来源故障");
-  if (subjectType === "goal_decision") return text("Inbox · Goal 决定");
-  if (reason === "artifact_out_failed") return text("Inbox · 存为成果失败");
-  return reason === "manual" ? text("Inbox · 手工加入") : text("Inbox · 来源规则");
+  if (subjectType === "source_fault") return text("inbox.projection.inbox-source-issue");
+  if (subjectType === "goal_decision") return text("inbox.projection.inbox-goal-decision");
+  if (reason === "artifact_out_failed") return text("inbox.projection.inbox-artifact-capture-failed");
+  return reason === "manual" ? text("inbox.projection.inbox-added-manually") : text("inbox.projection.inbox-source-rule");
 }
 
 /** A workflow hands content over as a manual entry; say so instead of claiming the person added it. */
@@ -108,13 +108,13 @@ export function buildInboxUiEntries(
         subject_id: entry.subject_id,
         reason: entry.reason,
         status: entry.status,
-        kind_label: fromWorkflow(entry) ? text("Inbox · 工作流程") : inboxKindLabel(entry.subject_type, entry.reason, text),
+        kind_label: fromWorkflow(entry) ? text("inbox.projection.inbox-workflow") : inboxKindLabel(entry.subject_type, entry.reason, text),
         source_label: subject.source_label,
         title: subject.title,
         reason_label: entry.reason === "source_rule" && typeof entry.detail.rule_name === "string"
-          ? text(entry.detail.needs_review ? "规则「{rule}」需要人工复核" : "规则「{rule}」筛选进入", { rule: entry.detail.rule_name })
+          ? text(entry.detail.needs_review ? "inbox.projection.rule-rule-needs-human-review" : "inbox.projection.added-rule-rule", { rule: entry.detail.rule_name })
           : fromWorkflow(entry)
-            ? text("工作流程交过来")
+            ? text("inbox.projection.handed-over-workflow")
             : inboxReasonLabel(entry.reason, text),
         relation_label: subject.source_label,
         next_action: nextAction(entry, text),
@@ -140,17 +140,17 @@ function nextAction(
   entry: AttentionEntryRecord,
   text: (value: string, values?: Record<string, string | number>) => string,
 ): string {
-  if (!isActiveInboxStatus(entry.status)) return text("可以重新打开，原对象仍保留。");
+  if (!isActiveInboxStatus(entry.status)) return text("inbox.projection.can-reopen-original-object-remains");
   if (entry.subject_type === "source_fault") {
     return typeof entry.detail.user_action === "string" && entry.detail.user_action.trim()
       ? entry.detail.user_action
-      : text("检查来源配置、授权或拉取范围后重新同步。");
+      : text("inbox.projection.check-source-configuration-authorization-pull-scope-then-sync");
   }
   if (entry.subject_type === "goal_decision") {
-    return text("到 Goals 完成判断，Inbox 不内嵌决定表单。");
+    return text("inbox.projection.finish-decision-goals-inbox-does-not-embed-form");
   }
   if (entry.reason === "artifact_out_failed") {
-    return text("存为成果失败，原消息仍在 Feed。可重试同步或完成这条注意力。");
+    return text("inbox.projection.artifact-capture-failed-original-message-stays-feed-retry");
   }
-  return text("查看原消息并处理，或直接完成 / 忽略这条注意力引用。");
+  return text("inbox.projection.open-handle-original-message-complete-ignore-attention-reference");
 }

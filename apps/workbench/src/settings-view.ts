@@ -6,6 +6,12 @@ export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: C
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 import type { CallRowView } from "./call-row.js";
+import type { AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+
+/** Transient UI words from verified registrations; language previews omit prompt bodies and user content. */
+export type AgentDisplayModel = Record<string, { source: AgentDefinitionSource;
+  roles: Record<string, { version: number; name: string; purpose: string }>;
+  prompts: Record<string, { version: number; title: string; purpose: string }> }>;
 export interface WebSettingsProject extends WebProjectNavigation {
   database_path: string;
   source: "created";
@@ -39,6 +45,7 @@ export interface WebPeriodicTask {
 }
 
 export interface MolisWorkSettingsView {
+  agent_display_model?: AgentDisplayModel;
   section: WebSettingsSection | string;
   capabilities?: import("./capabilities.js").CapabilitiesView;
   functions_settings?: Omit<import("./judgment-rules/settings-ui.js").FunctionsSettingsUiModel, "primitives">;

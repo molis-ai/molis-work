@@ -1,6 +1,8 @@
 import type { AgentPromptLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { AgentFrozenStart } from "@molis-ai/molis-work-contracts/services/agent-host";
 
+export const CODING_PUBLISHER_BINDING = "official-coding-binding";
+
 /**
  * What this run was frozen with, as something the user can read.
  *

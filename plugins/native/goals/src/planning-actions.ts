@@ -38,11 +38,11 @@ export const goalsPlanningActions = {
 export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPorts, projectId: string): ActionHandlerBinding[] {
   const { planning } = ports;
   return [
-    { ...goalsPlanningActions.planningCatalog, handle: () => ({
-      methods: planning.effectiveMethods(projectId).map(({ instructions: _instructions, ...summary }) => summary),
+    { ...goalsPlanningActions.planningCatalog, handle: caller => ({
+      methods: planning.effectiveMethods(projectId, caller.locale).map(({ instructions: _instructions, ...summary }) => summary),
       composition: planning.projectComposition(projectId) }) },
-    { ...goalsPlanningActions.planningRead, handle: (_caller, input) => {
-      const methods = planning.effectiveMethods(projectId), wanted = (input as { method_ids?: string[] }).method_ids;
+    { ...goalsPlanningActions.planningRead, handle: (caller, input) => {
+      const methods = planning.effectiveMethods(projectId, caller.locale), wanted = (input as { method_ids?: string[] }).method_ids;
       const missing = (wanted ?? []).filter(id => !methods.some(method => method.method_id === id));
       if (missing.length) throw planningErrors.method_not_found(`找不到规划方法：${missing.join("、")}`);
       return { methods: wanted ? wanted.map(id => methods.find(method => method.method_id === id)!) : methods, composition: planning.projectComposition(projectId) };

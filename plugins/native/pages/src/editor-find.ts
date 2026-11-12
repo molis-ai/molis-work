@@ -74,7 +74,7 @@ function createFindView(translate: Translate | undefined): PluginView {
   const input = document.createElement("input");
   input.className = "mw-input";
   input.type = "search";
-  input.placeholder = t(translate, "在文中查找");
+  input.placeholder = t(translate, "pages.editor.find-in-the-text");
   // Its width is the widest two-digit position ("88/88" ghost), so typing a query never pushes the replace field.
   const count = document.createElement("span");
   count.className = "pages-find-count mw-num";
@@ -83,13 +83,13 @@ function createFindView(translate: Translate | undefined): PluginView {
   const replaceInput = document.createElement("input");
   replaceInput.className = "mw-input";
   replaceInput.type = "text";
-  replaceInput.placeholder = t(translate, "替换为");
+  replaceInput.placeholder = t(translate, "pages.editor.replace-with");
   const replaceOne = document.createElement("button");
   replaceOne.type = "button";
-  replaceOne.textContent = t(translate, "替换");
+  replaceOne.textContent = t(translate, "pages.editor.replace");
   const replaceAll = document.createElement("button");
   replaceAll.type = "button";
-  replaceAll.textContent = t(translate, "全部");
+  replaceAll.textContent = t(translate, "pages.editor.all");
   bar.append(input, count, replaceInput, replaceOne, replaceAll);
   overlayRoot().append(bar);
   const close = (view: EditorView) => {

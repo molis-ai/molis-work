@@ -9,10 +9,16 @@ import { readArtifactBrowser } from "@molis-ai/molis-work-module-artifacts";
 import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, seedDemoBoard, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { declarationManifest } from "./fixtures/declaration-manifest.js";
 
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
@@ -116,9 +122,9 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   assert.equal(detail.status, 200);
   const html = await detail.text();
   assert.match(html, /没有兼容插件/);
-  assert.match(html, /<h1>Original report<\/h1>/);
+  assert.match(html, /<h1 translate="no">Original report<\/h1>/);
   assert.match(html, /<strong>Later report<\/strong>/);
-  assert.doesNotMatch(html, /<h1>Later report<\/h1>|<script>attack\(\)<\/script>/);
+  assert.doesNotMatch(html, /<h1 translate="no">Later report<\/h1>|<script>attack\(\)<\/script>/);
   assert.match(html, /&lt;\/pre&gt;&lt;script&gt;attack/);
   assert.ok(html.includes(`href="/api${exactPath(1)}/export"`));
   for (const record of [first, second]) {
@@ -132,9 +138,9 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   assert.equal(fragment.status, 200);
   assert.match(fragmentHtml, /data-artifact-directory/);
   assert.match(fragmentHtml, /data-artifact-detail/);
-  assert.match(fragmentHtml, /<h1>Original report<\/h1>/);
+  assert.match(fragmentHtml, /<h1 translate="no">Original report<\/h1>/);
   assert.match(fragmentHtml, /<strong>Later report<\/strong>/);
-  assert.doesNotMatch(fragmentHtml, /<h1>Later report<\/h1>|<!doctype|<script>attack/);
+  assert.doesNotMatch(fragmentHtml, /<h1 translate="no">Later report<\/h1>|<!doctype|<script>attack/);
   const english = await (await surface(exactPath(1), "en")).text();
   assert.match(await (await get(opened.pathname + opened.search, "en")).text(), /lang="en"/);
   assert.match(english, /No compatible plugin/);
@@ -159,7 +165,7 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
     assert.equal(page.status, 404);
     const html = await page.text();
     assert.match(html, /不会自动替换成最新版本/);
-    assert.doesNotMatch(html, /<h1>Original report<\/h1>/);
+    assert.doesNotMatch(html, /<h1 translate="no">Original report<\/h1>/);
     const exported = await get(`/api${path}/export`);
     assert.equal(exported.status, 404);
     await exported.text();
@@ -187,14 +193,14 @@ test("Artifact empty, unavailable, archived and embedded views reflect Module st
   assert.ok(embed.includes(`href="/projects/current${exactPath(1)}"`));
   assert.match(embed, /data-artifact-version="1"/);
   assert.match(embed, /没有兼容插件/);
-  assert.match(embed, /<h3><a href="\/projects\/current\/artifacts\/[^"]+\/versions\/1">Original report<\/a><\/h3>/);
+  assert.match(embed, /<h3 translate="no"><a href="\/projects\/current\/artifacts\/[^"]+\/versions\/1">Original report<\/a><\/h3>/);
   assert.doesNotMatch(embed, /attack\(\)|\/export/);
   assert.equal(readArtifactBrowser(query, DEMO_PROJECT_ID, reference, [{ artifact_type_id: "io.example.report", schema_version: 1 }]).compatibility?.consumable, true);
   assert.equal(readArtifactBrowser(query, DEMO_PROJECT_ID, reference, [{ artifact_type_id: "io.example.report", schema_version: 2 }]).compatibility?.consumable, false);
   library.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, ...reference, actor_id: "report-owner", reason: "Source disconnected" });
   const unavailable = await (await surface(exactPath(1))).text();
   assert.match(unavailable, /这个版本的内容不可用|Source disconnected/);
-  assert.match(unavailable, /<h1>Original report<\/h1>/);
+  assert.match(unavailable, /<h1 translate="no">Original report<\/h1>/);
   assert.doesNotMatch(unavailable, /&lt;\/pre&gt;&lt;script&gt;attack|<script>attack\(\)<\/script>/);
   library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, ...reference, actor_id: "report-owner" });
   assert.match(await (await surface("/artifacts")).text(), /已归档/);
@@ -331,6 +337,7 @@ test("Artifact type folds use the names their owners declare, and an undeclared 
     artifact_id: "feed-capture",
     version: 1,
     artifact_type_id: "io.molis.work.feed.capture",
+    producer: { plugin_id: "io.molis.work.feed", plugin_version: "1.0.0", binding_signature: "official-feed-binding" },
     content: { kind: "inline", payload: { title: "Captured item" } },
   }));
   const html = await (await surface("/artifacts")).text();
@@ -338,6 +345,55 @@ test("Artifact type folds use the names their owners declare, and an undeclared 
   assert.match(html, /<strong>捕获的消息<\/strong>/);
   assert.doesNotMatch(html, /<strong>io\.molis\.work\.goal\.delivery<\/strong>/);
   assert.doesNotMatch(html, /<strong>io\.molis\.work\.feed\.capture<\/strong>/);
+  const forged = library.artifacts.commands.registerVersion(registration({
+    artifact_id: "same-plugin-different-binding", artifact_type_id: "io.molis.work.feed.capture",
+    producer: { plugin_id: "io.molis.work.feed", plugin_version: "1.0.0", binding_signature: "different-publisher" },
+  })).artifact;
+  const other = await (await surface(`/artifacts/${forged.artifact_id}/versions/1`)).text();
+  assert.doesNotMatch(other, /捕获的消息/u, "a same-named producer from another binding cannot lend its type label");
+  assert.match(other, /<dd>capture · io\.molis\.work\.feed\.capture · Schema 1<\/dd>/u);
+  const original = await (await surface("/artifacts/feed-capture/versions/1")).text();
+  assert.match(original, /<dd>捕获的消息 · io\.molis\.work\.feed\.capture · Schema 1<\/dd>/u);
+});
+
+test("FSS-35 FSS-38 the Artifact version list uses the active producer release of this project", async t => {
+  const id = "io.molis.work.example.producer", artifactType = "io.example.producer.note", word = "producer.artifacts.type-title";
+  const preview = defineArtifactPreviewAction("producer.artifacts.preview", 1, "Preview", []);
+  const start = async (name: string, release: string, schema_version: number, title: string, binding_signature: string) => {
+    const type = { artifact_type_id: artifactType, schema_version, title: name,
+      preview: { capability_id: preview.capability_id, version: preview.version } };
+    const manifest = parsePluginManifest(declarationManifest({ plugin_id: id, kind: "app", name, version: release, publisher: { publisher_id: "example", signature: binding_signature },
+      actions: [preview], artifacts: { produces: [{ ...type, title_text: { key: word } }], consumes: [] },
+      ui: { contributions: [], locales: { default: "en", available: ["en"] } },
+    }));
+    const definition: PluginDefinition = { manifest, async start() { return { kind: "app", actions: [{ ...preview, handle: () => ({ kind: "text", text: "Original" }) }] }; } };
+    const fixture = { definition, localePacks: () => pluginLocaleReader(manifest, path => path === "locales/en.json"
+      ? JSON.stringify({ format_version: 1, owner: id, locale: "en", messages: { [word]: title } }) : null) };
+    const home = await serveHomeRuntime(t, { pluginFixtures: { project: [fixture] } });
+    const project = await home.project(name), prefix = `/projects/${project.project_id}`;
+    assert.equal((await home.request(prefix + "/")).status, 200);
+    await home.host.withProject(project.reference, ({ artifacts, store }) => {
+      const releaseWriter = installProducers(store.db, { plugin_id: id, artifact_types: [artifactType] });
+      try {
+        const put = (artifact_id: string, signature: string, schema: number) => artifacts.commands.registerVersion(registration({
+          project_id: project.project_id, artifact_id, artifact_type_id: artifactType, schema_version: schema,
+          producer: { plugin_id: id, plugin_version: "1.0.0", binding_signature: signature }, title: artifact_id,
+        }));
+        put("Original from this producer", binding_signature, schema_version);
+        if (schema_version === 1) put("Same ID from a different publisher", "other-binding", 1);
+      } finally { releaseWriter(); }
+    });
+    return async () => {
+      const response = await home.request(prefix + "/api/artifacts/versions", { headers: { "accept-language": "en" } });
+      assert.equal(response.status, 200);
+      const { versions } = await response.json() as { versions: Array<{ title: string; type_title: string; reference: { version: number } }> };
+      return versions.map(item => [item.title, item.type_title, item.reference.version]).sort();
+    };
+  };
+  const first = await start("First raw label", "1.0.0", 1, "First display label", "first-binding");
+  const second = await start("Second raw label", "2.0.0", 2, "Second display label", "second-binding");
+  assert.deepEqual(await first(), [["Original from this producer", "First display label", 1], ["Same ID from a different publisher", artifactType, 1]]);
+  assert.deepEqual(await second(), [["Original from this producer", "Second display label", 1]]);
 });
 
 test("Artifact browser distinguishes no results, unselected versions and missing references", async t => {

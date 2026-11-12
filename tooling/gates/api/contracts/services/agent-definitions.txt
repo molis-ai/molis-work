@@ -45,7 +45,7 @@ export interface AgentDefinitionsDiagnostics {
 
 export type AgentPromptKind = "agent" | "instruction";
 
-export interface AgentPromptRegistration {
+export interface AgentPromptRegistration extends LocalizedAgentBody {
     default_ref?: SignedAgentReference;
     prompt_id: string;
     version: number;
@@ -134,7 +134,7 @@ export interface AgentRoleView {
     edited: boolean;
 }
 
-export interface AgentSkillRegistration {
+export interface AgentSkillRegistration extends LocalizedAgentBody {
     skill_id: string;
     version: number;
     name: string;

@@ -44,7 +44,7 @@ export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts
 export { parsePorcelainStatus, type GitStatus, type GitChange, type GitHead, type GitUpstream, type PorcelainInput } from "./git-porcelain.js";
 /** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
 export { fillMessage } from "./message-text.js";
-export { messageDeclarationProblems, PLUGIN_MESSAGE_LIMITS } from "./message-declarations.js";
+export { sandboxLocaleProblems } from "./locale-declarations.js";
 /**
  * Copied credentials masked in external text before it goes to a model or back on screen. Code colouring and rich text are
  * subpaths (`/highlight`, `/rich-text`), so an entry that does not use them loads neither the tokenizer nor the Markdown parser.
@@ -57,7 +57,7 @@ export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 /** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
-export { createActionDefinition, defineAction } from "./actions.js";
+export { createActionDefinition, defineAction, hostBoundSession } from "./actions.js";
 export { bindActionHandler, inputSchemaFor, type FlatUnion, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
@@ -337,3 +337,5 @@ export type { SyncTrackedTable, SyncKeyPart, PluginSyncCollectionDefinition, Plu
 
 export { syncAggregateDeclaration, parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
 export { syncSection, syncSectionsDeclaration, syncSectionsTracking } from './sync-sections.js';
+
+export { readLocalizedMarkdown } from "./localized-markdown.js";

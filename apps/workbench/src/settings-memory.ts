@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT, renderMemoryClassSettings } from "./settings-memory-classes.js";
 import { MEMORY_EDITORS_CLIENT_SCRIPT } from "./settings-memory-editors.js";
 /**
@@ -5,94 +6,94 @@ import { MEMORY_EDITORS_CLIENT_SCRIPT } from "./settings-memory-editors.js";
  * settings. Both are the same page in a different scope; everything it shows and changes goes through `/api/memory/*`,
  * which invokes the shared directory's `memory.*` actions as the person.
  */
-export function renderMemorySettings({ L, scope, projectId }: { L(text: string): string; scope: "personal" | "project"; projectId: string | null }): string {
+export function renderMemorySettings({ readText, scope, projectId }: { readText(text: string): string; scope: "personal" | "project"; projectId: string | null }): string {
   const personal = scope === "personal";
-  const title = personal ? L("记忆") : L("项目记忆");
+  const title = personal ? uiText.text("workbench.settings-memory.memory") : uiText.text("workbench.settings-memory.project-memory");
   const lead = personal
-    ? L("你的偏好和习惯：助理、Agent 工作、插件和界面推荐都会用到，在所有项目里生效。每一条都能看到从哪来、最近用在哪，可以修改、停用或删除。")
-    : L("这个项目的约定、背景和经验：只在这个项目里使用。和“项目说明”不同，它按相关性参考，不是必须遵守的规矩。");
+    ? uiText.text("workbench.settings-memory.preferences-habits-used-assistant-agent-work-plugins-interface")
+    : uiText.text("workbench.settings-memory.project-s-conventions-background-lessons-used-only-project");
   return `<section class="settings-document memory-settings" aria-labelledby="memory-title" data-memory-settings data-memory-scope="${scope}" data-project="${projectId ?? ""}">
     <header class="settings-page-heading memory-heading"><h1 id="memory-title" data-memory-title>${title}</h1><p data-memory-intro>${lead}</p>
-      <p class="memory-summary" data-memory-summary aria-live="polite">${L("正在读取…")}</p></header>
+      <p class="memory-summary" data-memory-summary aria-live="polite">${uiText("workbench.settings-memory.loading")}</p></header>
     <p class="settings-form-error" data-memory-error role="alert" hidden></p>
     <section class="settings-section" data-memory-retries hidden aria-labelledby="memory-retries-title">
-      <h2 id="memory-retries-title">${L("等待重试的操作")}</h2>
-      <p class="settings-muted">${L("当前页保留原请求；已接受的遗忘和已确认批量会在重新进入后从服务恢复，不会改用后来版本。")}</p>
+      <h2 id="memory-retries-title">${uiText("workbench.settings-memory.operations-waiting-retry")}</h2>
+      <p class="settings-muted">${uiText("workbench.settings-memory.page-keeps-original-requests-accepted-forgetting-confirmed-batches")}</p>
       <ul class="memory-list" data-memory-retry-list></ul>
     </section>
     <section class="settings-section memory-changes" aria-labelledby="memory-changes-title" data-memory-changes-section hidden>
-      <h2 id="memory-changes-title">${L("最近变动")}</h2>
+      <h2 id="memory-changes-title">${uiText("workbench.settings-memory.recent-changes")}</h2>
       <ul class="memory-change-list" data-memory-changes></ul>
     </section>
     <section class="settings-section memory-pairs" aria-labelledby="memory-pairs-title" data-memory-pairs-section>
-      <h2 id="memory-pairs-title">${L("可能重复或冲突")}</h2>
-      <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-pairs-read>${L("查看可能重复或冲突")}</button>
-      <p class="settings-muted">${L("整理时发现的两两一对。选一条保留，另一条会停用（可以随时恢复）；都保留则不再提这一对。")}</p>
+      <h2 id="memory-pairs-title">${uiText("workbench.settings-memory.possible-duplicates-conflicts")}</h2>
+      <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-pairs-read>${uiText("workbench.settings-memory.review-possible-duplicates-conflicts")}</button>
+      <p class="settings-muted">${uiText("workbench.settings-memory.pairs-found-while-tidying-keep-one-other-switched")}</p>
       <ul class="memory-list" data-memory-pairs></ul>
     </section>
     <section class="settings-section memory-candidates" aria-labelledby="memory-candidates-title" data-memory-candidates-section hidden>
-      <h2 id="memory-candidates-title">${L("等你认可")}</h2>
-      <p class="settings-muted">${L("从工作、界面操作里提出，或写入门没有直接记住的内容。认可之前不会被使用。")}</p>
+      <h2 id="memory-candidates-title">${uiText("workbench.settings-memory.waiting")}</h2>
+      <p class="settings-muted">${uiText("workbench.settings-memory.suggested-work-how-use-interface-held-back-write")}</p>
       <ul class="memory-list" data-memory-candidates></ul>
     </section>
     <section class="settings-section memory-items" aria-labelledby="memory-items-title">
-      <div class="memory-items-head"><h2 id="memory-items-title">${personal ? L("我的记忆") : L("这个项目的记忆")}</h2>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${L("添加")}</button></div>
-      <div class="memory-toolbar" role="group" aria-label="${L("筛选记忆")}">
-        <select class="mw-select" data-memory-filter="scene" aria-label="${L("场景")}"><option value="">${L("全部场景")}</option><option value="coding">${L("Coding")}</option><option value="assistant">${L("助理")}</option><option value="common">${L("通用")}</option><option value="unclassified">${L("未归类")}</option></select>
-        <select class="mw-select" data-memory-filter="kind" aria-label="${L("类别")}"><option value="">${L("全部类别")}</option><option value="preference">${L("偏好")}</option><option value="convention">${L("约定")}</option><option value="fact">${L("背景事实")}</option><option value="experience">${L("经验")}</option><option value="habit">${L("习惯")}</option><option value="project-decision">${L("项目决策")}</option></select>
-        <select class="mw-select" data-memory-filter="lifecycle" aria-label="${L("保留时间")}"><option value="">${L("全部保留类型")}</option><option value="long-term">${L("长期")}</option><option value="short-term">${L("短期")}</option><option value="session">${L("会话内")}</option></select>
-        <select class="mw-select" data-memory-filter="source" aria-label="${L("来源")}"><option value="">${L("全部来源")}</option><option value="said">${L("你说的")}</option><option value="accepted">${L("你认可的")}</option><option value="auto">${L("自动记住")}</option><option value="manual">${L("手动添加")}</option><option value="imported">${L("导入")}</option><option value="plugin">${L("插件记下")}</option></select>
-        <select class="mw-select" data-memory-filter="state" aria-label="${L("状态")}"><option value="">${L("全部状态")}</option><option value="active">${L("生效")}</option><option value="disabled">${L("停用")}</option><option value="paused">${L("已暂停")}</option></select>
-        <select class="mw-select" data-memory-filter="expired" aria-label="${L("到期情况")}"><option value="">${L("全部期限")}</option><option value="true">${L("已到期")}</option><option value="false">${L("未到期")}</option></select>
-        <input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
+      <div class="memory-items-head"><h2 id="memory-items-title">${personal ? uiText.text("workbench.settings-memory.my-memories") : uiText.text("workbench.settings-memory.project-s-memories")}</h2>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${uiText("workbench.settings-memory.add")}</button></div>
+      <div class="memory-toolbar" role="group" aria-label="${uiText("workbench.settings-memory.filter-memories")}">
+        <select class="mw-select" data-memory-filter="scene" aria-label="${uiText("workbench.settings-memory.scene")}"><option value="">${uiText("workbench.settings-memory.all-scenes")}</option><option value="coding">${uiText("workbench.settings-memory.coding")}</option><option value="assistant">${uiText("workbench.settings-memory.assistant")}</option><option value="common">${uiText("workbench.settings-memory.common")}</option><option value="unclassified">${uiText("workbench.settings-memory.unclassified")}</option></select>
+        <select class="mw-select" data-memory-filter="kind" aria-label="${uiText("workbench.settings-memory.kind")}"><option value="">${uiText("workbench.settings-memory.all-kinds")}</option><option value="preference">${uiText("workbench.settings-memory.preference")}</option><option value="convention">${uiText("workbench.settings-memory.convention")}</option><option value="fact">${uiText("workbench.settings-memory.background-fact")}</option><option value="experience">${uiText("workbench.settings-memory.lesson")}</option><option value="habit">${uiText("workbench.settings-memory.habit")}</option><option value="project-decision">${uiText("workbench.settings-memory.project-decision")}</option></select>
+        <select class="mw-select" data-memory-filter="lifecycle" aria-label="${uiText("workbench.settings-memory.retention")}"><option value="">${uiText("workbench.settings-memory.all-retention-types")}</option><option value="long-term">${uiText("workbench.settings-memory.long-term")}</option><option value="short-term">${uiText("workbench.settings-memory.short-term")}</option><option value="session">${uiText("workbench.settings-memory.within-session")}</option></select>
+        <select class="mw-select" data-memory-filter="source" aria-label="${uiText("workbench.settings-memory.source")}"><option value="">${uiText("workbench.settings-memory.all-sources")}</option><option value="said">${uiText("workbench.settings-memory.said")}</option><option value="accepted">${uiText("workbench.settings-memory.accepted")}</option><option value="auto">${uiText("workbench.settings-memory.kept-automatically")}</option><option value="manual">${uiText("workbench.settings-memory.added")}</option><option value="imported">${uiText("workbench.settings-memory.imported")}</option><option value="plugin">${uiText("workbench.settings-memory.kept-plugin")}</option></select>
+        <select class="mw-select" data-memory-filter="state" aria-label="${uiText("workbench.settings-memory.state")}"><option value="">${uiText("workbench.settings-memory.all-states")}</option><option value="active">${uiText("workbench.settings-memory.active")}</option><option value="disabled">${uiText("workbench.settings-memory.switch-off")}</option><option value="paused">${uiText("workbench.settings-memory.paused")}</option></select>
+        <select class="mw-select" data-memory-filter="expired" aria-label="${uiText("workbench.settings-memory.expiry-state")}"><option value="">${uiText("workbench.settings-memory.all-expiry-states")}</option><option value="true">${uiText("workbench.settings-memory.expired-2")}</option><option value="false">${uiText("workbench.settings-memory.not-expired")}</option></select>
+        <input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${uiText("workbench.settings-memory.search-memories")}" aria-label="${uiText("workbench.settings-memory.search-memories")}">
       </div>
       <div class="memory-toolbar" data-memory-batch>
         <span class="settings-muted" data-memory-selected aria-live="polite"></span>
-        <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-memory-batch-action="disable" disabled>${L("停用选中项…")}</button>
-        <button type="button" class="mw-btn mw-btn--danger-outline mw-btn--sm" data-memory-batch-action="remove" disabled>${L("遗忘选中项…")}</button>
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-memory-selection-reset>${L("取消选择")}</button>
+        <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-memory-batch-action="disable" disabled>${uiText("workbench.settings-memory.disable-selected")}</button>
+        <button type="button" class="mw-btn mw-btn--danger-outline mw-btn--sm" data-memory-batch-action="remove" disabled>${uiText("workbench.settings-memory.forget-selected")}</button>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-memory-selection-reset>${uiText("workbench.settings-memory.clear-selection")}</button>
       </div>
       <ul class="memory-list" data-memory-batch-results aria-live="polite" hidden></ul>
       <div class="memory-editor-slot" data-memory-new hidden></div>
-      <ul class="memory-list" data-memory-list><li class="settings-muted">${L("正在读取…")}</li></ul>
-      <nav class="memory-toolbar" aria-label="${L("记忆分页")}">
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-previous disabled>${L("上一页")}</button>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-next disabled>${L("下一页")}</button>
-        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-reload>${L("重新读取")}</button>
+      <ul class="memory-list" data-memory-list><li class="settings-muted">${uiText("workbench.settings-memory.loading")}</li></ul>
+      <nav class="memory-toolbar" aria-label="${uiText("workbench.settings-memory.pages")}">
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-previous disabled>${uiText("workbench.settings-memory.previous-page")}</button>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-next disabled>${uiText("workbench.settings-memory.next-page")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-reload>${uiText("workbench.settings-memory.reload")}</button>
         <span class="settings-muted" data-memory-page-status aria-live="polite"></span>
       </nav>
     </section>
-    ${renderMemoryClassSettings(L)}
+    ${renderMemoryClassSettings()}
     <section class="settings-section memory-prefs" aria-labelledby="memory-form-title">
-      <h2 id="memory-form-title">${L("怎么形成")}</h2>
-      ${prefRow(L, "form", L("允许记住"), personal ? L("总开关。关掉后不再形成新的记忆，也不提建议；已有的照常使用。") : L("关掉后不再为这个项目形成新的记忆，也不提建议。"))}
-      <div class="settings-setting-row memory-pref-static"><span class="setting-copy"><strong>${L("明确要求时记住")}</strong><span>${L("你说“以后……”“记住……”时直接记住，并告诉你在哪里生效。")}</span></span><span class="setting-value settings-muted">${L("总是")}</span></div>
-      ${prefRow(L, "auto", L("自动记住低风险的偏好与经验"), L("你在两次不同的工作里都这样要求时自动记住，出现在“最近变动”里，可以撤销。关掉则都先问你。"))}
-      ${prefRow(L, "learn_from_work", L("从工作里提出建议"), L("工作结束时提出值得记住的内容，等你认可。"))}
-      ${prefRow(L, "learn_from_ui", L("从界面操作里学习"), L("只数你采纳、忽略、改写、撤销界面建议的次数，不保存内容；反复出现才提出建议。"))}
+      <h2 id="memory-form-title">${uiText("workbench.settings-memory.how-memories-form")}</h2>
+      ${prefRow(readText, "form", uiText.text("workbench.settings-memory.allow-remembering"), personal ? uiText.text("workbench.settings-memory.main-switch-off-no-new-memories-no-suggestions") : uiText.text("workbench.settings-memory.off-no-new-memories-suggestions-project"))}
+      <div class="settings-setting-row memory-pref-static"><span class="setting-copy"><strong>${uiText("workbench.settings-memory.remember-when-ask")}</strong><span>${uiText("workbench.settings-memory.when-say-now-remember-kept-once-told-where")}</span></span><span class="setting-value settings-muted">${uiText("workbench.settings-memory.always")}</span></div>
+      ${prefRow(readText, "auto", uiText.text("workbench.settings-memory.keep-low-risk-preferences-lessons-automatically"), uiText.text("workbench.settings-memory.kept-automatically-when-ask-same-thing-two-different"))}
+      ${prefRow(readText, "learn_from_work", uiText.text("workbench.settings-memory.suggest-work"), uiText.text("workbench.settings-memory.when-work-ends-suggest-what-worth-keeping-accept"))}
+      ${prefRow(readText, "learn_from_ui", uiText.text("workbench.settings-memory.learn-interface"), uiText.text("workbench.settings-memory.only-counts-how-often-accept-ignore-rewrite-undo"))}
     </section>
     <section class="settings-section memory-prefs" aria-labelledby="memory-use-title">
-      <h2 id="memory-use-title">${L("谁可以用")}</h2>
-      ${prefRow(L, "consumers.assistant", L("助理"), L("你在底栏交给助理的工作。"))}
-      ${prefRow(L, "consumers.agent", L("Agent 工作"), L("Coding、插件里的 Agent 和工作流。"))}
-      ${prefRow(L, "consumers.ui", L("界面推荐"), L("根据你正在看的内容给出的建议。"))}
-      ${prefRow(L, "consumers.plugin", L("插件"), L("插件只能读到偏好和约定，不会读到背景事实。"))}
-      ${prefRow(L, "consumers.mcp", L("外部 AI 客户端"), personal ? L("通过 MCP 连接的客户端。个人记忆默认不开放。") : L("通过 MCP 连接的客户端，只读。"))}
+      <h2 id="memory-use-title">${uiText("workbench.settings-memory.who-can-use-them")}</h2>
+      ${prefRow(readText, "consumers.assistant", uiText.text("workbench.settings-memory.assistant"), uiText.text("workbench.settings-memory.work-give-assistant-bottom-bar"))}
+      ${prefRow(readText, "consumers.agent", uiText.text("workbench.settings-memory.agent-work"), uiText.text("workbench.settings-memory.coding-plugin-agents-workflows"))}
+      ${prefRow(readText, "consumers.ui", uiText.text("workbench.settings-memory.interface-suggestions"), uiText.text("workbench.settings-memory.suggestions-based-what-looking"))}
+      ${prefRow(readText, "consumers.plugin", uiText.text("workbench.settings-memory.plugins"), uiText.text("workbench.settings-memory.plugins-read-only-preferences-conventions-never-background-facts"))}
+      ${prefRow(readText, "consumers.mcp", uiText.text("workbench.settings-memory.external-ai-clients"), personal ? uiText.text("workbench.settings-memory.clients-connected-over-mcp-personal-memories-closed-them") : uiText.text("workbench.settings-memory.clients-connected-over-mcp-read-only"))}
     </section>
     <section class="settings-section memory-data" aria-labelledby="memory-data-title">
-      <h2 id="memory-data-title">${L("整理与数据")}</h2>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("整理")}</strong><span data-memory-upkeep>${L("每天整理一次：到期和长期没用到的停用，重复的自动记忆合并，依据不在的暂停。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-upkeep-run>${L("现在整理")}</button></span></div>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导出")}</strong><span>${L("下载一个记忆包，里面的密钥和本机路径已经去掉。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${L("导出")}</button></span></div>
-      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导入")}</strong><span>${L("选择一个记忆包；已有的相同内容会跳过，包损坏时一条也不写入。")}</span></span>
-        <span class="setting-value"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${L("导入")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
-      <div class="settings-setting-row"><span class="setting-copy"><strong data-memory-clear-title>${personal ? L("清空个人记忆") : L("清空这个项目的记忆")}</strong><span>${L("先告诉你会删掉几条，确认后删除；删除后任何地方都不会再用到。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${L("清空…")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${L("重新预览…")}</button></span></div>
+      <h2 id="memory-data-title">${uiText("workbench.settings-memory.tidying-data")}</h2>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${uiText("workbench.settings-memory.tidying")}</strong><span data-memory-upkeep>${uiText("workbench.settings-memory.once-day-expired-long-unused-ones-switched-off")}</span></span>
+        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-upkeep-run>${uiText("workbench.settings-memory.tidy-now")}</button></span></div>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${uiText("workbench.settings-memory.export")}</strong><span>${uiText("workbench.settings-memory.download-memory-package-keys-local-paths-taken-out")}</span></span>
+        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${uiText("workbench.settings-memory.export")}</button></span></div>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${uiText("workbench.settings-memory.imported")}</strong><span>${uiText("workbench.settings-memory.choose-memory-package-what-already-kept-skipped-damaged")}</span></span>
+        <span class="setting-value"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${uiText("workbench.settings-memory.imported")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
+      <div class="settings-setting-row"><span class="setting-copy"><strong data-memory-clear-title>${personal ? uiText.text("workbench.settings-memory.clear-personal-memories") : uiText.text("workbench.settings-memory.clear-project-s-memories")}</strong><span>${uiText("workbench.settings-memory.see-how-many-first-once-confirmed-they-deleted")}</span></span>
+        <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${uiText("workbench.settings-memory.clear")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${uiText("workbench.settings-memory.preview-again")}</button></span></div>
       <p class="settings-muted" data-memory-clear-status aria-live="polite" hidden></p>
     </section>
-    ${personal ? `<p class="settings-muted memory-rules-note">${L("交互规则（例如“写方案时别打断”）由助理按规则执行，在“助理”设置里管理。")} <a href="/settings/assistant">${L("去助理设置")}</a></p>` : ""}
+    ${personal ? `<p class="settings-muted memory-rules-note">${uiText("workbench.settings-memory.interaction-rules-such-dont-interrupt-while-i-write")} <a href="/settings/assistant">${uiText("workbench.settings-memory.assistant-settings")}</a></p>` : ""}
   </section>`;
 }
 
@@ -110,7 +111,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
   const bind = (root, context = null) => {
     if (!root || root.dataset.memoryBound === "1") return;
     root.dataset.memoryBound = "1";
-    const L = globalThis.L || ((text) => text);
+    const L = globalThis.t.text;
     let scope = root.dataset.memoryScope === "project" ? "project" : "personal";
     const project = root.dataset.project || "";
     const params = new URLSearchParams(context ? context.search : location.search);
@@ -124,7 +125,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       : (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
     const $ = (selector) => root.querySelector(selector);
     const part = name => $("[data-memory-" + name + "]");
-    const unread = L("读取未完成，请重新读取。");
+    const unread = globalThis.t.text("workbench.settings-memory.reading-did-not-finish-reload-try-again");
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
     // Whichever way a dialog closes, focus goes back to the element the person used: focus they have genuinely moved
@@ -158,7 +159,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
       const header = el("header", "mw-form__header"), heading = el("div"), h2 = el("h2", "", title); h2.id = titleId;
       heading.append(h2, el("p", "", description)); header.append(heading);
-      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--secondary mw-btn--md", L("取消")), yes = el("button", "mw-btn mw-btn--danger mw-btn--md", yesLabel);
+      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--secondary mw-btn--md", globalThis.t.text("workbench.settings-memory.cancel")), yes = el("button", "mw-btn mw-btn--danger mw-btn--md", yesLabel);
       cancel.type = "button"; yes.type = "button"; yes.dataset.memoryConfirmYes = "";
       footer.append(cancel, yes); form.append(header, footer); dialog.append(form);
       let answer = false;
@@ -168,24 +169,24 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       dialog.addEventListener("close", () => { dialog.remove(); focusBack(trigger); resolve(answer); });
       root.append(dialog); dialog.showModal(); cancel.focus();
     });
-    const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
-    const FORMAL_KIND = { ...KIND, habit: "习惯", "project-decision": "项目决策" };
-    const CLASS = { coding: "Coding", assistant: "助理", common: "通用", "long-term": "长期", "short-term": "短期", session: "会话内" };
-    const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
-    const STATE = { active: "生效", disabled: "停用", paused: "已暂停" };
-    const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
-      disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "已暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
+    const KIND = { preference: "workbench.settings-memory.preference", convention: "workbench.settings-memory.convention", fact: "workbench.settings-memory.background-fact", experience: "workbench.settings-memory.lesson" };
+    const FORMAL_KIND = { ...KIND, habit: "workbench.settings-memory.habit", "project-decision": "workbench.settings-memory.project-decision" };
+    const CLASS = { coding: "workbench.settings-memory.coding", assistant: "workbench.settings-memory.assistant", common: "workbench.settings-memory.common", "long-term": "workbench.settings-memory.long-term", "short-term": "workbench.settings-memory.short-term", session: "workbench.settings-memory.within-session" };
+    const SOURCE = { said: "workbench.settings-memory.said", accepted: "workbench.settings-memory.accepted", auto: "workbench.settings-memory.kept-automatically", manual: "workbench.settings-memory.added", imported: "workbench.settings-memory.imported", plugin: "workbench.settings-memory.kept-plugin" };
+    const STATE = { active: "workbench.settings-memory.active", disabled: "workbench.settings-memory.switch-off", paused: "workbench.settings-memory.paused" };
+    const CHANGE = { kept: "workbench.settings-memory.keep", auto_kept: "workbench.settings-memory.kept-automatically", replaced: "workbench.settings-memory.replaced", auto_replaced: "workbench.settings-memory.replaced-automatically", merged: "workbench.settings-memory.merged", edited: "workbench.settings-memory.edit", restored: "workbench.settings-memory.went-back-earlier-version", moved: "workbench.settings-memory.moved",
+      disabled: "workbench.settings-memory.switch-off", auto_disabled: "workbench.settings-memory.switched-off-automatically", enabled: "workbench.settings-memory.switch", paused: "workbench.settings-memory.paused", resumed: "workbench.settings-memory.resumed", removed: "workbench.settings-memory.delete", accepted: "workbench.settings-memory.accepted-2", imported: "workbench.settings-memory.imported", cleared: "workbench.settings-memory.cleared" };
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope, classification) => {
-      const parts = classification?.lifecycle === "session" ? [L("会话内")] : [];
-      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
-      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
+      const parts = classification?.lifecycle === "session" ? [globalThis.t.text("workbench.settings-memory.within-session")] : [];
+      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins") + " " + applies.plugin_ids.join("、"));
+      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(globalThis.t.text("workbench.settings-memory.object") + " " + applies.object_kinds.join("、"));
       // Goals by name when their plugin can still read them; one it cannot is said so rather than shown as an id.
       if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.map((id) => {
-        const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : L("（读不到的 Goal）"); }).join("、"));
+        const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join("、"));
       if (applies && applies.task) parts.push(applies.task);
-      if (applies && applies.until) parts.push(L("到") + " " + applies.until.slice(0, 10));
-      return parts.length ? parts.join(" · ") : L(itemScope === "character" ? "这个角色在本项目承担的工作" : scope === "project" ? "这个项目的所有工作" : "所有工作");
+      if (applies && applies.until) parts.push(globalThis.t.text("workbench.settings-memory.until") + " " + applies.until.slice(0, 10));
+      return parts.length ? parts.join(" · ") : globalThis.t.text(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");
     };
     let data = null, busy = false, removing = false, reading = false, readFailed = false, reader, currentCursor, previous = [], pairsOpened = false;
     const filters = { scene: "", kind: "", lifecycle: "", source: "", state: "", expired: "", query: "" };
@@ -200,18 +201,18 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     if (!validTarget) {
-      error.textContent = L("会话选择不完整或无效，请从原会话重新打开。"); error.hidden = false;
+      error.textContent = globalThis.t.text("workbench.settings-memory.session-selection-incomplete-invalid-open-memory-original-session"); error.hidden = false;
       part("list").textContent = error.textContent; root.querySelectorAll("button, input, select").forEach(node => { node.disabled = true; }); return;
     }
     if (sessionMode) {
-      part("title").textContent = L("本会话记忆");
-      part("intro").textContent = L("这里只管理属于本会话的记忆与候选；清除不会删除对话，也不会清除其他会话或长期记忆。");
-      part("clear-title").textContent = L("清除本会话全部记忆与候选"); part("clear").textContent = L("清除…");
+      part("title").textContent = globalThis.t.text("workbench.settings-memory.session-memory");
+      part("intro").textContent = globalThis.t.text("workbench.settings-memory.manage-memories-candidates-belonging-session-clearing-keeps-conversati");
+      part("clear-title").textContent = globalThis.t.text("workbench.settings-memory.clear-all-memories-candidates-session"); part("clear").textContent = globalThis.t.text("workbench.settings-memory.clear-3");
       root.querySelectorAll(".memory-prefs, [data-memory-classes], [data-memory-pairs-section], [data-memory-changes-section], .memory-rules-note").forEach(node => { node.hidden = true; });
       for (const name of ["upkeep-run", "export", "import"]) part(name).closest(".settings-setting-row").hidden = true;
       if (project) {
-        const label = el("label", "memory-toolbar", L("记忆范围")), choices = el("select", "mw-select"); choices.dataset.memoryScopeChoice = ""; choices.setAttribute("aria-label", L("记忆范围"));
-        for (const [value, title] of [["personal", "个人"], ["project", "项目"]]) { const option = el("option", "", L(title)); option.value = value; choices.append(option); }
+        const label = el("label", "memory-toolbar", globalThis.t.text("workbench.settings-memory.memory-scope")), choices = el("select", "mw-select"); choices.dataset.memoryScopeChoice = ""; choices.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.memory-scope"));
+        for (const [value, title] of [["personal", "workbench.settings-memory.personal"], ["project", "workbench.settings-memory.project"]]) { const option = el("option", "", globalThis.t.text(title)); option.value = value; choices.append(option); }
         choices.value = scope; choices.addEventListener("change", () => { scope = choices.value; selected.clear(); invalidateRead(); void load(); }); label.append(choices); root.querySelector(".memory-heading").append(label);
       }
     }
@@ -220,8 +221,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     let operationsCursor;
     const pendingRemoval = () => [...pendingCommands.values()].some(command => JSON.parse(command.body).action === "remove" || command.removal || command.path === "/clear");
     const commandTitle = (path, payload, bodyless = false) => {
-      const actions = { renew: "续期", reclassify: "纠正分类", update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
-      const title = L(actions[payload.action || path.split("/").at(-1)]);
+      const actions = { renew: "workbench.settings-memory.renew-expiry", reclassify: "workbench.settings-memory.correct-classification", update: "workbench.settings-memory.edit", disable: "workbench.settings-memory.switch-off", enable: "workbench.settings-memory.switch", remove: "workbench.settings-memory.delete", move: "workbench.settings-memory.moved", restore: "workbench.settings-memory.went-back-earlier-version", items: "workbench.settings-memory.add", import: "workbench.settings-memory.imported", undo: "workbench.settings-memory.undo", accept: "workbench.settings-memory.accepted-2", discard: "workbench.settings-memory.no" };
+      const title = globalThis.t.text(actions[payload.action || path.split("/").at(-1)]);
       if (bodyless || payload.action === "remove") return title;
       const subject = payload.text || data?.items?.find(item => item.memory_id === payload.memory_id)?.text
         || data?.candidates?.find(item => path.startsWith("/candidates/" + encodeURIComponent(item.candidate_id) + "/"))?.text;
@@ -243,37 +244,37 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (removal) { removing = true; pendingCommands.set(command.id, command); invalidateRead(); }
       try {
         const result = await api(command.path, JSON.parse(command.body), command.base || base);
-        if (command.path === "/import") toast(L("导入") + " " + result.written + " " + L("条") + (result.skipped ? " · " + L("跳过") + " " + result.skipped : "") + (result.refused ? " · " + L("没有导入") + " " + result.refused : ""));
+        if (command.path === "/import") toast(globalThis.t.text("workbench.settings-memory.imported-count", { count: result.written }) + (result.skipped ? " · " + globalThis.t.text("workbench.settings-memory.skipped") + " " + result.skipped : "") + (result.refused ? " · " + globalThis.t.text("workbench.settings-memory.not-imported") + " " + result.refused : ""));
         if (command.path === "/batch/apply") paintBatchResults(result.items);
-        if (command.path === "/clear/apply") { if (result.complete && clearPreview?.preview_id === JSON.parse(command.body).preview_id) clearPreview = null; paintSessionResults(result.items); showClear(result.complete ? L("本会话清理已完成") : L("本次清理尚未完成，重试仍使用原预览。")); }
+        if (command.path === "/clear/apply") { if (result.complete && clearPreview?.preview_id === JSON.parse(command.body).preview_id) clearPreview = null; paintSessionResults(result.items); showClear(result.complete ? globalThis.t.text("workbench.settings-memory.session-memory-cleanup-complete") : globalThis.t.text("workbench.settings-memory.cleanup-incomplete-retrying-uses-original-preview")); }
         if (command.path === "/clear") showClearResult(result, JSON.parse(command.body).fingerprint);
         if (result.complete === false) {
           pendingCommands.set(command.id, command); paintRetries();
-          if (command.path === "/batch/apply") throw new Error(L("这次操作尚未完成，请继续原操作"));
+          if (command.path === "/batch/apply") throw new Error(globalThis.t.text("workbench.settings-memory.operation-unfinished-continue-original-operation"));
           return result;
         }
         pendingCommands.delete(command.id); discovered.delete(command.id); paintRetries(); return result;
-      } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); if (command.path === "/clear/apply") showClear(L("清理结果尚未确认，保留原预览并重试或核对原操作。")); throw failure; }
+      } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); if (command.path === "/clear/apply") showClear(globalThis.t.text("workbench.settings-memory.cleanup-unconfirmed-keep-original-preview-retry-reconcile-operation")); throw failure; }
       finally { if (removal) { removing = false; invalidateRead(); } }
     };
     function paintRetries() {
       $("[data-memory-retries]").hidden = !pendingCommands.size && !operationsCursor;
-      $("[data-memory-retries] h2").textContent = L(pendingCommands.size ? "等待重试的操作" : "核对原操作");
+      $("[data-memory-retries] h2").textContent = globalThis.t.text(pendingCommands.size ? "workbench.settings-memory.operations-waiting-retry" : "workbench.settings-memory.check-original-operations");
       const list = $("[data-memory-retry-list]");
       const existing = new Map([...list.querySelectorAll("[data-memory-command]")].map(row => [row.dataset.memoryCommand, row]));
       for (const command of pendingCommands.values()) {
         const retained = existing.get(command.id);
-        if (retained) { retained.querySelector("strong").textContent = command.title; retained.querySelector("button").setAttribute("aria-label", L("重试这次操作") + "：" + command.title); existing.delete(command.id); continue; }
+        if (retained) { retained.querySelector("strong").textContent = command.title; retained.querySelector("button").setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.retry-operation") + "：" + command.title); existing.delete(command.id); continue; }
         const row = el("li", "memory-row"), copy = el("strong", "memory-row-copy", command.title);
-        const retry = button(L("重试这次操作"), "mw-btn--secondary", L("重试这次操作") + "：" + command.title);
+        const retry = button(globalThis.t.text("workbench.settings-memory.retry-operation"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.retry-operation") + "：" + command.title);
         retry.dataset.memoryRetry = "";
-        retry.addEventListener("click", () => run(() => dispatch(command), command.path === "/import" || command.path === "/clear" || command.path === "/clear/apply" ? undefined : "这次操作已完成"));
+        retry.addEventListener("click", () => run(() => dispatch(command), command.path === "/import" || command.path === "/clear" || command.path === "/clear/apply" ? undefined : "workbench.settings-memory.operation-completed"));
         row.dataset.memoryCommand = command.id; row.append(copy, retry); list.append(row);
       }
       for (const row of existing.values()) row.remove();
       list.querySelector("[data-memory-more-operations]")?.remove();
       if (operationsCursor) {
-        const more = button(L("继续查找原操作"), "mw-btn--secondary");
+        const more = button(globalThis.t.text("workbench.settings-memory.find-more-original-operations"), "mw-btn--secondary");
         more.dataset.memoryMoreOperations = "";
         more.addEventListener("click", async () => {
           more.disabled = true;
@@ -293,11 +294,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const payload = item.request ? { ...item.request, operation_id: item.operation_id }
           : item.fingerprint ? { scope: item.scope, fingerprint: item.fingerprint }
           : item.preview_id ? { preview_id: item.preview_id } : undefined;
-        if (item.cleanup === "needs-reconcile" || !payload) { fail(new Error(L("原操作需要核对，尚未完成清理"))); continue; }
+        if (item.cleanup === "needs-reconcile" || !payload) { fail(new Error(globalThis.t.text("workbench.settings-memory.original-operation-needs-reconciliation-cleanup-unfinished"))); continue; }
         const held = item.kind === "session-clear" && [...pendingCommands.values()].find(command => command.path === path && command.body === JSON.stringify(payload) && (command.base || base) === targetBase(item.target));
         const id = held ? held.id : item.operation_id;
         if (!pendingCommands.has(id)) pendingCommands.set(id, Object.freeze({ id, path, ...(item.kind === "session-clear" ? { base: targetBase(item.target) } : {}), body: JSON.stringify(payload),
-          title: L(item.forgetting === "accepted" ? "遗忘已接受，继续清理" : "继续原记忆操作"), removal: item.kind !== "batch" || item.action === "remove" }));
+          title: globalThis.t.text(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted-continue-cleanup" : "workbench.settings-memory.continue-original-memory-operation"), removal: item.kind !== "batch" || item.action === "remove" }));
         discovered.add(id);
       }
       operationsCursor = page.cursor; paintRetries();
@@ -317,7 +318,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const run = async (work, message) => {
       if (busy) return;
       busy = true; error.hidden = true;
-      try { await work(); await load(); if (message) toast(L(message)); }
+      try { await work(); await load(); if (message) toast(globalThis.t.text(message)); }
       catch (failure) { if (pendingRemoval()) await load().catch(fail); fail(failure); }
       finally { busy = false; paintSelection(); }
     };
@@ -369,16 +370,17 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       part("list").inert = reading || readFailed;
       part("previous").disabled = reading || readFailed || !previous.length;
       const next = part("next"); next.disabled = reading || readFailed || !data?.cursor || data.exhausted;
-      next.textContent = L(data && !data.items.length && !data.exhausted ? "继续查找" : "下一页");
+      next.textContent = globalThis.t.text(data && !data.items.length && !data.exhausted ? "workbench.settings-memory.continue-searching" : "workbench.settings-memory.next-page");
       part("reload").disabled = reading;
-      part("page-status").textContent = reading ? L("正在读取…") : readFailed ? unread : !data ? ""
-        : L("本页显示") + " " + data.items.length + " · " + L(data.exhausted ? "已查完" : "尚未查完，可以继续查找。");
+      part("page-status").textContent = reading ? globalThis.t.text("workbench.settings-memory.loading") : readFailed ? unread : !data ? ""
+        : globalThis.t.text("workbench.settings-memory.shown-page") + " " + data.items.length + " · " + globalThis.t.text(data.exhausted ? "workbench.settings-memory.search-complete" : "workbench.settings-memory.search-not-finished-continue-check-more-memories");
     }
 
     function paintSummary() {
-      const parts = [L(scope === "project" ? "项目记忆" : "个人记忆") + " · " + (data.total.kind === "exact"
-        ? data.total.value + " " + L("条") : L("总数未知"))];
-      if (data.candidates?.length) parts.push(data.candidates.length + " " + L("条等你认可"));
+      const parts = [data.total.kind === "exact"
+        ? globalThis.t.text(scope === "project" ? "workbench.settings-memory.project-count" : "workbench.settings-memory.personal-count", { count: data.total.value })
+        : globalThis.t.text(scope === "project" ? "workbench.settings-memory.project-memory" : "workbench.settings-memory.personal-memories") + " · " + globalThis.t.text("workbench.settings-memory.total-unknown")];
+      if (data.candidates?.length) parts.push(data.candidates.length + " " + globalThis.t.text("workbench.settings-memory.waiting-2"));
       part("summary").textContent = parts.join(" · ");
     }
 
@@ -390,15 +392,15 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       changes.forEach((change) => {
         const row = el("li", "memory-change" + (change.state === "undone" ? " is-undone" : ""));
         const copy = el("div", "memory-change-copy");
-        const head = change.state === "undone" ? L("已撤销（已从记忆里删掉）")
-          : L(CHANGE[change.kind] || change.kind) + (change.text ? "「" + change.text + "」" : change.memory_id && change.kind !== "removed" ? " · " + L("这条后来被删除了，内容不再保留") : "");
+        const head = change.state === "undone" ? globalThis.t.text("workbench.settings-memory.undone-deleted-memory")
+          : globalThis.t.text(CHANGE[change.kind] || change.kind) + (change.text ? "「" + change.text + "」" : change.memory_id && change.kind !== "removed" ? " · " + globalThis.t.text("workbench.settings-memory.since-deleted-its-text-not-kept") : "");
         copy.append(el("strong", "", head));
-        const meta = [day(change.at), change.rule, change.reason, change.work ? L("工作") + "「" + change.work.title + "」" : ""].filter(Boolean).join(" · ");
+        const meta = [day(change.at), change.rule, change.reason, change.work ? globalThis.t.text("workbench.settings-memory.work") + "「" + change.work.title + "」" : ""].filter(Boolean).join(" · ");
         if (meta) copy.append(el("span", "settings-muted", meta));
         row.append(copy);
         if (change.undoable && change.state === "active") {
-          const undo = button(L("撤销"), "mw-btn--secondary", L("撤销") + "：" + (change.text || "")), revert = mutation();
-          undo.addEventListener("click", () => run(() => revert("/changes/" + encodeURIComponent(change.change_id) + "/undo", {}), "已撤销"));
+          const undo = button(globalThis.t.text("workbench.settings-memory.undo"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.undo") + "：" + (change.text || "")), revert = mutation();
+          undo.addEventListener("click", () => run(() => revert("/changes/" + encodeURIComponent(change.change_id) + "/undo", {}), "workbench.settings-memory.undone"));
           row.append(undo);
         }
         list.append(row);
@@ -416,22 +418,22 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", candidate.text));
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", L(KIND[candidate.kind] || candidate.kind)));
+        meta.append(el("span", "memory-tag", globalThis.t.text(KIND[candidate.kind] || candidate.kind)));
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
-        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", L("依据") + "：" + candidate.why));
-        if (candidate.work) meta.append(el("span", "", L("工作") + "「" + candidate.work.title + "」"));
+        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.because") + "：" + candidate.why));
+        if (candidate.work) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.work") + "「" + candidate.work.title + "」"));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
-        const keep = button(L("记住"), "mw-btn--primary", L("记住") + "：" + candidate.text);
-        keep.addEventListener("click", () => run(() => decide("accept"), "已记住"));
-        const reword = button(L("改一下再记"), "mw-btn--ghost");
+        const keep = button(globalThis.t.text("workbench.settings-memory.keep"), "mw-btn--primary", globalThis.t.text("workbench.settings-memory.keep") + "：" + candidate.text);
+        keep.addEventListener("click", () => run(() => decide("accept"), "workbench.settings-memory.kept"));
+        const reword = button(globalThis.t.text("workbench.settings-memory.edit-then-keep"), "mw-btn--ghost");
         reword.addEventListener("click", () => {
-          const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "已记住");
+          const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "workbench.settings-memory.kept");
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
-        const drop = button(L("不用"), "mw-btn--ghost", L("不用") + "：" + candidate.text);
-        drop.addEventListener("click", () => run(() => decide("discard"), "不会再提这一条"));
+        const drop = button(globalThis.t.text("workbench.settings-memory.no"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.no") + "：" + candidate.text);
+        drop.addEventListener("click", () => run(() => decide("discard"), "workbench.settings-memory.will-not-be-suggested-again"));
         actions.append(keep, reword, drop);
         row.append(copy, actions);
         list.append(row);
@@ -444,28 +446,28 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
 
     function paintSessionResults(items) {
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
-      const states = { completed: "已完成", "already-absent": "已清除", conflict: "版本冲突", "not-executed": "尚未执行", unknown: "结果未知" };
+      const states = { completed: "workbench.settings-memory.done", "already-absent": "workbench.settings-memory.removed", conflict: "workbench.settings-memory.version-conflicts", "not-executed": "workbench.settings-memory.not-run-yet", unknown: "workbench.settings-memory.outcome-unknown" };
       for (const [index, item] of items.entries()) {
-        const row = el("li", "settings-muted", L("第") + " " + (index + 1) + " " + L("项") + " · " + L(item.kind === "memory-candidate" ? "待审候选" : "正式记忆")
-          + " · " + L(states[item.outcome]) + " · " + L(item.forgetting === "accepted" ? "遗忘已接受" : "遗忘未接受") + " · " + L(item.cleanup === "complete" ? "清理完成" : item.cleanup === "pending" ? "清理待继续" : "需要核对"));
+        const row = el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(item.kind === "memory-candidate" ? "workbench.settings-memory.pending-candidate" : "workbench.settings-memory.saved-memory")
+          + " · " + globalThis.t.text(states[item.outcome]) + " · " + globalThis.t.text(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted" : "workbench.settings-memory.forgetting-not-accepted") + " · " + globalThis.t.text(item.cleanup === "complete" ? "workbench.settings-memory.cleanup-complete" : item.cleanup === "pending" ? "workbench.settings-memory.cleanup-pending" : "workbench.settings-memory.needs-checking"));
         row.dataset.memorySessionItem = item.kind + ":" + (item.kind === "memory-candidate" ? item.candidate_id : item.memory_id); list.append(row);
       }
     }
     function paintBatchResults(items) {
       batchPositions.clear(); items.forEach((item, index) => batchPositions.set(item.memory_id, index + 1));
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
-      const states = { completed: "已完成", "already-absent": "已清除", conflict: "版本冲突", "not-executed": "尚未执行", unknown: "结果未知" };
-      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", L("第") + " " + (index + 1) + " " + L("项") + " · " + L(states[item.outcome] || "需要核对")
-        + (item.cleanup === "needs-reconcile" ? " · " + L("需要核对") : "")));
+      const states = { completed: "workbench.settings-memory.done", "already-absent": "workbench.settings-memory.removed", conflict: "workbench.settings-memory.version-conflicts", "not-executed": "workbench.settings-memory.not-run-yet", unknown: "workbench.settings-memory.outcome-unknown" };
+      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(states[item.outcome] || "workbench.settings-memory.needs-checking")
+        + (item.cleanup === "needs-reconcile" ? " · " + globalThis.t.text("workbench.settings-memory.needs-checking") : "")));
     }
     function paintSelection() {
       part("batch").hidden = sessionMode || !selected.size && !data?.items?.length;
       part("selection-reset").disabled = !selected.size || busy;
-      part("selected").textContent = L("已选") + " " + selected.size;
+      part("selected").textContent = globalThis.t.text("workbench.settings-memory.selected") + " " + selected.size;
       root.querySelectorAll("[data-memory-selection-index]").forEach(node => {
         const id = node.closest("[data-memory-id]").dataset.memoryId;
         const index = selected.has(id) ? [...selected.keys()].indexOf(id) + 1 : batchPositions.get(id);
-        node.hidden = !index; node.textContent = index ? L("第") + " " + index + " " + L("项") : "";
+        node.hidden = !index; node.textContent = index ? globalThis.t.text("workbench.settings-memory.version") + " " + index + " " + globalThis.t.text("workbench.settings-memory.items") : "";
       });
       root.querySelectorAll("[data-memory-batch-action]").forEach(node => { node.disabled = !selected.size || busy || reading; });
     }
@@ -473,9 +475,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     root.querySelectorAll("[data-memory-batch-action]").forEach(node => node.addEventListener("click", () => run(async () => {
       const action = node.dataset.memoryBatchAction;
       const preview = await api("/batch/preview", { scope, action, items: [...selected].map(([memory_id, expected_version]) => ({ memory_id, expected_version })) });
-      if (!await ask(L(action === "remove" ? "遗忘选中的记忆？" : "停用选中的记忆？"), L("本次只处理已选中的原版本") + " · " + preview.count + "。" + L("结果按选择时的序号对应"), L("确定"))) return;
+      if (!await ask(globalThis.t.text(action === "remove" ? "workbench.settings-memory.forget-selected-memories" : "workbench.settings-memory.disable-selected-memories"), globalThis.t.text("workbench.settings-memory.only-selected-original-versions-included") + " · " + preview.count + "。" + globalThis.t.text("workbench.settings-memory.results-follow-numbers-shown-when-selecting"), globalThis.t.text("workbench.settings-memory.confirm"))) return;
       const command = Object.freeze({ id: "memory-batch:" + preview.preview_id, path: "/batch/apply", body: JSON.stringify({ preview_id: preview.preview_id }),
-        title: L(action === "remove" ? "遗忘选中项" : "停用选中项"), removal: action === "remove" });
+        title: globalThis.t.text(action === "remove" ? "workbench.settings-memory.forget-selected-2" : "workbench.settings-memory.disable-selected-2"), removal: action === "remove" });
       batchPositions.clear(); [...selected.keys()].forEach((id, index) => batchPositions.set(id, index + 1));
       selected.clear(); paintSelection(); await dispatch(command);
     })));
@@ -487,7 +489,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const mine = (item) => item.scope === scope || (scope === "project" && item.scope === "character");
       const items = (data.items || []).filter(mine);
       if (!items.length) {
-        list.append(el("li", "memory-empty settings-muted", L(data.exhausted ? "没有符合筛选的记忆" : "尚未查完，可以继续查找。")));
+        list.append(el("li", "memory-empty settings-muted", globalThis.t.text(data.exhausted ? "workbench.settings-memory.no-memories-match" : "workbench.settings-memory.search-not-finished-continue-check-more-memories")));
         return;
       }
       items.forEach((item) => {
@@ -495,9 +497,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const change = values => submit("/change", { ...values, memory_id: item.memory_id, expected_version: item.version });
         row.dataset.memoryId = item.memory_id;
         const choice = el("input", ""); choice.type = "checkbox"; choice.dataset.memorySelect = ""; choice.hidden = sessionMode;
-        choice.setAttribute("aria-label", L("选择这条记忆") + "：" + item.text); choice.checked = selected.has(item.memory_id);
+        choice.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.select-memory") + "：" + item.text); choice.checked = selected.has(item.memory_id);
         choice.addEventListener("change", () => {
-          if (choice.checked && selected.size >= 100) { choice.checked = false; fail(new Error(L("一次最多选择100条记忆"))); return; }
+          if (choice.checked && selected.size >= 100) { choice.checked = false; fail(new Error(globalThis.t.text("workbench.settings-memory.select-up-100-memories-time"))); return; }
           if (choice.checked) selected.set(item.memory_id, item.version); else selected.delete(item.memory_id);
           paintSelection();
         });
@@ -505,50 +507,50 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const position = el("span", "settings-muted"); position.dataset.memorySelectionIndex = ""; position.hidden = true;
         heading.append(choice, position, el("strong", "memory-text", item.text)); copy.append(heading);
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", L(FORMAL_KIND[item.kind] || item.kind)));
+        meta.append(el("span", "memory-tag", globalThis.t.text(FORMAL_KIND[item.kind] || item.kind)));
         meta.append(el("span", "memory-tag", classificationText(item.classification)));
-        meta.append(el("span", "", L("有效至") + "：" + expiryText(item.expires_at)));
-        if (item.expired) meta.append(el("span", "memory-tag memory-tag--state", L("已到期")));
-        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
-        if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
-        meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
-        if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
-        meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope, item.classification)));
-        meta.append(el("span", "", item.last_used ? L("最近参考轮次") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("暂无已确认参考")));
+        meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.valid-until") + "：" + expiryText(item.expires_at)));
+        if (item.expired) meta.append(el("span", "memory-tag memory-tag--state", globalThis.t.text("workbench.settings-memory.expired-2")));
+        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", globalThis.t.text("workbench.settings-memory.role") + "「" + (item.character_title || item.character_id) + "」"));
+        if (item.plugin_id) meta.append(el("span", "memory-tag", globalThis.t.text("workbench.settings-memory.plugins") + " " + item.plugin_id));
+        meta.append(el("span", "memory-tag memory-tag--" + item.source, globalThis.t.text(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
+        if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", globalThis.t.text(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
+        meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.applies") + "：" + appliesText(item.applies, item.scope, item.classification)));
+        meta.append(el("span", "", item.last_used ? globalThis.t.text("workbench.settings-memory.last-referenced-turn") + "：" + item.last_used.title + " · " + day(item.last_used.at) : globalThis.t.text("workbench.settings-memory.no-confirmed-reference")));
         copy.append(meta);
-        const origin = el("details", "memory-origin"); origin.append(el("summary", "", L("出处")), el("p", "", item.origin));
+        const origin = el("details", "memory-origin"); origin.append(el("summary", "", globalThis.t.text("workbench.settings-memory.provenance")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
-        const edit = button(L("修改"), "mw-btn--ghost", L("修改") + "：" + item.text);
+        const edit = button(globalThis.t.text("workbench.settings-memory.edit"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.edit") + "：" + item.text);
         edit.addEventListener("click", () => {
           const editor = itemEditor(item, change);
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
-        const toggleLabel = item.state === "paused" ? L("恢复使用") : L(item.state === "disabled" ? "启用" : "停用");
+        const toggleLabel = item.state === "paused" ? globalThis.t.text("workbench.settings-memory.resume-use") : globalThis.t.text(item.state === "disabled" ? "workbench.settings-memory.switch" : "workbench.settings-memory.switch-off");
         const toggle = button(toggleLabel, "mw-btn--ghost", toggleLabel + "：" + item.text);
-        toggle.addEventListener("click", () => run(() => change({ action: item.state === "active" ? "disable" : "enable" }), item.state === "active" ? "已停用，不会再被使用" : "已启用"));
+        toggle.addEventListener("click", () => run(() => change({ action: item.state === "active" ? "disable" : "enable" }), item.state === "active" ? "workbench.settings-memory.switched-off-will-not-be-used" : "workbench.settings-memory.switched"));
         const more = el("details", "memory-more mw-menu-host");
-        const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", L("更多操作") + "：" + item.text);
+        const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.more") + "：" + item.text);
         const menu = el("div", "memory-menu mw-menu");
         const menuItem = (text, handler, danger) => { const node = el("button", "mw-menu__item" + (danger ? " mw-menu__item--danger" : ""), text); node.type = "button"; node.addEventListener("click", () => { more.open = false; handler(); }); menu.append(node); };
-        if (item.scope !== "character" && !item.plugin_id) menuItem(L(item.scope === "project" ? "改为个人记忆" : "改为项目记忆"), () => {
-          if (item.scope === "personal" && !project) { fail(new Error(L("在项目的设置里才能改为那个项目的记忆"))); return; }
-          run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "已改范围");
+        if (item.scope !== "character" && !item.plugin_id) menuItem(globalThis.t.text(item.scope === "project" ? "workbench.settings-memory.make-personal" : "workbench.settings-memory.make-project-memory"), () => {
+          if (item.scope === "personal" && !project) { fail(new Error(globalThis.t.text("workbench.settings-memory.open-project-s-settings-make-that-project-s"))); return; }
+          run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "workbench.settings-memory.moved-2");
         });
-        if (item.expired && item.expires_at && item.classification?.lifecycle !== "session") menuItem(L("续期"), () => {
+        if (item.expired && item.expires_at && item.classification?.lifecycle !== "session") menuItem(globalThis.t.text("workbench.settings-memory.renew-expiry"), () => {
           const editor = renewalEditor(item, change); copy.replaceChildren(editor); editor.querySelector("input").focus();
         });
-        menuItem(L("历史版本"), () => historyPanel(item, copy));
-        if (item.scope === "project" && project) menuItem(L("升级为项目说明"), async () => {
+        menuItem(globalThis.t.text("workbench.settings-memory.history"), () => historyPanel(item, copy));
+        if (item.scope === "project" && project) menuItem(globalThis.t.text("workbench.settings-memory.promote-project-guidance"), async () => {
           try {
             const prefix = "/projects/" + encodeURIComponent(project);
             const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: JSON.stringify([item.memory_id, item.version]) } });
             window.location.assign(prefix + "/settings/guidance?draft_ref=" + encodeURIComponent(draft.reference));
           } catch (failure) { fail(failure); }
         });
-        menuItem(L("删除"), async () => {
-          if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到「{text}」，历史版本也一起删除。", { text: item.text }), L("删除"), summary)) {
-            await run(() => change({ action: "remove" }), "已删除");
+        menuItem(globalThis.t.text("workbench.settings-memory.delete"), async () => {
+          if (await ask(globalThis.t.text("workbench.settings-memory.delete-memory"), globalThis.t.text("workbench.settings-memory.nothing-will-use-text-anywhere-once-deleted-its", { text: item.text }), globalThis.t.text("workbench.settings-memory.delete"), summary)) {
+            await run(() => change({ action: "remove" }), "workbench.settings-memory.deleted");
             // The confirmed delete repaints the list and takes the row's more button away: focus falls to the page's add button.
             focusBack(summary);
           }
@@ -584,17 +586,17 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       pairs.forEach((pair) => {
         const row = el("li", "memory-row memory-row--pair");
         const copy = el("div", "memory-row-copy");
-        copy.append(el("span", "memory-tag memory-tag--state", L(pair.kind === "conflict" ? "可能冲突" : "可能重复") + (pair.why ? " · " + pair.why : "")));
+        copy.append(el("span", "memory-tag memory-tag--state", globalThis.t.text(pair.kind === "conflict" ? "workbench.settings-memory.may-conflict" : "workbench.settings-memory.may-repeat") + (pair.why ? " · " + pair.why : "")));
         [["a", pair.a], ["b", pair.b]].forEach(([side, item]) => {
           const line = el("div", "memory-pair-line");
-          line.append(el("strong", "memory-text", item.text), el("span", "settings-muted", L(SOURCE[item.source] || item.source)));
-          const keep = button(L("保留这条"), "mw-btn--secondary", L("保留") + "：" + item.text);
-          keep.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: side }), "已保留，另一条已停用"));
+          line.append(el("strong", "memory-text", item.text), el("span", "settings-muted", globalThis.t.text(SOURCE[item.source] || item.source)));
+          const keep = button(globalThis.t.text("workbench.settings-memory.keep-one"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.keep-2") + "：" + item.text);
+          keep.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: side }), "workbench.settings-memory.kept-other-switched-off"));
           line.append(keep);
           copy.append(line);
         });
-        const both = button(L("两条都留"), "mw-btn--ghost");
-        both.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: "both" }), "都保留了，不会再提这一对"));
+        const both = button(globalThis.t.text("workbench.settings-memory.keep-both"), "mw-btn--ghost");
+        both.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: "both" }), "workbench.settings-memory.both-kept-pair-will-not-come-up-again"));
         row.append(copy, el("div", "memory-actions"));
         row.lastChild.append(both);
         list.append(row);
@@ -604,9 +606,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     function paintUpkeep() {
       const box = $("[data-memory-upkeep]"), last = data.last_upkeep;
       if (!last) return;
-      const done = [last.expired ? L("到期停用") + " " + last.expired : "", last.unused ? L("长期没用停用") + " " + last.unused : "", last.merged ? L("合并") + " " + last.merged : "",
-        last.paused ? L("依据不在暂停") + " " + last.paused : "", last.pairs ? L("交给你选") + " " + last.pairs : ""].filter(Boolean).join(" · ");
-      box.textContent = L("上次整理") + " " + day(last.at) + " " + new Date(last.at).toTimeString().slice(0, 5) + " · " + (done || L("没有需要处理的"));
+      const done = [last.expired ? globalThis.t.text("workbench.settings-memory.expired") + " " + last.expired : "", last.unused ? globalThis.t.text("workbench.settings-memory.unused") + " " + last.unused : "", last.merged ? globalThis.t.text("workbench.settings-memory.merged") + " " + last.merged : "",
+        last.paused ? globalThis.t.text("workbench.settings-memory.paused-basis-gone") + " " + last.paused : "", last.pairs ? globalThis.t.text("workbench.settings-memory.choose") + " " + last.pairs : ""].filter(Boolean).join(" · ");
+      box.textContent = globalThis.t.text("workbench.settings-memory.last-tidied") + " " + day(last.at) + " " + new Date(last.at).toTimeString().slice(0, 5) + " · " + (done || globalThis.t.text("workbench.settings-memory.nothing-do"));
     }
 
     function paint() {
@@ -630,7 +632,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const editor = itemEditor(null, (value) => write("/items", { scope, text: value.text, kind: value.kind, applies: value.applies, ...(value.classification ? { classification: value.classification, expires_at: value.expires_at } : {}) }));
       slot.replaceChildren(editor); slot.hidden = false; editor.querySelector("textarea").focus();
     });
-    $("[data-memory-upkeep-run]").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
+    $("[data-memory-upkeep-run]").addEventListener("click", () => run(() => api("/upkeep", {}), "workbench.settings-memory.tidied-see-recent-changes"));
     $("[data-memory-export]").addEventListener("click", () => run(async () => {
       const body = await api("/export", { scope });
       const blob = new Blob([JSON.stringify(body.package, null, 2)], { type: "application/json" });
@@ -639,7 +641,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       link.download = "molis-memory-" + scope + "-" + new Date().toISOString().slice(0, 10) + ".json";
       document.body.append(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    }, "已导出"));
+    }, "workbench.settings-memory.exported"));
     const importPackage = mutation();
     $("[data-memory-import]").addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
@@ -647,7 +649,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (!file) return;
       run(async () => {
         let pack;
-        try { pack = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是记忆包")); }
+        try { pack = JSON.parse(await file.text()); } catch { throw new Error(globalThis.t.text("workbench.settings-memory.file-not-memory-package")); }
         await importPackage("/import", { scope, package: pack });
       });
     });
@@ -655,49 +657,49 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const clearButton = $("[data-memory-clear]"), resetClear = $("[data-memory-clear-reset]"), clearStatus = $("[data-memory-clear-status]");
     const showClear = (message) => {
       clearStatus.textContent = message; clearStatus.hidden = false;
-      clearButton.textContent = L(sessionMode ? clearPreview ? "重试本次清理" : "清除…" : clearPreview ? "重试本次清空" : "清空…"); resetClear.hidden = !clearPreview;
+      clearButton.textContent = globalThis.t.text(sessionMode ? clearPreview ? "workbench.settings-memory.retry-cleanup" : "workbench.settings-memory.clear-3" : clearPreview ? "workbench.settings-memory.retry-clear" : "workbench.settings-memory.clear"); resetClear.hidden = !clearPreview;
     };
     const showClearResult = (done, fingerprint) => {
       clearPreview = done.complete ? null : { fingerprint };
       if (done.complete) {
-        showClear(L("清空已完成") + " · " + L("已删除") + " " + done.removed + " " + L("条"));
+        showClear(globalThis.t.text("workbench.settings-memory.clear-done-count", { count: done.removed }));
         toast(clearStatus.textContent);
       } else {
         const count = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
-        showClear(L("本次清空尚未完成；重试仍只处理已确认的记忆。") + " · " + L("已删除") + " " + done.removed
-          + " · " + L("版本冲突") + " " + count("conflict") + " · " + L("结果未知") + " " + count("unknown") + " · " + L("尚未执行") + " " + count("not-executed"));
+        showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + globalThis.t.text("workbench.settings-memory.deleted") + " " + done.removed
+          + " · " + globalThis.t.text("workbench.settings-memory.version-conflicts") + " " + count("conflict") + " · " + globalThis.t.text("workbench.settings-memory.outcome-unknown") + " " + count("unknown") + " · " + globalThis.t.text("workbench.settings-memory.not-run-yet") + " " + count("not-executed"));
       }
     };
     clearButton.addEventListener("click", () => run(async () => {
       if (sessionMode) {
         if (!clearPreview) {
           const preview = await api("/clear/preview", {});
-          if (!preview.preview_id) { toast(L("没有可以清除的会话记忆或候选")); return; }
-          if (!await ask(L("清除本会话记忆？"), L("正式记忆") + " " + preview.memory_count + " · " + L("待审候选") + " " + preview.candidate_count + "。" + L("只处理本次预览，不删除对话或其他记忆。"), L("确定清除"), clearButton)) return;
+          if (!preview.preview_id) { toast(globalThis.t.text("workbench.settings-memory.no-session-memories-candidates-clear")); return; }
+          if (!await ask(globalThis.t.text("workbench.settings-memory.clear-session-s-memory"), globalThis.t.text("workbench.settings-memory.saved-memory") + " " + preview.memory_count + " · " + globalThis.t.text("workbench.settings-memory.pending-candidate") + " " + preview.candidate_count + "。" + globalThis.t.text("workbench.settings-memory.only-preview-cleared-conversation-other-memories-stay"), globalThis.t.text("workbench.settings-memory.confirm-clearing"), clearButton)) return;
           clearPreview = preview;
         }
-        await dispatch(Object.freeze({ id: "memory-session-clear:" + clearPreview.preview_id, path: "/clear/apply", body: JSON.stringify({ preview_id: clearPreview.preview_id }), title: L("清除本会话记忆"), removal: true })); return;
+        await dispatch(Object.freeze({ id: "memory-session-clear:" + clearPreview.preview_id, path: "/clear/apply", body: JSON.stringify({ preview_id: clearPreview.preview_id }), title: globalThis.t.text("workbench.settings-memory.clear-session-memory"), removal: true })); return;
       }
       if (!clearPreview) {
         const preview = await api("/preview", { scope });
-        if (!preview.count) { toast(L("没有可以清空的记忆")); return; }
-        if (!await ask(L("清空这些记忆？"), L("将删除 {count} 条记忆，删除后任何地方都不会再用到。", { count: preview.count }), L("确定清空"), clearButton)) return;
+        if (!preview.count) { toast(globalThis.t.text("workbench.settings-memory.no-memories-clear")); return; }
+        if (!await ask(globalThis.t.text("workbench.settings-memory.clear-these-memories"), globalThis.t.text("workbench.settings-memory.will-delete-count-count-once-deleted-they-never", { count: preview.count }), globalThis.t.text("workbench.settings-memory.clear-2"), clearButton)) return;
         clearPreview = preview;
       }
-      showClear(L("本次清空尚未完成；重试仍只处理已确认的记忆。"));
+      showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories"));
       await dispatch(Object.freeze({ id: "memory-clear:" + clearPreview.fingerprint, path: "/clear",
-        body: JSON.stringify({ scope, fingerprint: clearPreview.fingerprint }), title: L("清空记忆"), removal: true }));
+        body: JSON.stringify({ scope, fingerprint: clearPreview.fingerprint }), title: globalThis.t.text("workbench.settings-memory.clear-memories"), removal: true }));
     }));
     resetClear.addEventListener("click", () => run(async () => {
       // The reset ask's own button hides when it lands, so the clear button — visible before and after — is the fallback.
-      if (!await ask(L("重新预览清空范围？"), L("停止重试本次确认。已删除的不会恢复；新的清空范围需要重新确认。"), L("重新预览…"), resetClear)) return;
-      clearPreview = null; showClear(L("下次清空会重新预览并确认当前范围。"));
+      if (!await ask(globalThis.t.text("workbench.settings-memory.preview-clear-scope-again"), globalThis.t.text("workbench.settings-memory.stop-retrying-confirmation-deleted-memories-stay-deleted-new"), globalThis.t.text("workbench.settings-memory.preview-again"), resetClear)) return;
+      clearPreview = null; showClear(globalThis.t.text("workbench.settings-memory.next-clear-will-preview-current-scope-ask-confirmation"));
       focusBack(resetClear, clearButton);
     }));
     root.querySelectorAll("[data-memory-pref]").forEach((box) => box.addEventListener("change", () => {
       const path = box.dataset.memoryPref.split(".");
       const prefs = path.length === 2 ? { [path[0]]: { [path[1]]: box.checked } } : { [path[0]]: box.checked };
-      run(() => api("/prefs", { scope, prefs }), "已保存");
+      run(() => api("/prefs", { scope, prefs }), "workbench.settings-memory.saved");
     }));
     document.addEventListener("click", (event) => root.querySelectorAll(".memory-more[open]").forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; }));
     load().catch(fail);

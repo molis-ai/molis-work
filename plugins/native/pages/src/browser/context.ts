@@ -6,6 +6,8 @@ import { showNote } from "./notes.js";
 import type { PagesPage } from "./page.js";
 import type { SurfaceDetail } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** What the Assistant sees when the person turns to it: the open document, its version, and edits not yet saved. */
 export function publishContext(page: PagesPage) {
   const { sel, bench, titleInput, editor, Editor } = page;
@@ -121,18 +123,18 @@ export function sendPanel(page: PagesPage, detail: { node: HTMLElement | null; l
 
 /** The chrome around the open document: the context the Assistant reads, the focus, the star, the goal and the fixed-version button. */
 export function syncEditorChrome(page: PagesPage) {
-  const { sel, starEditor, L } = page;
+  const { sel, starEditor } = page;
   publishContext(page);
   reportFocus(page);
   if (!sel) return;
   if (starEditor) {
     starEditor.classList.toggle("is-on", Boolean(sel.starred));
-    starEditor.setAttribute("aria-label", sel.starred ? L("pages.star.remove") : L("pages.star.add"));
-    starEditor.title = sel.starred ? L("pages.star.remove") : L("pages.star.add");
+    starEditor.setAttribute("aria-label", sel.starred ? uiText.text("pages.star.remove") : uiText.text("pages.star.add"));
+    starEditor.title = sel.starred ? uiText.text("pages.star.remove") : uiText.text("pages.star.add");
   }
   fillGoalSelect(page);
   const artifactBar = page.el("[data-pages-artifact-bar]");
-  if (artifactBar) artifactBar.textContent = sel.publication_pending ? L("pages.version.continue") : sel.artifact_version > 0 ? L("pages.version.again") : L("pages.version.save");
+  if (artifactBar) artifactBar.textContent = sel.publication_pending ? uiText.text("pages.version.continue") : sel.artifact_version > 0 ? uiText.text("pages.version.again") : uiText.text("pages.version.save");
   if (sel.publication_pending) showNote(page, "", false);
 }
 

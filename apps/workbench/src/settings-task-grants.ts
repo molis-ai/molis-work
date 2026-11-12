@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { readFileSync } from "node:fs";
 
 /**
@@ -5,13 +6,13 @@ import { readFileSync } from "node:fs";
  * project may read, by task, with taking a category or all of it back. Reading and changing go through
  * `/projects/<id>/api/settings/task-grants`, which calls `agent.task_grants.*` and the providers' own search sources as the person.
  */
-export function renderTaskGrantsSettings({ L, projectId }: { L(text: string): string; projectId: string }): string {
+export function renderTaskGrantsSettings({ projectId }: { readText(text: string): string; projectId: string }): string {
   return `<section class="settings-document task-grants-settings" aria-labelledby="task-grants-title" data-task-grants-settings data-project="${projectId}">
-    <header class="settings-page-heading"><h1 id="task-grants-title">${L("授权与放行")}</h1>
-      <p>${L("这个项目里的后台任务各能读哪些插件的数据。在这里撤回或允许，下一次运行起生效；要让任务多读一类，到那个任务里打开。")}</p></header>
+    <header class="settings-page-heading"><h1 id="task-grants-title">${uiText("workbench.settings-task-grants.access-approvals")}</h1>
+      <p>${uiText("workbench.settings-task-grants.what-each-background-task-project-may-read-its")}</p></header>
     <section class="settings-section" aria-labelledby="task-grants-tasks-title">
-      <h2 id="task-grants-tasks-title">${L("后台任务能读的数据")}</h2>
-      <div class="task-grants-page" data-task-grants-list aria-live="polite"><p class="task-grants-page__state">${L("正在读取…")}</p></div>
+      <h2 id="task-grants-tasks-title">${uiText("workbench.settings-task-grants.what-background-tasks-may-read")}</h2>
+      <div class="task-grants-page" data-task-grants-list aria-live="polite"><p class="task-grants-page__state">${uiText("workbench.settings-task-grants.loading")}</p></div>
     </section>
   </section>`;
 }

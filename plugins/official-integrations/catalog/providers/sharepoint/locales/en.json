@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.sharepoint",
+  "locale": "en",
+  "messages": {
+    "sharepoint.connection.auth-help": "Use a Microsoft Graph token. Followed sites are read first; there may be no results if you follow none.",
+    "sharepoint.connection.inbound": "Project sources can read site documents",
+    "sharepoint.connection.summary": "Sites and document libraries.",
+    "sharepoint.connection.token-label": "Microsoft Graph access token (Sites.Read.All)",
+    "sharepoint.guide.cli-link": "View Microsoft Graph PowerShell",
+    "sharepoint.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work does not read the PowerShell session.",
+    "sharepoint.guide.mcp-link": "Microsoft Work IQ MCP",
+    "sharepoint.guide.mcp-note": "A tenant administrator must enable the Work IQ preview, a Copilot license and Entra app permissions.",
+    "sharepoint.guide.oauth-link": "Register Microsoft Entra app",
+    "sharepoint.guide.token-note": "Use Graph Explorer to get a user token for testing. Register your own app for ongoing use.",
+    "sharepoint.oauth.tenant": "Tenant ID (leave blank for personal accounts or multitenant apps)",
+    "sharepoint.setup.get-a-token-in-graph-explorer": "Get a token in Graph Explorer",
+    "sharepoint.setup.register-azure-app": "Register Azure app"
+  }
+}

@@ -26,6 +26,7 @@ export type {
 } from "./release-artifacts.js";
 
 export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginActionBeforeEffect, reservePluginInvocationPlace, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction, withPluginPermissionChecks, assertPluginRoutePermissions } from "./action-scope.js";
+export { currentPluginTextCall, pluginActivationOpen } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";

@@ -5,10 +5,10 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  * the owner loads the shared frame bridge and never executes a plugin bundle.
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L } = host;
-  const failure = () => L('无法加载界面，请重试');
+  const { translate: readText } = host;
+  const failure = () => globalThis.t.text("workbench.deferred-plugin-client.could-not-load-view-retry");
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
-  const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
+  const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap(), invalidations = new WeakMap();
   const scope = host.scope;
   const load = url => {
     if (scope.signal.aborted) return Promise.reject(scope.signal.reason);
@@ -35,7 +35,9 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (intent === "restore" && root?.dataset.uiClientState === "failed") return Promise.resolve();
     if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden], [data-surface-pool]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
-    const pack = packs.find(pack => pack.id === (root.dataset.pluginClient || root.dataset.workSurface));
+    const source = root.dataset.pluginPageSource;
+    const pack = source ? { id: root.dataset.workSurface, plugin_id: root.dataset.installedPlugin, bundle: 'plugin-builder', assets: [], projection: source }
+      : packs.find(pack => pack.id === (root.dataset.pluginClient || root.dataset.workSurface));
     if (!pack) return Promise.resolve();
     // A real reopen replaces this surface's previous failure, just as its retry button does.
     for (const retry of root.querySelectorAll(':scope > div > [data-ui-client-retry]')) retry.parentElement.remove();
@@ -61,6 +63,8 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
         const selection = selections.get(root);
         if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }
+        const invalidation = invalidations.get(root);
+        if (invalidation) { invalidations.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: invalidation })); }
       } catch (error) {
         if (!root.isConnected || scope.signal.aborted) return;
         settle(root, 'failed'); mounting.delete(root);
@@ -75,7 +79,10 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Preserve the most recent open/close intent until the actual client is listening.
   document.addEventListener('molis-work:select-item', event => {
     const root = event.target.closest?.('[data-deferred-surface]');
-    if (!root) return; selections.set(root, event.detail); event.stopImmediatePropagation(); void prepare(root, event.detail?.intent === "restore" || event.detail?.invalidate ? "restore" : "open");
+    if (!root) return;
+    const detail = event.detail;
+    (detail?.invalidate && detail.itemId === undefined ? invalidations : selections).set(root, detail);
+    event.stopImmediatePropagation(); void prepare(root, detail?.intent === "restore" || detail?.invalidate ? "restore" : "open");
   }, true);
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);

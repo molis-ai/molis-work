@@ -1,16 +1,23 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
+import { basename, join } from "node:path";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
-import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
-import { installUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginTextDefault, pluginTextMessage, pluginTextOwnerOfPrefix, registerPluginText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { pluginLocaleReader, pluginManifestDigest, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { createTextReader, installUiText, localeMessageArguments, say, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { installCatalogTextScope, workbenchPlatformText, type MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { hostLog } from "./host-log.js";
-import { textScope, WEB_LOCALES } from "./web-locale.js";
+import { runWithRegisteredText, textScope, webLanguage, DEFAULT_WEB_LOCALE } from "./web-locale.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
+
+export { workbenchPlatformText };
+export type AgentDisplayModel = NonNullable<MolisWorkSettingsView["agent_display_model"]>;
 
 // The text context of this process (specs/font-and-skin-system/a-section-contract.md §5.2, §8.3): what `t`, `say` and `format` find on the global. The
-// language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; the words are the owners' in `plugin-text.ts`. It does
+// language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; plugin words come only from the exact activation. It does
 // not depend on one Host: a process often opens several, and installing the same provider again changes nothing.
 
 type TextProblem = Parameters<NonNullable<UiTextProvider["problem"]>>[0];
@@ -25,12 +32,24 @@ const problems: TextProblem[] = [];
 const LOGGED_LIMIT = 1000;
 const logged = new Set<string>();
 
+const readerFor = (owner: string) => {
+  const { activation, registered } = textScope();
+  return registered?.owner === owner ? registered : pluginTextForOwner(owner, activation);
+};
+
 const provider: UiTextProvider = {
   locale: () => textScope().locale,
+  intlLocale: tag => webLanguage(tag)?.intl,
   noContext: () => textScope().noContext,
-  ownerOfPrefix: pluginTextOwnerOfPrefix,
-  message: pluginTextMessage,
-  defaultLocale: pluginTextDefault,
+  ownerOfPrefix(prefix) {
+    const { activation, registered } = textScope();
+    return registered && textKeyPrefix(registered.owner) === prefix ? registered.owner : pluginTextOwnerOfPrefix(prefix, activation);
+  },
+  message(owner, key, locale) {
+    const messages = readerFor(owner)?.pack(locale)?.messages;
+    return messages && Object.hasOwn(messages, key) ? messages[key]! : null;
+  },
+  defaultLocale: owner => readerFor(owner)?.default ?? null,
   problem(problem) {
     problems.push(problem);
     if (problems.length > PROBLEM_LIMIT) problems.splice(0, problems.length - PROBLEM_LIMIT);
@@ -49,19 +68,7 @@ export function hostTextProblems(): readonly TextProblem[] {
 }
 
 /** A platform owner has no Manifest: the first web language is its default, the one a page with no choice shows. */
-const PLATFORM_DEFAULT_LOCALE = WEB_LOCALES[0];
-
-/** The directory a package is in: from its entry up to the `package.json` that names it. The same in a checkout and in a release's `node_modules`. */
-function packageDirectory(name: string): string {
-  let directory = dirname(fileURLToPath(import.meta.resolve(name)));
-  for (;;) {
-    const file = join(directory, "package.json");
-    if (existsSync(file) && (JSON.parse(readFileSync(file, "utf8")) as { name?: unknown }).name === name) return directory;
-    const parent = dirname(directory);
-    if (parent === directory) throw new Error(`找不到 ${name} 的包目录`);
-    directory = parent;
-  }
-}
+const PLATFORM_DEFAULT_LOCALE = DEFAULT_WEB_LOCALE;
 
 /**
  * A platform owner's language directory, a `locale` row of the resource registry (§1.2): adding an owner is a row, adding a language a file. Nothing is read
@@ -71,7 +78,7 @@ function platformLocaleReader(row: UiResourceRow): PluginTextReader {
   let reader: PluginLocaleReader | null = null;
   const open = (): PluginLocaleReader => {
     if (reader !== null) return reader;
-    const directory = join(packageDirectory(row.package), row.path);
+    const directory = join(registeredPackageDirectory(row.package), row.path);
     const available = readdirSync(directory).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -".json".length)).sort();
     const read = (path: string) => { const file = join(directory, basename(path)); return existsSync(file) ? readFileSync(file, "utf8") : null; };
     reader = pluginLocaleReader({ plugin_id: row.owner, kind: "platform", ui: { locales: { default: PLATFORM_DEFAULT_LOCALE, available } } }, read)!;
@@ -90,13 +97,90 @@ function platformLocaleReader(row: UiResourceRow): PluginTextReader {
   };
 }
 
-let platformText: readonly (() => void)[] | null = null;
+let platformText: readonly PluginTextReader[] | null = null;
+const registeredWords = new WeakMap<PluginManifest, PluginLocaleReader | null>();
+
+/** Only the actual build registration has this source. A Manifest with the same id is not that registration. */
+export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleReader | null {
+  if (registeredWords.has(manifest)) return registeredWords.get(manifest)!;
+  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest === manifest);
+  if (!entry) return null;
+  const reader = pluginLocaleReader(manifest, registeredPluginLocaleFiles(entry.package_name, manifest));
+  registeredWords.set(manifest, reader);
+  return reader;
+}
+
+/** The installed declaration must match the build before its words can come from the registration. */
+export function registeredInstallationText(record: PluginInstanceRecord): PluginLocaleReader | null {
+  if (record.publisher_trust !== "host") return null;
+  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === record.plugin_id)?.manifest;
+  return manifest && pluginManifestDigest(manifest) === record.manifest_digest ? registeredBuiltinText(manifest) : null;
+}
+
+/** Read the Workbench's own selected display words from its registered language files. */
+export function workbenchDisplayReader(locale = workbenchPlatformText.default) {
+  const { default: fallback } = workbenchPlatformText;
+  const packs = [...new Set([locale, fallback])].flatMap(tag => workbenchPlatformText.pack(tag) ?? []);
+  return createTextReader({ locale, packs });
+}
+
+/** A directory may draw an exact live owner, or use the same field's raw original if it no longer has that source. */
+export function directoryWordResolver(reader: PluginTextReader | null, requested?: string): DirectoryWordResolver {
+  return (ref, original) => {
+    const locale = requested ?? textScope().locale ?? DEFAULT_WEB_LOCALE;
+    const options = requested === undefined ? undefined : { locale: requested };
+    if (ref.key.startsWith("common.")) {
+      const common = workbenchPlatformText;
+      const value = common.pack(locale)?.messages[ref.key] ?? common.pack(common.default)?.messages[ref.key];
+      if (value !== undefined && localeMessageArguments(value).length) {
+        provider.problem?.({ code: "ui.text_missing", owner: common.owner, key: ref.key, locale });
+        return original;
+      }
+      return say.text({ ...ref, fallback: original }, options);
+    }
+    if (reader?.owner !== ref.owner) {
+      provider.problem?.({ code: "ui.text_missing", owner: ref.owner, key: ref.key, locale });
+      return original;
+    }
+    return runWithRegisteredText(reader, () => say.text({ ...ref, fallback: original }, options));
+  };
+}
+
+export function drawRegisteredText<T>(manifest: PluginManifest, draw: (resolve?: DirectoryWordResolver) => T): T {
+  const reader = registeredBuiltinText(manifest);
+  const resolve = directoryWordResolver(reader);
+  return reader ? runWithRegisteredText(reader, () => draw(resolve)) : draw(resolve);
+}
 
 /**
  * Installs the context, once a process: an application Host as it starts, the developer door before it runs a plugin. The platform's own owners are
  * registered the first time. A process that already has another context (a test's `installTextForTest`) keeps it, and this throws.
  */
 export function installHostUiText(): void {
-  platformText ??= BASELINE_REGISTRY.resources.filter((row) => row.kind === "locale").map((row) => registerPluginText(platformLocaleReader(row), { t: true }));
+  if (platformText === null) {
+    platformText = BASELINE_REGISTRY.resources.filter(row => row.kind === "locale").map(row => row.owner === workbenchPlatformText.owner ? workbenchPlatformText : platformLocaleReader(row));
+    platformText.forEach(registerPlatformText);
+    installCatalogTextScope(drawRegisteredText);
+  }
   installUiText(provider);
+}
+
+/** Each pack keeps its own grammar. Supply the selected words plus only the default words that fill missing keys. */
+export function projectTextPacks(reader: PluginTextReader, locale: string, declared: boolean, sharedOnly = false): UiLocalePack[] {
+  const requested = reader.pack(locale), baseline = locale === reader.default ? requested : reader.pack(reader.default);
+  if (!baseline || (declared && !requested)) throw new ActionError("actions.unavailable", "界面语言包不可用，请重试");
+  const messages = (pack: UiLocalePack, excluding?: UiLocalePack) => Object.fromEntries(Object.entries(pack.messages)
+    .filter(([key]) => (!sharedOnly || key.startsWith("common.")) && (!excluding || !Object.hasOwn(excluding.messages, key))));
+  if (!requested || baseline === requested) return [{ ...baseline, messages: messages(baseline) }];
+  const fallback = messages(baseline, requested);
+  return [...(Object.keys(fallback).length ? [{ ...baseline, messages: fallback }] : []), { ...requested, messages: messages(requested) }];
+}
+
+/** An installed worker can see its own release and the public common words. The trusted broker supplies its locale. */
+export function sandboxTextPacks(own: PluginLocaleReader | null | undefined): (locale: string) => readonly UiLocalePack[] {
+  return locale => {
+    installHostUiText();
+    const shared = pluginTextForOwner("workbench");
+    return [...(own ? projectTextPacks(own, locale, own.available.includes(locale)) : []), ...(shared ? projectTextPacks(shared, locale, true, true) : [])];
+  };
 }

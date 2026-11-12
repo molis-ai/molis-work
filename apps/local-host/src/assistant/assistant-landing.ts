@@ -3,7 +3,7 @@ import type { AssistantContextSnapshot, AssistantLanding } from "@molis-ai/molis
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * Where something would be put on the left, told to a round (specs/context-program §21.8 step 7, decision L-2).
+ * Where something would be put on the left, told to a round (specs/context-program §21.8 step 7, decision readText-2).
  *
  * The page's landing is a claim: before a round hears it, the object is read again from its owner with the person's
  * authority in that project, through the interaction line's H3 reader (horizontal/search `readReferences`, the same read
@@ -20,7 +20,7 @@ const text = (value: unknown, max: number) => typeof value === "string" && value
 
 /**
  * The landing a Send carried, bounded; anything not in this shape is left out rather than refused. It goes only with the
- * object the Send carries (§21.5 L-1): a landing in any other object, or with none, is dropped here, whatever the page did.
+ * object the Send carries (§21.5 readText-1): a landing in any other object, or with none, is dropped here, whatever the page did.
  */
 export function checkLanding(context: AssistantContextSnapshot): { landing?: AssistantLanding } {
   const value = context.landing, object = context.object;

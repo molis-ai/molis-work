@@ -59,6 +59,10 @@ export interface PageStateOwner {
 
 // The Host frame adapters relay these owners' announcements into an isolated document; they own no second copy of the state.
 export const PAGE_STATE_OWNERS = {
+  "document-language": {
+    files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"],
+    state: "The displayed words and language of one document.",
+  },
   "side-panel": {
     files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
     state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
@@ -118,6 +122,10 @@ export const PAGE_STATE_OWNERS = {
   preferences: {
     files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
+  },
+  appearance: {
+    files: ["apps/workbench/src/browser/appearance-view.ts"],
+    state: "The effective Home appearance that this document has finished preparing and rendered.",
   },
   shelf: {
     files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
@@ -261,6 +269,11 @@ export const DOM_EVENTS = [
     summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.",
   },
   {
+    name: "molis-work:language-changed", kind: "announcement", owner: "document-language", on: "document",
+    detail: "{ tag: UiLanguageTag }",
+    summary: "This document has applied a new language in place; its existing views can refresh compound words.",
+  },
+  {
     name: "molis-work:layout-holds", kind: "request", owner: "tab-workspace", on: "document",
     detail: "{ pane, surface, answer? }; the handler sets answer to a boolean, synchronously",
     summary: "Is a return trip's place still in the layout: the pane is there and has a view or a tab of this surface (not a frame's key). Sent by the settings-return owner when a trip settles with no page claiming it; an embedded pane document does not answer, and with no answer the sender does not judge.",
@@ -347,6 +360,11 @@ export const DOM_EVENTS = [
     name: "molis-work:terminal-theme-change", kind: "announcement", owner: "preferences", on: "window",
     detail: "{ theme }",
     summary: "The terminal colour theme changed; open terminals repaint.",
+  },
+  {
+    name: "molis-work:ui-environment-changed", kind: "announcement", owner: "appearance", on: "window",
+    detail: '{ revision: string, changed: ("skin" | "font" | "mono")[] }',
+    summary: "This document has rendered the prepared appearance; frames update and open terminals remeasure.",
   },
   {
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",

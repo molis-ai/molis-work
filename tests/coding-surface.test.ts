@@ -14,7 +14,7 @@ import {
   openProjectVersionStores,
 } from "@molis-ai/molis-work-app-local-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
-import { codingView } from "./fixtures/coding-view.js";
+import { CODING_OPENED, CODING_UNAVAILABLE, codingView } from "./fixtures/coding-view.js";
 
 /**
  * 目录面板由**运行中的 Coding 插件**渲染，而不是壳自己画。
@@ -59,7 +59,8 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
     // The route reads titles through Goals' action and no Agent action, so no fake agent Host is registered.
     const host = ports(store, { g1: "让首次使用不再卡住" });
     const panel = await codingView(host);
-    assert.doesNotMatch(panel, /role="alert"/, "插件跑起来了就该给出面板");
+    assert.doesNotMatch(panel, CODING_UNAVAILABLE, "插件跑起来了就该给出面板");
+    assert.match(panel, CODING_OPENED, "面板是 Coding 自己的页");
     assert.match(panel, /data-coding-directory/);
     assert.match(panel, /修好 runtime 连接提示/);
     // 目录当场渲染、等不了一次动作：第一次绘制时 Goal 标题还没读过，目录给出的是 Goal 的 id（预期变化：此前由宿主同步注入）。

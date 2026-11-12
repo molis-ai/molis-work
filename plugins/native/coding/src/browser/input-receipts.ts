@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { StepNode } from "./shapes.js";
 import type { PagePorts, ReceiptLinks } from "./types.js";
 
@@ -83,9 +84,9 @@ const small = (text: string) => {
  * Interrupting drops the reply the model was writing: the page dims the one it was showing being written and says so. The runtime's
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
-export function inputReceipts({ api, refresh, q, find, landed, receipts, translate: L }: InputReceiptsPorts): InputReceipts {
-  const SENT: Readonly<Record<string, string>> = { "next-boundary": L("coding.sent.next-boundary"), interrupt: L("coding.sent.interrupt"), "after-run": L("coding.sent.after-run") };
-  const AGAIN = L("coding.sent.again");
+export function inputReceipts({ api, refresh, q, find, landed, receipts }: InputReceiptsPorts): InputReceipts {
+  const SENT: Readonly<Record<string, string>> = { "next-boundary": uiText.text("coding.sent.next-boundary"), interrupt: uiText.text("coding.sent.interrupt"), "after-run": uiText.text("coding.sent.after-run") };
+  const AGAIN = uiText.text("coding.sent.again");
   let item: Sent | null = null;
   let initial: { signature: string; id: string } | undefined;
   const start = async <Result>(id: string, command: Record<string, unknown>): Promise<Result> => {
@@ -110,13 +111,13 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
       if (item === sent) item = null;
       if (writing && receipt.delivered === "run" && !receipt.replayed) {
         writing.classList.add("is-dropped");
-        writing.append(small(L("coding.sent.dropped")));
+        writing.append(small(uiText.text("coding.sent.dropped")));
       }
-      return receipt.replayed ? AGAIN : receipt.delivered === "queued" && sent.mode !== "after-run" ? L("coding.sent.just-ended") : SENT[sent.mode] ?? "";
+      return receipt.replayed ? AGAIN : receipt.delivered === "queued" && sent.mode !== "after-run" ? uiText.text("coding.sent.just-ended") : SENT[sent.mode] ?? "";
     } catch (error) {
       if (unsure(error)) {
         sent.lost = true;
-        throw new Error(L("coding.sent.unconfirmed"));
+        throw new Error(uiText.text("coding.sent.unconfirmed"));
       }
       if (item === sent) item = null;
       throw error;
@@ -128,7 +129,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
     start,
     from(node, first) {
       const one = node?.origins?.[0];
-      return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "来自补充「") : null;
+      return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "origin") : null;
     },
     steer(id, run, text, mode) {
       const again = item?.lost && item.id === id && item.text === text && item.mode === mode;
@@ -136,13 +137,13 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
     },
     act(id, run) {
       const path = control(id), lost = (error: unknown): never => {
-        throw unsure(error) ? new Error(L("coding.sent.unconfirmed-again")) : error;
+        throw unsure(error) ? new Error(uiText.text("coding.sent.unconfirmed-again")) : error;
       };
       return {
         withdraw: inputId => api<{ withdrawn: { from: string } }>(path, "POST", { kind: "withdraw", run_id: run, input_id: inputId })
-          .then(({ withdrawn }) => withdrawn.from === "queued" ? L("coding.sent.withdrawn") : "", lost).finally(refresh),
+          .then(({ withdrawn }) => withdrawn.from === "queued" ? uiText.text("coding.sent.withdrawn") : "", lost).finally(refresh),
         correct: (about, text, key) => supplement(id, { run_id: run, text, about, key: "send." + key })
-          .then(({ receipt }) => receipt.replayed ? AGAIN : receipt.delivered === "queued" ? SENT["after-run"]! : L("coding.sent.corrected"), lost).finally(refresh),
+          .then(({ receipt }) => receipt.replayed ? AGAIN : receipt.delivered === "queued" ? SENT["after-run"]! : uiText.text("coding.sent.corrected"), lost).finally(refresh),
       };
     },
     bubble(id, run) {
@@ -160,7 +161,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
         node.dataset.kind = "user";
         node.dataset.lost = mark;
         node.textContent = item.text;
-        node.append(small(item.lost ? L("coding.sent.lost") : L("coding.sent.sending")));
+        node.append(small(item.lost ? uiText.text("coding.sent.lost") : uiText.text("coding.sent.sending")));
       }
       return item.node ?? null;
     },

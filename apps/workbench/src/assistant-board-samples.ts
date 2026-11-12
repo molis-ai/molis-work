@@ -3,6 +3,8 @@ import {
   BOARD_PROJECT, act, boardAnswered, boardDelegatedWorks, boardFinishedWorks, boardInterruptedWork, boardNotices, boardView, boardWork, round, type Iso,
 } from "./assistant-board-works.js";
 import { boardSampleText, type BoardSampleText } from "./assistant-board-text.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { drawCatalogText } from "./plugin-text.js";
 
 /**
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host
@@ -136,19 +138,24 @@ export function assistantBoardSamples(now: number, text: BoardSampleText = "zh")
   const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at), cut = boardInterruptedWork(at);
   const others = [...rest, cut.view, ...boardDelegatedWorks(at, plan.view.work)];
   const views = [coding.views[0]!, plan.view, ...others];
-  return boardSampleText({
+  const codingManifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "coding")!.manifest;
+  const modes = drawCatalogText(codingManifest, resolve => ([
+    ["discuss", "coding.intent.discuss", "讨论"], ["plan", "coding.intent.plan", "规划"],
+    ["edit", "coding.executor.mode-edit", "修改"], ["execute", "coding.executor.mode-execute", "执行"],
+    ["review", "coding.intent.review", "评审"],
+  ] as const).map(([id, key, title]) => ({ id, title: resolve?.({ key, owner: codingManifest.plugin_id }, title) ?? title })));
+  const sample = boardSampleText({
     project: { ...BOARD_PROJECT },
     works: views.map((view) => view.work),
     views: Object.fromEntries(views.map((view) => [view.work.work_id, view])),
     surroundings: { [plan.view.work.work_id]: plan.surroundings, [coding.views[0]!.work.work_id]: coding.surroundings,
       ...Object.fromEntries(others.map((view) => [view.work.work_id, { ...plan.surroundings, connections: [], tools: { executor: "assistant" as const, callable: [], unavailable: [] } }])) },
-    executors: [{ plugin_id: "io.molis.work.coding", title: "Coding", default_mode: "execute", session_kind: "coding_session",
-      modes: [{ id: "discuss", title: "讨论" }, { id: "plan", title: "规划" }, { id: "edit", title: "修改" }, { id: "execute", title: "执行" }, { id: "review", title: "评审" }],
-      capability_ids: { "session.update": "coding.executor.session.update", "run.start": "coding.executor.run.start" } }],
     next: { [coding.views[0]!.work.work_id]: coding.views.slice(1) },
     answered: { [rest[0]!.work.work_id]: boardAnswered(at, rest[0]!) },
     closed: { [cut.view.work.work_id]: cut.closed },
     recovery: { [cut.view.work.work_id]: cut.recovery },
     notices: boardNotices(at),
   }, text);
+  return { ...sample, executors: [{ plugin_id: codingManifest.plugin_id, title: "Coding", default_mode: "execute", session_kind: "coding_session",
+    modes, capability_ids: { "session.update": "coding.executor.session.update", "run.start": "coding.executor.run.start" } }] };
 }

@@ -25,14 +25,14 @@ export function createEditorPreviews(options: Pick<PagesEditorMountOptions, "tra
   linkPreview.className = "pages-link-preview";
   linkPreview.hidden = true;
   const linkLabel = document.createElement("span");
-  const linkOpen = previewButton(options, "打开");
-  const linkEdit = previewButton(options, "编辑");
+  const linkOpen = previewButton(options, "pages.editor.open");
+  const linkEdit = previewButton(options, "pages.editor.edit");
   linkPreview.append(linkLabel, linkOpen, linkEdit);
   const commentPreview = document.createElement("div");
   commentPreview.className = "pages-comment-preview";
   commentPreview.hidden = true;
   const commentText = document.createElement("p");
-  const commentEdit = previewButton(options, "编辑");
+  const commentEdit = previewButton(options, "pages.editor.edit");
   commentPreview.append(commentText, commentEdit);
 
   function update(current: EditorView): void {

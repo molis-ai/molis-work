@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
@@ -45,12 +46,11 @@ export const workflowsUiContribution: UiContribution<WorkflowsUiModel> = {
 };
 
 /** The shell only; the client draws the list, the chain editor and the run view from the plugin API. */
-export function renderWorkflowsWorkbench(model: WorkflowsUiModel): string {
-  const { primitives: p } = model;
-  const t = (value: string) => p.escape(p.text(value));
+export function renderWorkflowsWorkbench(_model: WorkflowsUiModel): string {
+  const t = uiText;
   return renderPluginStageShell({
     surface: "workflows",
-    label: p.text("workflows.page.title"),
+    label: uiText.text("workflows.page.title"),
     dataset: "workflows",
     extraAttrs: 'data-wf-mode="list"',
     body: `

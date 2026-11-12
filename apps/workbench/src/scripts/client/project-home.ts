@@ -7,13 +7,13 @@ import { createHomeFlow } from "../../home-flow.js";
  * (the things at hand). One detail node moves into whichever row is open.
  */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
-  const { getState, translate: L, openItem, openPlugin, openTarget, api } = host;
-  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
+  const { getState, translate: readText, openItem, openPlugin, openTarget, api } = host;
+  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: readText,
     projectKey: getState().project?.project_id || getState().snapshot.board.project_id });
   const home = document.querySelector('[data-work-surface="home"]');
   if (!home) return null;
   const homeFlow = (${createHomeFlow.toString()})();
-  const locale = document.documentElement.lang || "zh-CN";
+  const locale = () => globalThis.molisWorkLanguageCatalog?.().languages.find(row => row.tag === document.documentElement.dataset.uiLanguageTag)?.intl;
   const projectKey = getState().project?.project_id || getState().snapshot.board.project_id;
   let dayId = "";
   let dayPinned = false;
@@ -25,9 +25,11 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   let days = [];
   const esc = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  let changingLanguage = false;
   const writeHTML = (node, html) => {
     if (!node || node.dataset.html === html) return false;
-    node.innerHTML = html;
+    if (changingLanguage && node.dataset.html !== undefined && globalThis.molisWorkRetitleRegion) globalThis.molisWorkRetitleRegion(node, node.dataset.html, html);
+    else node.innerHTML = html;
     node.dataset.html = html;
     return true;
   };
@@ -36,18 +38,18 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const $$ = (sel, root) => [...(root || home).querySelectorAll(sel)];
   const detailNode = $("[data-home-detail]");
   const detailHolder = $("[data-home-detail-holder]");
-  const labels = {
-    todayEmpty: L("今天还没有事件走进来"),
-    empty: L("这一天没有事件"),
-    todaySum: (n) => L("今天接到 {n} 件事", { n }),
-    daySum: (n) => L("这一天有 {n} 件事", { n }),
-    attentionLead: L("有事项需要处理。"),
-    emptyLead: L("插件提供的新事项和待处理事项会出现在这里。"),
-  };
+  const labels = () => ({
+    todayEmpty: globalThis.t.text("workbench.project-home.nothing-arrived-today-yet"),
+    empty: globalThis.t.text("workbench.project-home.nothing-day"),
+    todaySum: (n) => globalThis.t.text("workbench.project-home.n-n-arrived-today", { n }),
+    daySum: (n) => globalThis.t.text("workbench.project-home.n-n-day", { n }),
+    attentionLead: globalThis.t.text("workbench.project-home.some-items-need-attention"),
+    emptyLead: globalThis.t.text("workbench.project-home.new-pending-items-plugins-appear-here"),
+  });
   const collect = () => {
-    const now = new Date();
-    days = homeFlow.buildHomeDays(now, locale);
-    events = homeFlow.projectHomeEvents({ now, locale, events: eventRows });
+    const now = new Date(), tag = locale();
+    days = homeFlow.buildHomeDays(now, tag);
+    events = homeFlow.projectHomeEvents({ now, locale: tag, events: eventRows });
     if (!dayPinned || !days.some((day) => day.id === dayId)) {
       dayId = homeFlow.civilKey(now);
       dayPinned = false;
@@ -69,14 +71,14 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     eventId = "";
     home.dataset.event = "off";
   };
-  const shortWeek = (id) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(id + "T12:00:00"));
+  const shortWeek = (id) => new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(new Date(id + "T12:00:00"));
   const renderDates = () => {
     writeHTML($("[data-home-dates]"), days.map((day) => {
       const list = homeFlow.eventsOnDay(events, day.id);
-      const count = list.length ? " · " + L("{n} 件事", { n: list.length }) : "";
-      return '<button class="home-day" type="button" data-home-day="' + day.id + '" aria-label="' + esc(day.week + " " + day.n + (day.today ? " · " + L("今天") : "") + count) + '">' +
+      const count = list.length ? " · " + globalThis.t.text("workbench.project-home.n-n", { n: list.length }) : "";
+      return '<button class="home-day" type="button" data-home-day="' + day.id + '" aria-label="' + esc(day.week + " " + day.n + (day.today ? " · " + globalThis.t.text("workbench.project-home.today") : "") + count) + '">' +
         '<span class="home-day__w">' + esc(shortWeek(day.id)) + '</span><b class="home-day__n">' + day.n + '</b>' +
-        (day.today ? '<em class="home-day__today">' + L("今天") + '</em>' : '<span class="home-day__dots">' + dotsHTML(list) + '</span>') + '</button>';
+        (day.today ? '<em class="home-day__today">' + globalThis.t.text("workbench.project-home.today") + '</em>' : '<span class="home-day__dots">' + dotsHTML(list) + '</span>') + '</button>';
     }).join(""));
     $$("[data-home-day]").forEach((btn) => {
       const on = btn.dataset.homeDay === dayId;
@@ -88,31 +90,31 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const renderHero = () => {
     const day = days.find((item) => item.id === dayId) || days.find((item) => item.today);
     const list = listOf();
-    const summary = homeFlow.summarizeDay(day, list, labels);
+    const summary = homeFlow.summarizeDay(day, list, labels());
     const stamp = day.id;
     const hero = $("[data-home-hero]");
     const dayChanged = hero.dataset.day !== dayId;
     hero.dataset.day = dayId;
     if (dayChanged) { hero.className = "home-heading home-hero home-enter"; enter(hero); }
     const hour = new Date().getHours();
-    const greeting = hour >= 5 && hour < 11 ? L("早上好") : hour >= 11 && hour < 13 ? L("中午好")
-      : hour >= 13 && hour < 18 ? L("下午好") : hour >= 18 && hour < 23 ? L("晚上好") : L("夜深了");
-    const date = new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(new Date(stamp + "T12:00:00"));
-    const sum = loadingEvents && !eventRows.length ? L("正在读取事项…") : eventIssues.length && !eventRows.length ? L("事项暂时无法完整读取") : summary.sum;
+    const greeting = hour >= 5 && hour < 11 ? globalThis.t.text("workbench.project-home.good-morning") : hour >= 11 && hour < 13 ? globalThis.t.text("workbench.project-home.good-midday")
+      : hour >= 13 && hour < 18 ? globalThis.t.text("workbench.project-home.good-afternoon") : hour >= 18 && hour < 23 ? globalThis.t.text("workbench.project-home.good-evening") : globalThis.t.text("workbench.project-home.working-late");
+    const date = globalThis.format.date(stamp, "month-day");
+    const sum = loadingEvents && !eventRows.length ? globalThis.t.text("workbench.project-home.loading-items") : eventIssues.length && !eventRows.length ? globalThis.t.text("workbench.project-home.some-items-could-not-be-fully-loaded") : summary.sum;
     const html =
-      '<div class="home-heading__main"><h1>' + esc(day.today ? L("今天的工作") : L("{date}的工作").replace("{date}", date)) + '</h1>' +
+      '<div class="home-heading__main"><h1>' + esc(day.today ? globalThis.t.text("workbench.project-home.today-s-work") : globalThis.t.text("workbench.project-home.work-date", { date })) + '</h1>' +
       '<p class="home-heading__sub">' + (day.today ? '<span class="craft-greeting">' + esc(greeting) + '</span><i>·</i>' : '') +
-        '<time data-home-date datetime="' + stamp + '">' + esc(L("{week}，{date}").replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
+        '<time data-home-date datetime="' + stamp + '">' + esc(globalThis.t.text("workbench.project-home.week-and-date", { week: day.week, date })) + '</time><i>·</i>' +
         '<span class="home-hero__sum">' + esc(sum) + '</span>' +
         (list.length ? '<i>·</i><span class="home-hero__lead">' + esc(summary.lead) + '</span>' : '') + '</p>' +
       '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
-      (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '') + '</div></div>' +
-      '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>';
+      (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + globalThis.t.text("workbench.project-home.reload") + '</button>' : '') + '</div></div>' +
+      '<p class="home-month">' + ico("calendar") + esc(globalThis.format.date(stamp, "year-month")) + '</p>';
     if (writeHTML(hero, html)) {
       const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
     }
     writeHTML($("[data-home-list-stats]"), list.length
-      ? L("个人") + ' <b>' + summary.me + '</b> · ' + L("组织") + ' <b>' + summary.org + '</b>'
+      ? globalThis.t.text("workbench.project-home.personal") + ' <b>' + summary.me + '</b> · ' + globalThis.t.text("workbench.project-home.organize") + ' <b>' + summary.org + '</b>'
       : '');
     if (!dayChanged) hero.classList.add("is-in");
   };
@@ -138,21 +140,25 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const done = children.filter((child) => child.status === "completed").length;
     const progress = children.length
       ? '<span class="home-focus__progress"><span class="home-focus__bar"><span style="width:' + Math.round(done / children.length * 100) + '%"></span></span>' +
-        esc(L("{done} / {total} 个子目标已完成").replace("{done}", String(done)).replace("{total}", String(children.length))) + '</span>'
+        esc(globalThis.t.text("workbench.project-home.done-total-sub-goals-done", { done, total: children.length })) + '</span>'
       : '';
     const moving = pick.status === "in_progress";
-    const html = '<div class="home-focus__top"><span>' + ico("target") + esc(moving ? L("正在推进") : L("等你决定")) + '</span>' +
-      '<span class="home-focus__status' + (moving ? '' : ' is-attention') + '" data-mw-state="' + (moving ? 'doing' : 'approval') + '">' + esc(moving ? L("进行中") : pick.status_label) + '</span></div>' +
+    const html = '<div class="home-focus__top"><span>' + ico("target") + esc(moving ? globalThis.t.text("workbench.project-home.progress") : globalThis.t.text("workbench.project-home.needs")) + '</span>' +
+      '<span class="home-focus__status' + (moving ? '' : ' is-attention') + '" data-mw-state="' + (moving ? 'doing' : 'approval') + '">' + esc(moving ? globalThis.t.text("workbench.project-home.progress-2") : pick.status_label) + '</span></div>' +
       '<h2 id="home-focus-title">' + esc(pick.goal.title) + '</h2>' +
       (pick.goal.outcome ? '<p>' + esc(pick.goal.outcome) + '</p>' : '') +
-      '<div class="home-focus__bottom"><button class="mw-btn mw-btn--primary" type="button" data-home-focus-open>' + esc(moving ? L("继续这个目标") : L("去做决定")) + ico("arrow") + '</button>' + progress + '</div>' +
+      '<div class="home-focus__bottom"><button class="mw-btn mw-btn--primary" type="button" data-home-focus-open>' + esc(moving ? globalThis.t.text("workbench.project-home.continue-goal") : globalThis.t.text("workbench.project-home.make-decision")) + ico("arrow") + '</button>' + progress + '</div>' +
       '<div class="home-focus__art" aria-hidden="true"><span class="home-focus__sheet is-back"></span><span class="home-focus__sheet is-front"><i></i><i></i><i></i>' +
         '<b>' + ico("check") + '<i></i></b><b>' + ico("check") + '<i></i></b><b class="is-open">' + ico("circle") + '<i></i></b></span></div>';
-    if (card.dataset.html !== html) { card.innerHTML = html; card.dataset.html = html; }
+    writeHTML(card, html);
     card.hidden = false;
   };
   let arrivedAs = null, paintedRows = null;
   const parkDetail = () => { if (detailNode.parentElement !== detailHolder) detailHolder.append(detailNode); };
+  const readStarts = () => {
+    try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
+    catch (error) { return []; }
+  };
   const renderList = () => {
     const list = listOf();
     const rows = $("[data-home-list]");
@@ -162,37 +168,37 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const arrival = dayId + (list.length ? "" : ":empty");
     const paint = (html) => {
       if (html !== paintedRows) {
-        parkDetail();
-        rows.toggleAttribute("data-arrive", arrival !== arrivedAs);
-        rows.innerHTML = html;
+        if (changingLanguage && paintedRows !== null && globalThis.molisWorkRetitleRegion) globalThis.molisWorkRetitleRegion(rows, paintedRows, html);
+        else {
+          parkDetail();
+          rows.toggleAttribute("data-arrive", arrival !== arrivedAs);
+          rows.innerHTML = html;
+        }
         paintedRows = html;
       }
       arrivedAs = arrival;
     };
-    $("[data-home-list-count]").textContent = list.length ? String(list.length) : "";
+    $("[data-home-list-count]").textContent = list.length ? globalThis.format.number(list.length) : "";
     if (!list.length) {
       parkDetail();
       if (loadingEvents || eventIssues.length) {
         // An error names what happened and offers the retry right where the events would be.
-        paint('<p class="home-tl__empty' + (loadingEvents ? ' mw-loading' : '') + '" role="status">' + esc(L(loadingEvents ? '正在读取事项…' : '部分事项暂不可读取，请重新读取。')) + '</p>' +
-          (loadingEvents ? '' : '<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm home-tl__retry" data-home-events-reload>' + ico('refresh') + L('重新读取') + '</button>'));
+        paint('<p class="home-tl__empty' + (loadingEvents ? ' mw-loading' : '') + '" role="status">' + esc(globalThis.t.text(loadingEvents ? "workbench.project-home.loading-items" : "workbench.project-home.some-items-can-t-be-read-right-now")) + '</p>' +
+          (loadingEvents ? '' : '<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm home-tl__retry" data-home-events-reload>' + ico('refresh') + globalThis.t.text("workbench.project-home.reload") + '</button>'));
         return;
       }
       // An empty day keeps the ways to start something; another day also offers the way back to today.
       const otherDay = !day?.today;
       // The plugins the project shows say how to start with them (the start of their views); the page carries the list in order.
-      const starts = (() => {
-        try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
-        catch (error) { return []; }
-      })();
+      const starts = readStarts();
       // The ways to start are one row of small buttons; the sentence of each is its hint.
-      const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(L(hint)) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(L(label)) + '</span></button>';
+      const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(hint) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(label) + '</span></button>';
       paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
-          ? '<b>' + L('这一天还没有事件') + '</b>' + L('已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。')
-          : L('选一件想做的事，或继续已有的工作。')) + '</p><div class="home-start-actions">' +
-        (otherDay ? chip('data-home-today', 'back', '回到今天') : '') +
+          ? '<b>' + globalThis.t.text("workbench.project-home.nothing-happened-day") + '</b>' + globalThis.t.text("workbench.project-home.work-still-here-continue-current-goal-start-something")
+          : globalThis.t.text("workbench.project-home.start-something-new-pick-up-where-left-off")) + '</p><div class="home-start-actions">' +
+        (otherDay ? chip('data-home-today', 'back', globalThis.t.text("workbench.project-home.back-today")) : '') +
         starts.map(item => chip('data-home-start="' + esc(item.id) + '"', item.glyph, item.title, item.hint)).join('') +
-        chip('data-home-start="market"', 'grid', '浏览更多工具') + '</div></div>');
+        chip('data-home-start="market"', 'grid', globalThis.t.text("workbench.project-home.explore-more-tools")) + '</div></div>');
       return;
     }
     const nowAt = Date.now();
@@ -211,7 +217,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         '<time class="home-erow__when">' + esc(event.when) + "</time>" +
         '<span class="home-erow__icon">' + ico(event.icon) + '</span>' +
         '<span class="home-erow__main"><strong>' + esc(event.title) + "</strong>" +
-          "<small>" + (event.kind === "org" ? L("组织") : L("个人")) + " · " + esc(event.lead) + '<span class="home-erow__src"> · ' + esc(event.origin.title) + "</span></small></span>" +
+          "<small>" + (event.kind === "org" ? globalThis.t.text("workbench.project-home.organize") : globalThis.t.text("workbench.project-home.personal")) + " · " + esc(event.lead) + '<span class="home-erow__src"> · ' + esc(event.origin.title) + "</span></small></span>" +
         '<span class="home-erow__chev">' + ico("chevron-down") + '</span>' +
         "</button>" + (open ? '<div class="home-erow__slot" data-home-slot></div>' : '') + '</div>';
     });
@@ -219,7 +225,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     if (day?.today && !nowDrawn) html += nowLine;
     paint(html);
     const nowNode = $("[data-home-now] span", rows);
-    if (nowNode) nowNode.textContent = L("此刻") + " " + homeFlow.clockLabel(new Date(nowAt));
+    if (nowNode) nowNode.textContent = globalThis.t.text("workbench.project-home.now-time", { time: { kind: "date", at: new Date(nowAt).toISOString(), style: "time" } });
     const slot = $("[data-home-slot]", rows);
     if (slot && detailNode.parentElement !== slot) slot.append(detailNode);
     if (!slot) parkDetail();
@@ -230,29 +236,29 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     writeHTML($("[data-home-detail-head]", detailNode),
       '<span class="home-detail__src">' + ico(event.icon) + esc(event.origin.title) + "</span>" +
       "<time>" + esc(event.when) + "</time>" +
-      '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-event aria-label="' + L("收起详情") + '">' + ico("x") + "</button>");
+      '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-event aria-label="' + globalThis.t.text("workbench.project-home.close-detail") + '">' + ico("x") + "</button>");
     writeHTML($("[data-home-detail-body]", detailNode),
       "<h2>" + esc(event.title) + "</h2>" +
       '<p class="home-detail__kind">' + ico(event.kind === "org" ? "review" : "user") +
-        (event.kind === "org" ? L("组织事件") : L("个人事件")) + "</p>" +
+        (event.kind === "org" ? globalThis.t.text("workbench.project-home.org-event") : globalThis.t.text("workbench.project-home.personal-event")) + "</p>" +
       '<p class="home-detail__text">' + esc(event.text) + "</p>" +
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
         "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>");
     const left = event.open ? '<button class="mw-btn mw-btn--primary" type="button" data-home-open-target' + (opening === event.id ? ' disabled' : '') + '>' + ico("arrow") +
-      esc(opening === event.id ? L('正在打开…') : L(event.open.label)) + '</button>' : '';
+      esc(opening === event.id ? globalThis.t.text("workbench.project-home.opening") : event.open.label) + '</button>' : '';
     const footer = $("[data-home-detail-act]", detailNode);
     if (!$(".home-detail__primary", footer)) footer.innerHTML =
       '<div data-home-offers></div><p data-home-navigation-error role="alert" hidden></p><div class="home-detail__primary"><div class="home-detail__act-left"></div>' +
       "</div>";
     const leftNode = $(".home-detail__act-left", footer);
     const mode = JSON.stringify([event.id, event.open, opening === event.id]);
-    if (leftNode.dataset.mode !== mode) { leftNode.innerHTML = left; leftNode.dataset.mode = mode; }
-    const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(issueText(navigationError)) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '';
+    if (changingLanguage || leftNode.dataset.mode !== mode) { writeHTML(leftNode, left); leftNode.dataset.mode = mode; }
+    const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(issueText(navigationError)) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + globalThis.t.text("workbench.project-home.reload") + '</button>' : '';
     if(navigationError && typeof navigationError!=='string'){const retry=error.querySelector('button');molisWorkRequest.show(error,navigationError);if(retry)error.append(retry);}
     offers.render();
   };
   // The things at hand: the plugins kept in the Dock, then the person's own shortcuts.
-  const QUICK_CAPTIONS = { goals: "找到下一步", feed: "阅读与留下", inbox: "处理待办", pages: "继续写作", schedule: "看看安排", lingguang: "记下灵感" };
+  const QUICK_CAPTIONS = { goals: "workbench.project-home.find-next-step", feed: "workbench.project-home.read-keep", inbox: "workbench.project-home.handle-what-s-waiting", pages: "workbench.project-home.keep-writing", schedule: "workbench.project-home.see-what-s-scheduled", lingguang: "workbench.project-home.jot-down-idea" };
   const renderQuick = () => {
     const list = $("[data-home-quick]");
     const seen = new Set();
@@ -267,8 +273,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       });
     const html = entries.map((entry) => '<li><button type="button" class="home-quick__item" data-home-quick-open="' + esc(entry.id) + '">' +
       '<span class="home-shortcut-icon">' + ico(entry.glyph) + '</span><span class="home-quick__text">' + esc(entry.name) +
-      (QUICK_CAPTIONS[entry.id] ? '<small>' + esc(L(QUICK_CAPTIONS[entry.id])) + '</small>' : '') + '</span>' + ico("chevron-right") + '</button></li>').join("");
-    if (list.dataset.html !== html) { list.innerHTML = html; list.dataset.html = html; }
+      (QUICK_CAPTIONS[entry.id] ? '<small>' + esc(globalThis.t.text(QUICK_CAPTIONS[entry.id])) + '</small>' : '') + '</span>' + ico("chevron-right") + '</button></li>').join("");
+    writeHTML(list, html);
   };
   const render = () => {
     collect();
@@ -279,6 +285,10 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     if (eventId) renderDetail();
     renderQuick();
   };
+  document.addEventListener("molis-work:language-changed", () => {
+    changingLanguage = true;
+    try { render(); } finally { changingLanguage = false; }
+  });
   const openEvent = (id) => {
     if (!events.some((event) => event.id === id)) return;
     eventId = id;
@@ -295,7 +305,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     } catch (error) { if (current()?.id === event.id) navigationError=error; }
     finally { opening = ''; if (current()?.id === event.id) renderDetail(); }
   };
-  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: api,
+  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: readText, api: api,
     projectKey, refresh: () => sync() });
   home.addEventListener("click", async (event) => {
     const start = event.target.closest('[data-home-start]');

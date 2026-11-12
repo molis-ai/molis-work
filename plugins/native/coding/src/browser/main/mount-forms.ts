@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage, part } from "../dom.js";
 import { renderArtifacts } from "./artifacts.js";
 import { rememberConfiguration, refreshState } from "./configuration.js";
@@ -15,7 +16,7 @@ const submitOf = (form: HTMLFormElement) => part<HTMLButtonElement>(form, "[type
 
 /** Which goal the session's next round is fixed to. */
 async function saveGoal(page: Page) {
-  const { L, lifetime, q, s } = page, button = q<HTMLButtonElement>("[data-coding-goal-save]");
+  const { lifetime, q, s } = page, button = q<HTMLButtonElement>("[data-coding-goal-save]");
   if (button.disabled || s.goalSaving) return;
   const id = s.current, ticket = s.goalTicket, choice = s.goalChoice;
   s.goalSaving = true;
@@ -25,7 +26,7 @@ async function saveGoal(page: Page) {
     if (ticket === s.goalTicket && s.current === id) {
       q<HTMLDialogElement>("[data-coding-goal-dialog]").close();
       await readCurrent(page);
-      status(page, L("coding.goal.saved"));
+      status(page, uiText.text("coding.goal.saved"));
     }
   } catch (error) {
     if (!lifetime.alive) return;
@@ -48,13 +49,13 @@ function listenGoal(page: Page) {
 
 /** Records the report's progress on its goal. */
 async function saveProgress(page: Page) {
-  const { L, lifetime, q, s } = page, view = s.progressView, current = view?.preview?.current;
+  const { lifetime, q, s } = page, view = s.progressView, current = view?.preview?.current;
   if (!view || !current || s.progressSaving || q<HTMLButtonElement>("[data-coding-progress-save]").disabled) return;
   rememberProgressDraft(page);
   const body = { summary: q<HTMLTextAreaElement>("[data-coding-progress-summary]").value, next_step: q<HTMLTextAreaElement>("[data-coding-progress-next]").value, expected_goal_cursor: current.state.goal_event_cursor };
   s.progressSaving = true;
   renderProgress(page);
-  q("[data-coding-progress-status]").textContent = L("coding.progress.saving");
+  q("[data-coding-progress-status]").textContent = uiText.text("coding.progress.saving");
   try {
     const recorded = await api<NonNullable<NonNullable<typeof view.preview>["recorded"]>>(page, sessionPath(view.id, view.runId) + "/report/progress", "POST", body);
     if (s.progressView === view && view.preview) {
@@ -68,7 +69,7 @@ async function saveProgress(page: Page) {
     }
   } catch (error) {
     if (!lifetime.alive) return;
-    if (s.progressView === view) q("[data-coding-progress-status]").textContent = L("coding.progress.save-failed", { reason: errorMessage(error) });
+    if (s.progressView === view) q("[data-coding-progress-status]").textContent = uiText.text("coding.progress.save-failed", { reason: errorMessage(error) });
   } finally {
     s.progressSaving = false;
     if (s.progressView === view) renderProgress(page);
@@ -97,7 +98,7 @@ interface KnowledgePicked { readonly request_id?: string; readonly picks?: { rea
 /** Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds it, this surface asks for it and
  *  keeps the whole choice it hears back for the session that asked. */
 async function takeMaterials(page: Page, picked: KnowledgePicked) {
-  const { L, input, lifetime, refs, s } = page, [owner, id, ticket] = String(picked.request_id || "").split(":");
+  const { input, lifetime, refs, s } = page, [owner, id, ticket] = String(picked.request_id || "").split(":");
   if (owner !== "coding" || id !== s.current || Number(ticket) !== s.materialTicket) return;
   const selection = (picked.picks || []).map(pick => ({ kind: pick.kind, id: pick.id, title: pick.title }));
   try {
@@ -106,7 +107,7 @@ async function takeMaterials(page: Page, picked: KnowledgePicked) {
     if (s.current !== id) return;
     controls(page);
     input.focus();
-    status(page, selection.length ? L("coding.material.chosen", { count: selection.length }) : L("coding.material.cleared"));
+    status(page, selection.length ? uiText.text("coding.material.chosen", { count: selection.length }) : uiText.text("coding.material.cleared"));
   } catch (error) {
     if (lifetime.alive) status(page, errorMessage(error), true);
   }
@@ -114,7 +115,7 @@ async function takeMaterials(page: Page, picked: KnowledgePicked) {
 
 /** The MCP tools and sources chosen for the session's next round. */
 async function saveMcp(page: Page, form: HTMLFormElement) {
-  const { L, lifetime, q, refs, s } = page, button = submitOf(form);
+  const { lifetime, q, refs, s } = page, button = submitOf(form);
   if (button.disabled) return;
   button.disabled = true;
   const id = s.current, previous = s.mcpSelections.get(id), previousSources = s.mcpSourceSelections.get(id);
@@ -124,7 +125,7 @@ async function saveMcp(page: Page, form: HTMLFormElement) {
     await refs.draft.saveChoices(id);
     q<HTMLDialogElement>("[data-coding-mcp-dialog]").close();
     controls(page);
-    status(page, L("coding.mcp.saved"));
+    status(page, uiText.text("coding.mcp.saved"));
   } catch (error) {
     if (!lifetime.alive) return;
     s.mcpSelections.set(id, previous || []);
@@ -137,19 +138,21 @@ async function saveMcp(page: Page, form: HTMLFormElement) {
 
 /** The methods chosen for the session's next round. */
 async function saveMethods(page: Page, form: HTMLFormElement) {
-  const { L, input, lifetime, q, refs, s } = page, submit = submitOf(form);
+  const { input, lifetime, q, refs, s } = page, submit = submitOf(form);
   if (submit.disabled) return;
   submit.disabled = true;
-  const id = s.current, selection = structuredClone(s.methodChoices);
+  const id = s.current, selection = structuredClone(s.methodChoices), previous = s.methodSelections.get(id);
+  // Held before the save goes, as MCP's are: a typing save the composer sends meanwhile carries them, not the old ones.
+  s.methodSelections.set(id, selection);
   try {
-    await refs.draft.save(id, input.value, { skills: selection });
-    s.methodSelections.set(id, selection);
+    await refs.draft.saveChoices(id);
     q<HTMLDialogElement>("[data-coding-method-dialog]").close();
     controls(page);
     input.focus();
-    status(page, L("coding.method.saved"));
+    status(page, uiText.text("coding.method.saved"));
   } catch (error) {
     if (!lifetime.alive) return;
+    s.methodSelections.set(id, previous || []);
     q("[data-coding-method-error]").textContent = errorMessage(error);
   } finally {
     submit.disabled = false;
@@ -158,14 +161,14 @@ async function saveMethods(page: Page, form: HTMLFormElement) {
 
 /** The directory the session works in: an added path (confirmed by the person) or one of the project's. */
 async function saveWorkspace(page: Page, form: HTMLFormElement) {
-  const { L, host, lifetime, q, refs, s } = page, submit = submitOf(form), id = s.current;
+  const { host, lifetime, q, refs, s } = page, submit = submitOf(form), id = s.current;
   if (submit.disabled) return;
   submit.disabled = true;
   try {
     const path = q<HTMLInputElement>("[data-coding-workspace-path]").value.trim();
-    if (path && !q<HTMLInputElement>("[data-coding-workspace-confirm]").checked) throw new Error(L("coding.workspace.confirm-needed"));
+    if (path && !q<HTMLInputElement>("[data-coding-workspace-confirm]").checked) throw new Error(uiText.text("coding.workspace.confirm-needed"));
     const chosen = path ? (await host.addWorkspace(path)).workspace_id : q<HTMLSelectElement>("[data-coding-workspace-choice]").value;
-    if (!chosen) throw new Error(L("coding.workspace.choose-needed"));
+    if (!chosen) throw new Error(uiText.text("coding.workspace.choose-needed"));
     // Chosen for the session it was opened on: once another one is on show (the switch closed this dialog), nothing more is set.
     if (s.current !== id) return;
     await useProjectWorkspace(page, chosen);

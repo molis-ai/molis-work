@@ -1,7 +1,7 @@
 import type { SourceRecord } from "./contract/sources.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { FEED_CONTENT_LEDGER_BATCH, isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
-import type { FeedSnapshot, FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
+import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 
 /**
  * A source's local history is more than rows in the project database: every pull left article bodies in the Home's
@@ -13,7 +13,7 @@ export interface FeedSourceHistory {
    * The source's rows are gone from the project database. Delete the evidence bodies and the search records of its
    * pulls that nothing else holds. Never throws: the deletion has already happened, so a failure is reported.
    */
-  release(input: FeedSourceHistoryHolding & { project_id: string; source_id: string }): FeedSourceHistoryRelease;
+  release(input: { project_id: string; source_id: string }): FeedSourceHistoryRelease;
 }
 
 /** Most search records one `forget` may name: the platform's bound (`services.sourcePull.forget`). */
@@ -87,43 +87,17 @@ export function withReceiptContentRefs(receipt: Record<string, unknown> | null, 
   return { ...receipt, ...(merged.length > 0 ? { [FEED_RECEIPT_CONTENT_REFS]: merged } : {}) };
 }
 
-function collectHoldings(items: Iterable<{ source_id: string | null; materials: ReadonlyArray<{ content_ref?: string | null }> }>,
-  runs: Iterable<{ source_id: string; operation_id: string; receipt: unknown }>, sourceId: string): FeedSourceHistoryHolding {
-  const refs = new Set<string>();
-  for (const item of items) {
-    if (item.source_id !== sourceId) continue;
-    for (const material of item.materials) if (material.content_ref) refs.add(material.content_ref);
-  }
-  const operations: string[] = [];
-  for (const run of runs) {
-    if (run.source_id !== sourceId) continue;
-    operations.push(run.operation_id);
-    for (const ref of receiptContentRefs(run.receipt)) refs.add(ref);
-  }
-  return { content_refs: [...refs].sort(), operation_ids: operations.sort() };
-}
-
-function holdingsOfSource(ports: FeedApplicationPorts, projectId: string, sourceId: string): FeedSourceHistoryHolding {
-  return collectHoldings(ports.feed.query.list(projectId), ports.listener.listRuns(projectId).map(run => ({ ...run, receipt: run.connector_receipt })), sourceId);
-}
-
-/** What a source's history holds, read from the Feed's snapshot: for a Feed that releases it through other services before the rows go. */
-export function holdingsOfSnapshot(snapshot: Pick<FeedSnapshot, "feed_items" | "runs">, sourceId: string): FeedSourceHistoryHolding {
-  return collectHoldings(snapshot.feed_items, snapshot.runs, sourceId);
-}
-
 function releaseSourceHistory(
   ports: FeedApplicationPorts,
   projectId: string,
   sourceId: string,
-  held: FeedSourceHistoryHolding,
 ): void {
   if (!ports.history) return;
   let outcome: FeedSourceHistoryRelease;
   try {
-    outcome = ports.history.release({ project_id: projectId, source_id: sourceId, ...held });
+    outcome = ports.history.release({ project_id: projectId, source_id: sourceId });
   } catch {
-    outcome = { bodies_deleted: 0, bodies_kept: held.content_refs.length, records_deleted: 0, complete: false };
+    outcome = { bodies_deleted: 0, bodies_kept: 0, records_deleted: 0, complete: false };
   }
   ports.appendEvent(
     projectId,
@@ -138,7 +112,8 @@ function releaseSourceHistory(
 
 /**
  * Retires a source in one transaction: with its local history, the Items, pulls and fault entries go; otherwise they stay
- * as the record they were. What the deleted history left outside the project database goes right after the commit.
+ * as the record they were. Runtime releases external history in bounded pages before entering this transaction;
+ * afterward the injected receipt is journaled without reading the deleted rows again.
  */
 export function retireFeedSource(
   ports: FeedApplicationPorts,
@@ -147,11 +122,9 @@ export function retireFeedSource(
   historyDecision: SourceHistoryDecision,
   toRecord: (source: SourceRecord) => FeedSourceRecord,
 ): FeedSourceRecord {
-  const held: { value?: FeedSourceHistoryHolding } = {};
   const retired = ports.transaction(() => {
     const now = new Date().toISOString();
     if (historyDecision === "delete_local_history") {
-      held.value = holdingsOfSource(ports, projectId, sourceId);
       ports.feed.commands.deleteBySource(projectId, sourceId);
       ports.signals.deleteBySource(projectId, sourceId);
       ports.attention.commands.deleteSubject(projectId, "source_fault", sourceId);
@@ -177,6 +150,6 @@ export function retireFeedSource(
     );
     return record;
   });
-  if (held.value) releaseSourceHistory(ports, projectId, sourceId, held.value);
+  if (historyDecision === "delete_local_history") releaseSourceHistory(ports, projectId, sourceId);
   return retired;
 }

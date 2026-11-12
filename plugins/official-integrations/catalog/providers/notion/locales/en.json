@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.notion",
+  "locale": "en",
+  "messages": {
+    "notion.connection.auth-help": "Use a Notion internal integration token. Share each page you want to read with the integration.",
+    "notion.connection.inbound": "Feed retrieves page and database updates",
+    "notion.connection.summary": "Pages and databases.",
+    "notion.connection.token-label": "Notion Internal Integration Token",
+    "notion.guide.cli-link": "View the official Notion CLI",
+    "notion.guide.cli-note": "Sign in to the Notion CLI through a browser to call the API. Molis Work does not read its local authorization.",
+    "notion.guide.mcp-connected-note": "Authorize this separately. It does not inherit the pages selected in the current Notion API OAuth grant.",
+    "notion.guide.mcp-link": "View the official Notion MCP",
+    "notion.guide.mcp-note": "Authorize this separately. It does not inherit the pages selected in the current Notion API OAuth grant. Molis Work has not integrated it.",
+    "notion.guide.oauth-link": "View Notion OAuth setup",
+    "notion.guide.oauth-note": "The app supports Notion API OAuth. Create a public connection and set up the local callback.",
+    "notion.guide.token-note": "Use an official PAT or Internal Integration Token. The readable content depends on user permissions or the pages shared with the integration.",
+    "notion.setup.create-notion-integration": "Create Notion Integration",
+    "notion.setup.notion-oauth-setup-guide": "Notion OAuth setup guide"
+  }
+}

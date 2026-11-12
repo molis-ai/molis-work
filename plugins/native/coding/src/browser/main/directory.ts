@@ -1,3 +1,4 @@
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
 import { api } from "./request.js";
 import { el, errorMessage } from "../dom.js";
@@ -50,21 +51,21 @@ function drawTime(time: HTMLTimeElement, updated: string) {
   const at = new Date(updated), now = new Date(), invalid = Number.isNaN(at.getTime());
   time.textContent = invalid ? updated.slice(5, 10) : at.toDateString() === now.toDateString() ? pad(at.getHours()) + ":" + pad(at.getMinutes()) : pad(at.getMonth() + 1) + "-" + pad(at.getDate());
   time.dateTime = updated;
-  time.title = invalid ? updated : at.toLocaleString(document.documentElement.lang || "zh-CN");
+  time.title = invalid ? updated : format.date(updated, "datetime-with-seconds");
 }
 
 /** What a session's state line says: priority, the state, who holds its open plan steps, and a twin on the same Goal. */
 function stateLabel(page: Page, session: SessionRecord, visible: readonly SessionRecord[]): string {
-  const { L, s } = page, steps = session.steps;
-  if (session.runtime_session_id && session.execution_state === null) return L("coding.session.lifecycle-unavailable");
-  if (!session.archived && session.execution_state === "archived") return L("coding.session.lifecycle-incomplete");
-  if (session.archived) return L("coding.directory.archived");
+  const { s } = page, steps = session.steps;
+  if (session.runtime_session_id && session.execution_state === null) return uiText.text("coding.session.lifecycle-unavailable");
+  if (!session.archived && session.execution_state === "archived") return uiText.text("coding.session.lifecycle-incomplete");
+  if (session.archived) return uiText.text("coding.directory.archived");
   // Who is on the open plan steps, after the state: what waits on the person first.
-  const holders = steps ? [steps.mine ? L("coding.steps.mine", { count: steps.mine }) : "", steps.subtasks ? L("coding.steps.subtasks", { count: steps.subtasks }) : "", steps.unowned ? L("coding.steps.unowned", { count: steps.unowned }) : ""].filter(Boolean).join(" · ") : "";
+  const holders = steps ? [steps.mine ? uiText.text("coding.steps.mine", { count: steps.mine }) : "", steps.subtasks ? uiText.text("coding.steps.subtasks", { count: steps.subtasks }) : "", steps.unowned ? uiText.text("coding.steps.unowned", { count: steps.unowned }) : ""].filter(Boolean).join(" · ") : "";
   // Two sessions under way on the same Goal may be doing the same thing twice.
   const twin = session.goal_id && BUSY.includes(session.state) ? visible.find(other => other !== session && other.goal_id === session.goal_id && BUSY.includes(other.state)) : null;
-  return (session.priority ? L("coding.session.priority") + " · " : "") + (session.checkpoint_busy ? L("coding.session.rewind-pending") : s.SESSION_STATE[session.state] || session.state)
-    + (session.background_unreadable ? " · " + L("coding.session.background-unreadable") : "") + (holders ? " · " + holders : "") + (twin ? " · " + L("coding.session.twin", { title: twin.title.slice(0, 16) }) : "");
+  return (session.priority ? uiText.text("coding.session.priority") + " · " : "") + (session.checkpoint_busy ? uiText.text("coding.session.rewind-pending") : s.SESSION_STATE[session.state] || session.state)
+    + (session.background_unreadable ? " · " + uiText.text("coding.session.background-unreadable") : "") + (holders ? " · " + holders : "") + (twin ? " · " + uiText.text("coding.session.twin", { title: twin.title.slice(0, 16) }) : "");
 }
 
 function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: readonly SessionRecord[]) {
@@ -74,7 +75,7 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
     if (!restore) {
       restore = el("button", "↩", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only");
       restore.type = "button"; restore.dataset.codingRestore = session.session_id;
-      restore.setAttribute("aria-label", page.L("coding.session.restore")); restore.title = page.L("coding.session.restore"); row.append(restore);
+      restore.setAttribute("aria-label", uiText.text("coding.session.restore")); restore.title = uiText.text("coding.session.restore"); row.append(restore);
     }
   } else restore?.remove();
   row.setAttribute("aria-current", String(s.current === session.session_id));
@@ -93,14 +94,14 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
 
 /** A session goes under the group of its Goal; a group is made the first time one of its sessions is on show. */
 function placeInGroup(page: Page, list: Element, row: HTMLElement, session: SessionRecord) {
-  const { L, s } = page, goalKey = session.goal_id || "";
+  const { s } = page, goalKey = session.goal_id || "";
   let group = s.directoryGroups.get(goalKey);
   if (!group) {
     group = el("section", "", "coding-session-group");
     group.append(el("h2", "", "mw-dir__heading"));
     s.directoryGroups.set(goalKey, group);
   }
-  const groupTitle = session.goal_title || (session.goal_id ? L("coding.directory.goal-unavailable") : L("coding.directory.no-goal"));
+  const groupTitle = session.goal_title || (session.goal_id ? uiText.text("coding.directory.goal-unavailable") : uiText.text("coding.directory.no-goal"));
   if (group.firstChild && group.firstChild.textContent !== groupTitle) group.firstChild.textContent = groupTitle;
   if (!group.isConnected) list.append(group);
   if (row.parentElement !== group) group.append(row);
@@ -130,7 +131,7 @@ function matches(session: SessionRecord, needle: string, filter: string): boolea
 
 /** The session list, grouped by Goal; rows are kept and updated in place. */
 export function renderDirectory(page: Page) {
-  const { L, directory, s } = page;
+  const { directory, s } = page;
   renderGoalFace(page);
   const filter = directory.querySelector<HTMLElement>("[data-coding-filter][aria-pressed=true]")?.dataset.codingFilter || "all";
   drawFilterCounts(page);
@@ -159,7 +160,7 @@ export function renderDirectory(page: Page) {
   list.querySelector(".mw-empty")?.remove();
   if (!visible.length) {
     const empty = el("div", "", "mw-empty");
-    empty.append(el("p", needle ? L("coding.directory.no-match") : filter !== "all" ? L("coding.directory.none-of-kind") : L("coding.directory.empty")));
+    empty.append(el("p", needle ? uiText.text("coding.directory.no-match") : filter !== "all" ? uiText.text("coding.directory.none-of-kind") : uiText.text("coding.directory.empty")));
     list.append(empty);
     return;
   }

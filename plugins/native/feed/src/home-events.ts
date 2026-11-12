@@ -8,11 +8,11 @@ export function createFeedHomeEventsHandler(feed: FeedApplication, board: string
   readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return { ...feedHomeEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
     const window = value as HomeEventWindow; assertHomeEventWindow(window);
-    const snapshot = feed.snapshot(board);
-    const inboxed = new Set(snapshot.inbox_entries.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id));
-    const faults = new Set(snapshot.inbox_entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id));
+    const inbox = feed.listInboxEntries(board);
+    const inboxed = new Set(inbox.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id));
+    const faults = new Set(inbox.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id));
     const events: HomeEvent[] = [];
-    for (const source of snapshot.sources) {
+    for (const source of feed.sources.list(board)) {
       const needsAttention = source.status === "disconnected" || source.status === "error" || source.last_error_code === "feed.auth_required"
         || (source.last_outcome === "failed" && !!source.last_error_code);
       if (!needsAttention || faults.has(source.source_id)) continue;
@@ -24,10 +24,10 @@ export function createFeedHomeEventsHandler(feed: FeedApplication, board: string
         facts: [["来自", source.name], ["状态", disconnected ? "未连接" : "同步异常"], ["挂在", "Feed 来源"]], needs_attention: true,
         open: { kind: "group", surface: "feed", id: source.source_id, title: source.name, label: "查看来源" } });
     }
-    for (const original of snapshot.feed_items) {
+    for (const original of feed.reads.items(board)) {
       const occurred = original.source_created_at || original.imported_at;
       if (inboxed.has(original.item_id) || !withinHomeEventWindow(occurred, window)) continue;
-      const item = await hydrate(original);
+      const item = await hydrate(feed.getFeedItem(board, original.item_id));
       let goalLabel = item.linked_goal_id ? "目标 · " + item.linked_goal_id : "Feed";
       if (item.linked_goal_id && readSubject) {
         try { goalLabel = (await readSubject({ kind: "goal", id: item.linked_goal_id }, caller)).title; } catch { /* Keep the owned association ID when Goal content is unavailable. */ }

@@ -14,6 +14,9 @@ import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
+import { activeLocale } from '../web-locale.js';
+import { studioManifestWords, studioWordReader } from './studio-words.js';
+import { sandboxTextPacks } from '../ui-text-provider.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
@@ -28,18 +31,22 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
   return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
+    textDeclarations: studioManifestWords(release.design),
     publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract),
     contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
 export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(context: SandboxServiceContext): Promise<readonly CapabilityExecution[]>;
+    backgroundLocale?(): string;
     /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
     assertLive?(identity: Readonly<SandboxIdentity>): void } = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
   const manifest = declared ?? generatedPluginManifest(release, compatibleFrom), uiId = sandboxUiContribution(release.pluginId);
+  const words = release.packaged ? release.packaged.localePacks ?? null : studioWordReader(release.design, manifest);
+  const localePacks = sandboxTextPacks(words);
   const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
@@ -65,7 +72,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath,
-        contract: release.design.contract, grants: approved, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS }) });
+        contract: release.design.contract, grants: approved, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });
       const lane = background;
       const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
         const operation = release.design.contract.operations.find(item => item.id === operationId)!;
@@ -81,13 +88,13 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
           await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
         };
         await beforeEffect();
-        return lane.run(operationId, input, { ...control, beforeEffect });
+        return lane.run(operationId, input, { ...control, beforeEffect, locale: host.backgroundLocale?.() });
       } };
       const services = sandboxServicesFor(context.services, { ...host, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
-          identity });
+          identity, localePacks });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
         return created;
@@ -133,6 +140,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, {
               signal: request.execution?.signal, beforeEffect, limits: capabilityLimits(operation.effects, capabilities), projectReach,
+              locale: request.execution?.locale ?? activeLocale() ?? host.backgroundLocale?.(),
             }) } }; }
             catch (error) {
               // The worker may wrap a refused SDK call as sandbox.plugin_error; keep the trusted Host's reason.
@@ -168,6 +176,6 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
     async stop() { const current = [...lanes.values()], lane = background; lanes.clear(); background = undefined;
       await Promise.all([lane?.stop(), ...current.map(item => item.then(runner => runner.stop(), () => undefined))]); },
   };
-  rememberInstalledActionSource(definition, release);
+  rememberInstalledActionSource(definition, release, words);
   return definition;
 }

@@ -97,7 +97,9 @@ test("ASC-58 a service that keeps failing is told once, after three failures at 
   const [notice, ...more] = r.notices();
   assert.equal(more.length, 0);
   assert.deepEqual([notice!.kind, notice!.work_id, notice!.work_title, notice!.settings_path], ["connection", "", "Work GitHub", "/settings/connectors?connector=github"]);
-  assert.equal(notice!.text, "服务连接「{name}」连续几次没连上服务，打开连接看看。");
+  assert.ok("key" in notice!.text);
+  assert.equal(notice!.text.key, "workbench.assistant-connection.unavailable");
+  assert.deepEqual(notice!.text.args, [{ name: "name", kind: "text", text: "Work GitHub" }]);
   assert.doesNotMatch(JSON.stringify(notice), new RegExp(`${TOKEN}|upstream said|503`), "no credential and no raw error in the notice");
   // The problem has not changed: no second notice, and none after the person said "知道了".
   await r.send("/503");
@@ -126,7 +128,8 @@ test("ASC-58 a refused key is told after two refusals in a row; an answer for th
   assert.deepEqual([r.call()?.failures, r.call()?.failure_class, r.notices().length], [1, "denied", 0], "a 404 reached the service and ended the first run");
   await r.send("/401");
   const [notice] = r.notices();
-  assert.equal(notice?.text, "服务连接「{name}」的密钥或权限连续被服务拒绝，打开连接看看。");
+  assert.ok(notice && "key" in notice.text);
+  assert.equal(notice.text.key, "workbench.assistant-connection.denied");
   // Another class starts at one; the denied notice stays until the problem is over.
   await r.send("/503");
   assert.deepEqual([r.call()?.failures, r.call()?.failure_class, r.notices().length], [1, "unavailable", 1]);
@@ -190,7 +193,7 @@ test("ASC-58 a record read the service refuses or cannot answer is counted, and 
   };
   // A key the service refuses twice in a row: told once, and the connection's status asks to authorize again rather than "connected".
   await readRecords(); await readRecords();
-  assert.equal(notices()[0]?.text, "服务连接「{name}」的密钥或权限连续被服务拒绝，打开连接看看。");
+  assert.match(JSON.stringify(notices()[0]?.text), /workbench\.assistant-connection\.denied/u);
   const refused = await status();
   assert.deepEqual([refused.authorization.service.state, refused.last_call?.outcome, refused.last_call?.failures, refused.last_call?.failure_class], ["required", "unknown", 2, "denied"]);
   // The account read passes again: a check does not end a run of refusals (a narrowed permission still lets the account read pass).
@@ -210,7 +213,8 @@ test("ASC-58 a record read the service refuses or cannot answer is counted, and 
     db.prepare("UPDATE connector_observations SET call_json=? WHERE connection_id=?").run(JSON.stringify({ ...value, failing_since: new Date(Date.now() - 11 * 60_000).toISOString() }), row.connection_id);
   } finally { db.close(); }
   await readRecords();
-  assert.equal(notices()[0]?.text, "服务连接「{name}」连续几次没连上服务，打开连接看看。");
+  assert.deepEqual(notices()[0]?.text, { owner: "workbench", key: "workbench.assistant-connection.unavailable",
+    args: [{ kind: "text", name: "name", text: "Work GitHub" }] });
   // The person fixes the service and checks the connection: a check that goes through ends a run of `unavailable` (§13.2 ⑫), settles
   // its notice, and a piece of work waiting for the connection (`molis.connection-ready`) goes on.
   const assistant = openHomeSqliteDatabase(home.home, ASSISTANT_STORE_NAME), store = new AssistantStore(assistant);

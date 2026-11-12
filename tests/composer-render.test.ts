@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 import { renderComposer, type MwComposerAiLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
@@ -25,9 +26,9 @@ function skeleton(html: string): string[] {
     close ? `/${name}` : `${name}${/\bclass="([^"]*)"/.exec(attrs!)?.[1]?.replace(/^|\s+/g, ".") ?? ""}${/\bdata-state="([^"]*)"/.exec(attrs!)?.[0] ?? ""}`);
 }
 
-test("UIC-13: the shell is the K1 structure: receiver row, box, text area, status line, bottom bar", () => {
+test("UIC-13 UIV-19: the shell is the K1 structure: box, text area, status line, bottom bar with who it goes to beside ＋", () => {
   const html = renderComposer({ kind: "ai", labels: LABELS, receiver: { label: "助理" }, placeholder: "让助理做点什么…", status: { caption: "运行中", text: "正在做这一轮" }, state: "running", text: "补一句" });
-  const order = ["mw-composer\"", "mw-composer__to", "mw-composer__box", "mw-composer__text", "mw-composer__input", "mw-composer__status", "mw-composer__foot", "mw-composer__start", "mw-composer__end"];
+  const order = ["mw-composer\"", "mw-composer__box", "mw-composer__text", "mw-composer__input", "mw-composer__status", "mw-composer__foot", "mw-composer__start", "mw-composer__to", "mw-composer__end"];
   const at = order.map((part) => html.indexOf(`class="${part}`));
   assert.ok(at.every((index) => index >= 0), `every part is drawn: ${order.filter((_, i) => at[i]! < 0).join(", ")}`);
   assert.deepEqual([...at].sort((a, b) => a - b), at, "in the K1 order");
@@ -52,7 +53,10 @@ test("UIC-13: plain is the editor layer only: no receiver row, no stop, no deliv
   assert.match(plain, /aria-label="发送"[^>]*title="发送（⌘↵）"|title="发送（⌘↵）"[^>]*aria-label="发送"/, "send carries its key in the tooltip");
   assert.doesNotMatch(plain, /data-state=/, "no attribute is the ordinary state");
   const ai = renderComposer({ kind: "ai", labels: LABELS, receiver: { label: "Coding · 注册接口", resetLabel: "改回发给助理" } });
-  assert.match(ai, /<div class="mw-composer__to"><span>发给：<\/span><span class="mw-tag"><span>Coding · 注册接口<\/span><button type="button" data-tag-remove aria-label="改回发给助理"/);
+  // Who it goes to is a tag in the bottom bar, after ＋ (user 2026-11-10, one input): "发给：" is spoken, the tag shows the name.
+  assert.match(ai, /<div class="mw-composer__start">(?:<div class="mw-compose__anchor">.*?<\/div><\/div>)?<div class="mw-composer__to"><span class="mw-composer__to-label">发给：<\/span><span class="mw-tag"><span>Coding · 注册接口<\/span><button type="button" data-tag-remove aria-label="改回发给助理"/s);
+  assert.doesNotMatch(ai, /<div class="mw-composer__to">[^]*<div class="mw-composer__box">/, "no row above the box");
+  assert.match(renderComposer({ kind: "ai", labels: LABELS, receiver: { label: "助理", icon: "sparkles" } }), /<span class="mw-tag"><svg[^>]*>.*?href="#icon-sparkles".*?<\/svg><span>助理<\/span><\/span>/s, "the receiver's glyph leads its name");
   assert.doesNotMatch(ai, /mw-btn-group|danger-outline/, "not running: one send button");
   assert.match(ai, /mw-btn--primary mw-btn--icon mw-btn--icon-only"[^>]* disabled aria-label="发送"/, "nothing written: send cannot be pressed");
   assert.match(renderComposer({ kind: "ai", labels: LABELS, text: "x" }), /^<div class="mw-composer" data-slot="composer"><div class="mw-composer__box">/, "no receiver: no receiver row");
@@ -109,7 +113,7 @@ test("UIC-13: every word, the text and the root's attributes are escaped", () =>
 });
 
 test("UIC-13: the board's #composer specimens are renderComposer's structure, plus what K2's client puts in", () => {
-  const board = renderPrimitiveCatalog();
+  const board = withPageText("zh", [], renderPrimitiveCatalog);
   const section = board.slice(board.indexOf('<section class="mw-catalog__section" id="composer"'), board.indexOf("</section>", board.indexOf('id="composer"')));
   const starts = [...section.matchAll(/<div class="mw-composer" data-slot="composer"/g)].map((match) => match.index!);
   // Ten states plus the two at rest in one row (user 11-08): a phone's and a short window's.

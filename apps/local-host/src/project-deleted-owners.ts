@@ -15,7 +15,8 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { clearProjectRows } from "./plugin-project-rows.js";
-import { partitionLabel } from "./plugin-project-cleanup.js";
+import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-words.js";
+import { registeredBuiltinText } from "./ui-text-provider.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
 import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
@@ -24,7 +25,7 @@ import { HomeConsentLedger } from "./home-plugin-store.js";
 import { forgetTaskGrantSubjects } from "./task-grant-subjects.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
-export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
+export const MEMORY_OWNER = { id: "memory", label: { key: "workbench.project-deletion.memory" } } as const;
 export const SEARCH_OWNER = { id: "search", label: null } as const;
 
 /**
@@ -75,19 +76,19 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
  * names them here. They run in the order the declarations
  * ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
-type DeclaredOwner = Pick<ProjectDeletedOwner, "id" | "label_values" | "words_of"> & { label: string; order?: number; clear: (projectId: string) => void | Promise<void> };
+type DeclaredOwner = ProjectDeletedOwner & { order?: number };
 
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: DeclaredOwner[] = [
     ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap((entry): DeclaredOwner[] => {
       const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
       if (library?.project_rows) {
-        return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order, words_of: pluginId,
+        return [{ id: entry.project_plugin_id, ...projectDataLabel(library.project_rows.label, entry.manifest, registeredBuiltinText(entry.manifest)), order: library.project_rows.order,
           clear: (projectId: string) => clearProjectRows(home, library, pluginId, projectId, entry.manifest.owner_files) }];
       }
       if (!entry.runtime || library?.partition !== "project") return [];
       const store = library.store_name;
-      return [{ id: entry.project_plugin_id, ...partitionLabel(entry.manifest.name), words_of: pluginId,
+      return [{ id: entry.project_plugin_id, ...namedProjectDataLabel("workbench.project-deletion.partition", entry.manifest, registeredBuiltinText(entry.manifest)),
         clear: (projectId: string) => rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }) }];
     }),
     // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
@@ -98,7 +99,7 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, label, label_values, clear, words_of }) => ({ id, label, clear, ...(label_values ? { label_values } : {}), ...(words_of ? { words_of } : {}) }));
+    .map(({ order: _order, position: _position, ...owner }) => owner);
 }
 
 /** A module of the Host's own: its label is in the Host's words. */
@@ -117,12 +118,12 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
   return [
     ...declaredProjectOwners(home),
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
-    { id: "alchemist", label: "炼金术士的研究空间", clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
+    { id: "alchemist", label: { key: "workbench.project-deletion.alchemist" }, clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
-    { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
+    { id: "assistant", label: { key: "workbench.project-deletion.assistant" }, clear: async projectId => { await purgeAssistantProject(home, projectId); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
-    { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
+    { id: "knowledge", label: { key: "workbench.project-deletion.knowledge" }, clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.

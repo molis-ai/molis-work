@@ -2,7 +2,13 @@
  * The page shell. The product's own token layers in their production order and the design system's styles; the preview
  * adds composition only. The recordings are embedded so the page needs no second request and works offline.
  */
-import { PRIMITIVE_STYLES, TYPEFACE_STYLES, CRAFT_FINISH_STYLES, renderIconSprite, renderShellTokens, renderShapeTokens, renderControlMetrics, INTERACTION_STYLES, renderInteractionComposerTarget } from "../../packages/design-system/src/index.ts";
+import { PRIMITIVE_STYLES } from "../../packages/design-system/src/styles/primitives.ts";
+import { CRAFT_FINISH_STYLES } from "../../packages/design-system/src/styles/craft-finish.ts";
+import { TYPEFACE_STYLES } from "../../packages/design-system/src/typeface.ts";
+import { renderIconSprite } from "../../packages/design-system/src/icons.ts";
+import { renderShellTokens, renderShapeTokens, renderControlMetrics } from "../../packages/design-system/src/palette.ts";
+import { INTERACTION_STYLES } from "../../packages/design-system/src/styles/interaction.ts";
+import { renderInteractionComposerTarget } from "../../packages/design-system/src/interaction.ts";
 import { COMPOSER_TARGET } from "./labels.ts";
 import { frameStyles } from "./styles.ts";
 import type { Recording } from "./facts.ts";

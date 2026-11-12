@@ -189,18 +189,25 @@ const CARRIED_BY_CODING = `(async () => {
 const popoversScript = (floor: number) => `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const notices = [
-    { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
-    { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
-    { notice_id: "t3", kind: "finished", text: "整理待办已完成", work_id: "w3" },
-    { notice_id: "t4", kind: "finished", text: "一条被规则压下的结果", work_id: "w4", held: { reason: "安静时段" } },
+    { notice_id: "t1", kind: "needs-decision", text: { original: "需要你决定发布时间" }, work_id: "w1" },
+    { notice_id: "t2", kind: "reminder", text: { original: "下午三点的评审" }, work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
+    { notice_id: "t3", kind: "finished", text: { original: "整理待办已完成" }, work_id: "w3" },
+    { notice_id: "t4", kind: "finished", text: { original: "一条被规则压下的结果" }, work_id: "w4", held: { reason: "安静时段" } },
   ];
   const real = window.fetch;
   // The notices come with the page's one attention read (W4-10): the test's notices replace the Assistant's in its answer.
   window.fetch = (input, init) => /\\/api\\/attention\\b/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
     ? real(input, init).then(response => response.json()).then(body => new Response(JSON.stringify({ ...body, notices }), { status: 200, headers: { "content-type": "application/json" } }))
     : real(input, init);
-  document.dispatchEvent(new Event("visibilitychange"));
-  await wait(400);
+  await new Promise((resolve, reject) => {
+    const listen = event => {
+      if (!event.detail?.notices?.some(notice => notice.notice_id === "t1")) return;
+      clearTimeout(timer); document.removeEventListener("molis-work:attention", listen); resolve();
+    };
+    const timer = setTimeout(() => { document.removeEventListener("molis-work:attention", listen); reject(new Error("Test notices did not reach the bell")); }, 10000);
+    document.addEventListener("molis-work:attention", listen);
+    document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  });
   const out = {};
   for (const [name, button, popover, present] of ${JSON.stringify(POPOVER_CONTENTS)}) {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.
@@ -606,7 +613,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const moreLabels = () => evaluate<string[]>(`(async () => {
     const attach = document.querySelector("[data-assistant-composer] [data-composer-add]"), more = document.querySelector("[data-assistant-composer] .mw-composer__start [data-compose-menu]");
     attach.click(); await new Promise((resolve) => setTimeout(resolve, 300));
-    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => (row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent);
+    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => [(row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent, row.querySelector(".mw-menu__shortcut")?.textContent].filter(Boolean).join(" "));
     attach.click();
     return labels;
   })()`);
@@ -1005,7 +1012,8 @@ for (const scheme of ["light", "dark"] as const) {
       // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14), as a `/` command.
       const labels = await w.moreLabels();
       assert.equal(labels[0], "添加文件或图片…", `${name} · 620: the "+" menu starts with files (${labels})`);
-      assert.ok(labels.includes("/资料 选择项目资料…"), `${name} · 620: and offers the project's material (${labels})`);
+      // Since batch 11 a command's row is its name, with the `/word` that finds it where a shortcut stands (composer-parts.ts).
+      assert.ok(labels.includes("选择项目资料… /资料"), `${name} · 620: and offers the project's material (${labels})`);
     }
   });
 }

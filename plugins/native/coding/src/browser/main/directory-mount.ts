@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import type { CodingWorkbenchHost } from "../workbench.js";
 import type { SessionRecord } from "./shapes.js";
@@ -9,10 +10,10 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
   const list = root.querySelector<HTMLElement>("[data-coding-sessions]"), archivedButton = root.querySelector<HTMLButtonElement>("[data-coding-archived]"),
     more = root.querySelector<HTMLButtonElement>("[data-coding-archived-more]");
   if (!list || !archivedButton || !more) return;
-  const L = host.translate, notice = el("p", "", "coding-face-note"); notice.setAttribute("role", "status"); list.after(notice);
+  const notice = el("p", "", "coding-face-note"); notice.setAttribute("role", "status"); list.after(notice);
   let archived = false, rows: SessionRecord[] = [], cursor: string | null = null, generation = 0, readTicket = 0, loading = false;
   const request = <T>(path: string, method: "GET" | "PATCH" = "GET", body?: unknown, signal?: AbortSignal) =>
-    molisWorkRequest<T>(host.pluginRoute(path), { method, body, signal: signal ?? lifetime.signal, scope: lifetime, fallback: L("coding.error.request") });
+    molisWorkRequest<T>(host.pluginRoute(path), { method, body, signal: signal ?? lifetime.signal, scope: lifetime, fallback: uiText.text("coding.error.request") });
   const render = () => {
     archivedButton.setAttribute("aria-pressed", String(archived));
     const needle = root.querySelector<HTMLInputElement>("[data-coding-search]")?.value.trim().toLocaleLowerCase() ?? "";
@@ -26,16 +27,16 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
       link.href = "#session-" + encodeURIComponent(session.session_id); link.dataset.codingSession = session.session_id;
       const title = el("strong", session.title, "coding-session-title"); title.title = session.title;
       const copy = el("span", "", "mw-dir-row__copy"); copy.append(title);
-      if (incomplete || session.runtime_session_id && session.execution_state === null) copy.append(el("small", L(incomplete ? "coding.session.lifecycle-incomplete" : "coding.session.lifecycle-unavailable"), "coding-session-state"));
+      if (incomplete || session.runtime_session_id && session.execution_state === null) copy.append(el("small", uiText.text(incomplete ? "coding.session.lifecycle-incomplete" : "coding.session.lifecycle-unavailable"), "coding-session-state"));
       link.append(copy); row.append(link);
-      const label = L(restoring ? "coding.session.restore" : "coding.context.archive");
+      const label = uiText.text(restoring ? "coding.session.restore" : "coding.context.archive");
       const change = el("button", restoring ? "↩" : "↓", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only"); change.type = "button";
       change.setAttribute("aria-label", label); change.title = label;
       if (restoring) change.dataset.codingRestore = session.session_id; else change.dataset.codingDirectoryArchive = session.session_id;
       row.append(change);
       list.append(row);
     }
-    if (!visible.length) list.append(el("p", needle ? L("coding.directory.no-match") : L("coding.directory.empty"), "mw-empty"));
+    if (!visible.length) list.append(el("p", needle ? uiText.text("coding.directory.no-match") : uiText.text("coding.directory.empty"), "mw-empty"));
     more.hidden = cursor === null; more.disabled = loading;
   };
   const read = async (append = false, signal?: AbortSignal) => {
@@ -57,9 +58,9 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
       else if (target === more) await read(true);
       else if (target.dataset.codingRestore || target.dataset.codingDirectoryArchive) {
         const archive = Boolean(target.dataset.codingDirectoryArchive), id = target.dataset.codingRestore ?? target.dataset.codingDirectoryArchive!;
-        if (archive && !await host.confirm(L("coding.session.archive-confirm"))) return;
+        if (archive && !await host.confirm(uiText.text("coding.session.archive-confirm"))) return;
         target.setAttribute("disabled", "");
-        try { await request("/sessions/" + encodeURIComponent(id), "PATCH", { archive }); await read(); notice.textContent = L(archive ? "coding.session.archived" : "coding.session.restored"); }
+        try { await request("/sessions/" + encodeURIComponent(id), "PATCH", { archive }); await read(); notice.textContent = uiText.text(archive ? "coding.session.archived" : "coding.session.restored"); }
         finally { target.removeAttribute("disabled"); }
       } else if (target.dataset.codingSession) {
         event.preventDefault(); const session = rows.find(row => row.session_id === target.dataset.codingSession);

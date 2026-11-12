@@ -17,14 +17,14 @@
  * next (up to two minutes), so a host that is not answering is not asked every 15 seconds; a hidden page waits for nothing (N54).
  */
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, projectId, openItem, route } = host;
+  const { translate: readText, projectId, openItem, route } = host;
   if (document.body.dataset.paneEmbedded === "true") return;
   const tab = document.querySelector('[data-side-tab="tasks"]');
   const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
   const list = document.querySelector("[data-background-tasks-list]");
   let tasks = [], key = "", reading = false, again = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
-  const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+  const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "time" } }); };
   const hrefFor = (task) => {
     const url = new URL("/projects/" + encodeURIComponent(task.project_id) + "/", location.origin);
     url.searchParams.set("openPlugin", task.surface); url.searchParams.set("openItem", task.id); url.searchParams.set("openTitle", task.title);
@@ -36,14 +36,14 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     // Every task the attention read lists is unfinished: running, or waiting on the person.
     count.hidden = !tasks.length;
     count.textContent = String(tasks.length);
-    tab.setAttribute("aria-label", L("后台任务") + (tasks.length ? " · " + L("{n} 个后台任务没做完", { n: tasks.length }) : ""));
-    list.replaceChildren(...(tasks.length ? [] : [node("p", L("现在没有后台任务"), "side-tasks-empty")]));
+    tab.setAttribute("aria-label", globalThis.t.text("workbench.attention.background-job") + (tasks.length ? " · " + globalThis.t.text("workbench.attention.n-background-n-not-finished", { n: tasks.length }) : ""));
+    list.replaceChildren(...(tasks.length ? [] : [node("p", globalThis.t.text("workbench.attention.no-background-tasks-right-now"), "side-tasks-empty")]));
     for (const task of tasks) {
       const row = node("a", undefined, "background-task"); row.href = hrefFor(task); row.dataset.state = task.state;
       const head = node("span", undefined, "background-task-head");
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
-      detail.append(node("span", task.standing.map(phrase => L(phrase.text, { n: phrase.count })).join(" · ")));
+      detail.append(node("span", task.standing.map(phrase => phrase.text).join(" · ")));
       if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {
@@ -54,7 +54,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       // Commands it left running: stopping one is the same reviewed stop the task's own panel offers.
       for (const command of task.commands || []) {
         const line = node("div", undefined, "background-task-command");
-        const stop = node("button", L("停止"), "mw-btn mw-btn--ghost"); stop.type = "button";
+        const stop = node("button", globalThis.t.text("workbench.attention.stop"), "mw-btn mw-btn--ghost"); stop.type = "button";
         const feedback = node("div", "", "background-task-detail"); feedback.setAttribute("role", "alert");
         stop.addEventListener("click", async () => {
           stop.disabled = true; feedback.replaceChildren();
@@ -63,7 +63,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
             line.remove(); key = ""; void read();
           } catch (error) { if (!list.contains(feedback)) list.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
         });
-        line.append(node("span", L("后台命令"), "background-task-command-label"), node("code", command.summary), stop);
+        line.append(node("span", globalThis.t.text("workbench.attention.background-command"), "background-task-command-label"), node("code", command.summary), stop);
         list.append(line, feedback);
       }
     }

@@ -36,3 +36,5 @@ export type PluginDirectoryReadResult =
 export interface PluginDirectoryService {
   read(request: PluginDirectoryReadRequest, signal?: AbortSignal): Promise<PluginDirectoryReadResult>;
 }
+/** Who began the read, kept as a fact in the directory record and in the person's notice. */
+export type DirectoryReadOrigin = "person" | "agent" | "workflow" | "mcp" | "background";

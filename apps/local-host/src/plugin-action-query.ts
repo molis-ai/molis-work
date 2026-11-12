@@ -2,6 +2,7 @@ import { ActionError, requireSynchronous, type ActionCallContext, type ActionCli
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider } from "./plugin-action-provider.js";
+import { activeLocale } from "./web-locale.js";
 
 /**
  * A provider id is only ever matched exactly against the directory, so every id the platform makes must pass here, and none follows one
@@ -43,7 +44,7 @@ export async function invokePluginQuery<Output>(context: PluginStartContext, man
     requireSynchronous(original.assert_authority_current?.());
   };
   const check = async () => { source(); await original.beforeEffect(); source(); };
-  const caller: ActionCallContext = { ...original, query_only: true,
+  const caller: ActionCallContext = { ...original, query_only: true, locale: activeLocale() ?? undefined,
     permissions: original.permissions.filter(permission => declared.has(permission) && context.grants.includes(permission)),
     validate_authority: async target => { await check(); await original.validate_authority?.(target); source(); },
     validate_permissions: async permissions => { source(permissions); await original.validate_permissions?.(permissions); source(); },

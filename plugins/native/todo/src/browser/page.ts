@@ -4,6 +4,8 @@ import { isoDay, make, pad } from "./dom.js";
 import { todoRequest } from "./request.js";
 import type { ItemPayload, NoteOptions, TodoClientHost, TodoElements, TodoPage, TodoState, UndoTarget } from "./types.js";
 
+const uiText = globalThis.t;
+
 const DAY_MS = 86_400_000;
 
 /** The undo a write's answer offers, when it names a change. */
@@ -39,7 +41,7 @@ function initialState(): TodoState {
 
 /** The page the parts share. The parts that draw and load install their operations on it (`installList` and the others). */
 export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
-  const L = host.translate;
+  const readText = uiText.text;
   const el = elements(bench);
   const state = initialState();
   const $ = <T extends Element = HTMLElement>(selector: string): T => {
@@ -55,22 +57,22 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   // Where a todo sits, in the workbench's words: 个人空间, 项目「名称」 (暂未归类 is the personal space, not sorted yet).
   const hereName = () => {
     const title = host.projectTitle();
-    return title ? L("todo.place.project-named", { name: title }) : L("todo.place.this-project");
+    return title ? uiText.text("todo.place.project-named", { name: title }) : uiText.text("todo.place.this-project");
   };
-  const placeName = (value: string) => (value === "project" ? hereName() : value === "personal" ? L("todo.place.personal") : L("todo.place.unassigned"));
+  const placeName = (value: string) => (value === "project" ? hereName() : value === "personal" ? uiText.text("todo.place.personal") : uiText.text("todo.place.unassigned"));
   const statusNames: Record<string, string> = {
-    open: L("todo.status.open"), doing: L("todo.status.doing"), waiting: L("todo.status.waiting"), done: L("todo.status.done"), cancelled: L("todo.status.cancelled"),
+    open: uiText.text("todo.status.open"), doing: uiText.text("todo.status.doing"), waiting: uiText.text("todo.status.waiting"), done: uiText.text("todo.status.done"), cancelled: uiText.text("todo.status.cancelled"),
   };
-  const weekdays = [L("todo.week.sun"), L("todo.week.mon"), L("todo.week.tue"), L("todo.week.wed"), L("todo.week.thu"), L("todo.week.fri"), L("todo.week.sat")];
+  const weekdays = [uiText.text("todo.week.sun"), uiText.text("todo.week.mon"), uiText.text("todo.week.tue"), uiText.text("todo.week.wed"), uiText.text("todo.week.thu"), uiText.text("todo.week.fri"), uiText.text("todo.week.sat")];
   const dayDiff = (date: string) => Math.round((new Date(`${date}T00:00:00`).getTime() - new Date(`${state.today || isoDay(new Date())}T00:00:00`).getTime()) / DAY_MS);
   const dayLabel = (date: string) => {
     if (!date) return "";
     const diff = dayDiff(date);
-    if (diff === 0) return L("todo.date.today");
-    if (diff === 1) return L("todo.date.tomorrow");
-    if (diff === -1) return L("todo.date.yesterday");
+    if (diff === 0) return uiText.text("todo.date.today");
+    if (diff === 1) return uiText.text("todo.date.tomorrow");
+    if (diff === -1) return uiText.text("todo.date.yesterday");
     const at = new Date(`${date}T00:00:00`);
-    const written = L(at.getFullYear() === new Date().getFullYear() ? "todo.date.month-day" : "todo.date.year-month-day", { y: at.getFullYear(), m: at.getMonth() + 1, d: at.getDate() });
+    const written = uiText.text(at.getFullYear() === new Date().getFullYear() ? "todo.date.month-day" : "todo.date.year-month-day", { y: at.getFullYear(), m: at.getMonth() + 1, d: at.getDate() });
     return `${written} ${weekdays[at.getDay()]}`;
   };
   const timeLabel = (iso: string) => {
@@ -121,12 +123,12 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   const todoObject = (item: TodoItem) => ({ kind: "todo_item", id: item.id, title: item.title, version: item.revision });
   const tellAssistant = (purpose: string, item: TodoItem, extra?: Record<string, unknown>) => {
     window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
-      message_id: crypto.randomUUID(), purpose, source: { surface: "todo", title: L("todo.page.title") }, object: todoObject(item), ...(extra || {}),
+      message_id: crypto.randomUUID(), purpose, source: { surface: "todo", title: uiText.text("todo.page.title") }, object: todoObject(item), ...(extra || {}),
     } }));
   };
   // What the Assistant sees when the person turns to it: the open todo, its revision and unsaved input.
   const publishContext = () => {
-    const context: Record<string, unknown> = { plugin_id: host.pluginId, surface_title: L("todo.page.title") };
+    const context: Record<string, unknown> = { plugin_id: host.pluginId, surface_title: uiText.text("todo.page.title") };
     if (state.selected) {
       context.object = { kind: "todo_item", id: state.selected.id, version: state.selected.revision, title: page.field("title").value || state.selected.title };
       if (state.dirtyKeys.size || state.saveTimer) context.unsaved = true;
@@ -134,7 +136,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
     bench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
 
-  const request = todoRequest(host, L, (item) => page.tellAssistant("change", item));
+  const request = todoRequest(host, (item) => page.tellAssistant("change", item));
   const post = <T,>(item: TodoItem, tail: string, body?: Record<string, unknown>) =>
     request<T>("POST", `/items/${encodeURIComponent(item.id)}${tail}`, { ...body, expected_revision: item.revision });
   const candidateOf = (id: string): { batch: TodoBatch; candidate: TodoCandidate } | null => {
@@ -146,7 +148,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   };
 
   const page = {
-    host, L, el, state, request, $, projectId, hereName, placeName, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask, paintPlaces,
+    host, readText, el, state, request, $, projectId, hereName, placeName, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask, paintPlaces,
     tellAssistant, publishContext, post, candidateOf, statusName: (status: string) => statusNames[status] ?? status,
     field: (name: string) => $<HTMLInputElement | HTMLTextAreaElement>(`[data-todo-field="${name}"]`),
   } as TodoPage;

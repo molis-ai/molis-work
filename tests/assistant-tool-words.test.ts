@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import vm from "node:vm";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { withPageText } from "./fixtures/page-text.js";
 import { applyRunEvent, emptyPrologueStreamState, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
 import { GUARDED_TOOL_NAMES } from "../horizontal/agent-host/dist/adapters/announce-guard.js";
 import { presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
-import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
+import { ASSISTANT_PROCESS_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-process.js";
 
 // A tool added to business rounds (the side panel's browser was the last) must not reach the panel under its own name.
 test("every tool a business round can be given reads in the person's words in the panel, or is left out", () => {
@@ -12,7 +15,7 @@ test("every tool a business round can be given reads in the person's words in th
     if (!shown) continue;
     assert.notEqual(shown.verb, name, `${name} reaches the panel under its own name`);
     const key = shown.verb.includes("-") ? `"${shown.verb}"` : shown.verb;
-    assert.ok(new RegExp(`[\\s{,]${key}:`).test(ASSISTANT_ISLAND_FACTORY_SCRIPT), `the panel has no words for ${shown.verb} (${name})`);
+    assert.ok(new RegExp(`[\\s{,]${key}:`).test(ASSISTANT_PROCESS_FACTORY_SCRIPT), `the panel has no words for ${shown.verb} (${name})`);
   }
 });
 
@@ -74,8 +77,8 @@ test("a successful desktop action reads as operating an app, and the same browse
   ]);
   assert.equal(browser.find(item => item.call_id === "act")?.verb, "browser-act");
   // Each verb is written whole in its three forms (as said, under way, done; specs/visual-ui-experience slice 67).
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"computer-act": \["操作应用", "正在操作应用", "已操作应用"\]/);
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"browser-act": \["操作网页", "正在操作网页", "已操作网页"\]/);
+  assert.match(ASSISTANT_PROCESS_FACTORY_SCRIPT, /"computer-act": \["workbench\.assistant-process\.computer-act\.bare", "workbench\.assistant-process\.computer-act\.started", "workbench\.assistant-process\.computer-act\.completed"\]/);
+  assert.match(ASSISTANT_PROCESS_FACTORY_SCRIPT, /"browser-act": \["workbench\.assistant-process\.browser-act\.bare", "workbench\.assistant-process\.browser-act\.started", "workbench\.assistant-process\.browser-act\.completed"\]/);
 });
 
 // User 2026-10-23 ⑤: a refused step carries what sort of failure it was and which fields broke which rule, never values.
@@ -116,4 +119,55 @@ test("a call whose approval never came when the round ended reads as not execute
   ], undefined, true), [
     { call_id: "c", verb: "file-change", target: "report.md", state: "failed", reason: "interrupted" },
   ]);
+});
+
+// FSS-36/39: the prior complete forms, independently retained from the original step copy, cover every existing verb.
+const STEP_WORDS = [
+  ["lookup", ["查找能力", "正在查找能力", "已查找能力"], ["look up capabilities", "Looking up capabilities", "Looked up capabilities"]],
+  ["read", ["读取", "正在读取", "已读取"], ["read", "Reading", "Read"]],
+  ["change", ["修改", "正在修改", "已修改"], ["change", "Changing", "Edited"]],
+  ["suggest", ["准备操作卡", "正在准备操作卡", "已准备操作卡"], ["prepare an action card", "Preparing an action card", "Prepared an action card"]],
+  ["ask", ["向你提问", "正在向你提问", "已向你提问"], ["ask you", "Asking you", "Asked you"]],
+  ["todo", ["更新工作步骤", "正在更新工作步骤", "已更新工作步骤"], ["update the work steps", "Updating the work steps", "Updated the work steps"]],
+  ["lookup-tools", ["查找工具", "正在查找工具", "已查找工具"], ["look up tools", "Looking up tools", "Looked up tools"]],
+  ["delegate", ["委托子任务", "正在委托子任务", "已委托子任务"], ["delegate a sub-task", "Delegating a sub-task", "Delegated a sub-task"]],
+  ["delegate-check", ["查看子任务", "正在查看子任务", "已查看子任务"], ["check sub-tasks", "Checking sub-tasks", "Checked sub-tasks"]],
+  ["delegate-follow-up", ["让子任务补改", "正在让子任务补改", "已让子任务补改"], ["ask a sub-task to fix", "Asking a sub-task to fix", "Asked a sub-task to fix"]],
+  ["delegate-stop", ["停止子任务", "正在停止子任务", "已停止子任务"], ["stop a sub-task", "Stopping a sub-task", "Stopped a sub-task"]],
+  ["memory-keep", ["记下你的要求", "正在记下你的要求", "已记下你的要求"], ["keep what you asked", "Keeping what you asked", "Kept what you asked"]],
+  ["memory-list", ["查看记住的事", "正在查看记住的事", "已查看记住的事"], ["look at what is remembered", "Looking at what is remembered", "Looked at what is remembered"]],
+  ["memory-forget", ["删除一条记忆", "正在删除一条记忆", "已删除一条记忆"], ["delete a memory", "Deleting a memory", "Deleted a memory"]],
+  ["memory-suggest", ["建议记住一条", "正在建议记住一条", "已建议记住一条"], ["suggest something to keep", "Suggesting something to keep", "Suggested something to keep"]],
+  ["file-read", ["读取文件", "正在读取文件", "已读取文件"], ["read", "Reading", "Read"]],
+  ["file-list", ["查看目录", "正在查看目录", "已查看目录"], ["list", "Listing", "Listed"]],
+  ["file-search", ["搜索代码", "正在搜索代码", "已搜索代码"], ["search code for", "Searching code for", "Searched code for"]],
+  ["file-change", ["修改文件", "正在修改文件", "已修改文件"], ["edit", "Editing", "Edited"]],
+  ["command", ["运行命令", "正在运行命令", "已运行命令"], ["run", "Running", "Ran"]],
+  ["command-output", ["查看命令输出", "正在查看命令输出", "已查看命令输出"], ["check output of", "Checking output of", "Checked output of"]],
+  ["auto-continue", ["自动续做", "正在自动续做", "已自动续做"], ["continue automatically", "Continuing automatically", "Continued automatically"]],
+  ["compact", ["整理上下文", "正在整理上下文", "已整理上下文"], ["compact the context", "Compacting the context", "Compacted the context"]],
+  ["browser-list", ["找到侧栏浏览器", "正在找到侧栏浏览器", "已找到侧栏浏览器"], ["find the side browser", "Finding the side browser", "Found the side browser"]],
+  ["browser-look", ["查看网页", "正在查看网页", "已查看网页"], ["look at the page", "Looking at the page", "Looked at the page"]],
+  ["browser-act", ["操作网页", "正在操作网页", "已操作网页"], ["act on the page", "Acting on the page", "Acted on the page"]],
+  ["computer-list", ["查看可操作的应用", "正在查看可操作的应用", "已查看可操作的应用"], ["look at which apps it can use", "Looking at which apps it can use", "Looked at which apps it can use"]],
+  ["computer-look", ["查看应用窗口", "正在查看应用窗口", "已查看应用窗口"], ["look at the app’s window", "Looking at the app’s window", "Looked at the app’s window"]],
+  ["computer-act", ["操作应用", "正在操作应用", "已操作应用"], ["act on the app", "Acting on the app", "Acted on the app"]],
+  ["ended-on-promise", ["收尾", "正在收尾", "已收尾"], ["wrap up", "Wrapping up", "Wrapped up"]],
+] as const;
+
+test("FSS-36 FSS-39: each Assistant verb keeps its bare, started and completed meaning in both languages", () => {
+  const factory = vm.runInNewContext(`(${ASSISTANT_PROCESS_FACTORY_SCRIPT})`, { t: uiText }) as (input: object) => { activityLine(item: object): string };
+  const process = factory({});
+  for (const locale of ["zh", "en"] as const) withPageText(locale, [], () => {
+    for (const [verb, zh, en] of STEP_WORDS) {
+      const words = locale === "zh" ? zh : en, target = "原文 <x> & ‘read’";
+      const suffix = (verb === "ask" ? "：" : " ") + target;
+      assert.equal(process.activityLine({ verb, target, state: "started" }), words[1] + suffix, verb + ":started:" + locale);
+      assert.equal(process.activityLine({ verb, target, state: "completed" }), words[2] + suffix, verb + ":completed:" + locale);
+      assert.equal(process.activityLine({ verb, target, state: "failed", reason: "not-authorized" }),
+        words[0].charAt(0).toUpperCase() + words[0].slice(1) + suffix + " — " + (locale === "zh" ? "未获授权，没有执行" : "not authorized, nothing done"), verb + ":bare:" + locale);
+    }
+    assert.equal(process.activityLine({ verb: "external-tool", target: "原文", state: "unknown" }),
+      "External-tool 原文 — " + (locale === "zh" ? "结果未确认" : "Result unconfirmed"));
+  });
 });

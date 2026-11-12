@@ -1,7 +1,8 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { AgentQuestion, AgentQuestionProblem, InteractionRequestResult } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
-import { L } from "./web-locale.js";
+import { readText } from "./web-locale.js";
 
 const isQuestion = (value: unknown): value is AgentQuestion => isRecord(value) && Number.isInteger(value.index) && typeof value.prompt === "string" && Array.isArray(value.options);
 const isProblem = (value: unknown): value is AgentQuestionProblem => isRecord(value) && Number.isInteger(value.question) && typeof value.reason === "string";
@@ -25,12 +26,12 @@ export function withPluginInteraction(body: unknown): unknown {
   if (isInteractionRequest(body)) {
     const { interaction } = body;
     const html = agentQuestionHtml({ pending_id: interaction.interaction_id, kind: "plugin-interaction", prompt: interaction.why, options: [], allows_free_text: false,
-      questions: interaction.questions }, L, {}, interaction.note ? L(interaction.note) : L("回答后接着做。"));
+      questions: interaction.questions }, readText, {}, interaction.note ? interaction.note : uiText.text("workbench.plugin-interaction-answer.once-answer-goes"));
     return { ...body, interaction: { ...interaction, html } };
   }
   const details = body.details;
   if (!isRecord(details) || details.errors !== undefined || !Array.isArray(details.problems) || !details.problems.length || !details.problems.every(isProblem)) return body;
   // The questions refused, when the plugin sends them back, let each line name the limit it crossed.
   const asked = Array.isArray(details.questions) && details.questions.every(isQuestion) ? details.questions : [];
-  return { ...body, details: { ...details, errors: questionErrors(details.problems, L, asked) } };
+  return { ...body, details: { ...details, errors: questionErrors(details.problems, readText, asked) } };
 }

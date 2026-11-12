@@ -21,6 +21,7 @@ import {
   renderStagePage,
 } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "@molis-ai/molis-work-plugin-goals/page";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 
@@ -288,7 +289,8 @@ test("Workbench registers Native Plugin surfaces against stable slots", () => {
 });
 
 test("primitive catalog page is a local document with theme controls", () => {
-  const html = renderMolisWorkPrimitiveCatalog();
+  installHostUiText();
+  const html = runWithLocale("zh", () => renderMolisWorkPrimitiveCatalog());
   // Soft Workbench rollout: the catalog is the component board (specs/archive/soft-workbench-rollout).
   assert.match(html, /<title>组件板/);
   assert.match(html, /class="mw-catalog"/);

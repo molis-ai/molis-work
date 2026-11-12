@@ -56,7 +56,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 ## 沙箱包
 
-`pack-sandbox <directory> <output.json>` 从 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` 生成未签名包。必填 `--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选 `--icon`、逗号分隔的 `--compatible-from`，以及 JSON 列表 `--agent`（角色资料，每项 `{ name, purpose, body }`）与 `--methods`（完整的方法声明，`description`、`applies_to` 必填，`body` 是 `skills/<skill_id>/SKILL.md`，`tools` 为空）。清单、派生权限和 effects 由公开 SDK 的 `sandboxPluginManifest` / `effectsFromContract` 生成。
+`pack-sandbox <directory> <output.json>` 从 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` 生成未签名包。必填 `--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选 `--icon`、逗号分隔的 `--compatible-from`，以及 JSON 列表 `--agent`（角色资料，每项 `{ name, purpose, body }`）与 `--methods`（完整的方法声明，`description`、`applies_to` 必填，`body` 是 `skills/<skill_id>/SKILL.md`，`tools` 为空）。目录名称、舞台标题和简介可用 `--name-text`、`--view-title-text`、`--summary-text` 传入 JSON `TextRef`，同时保留 `--name` 和已声明简介的 `--summary` 原文。例如 `--name-text '{"key":"notes.directory.name"}'`。词包在 `contract.json` 的 `ui.locales` 声明。清单、派生权限和 effects 由公开 SDK 的 `sandboxPluginManifest` / `effectsFromContract` 生成。
 
 命令只读取固定文件、角色资料引用的 `agent/` 文件和方法声明的正文与资源，不读取源目录的 BuildManifest，不递归打包，也不把 `package.json` 放进沙箱包。输出不能覆盖；路径跳转、symlink、文件/包超限会拒绝。随后用既有 `sign`、`verify` 命令签名与核验。打包只检查它消费的结构；完整合同、界面和正文语义仍由 Host 在安装预览时检查，打包成功不代表插件可运行。
 
@@ -68,7 +68,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 ## 随安装包带上的包
 
-`pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>` 打随安装包带上的只有声明的插件（如 `plugins/content/design-accessibility/`）。包目录里是 `skills/` 与 `pack-content.json`（`pack-content` 的参数写成文件：`plugin_id`、`version`、`name`、`publisher_id`，可选 `name_en`、`summary`、`scope`、`compatible_from`、`translations`；多一个键就拒绝）。它用与 `pack-content` 同一个打包函数，同一步签名并自验，写到 `<output-directory>/<plugin_id>.json`，不覆盖。没有 `--publisher-key` 就以 `plugin.publisher_key_missing` 拒绝，不建目录、不写文件：官方发布者密钥与在发版构建里跑这一步归第 26 批（26-1）。宿主从自己构建产物里的 `bundled-plugins/` 读这些包（`plugins.bundled.list@1`），装仍走 `plugins.install.preview`／`confirm`。
+`pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>` 打随安装包带上的只有声明的插件（如 `plugins/content/design-accessibility/`）。包目录里是 `skills/` 与 `pack-content.json`（`pack-content` 的参数写成文件：`plugin_id`、`version`、`name`、`publisher_id`，可选 `name_text`、`summary`、`summary_text`、`scope`、`compatible_from`、`locales`，多一个键就拒绝）。`locales` 与 Manifest 的 `ui.locales` 同形，打包时读同目录下声明的 `locales/<语言>.json` 并随包签名。它用与 `pack-content` 同一个打包函数，同一步签名并自验，写到 `<output-directory>/<plugin_id>.json`，不覆盖。没有 `--publisher-key` 就以 `plugin.publisher_key_missing` 拒绝，不建目录、不写文件：官方发布者密钥与在发版构建里跑这一步归第 26 批（26-1）。宿主从自己构建产物里的 `bundled-plugins/` 读这些包（`plugins.bundled.list@1`），装仍走 `plugins.install.preview`／`confirm`。
 
 ## 开发要求
 

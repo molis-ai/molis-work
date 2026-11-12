@@ -1,24 +1,25 @@
 import { readFileSync } from "node:fs";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
 import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import { ANCHORED_MENU_CLIENT_SCRIPT, SKILL_PACK_BOARD_EN } from "@molis-ai/molis-work-design-system";
-import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ANCHORED_MENU_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon, renderButton, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * 「能力包」 in settings (specs/capability-pack, decided scheme A in docs/design/capability-pack): the toolbar is drawn here, the
  * rest by the page's own program (`src/browser/kit/`), which reads `kit.catalog.list` through `/api/kit/*` as the person.
  */
-export function renderKitSettings({ L, projectId, lang }: { L(text: string): string; projectId: string | null; lang: string }): string {
-  const options = (pairs: [string, string][]) => pairs.map(([value, label]) => `<option value="${value}">${L(label)}</option>`).join("");
-  return `<section class="settings-document kit-settings" data-kit-settings data-sk-retracted="${lang === "en" ? SKILL_PACK_BOARD_EN["已撤销"] : "已撤销"}" data-project="${projectId ?? ""}" aria-labelledby="kit-heading">
+export function renderKitSettings({ projectId }: { projectId: string | null }): string {
+  const readText = (key: string) => escapeHtml(t.text(key));
+  const options = (pairs: [string, string][]) => pairs.map(([value, label]) => `<option value="${value}">${readText(label)}</option>`).join("");
+  return `<section class="settings-document kit-settings" data-kit-settings data-project="${escapeHtml(projectId ?? "")}" aria-labelledby="kit-heading">
   <template data-sk-import-sources>${CHARACTER_IMPORT_RUNTIMES.map(id => `<option value="${id}">${externalTool(id).display_name}</option>`).join("")}</template>
-  <header class="settings-page-heading"><h1 id="kit-heading">${L("能力包")}</h1><p>${L("一个能力包把做一类事要用的放在一起：技能、MCP、工具，以及搭配的角色和角色的提示词。技能在这里开关；其余的在这里看，改去它自己的页面。")}</p></header>
+  <header class="settings-page-heading"><h1 id="kit-heading">${readText("workbench.kit.title")}</h1><p>${readText("workbench.kit.introduction")}</p></header>
   <div class="kit-toolbar">
-    <span class="kit-search">${icon("search")}<input class="mw-input" data-slot="input" type="search" data-kit-search placeholder="${L("找能力包，或包里的技能、角色、提示词")}" aria-label="${L("找能力包")}"></span>
-    <select class="mw-select" data-slot="select" data-kit-kind aria-label="${L("按类别看")}">${options([["all", "全部类别"], ["role", "只看角色"], ["prompt", "只看提示词"], ["skill", "只看技能"], ["mcp", "只看 MCP"], ["tool", "只看工具"]])}</select>
-    <select class="mw-select" data-slot="select" data-kit-group aria-label="${L("按状态看")}">${options([["all", "全部状态"], ["on", "在用"], ["na", "有要处理的"], ["off", "停用或已卸载"]])}</select>
+    <span class="kit-search">${icon("search")}<input class="mw-input" data-slot="input" type="search" data-kit-search placeholder="${readText("workbench.kit.search-placeholder")}" aria-label="${readText("workbench.kit.search-label")}"></span>
+    <select class="mw-select" data-slot="select" data-kit-kind aria-label="${readText("workbench.kit.filter-kind")}">${options([["all", "workbench.settings-memory.all-kinds"], ["role", "workbench.kit.only-roles"], ["prompt", "workbench.kit.only-prompts"], ["skill", "workbench.kit.only-skills"], ["mcp", "workbench.kit.only-mcp"], ["tool", "workbench.kit.only-tools"]])}</select>
+    <select class="mw-select" data-slot="select" data-kit-group aria-label="${readText("workbench.kit.filter-state")}">${options([["all", "workbench.settings-knowledge.all-states"], ["on", "workbench.appearance-picker.use"], ["na", "workbench.kit.needs-attention"], ["off", "workbench.kit.inactive"]])}</select>
     <span class="kit-spacer"></span>
-    <span class="kit-io">${renderButton({ label: L("导入文件"), variant: "secondary", icon: "upload", attrs: { "data-kit-act": "import" } })}${renderButton({ label: L("从本机导入"), variant: "ghost", icon: "download", attrs: { "data-kit-act": "import-local" } })}<input type="file" accept=".json,application/json" data-kit-file hidden></span>
+    <span class="kit-io">${renderButton({ label: t.text("workbench.kit.import-file"), variant: "secondary", icon: "upload", attrs: { "data-kit-act": "import" } })}${renderButton({ label: t.text("workbench.characters.import-local"), variant: "ghost", icon: "download", attrs: { "data-kit-act": "import-local" } })}<input type="file" accept=".json,application/json" data-kit-file hidden></span>
   </div>
   <div data-kit-notice hidden></div><div class="mw-form" data-kit-local-import hidden></div>
   <div data-kit-body></div>

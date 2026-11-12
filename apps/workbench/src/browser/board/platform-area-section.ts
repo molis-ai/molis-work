@@ -6,9 +6,7 @@ import type { TaskGrantCategory, TaskGrantCategoryState } from "@molis-ai/molis-
  * shell's own markup (src/browser/plugin-frame/task-grants-area.ts) at its real heights, so the specimens are what a plugin page
  * shows. The categories are sample data; nothing reads or writes.
  */
-const words: Record<string, string> = JSON.parse(document.getElementById("platform-area-words")?.textContent || "{}");
-const t = (text: string, values: Record<string, string | number> = {}) =>
-  (words[text] ?? text).replace(/\{(\w+)\}/g, (all, name: string) => String(values[name] ?? all));
+const t = globalThis.t.text;
 const en = document.documentElement.lang === "en";
 
 const category = (provider_id: string, title: string, description: string, group_id?: string): TaskGrantCategory =>
@@ -31,7 +29,7 @@ const held = (index: number, status: TaskGrantCategoryState["status"]): TaskGran
 const MIXED = { categories: CATEGORIES.slice(0, 4), subject: { revision: "r1", categories: [held(0, "granted"), held(2, "needs_confirmation"), held(3, "unavailable"), held(4, "removed")] } };
 const QUIET = { categories: CATEGORIES, subject: { revision: "r1", categories: [held(0, "granted"), held(1, "granted")] } };
 const owner = en ? "Calendar" : "日程";
-const idle: TaskGrantsLine = { text: t("拨一下即生效，下一次运行起按新的范围读") };
+const idle: TaskGrantsLine = { text: t("workbench.platform-area-section.a-switch-takes-effect-at-once-the") };
 
 /** One area as the shell holds it: a fixed width, the height step that width gets, the shell's markup inside. */
 function area(width: number, reads: typeof MIXED, line: TaskGrantsLine, options: { unready?: boolean; busy?: boolean } = {}): HTMLElement {
@@ -60,22 +58,22 @@ function line(width: number, said: TaskGrantsLine): HTMLElement {
 
 const put = (name: string, ...parts: HTMLElement[]) => document.querySelector(`[data-platform-area-specimen="${name}"]`)?.replaceChildren(...parts);
 put("wide", area(560, MIXED, idle));
-put("narrow", area(320, QUIET, { text: t("已允许读 {name}，下一次运行起能读到", { name: CATEGORIES[1]!.title }), act: "undo" }));
+put("narrow", area(320, QUIET, { text: t("workbench.task-grants-area.allowed", { name: CATEGORIES[1]!.title }), act: "undo" }));
 put("unready", area(560, QUIET, idle, { unready: true }));
 put("busy", area(560, QUIET, idle, { busy: true }));
 put("empty", area(560, { categories: [], subject: { revision: "", categories: [] } }, idle));
 const name = { name: CATEGORIES[0]!.title };
 const LINES: TaskGrantsLine[] = [
   idle,
-  { text: t("已撤回 {name}，下一次运行起读不到", name), act: "undo" },
-  { text: t("已允许 {name} 的新读取能力；不想要就关掉这一类", name) },
-  { text: t("已撤回 {name}；要再读它，重新打开开关，会按它现在的读取能力允许", name) },
-  { text: t("已撤销刚才的改动") },
-  { text: t("已在别处改动，已刷新") },
-  { text: t("刚移动过，请再拨一次") },
-  { text: t("请先让这一块完整显示") },
-  { text: t("没能保存，原来的授权没变"), act: "retry", tone: "danger" },
-  { text: t("暂时读不到这个任务能读什么"), act: "read", tone: "danger" },
+  { text: t("workbench.task-grants-area.withdrawn", name), act: "undo" },
+  { text: t("workbench.task-grants-area.new-data-allowed", name) },
+  { text: t("workbench.task-grants-area.withdrawn-new-data", name) },
+  { text: t("workbench.task-grants-area.change-undone") },
+  { text: t("workbench.platform-area-section.changed-elsewhere-refreshed") },
+  { text: t("workbench.task-grants-area.area-moved") },
+  { text: t("workbench.task-grants-area.reveal") },
+  { text: t("workbench.platform-area-section.not-saved-the-permissions-are-as-they"), act: "retry", tone: "danger" },
+  { text: t("workbench.platform-area-section.cannot-read-what-this-task-may-read"), act: "read", tone: "danger" },
 ];
 put("lines-wide", ...LINES.map(said => line(560, said)));
 put("lines-narrow", ...LINES.slice(1, 4).concat(LINES[8]!).map(said => line(320, said)));

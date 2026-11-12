@@ -97,6 +97,21 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   // 整合 stays on the bar and greys out until a second material joins.
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('title')"), "「整合」至少要两份材料");
+  // FSS-35: the open Shelf keeps its selection and retitles the existing action on each language change.
+  const combine = "document.querySelector('[data-shelf-act=combine]')";
+  await evaluate(`window.originalCombine = ${combine}`);
+  for (const [tag, lang, title] of [["en", "en", "“Combine” needs at least two items"], ["zh", "zh-CN", "「整合」至少要两份材料"]]) {
+    await browser.evaluate(`(() => {
+      const link = document.createElement('a');
+      link.dataset.uiLanguage = ${JSON.stringify(tag)};
+      document.body.append(link);
+      link.click();
+      link.remove();
+    })()`);
+    await waitFor(`document.documentElement.lang === ${JSON.stringify(lang)}`);
+    assert.equal(await evaluate(`${combine}.title`), title);
+    assert.equal(await evaluate(`${combine} === window.originalCombine && ${combine}.getAttribute('aria-disabled') === 'true'`), true);
+  }
   assert.equal(await evaluate("Boolean(document.querySelector('[data-shelf-act-rule]'))"), true);
   assert.equal(await evaluate("document.querySelector('[data-shelf-bar-hint]')?.hidden"), false);
   await click("[data-shelf-more]");

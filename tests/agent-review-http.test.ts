@@ -3,12 +3,13 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 
-import { AgentHost, handleAgentReviewHttp } from "@molis-ai/molis-work-app-local-host";
+import { AgentHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** 宿主的审查队列走 HTTP：只有宿主能决定，而且批准不等于已发生。 */
 
 const BOARD = "board-a";
+installHostUiText();
 
 function pending(reviewId: string): AgentReviewRequest {
   return {
@@ -31,9 +32,9 @@ async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-
   const agentHost = new Host();
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void handleAgentReviewHttp(request, response, url, {
+    void runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => handleAgentReviewHttp(request, response, url, {
       projectId: BOARD, agentHost, actorId: "user", observeGitIndex,
-    }).then((handled) => {
+    })).then((handled) => {
       if (!handled) { response.writeHead(404); response.end(); }
     });
   });
@@ -200,6 +201,7 @@ test("manual rewind reviews are scoped to the selected runtime session and curre
 
 test('Git recovery enforces project ownership, explicit confirmation and Host-owned evidence and identity', async () => {
   let reads = 0, resolves = 0;
+  const original = "<script>unsafe</script>\"\n" + " 原始 Git 错误 ".repeat(300) + "Complete tail";
   const item = await fixture(async request => {
     reads++; assert.equal(request.review_id, 'mine');
     assert.equal(request.document.kind, 'text-edit', 'browser cannot replace the stored review');
@@ -209,11 +211,11 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
     const queue = item.agentHost.reviews;
     queue.request(pending('mine')); queue.request({ ...pending('foreign'), project_id: 'other-project' });
     queue.registerRecoveryHandler('mine', {
-      inspect: async observe => ({ review_id: 'mine', receipt: queue.receipt('mine')!, observation: await observe(), can_confirm_not_happened: false, message: '<script>unsafe</script>' }),
+      inspect: async observe => ({ review_id: 'mine', receipt: queue.receipt('mine')!, observation: await observe(), can_confirm_not_happened: false, message: original }),
       resolve: async (input, observe) => {
         resolves++; assert.equal(input.actor_id, 'user'); assert.equal(input.reason, 'actual evidence');
         const observation = await observe(); assert.equal(observation.revision, 'host-version');
-        return { review_id: 'mine', receipt: queue.receipt('mine')!, observation, can_confirm_not_happened: false, message: 'checked' };
+        return { review_id: 'mine', receipt: queue.receipt('mine')!, observation, can_confirm_not_happened: false, message: { owner: 'workbench', key: 'workbench.agent-review.recovery-settled' } };
       },
     });
     const post = (body: unknown) => fetch(`${item.base}/api/agent/reviews/recovery`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -224,8 +226,14 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
     }
     assert.equal(reads, 0); assert.equal(resolves, 0);
     const inspected = await (await fetch(`${item.base}/api/agent/reviews/recovery?review_id=mine`)).json();
-    assert.match(inspected.html, /&lt;script&gt;/); assert.doesNotMatch(inspected.html, /<script>/);
+    assert.equal(inspected.view.message, original);
+    assert.match(inspected.html, /translate="no">&lt;script&gt;/); assert.doesNotMatch(inspected.html, /<script>/);
+    assert.match(inspected.html, /Complete tail<\/p>/u);
+    const english = await (await fetch(`${item.base}/api/agent/reviews/recovery?review_id=mine`, { headers: { "accept-language": "en" } })).json();
+    assert.equal(english.view.message, original);
+    assert.match(english.html, /Verify the original operation/);
+    assert.match(english.html, /Complete tail<\/p>/u);
     const result = await post({ review_id: 'mine', action: 'not-happened', confirmed: true, actor_id: 'forged', reason: 'actual evidence', revision: 'host-version', observation: { matches_before: true }, document: { kind: 'git-index' } });
-    assert.equal(result.status, 200); assert.equal(resolves, 1); assert.equal(reads, 2);
+    assert.equal(result.status, 200); assert.equal(resolves, 1); assert.equal(reads, 3);
   } finally { item.server.close(); }
 });

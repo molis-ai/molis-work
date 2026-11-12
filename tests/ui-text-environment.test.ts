@@ -18,6 +18,7 @@ const SPEC: UiSpecFile = {
     { name: "code-tab", type: "number", varies_by: "none", locked: { number: 4 } },
   ] }],
   font_roles: [],
+  components: [],
 };
 const skin = (id: string, recommended: string, light: UiSkinFile["light"]): UiSkinFile => ({
   format_version: UI_FORMAT_VERSIONS.skin, id, revision: 1, spec: { id: SPEC.id, revision: SPEC.revision }, name: { literal: id }, recommended_font: { id: recommended, revision: 1 }, light, dark: { page: "#141a20" }, shared: {}, terminal: {},

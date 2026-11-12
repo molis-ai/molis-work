@@ -38,7 +38,7 @@ export class AlchemistHostService {
     this.home = resolve(home);
     this.pulseGithub = alchemistPulseGithub(this.home);
     // Deleting a project closes its studio here (a running worker would keep writing to a database about to go) before its directory goes.
-    projectDeletedHooksFor(this.home).register({ id: "alchemist", label: "炼金术士的研究空间", alive: () => !this.closed || this.entries.size > 0, clear: projectId => this.deleteProject(projectId) });
+    projectDeletedHooksFor(this.home).register({ id: "alchemist", label: { key: "workbench.project-deletion.alchemist" }, alive: () => !this.closed || this.entries.size > 0, clear: projectId => this.deleteProject(projectId) });
   }
   provider(): ActionProviderRegistration {
     return { provider: { provider_id: alchemistManifest.plugin_id, plugin_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin" },

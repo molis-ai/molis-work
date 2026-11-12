@@ -7,15 +7,16 @@ import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import { isPersonalPlugin, sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
+import { drawCatalogText } from "./plugin-text.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 export interface PluginMarketCard {
   readonly id: ProjectPluginId;
   readonly runtime_id: string;
   readonly label: string;
-  /** The label in the English interface: the market's view title_en (BL-636); absent when it declares none. */
-  readonly label_en?: string;
   readonly glyph: string;
   readonly copy: string;
   readonly personal: boolean;
@@ -27,9 +28,9 @@ export interface PluginMarketCard {
  * The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer): the ones whose
  * navigator view declares `pinned_default`, in the order of their views. Only a plugin the project chooses can be one.
  */
-export function dockDefaultPins(directory: PluginDirectory = builtinPluginDirectory()): string[] {
+export function dockDefaultPins(directory: PluginDirectory = builtinPlacementDirectory()): string[] {
   const chosen = directory.filter(entry => entry.chosen);
-  return railEntries(chosen.map(entry => entry.id), chosen).filter(entry => entry.pinned_default).map(entry => entry.id);
+  return placedViews(chosen, chosen.map(entry => entry.id), "navigator").filter(({ view }) => view.pinned_default).map(({ id }) => id);
 }
 
 /** The shell keys of the plugins that are a way to extend the workbench (a navigator view with `rail: "extend"`), kept out of the list of tools. */
@@ -48,8 +49,6 @@ export interface RailEntry {
   id: ProjectPluginId;
   surface: string;
   label: string;
-  /** The label in the English interface (BL-636): a navigator or island view's own `title_en`, a stage-only plugin's Manifest `name_en`; absent when its source declares none, and never taken from the other source. */
-  label_en?: string;
   glyph: string;
   /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
   group: UiViewGroup | null;
@@ -70,6 +69,7 @@ export interface PluginCreatableKind {
   readonly station: string;
   /** The kind's name; a new one is called 未命名 followed by it. */
   readonly title: string;
+  readonly label?: string;
 }
 
 /** One way to start something from the project home, as the plugin's view declares it (`start`); it opens that plugin. */
@@ -90,9 +90,9 @@ function shippedDirectoryIds(): string[] {
   const shipped = BUILTIN_PLUGIN_CATALOG
     .filter((entry) => entry.personal === true || Boolean(entry.manifest.summary))
     .map((entry) => entry.project_plugin_id);
-  const market = builtinPluginDirectory();
+  const market = builtinPlacementDirectory();
   const ids = [
-    ...railEntries(shipped, market).map((entry) => entry.id),
+    ...navigationEntries(shipped, market, ARTIFACT_NAVIGATION.label).map((entry) => entry.id),
     ...islandEntries(shipped, market).map((entry) => entry.id),
   ];
   const unique = [...new Set(ids)];
@@ -113,13 +113,21 @@ export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
 /** Directory panels owned by a Plugin stage, including Feed's sources alias. */
 export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedDirectoryIds();
 
+function buildDirectory(words: (manifest: PluginManifest) => Pick<PluginDirectoryEntry, "name" | "summary" | "ui">): PluginDirectory {
+  return BUILTIN_PLUGIN_CATALOG.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, chosen: true, ...words(entry.manifest) }));
+}
+
+/** Placement-only consumers run before there is a request and never read the language tools. */
+function builtinPlacementDirectory(): PluginDirectory {
+  return buildDirectory(manifest => projectDirectoryWords(manifest));
+}
+
 /**
  * The built-in catalog as a directory: what the market lists, and what a page drawn with no Runtime (the spec board, a fixture)
  * is drawn from. A page drawn by the Host is drawn from `pluginDirectoryFor` instead.
  */
 export function builtinPluginDirectory(): PluginDirectory {
-  return BUILTIN_PLUGIN_CATALOG.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name,
-    ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}), chosen: true, ui: { views: entry.manifest.ui.views ?? [] } }));
+  return buildDirectory(manifest => drawCatalogText(manifest, resolve => projectDirectoryWords(manifest, resolve)));
 }
 
 /**
@@ -148,8 +156,7 @@ function placedViews(directory: PluginDirectory, enabled: readonly ProjectPlugin
 }
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
-  const english = view.slot === "stage" ? view.plugin_title_en : view.title_en;
-  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, ...(english !== undefined ? { label_en: english } : {}), glyph: view.icon ?? "package",
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package",
     // The 个人 group is the person's own plugins, by the one rule ＋ and the bar's right tray use too (isPersonalPlugin; 07-1 S4b):
     // a view does not put itself there, nor keep another group once it is the person's.
     group: isPersonalPlugin(entry) ? "personal" : view.group === "personal" ? null : view.group ?? null,
@@ -159,11 +166,15 @@ function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDire
 
 /** Platform navigation and the enabled Plugins' views, in their declared order. Platform entries are never project members. */
 export function railEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
+  return navigationEntries(enabled, directory, artifactNavigationLabel());
+}
+
+function navigationEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory, artifactLabel: string): RailEntry[] {
   const views = placedViews(directory, enabled, "navigator"), entries = views.map(railEntry);
   const at = views.findIndex(({ view }) => view.order > ARTIFACT_NAVIGATION.order
     || (view.order === ARTIFACT_NAVIGATION.order && view.plugin_id.localeCompare(ARTIFACTS_PROVIDER_ID) > 0));
-  const { id, surface, label, label_en, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
-  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label, label_en, glyph, group, rail, pinned_default, chosen });
+  const { id, surface, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
+  entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label: artifactLabel, glyph, group, rail, pinned_default, chosen });
   return [...entries, ...stageOnlyViews(directory, enabled).map(railEntry)];
 }
 
@@ -189,7 +200,10 @@ function stageOnlyViews(directory: PluginDirectory, enabled: readonly ProjectPlu
  */
 export function creatableKinds(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginCreatableKind[] {
   return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")]
-    .flatMap(({ id, entry, view }) => view.creates ? [{ id, plugin_id: entry.plugin_id, station: view.creates.station, title: view.creates.title }] : []);
+    .flatMap(({ id, entry, view }) => {
+      const create = entry.ui.views.find(item => item.view_id === view.view_id)?.creates;
+      return create ? [{ id, plugin_id: entry.plugin_id, ...create }] : [];
+    });
 }
 
 /** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
@@ -250,49 +264,53 @@ export interface PluginMarketOptions {
 export function pluginMarketCards(options: PluginMarketOptions = {}, directory: PluginDirectory = builtinPluginDirectory()): readonly PluginMarketCard[] {
   const marked = new Map(directory.map((entry) => [entry.id, entry]));
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    const alwaysOn = options.marksFromHost ? marked.get(entry.project_plugin_id)?.always_on === true : entry.manifest.always_on === true;
-    if (!entry.manifest.summary || alwaysOn || (entry.manifest.developer && !options.developerMode)) return [];
+    const listed = marked.get(entry.project_plugin_id), alwaysOn = options.marksFromHost ? listed?.always_on === true : entry.manifest.always_on === true;
+    if (!listed?.summary || alwaysOn || (entry.manifest.developer && !options.developerMode)) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
-    const views = entry.manifest.ui?.views ?? [];
-    const nav = views.find((view) => view.slot === "navigator" || view.slot === "island");
+    const nav = listed.ui.views.find((view) => view.slot === "navigator" || view.slot === "island");
     if (!nav) return [];
     return [{
       id: entry.project_plugin_id,
       runtime_id: entry.manifest.plugin_id,
-      label: nav.title ?? entry.manifest.name,
-      ...(nav.title_en !== undefined ? { label_en: nav.title_en } : {}),
+      label: nav.title,
       glyph: nav.icon ?? "package",
-      copy: entry.manifest.summary,
-      personal: marked.get(entry.project_plugin_id)?.personal === true,
+      copy: listed.summary,
+      personal: listed.personal === true,
       sites: browserSiteDeclarations(entry.manifest),
     }];
   });
 }
 
 export function pluginTabGlyphs(): Record<string, string> {
-  const market = builtinPluginDirectory(), enabled = market.map((entry) => entry.id);
+  const market = builtinPlacementDirectory(), enabled = market.map((entry) => entry.id);
   return Object.fromEntries([
     ["home", "home"],
     ["market", "grid"],
-    ...railEntries(enabled, market).map((entry) => [entry.id, entry.glyph]),
+    [ARTIFACT_NAVIGATION.id, ARTIFACT_NAVIGATION.glyph],
+    ...[...placedViews(market, enabled, "navigator"), ...stageOnlyViews(market, enabled)].map(({ id, view }) => [id, view.icon ?? "package"]),
     ...islandEntries(enabled, market).map((entry) => [entry.id, entry.glyph]),
   ]);
 }
 
 /** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin that opens in the side panel has none (`sideOpenedPlugins`). */
-export function pluginStageSummaries(): Record<string, { readonly plugin_id: string; readonly summary: string }> {
+export function pluginStageSummaries(directory: PluginDirectory = builtinPluginDirectory()): Record<string, { readonly plugin_id: string; readonly summary: string }> {
   const side = sideOpenedPlugins();
-  return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => Boolean(entry.manifest.summary) && !Object.hasOwn(side, entry.project_plugin_id))
-    .map((entry) => [entry.project_plugin_id, { plugin_id: entry.manifest.plugin_id, summary: entry.manifest.summary as string }]));
+  return Object.fromEntries(directory.flatMap(entry => entry.summary && !Object.hasOwn(side, entry.id)
+    ? [[entry.id, { plugin_id: entry.plugin_id, summary: entry.summary }]] : []));
 }
 
-/** An entry's name in the interface language: its declared English in the English interface, else the name it is written under. */
-export const pluginLabel = (entry: { readonly label: string; readonly label_en?: string }, english: boolean): string => (english && entry.label_en) || entry.label;
+function artifactNavigationLabel(): string {
+  try { return uiText.text("workbench.artifacts.navigation-name"); }
+  catch (error) {
+    // The glyphs/placement can be inspected before a Host installed its provider.
+    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return ARTIFACT_NAVIGATION.label;
+    throw error;
+  }
+}
 
 /** The rail and island titles of a directory's plugins; the Host passes its own (`builtinMarketDirectory`), a page drawn without one uses the catalog's. */
-export function pluginTabTitles(english = false, market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
+export function pluginTabTitles(market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
   const enabled = market.map((entry) => entry.id);
-  return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry, english)]));
+  return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, entry.label]));
 }

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
 
 // W5-02-REG-06: real generated-catalog startup, Files snapshots, Diff and Git readers, including Coding's embedded Files.
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
@@ -24,6 +25,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   git("init", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.invalid");
   git("add", "."); git("commit", "-m", "initial");
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => b.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const open = async (plugin: string) => {
     await b.click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
     await b.waitFor(`document.querySelector('[data-work-surface="${plugin}"]').getBoundingClientRect().width > 100 && !document.querySelector('[data-work-surface="${plugin}"]').hidden`);
@@ -76,12 +79,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await capture("files-desktop");
   await command("Network.enable", {}, sessionId);
   await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.files/open"] }, sessionId);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  // The shared request helper says the failure in words (W3-10; no browser English such as "Failed to fetch").
-  await waitFor(`/连不上|不知道这次操作有没有完成/.test(document.querySelector('${files} [data-files-notice]').textContent) && !/fetch/i.test(document.querySelector('${files} [data-files-notice]').textContent)`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
-  await command("Network.setBlockedURLs", { urls: [] }, sessionId);
+  try {
+    await click(`${files} [data-files-tree] [title="note.txt"]`);
+    // The shared request helper's localized failure is shown with Files' retry instruction (W3-10, FSS-36).
+    await waitFor(`document.querySelector('${files} [data-files-notice]').textContent === '不知道这次操作有没有完成，请刷新后核对。可点击重读重试。'`);
+    assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
+    assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
+  } finally { await command("Network.setBlockedURLs", { urls: [] }, sessionId); }
   await click(`${files} [data-files-reload]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
   // Diff and Text Stats are laid out as plugin stages (E-14): the heading drawn by the stage, the page's actions at its right,
@@ -102,7 +106,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
@@ -141,17 +145,18 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`), true, "embedded file reads are visible before a Coding session exists");
   await click(`${coding} [data-coding-face="sessions"]`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled`);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
   await waitFor(`document.querySelector('${coding} [data-coding-prompt]')`);
   await capture("coding-welcome-desktop");
   await click(`${coding} [data-coding-prompt][data-coding-prompt-intent="discuss"]`);
-  await waitFor(`document.querySelector('${coding} [data-coding-task]').value.includes('主要模块')`);
-  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-intent]').value`), "discuss", "a starter also picks the way the round runs");
+  await b.waitFor(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value.includes('主要模块')`);
+  assert.equal(await b.evaluate(`document.querySelector('${CODING_COMPOSER} [data-composer-control=intent]').value`), "discuss", "a starter also picks the way the round runs");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-prompt]').disabled`), true, "examples never overwrite an existing draft");
-  await fill(`${coding} [data-coding-task]`, "first session draft");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "first session draft");
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`document.querySelector('${coding} [data-coding-sessions]').querySelectorAll('[data-coding-session]').length === 2 && document.querySelector('${coding} [data-coding-task]').value === ''`);
-  await fill(`${coding} [data-coding-task]`, "second session draft");
+  await waitFor(`document.querySelector('${coding} [data-coding-sessions]').querySelectorAll('[data-coding-session]').length === 2`);
+  await b.waitFor(`document.querySelector('${CODING_BOX}').value === ''`);
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "second session draft");
   const sessions = await evaluate<string[]>(`[...document.querySelectorAll('${coding} [data-coding-session]')].map(node=>node.dataset.codingSession)`);
   const current = await evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);
   const first = sessions.find(id => id !== current)!;
@@ -162,11 +167,12 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const firstTab = tabs.find((tab: any) => tab.itemId === first);
   const secondTab = tabs.find((tab: any) => tab.itemId === current);
   await b.click(`[data-tab-id="${firstTab.id}"]`);
-  await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
+  await b.waitFor(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value === 'first session draft'`);
   await b.click(`[data-tab-id="${secondTab.id}"]`);
-  await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
+  await b.waitFor(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value === 'second session draft'`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3 && document.querySelector('${coding} [data-coding-task]').value === ''`);
+  await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3`);
+  await b.waitFor(`document.querySelector('${CODING_BOX}').value === ''`);
   const untouched = await evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-new]').disabled`);
@@ -182,10 +188,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("coding");
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'false'`);
   await b.click(`[data-tab-id="${secondTab.id}"]`);
-  await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
+  await b.waitFor(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value === 'second session draft'`);
   await b.reloadPage();
-  await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
-  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-send]').disabled`), true, "no model cannot execute a run");
+  await b.waitFor(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value === 'second session draft'`);
+  // No model: send says why instead of starting a run (the composer's `required`), and the words stay.
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
+  await b.waitFor(`document.querySelector('${CODING_COMPOSER} .mw-composer__status')?.textContent.includes('请先选择可用的模型')`);
+  assert.equal(await b.evaluate(`document.querySelector('${CODING_COMPOSER} .mw-composer__input').value`), 'second session draft', "no model cannot execute a run");
   const sessionsResponse = await fetch(`${prefix}/api/plugins/io.molis.work.coding/state`);
   const sessionState = await sessionsResponse.json();
   assert.equal(sessionState.sessions.length, 3, "two drafted sessions plus one reused untouched session: opening and restoring never creates extra sessions");
@@ -194,18 +203,18 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
     assert.equal(detail.runs.length, 0, "opening and typing do not launch a model");
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 780, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await evaluate(`document.querySelector('${coding} [data-coding-send]').scrollIntoView({block:'nearest'})`);
-  const sendBottom = await evaluate<number>(`document.querySelector('${coding} [data-coding-send]').getBoundingClientRect().bottom`);
+  await b.evaluate(`document.querySelector('${CODING_COMPOSER} [data-composer-send]').scrollIntoView({block:'nearest'})`);
+  const sendBottom = await b.evaluate<number>(`document.querySelector('${CODING_COMPOSER} [data-composer-send]').getBoundingClientRect().bottom`);
   assert.ok(sendBottom <= 780, "send remains reachable on a narrow screen");
-  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 6, 'updating context labels preserves shared icons (materials, character, methods, action capabilities, MCP, delegate)');
-  // Session settings and context sources live behind the composer's "+" so the bar stays about the task.
-  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true);
-  await click(`${coding} [data-coding-attach-toggle]`);
-  await click(`${coding} [data-coding-context-toggle]`);
-  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true, "choosing an item closes the menu");
+  // Session settings and context sources live behind the composer's ＋ so the bar stays about the task, each with its glyph.
+  const addMenu = `document.querySelector('${CODING_COMPOSER} .mw-composer__start [data-compose-menu]')`;
+  assert.equal(await b.evaluate(`!${addMenu} || ${addMenu}.hidden`), true);
+  await b.click(`${CODING_COMPOSER} [data-composer-add]`);
+  assert.equal(await b.evaluate(`${addMenu}.querySelectorAll('[data-composer-command] svg').length`), 7, "＋ keeps its glyphs (materials, character, methods, action capabilities, MCP, delegate, context)");
+  await b.evaluate(codingAdd("context"));
+  assert.equal(await b.evaluate(`${addMenu}.hidden && !${addMenu}.childElementCount`), true, "choosing an item closes the menu");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-rename]').getBoundingClientRect().height > 0`), true, 'compact session settings retain rename');
-  await click(`${coding} [data-coding-attach-toggle]`);
-  await click(`${coding} [data-coding-context-toggle]`);
+  await b.evaluate(codingAdd("context"));
   await capture("coding-mobile");
   await click(`${coding} [data-coding-results-open]`);
   // 07-1 S3: a phone's strip shows the current tab only; the others are opened from 全部标签.
@@ -213,7 +222,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   // The menu is the workbench's, not the Coding frame's, so it is waited for on the page itself.
   await b.waitFor(`document.querySelector('[data-workspace-all-tabs] [data-all-tab="${firstTab.id}"]')?.checkVisibility()`);
   await b.click(`[data-workspace-all-tabs] [data-all-tab="${firstTab.id}"]`);
-  await waitFor(`document.querySelector('${coding}').dataset.codingResults === 'false' && document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
+  await waitFor(`document.querySelector('${coding}').dataset.codingResults === 'false'`);
+  await b.waitFor(`document.querySelector('${CODING_BOX}').value === 'first session draft'`);
   await click(`${coding} [data-coding-results-open]`);
   await click(`${coding} [data-coding-results-close]`);
   await click(`${coding} [data-coding-directory-back]`);

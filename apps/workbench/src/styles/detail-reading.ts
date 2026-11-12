@@ -38,6 +38,7 @@ export const DETAIL_READING_STYLES = `
   body.immersive-workbench .inbox-reference-footer .feed-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .inbox-reference-footer .feed-action-status { margin: 8px 0 0; }
   body.immersive-workbench .inbox-reference-detail .inbox-attention-context { margin-top: 0; }
+  .inbox-reference-body dd { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); }
 
   body.immersive-workbench .immersive-artifact-surface > [data-artifact-detail],
   body.immersive-workbench .plugin-stage-workspace > [data-artifact-detail] { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }

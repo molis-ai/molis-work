@@ -1,6 +1,6 @@
 /**
  * 「作为 Goal 的输入」 in a 成果 version's detail (specs/artifact-positioning A4b): choose a Goal of this project and record
- * the version as its input. Runs inside the workbench's 成果 client and shares its `route`, `L` and `loadArtifacts`.
+ * the version as its input. Runs inside the workbench's 成果 client and shares its `route`, `readText` and `loadArtifacts`.
  */
 export const ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT = String.raw`
   // Goals' own routes live under its plugin prefix; the page's project prefix joins it, as it does for this bundle's routes.
@@ -11,9 +11,9 @@ export const ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT = String.raw`
     if (!(box instanceof HTMLDetailsElement) || !box.matches("[data-artifact-goal-input]") || !box.open || box.dataset.loaded === "1") return;
     const select = box.querySelector("select"), status = box.querySelector("[data-artifact-goal-input-status]");
     try {
-      const payload = await molisWorkRequest(route(GOALS_PLUGIN_API + "/goals/directory"), { fallback: L("目标读取失败") });
+      const payload = await molisWorkRequest(route(GOALS_PLUGIN_API + "/goals/directory"), { fallback: globalThis.t.text("workbench.goal-input-client.could-not-load-goals") });
       select.replaceChildren(...(payload.goals || []).map((goal) => Object.assign(document.createElement("option"), { value: goal.goal_id, textContent: goal.title })));
-      if (!select.options.length) status.textContent = L("这个项目还没有目标。");
+      if (!select.options.length) status.textContent = globalThis.t.text("workbench.goal-input-client.project-has-no-goals-yet");
       box.dataset.loaded = "1";
     } catch (error) { status.textContent = error.message; }
   }, true);
@@ -25,7 +25,7 @@ export const ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT = String.raw`
     if (!goal || button.disabled) return;
     button.disabled = true; status.textContent = "";
     try {
-      await molisWorkRequest(route(GOALS_PLUGIN_API + "/goals/" + encodeURIComponent(goal) + "/artifact-inputs"), { body: { reference: JSON.parse(form.dataset.artifactReference), used: true }, fallback: L("没有记下输入") });
+      await molisWorkRequest(route(GOALS_PLUGIN_API + "/goals/" + encodeURIComponent(goal) + "/artifact-inputs"), { body: { reference: JSON.parse(form.dataset.artifactReference), used: true }, fallback: globalThis.t.text("workbench.goal-input-client.input-was-not-recorded") });
       // The detail reloads so 「被谁引用」 shows the Goal.
       void loadArtifacts(artifactPath || route("/artifacts"), true);
     } catch (error) { status.textContent = error.message; }

@@ -1,6 +1,6 @@
 ---
 method_id: domain-pricing-monetization
-version: 1
+version: 2
 kind: domain
 name: "定价与商业化"
 summary: "把用户价值、计价单位、套餐边界、收费链路和商业证据连成闭环。"

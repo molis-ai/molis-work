@@ -7,7 +7,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer } from "./local-web-core.js";
-import { MolisWorkLocalHost, ModelProviderStore, withConnectorConnections, ensureSystemAgentService, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
+import { LOCALE_COOKIE, MolisWorkLocalHost, ModelProviderStore, withConnectorConnections, ensureSystemAgentService, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import { LocalSqliteStorage, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { cogniaModelResponse } from "./cognia-model-response.js";
@@ -80,9 +80,10 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
   release = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
-  const call = async <Output>(projectId: string, path: string, body?: unknown): Promise<{ status: number; body: Output }> => {
+  const call = async <Output>(projectId: string, path: string, body?: unknown, locale?: "en" | "zh"): Promise<{ status: number; body: Output }> => {
     const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
+      ...(locale ? { cookie: `${LOCALE_COOKIE}=${locale}` } : {}),
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() as Output };
   };

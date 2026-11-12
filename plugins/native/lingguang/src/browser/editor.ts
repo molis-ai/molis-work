@@ -1,5 +1,7 @@
 import type { LingguangPage, SaveState, Spark } from "./types.js";
 
+const uiText = globalThis.t;
+
 /**
  * The editor: the open spark, its autosave and the blank-spark discard.
  *
@@ -25,9 +27,9 @@ import type { LingguangPage, SaveState, Spark } from "./types.js";
  * is done, the blank spark is left like any other. An event with no item that is not followed by a fold leaves it open.
  */
 export function installEditor(page: LingguangPage): void {
-  const { host, L, el, s, request, api } = page;
-  const saveText = (state: SaveState) => state === "saved" ? L("lingguang.save.saved") : state === "unsaved" ? L("lingguang.save.unsaved")
-    : state === "saving" ? L("lingguang.save.saving") : L("lingguang.save.failed");
+  const { host, el, s, request, api } = page;
+  const saveText = (state: SaveState) => state === "saved" ? uiText.text("lingguang.save.saved") : state === "unsaved" ? uiText.text("lingguang.save.unsaved")
+    : state === "saving" ? uiText.text("lingguang.save.saving") : uiText.text("lingguang.save.failed");
 
   // "转为待办" puts the spark into the creation entry named todo from what the button carries, so it always carries what is on screen.
   page.syncTodo = () => {
@@ -42,7 +44,7 @@ export function installEditor(page: LingguangPage): void {
   /** The spark on screen, for the placement bar and the Assistant. */
   page.publishContext = (unsaved) => {
     const context: { plugin_id: string; surface_title: string; object?: { kind: string; id: string; version: string; title: string }; unsaved?: boolean } = {
-      plugin_id: host.pluginId, surface_title: L("lingguang.page.title"),
+      plugin_id: host.pluginId, surface_title: uiText.text("lingguang.page.title"),
     };
     if (s.selected) {
       context.object = { kind: "lingguang_spark", id: s.selected.id, version: s.selected.updated_at + ":" + (s.selected.status || "inbox"), title: el.titleInput.value || s.selected.title };
@@ -162,7 +164,7 @@ export function installEditor(page: LingguangPage): void {
     page.showSave("unsaved");
     clearTimeout(s.saveTimer);
     s.saveTimer = setTimeout(() => {
-      void page.save().catch((error: unknown) => page.showNote((error as Error).message || L("lingguang.save.failed"), true));
+      void page.save().catch((error: unknown) => page.showNote((error as Error).message || uiText.text("lingguang.save.failed"), true));
     }, 400);
   };
 }

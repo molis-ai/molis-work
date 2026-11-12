@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import test from "node:test";
 
-import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
+import { authorizeLocalWebRequest, installHostUiText, runWithLocale, sendLocalWebJson, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
+
+test.before(installHostUiText);
 
 /**
  * A one-time request key is settled by what the handler ends up answering, not by whether the socket was still there to
@@ -23,7 +25,7 @@ async function fixture(handlerStatus: () => number, handlerMilliseconds: number 
   let executions = 0;
   const server: Server = createServer(async (request, response) => {
     const url = new URL(request.url!, "http://127.0.0.1");
-    if (!authorizeLocalWebRequest(request, response, url, token, keys)) return;
+    if (!runWithLocale("zh", () => authorizeLocalWebRequest(request, response, url, token, keys))) return;
     executions++;
     await (typeof handlerMilliseconds === "number" ? delay(handlerMilliseconds) : handlerMilliseconds());
     sendLocalWebJson(response, handlerStatus(), { ok: handlerStatus() < 400 });
@@ -58,7 +60,7 @@ test("a request the client abandons keeps its key in flight while the handler ru
     const retry = await web.send(path, "abandoned-key-1-retry");
     assert.equal(retry.status, 200, "the retry after the abandoned attempt reaches the handler");
     assert.equal(web.executions(), 2);
-  } finally { await web.close(); }
+  } finally { finish(); await web.close(); }
 });
 
 test("an abandoned request whose handler failed frees its key for the retry", async () => {
@@ -81,7 +83,7 @@ test("an abandoned request whose handler failed frees its key for the retry", as
     assert.equal(retry.status, 200);
     assert.equal(web.executions(), 2);
     assert.equal(web.keys.get("abandoned-key-2"), "complete");
-  } finally { await web.close(); }
+  } finally { finish(); await web.close(); }
 });
 
 test("a request that was answered keeps the behaviour it had: complete on success, refused as a repeat, freed on failure", async () => {

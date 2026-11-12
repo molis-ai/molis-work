@@ -1,8 +1,9 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { nativeFileInvoke } from "./native-files.js";
 import type { FrameDown, FrameScope, FrameUp, Translate } from "./types.js";
 
 /** Results and absolute paths stay in the trusted document. Only a real click here releases the selected bytes. */
-export function pageFilePicker(port: MessagePort, scope: FrameScope, frame: HTMLIFrameElement, pageId: string, route: (path: string) => string, translate: Translate) {
+export function pageFilePicker(port: MessagePort, scope: FrameScope, frame: HTMLIFrameElement, pageId: string, route: (path: string) => string, _translate: Translate) {
   let close = () => {};
   scope.own(() => close());
   scope.whenVisible(() => () => close());
@@ -31,11 +32,11 @@ export function pageFilePicker(port: MessagePort, scope: FrameScope, frame: HTML
       if (lifetime.signal.aborted) return;
       if (!found.length) { finish(); return; }
       popup = document.createElement("div"); popup.dataset.nativeFilePicker = ""; popup.setAttribute("role", "dialog");
-      popup.setAttribute("aria-label", translate("添加本机文件"));
+      popup.setAttribute("aria-label", uiText.text("common.file-picker.add-file"));
       const box = frame.getBoundingClientRect();
       popup.style.cssText = `position:fixed;z-index:10000;left:${Math.max(8, box.left + 12)}px;top:${Math.max(8, box.top + 44)}px;max-width:calc(100vw - 32px);width:320px;max-height:${Math.min(280, Math.max(120, box.height - 80))}px;overflow:auto;padding:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px #0003`;
-      const label = document.createElement("strong"); label.textContent = translate("添加本机文件"); popup.append(label);
-      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = translate("关闭"); cancel.dataset.nativeFileCancel = "";
+      const label = document.createElement("strong"); label.textContent = uiText.text("common.file-picker.add-file"); popup.append(label);
+      const cancel = document.createElement("button"); cancel.type = "button"; cancel.textContent = uiText.text("common.control.close"); cancel.dataset.nativeFileCancel = "";
       cancel.style.cssText = "float:right"; cancel.addEventListener("click", () => finish()); popup.append(cancel);
       for (const file of found.slice(0, 12)) {
         const button = document.createElement("button"); button.type = "button"; button.textContent = file.name; button.dataset.nativeFileChoice = "";

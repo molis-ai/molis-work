@@ -1,5 +1,7 @@
 import type { KnowledgeCardRecord, KnowledgeQuota, KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { count, el, L, readerOf, request, subjectKey, when } from "./common.js";
+import { count, el, readerOf, request, subjectKey, when } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** The page's notices: a short toast for what went well, the error box and a longer toast for what did not. */
 export function pageNotices(errorBox: HTMLElement) {
@@ -22,7 +24,7 @@ export function pageNotices(errorBox: HTMLElement) {
 /** Today's allowance; the confirm button shows only once organizing stopped at it. */
 export function drawQuota(root: HTMLElement, quota: KnowledgeQuota, waiting: boolean): void {
   const share = Math.min(100, Math.round(100 * Math.max(quota.used_pieces / Math.max(1, quota.limit_pieces), quota.used_chars / Math.max(1, quota.limit_chars))));
-  root.querySelector("[data-knowledge-quota-text]")!.textContent = L("已整理 {pieces} / {pieceLimit} 份，送给模型 {chars} / {charLimit} 字", {
+  root.querySelector("[data-knowledge-quota-text]")!.textContent = uiText.text("workbench.settings-parts.pieces-piece-limit-pieces-organized-chars-char-limit", {
     pieces: quota.used_pieces, pieceLimit: quota.limit_pieces, chars: count(quota.used_chars), charLimit: count(quota.limit_chars) });
   root.querySelector<HTMLElement>("[data-knowledge-quota-bar]")!.style.width = share + "%";
   root.querySelector(".knowledge-quota-bar")!.setAttribute("aria-valuenow", String(share));
@@ -33,15 +35,15 @@ export function drawQuota(root: HTMLElement, quota: KnowledgeQuota, waiting: boo
 /** Who read which piece's original lately, newest first. */
 export function drawReceipts(root: HTMLElement, recent: readonly KnowledgeReadReceipt[], cards: readonly KnowledgeCardRecord[], total: number): void {
   const box = root.querySelector("[data-knowledge-receipts]")!;
-  if (!recent.length) { box.replaceChildren(el("li", "settings-muted", L("还没有 Agent 读过资料原文。"))); return; }
+  if (!recent.length) { box.replaceChildren(el("li", "settings-muted", uiText.text("workbench.settings-parts.no-agent-has-read-original-yet"))); return; }
   const titles = new Map(cards.map(card => [subjectKey(card.subject), card.title]));
   box.replaceChildren(...recent.map(receipt => {
     const item = el("li", "knowledge-receipt");
     const what = titles.get(subjectKey(receipt.subject)) ?? receipt.subject.id;
     item.append(el("strong", "", readerOf(receipt)),
-      el("span", "", (receipt.via === "grep" ? L("逐行查找到「{title}」", { title: what }) : L("读了「{title}」", { title: what })) + " · " + L("{chars} 字", { chars: count(receipt.chars) })),
+      el("span", "", (receipt.via === "grep" ? uiText.text("workbench.settings-parts.found-lines-title", { title: what }) : uiText.text("workbench.settings-parts.read-title", { title: what })) + " · " + uiText.text("workbench.settings-parts.chars-chars", { chars: count(receipt.chars) })),
       el("span", "settings-muted", when(receipt.at)));
     return item;
   }));
-  if (total > recent.length) box.append(el("li", "settings-muted", L("只列出最近 {count} 条。", { count: recent.length })));
+  if (total > recent.length) box.append(el("li", "settings-muted", uiText.text("workbench.settings-parts.only-latest-count-listed", { count: recent.length })));
 }

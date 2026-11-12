@@ -77,7 +77,7 @@ export function sandboxPromptId(entryId: string): string {
  * The sole text-only runtime projection of the role materials; numeric versions do not represent the signed package's SemVer. The
  * methods are the package's own declarations, carried as written.
  */
-export function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods"> {
+export function sandboxAgentDeclarations(manifest: Pick<SandboxPackageManifest, "plugin_id" | "agent" | "methods">): Pick<PluginManifest, "agent" | "methods"> {
   const seen = new Set<string>();
   const roles = (manifest.agent ?? []).map(row => {
     const ids = sandboxRoleIdentity(manifest.plugin_id, row.name);

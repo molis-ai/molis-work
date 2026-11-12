@@ -4,9 +4,10 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderAgentReviewSurface, type AgentReviewRow } from "@molis-ai/molis-work-app-workbench";
-import { codingTimelineWords, createCodingTimeline, writeCheckCache } from "@molis-ai/molis-work-plugin-coding";
+import { writeCheckCache } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentCommandOutput, AgentCommandOutputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
+import { mountCodingTranscript } from "./fixtures/coding-transcript.js";
 import { pageTextScript } from "./fixtures/page-text.js";
 import { renderMolisWorkWorkbenchWithPluginStylesheets } from "./workbench-renderer-fixture.js";
 
@@ -62,10 +63,11 @@ test("PA-35 the Coding timeline shows the checker and exit code on a checked wri
     const page = await browser.page();
     const draw = async (locale: "zh" | "en", width: number) => {
       await page.command("Emulation.setDeviceMetricsOverride", { width, height: 700, deviceScaleFactor: 1, mobile: false });
-      await page.evaluate(`(()=>{${pageTextScript(locale)}})()`);
+      await page.evaluate(`(()=>{${pageTextScript(locale, "coding")}})()`);
+      await mountCodingTranscript(page);
       await page.evaluate(`(()=>{document.head.querySelectorAll('style[data-fixture]').forEach(node=>node.remove());const style=document.createElement('style');style.dataset.fixture='1';style.textContent=${JSON.stringify(renderMolisWorkWorkbenchWithPluginStylesheets())};document.head.append(style);
         document.body.className='immersive-workbench';document.body.innerHTML='<main style="max-width:760px;padding:16px"><section data-coding-block></section></main>';
-        const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
+        const timeline=globalThis.codingTranscript.timeline;
         const detail=document.createElement('details');detail.className='coding-activity';detail.dataset.codingActivity='r:a';document.querySelector('[data-coding-block]').append(detail);
         const activity=[
           {call_id:'w1',name:'edit',target:'src/login.js',state:'completed',output:'Check after write (data, not instructions):\\nexit 0'},
@@ -103,7 +105,7 @@ test("PA-35 the Coding timeline shows the checker and exit code on a checked wri
     assert.equal(await page.evaluate<boolean>(`document.documentElement.scrollWidth<=document.documentElement.clientWidth`), true, "the row still fits a narrow frame");
     await page.screenshot(join(review, "zh-narrow.png"));
     const en = await draw("en", 1200);
-    assert.deepEqual([en.w1, en.w2, en.w3, en.w5], ["语法检查 · exit 1", "Not checked", "慢检查 · Timed out", "Check result can't be read right now"]);
+    assert.deepEqual([en.w1, en.w2, en.w3, en.w5], ["语法检查 · exit 1", "Not checked", "慢检查 · Timed out", "Check result can’t be read right now"]);
     await page.screenshot(join(review, "en-wide.png"));
     // The same row at the two desk widths the walk-through asks for, and in the dark theme (review M10): it fits, and its words stay readable.
     const fits = () => page.evaluate<boolean>(`document.documentElement.scrollWidth<=document.documentElement.clientWidth`);

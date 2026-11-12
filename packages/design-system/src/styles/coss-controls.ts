@@ -1,16 +1,5 @@
-import { renderControlMetrics, renderShapeTokens, renderShellTokens } from "../palette.js";
-
 /** Shared Coss surfaces and controls. Loaded last by each page renderer. */
 export const COSS_CONTROL_STYLES = `
-  :root, body.immersive-workbench, body.settings-page {
-    ${renderShellTokens("light")}
-    ${renderShapeTokens()}
-    ${renderControlMetrics()}
-  }
-  html[data-resolved-theme="dark"],
-  html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page) {
-    ${renderShellTokens("dark")}
-  }
   html[data-density="compact"] :is(body.immersive-workbench, body.settings-page, body.project-preferences-page) { --control-h: 28px; }
 
   body { caret-color: var(--ink); }

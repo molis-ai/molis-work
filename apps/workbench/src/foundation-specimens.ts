@@ -1,4 +1,5 @@
 import { renderCollapsible, renderToggleGroup } from "@molis-ai/molis-work-design-system";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * The design mechanisms of specs/visual-ui-experience §5, on the component board: each specimen is the shipped markup and
@@ -28,7 +29,7 @@ export function renderFoundationSection(): string {
       <figure class="mw-catalog__specimen"><figcaption>复制 · 成功与失败</figcaption><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="ok">复制</button><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="fail">复制（会失败）</button></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>折叠 · 自然高度</figcaption>${renderCollapsible({ summary: "这一轮读过的文件（3）", body: "<p>specs/visual-ui-experience/spec.md</p><p>DESIGN.md</p><p>packages/design-system/src/styles/disclosure.ts</p>" })}</figure>
       <figure class="mw-catalog__specimen"><figcaption>会变的数字 · 宽度不跳</figcaption><div class="mw-catalog-row"><span class="mw-num" data-num-ghost="59 分 59 秒" data-catalog-elapsed>0 秒</span><button type="button" class="mw-btn mw-btn--secondary">停止</button></div></figure>
-      <figure class="mw-catalog__specimen"><figcaption>媒体缩放 · 以观察点为锚</figcaption><div class="mw-catalog-media" data-catalog-media><img alt="1600 × 1000 的网格图" src="${MEDIA_SPECIMEN}"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-media-zoom>原始尺寸</button></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>媒体缩放 · 以观察点为锚</figcaption><div class="mw-catalog-media" data-catalog-media><img alt="1600 × 1000 的网格图" src="${MEDIA_SPECIMEN}"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-media-zoom>${t("workbench.primitive-catalog.actual-size")}</button></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>新写出的文字 · 2px（选用）</figcaption><div class="mw-catalog-stream" data-catalog-stream="2"></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>新写出的文字 · 6px（对照上限）</figcaption><div class="mw-catalog-stream" data-catalog-stream="6"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-stream-replay>重播</button><label class="mw-catalog-row"><input type="checkbox" data-catalog-stream-slow>慢放 4 倍</label></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>跟随到底 · 往上滚就停</figcaption><div class="mw-catalog-follow" data-catalog-follow style="height:120px;overflow:auto;font-size:12px;line-height:20px"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-latest hidden>↓ 新消息</button></div></figure>

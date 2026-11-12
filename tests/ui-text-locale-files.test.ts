@@ -3,13 +3,18 @@ import { lstatSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, w
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
-import { packPluginProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
-import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
-import { createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { packPluginProject, packSandboxProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
+import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { assertPluginLocales as validateAuthorLocales, createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { declarationManifest } from "./fixtures/declaration-manifest.js";
+import { newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // A plugin's language files: one reading function for every source (specs/font-and-skin-system/a-section-contract.md §6.2). `T7` in §10.
 
@@ -26,6 +31,29 @@ const GOOD: Record<string, string> = {
 };
 const reader = (files: Record<string, string>) => (name: string) => files[name] ?? null;
 const codes = (manifest: PluginManifest, files: Record<string, string>) => inspectPluginLocales(manifest, reader(files)).map((problem) => problem.code);
+
+test("FSS-35 FSS-38 Artifact title words require a default short line and use the default when another language lacks it", () => {
+  const key = "notes.artifacts.type-title";
+  const action = defineArtifactPreviewAction("notes.artifacts.preview", 1, "Preview", []);
+  const manifest = parsePluginManifest(manifestOf({ actions: [action], artifacts: { produces: [
+    { artifact_type_id: "io.example.note", schema_version: 1, title: "Original note", title_text: { key }, preview: { capability_id: action.capability_id, version: action.version } },
+  ], consumes: [] } }));
+  assert.throws(() => validateAuthorLocales(manifest, reader(GOOD)), {
+    code: "plugin.package_invalid", message: /locales\/en\.json notes\.artifacts\.type-title.*默认语言不能缺词/u,
+  });
+  const withTitle = (value: unknown) => ({ ...GOOD, "locales/en.json": packText("en", { "notes.main.saved": "Saved {count}", [key]: value }) });
+  for (const invalid of ["{count} notes", { plural_arg: "count", forms: { one: "One note", other: "Several notes" } }, "x".repeat(81), "Two\nlines"]) {
+    assert.throws(() => validateAuthorLocales(manifest, reader(withTitle(invalid))), {
+      code: "plugin.package_invalid", message: /notes\.artifacts\.type-title/u,
+    });
+  }
+  const files = withTitle("Saved note");
+  assert.deepEqual(validateAuthorLocales(manifest, reader(files)).map(({ code, key, blocking }) => [code, key, blocking]),
+    [["ui.locale_missing_key", key, false]]);
+  const owner = pluginLocaleReader(manifest, reader(files))!;
+  const title = createTextReader({ locale: "zh", packs: [owner.pack("en")!, owner.pack("zh")!] });
+  assert.equal(title.text({ owner: PLUGIN_ID, key }), "Saved note");
+});
 
 test("FSS-53 a good set of files has nothing to say, and a Manifest without ui.locales reads nothing", () => {
   assert.deepEqual(inspectPluginLocales(manifestOf(), reader(GOOD)), []);
@@ -204,23 +232,110 @@ test("FSS-53 a development project's language file that is a symbolic link out o
   assert.ok((await loadDevelopmentLocalePacks(project, manifestOf()))!.pack("zh"));
 }));
 
-test("FSS-53 FSS-70 a sandbox package that declares ui.locales is refused with its own reason, with or without language files, whatever its kind", () => {
-  const manifest = { ...manifestOf(), kind: "app" } as PluginManifest;
-  const file = (name: string, text: string) => ({ path: name, content_base64: Buffer.from(text).toString("base64") });
-  const bare = { schema_version: 1 as const, manifest, files: [file("manifest.json", JSON.stringify(manifest))] };
-  const withFiles = { ...bare, files: [...bare.files, file("locales/en.json", GOOD["locales/en.json"]!), file("locales/zh.json", packText("zh", { "notes.main.saved": "R&D <b> {count}" }))] };
-  const reason = /沙箱包：.*ui\.locales.*第 16 批.*molis-work plugin dev/u;
-  for (const payload of [bare, withFiles]) {
-    assert.throws(() => readSandboxPackage(payload), { code: "plugin.declaration_invalid", message: reason });
-    assert.throws(() => readSandboxPackage(payload), (error: Error) => !/ui\.messages/u.test(error.message));
-    const integration = { ...payload, manifest: { ...manifest, kind: "integration" } as PluginManifest };
-    assert.throws(() => readSandboxIntegrationPackage(integration), { code: "plugin.declaration_invalid", message: reason });
+function bilingualPackage(files: PackageFiles, manifest: PluginManifest): void {
+  const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+  files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify({ ...contract, ui: { locales: LOCALES } });
+  manifest.ui = { ...manifest.ui, locales: LOCALES };
+  Object.assign(files, GOOD);
+}
+
+test("FSS-53 FSS-70 pack-sandbox signs the declared words and the Host refuses mismatched, missing or out-of-package words", withProject(async directory => {
+  const publisher = newPublisher();
+  const { files, manifest } = packageFiles(publisher.identity, bilingualPackage, { pluginId: PLUGIN_ID });
+  files["locales/en.json"] = packText("en", { "notes.main.saved": "Saved {count}", "notes.main.title": "Notes" });
+  files["locales/zh.json"] = packText("zh", { "notes.main.saved": "已保存 {count}", "notes.main.title": "笔记" });
+  mkdirSync(path.join(directory, "locales"));
+  for (const [name, body] of Object.entries(files)) writeFileSync(path.join(directory, name), body!);
+  const packOptions = { name: manifest.name, version: manifest.version, publisherId: manifest.publisher.publisher_id, publisherKeyId: publisher.identity };
+  await assert.rejects(packSandboxProject(directory, path.join(directory, "wrong-name.json"), { ...packOptions, nameText: { key: "notes.main.saved" } }), /无参短句/u);
+  const bundle = await packSandboxProject(directory, path.join(directory, "unsigned.json"), { ...packOptions, nameText: { key: "notes.main.title" } });
+  const signed = signPluginPackage(bundle, publisher.signer);
+  const read = readSandboxPackage(verifyPluginPackageSignature(signed).bundle.payload);
+  assert.deepEqual(read.manifest.name_text, { key: "notes.main.title" });
+  assert.equal(read.localePacks?.pack("en")?.messages["notes.main.saved"], "Saved {count}");
+  assert.equal(read.localePacks?.pack("zh")?.messages["notes.main.saved"], "已保存 {count}");
+  const tampered = structuredClone(signed);
+  tampered.payload.files.find(item => item.path === "locales/zh.json")!.content_base64 = Buffer.from("changed").toString("base64");
+  assert.throws(() => verifyPluginPackageSignature(tampered), { code: "plugin.signature_invalid" });
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/zh.json": undefined })), /locales\/zh\.json/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/zh.json": packText("zh", { "todo.main.saved": "x" }, { owner: "io.molis.work.todo" }) })), /owner/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/en.json": packText("en", { "notes.main.saved": "R&D" }) })), /不许有/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "../zh.json": "{}" })), {
+    code: "plugin.declaration_invalid", message: '"../zh.json"：沙箱包的格式里没有这个文件',
+  });
+  assert.throws(() => readSandboxPackage(payloadOf({ ...manifest, ui: { ...manifest.ui, locales: { ...LOCALES, default: "zh" } } }, files)), /清单不是沙箱插件/u);
+  const artifactPreview = defineArtifactPreviewAction("notes.artifacts.preview", 1, "Preview", []);
+  const altered = { ...manifest, actions: [...manifest.actions ?? [], artifactPreview], artifacts: { consumes: [], produces: [{
+    artifact_type_id: "io.example.note", schema_version: 1, title: "Original note", title_text: { key: "notes.main.title" },
+    preview: { capability_id: artifactPreview.capability_id, version: artifactPreview.version },
+  }] } };
+  const issued = signPluginPackage({ ...bundle, payload: payloadOf(altered, files) }, publisher.signer);
+  assert.throws(() => readSandboxPackage(verifyPluginPackageSignature(issued).bundle.payload), /清单不是沙箱插件/u);
+}));
+
+test("FSS-53 FSS-60 a real signed installation binds words to its authorized page and operation", { skip: process.platform !== "darwin", timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Signed bilingual package");
+  const prefix = `/projects/${project.project_id}`;
+  const bundle = signedPackage(newPublisher(), (files, manifest) => {
+    bilingualPackage(files, manifest);
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = `
+      let finish, old;
+      export const operations = {
+        'notes.list': async (_input, sdk) => {
+          const title = sdk.t.text('notes.main.saved', { count: 2 });
+          const common = sdk.t.text('common.text.unavailable');
+          const foreign = sdk.say.text({ owner: 'io.molis.work.example.other', key: 'other.stage.title', fallback: 'Other owner unavailable' });
+          if (!old) {
+            const wait = new Promise(resolve => { finish = resolve; });
+            old = wait.then(() => sdk.t.text('notes.main.saved', { count: 3 }));
+            return [{ id: 'title', text: title }, { id: 'common', text: common }, { id: 'foreign', text: foreign }];
+          }
+          finish();
+          return [{ id: 'title', text: title }, { id: 'common', text: common }, { id: 'late', text: await old }];
+        },
+        'notes.add': async () => true,
+      };
+    `;
+  }, { pluginId: PLUGIN_ID });
+  const client = f.host.actionClient(project.reference);
+  const caller = { ...person(PLUGIN_INSTALL_PERMISSIONS, project.project_id), user_action: { source: "management" as const, conversation_ref: "locale:install", message_ref: "locale:confirm" } };
+  const preview = await client.invoke(caller, pluginInstallActions.preview, { bundle }) as { preview_id: string };
+  await client.invoke(caller, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "Locale test" });
+  const shell = await fetch(f.origin + prefix + "/");
+  const cookie = shell.headers.getSetCookie().find(value => value.startsWith("molis-work-web-"))?.split(";")[0];
+  const proof = /<meta name="molis-work-page-session" content="([^"]+)"/u.exec(await shell.text())?.[1];
+  assert.ok(cookie && proof);
+  const headers = { cookie, "x-molis-work-page-session": proof };
+  const mount = await f.request(prefix + "/api/host/plugin-pages", { authorized: false, headers, method: "POST", body: { plugin_id: PLUGIN_ID } });
+  assert.equal(mount.status, 200, await mount.clone().text());
+  const { page_id } = await mount.json() as { page_id: string };
+  for (const [locale, text] of [["en", "Saved {count}"], ["zh", "已保存 {count}"]]) {
+    const pack = await f.request(prefix + "/api/ui/locales?" + new URLSearchParams({ locale: locale!, page: page_id }), { authorized: false, headers });
+    assert.equal(pack.status, 200, await pack.clone().text());
+    const response = await pack.json();
+    assert.equal(response.owners[0].owner, PLUGIN_ID);
+    assert.equal(response.owners[0].packs.find((item: { locale: string }) => item.locale === locale).messages["notes.main.saved"], text);
   }
+  const operation = (await client.discover(caller)).find(item => item.provider.plugin_id === PLUGIN_ID && item.action.local_id === "notes.list");
+  assert.ok(operation);
+  const reference = { capability_id: operation.capability_id, version: operation.version, provider_id: operation.provider.provider_id };
+  assert.deepEqual(await client.invoke({ ...caller, locale: "en" }, reference, {}), [
+    { id: "title", text: "Saved 2" }, { id: "common", text: "This text cannot be shown right now" }, { id: "foreign", text: "Other owner unavailable" },
+  ]);
+  assert.deepEqual(await client.invoke({ ...caller, locale: "zh" }, reference, {}), [
+    { id: "title", text: "已保存 2" }, { id: "common", text: "这句话暂时显示不了" }, { id: "late", text: "…" },
+  ], "a promise left behind by the English call cannot borrow the later Chinese scope");
 });
 
-test("FSS-53 no built-in Manifest writes ui.locales before part C moves them all at once", () => {
-  assert.ok(BUILTIN_PLUGIN_CATALOG.length > 0);
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.ui.locales !== undefined).map((entry) => entry.manifest.plugin_id), []);
+test("FSS-53 built-in registrations use the same declared language files as a plugin project", () => {
+  const entries = BUILTIN_PLUGIN_CATALOG;
+  assert.ok(entries.length > 1);
+  for (const entry of entries) {
+    assert.ok(entry.manifest.ui.locales, entry.manifest.plugin_id);
+    assert.deepEqual(new Set(entry.manifest.ui.locales.available), new Set(["zh", "en"]), entry.manifest.plugin_id);
+    const directory = entry.project_plugin_id === "plugin-builder" ? "plugin-builder" : entry.project_plugin_id;
+    assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join("plugins/native", directory, file), "utf8")), [], entry.manifest.plugin_id);
+  }
 });
 
 test("FSS-53 a package with no ui.locales is what it always was: no language file is asked for", withProject(async (directory) => {

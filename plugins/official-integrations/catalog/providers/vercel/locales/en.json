@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.vercel",
+  "locale": "en",
+  "messages": {
+    "vercel.connection.auth-help": "Use a Vercel account token. The integration only reads the deployment list.",
+    "vercel.connection.inbound": "Feed retrieves deployments and previews",
+    "vercel.connection.summary": "Deployments and previews.",
+    "vercel.connection.token-label": "Vercel Token",
+    "vercel.guide.cli-link": "View Vercel CLI",
+    "vercel.guide.mcp-connected-note": "The official MCP service is in beta and may require client approval.",
+    "vercel.guide.mcp-link": "View the official Vercel MCP",
+    "vercel.guide.mcp-note": "The official MCP service is in beta and may require client approval. Molis Work has not integrated it.",
+    "vercel.guide.oauth-link": "View Vercel OAuth integration",
+    "vercel.oauth.note": "Use a Vercel REST Integration. Set a fixed callback and read permissions in its dashboard.",
+    "vercel.setup.create-vercel-token": "Create Vercel Token"
+  }
+}

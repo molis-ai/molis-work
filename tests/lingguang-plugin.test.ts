@@ -155,7 +155,8 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.doesNotMatch(stack, /assistant-composer-toolbar/);
   assert.doesNotMatch(stack, /<input class="mw-composer__input"/);
   assert.match(stack, /data-assistant-thread/);
-  assert.match(stack, /class="mw-composer__to"><span>发给：/, "输入框上方说明下一次发送给谁");
+  // 一个输入框（第 11 批 O1）：「发给」从框上方一行移到脚条里 ＋ 旁的标签，「发给：」由读屏念出。
+  assert.match(stack, /class="mw-composer__to"><span class="mw-composer__to-label">发给：/, "输入框说明下一次发送给谁");
   assert.match(stack, /data-composer-send/);
   assert.match(html, /data-lingguang="workbench"/);
   assert.match(html, /data-lingguang-confirm/);

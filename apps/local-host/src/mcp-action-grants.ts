@@ -2,6 +2,7 @@ import { ActionError, actionEffect, isSearchEntriesSource, isSubjectReader, type
 import { mcpErrors } from "./mcp-errors.js";
 import { isTaskGrantSubject, parseTaskGrantSubject } from "./task-grant-subjects.js";
 import { KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { SKILLS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/skills";
 import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
 import { actionGrantKey } from "./mcp-settings-store.js";
 
@@ -48,13 +49,17 @@ function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallCont
  * and the project's own read-only listings and object readers they read through. A record for the action, enabled or revoked,
  * always decides instead, so the person turns any of these off in 对外接入.
  */
-export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, "actor_id" | "project_id">): boolean {
+export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, "actor_id" | "project_id" | "skill_round">): boolean {
   // A task's grant subject holds nothing it was not given, project knowledge and permission-free system actions included (§3.3, G1).
   if (isTaskGrantSubject(caller.actor_id)) return false;
   if (view.provider.kind === "system" && view.action.permissions.length === 0) return true;
   if (actionClientAudience(caller.actor_id) !== "agent" || !caller.project_id) return false;
   if (view.operation !== "query" || view.action.kind !== "query") return false;
   if (view.provider.provider_id === KNOWLEDGE_PROVIDER_ID && view.provider.kind === "system") return true;
+  // The Host's own round composition is the authority for that round's `system.skills` reads (specs/capability-pack/contract-design.md §2.3,
+  // SKP-10): a caller carries `skill_round` only on the Host's calls (agent-round-skills.ts, agent-host-composition.ts), and the catalog checks
+  // the round's consumer and named list itself. Queries only; a Skill's setting stays the person's.
+  if (caller.skill_round && view.provider.provider_id === SKILLS_PROVIDER_ID && view.provider.kind === "system") return true;
   return view.provider.project_id === caller.project_id && (isSubjectReader(view.action) || isSearchEntriesSource(view.action));
 }
 

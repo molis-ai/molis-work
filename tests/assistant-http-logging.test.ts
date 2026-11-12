@@ -225,7 +225,7 @@ test("RAC-116-01: a settlement storage failure keeps the real HTTP notice and lo
     const empty = await f.request("/api/assistant/notices"); assert.equal(empty.status, 200); assert.deepEqual((await empty.json()).notices, []);
     const work = f.store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: PRIVATE_TEXT, scope: { kind: "personal" }, origin: null });
     await f.service.list();
-    const notice = f.store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { work_id: work.work_id, work_title: PRIVATE_TEXT, kind: "completed", text: PRIVATE_TEXT }, "catch-notice");
+    const notice = f.store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { work_id: work.work_id, work_title: PRIVATE_TEXT, kind: "completed", text: { original: PRIVATE_TEXT } }, "catch-notice");
     assert.ok(notice);
     // Only the result owner's observation is supplied; the settlement service, its failed write and persisted notice are real.
     t.mock.method(f.service.reads, "workObjects", async () => [{ relation: "result", subject: { kind: "note", id: "result" }, title: "result", recorded_revision: "1",

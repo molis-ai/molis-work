@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ModelApiFormat } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import type { ModelTemplateChoice } from "@molis-ai/molis-work-app-workbench";
 
@@ -18,17 +19,15 @@ import type { ModelTemplateChoice } from "@molis-ai/molis-work-app-workbench";
 interface ModelProviderTemplate {
   /** Lower-case key used in the settings address (`?template=`). Not a provider id: saving mints a fresh one. */
   template_id: string;
-  /**
-   * The name shown on the choice and saved as the provider's name. Written the way every interface text is: the
-   * Chinese wording is the key the UI translator looks up (English lives in the Workbench's dictionary); a brand name
-   * with no Chinese in it is the same in every language.
-   */
+  /** The brand or the default title placed in the editable name field. */
   display_name: string;
+  /** A platform label for template names that vary with the language. */
+  display_name_key?: string;
   base_url: string;
   api_format: ModelApiFormat;
   /** Model names the provider keeps stable (aliases). Empty when we cannot promise one: the person types it. */
   model_ids: readonly string[];
-  /** Where the person gets a key: the console and its section, as a Chinese key the UI translates (no link to follow blind). */
+  /** Where the person gets a key: the console and its section, as a stable interface key (no link to follow blind). */
   key_hint: string;
 }
 
@@ -40,7 +39,7 @@ interface ModelProviderTemplate {
  */
 export const MINIMAX_ANTHROPIC_BASE_URL = "https://api.minimax.cn/anthropic";
 
-const ANY_CONSOLE = "在你用的服务的控制台里找 API 密钥";
+const ANY_CONSOLE = "workbench.settings-models.find-api-key-services-console";
 
 /**
  * The common providers, one entry per address, plus one blank form for each request shape the product speaks.
@@ -60,23 +59,23 @@ const ANY_CONSOLE = "在你用的服务的控制台里找 API 密钥";
  */
 export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
   { template_id: "anthropic", display_name: "Anthropic", base_url: "https://api.anthropic.com", api_format: "anthropic-messages", model_ids: [],
-    key_hint: "在 Anthropic Console（console.anthropic.com）的 API Keys 里新建一把" },
+    key_hint: "workbench.model-provider-template.anthropic-key" },
   { template_id: "openai", display_name: "OpenAI", base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions", model_ids: [],
-    key_hint: "在 OpenAI 平台（platform.openai.com）的 API keys 里新建一把" },
+    key_hint: "workbench.model-provider-template.openai-key" },
   { template_id: "deepseek", display_name: "DeepSeek", base_url: "https://api.deepseek.com", api_format: "openai-chat-completions", model_ids: ["deepseek-flash"],
-    key_hint: "在 DeepSeek 开放平台（platform.deepseek.com）的 API keys 里新建一把" },
+    key_hint: "workbench.model-provider-template.deepseek-key" },
   { template_id: "minimax", display_name: "MiniMax", base_url: MINIMAX_ANTHROPIC_BASE_URL, api_format: "anthropic-messages", model_ids: ["MiniMax-M3"],
-    key_hint: "在 MiniMax 开放平台（platform.minimax.cn）的接口密钥里新建一把" },
-  { template_id: "qwen", display_name: "通义千问（阿里云）", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: [],
-    key_hint: "在阿里云百炼控制台（bailian.console.aliyun.com）的 API Key 里新建一把" },
-  { template_id: "kimi", display_name: "Kimi（月之暗面）", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [],
-    key_hint: "在 Kimi 开放平台（platform.moonshot.cn）的 API Key 管理里新建一把" },
-  { template_id: "glm", display_name: "GLM（智谱）", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [],
-    key_hint: "在智谱开放平台（bigmodel.cn）的 API Keys 里新建一把" },
+    key_hint: "workbench.model-provider-template.minimax-key" },
+  { template_id: "qwen", display_name: "通义千问（阿里云）", display_name_key: "workbench.model-provider-template.qwen-name", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "workbench.model-provider-template.qwen-key" },
+  { template_id: "kimi", display_name: "Kimi（月之暗面）", display_name_key: "workbench.model-provider-template.kimi-name", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "workbench.model-provider-template.kimi-key" },
+  { template_id: "glm", display_name: "GLM（智谱）", display_name_key: "workbench.model-provider-template.glm-name", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "workbench.model-provider-template.glm-key" },
   { template_id: "openrouter", display_name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", api_format: "openai-chat-completions", model_ids: [],
-    key_hint: "在 OpenRouter（openrouter.ai）的 Keys 里新建一把" },
-  { template_id: "anthropic-compatible", display_name: "Anthropic 兼容", base_url: "", api_format: "anthropic-messages", model_ids: [], key_hint: ANY_CONSOLE },
-  { template_id: "openai-compatible", display_name: "OpenAI 兼容", base_url: "", api_format: "openai-chat-completions", model_ids: [], key_hint: ANY_CONSOLE },
+    key_hint: "workbench.model-provider-template.openrouter-key" },
+  { template_id: "anthropic-compatible", display_name: "Anthropic 兼容", display_name_key: "workbench.model-provider-template.anthropic-compatible-name", base_url: "", api_format: "anthropic-messages", model_ids: [], key_hint: ANY_CONSOLE },
+  { template_id: "openai-compatible", display_name: "OpenAI 兼容", display_name_key: "workbench.model-provider-template.openai-compatible-name", base_url: "", api_format: "openai-chat-completions", model_ids: [], key_hint: ANY_CONSOLE },
 ];
 
 /**
@@ -84,7 +83,7 @@ export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
  * the address a saved provider has. A provider at an address no template has is told to look in its own service's console.
  */
 export function modelKeyHint(baseUrl: string, templateId?: string | null): string {
-  return templateAt(baseUrl, templateId)?.key_hint ?? ANY_CONSOLE;
+  return uiText.text(templateAt(baseUrl, templateId)?.key_hint ?? ANY_CONSOLE);
 }
 
 /** Whether the address is the one a template fills in, so the page may say the template filled it (and not of a custom one). */
@@ -105,11 +104,16 @@ export function modelProviderTemplate(templateId: string | null | undefined): Mo
   return MODEL_PROVIDER_TEMPLATES.find((template) => template.template_id === templateId) ?? null;
 }
 
+/** The translated suggestion is resolved only when the person sees the template, before they can edit it. */
+export function modelTemplateName(template: ModelProviderTemplate): string {
+  return template.display_name_key ? uiText.text(template.display_name_key) : template.display_name;
+}
+
 /** What the settings page is given: the name to draw and what the template fills in, never an address or a model name. */
 export function modelTemplateChoices(): readonly ModelTemplateChoice[] {
   return MODEL_PROVIDER_TEMPLATES.map((template) => ({
     template_id: template.template_id,
-    display_name: template.display_name,
+    display_name: modelTemplateName(template),
     fills_base_url: template.base_url !== "",
     fills_model: template.model_ids.length > 0,
   }));

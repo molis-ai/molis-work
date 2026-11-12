@@ -38,20 +38,20 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
     pop.hidden = false;
     pop.replaceChildren();
     const lead = document.createElement("p");
-    lead.textContent = t(options.translate, "候选");
+    lead.textContent = t(options.translate, "pages.editor.draft");
     const area = document.createElement("textarea");
     area.className = "mw-input";
     area.rows = 8;
     area.value = result.text;
     pop.append(lead, area);
     const refuse = () => {
-      lead.textContent = t(options.translate, "这段内容在等待期间被改动，没有写入。请重新选择后再试。");
+      lead.textContent = t(options.translate, "pages.editor.this-content-changed-while-waiting-so-nothing-was-written");
       lead.className = "pages-pop-error";
     };
     const dismiss = () => { if (token) releasePagesFrozen(view, token); hidePop(); };
     pop.append(actions(options.translate, () => {
       if (command === "translate_new") {
-        void options.onCreateFromAi?.({ title: t(options.translate, "翻译"), text: area.value });
+        void options.onCreateFromAi?.({ title: t(options.translate, "pages.editor.translation"), text: area.value });
       } else if (!token) {
         replaceSelectionText(view, area.value);
       } else if (command === "proofread") {
@@ -74,8 +74,8 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
         view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(end), -1)));
       }
       hidePop();
-    }, dismiss, command === "translate_new" ? t(options.translate, "存为新文档") : okLabel));
-    placePop(view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below", t(options.translate, "候选"), true);
+    }, dismiss, command === "translate_new" ? "pages.editor.save-as-a-new-page" : okLabel));
+    placePop(view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below", t(options.translate, "pages.editor.draft"), true);
   };
 
   const runAiCommand = async (view: EditorView, command: string, style?: string, preset?: PagesCommandPreset) => {
@@ -89,8 +89,8 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
       const focus = readPagesFocus(view.state);
       if (!focus || focus.local_id !== preset.localId) {
         showPop();
-        pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(t(options.translate, "选中的内容已经变了，请重新选择后再试。"))}</p>`;
-        placePop(view.coordsAtPos(view.state.selection.from), "below", t(options.translate, "写作"));
+        pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(t(options.translate, "pages.editor.what-you-had-selected-has-changed-select-it-again"))}</p>`;
+        placePop(view.coordsAtPos(view.state.selection.from), "below", t(options.translate, "pages.editor.write"));
         return;
       }
       // A comparison acts on the part selected last; the part set aside stays as it is.
@@ -111,9 +111,9 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
     if (state.token && state.token !== token) releasePagesFrozen(view, state.token);
     state.token = token;
     const request = ++state.request;
-    pop.innerHTML = `<p>${escapeHtml((preset?.title ? preset.title + " · " : "") + t(options.translate, "正在处理"))}</p>`;
+    pop.innerHTML = `<p>${escapeHtml((preset?.title ? preset.title + " · " : "") + t(options.translate, "pages.editor.working"))}</p>`;
     // Started from outside the editor (the context toolbar): the popup opens under the toolbar, or at the frozen range when there is none.
-    if (preset) placePop(view.coordsAtPos(range?.from ?? view.state.selection.from), "below", preset.title || t(options.translate, "写作"), true);
+    if (preset) placePop(view.coordsAtPos(range?.from ?? view.state.selection.from), "below", preset.title || t(options.translate, "pages.editor.write"), true);
     try {
       // The exact command may come from the offer the Host prepared for this very selection.
       const actual: { command: string; style?: string; text?: string } = preset?.prepare ? await preset.prepare() : { command, style };
@@ -125,7 +125,7 @@ export function createEditorAi(popup: EditorPopup, options: PagesEditorMountOpti
     } catch (error) {
       if (token) releasePagesFrozen(view, token);
       if (request !== state.request) return;
-      pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(error instanceof Error ? error.message : t(options.translate, "写作失败"))}</p>`;
+      pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(error instanceof Error ? error.message : t(options.translate, "pages.editor.could-not-write"))}</p>`;
     }
   };
 

@@ -1,5 +1,4 @@
-import { imText as L } from "../locale.js";
-import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImMessagePage, ImReadState, ImMarkReadInput } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -78,7 +77,7 @@ export function createImComposer(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     const c = context();
     const draft = drafts.get(c.target(kind)), node = q('[data-quote="' + kind + '"]');
     node.hidden = !draft?.quote_id;
-    node.innerHTML = draft?.quote_id ? ("<span>" + escapeImText(L("引用 "))) + e(draft.quote_author) + '：' + e(draft.quote_body) + ("</span><button type=\"button\" data-action=\"cancel-quote\" aria-label=\"" + escapeImText(L("取消引用")) + "\">") + icon('x') + '</button>' : '';
+    node.innerHTML = draft?.quote_id ? `<span>${uiText("im-ui.message.quote-draft", { author: draft.quote_author ?? "" })}<span translate="no">${e(draft.quote_body)}</span></span><button type="button" data-action="cancel-quote" aria-label="${uiText("im-ui.message.remove-quote")}">${icon('x')}</button>` : '';
   }
   function quoteMessage(id: string) {
     const c = context();

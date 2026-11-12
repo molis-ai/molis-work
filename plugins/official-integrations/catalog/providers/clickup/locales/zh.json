@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.clickup",
+  "locale": "zh",
+  "messages": {
+    "clickup.connection.auth-help": "ClickUp Settings → Apps 里的 API token。请求头是 Authorization，不加 Bearer。",
+    "clickup.connection.inbound": "Feed 拉任务与文档",
+    "clickup.connection.summary": "任务与文档。",
+    "clickup.connection.token-label": "ClickUp API Token",
+    "clickup.guide.mcp-connected-note": "ClickUp 官方 MCP 处于公开 Beta。",
+    "clickup.guide.mcp-link": "查看 ClickUp 官方 MCP",
+    "clickup.guide.mcp-note": "ClickUp 官方 MCP 处于公开 Beta；Molis Work 尚未接入。",
+    "clickup.guide.oauth-link": "查看 ClickUp OAuth",
+    "clickup.setup.open-clickup-apps-settings": "打开 ClickUp Apps 设置"
+  }
+}

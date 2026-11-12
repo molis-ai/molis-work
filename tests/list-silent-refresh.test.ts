@@ -139,8 +139,8 @@ test("Feed / Inbox 成功路径由当前 owner 刷新，宿主只投递失效通
   assert.match(feed, /host\.showToast\(molisWorkRequest\.text\(error\), true\)/);
   assert.match(inbox, /host\.showToast\(molisWorkRequest\.text\(error\), true\)/);
   // PG-071 / #1308 N3: each owner translates its own refresh failure.
-  assert.match(feed, /host\.translate\("无法更新 Feed 列表"\)/);
-  assert.match(inbox, /L\("无法更新 Inbox 列表"\)/);
+  assert.match(feed, /if \(!next\) throw new Error\(uiText\.text\("feed\.factory\.could-not-refresh-feed"\)\);/);
+  assert.match(inbox, /if \(!next\) throw new Error\(uiText\.text\("inbox\.client\.could-not-refresh-inbox-list"\)\);/);
 });
 
 test("Inbox fragment and Schedule isolated view refresh retain their presentation boundaries", async () => {

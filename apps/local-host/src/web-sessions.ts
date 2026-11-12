@@ -6,6 +6,7 @@ import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { controlTokenMatches } from "./web-control-token.js";
 
 export const WEB_PAGE_SESSION_HEADER = "x-molis-work-page-session";
+export const UI_LANGUAGE_PREVIEW_HEADER = "x-molis-work-ui-locale";
 const COOKIE_PREFIX = "molis-work-web-";
 const TTL = 8 * 60 * 60 * 1000;
 
@@ -82,7 +83,7 @@ export class WebSessions {
     const url = new URL(request.url ?? "/", "http://localhost");
     const page = request.method === "GET" && !/^(?:\/api(?:\/|$)|\/projects\/[^/]+\/api(?:\/|$)|\/assets\/|\/health$|\/locale$|\/account\/callback$)/.test(url.pathname);
     const site = request.headers["sec-fetch-site"], source = request.headers.origin;
-    const trustedPage = request.headers["x-molis-work-control-token"] === undefined && site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";
+    const trustedPage = request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined && request.headers["x-molis-work-control-token"] === undefined && site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";
     if (response && origin && page && trustedPage && (!session || session.scope !== webPageScope(expected))) {
       if (session) this.remove(session);
       session = this.create(origin, expected);
@@ -153,16 +154,29 @@ export function webSocketAuthority(request: IncomingMessage, control: string, pr
 }
 
 export function webPageToken(request: IncomingMessage): string { return requestSessions.get(request)?.owner.pageToken(request) ?? ""; }
+/** A trusted browser document is fetching a page projection, never an opaque child or a CLI credential. */
+export function shellPageRead(request: IncomingMessage, origin: string): boolean {
+  const context = requestSessions.get(request);
+  return !!context && context.owner.accepts(context, request.headers[WEB_PAGE_SESSION_HEADER])
+    && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined
+    && request.headers["x-molis-plugin-page"] === undefined && request.headers["x-molis-context-page"] === undefined
+    && (request.headers.origin === undefined || request.headers.origin === origin)
+    && (request.headers["sec-fetch-site"] === undefined || request.headers["sec-fetch-site"] === "same-origin");
+}
+
 export function revokeWebSession(request: IncomingMessage): void { requestSessions.get(request)?.owner.revoke(request); }
 
 export function withWebSessionRequest<T>(request: IncomingMessage, operation: () => T): T { return currentRequest.run(request, operation); }
 
 /** Capture before any await; later effects never borrow a new session or a new account. */
-export function captureWebSessionAuthority(): () => void {
+export function captureWebSessionAuthority(): (reader?: IncomingMessage) => void {
   const request = currentRequest.getStore(), context = request ? requestSessions.get(request) : undefined;
-  if (!context?.session) return () => {};
-  const proof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? context.session.proof;
-  return () => {
-    if (!context.owner.accepts(context, proof)) throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
+  const capturedProof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? context?.session?.proof;
+  return reader => {
+    const current = reader ? requestSessions.get(reader) : context;
+    const proof = reader ? reader.headers[WEB_PAGE_SESSION_HEADER] : capturedProof;
+    if (!reader && !context?.session) return;
+    if (!current || !context?.session || current.owner !== context.owner || current.session !== context.session || !current.owner.accepts(current, proof))
+      throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
   };
 }

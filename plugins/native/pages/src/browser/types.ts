@@ -15,7 +15,7 @@ declare global {
 }
 
 /** What the workbench hands the Pages client: the shared host fields it uses, and the page frame's own view, messages and lifetime. */
-export interface PagesHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "translate" | "route" | "pluginRoute" | "pluginId" | "projectId" | "readRefusal" | "confirmBox" | "invokeAction" | "download" | "printDocument"> {
+export interface PagesHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "route" | "pluginRoute" | "pluginId" | "projectId" | "readRefusal" | "confirmBox" | "invokeAction" | "download" | "printDocument"> {
   /** The contextual side view of the comments, not the document page. */
   readonly side?: boolean;
   readonly messages: UiPageMessages;

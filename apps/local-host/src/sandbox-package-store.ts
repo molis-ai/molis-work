@@ -34,7 +34,7 @@ export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt
     design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
-    packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
+    packaged: { manifest, localePacks: pkg.localePacks, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
       trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }
@@ -75,6 +75,27 @@ export class SandboxPackageStore {
       } catch { /* not a package directory */ }
     }
     return undefined;
+  }
+
+  /**
+   * When each retained release of this publisher's plugin was kept, read from its bundle without verifying it: display data for the AI
+   * kit's 「上次升级」 (capability-pack §4.2), never an installation record. One entry per kept release of this plugin and publisher; a
+   * directory it cannot read is skipped, as `scopeOf` does, so a foreign directory cannot fail a listing.
+   */
+  retainedVersions(pluginId: string, keyId: string): Array<{ version: string; saved_at: string }> {
+    const root = join(this.home, 'plugin-packages');
+    if (!existsSync(root)) return [];
+    const versions: Array<{ version: string; saved_at: string }> = [];
+    for (const name of readdirSync(root)) {
+      const path = join(root, name, BUNDLE_FILE);
+      try {
+        if (!lstatSync(path, { throwIfNoEntry: false })) continue;
+        const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
+        if (payload.manifest.plugin_id !== pluginId || payload.manifest.publisher.signature !== keyId) continue;
+        versions.push({ version: payload.manifest.version, saved_at: statSync(path).mtime.toISOString() });
+      } catch { /* not a package directory this build can read: display data, not a refusal */ }
+    }
+    return versions;
   }
 
   /** All retained releases of this publisher's plugin, verified through the same reader as installations; uninstall keeps these bytes. */

@@ -1,8 +1,8 @@
-import type { UiClientScope, UiClientTranslate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientScope, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { Issue, IssueCursor, IssueImage, IssueSummary } from "../store.js";
+import type { IssueNote } from "./note.js";
 
 export type { Issue, IssueCursor, IssueImage, IssueSummary };
-export type Translate = UiClientTranslate;
 
 /** The common request lifetime plus the mounted page's event and timer ownership. */
 export interface Scope extends UiClientScope {
@@ -16,7 +16,7 @@ export interface PageReport { readonly url: string; readonly title: string }
 
 /** What the workbench hands the Issue page's client. */
 export type IssuesHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
-  "root" | "translate" | "route" | "pluginRoute" | "pluginId" | "drafts" | "confirmBox" | "readRefusal"> & {
+  "root" | "route" | "pluginRoute" | "pluginId" | "drafts" | "confirmBox" | "readRefusal"> & {
   mountPluginClient(root: HTMLElement): Scope | null;
   status?(state: string): void;
   page?(): PageReport | null | undefined;
@@ -31,7 +31,8 @@ export interface Pending {
   page: PageReport | null;
   at: number;
   state?: CaptureState;
-  note?: string;
+  note?: IssueNote;
+  missingShots?: boolean;
   kind?: "failed" | "question";
   restored?: boolean;
   manual?: boolean;
@@ -110,7 +111,6 @@ export interface IssuesState {
 export interface IssuesPage {
   readonly host: IssuesHost;
   readonly scope: Scope;
-  readonly L: Translate;
   readonly el: IssuesElements;
   readonly state: IssuesState;
   readonly mac: boolean;
@@ -122,7 +122,7 @@ export interface IssuesPage {
   toast(text: string, action?: string, then?: (() => Promise<void>) | null, failed?: boolean): void;
   primary(key: string, yes?: boolean): void;
   confirm(title: string, text: string, label: string, run?: () => Promise<unknown>): Promise<boolean>;
-  flag(text?: string): void;
+  flag(text?: string, models?: boolean): void;
   pick(type?: string): void;
   fit(area: HTMLElement): void;
   values(): EditorData;

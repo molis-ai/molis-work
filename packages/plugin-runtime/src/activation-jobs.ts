@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ActionError, defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, type ActionCallContext, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   assertCapturedPluginActionCurrent, assertPluginPermissionChecks, currentPluginInvocation, inPluginInstance, lastBegunPluginInvocation, outsidePluginAction, pluginActionChecked, pluginInvocationReadOnly, reservePluginInvocationPlace, runInPluginJob,
@@ -15,6 +15,7 @@ const SWEEP_MS = 200;
 
 /** What the Host tells one activation's jobs (PG-038). */
 export interface ActivationJobGate extends PluginInstance {
+  readonly activation?: PluginInstance;
   /** Who the installation acts as in this activation, the Host's word: a job's calls are the installation's, never its caller's. */
   readonly actor_id: string;
   /** The activation's project: a project instance's own; none for a Home instance. */
@@ -25,7 +26,7 @@ export interface ActivationJobGate extends PluginInstance {
   /** Reads the installation's record again: the same installation and generation as at activation, not stopped, granting these. */
   assertInstallationCurrent(permissions: readonly string[]): void;
   /** Runs a job as an operation of its own (the Host gives it a call id of its own). */
-  operation?<T>(run: () => Promise<T>): Promise<T>;
+  operation?<T>(run: (locale?: ActionLocale) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -93,11 +94,12 @@ export function createActivationJobs(gate: ActivationJobGate) {
       permissions: Object.freeze([...declaration.permissions]), signal: controller.signal, assert_authority_current: () => check() });
     const control: PluginJobControl = Object.freeze({ job, signal: controller.signal, beforeEffect: async () => check(), assert_authority_current: () => check(),
       ...(project ? { project_id: project } : {}) });
-    const scope = { install_id: gate.install_id, installation_generation: gate.installation_generation, job, caller, permission_checks, begun: begun ?? reservePluginInvocationPlace() };
+    const scope = { install_id: gate.install_id, installation_generation: gate.installation_generation, activation: gate.activation,
+      job, caller, permission_checks, begun: begun ?? reservePluginInvocationPlace() };
     check();
     jobs.set(controller, { project, check });
     if (!timer) { timer = outsidePluginAction(() => setInterval(sweep, SWEEP_MS)); timer.unref?.(); }
-    const run = () => outsidePluginAction(() => runInPluginJob(scope, () => work(control)));
+    const run = (locale?: ActionLocale) => outsidePluginAction(() => runInPluginJob({ ...scope, caller: { ...caller, locale } }, () => work(control)));
     const stopped = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
     const pending = Promise.resolve().then(() => outsidePluginAction(() => { check(); return gate.operation ? gate.operation(run) : run(); }));
     settling.set(pending, project);

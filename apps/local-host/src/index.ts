@@ -157,7 +157,7 @@ export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "
 
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
-export { installedStageSection } from "./installed-stage-section.js";
+export { installedStageSection } from "./workbench-renderer.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
@@ -399,7 +399,9 @@ export { verifySyncPluginDistribution } from "./sync-distribution.js";
 
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
 
-export { WebSessions } from "./web-sessions.js";
+export { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
+export { handlePageLocales } from "./web-ui-locales.js";
+export { registeredBuiltinText } from "./ui-text-provider.js";
 
 export { currentNamedSkills, roundSkillCatalog, type RoundSkillReaders } from "./agent-round-skills.js";
 export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";

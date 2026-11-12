@@ -1,3 +1,4 @@
+import { pageText } from "./fixtures/page-text.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
@@ -10,7 +11,7 @@ import test from "node:test";
 
 import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
-  pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
+  deferredSurfaceClients, pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -192,7 +193,7 @@ import {
   renderMolisWorkWorkbenchClientScript,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-pages";
@@ -273,6 +274,11 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 }
 
 // W5-10-PGC-01/02, W5-10-PGV-01/02: public imports and the built editor exercise the split commands and node views.
+const pagesWords = pageText("zh", "pages");
+function placeholderText(pos: Parameters<typeof blockPlaceholder>[0]): string {
+  const key = blockPlaceholder(pos); return key ? pagesWords(key) : "";
+}
+
 test("标题里按回车落到正文开头", () => {
   const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
   assert.equal(docStart(blank), 1);
@@ -551,13 +557,13 @@ test("Pages 是个人插件，不进项目启用名单", () => {
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
-  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages");
+  const market = runWithLocale("zh", () => pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages"));
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
+  const owner = runWithLocale("zh", () => renderMolisWorkWeb(withHostPluginFacts(emptyView())));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);
@@ -565,7 +571,10 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages-confirm/);
   // The editor kernel loads with Pages' own client when its surface opens, not with every page (#150).
   assert.doesNotMatch(html, /molis-work-pages-editor\.js/);
-  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages","io\.molis\.work\.pages","pages",\["\/assets\/molis-work-pages-editor\.js"\]/);
+  const client = deferredSurfaceClients().find(row => row.id === "pages");
+  assert.equal(client?.plugin_id, "io.molis.work.pages");
+  assert.equal(client.bundle, "pages");
+  assert.ok(client.assets.includes("/assets/molis-work-pages-editor.js"));
   assert.ok(pluginWorkbenchClientAsset("pages"), "Pages' client is served on its own");
   const contents = pluginDocuments(owner).join("\n");
   const pages = contents.slice(contents.indexOf('data-pages="workbench"'), contents.indexOf("data-pages-confirm"));
@@ -649,7 +658,9 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /applyHeading/);
   assert.match(source, /headingLevelAt/);
   assert.match(source, /listKindAt/);
-  assert.match(source, /\\u5199\\u4EE3\\u7801/);
+  assert.match(source, /pages\.editor\.code["']/u);
+  assert.equal(pageText("zh", "pages")("pages.editor.code"), "写代码");
+  assert.equal(pageText("en", "pages")("pages.editor.code"), "Code");
   assert.match(PAGES_STYLES, /:is\(p, h1, h2, h3, code, pre\.pages-code\)\.is-empty::before/);
   assert.match(source, /data-pages-bookmark/);
   assert.match(source, /Mod-Alt-ArrowLeft/);
@@ -1594,7 +1605,7 @@ test("敲 > 空格变成引用，连续的引用行粘在同一块里", () => {
   const holder = pagesSchema.node("doc", null, [
     pagesSchema.node("blockquote", null, [pagesSchema.node("paragraph")]),
   ]);
-  assert.equal(blockPlaceholder(holder.resolve(2)), "引用");
+  assert.equal(placeholderText(holder.resolve(2)), "引用");
   const rendered = pagesSchema.nodes.blockquote.spec.toDOM?.(holder.child(0));
   assert.equal(Array.isArray(rendered) ? rendered[0] : "", "blockquote");
   assert.equal(Array.isArray(rendered) ? (rendered[1] as { class?: string }).class : "", "pages-quote");
@@ -3644,7 +3655,7 @@ test("分栏并排两栏，可以再加一栏，取消后正文按顺序留下",
   assert.equal(opened.doc.child(0).type.name, "column_list");
   assert.equal(opened.doc.child(0).childCount, 2);
   assert.equal(opened.doc.child(0).child(0).type.name, "column");
-  assert.equal(blockPlaceholder(opened.selection.$from), "这一栏");
+  assert.equal(placeholderText(opened.selection.$from), "这一栏");
 
   const wider = opened.apply(addColumn(opened, 0)!);
   assert.equal(wider.doc.child(0).childCount, 3);
@@ -4929,13 +4940,13 @@ test("占位按块型和它的容器给词，写了字就不再提示", () => {
     const state = pagesState(pagesSchema.node("doc", null, [block]));
     // Land the caret in the first text position, which is where a typing user sits.
     const caret = TextSelection.near(state.doc.resolve(1));
-    assert.equal(blockPlaceholder(caret.$from), expected, name);
+    assert.equal(placeholderText(caret.$from), expected, name);
   }
 
   const written = pagesState(pagesSchema.node("doc", null, [
     pagesSchema.node("paragraph", null, [pagesSchema.text("已经写了字")]),
   ]));
-  assert.equal(blockPlaceholder(written.doc.resolve(1)), "", "有内容的块不该出现占位");
+  assert.equal(placeholderText(written.doc.resolve(1)), "", "有内容的块不该出现占位");
 
   const cell = pagesState(pagesSchema.node("doc", null, [
     pagesSchema.node("table", null, [
@@ -4945,7 +4956,7 @@ test("占位按块型和它的容器给词，写了字就不再提示", () => {
       ]),
     ]),
   ]));
-  assert.equal(blockPlaceholder(TextSelection.near(cell.doc.resolve(1)).$from), "", "表格单元格不给占位");
+  assert.equal(placeholderText(TextSelection.near(cell.doc.resolve(1)).$from), "", "表格单元格不给占位");
 });
 
 test("Mod-A 先圈住当前块，再按才铺到整篇", () => {

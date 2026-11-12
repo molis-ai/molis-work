@@ -46,16 +46,6 @@ export function docText(node: unknown): string {
   return typeof text === "string" ? text : Array.isArray(content) ? content.map(docText).join(type === "doc" ? "\n" : "") : "";
 }
 
-export function formatTime(value: string | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear
-    ? { month: "short", day: "numeric" }
-    : { year: "numeric", month: "short", day: "numeric" });
-}
-
 /** True for a document node with nothing but empty paragraphs (and no text beyond blanks). */
 export function blank(node: unknown): boolean {
   const { type, text, content } = node as { type?: string; text?: string; content?: unknown[] };

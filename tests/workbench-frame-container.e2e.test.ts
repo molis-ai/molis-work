@@ -65,7 +65,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const item = feed.ingestItem({ source, externalId: "native-frame-drag", title: "Actual opaque drag", summary: "Owner display fields", body: "Original material", occurredAt: now, attention: false }).item;
   const inboxEntry = feed.ensureInboxEntryForFeedItem(projectId!, item.item_id, "manual").entry;
   for (let index=0;index<8;index++) feed.ingestItem({ source, externalId: "drag-scroll-"+index, title: "Other drag material "+index, summary: "Actual rows make the source list scroll", occurredAt: new Date(Date.parse(now)-(index+1)*1000).toISOString(), attention: false });
-  await pluginFrameInitScript(t, b, `addEventListener('message',event=>{if(event.data?.type==='molis:plugin-connect'){window.t403Port=event.ports[0];t403Port.addEventListener('message',event=>{if(event.data?.type==='frame-asset-source')window.t403Handle=event.data.handle})}});
+  await pluginFrameInitScript(t, b, `const receive=MessagePort.prototype.addEventListener;MessagePort.prototype.addEventListener=function(type,listener,options){if(type==='message')receive.call(this,type,event=>{if(event.data?.type==='molis:plugin-connect'){window.t403Port=event.ports[0];receive.call(t403Port,'message',event=>{if(event.data?.type==='frame-asset-source')window.t403Handle=event.data.handle})}},{once:true});return receive.call(this,type,listener,options)};
     window.t403OpaqueTrace=[];window.t403Reads={pending:0,total:0,trace:[],pendingIds:new Set()};
     window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=['feed','inbox'].includes(key)?host=>{
       window.t403Host=host;const read=host.view.readDocument;
@@ -140,6 +140,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await child.evaluate(`document.querySelector('[data-feed-search]').value='no matching drag source';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))`);
   await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
   await child.evaluate("document.querySelector('[data-feed-search]').value='';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))");
+  await child.waitFor(`document.querySelector('[data-frame-asset-id="${item.item_id}"]')`);
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`); await sourceHandle();
   await child.evaluate(`(() => {const row=document.querySelector('[data-frame-asset-id="${item.item_id}"]'),list=row.closest('.feed-stage-tree');list.scrollTop=row.getBoundingClientRect().top-list.getBoundingClientRect().top<list.clientHeight/2?list.scrollHeight:0;})()`);
   await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
@@ -378,6 +379,11 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const inbox = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, feedItem.item.item_id, "manual");
   const archived = feed.ingestItem({ source, externalId: "frame-archived", title: "已忽略的 Frame 材料", summary: "隐藏筛选仍可引用", occurredAt: now, attention: false }).item;
   feed.setDisposition(DEMO_PROJECT_ID, archived.item_id, "archived");
+  // FBR-05: the cold picker traverses beyond the first owner page, including archived metadata, without mounting its client.
+  store.db.transaction(() => {
+    for (let n = 0; n < 201; n++) feed.ingestItem({ source, externalId: `picker-page-${n}`, title: `Picker page ${n}`,
+      summary: "Metadata only", occurredAt: new Date(Date.parse(now) + 1000 + n).toISOString(), attention: false });
+  })();
   const historyItem = feed.ingestItem({ source, externalId: "frame-history", title: "已处理的 Frame 事项", summary: "保留历史引用", occurredAt: now, attention: false }).item;
   const history = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, historyItem.item_id, "manual").entry;
   feed.setInboxEntryStatus(DEMO_PROJECT_ID, history.entry_id, "done");
@@ -417,6 +423,14 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.equal(await evaluate("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').length"), 1);
   // RAC-2516/2517: a cold picker reads every authorized owner without mounting either opaque client.
   assert.equal(await evaluate("document.querySelector('iframe[data-plugin-frame=feed],iframe[data-plugin-frame=inbox]')"), null);
+  // FBR-05/FBR-06: refusal on a later owner page cannot leave first-page candidates available.
+  await evaluate(`{const original=window.fetch;window.__refuseFeedPage=true;window.fetch=(url,options)=>window.__refuseFeedPage&&String(url).includes('/api/stage/feed?')&&new URL(String(url),location.href).searchParams.get('offset')==='200'?Promise.resolve(new Response(JSON.stringify({error:'Owner page refused',code:'actions.forbidden'}),{status:403,headers:{'content-type':'application/json'}})):original(url,options);}`);
+  await click('.frame-goal-actions [data-frame-add-content]');
+  await waitFor("document.querySelector('[data-frame-picker]').open");
+  assert.equal(await evaluate("document.querySelectorAll('[data-frame-picker-asset^=\"feed:\"]').length"), 0, "a later refusal discards this owner's entire candidate projection");
+  assert.equal(await evaluate(`!!document.querySelector('[data-frame-picker-asset="inbox:${history.entry_id}"]')`), true, "other authorized owners remain available");
+  await click('[data-frame-picker-close]');
+  await evaluate("window.__refuseFeedPage=false");
   await click('.frame-goal-actions [data-frame-add-content]');
   await waitFor("document.querySelector('[data-frame-picker]').open");
   for (const value of ['feed:' + archived.item_id, 'inbox:' + history.entry_id, 'inbox:' + decision.entry_id]) {

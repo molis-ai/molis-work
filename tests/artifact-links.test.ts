@@ -11,6 +11,7 @@ import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAc
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { artifactBrowserUiContribution } from "@molis-ai/molis-work-app-workbench";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
+import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the objects that use a version, by how. An Agent's proposal to use a version
 // as a Goal's input is a Goal edge like any other; it is listed with its Goal, not counted as an anonymous other link. Since
@@ -59,9 +60,13 @@ test("RAC-2080: a Goal's proposed input, deliverable and confirmed ones are each
 
   // The detail page names it.
   const selected = artifacts.query.getArtifactVersion(projectId, { artifact_id: "input-proposed", version: 1 })!;
-  const html = artifactBrowserUiContribution.render({ surface: "detail", model: { view: { versions: [selected], selected, requested: null, compatibility: null }, routePrefix: "",
-    links: await links("input-proposed"), primitives: { escape: (value: string) => value, text: (value: string) => value, formatDate: (value: string) => value } } } as never);
-  assert.match(String(html), /<h3 class="artifact-links-heading">Goals<\/h3><ul data-artifact-linked-plugin="io\.molis\.work\.goals"><li><a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="G1" data-workbench-item-title="Goal G1">Goal G1<\/a><span>提议的输入<\/span>/u);
+  const packs = chinesePagePacks();
+  const proposedLinks = await links("input-proposed");
+  const html = withPagePacks("zh", packs, () => artifactBrowserUiContribution.render({
+    surface: "detail", model: { view: { versions: [selected], selected, requested: null, compatibility: null }, routePrefix: "",
+      links: proposedLinks, primitives: { escape: (value: string) => value, text: pageTextForPacks("zh", packs), formatDate: (value: string) => value } },
+  } as never));
+  assert.match(String(html), /<h3 class="artifact-links-heading">Goals<\/h3><ul data-artifact-linked-plugin="io\.molis\.work\.goals"><li><a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="G1" data-workbench-item-title="Goal G1" translate="no">Goal G1<\/a><span>提议的输入<\/span>/u);
   assert.doesNotMatch(String(html), /\/goals\//u, "RAC-2085: a row opens as a workbench item, never by a Goals address");
 });
 

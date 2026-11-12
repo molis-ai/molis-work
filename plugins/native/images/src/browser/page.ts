@@ -2,6 +2,8 @@ import { firstCharacters, required, remembered } from "./dom.js";
 import { imagesRequest } from "./request.js";
 import type { Draft, Elements, ImagesHost, ImagesPage, ImagesState, Scope } from "./types.js";
 
+const uiText = globalThis.t;
+
 const elementsOf = (root: HTMLElement): Elements => {
   const field = <T extends HTMLElement>(name: string) => required<T>(root, `[data-images-${name}]`);
   return {
@@ -20,18 +22,18 @@ const freshState = (context: string): ImagesState => ({
 
 /** The browser owns drafts only; jobs and credentials belong to the local host. */
 export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): ImagesPage {
-  const { translate: L } = host;
+  const readText = uiText.text;
   const el = elementsOf(root);
   const field = <T extends HTMLElement = HTMLElement>(name: string): T => required<T>(root, `[data-images-${name}]`);
   const projectId = () => String(host.projectId() || "");
   const s = freshState(projectId());
   const statuses = {
-    running: L("images.status.running"), succeeded: L("images.status.succeeded"), failed: L("images.status.failed"),
-    cancelled: L("images.status.cancelled"), interrupted: L("images.status.interrupted"),
+    running: uiText.text("images.status.running"), succeeded: uiText.text("images.status.succeeded"), failed: uiText.text("images.status.failed"),
+    cancelled: uiText.text("images.status.cancelled"), interrupted: uiText.text("images.status.interrupted"),
   };
   const page: ImagesPage = {
-    host, L, life, root, el, s, statuses, field, projectId,
-    request: imagesRequest(host, life, L),
+    host, readText, life, root, el, s, statuses, field, projectId,
+    request: imagesRequest(host, life),
     say(message, isError = false, selector = "[data-images-note]") {
       if (!life.alive) return;
       const node = required<HTMLElement>(root, selector);
@@ -64,7 +66,7 @@ export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): Im
     },
     /** The generation record on screen, for the placement bar and the Assistant. */
     publishContext(job) {
-      const value: Record<string, unknown> = { plugin_id: host.pluginId, surface_title: L("images.page.title") };
+      const value: Record<string, unknown> = { plugin_id: host.pluginId, surface_title: uiText.text("images.page.title") };
       if (job) value.object = { kind: "image_job", id: job.id, version: `${job.status}:${(job.images || []).length}`, title: firstCharacters(job.prompt, 80) };
       root.setAttribute("data-assistant-context", JSON.stringify(value));
     },
@@ -73,7 +75,7 @@ export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): Im
       const connection = page.pickedConn();
       // A service without a usable key can still be pressed: the key is asked for in place, on the platform's card (ASC-70).
       el.generate.disabled = s.submitting || !s.context || !connection || !el.prompt.value.trim();
-      el.generate.textContent = s.submitting ? L("images.compose.submitting") : L("images.compose.generate");
+      el.generate.textContent = s.submitting ? uiText.text("images.compose.submitting") : uiText.text("images.compose.generate");
       field("project-note").hidden = Boolean(s.context);
     },
   };

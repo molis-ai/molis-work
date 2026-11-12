@@ -1,5 +1,5 @@
 import type { UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
-import { readOwnPageDocument } from "./view.js";
+import { readInputPageDocument, readOwnPageDocument } from "./view.js";
 import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 
 export interface FrameAsset {
@@ -31,7 +31,7 @@ function project(html: string, source: HTMLElement): FrameAsset[] {
 }
 
 /** A cold picker gets a temporary page for the exact rendered producer, independently of visibility or client mount. */
-async function load(root: HTMLElement, signal?: AbortSignal): Promise<FrameAsset[]> {
+async function* load(root: HTMLElement, signal?: AbortSignal): AsyncGenerator<FrameAsset> {
   if (!root.isConnected || !root.dataset.pluginProducer) throw new Error("View unavailable");
   const producer = root.dataset.pluginProducer;
   const grant = await molisWorkRequest<{ page_id: string }>(route("/api/host/plugin-pages"), { signal, body: {
@@ -39,9 +39,20 @@ async function load(root: HTMLElement, signal?: AbortSignal): Promise<FrameAsset
     mount: { contribution_id: root.dataset.pluginContribution, surface: root.dataset.pluginSurface, target_slot_id: root.dataset.pluginSlot },
   } });
   try {
-    const html = await readOwnPageDocument(root, route, root.dataset.pluginOwner!, grant.page_id, undefined, signal);
-    if (root.dataset.pluginProducer !== producer) throw new Error("View unavailable");
-    return project(html, root);
+    let html = await readOwnPageDocument(root, route, root.dataset.pluginOwner!, grant.page_id, undefined, signal);
+    const inputOf = (name: string) => new DOMParser().parseFromString(html, "text/html").querySelector("[" + name + "]")?.getAttribute(name);
+    let input = inputOf("data-frame-assets-input");
+    const seen = new Set<string>();
+    do {
+      if (input) {
+        if (seen.has(input)) throw new Error("View unavailable");
+        seen.add(input);
+        html = await readInputPageDocument(root, route, root.dataset.pluginOwner!, grant.page_id, JSON.parse(input), undefined, signal);
+      }
+      if (root.dataset.pluginProducer !== producer) throw new Error("View unavailable");
+      yield* project(html, root);
+      input = input ? inputOf("data-frame-assets-next-input") : null;
+    } while (input);
   } finally {
     void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: {}, keepalive: true }).catch(() => { /* Leaving the document revokes its temporary page too. */ });
   }
@@ -54,20 +65,22 @@ export const frameAssets = {
     const items = new Map<string, FrameAsset>();
     for (const root of document.querySelectorAll<HTMLElement>("[data-plugin-producer]")) {
       const payload: unknown = JSON.parse(root.querySelector("script[data-plugin-document]")?.textContent ?? "null");
-      if (typeof payload !== "string" || !project(payload, root).length) continue;
-      try { for (const asset of await load(root, signal)) items.set(key(asset.reference), asset); }
-      catch { /* Withdrawn or unreadable owners contribute no candidates, including their old payload. */ }
+      if (typeof payload !== "string" || !project(payload, root).length && !payload.includes("data-frame-assets-input")) continue;
+      try {
+        const owned: FrameAsset[] = [];
+        for await (const asset of load(root, signal)) owned.push(asset);
+        for (const asset of owned) items.set(key(asset.reference), asset);
+      } catch { /* Withdrawn or unreadable owners contribute no candidates, including their old payload. */ }
     }
     return [...items.values()];
   },
   async resolve(asset: FrameAsset, signal?: AbortSignal): Promise<FrameAsset | undefined> {
-    return (await load(asset.source, signal)).find(current => key(current.reference) === key(asset.reference));
+    for await (const current of load(asset.source, signal)) if (key(current.reference) === key(asset.reference)) return current;
   },
   async localDrag(value: { handle: string; reference: UiFrameAssetReference }, signal?: AbortSignal): Promise<FrameAsset | undefined> {
     const source = sources.get(value.handle);
     if (!source?.current(value.reference)) return;
-    const asset = (await load(source.root, signal)).find(item => key(item.reference) === key(value.reference));
-    return source.current(value.reference) ? asset : undefined;
+    for await (const asset of load(source.root, signal)) if (key(asset.reference) === key(value.reference)) return source.current(value.reference) ? asset : undefined;
   },
   async drag(value: unknown, signal?: AbortSignal): Promise<FrameAsset | undefined> {
     if (!value || typeof value !== "object" || !("handle" in value) || typeof value.handle !== "string"

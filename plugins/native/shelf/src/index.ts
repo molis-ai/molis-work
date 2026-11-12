@@ -8,8 +8,6 @@ export {
 } from "./settings-ui.js";
 export type { ShelfSettingsUiModel } from "./settings-ui.js";
 export { SHELF_STYLES } from "./styles.js";
-export { SHELF_EN } from "./en.js";
-export { SHELF_MESSAGES } from "./messages.js";
 export { SHELF_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SHELF_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 export type { ShelfPluginRouteHandler, ShelfPluginRouteRequest, ShelfPluginRouteResponse } from "./routes.js";

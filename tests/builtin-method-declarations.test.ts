@@ -8,6 +8,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { issuesManifest } from "@molis-ai/molis-work-plugin-issues";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { assertPageWords } from "./fixtures/page-text.js";
 
 const PLUGINS = [todoManifest, issuesManifest, pagesManifest];
 const methods = PLUGINS.flatMap(manifest => (manifest.methods ?? []).map(method => ({ plugin_id: manifest.plugin_id, method })));
@@ -42,10 +43,10 @@ test("builtin-methods: a method with business tools is the Assistant's, never Co
 
 test("builtin-methods: every method's words the catalog shows have an English entry", () => {
   for (const manifest of PLUGINS) {
-    const words = manifest.ui?.translations ?? {};
-    for (const method of manifest.methods ?? []) for (const text of [method.name, method.description, method.when_to_use, method.when_not_to_use]) {
-      if (text) assert.ok(words[text], `${manifest.plugin_id} / ${method.skill_id}: no English for "${text}"`);
-    }
+    const owner = manifest.plugin_id.split(".").at(-1)!;
+    assertPageWords(owner, (manifest.methods ?? []).flatMap(method =>
+      (["name", "description", "when_to_use", "when_not_to_use"] as const).filter(field => method[field])
+        .map(field => `${owner}.skill.${method.skill_id}.${field.replaceAll("_", "-")}`)));
   }
 });
 

@@ -12,6 +12,8 @@ import { addDays, civil, dayDate } from "./util.js";
 import { command, loadList } from "./workspace.js";
 import type { JellyPage, Mode, View } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Click = (page: JellyPage, target: HTMLElement) => void;
 const data = (target: HTMLElement, name: string): string => target.getAttribute(name) ?? "";
 const repaint = (page: JellyPage): void => { void run(page, () => renderView(page)); };
@@ -38,14 +40,14 @@ async function undoRedo(page: JellyPage, target: HTMLElement): Promise<void> {
   await flushEditor(page);
   await command(page, { type: target.hasAttribute("data-jelly-undo") ? "undo" : "redo" });
   if (page.selected) openRecord(page, page.selected.kind, page.selected.id);
-  showNote(page, page.L("jelly.workspace.updated"));
+  showNote(page, uiText.text("jelly.workspace.updated"));
 }
 
 async function exportWorkspace(page: JellyPage): Promise<void> {
   await flushEditor(page);
   const result = await page.request<{ workspace: unknown }>("GET", `${API}/export`);
   await download(page, `Jelly-${civil()}.json`, JSON.stringify(result.workspace, null, 2), "application/json");
-  showNote(page, page.L("jelly.workspace.exported"));
+  showNote(page, uiText.text("jelly.workspace.exported"));
 }
 
 const closeMenu = (page: JellyPage): void => { page.$("[data-jelly-menu]").hidden = true; };

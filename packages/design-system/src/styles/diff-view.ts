@@ -34,7 +34,7 @@ export const DIFF_VIEW_STYLES = `
 .mw-diff .mw-diff-files button { display:flex; flex:1; align-items:center; gap:6px; min-width:0; min-height:34px; padding:0; border:0; background:none; color:var(--ink); font:inherit; font-size:13px; text-align:left; cursor:pointer; }
 .mw-diff .mw-diff-files button:focus-visible { outline:var(--focus-stroke); outline-offset:2px; border-radius:6px; }
 .mw-diff .mw-diff-file-n { flex:none; color:var(--faint); font-variant-numeric:tabular-nums; }
-.mw-diff .mw-diff-files .mw-diff-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+.mw-diff .mw-diff-files .mw-diff-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left; font-family:var(--font-mono,monospace); font-size:12px; }
 .mw-diff .mw-diff-counts { display:flex; flex:none; gap:4px; font:11px/18px ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; }
 .mw-diff .mw-diff-counts span { padding:0 6px; border-radius:6px; }
 .mw-diff .mw-diff-counts [data-sign=insert] { background:color-mix(in srgb,var(--green) 12%,transparent); color:var(--green); }

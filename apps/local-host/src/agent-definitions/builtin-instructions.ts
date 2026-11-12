@@ -22,7 +22,7 @@ export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
 export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; prompt: AgentPromptRegistration }> = [
   // Plugin Builder's designer and code Agents run these, outside the Agent Host; its workflow asks for them by name.
   ...(Object.keys(BUILDER_PROMPTS) as BuilderPromptName[]).map(name => ({ owner_id: BUILDER_PLUGIN_ID, prompt: { prompt_id: `builder-${name}`, version: builderPromptVersion(name),
-    kind: "agent" as const, layer: "role" as const, ...BUILDER_PROMPT_TITLES[name], used_by: [...BUILDER_PROMPT_TITLES[name].used_by], body: BUILDER_PROMPTS[name].text } })),
+    kind: "agent" as const, layer: "role" as const, ...BUILDER_PROMPT_TITLES[name], used_by: [...BUILDER_PROMPT_TITLES[name].used_by], body: BUILDER_PROMPTS[name].text, body_by_locale: BUILDER_PROMPTS[name].body_by_locale } })),
 ];
 
 /** Roles of those Agents, so they show as Characters beside the ones Plugin manifests declare. */

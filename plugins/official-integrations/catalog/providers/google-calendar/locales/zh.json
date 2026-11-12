@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.google-calendar",
+  "locale": "zh",
+  "messages": {
+    "google-calendar.connection.auth-help": "使用带 calendar.readonly 的 Google 访问令牌。可与 Gmail 同一 OAuth 客户端，但 scope 要包含日历。",
+    "google-calendar.connection.inbound": "Feed 拉日程与会议",
+    "google-calendar.connection.summary": "日程与会议。",
+    "google-calendar.connection.token-label": "Google 访问令牌（calendar.readonly）",
+    "google-calendar.guide.mcp-connected-note": "Google Workspace 开发者预览资格必需。",
+    "google-calendar.guide.mcp-link": "查看 Calendar 官方 MCP（开发者预览）",
+    "google-calendar.guide.mcp-note": "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。",
+    "google-calendar.guide.oauth-link": "创建 Google OAuth 客户端",
+    "google-calendar.guide.token-note": "在 OAuth Playground 获取 calendar.readonly 用户访问令牌后可粘贴；到期后需更新。",
+    "google-calendar.setup.create-oauth-client": "创建 OAuth 客户端",
+    "google-calendar.setup.enable-calendar-api": "启用 Calendar API",
+    "google-calendar.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 拿令牌"
+  }
+}

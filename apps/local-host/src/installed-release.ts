@@ -5,6 +5,7 @@
 import type { AgentRelease } from './installed-plugin-host.js';
 import type { PluginManifest, SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginTrust } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import type { ContentPackage } from '@molis-ai/molis-work-plugin-sdk';
 
 export const releaseVersion = (version: number) => `${version}.0.0`;
@@ -19,6 +20,7 @@ export type InstalledRelease = AgentRelease & {
     readonly trust: PluginTrust;
     readonly agentBodies?: readonly SandboxAgentBody[];
     readonly blueprint?: ContentPackage['blueprint'];
+    readonly localePacks?: PluginLocaleReader | null;
   };
 };
 

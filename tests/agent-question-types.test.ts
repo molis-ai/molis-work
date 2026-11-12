@@ -9,10 +9,12 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentPendingQuestion, AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
+import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 // specs/ai-interaction-experience T1 (AC-27): words, numbers, dates and a date and time are offered once both surfaces draw them.
 
-const say = (text: string, values?: Record<string, string | number>) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values?.[key] ?? ""));
+const packs = chinesePagePacks();
+const say = pageTextForPacks("zh", packs);
 const ASKED = { why: "约下周的复盘会", questions: [
   { id: "title", type: "text", prompt: "会议标题" },
   { id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" },
@@ -124,14 +126,14 @@ test("AC-27-2 AC-27-6: the shared card draws words, numbers, dates and a date an
     typed({ index: 2, prompt: "截止日期", type: "date", required: false }),
     typed({ index: 3, prompt: "开会时间", type: "datetime", default: "2026-10-23T15:00+08:00" }),
   ] };
-  const html = agentQuestionHtml(question, say, { d2: "2026-10-30" });
+  const html = withPagePacks("zh", packs, () => agentQuestionHtml(question, say, { d2: "2026-10-30" }));
   assert.match(html, /<textarea[^>]*maxlength="80"[^>]*data-ix-value="t0"/);
   assert.match(html, /value="45"[^>]*inputmode="numeric"[^>]*data-ix-min="15" data-ix-max="120" data-ix-value="n1"/);
   assert.match(html, /aria-label="减少 1"/);
   // AC-27-6: the unit sits beside the stepper and is read with the field.
   assert.match(html, /aria-describedby="([^"]*-n1-unit) [^"]*-n1-error"[^>]*>[\s\S]*?<span class="mw-ix-unit" id="\1">分钟<\/span>/, "the unit is beside the number and describes it");
-  assert.match(html, /value="2026-10-30"[^>]*data-ix-value="d2"[\s\S]*?data-ix-weekday aria-hidden="true">周五</, "the drafted date shows its weekday");
-  const blank = agentQuestionHtml(question, say);
+  assert.match(html, /value="2026-10-30"[^>]*data-ix-value="d2"[\s\S]*?data-ix-weekday aria-hidden="true">星期五</, "the drafted date shows its weekday");
+  const blank = withPagePacks("zh", packs, () => agentQuestionHtml(question, say));
   assert.match(blank, /placeholder="YYYY-MM-DD"[^>]*data-ix-value="d2"[\s\S]*?data-ix-weekday aria-hidden="true"><\/span>/, "an empty date shows its format and no weekday");
   const when = localTime("2026-10-23T15:00+08:00");
   assert.match(blank, new RegExp(`value="${when}"[^>]*data-ix-part="time"`), "a default moment is shown on this computer's clock");

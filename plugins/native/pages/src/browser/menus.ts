@@ -1,6 +1,8 @@
 import { make } from "./dom.js";
 import type { PagesPage } from "./page.js";
 
+const uiText = globalThis.t;
+
 export function closeMore(page: PagesPage) {
   const { moreMenu, moreButton } = page;
   if (!moreMenu || !moreButton) return;
@@ -45,7 +47,7 @@ export function closeMove(page: PagesPage) {
 
 /** The folder menu of one document, under the button that opened it. */
 export function openMove(page: PagesPage, trigger: HTMLElement, id: string) {
-  const { moveMenu, L } = page;
+  const { moveMenu } = page;
   if (!moveMenu) return;
   const record = page.records.find((item) => item.id === id);
   if (!record) return;
@@ -62,7 +64,7 @@ export function openMove(page: PagesPage, trigger: HTMLElement, id: string) {
     item.textContent = label;
     moveMenu.append(item);
   };
-  addItem("", L("pages.folder.unfiled"));
+  addItem("", uiText.text("pages.folder.unfiled"));
   page.folders.forEach((folder) => addItem(folder.id, folder.title));
   page.els("[data-pages-move]").forEach((node) => {
     node.setAttribute("aria-expanded", node === trigger ? "true" : "false");
@@ -79,13 +81,13 @@ export function openMove(page: PagesPage, trigger: HTMLElement, id: string) {
 }
 
 export function fillGoalSelect(page: PagesPage) {
-  const { goalSelect, L } = page;
+  const { goalSelect } = page;
   if (!goalSelect) return;
   const current = page.sel?.goal_id || "";
   goalSelect.replaceChildren();
   const none = document.createElement("option");
   none.value = "";
-  none.textContent = L("pages.goal.none");
+  none.textContent = uiText.text("pages.goal.none");
   goalSelect.append(none);
   page.goals.forEach((goal) => {
     const option = document.createElement("option");

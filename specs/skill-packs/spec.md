@@ -1,6 +1,6 @@
 # 技能包与个人助理 / Coding 的装配
 
-状态：第 08 批基础能力已通过独立增量合审（评审台在 `44515f2ee` 审过；最终头 `2703ca8b1` 由独立 reviewer 增量复核）与最终验证头的 CI Full，并于 2026-11-08（PST）随 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 main `416ee8cef`；负责人 Codex（本机接续）。安装预览、启用和管理沿用 §9 定样；本批交合同、Runtime、安装、目录与设置、导入、界面和内容包，消费方归第 09 批，边界见 §11。整个需求的目标完成程度仍为**内部完整**：个人助理与 Coding 按同一份目录发现、选择、按精确版本使用，技能不授予权限；第 08 批工程验证不能替代第 09 批真实消费与本人验收。
+状态：第 08 批基础能力已通过独立增量合审（评审台在 `44515f2ee` 审过；最终头 `2703ca8b1` 由独立 reviewer 增量复核）与最终验证头的 CI Full，并于 2026-11-08（PST）随 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 main `416ee8cef`；负责人 Codex（本机接续）。安装预览、启用和管理沿用 §9 定样；本批交合同、Runtime、安装、目录与设置、导入、界面和内容包，消费方归第 09 批，边界见 §11。第 09 批消费方已随 #2015 合入、收尾 #2019 补做（2026-11-11）：助理与 Coding 读同一份目录、按精确版本冻结，SKP-02～07 与 SKP-10 的消费方一侧接入；SKP-10 的 Coding「自动」档 2026-11-11 审计整改补做（BL-coding-skill-auto 已补做并删除），SKP-09 的脚本执行一侧仍记 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)；SKP-12 的真实项目/卸载/业务事实与本人验收用户 2026-11-10 以「视作我通过了」免走验收（**未实际走查**，2026-11-11 追认范围）。整个需求的目标完成程度仍为**内部完整**：个人助理与 Coding 按同一份目录发现、选择、按精确版本使用，技能不授予权限；第 08 批工程验证不能替代第 09 批真实消费与本人验收。
 
 2026-10-19 改动记录：原稿的 `pack.json` 与宿主 `SkillPackRegistry` 是插件之外的第二条安装、信任和注册路径，违反 2026-10-18 用户定的「插件不分官方、个人、创作台生成还是第三方，待遇一样；缺什么补进平台，不给某个插件在宿主里开私路」（`AGENTS.md` 硬约束，`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行），也与 [plugin-platform-v2](../plugin-platform-v2/spec.md) S1「内容包是一种只有内容的声明形态」不一致。现在技能包就是一个没有 runtime 的插件：技能写在 Manifest 的方法声明里（`AgentSkillDeclaration` 加字段），走同一条插件安装、信任、启用、卸载路径。验收编号 SKP-01～SKP-12 全部保留，其中 SKP-01、SKP-02、SKP-04、SKP-08 的措辞随新设计改了；没有整条删除的编号（原稿没有一条只对旧设计成立）。
 
@@ -203,7 +203,7 @@ argument_hint: "<周期，可选>"
 | 08-6 Runtime 与安装 | 「已声明、不启动」装配；内容包的解析接进安装服务；启用时从已验证包登记方法；安装预览的 `skills`、`requires`，以及按 Skill 的升级差异 | 08-4、08-5（预览要给沙箱包方法列 `description`／`applies_to`，宿主不替它编） | SKC-02、SKC-03、SKC-04，SKP-01、SKP-08 |
 | 08-7 Skill 目录、设置与用量 | `system.skills` 的四个动作；两张新表（U1 里加一步建表）；冻结点名；SSOT、HOME-DATA、库版本清单 | 08-4、08-6；05 的 U1／U2 与 SQLite 切换 | SKC-05、SKC-06、SKC-08、SKC-09、SKC-12，SKC-07 的目录一侧 |
 | 08-8 外部 Skills 导入 | `skills.import.*`、CLI `pack-content`、用本机发布身份签名 | 08-4、08-6（不动表）。和 08-7 改同一份 `system.skills` 登记或 `host-actions.tsv` 时，同一时间一个写手，先准备好的先落 | SKC-10 |
-| 08-9 界面 | 照 §9 定样：安装预览一节、启用步骤、「技能」目录、从本机导入；技能名称与说明的英文走提供它的插件的 `ui.translations`，在这一片读取时补齐（含 Todo、Issues、Pages 的四个方法） | 08-2、08-6、08-7、08-8；D 轨文件按 §10 第 14 项 | SKP-01、SKP-08、SKP-10 的界面部分；本人验收 |
+| 08-9 界面 | 照 §9 定样：安装预览一节、启用步骤、「技能」目录、从本机导入；技能名称与说明由提供它的准确登记或签名包投影，使用第 16 批的 `ui.locales`（含 Todo、Issues、Pages 的四个方法） | 08-2、08-6、08-7、08-8；D 轨文件按 §10 第 14 项 | SKP-01、SKP-08、SKP-10 的界面部分；本人验收 |
 | 08-10 设计与无障碍内容包（BL-165） | 写成只有声明的插件；随安装包带上，加 `plugins.bundled.list@1` | 08-6；官方签名等 26-1 | 能装上、过校验、进 Skill 目录；本人验收 |
 
 **08-8、08-9 的补充（第 08 批主会话，2026-11-08，来源 #1936 合同台与评审小修、#1935 D 轨小修）：**
@@ -232,8 +232,8 @@ argument_hint: "<周期，可选>"
 
 **08-10 的做法（子分支 `batch/08-content-pack`，2026-11-08）：**
 
-- 内容在 `plugins/content/design-accessibility/`：普通源目录，不是 workspace 包。`skills/` 下五个技能目录（`accessibility-review`、`design-critique`、`design-handoff`、`design-system`、`ux-copy`），每个 `SKILL.md` 都写明 `applies_to`；`pack-content.json` 是发布时的选择（插件 id、版本、名称与英文名、摘要、发布者、范围，以及 `ui.translations`），就是 `pack-content` 的参数写成文件，宿主不读它。正文是给 D 轨审与本人验收的稿，依据 DESIGN.md、craft 系列 spec 与公开的 WCAG 2.1 条文，用自己的话写。
-- 打包与签名：CLI `pack-bundled <包目录> <输出目录> --publisher-key <私钥>` 用与 `pack-content`、从本机导入同一个打包函数（SDK `skillFromFolder`、`contentPackagePayload`，本片给它加了 `name_en`、`summary`、`translations` 三个可选项），同一步签名（`signPluginPackage`）并自验，写到 `<输出目录>/<plugin_id>.json`。没有密钥就以 `plugin.publisher_key_missing` 拒绝、什么都不写。官方密钥与在发版构建里跑这一步归 26-1；本片不造、不取、不入库任何真实密钥，测试用测试里生成的密钥。
+- 内容在 `plugins/content/design-accessibility/`：普通源目录，不是 workspace 包。`skills/` 下五个技能目录（`accessibility-review`、`design-critique`、`design-handoff`、`design-system`、`ux-copy`），每个 `SKILL.md` 都写明 `applies_to`；`pack-content.json` 是发布时的选择（插件 id、版本、名称与摘要及对应文字引用、发布者、范围和语言文件声明），就是 `pack-content` 的参数写成文件，宿主不读它。正文是给 D 轨审与本人验收的稿，依据 DESIGN.md、craft 系列 spec 与公开的 WCAG 2.1 条文，用自己的话写。
+- 打包与签名：CLI `pack-bundled <包目录> <输出目录> --publisher-key <私钥>` 用与 `pack-content`、从本机导入同一个打包函数（SDK `skillFromFolder`、`contentPackageDraft`、`completeContentPackagePayload`；语言文件也先校验再随包签名），同一步签名（`signPluginPackage`）并自验，写到 `<输出目录>/<plugin_id>.json`。没有密钥就以 `plugin.publisher_key_missing` 拒绝、什么都不写。官方密钥与在发版构建里跑这一步归 26-1；本片不造、不取、不入库任何真实密钥，测试用测试里生成的密钥。
 - 位置：宿主包构建产物里的 `apps/local-host/dist/bundled-plugins/`（`bundledPackagesDirectory()`，按宿主代码自己的位置算），发版本来就拷 `dist`，不用改打包；没有设置、环境变量或动作输入能指向别处，只有测试经 `MolisWorkLocalHostOptions.bundledPluginsDirectory` 给一个临时目录。现在没有发版步骤往里放东西，所以真实安装包里还是空的：接上要改发版或 CI，按红线留给 26-1，由用户定。
 - `plugins.bundled.list@1`：插件安装服务的提供方（`plugin-install`）下，只给本人（`plugin-install:read`），只读；每次重新读目录、重新验签，列 `plugins`（ID、版本、名称、英文名、摘要、装到哪里、发布者与本人是否已固定或撤销它）与 `refused`（读不了、验签不过、不是只有声明的插件、文件名不对的，各带错误码与原因）。不列装没装：合同只要身份、名称、说明与签名，装没装看已装列表。
 - 安装：`plugins.install.preview` 的输入加了 `bundled: { plugin_id, version }`，与 `bundle` 二选一（原版本改，阶段一）；宿主按引用从同一个目录取包，之后验签、读法、预览、确认与别的包完全同一条路，发布者不预先固定。
@@ -241,7 +241,7 @@ argument_hint: "<周期，可选>"
 
 **不在本批的验收编号：**
 
-- **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。
+- **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。**2026-11-11 补记：** 第 09 批已合入（#2015 + 收尾 #2019），上述消费方接入完成；SKP-10 的 Coding「自动」档在 2026-11-11 审计整改补做（记 BL-coding-skill-auto），SKP-09 的脚本执行仍记 BL-skill-scripts-sandbox；SKP-12 的真实项目/卸载/业务事实按用户 2026-11-10「视作我通过了」（**未实际走查**）、2026-11-11 追认视作通过。
 - **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。第 09 批把执行一侧（9-5b）移出，记 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)。
 - **SKP-11（从对话生成技能包）**：在[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)。
 

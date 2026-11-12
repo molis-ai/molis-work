@@ -83,7 +83,7 @@ fn take(app: &AppHandle, cargo: Cargo) {
     if !cargo.files.is_empty() {
         shelf_http::notify_admissions(
             cargo.files.iter().map(|path| shelf_http::admit_file(path)),
-            |message, partial| crate::shelf_notice(app, message, partial, 0),
+            |message, partial, warning| crate::shelf_notice(app, message, partial, warning, 0),
         );
         return;
     }

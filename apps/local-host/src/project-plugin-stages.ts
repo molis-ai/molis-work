@@ -1,4 +1,5 @@
-import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type PreparedStageView, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -12,11 +13,13 @@ import type { HomePluginHost } from "./home-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
-import { L } from "./web-locale.js";
+import { activeLocale, runWithRegisteredText, DEFAULT_WEB_LOCALE } from "./web-locale.js";
+import { pluginViewText } from "./plugin-host-services.js";
+import { projectTextPacks } from "./ui-text-provider.js";
 
 /** A plugin whose stage the project page draws: a catalog registration, or a Home dual-instance plugin outside the build. */
 export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest;
-  readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts"> };
+  readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts" | "pageClients"> };
 
 /** What a project page's plugin surfaces are drawn with: the project plugin services plus the page's escape. */
 export interface ProjectPluginSurfacePorts extends ProjectPluginHttpPorts {
@@ -34,6 +37,7 @@ export interface HomeStageHalves {
   readonly outsideCatalog: readonly StageEntry[];
   readonly entries: readonly StageEntry[];
   owner(entry: StageEntry): RuntimeStageOwner | undefined;
+  hasPackage(pluginId: string): boolean;
   dualInstance(pluginId: string): boolean;
   half(pluginId: string, contributionId: string): StageHalf;
   /** The Home's placeholder for the plugin's stage, saying why the Home half does not draw it. */
@@ -60,7 +64,7 @@ export interface ProjectRuntimeStageOptions {
   /** Exact contribution/surface pairs another stage path has already drawn. */
   drawn: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
   /** Prepared once before reads; each wrapper retains its actual running owner. */
-  views?: Readonly<Record<string, UiContribution & { readonly producer?: string } | null>>;
+  views?: Readonly<Record<string, PreparedStageView | null>>;
   /** The model a plugin's stage is drawn with: the one the shell would give the same stage. */
   model(projectPluginId: string): unknown;
   /** The Home halves of dual-instance plugins; without them every stage here is its project half's, as on a page with no Home. */
@@ -120,17 +124,18 @@ function stageView(state: ProjectPluginState, pluginId: string, contributionId: 
 }
 
 function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, entry: StageEntry, contributionId: string,
-  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared?: UiContribution & { readonly producer?: string } | null): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
+  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared?: PreparedStageView | null): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
   const pluginId = entry.manifest.plugin_id;
   const contribution = state.platform?.supervisor.contribution(pluginId);
   if (!contribution) {
     const active = state.platform?.supervisor.state(pluginId);
     const running = active?.status === "running" && active.install_id && state.platform?.runtime.get(active.install_id).state === "running";
     return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
-      ?? (active?.status === "starting" ? L("插件正在启动，请稍候") : running ? L("插件正在运行，但未提供页面") : L("插件没有在运行")));
+      ?? uiText.text(active?.status === "starting" ? "workbench.project-plugin-stages.starting" : running
+        ? "workbench.project-plugin-stages.plugin-running-but-has-not-provided-page" : "workbench.project-plugin-stages.plugin-not-running"));
   }
   const view = prepared === undefined ? stageView(state, pluginId, contributionId) : prepared;
-  if (!view) return unavailableStage(state, entry, L("插件页面未注册"));
+  if (!view) return unavailableStage(state, entry, uiText.text("workbench.project-plugin-stages.plugin-page-not-registered"));
   try {
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
     const manifest = state.platform?.supervisor.manifest(pluginId) ?? entry.manifest;
@@ -139,7 +144,7 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
         producer: prepared?.producer ?? captureRuntimeStageOwner(state.platform, "project", entry)?.producer });
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
-    return unavailableStage(state, entry, L("插件页面读取失败"));
+    return unavailableStage(state, entry, uiText.text("workbench.project-plugin-stages.plugin-page-could-not-be-loaded"));
   }
 }
 
@@ -179,17 +184,35 @@ function nestedContent(state: ProjectPluginState, entry: StageEntry, view: UiCon
   return Object.keys(nested).length ? nested : undefined;
 }
 
-function embeddedFragments(state: ProjectPluginState, embeddedId: string, slot: UiSlotDescriptor, model: unknown): string[] {
-  const contribution = state.platform?.supervisor.contribution(embeddedId);
-  if (contribution?.kind !== "app") return [];
-  return (contribution.views ?? []).flatMap(view => (view.descriptor.surfaces ?? [])
-    .filter(surface => surface.target_slot_id === slot.slot_id && slot.accepts.includes(surface.format))
-    .flatMap(surface => {
-      try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: withoutPagePublisher(model) })]; }
-      catch (error) { hostLog.warn("plugins", "embedded_surface_failed", error, { plugin_id: embeddedId, surface: surface.surface_id }); return []; }
-    }));
+function embeddedViews(platform: ProjectPluginState["platform"], embeddedId: string, slot: UiSlotDescriptor) {
+  const contribution = platform?.supervisor.contribution(embeddedId);
+  return contribution?.kind === "app" ? (contribution.views ?? []).flatMap(view => (view.descriptor.surfaces ?? [])
+    .filter(surface => surface.target_slot_id === slot.slot_id && slot.accepts.includes(surface.format)).map(surface => ({ view, surface }))) : [];
 }
 
+function embeddedFragments(state: ProjectPluginState, embeddedId: string, slot: UiSlotDescriptor, model: unknown): string[] {
+  return embeddedViews(state.platform, embeddedId, slot).flatMap(({ view, surface }) => {
+    try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: withoutPagePublisher(model) })]; }
+    catch (error) { hostLog.warn("plugins", "embedded_surface_failed", error, { plugin_id: embeddedId, surface: surface.surface_id }); return []; }
+  });
+}
+
+/** The same project instances as the nested renderer, captured before any further page-open awaits. */
+export function embeddedStageTextOwners(platform: ProjectPluginState["platform"], owner: RuntimeStageOwner) {
+  if (!platform || owner.scope !== "project") return [];
+  return [...new Set(owner.entry.manifest.ui.embedded_plugins ?? [])].flatMap(plugin_id => {
+    const active = platform.supervisor.state(plugin_id), contribution = platform.supervisor.contribution(plugin_id);
+    if (active?.status !== "running" || !active.install_id || !contribution || !owner.view.descriptor.slots.some(slot => embeddedViews(platform, plugin_id, slot).length)) return [];
+    const record = platform.runtime.get(active.install_id);
+    if (record.state !== "running") return [];
+    const assertCurrent = () => {
+      const current = platform.runtime.get(record.install_id);
+      if (current.state !== "running" || current.installation_generation !== record.installation_generation
+        || platform.supervisor.contribution(plugin_id) !== contribution) throw new ActionError("actions.provider_changed", "原嵌入实例已变化，请重新打开");
+    };
+    return [{ plugin_id, install_id: record.install_id, installation_generation: record.installation_generation, assertCurrent }];
+  });
+}
 
 /** An actual running stage owner, retained for one request only. */
 export interface RuntimeStageOwner {
@@ -268,14 +291,15 @@ export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (act
 /** Choose once, read once, and keep only request-local guarded view references for later synchronous rendering. */
 export async function readRuntimeStageData(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined,
   bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient, requests: Readonly<Record<string, Readonly<Record<string, string>>>> = {}) {
-  const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, UiContribution & { readonly producer?: string } | null> = {};
+  const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, PreparedStageView | null> = {};
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
     ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];
   for (const entry of entries) {
     if (!stageContributionId(entry.manifest)) continue;
     const selected = runtimeStageOwner(state, entry, home), key = `${selected.scope}:${entry.project_plugin_id}`, owner = selected.owner;
     views[key] = null;
-    if (!owner) continue;
+    // The Home renderer uses this presence mark for installed packages and opens their own authorized page.
+    if (!owner || selected.scope === "home" && home?.hasPackage(entry.manifest.plugin_id)) continue;
     try { stageSurfaceDescriptors(owner.entry.manifest, owner.view); }
     catch (error) { hostLog.warn("plugins", "stage_surface_invalid", error, { plugin_id: entry.manifest.plugin_id }); continue; }
     try {
@@ -283,7 +307,17 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
       owner.assertCurrent();
       if (result === undefined && stageDataAction(owner.entry.manifest)) continue;
       if (result !== undefined) data[entry.project_plugin_id] = result;
-      views[key] = { producer: owner.producer, get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); } };
+      views[key] = { producer: owner.producer, get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); },
+        drawText: draw => {
+          owner.assertCurrent();
+          const reader = pluginViewText(owner.view);
+          return reader ? runWithRegisteredText(reader, draw) : draw();
+        },
+        ...(entry.workbench?.pageClients && !entry.workbench.clientFactory ? { textPacks: () => {
+          owner.assertCurrent();
+          const reader = pluginViewText(owner.view), language = activeLocale() ?? DEFAULT_WEB_LOCALE;
+          return reader ? projectTextPacks(reader, language, owner.entry.manifest.ui.locales?.available.includes(language) === true) : [];
+        } } : {}) };
     } catch (error) {
       if (!(error instanceof ActionError) || !["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.provider_changed"].includes(error.code)) throw error;
     }

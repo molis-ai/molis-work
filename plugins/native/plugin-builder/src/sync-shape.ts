@@ -5,6 +5,7 @@ import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import {validateBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 import {validateBuilderResults,validateBuilderSelection,validateBuilderReleaseFiles} from './sync-records.js';
 import {validateBuilderDesignDomain,validateBuilderNodeDomain,validateBuilderPreviewDomain,validateBuilderSnapshotLinks,validateBuilderDecisionLinks} from './sync-domain.js';
+import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
 
 export interface BuilderPortableState {format:/* @version format.builder.portable */ 1;builds:Record<string,unknown>[];releases:Record<string,unknown>[];files:Record<string,BuilderPortableDirectory[]>}
 const errors=defineErrorCodes('plugin_builder',{sync_invalid:'invalid',sync_busy:'unavailable'});
@@ -36,7 +37,7 @@ export function assertBuilderIdle(builds:readonly AgentBuild[]):void{
  if(builds.some(b=>b.active||['building','designing'].includes(b.phase)||b.candidates?.some(c=>c.mockup?.status==='drawing')))builderSyncBusy();
 }
 function design(value:unknown){
- const d=object(value);keys(d,['catalog','id','title','description','rationale','journey','contract','parts','acceptance','presentation','experience'],['id','title','description','rationale','journey','contract','parts','acceptance']);
+ const d=object(value);keys(d,['catalog','id','title','description','rationale','journey','contract','parts','acceptance','presentation','experience','localePacks'],['id','title','description','rationale','journey','contract','parts','acceptance']);
  return validateBuilderDesignDomain(d);
 }
 function snapshot(value:unknown,pluginId?:string){
@@ -53,7 +54,7 @@ function build(value:unknown){
  const b=object(value);keys(b,[...snapshotFields,...buildFields,'revision','active','checks','steps','history'],['id','revision','active','brief','title','phase','messages','candidates','questions','clarificationAnswered','design','nodes','connected','steps','checks','runs','history','error','createdAt','updatedAt']);
  if(b.scopeCheckPending!==undefined&&b.scopeCheckPending!==true||b.runtimeScope!==undefined&&b.runtimeScope!=='home')builderSyncInvalid();
  if(!id(b.id)||b.revision!==0||b.active!==null||typeof b.brief!=='string'||typeof b.title!=='string'||!['draft','clarifying','choosing','paused'].includes(String(b.phase))
-  ||typeof b.clarificationAnswered!=='boolean'||b.error!==null&&typeof b.error!=='string'||!stamp(b.createdAt)||!stamp(b.updatedAt))builderSyncInvalid();
+  ||typeof b.clarificationAnswered!=='boolean'||!isStudioBuildFailure(b.error)||!stamp(b.createdAt)||!stamp(b.updatedAt))builderSyncInvalid();
  const s=pick(b,[...snapshotFields,'checks']);snapshot(s,'io.molis.work.generated.'+b.id);
  if(b.design!==null&&object(object(b.design).contract).pluginId!=='io.molis.work.generated.'+b.id)builderSyncInvalid();
  for(const message of list(b.messages)){const m=object(message);keys(m,['role','text'],['role','text']);if(!['user','assistant'].includes(String(m.role))||typeof m.text!=='string')builderSyncInvalid();}
@@ -62,7 +63,7 @@ function build(value:unknown){
  if(b.rework!==undefined&&Object.values(object(b.rework)).some(v=>typeof v!=='string'))builderSyncInvalid();
  if(b.pendingPart!==undefined){const p=object(b.pendingPart);keys(p,['id','candidates','reason'],['id','candidates','reason']);if(!id(p.id)||typeof p.reason!=='string')builderSyncInvalid();strings(p.candidates);}
  for(const candidate of list(b.candidates)){const c=object(candidate);keys(c,['id','title','description','rationale','journey','effects','preview','mockup'],['id','title','description','rationale','journey','effects','preview']);if(!id(c.id)||['title','description','rationale'].some(k=>typeof c[k]!=='string'))builderSyncInvalid();strings(c.journey);object(c.effects);const p=object(c.preview);keys(p,['contract','parts','presentation'],['contract','parts']);if(object(p.contract).pluginId!=='io.molis.work.generated.'+b.id)builderSyncInvalid();list(p.parts);if(c.mockup!==undefined){const m=object(c.mockup);keys(m,['status','jobId','imageId','reason'],['status']);if(!['ready','failed'].includes(String(m.status)))builderSyncInvalid();if(m.jobId!==undefined&&!id(m.jobId)||m.imageId!==undefined&&!id(m.imageId)||m.reason!==undefined&&typeof m.reason!=='string'||m.status==='ready'&&(!id(m.jobId)||!id(m.imageId)))builderSyncInvalid();}}
- for(const step of list(b.steps)){const s=object(step);keys(s,['id','agent','action','label','status','operationId','detail','at','selection'],['id','agent','action','label','status','at']);if(!id(s.id)||!['design','ui','code','host'].includes(String(s.agent))||typeof s.action!=='string'||typeof s.label!=='string'||!['done','waiting','failed','cancelled'].includes(String(s.status))||!stamp(s.at)||s.operationId!==undefined&&typeof s.operationId!=='string'||s.detail!==undefined&&typeof s.detail!=='string')builderSyncInvalid();if(s.selection!==undefined)validateBuilderSelection(s.selection);}
+ for(const step of list(b.steps)){const s=object(step);keys(s,['id','agent','action','label','status','operationId','detail','at','selection'],['id','agent','action','label','status','at']);if(!id(s.id)||!['design','ui','code','host'].includes(String(s.agent))||typeof s.action!=='string'||!isStudioStepLabel(s.label)||!['done','waiting','failed','cancelled'].includes(String(s.status))||!stamp(s.at)||s.operationId!==undefined&&typeof s.operationId!=='string'||s.detail!==undefined&&typeof s.detail!=='string')builderSyncInvalid();if(s.selection!==undefined)validateBuilderSelection(s.selection);}
  for(const run of list(b.runs)){const r=object(run);keys(r,['id','role','phase','configuredModel','reportedModels','promptVersion','error'],['id','role','phase','configuredModel','reportedModels','promptVersion']);if(!id(r.id)||['role','phase','configuredModel','promptVersion'].some(k=>typeof r[k]!=='string')||r.error!==undefined&&typeof r.error!=='string')builderSyncInvalid();strings(r.reportedModels);}
  for(const candidate of list(b.candidates))validateBuilderPreviewDomain(object(object(candidate).preview),object(candidate).effects);
  validateBuilderDecisionLinks(b);

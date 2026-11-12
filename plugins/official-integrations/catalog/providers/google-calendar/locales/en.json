@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.google-calendar",
+  "locale": "en",
+  "messages": {
+    "google-calendar.connection.auth-help": "Use a Google access token with calendar.readonly. You can use the same OAuth client as Gmail if its scopes include Calendar.",
+    "google-calendar.connection.inbound": "Feed retrieves schedules and meetings",
+    "google-calendar.connection.summary": "Schedules and meetings.",
+    "google-calendar.connection.token-label": "Google access token (calendar.readonly)",
+    "google-calendar.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",
+    "google-calendar.guide.mcp-link": "View the official Calendar MCP (Developer Preview)",
+    "google-calendar.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work has not integrated this service.",
+    "google-calendar.guide.oauth-link": "Create Google OAuth client",
+    "google-calendar.guide.token-note": "Get a calendar.readonly user access token from OAuth Playground and paste it here. Replace it when it expires.",
+    "google-calendar.setup.create-oauth-client": "Create OAuth client",
+    "google-calendar.setup.enable-calendar-api": "Enable Calendar API",
+    "google-calendar.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+  }
+}

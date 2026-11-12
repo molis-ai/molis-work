@@ -39,11 +39,11 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   assert.equal(pluginWorkbenchStyles(packs), '.other{color:blue}', 'the framed plugin’s own rules leave the shared sheet');
   assert.equal(pluginOnDemandStylesheet('future', packs), '.future{color:red}', 'its frame links them in a sheet of its own');
   assert.deepEqual(pluginSearchRows(packs), [['future', '[data-future-id]', 'futureId']]);
-  const mounted: unknown[] = [], translators: string[] = [];
-  runInNewContext(pluginWorkbenchClientBootstrap(packs, false, [second, entry]), { mountPluginClient: (...args: unknown[]) => mounted.push(args),
-    LFor: (pluginId: string) => { translators.push(pluginId); return (text: string) => text; }, state: { project: { project_id: 'project-1' } }, api: () => {}, route: () => {} });
+  const mounted: unknown[] = [];
+  runInNewContext(pluginWorkbenchClientBootstrap(packs, false), { mountPluginClient: (...args: unknown[]) => mounted.push(args),
+    state: { project: { project_id: 'project-1' } }, api: () => {}, route: () => {} });
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
-  assert.deepEqual(translators, ['io.molis.work.future'], 'a client the page mounts is handed a translator for its own plugin, whoever published it');
+  assert.equal(pluginSurfaceClients(packs, [second, entry]).find(client => client.id === 'future')?.plugin_id, 'io.molis.work.future');
 });
 
 test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {

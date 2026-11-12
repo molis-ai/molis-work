@@ -8,6 +8,8 @@ import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
 import type { KnowledgeAccess } from "@molis-ai/molis-work-service-knowledge";
 import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { runBackgroundWorkIn } from "./ui-locale-memory.js";
 
 /**
  * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
@@ -61,6 +63,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   };
   const service = new SearchService({
     index,
+    background: refresh => outsidePluginAction(() => runBackgroundWorkIn(ports.homeDirectory, refresh)),
     indexer: async projectId => {
       if (!projectId) return { client: ports.homeClient(), caller: await ports.ownerContext(undefined) };
       const reference = ports.project(projectId) ?? (projectId === PERSONAL_SPACE_PROJECT_ID ? await ports.openPersonalSpace?.() : undefined);

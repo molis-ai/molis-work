@@ -1,0 +1,10 @@
+{
+  "reason": "第 11 批 #2016 全量里 load-geometry（VUX-31）发现：820px 打开侧栏插件（Files、Git）时，底栏输入框先按 CSS 默认列画出、脚本随后才把它移到前台窗格上方，读者眼前滑动一次（layout-shift 0.023）。工作台页画出的底栏带 data-bar-placing，第一次量好位置前输入框不可见，量好后在原位出现（bar-column.ts 去掉标记；目录页与组件板不跑这段脚本、不带标记）。对照 origin/main ef06fed60 的隔离构建实测：三份页面样式各 +166 B（这一条规则随底栏样式进入三张样式表），workbench.js +80 B（标记与去标记）。",
+  "review": "第 11 批主会话按隔离构建实测核对（2026-11-11，node scripts/gates/page-assets.mjs --base origin/main）；没有新增资源，单份增长远低于 10 KB；随 #2016 由评审台再核。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 166,
+    "/assets/molis-work-settings.css": 166,
+    "/assets/molis-work-workbench.css": 166,
+    "/assets/molis-work-workbench.js": 80
+  }
+}

@@ -141,6 +141,7 @@ export const todoActions = {
   searchEntries: todoSearchActions.entries,
   searchProjectEntries: todoSearchActions.projectEntries,
   subject: todoSearchActions.subject,
+  composerPick: todoSearchActions.pick,
   fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", /* @version action.todo.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], [], "home"),
 };
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];

@@ -11,6 +11,10 @@ import { retireFeedSource } from "./source-history.js";
 export class FeedSources {
   constructor(private readonly ports: FeedApplicationPorts) {}
 
+  list(projectId: string): FeedSourceRecord[] {
+    return this.ports.sources.query.list(projectId).map(source => this.record(source));
+  }
+
   get(projectId: string, sourceId: string): FeedSourceRecord {
     try {
       return this.record(this.ports.sources.query.get(projectId, sourceId));

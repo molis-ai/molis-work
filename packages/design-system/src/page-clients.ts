@@ -34,6 +34,8 @@ export const COPY_FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/copy-fe
 export const ANCHORED_MENU_CLIENT_SCRIPT = readFileSync(new URL("../dist/anchored-menu-client.js", import.meta.url), "utf8").trim();
 /** The component board's demo behaviour (`browser/catalog.ts`): overlay specimens, motion and craft demos, composition menus. */
 export const CATALOG_CLIENT_SCRIPT = readFileSync(new URL("../dist/catalog-client.js", import.meta.url), "utf8").trim();
+/** `window.molisWorkLookFade`, shared with the component board's appearance specimen. */
+export const LOOK_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/look-fade-client.js", import.meta.url), "utf8").trim();
 /** The unified input's program (`browser/composer.ts`, specs/unified-input-voice §3.1, K2): one shared file, `/assets/molis-work-composer.js`. */
 export const COMPOSER_CLIENT_SCRIPT = readFileSync(new URL("../dist/composer-client.js", import.meta.url), "utf8").trim();
 /** `window.molisComposer` in a page's own script (`browser/composer-loader.ts`): fetches the program on the first mount. */

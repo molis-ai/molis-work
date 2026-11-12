@@ -242,7 +242,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
     await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
   }
-  async function navigate(action: () => Promise<unknown>) {
+  async function navigate(action: () => Promise<unknown>, targetSessionId = sessionId) {
     const timeoutError = new Error("Navigation did not finish");
     let timer: ReturnType<typeof setTimeout>;
     let stopListening = () => {};
@@ -250,7 +250,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
     const loaded = new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => reject(timeoutError), 30_000);
-      stopListening = browser.on("Page.domContentEventFired", (_event, eventSession) => { if (eventSession === sessionId) resolve(); });
+      stopListening = browser.on("Page.domContentEventFired", (_event, eventSession) => { if (eventSession === targetSessionId) resolve(); });
     });
     try {
       await Promise.all([loaded, action()]);

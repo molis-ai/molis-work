@@ -4,7 +4,6 @@ import { ALCHEMIST_UI_CONTRIBUTION_ID } from "./ui.js";
 import { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_MODEL_PERMISSION } from "./studio/shared/contracts/actions.js";
 import { alchemistSync } from "./studio/server/sync/replication.js";
 
-import { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID };
 
 export const alchemistManifest: PluginManifest = {
@@ -13,8 +12,8 @@ export const alchemistManifest: PluginManifest = {
   plugin_id: ALCHEMIST_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "炼金术士",
-  name_en: "Alchemist",
-  summary: "写下方向，炼成可比较的卡再决定。",
+  name_text: { key: "alchemist.directory.name" },
+  summary: "写下方向，炼成可比较的卡再决定。", summary_text: { key: "alchemist.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-alchemist-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -28,11 +27,10 @@ export const alchemistManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
-  ui: {
-    translations: ALCHEMIST_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [ALCHEMIST_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "炼金术士", title_en: "Alchemist", contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, icon: "zap", hue: "purple", order: 60, group: "research" },
+      { view_id: "directory", slot: "navigator", title: "炼金术士", title_text: { key: "alchemist.directory.view-directory" }, contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID, icon: "zap", hue: "purple", order: 60, group: "research" },
     ],
   },
 };

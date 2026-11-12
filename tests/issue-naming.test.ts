@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
-import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_SCREENSHOTS_UNREAD, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
+import { installHostUiText, openPluginDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
+import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
   createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesSkills, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -13,6 +12,12 @@ import type { PluginModelAvailability, PluginModelClient, PluginModelRequest } f
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const caller: ActionExecutionContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["issues:read", "issues:write", "model:invoke"], beforeEffect: async () => {} };
+installHostUiText();
+const issueText = <T>(locale: "zh" | "en", run: () => T): T => {
+  const reader = registeredBuiltinText(issuesManifest);
+  assert.ok(reader, "Issue's actual package owns the question");
+  return runWithLocale(locale, () => runWithRegisteredText(reader, run));
+};
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7x8AAAAASUVORK5CYII=";
 const shots = [{ name: "保存.png", data_url: png }, { name: "列表.png", data_url: png }];
 
@@ -41,9 +46,8 @@ async function issues(t: TestContext) {
   return { store, drafts: new IssueCaptures(store), count: () => Number(db.client.get("SELECT count(*) AS n FROM issues")!.n) };
 }
 
-test("PRR-08 the fixed follow-up question has an English entry", () => {
-  const dictionary = readFileSync(new URL("../apps/workbench/src/i18n/renderer-gap-en.ts", import.meta.url), "utf8");
-  assert.ok(dictionary.includes(JSON.stringify(ISSUE_ASK)), "the English dictionary carries the exact fixed question");
+test("PRR-08 the naming instruction supplies the English example without translating a returned question", () => {
+  assert.match(ISSUES_NAME.body_by_locale?.en ?? "", /What did you do, on which page, and what went wrong\? You can also add a screenshot\./);
 });
 
 test("ISSUE-50 one bounded model call names a page draft and saves it once: the words and screenshots unchanged, the writer from the call", async t => {
@@ -86,24 +90,28 @@ test("ISSUE-50 screenshots go to the model only when the model in use declares t
   }
 });
 
-test("ISSUE-50 screenshots alone for a model not declared to read images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
+test("FSS-36 ISSUE-50 screenshots alone for a model not declared to read images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
   const { store, drafts, count } = await issues(t);
-  // It says what happened, why and what to do, in one line the page can show as a question.
-  for (const part of ["未声明能看图", "已设为不能看图", "截图没有交给它", "写一句话", "设置 → 模型 → 供应商的模型列表", "能看图并保存"]) assert.ok(ISSUE_SCREENSHOTS_UNREAD.includes(part), part);
-  assert.ok(ISSUE_SCREENSHOTS_UNREAD.length <= 200 && !/[\r\n]/.test(ISSUE_SCREENSHOTS_UNREAD));
-  for (const vision of [false, undefined]) for (const description of ["", "  \n "]) {
+  for (const locale of ["zh", "en"] as const) for (const vision of [false, undefined]) for (const description of ["", "  \n "]) {
     const draft_id = crypto.randomUUID(), state = { available: true as const, ...(vision === undefined ? {} : { vision }) };
     await drafts.prepare({ draft_id, description, images: shots }, caller);
     const off = model(() => assert.fail("a model that cannot read the screenshots is not asked about nothing but screenshots"), state);
-    assert.deepEqual(await drafts.name(draft_id, caller, off.client), { status: "needs_input", question: ISSUE_SCREENSHOTS_UNREAD }, `${vision} ${JSON.stringify(description)}`);
+    const answer = await issueText(locale, () => drafts.name(draft_id, caller, off.client));
+    assert.equal(answer.status, "needs_input");
+    const question = answer.question;
+    const clues = locale === "zh" ? ["未声明能看图", "已设为不能看图", "截图没有交给它", "写一句话", "设置 → 模型 → 供应商的模型列表", "能看图并保存"]
+      : ["cannot read screenshots", "Add a sentence", "Settings → Models and save"];
+    for (const clue of clues) assert.ok(question.includes(clue), clue);
+    assert.ok(question.length <= 200 && !/[\r\n]/.test(question));
+    if (locale === "en") assert.doesNotMatch(question, /\p{Script=Han}/u);
     assert.equal(off.calls.length, 0); assert.equal(count(), 0);
     // A revoked or cancelled call gets no answer either, and a retired draft is gone.
-    await assert.rejects(drafts.name(draft_id, { ...caller, beforeEffect: async () => { throw new Error("revoked"); } }, off.client), /revoked/);
+    await assert.rejects(issueText(locale, () => drafts.name(draft_id, { ...caller, beforeEffect: async () => { throw new Error("revoked"); } }, off.client)), /revoked/);
     await drafts.cancel(draft_id, caller);
     await assert.rejects(drafts.name(draft_id, caller, off.client), { code: "actions.conflict" });
     // The editor's suggestion is the same: nothing to name from, nothing asked of the model, nothing written.
     const suggest = issueActionHandlers(store, off.client).find(binding => binding.capability_id === issuesActions.suggestName.capability_id)!;
-    assert.deepEqual(await suggest.handle(caller, { description, images: [shots[0]] }), { status: "needs_input", question: ISSUE_SCREENSHOTS_UNREAD });
+    assert.deepEqual(await issueText(locale, () => suggest.handle(caller, { description, images: [shots[0]] })), answer);
     assert.equal(off.calls.length, 0); assert.equal(count(), 0);
   }
   // A model that is not there at all is still reported as that, not as the screenshots.
@@ -142,11 +150,11 @@ test("ISSUE-50 too little to go on, an unusable answer, no model, a refused writ
   assert.deepEqual(await drafts.name(draft_id, caller, asks.client), { status: "needs_input", question: ISSUE_ASK }); assert.equal(count(), 0);
   for (const answer of [{ status: "named", title: "", type: "bug" }, { status: "named", title: "标题", type: "question" }, { status: "named", title: "两行\n标题", type: "bug" },
     { status: "named", title: "长".repeat(201), type: "bug" }, { status: "needs_input" }, "保存按钮没反应", null]) {
-    await assert.rejects(drafts.name(draft_id, caller, model(() => answer).client), { code: "issues.model_reply_invalid" }, JSON.stringify(answer));
+    await assert.rejects(issueText("zh", () => drafts.name(draft_id, caller, model(() => answer).client)), { code: "issues.model_reply_invalid" }, JSON.stringify(answer));
   }
   const off = model(() => assert.fail("an unavailable model is never asked"), { available: false, reason: "请先在「模型设置」里连接文字模型" });
   await assert.rejects(drafts.name(draft_id, caller, off.client), { code: "actions.connection_required", message: "请先在「模型设置」里连接文字模型" });
-  await assert.rejects(drafts.name(draft_id, caller, undefined), { code: "actions.connection_required" });
+  await assert.rejects(issueText("zh", () => drafts.name(draft_id, caller, undefined)), { code: "actions.connection_required" });
   const named = () => model(() => ({ status: "named", title: "点保存没有反应", type: "bug" }));
   // Revoked or cancelled after the model answered, and a model binding that changed under the call.
   await assert.rejects(drafts.name(draft_id, { ...caller, beforeEffect: async () => { throw new Error("revoked"); } }, named().client), /revoked/);
@@ -196,8 +204,8 @@ test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction a
   // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).
   const definition = createIssuesPlugin();
   assert.deepEqual(definition.methods, issuesSkills);
-  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@1`]);
-  assert.equal(method!.version, 1);
+  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@2`]);
+  assert.equal(method!.version, 2);
   for (const word of ["change-reversible", "change-capability", "read-capability", "find-capabilities", "suggest-action", "ask-user", "录入草稿", "待整理记录"]) assert.ok(!method!.body.includes(word), word);
   assert.ok(method!.body.includes("issues.create"));
 });
@@ -264,9 +272,9 @@ test("RAC-1664 naming counts Unicode characters: a 200-character title or questi
     "100000 characters of words reach the model, and a 200-character title is taken");
   assert.equal(data(fake.calls[0]!).description, wide(100_000), "the words go to the model whole");
   assert.deepEqual(await suggest.handle(caller, { description: "保存没反应" }), { status: "needs_input", question: wide(200) }, "a 200-character question is taken");
-  await assert.rejects(suggest.handle(caller, { description: "保存没反应" }),
+  await assert.rejects(issueText("zh", () => suggest.handle(caller, { description: "保存没反应" })),
     { code: "issues.model_reply_invalid", message: "模型没有给出可用的标题和类型，点开补全后保存" }, "a 201-character title is still past the limit");
-  await assert.rejects(suggest.handle(caller, { description: "保存没反应" }),
+  await assert.rejects(issueText("zh", () => suggest.handle(caller, { description: "保存没反应" })),
     { code: "issues.model_reply_invalid", message: "模型没有给出可用的标题和类型，点开补全后保存" }, "a 201-character question is still past the limit");
   assert.equal(fake.calls.length, 4);
   await assert.rejects(suggest.handle(caller, { description: wide(100_001) }),

@@ -2,20 +2,7 @@
 
 插件只写**说什么**；用哪种语言、什么颜色和字体，由平台从上下文给。业务代码只碰两个工具 `t`、`format`（SDK 的 `/ui` 子路径）和语义 CSS 变量：不读语言，不判断皮肤，不为它们改函数签名。
 
-这套写法第 14 批刚落地，**今天只有一条路走得通：自己写的 Integration 插件，在 `molis-work plugin dev` 里跑**。下表分开写今天和第 16 批起；照「今天」那一列做，不要提前写右边那一列。
-
-## 今天和第 16 批起
-
-| 事 | 今天 | 第 16 批起 |
-| --- | --- | --- |
-| 自己在开发路径写插件 | `t`、`format`，`locales/<语言>.json`，`validate` 查。写成 Integration（这个入口只收它），`molis-work plugin dev … --locale <语言>` 选语言 | 同，也可以写 `ui.views` |
-| 打成沙箱包安装 | **不行**：带 `ui.locales` 的沙箱包被拒绝，错误写明原因 | 可以 |
-| 内置插件的文字 | 照旧 `L`、`p.text` 和 `ui.messages`，补英文（[ui.md](ui.md#文案与-i18n)），**不写 `ui.locales`**（`tests/ui-text-locale-files.test.ts` 拦） | 换成 `t` 和语言文件，旧写法删掉 |
-| 新文字用稳定键 | 插件要做：`<主人>.<位置>.<元素>`。工作台和宿主第 16 批起才做：它们今天没有词表，`L` 查不到就显示原样，写键会把键显示给用户 | 都要做 |
-| 不拿译文做判断、不把译文存进业务数据 | 新代码要做 | 存量改完 |
-| 颜色、字体只用语义变量 | 要做 | 同 |
-| 没有页面的地方显示的句子 | 存键和参数，显示时再 `t` | 后台工作一律存 `TextRef` |
-| 给模型的内容跟所选语言 | 个人助理的回复语言由平台给；提示词、Skill 里不写语言判断 | Coding、创作台接上；Skill 每种语言一个文件（第 08 批定约定） |
+内置、开发预览和签名安装都用同一份词包合同。先用 `molis-work plugin validate` 检查，再用 `molis-work plugin dev` 预览；集成插件在开发入口可选语言。正式工作台切换时，已打开的页面原地换字。
 
 ## 文字分四类
 
@@ -28,7 +15,9 @@
 
 ## 写一个带两种语言的插件
 
-最短的路是 `molis-work plugin create`：生成的样例已经带 `ui.locales` 和 `locales/en.json`、`locales/zh.json`，同一份写法在 `examples/plugin-sample/`。安装公开两包（contracts 和 SDK）、`validate`、`dev` 的完整命令见 `docs/platform/PLUGIN-DEVELOPMENT.md`「创建和运行」。从空目录写，照下面四步，文末有一个跑过的最小例子。
+`molis-work plugin create` 生成的样例已经带 `ui.locales`、`locales/en.json` 和 `locales/zh.json`。先按随包手册准备安装版 CLI 和 contracts、SDK 两包。从空目录手写时，照下面四步和文末的完整例子。[安装版开发入口](authoring.md#安装版开发入口) · [中英文最小例子](#最小的完整例子)
+
+有源码树时，可以对照其中同一写法的样例。[源码树样例](../../examples/plugin-sample/)
 
 **1. Manifest 声明语言。** 在 `ui` 下加 `locales`：
 
@@ -39,10 +28,11 @@
 }
 ```
 
-- 每种语言一个文件 `locales/<语言>.json`，路径由约定得出，不写；`pack` 自动带上，不用写进 `package.json` 的 `files`。
+- 每种语言一个文件 `locales/<语言>.json`，路径按约定推导。`molis-work plugin pack` 自动带上。用 npm 或 pnpm 发布项目时，把 `locales` 放进 `package.json` 的 `files`。[打包与签名](authoring.md#打包与签名)
 - 语言标记写 `zh`、`en`、`zh-Hant`、`pt-BR` 这样的；`default` 在 `available` 里，不重复，最多 32 种；`ui.locales` 只有这两个键。
-- 同一个 Manifest 不能再写 `ui.messages` 或 `ui.translations`。
-- `plugin_id` 的最后一段就是键的第一段（上例是 `greeting`），所以它要以小写字母开头、只含小写字母、数字和连字符，不是 `common`（[elements.md](elements.md#身份)）。也别用 `workbench`：平台自己的词用这个名字，开发路径会报 `ui.text_owner_conflict`。
+- 不接受旧的 `ui.messages` 或 `ui.translations`，两者单独出现也不接受。
+- Home 库的项目清理说明（`databases.home.project_rows.label`）也可引用本插件的键。默认语言必须有这句；它是非空单行、最多 200 字符，无参数与复数。要保留原文时写字符串或 `{ literal }`。
+- `plugin_id` 的最后一段就是键的第一段（上例是 `greeting`），所以它要以小写字母或数字开头、只含小写字母、数字和连字符，不是 `common`（[elements.md](elements.md#身份)）。也别用 `workbench`：平台自己的词用这个名字，开发路径会报 `ui.text_owner_conflict`。
 
 **2. 每种语言一个文件。** `locales/en.json`：
 
@@ -102,37 +92,38 @@ render() {
 - **交给自己会转义的地方写 `t.text`**：`textContent`、`el.title =`、`new Option(…)`、`renderButton({ label })` 这类。写成 `t` 会显示成 `Tom&#039;s`。反过来，**`t.text` 绝不能拼进 HTML**，那是注入。不带字符串参数的句子两种写法结果相同。
 - **句子里的数和日期，当 `t` 的参数传：** 普通数字照原样，不分组（`{ count: 2026 }` 显示 `2026`，`numberArg(n)` 不带样式也一样）；要分组写 `numberArg(n, "decimal")`，另有 `percent`、`compact`。日期写 `dateArg(at, style)`。这两个只是值：画页面时按那句话的语言排版，和整句一起转义一次；它们也能存进键和参数里，在没有页面的地方建（下一节）。
 - **单独一个数或日期放进 HTML，写 `format.number(n, style?)`、`format.date(at, style)`：** 调用的时候就按当前语言排好并转义，没有页面的地方调会抛 `ui.text_no_context`。`format.number` 不写样式按 `decimal`，**会分组**，和 `numberArg(n)` 不一样。不要把 `format.*` 的结果再当 `t` 的参数：它已经是转义过的 HTML，再进 `t` 就转义第二次；今天数字和日期排出来没有那五个字符，所以看不出来，但写法是错的。
-- **日期：** 样式是 `date`、`time`、`datetime`、`relative`、`weekday`、`month-day` 等，`at` 写 ISO 8601。带时间的（`2026-11-08T21:15:00Z`）按运行这段代码的机器的本地时区显示，`dev` 里就是你这台机器：UTC 21:15 在东八区显示成次日 05:15。只有日期的（`2026-11-08`）照写的那天显示，不随时区挪，`time`、`datetime` 样式对它只显示日期。坏日期不抛，显示原文。
+- **日期：** 样式是 `date`、`time`、`datetime`、`relative`、`weekday`、`month-day` 等，`at` 写 ISO 8601。需要显示到秒时用 `time-with-seconds`（时分秒）或 `datetime-with-seconds`（日期和时分秒）。带时间的（`2026-11-08T21:15:00Z`）可指定 IANA 时区，如 `dateArg(at, "datetime", { time_zone: "America/Los_Angeles" })`；不指定按运行这段代码的机器本地时区显示，`dev` 里就是你这台机器：UTC 21:15 在东八区显示成次日 05:15。只有日期的（`2026-11-08`）照写的那天显示，不随时区挪，`time`、`datetime` 样式对它只显示日期。坏日期不抛，显示原文。
 - **代码里的参数名要和语言文件里的一样。** 文件写 `{keeper}`、代码传 `{ keepr: … }`，页面原样显示 `{keeper}`，没有警告；`validate` 不读代码，也查不到。`dev` 之后看一眼 `rendered_ui` 里有没有没替换的 `{…}`。
 - 代码里不读语言：没有 `navigator.language`、`currentLocale`，也不按语言写分支。语言由平台给，`t` 自己知道。
 - 一个键在所有语言里都查不到时，页面显示平台的一句「这句话暂时显示不了」（英文 This text cannot be shown right now），键名不上页面；宿主在 stderr 记一行 `"area":"ui-text","event":"text-missing"`，`fields` 里有 `owner`、`key`、`locale`；同一个主人的同一个键只记第一次，再渲染多少次也只有这一行。`validate` 只读语言文件、不读代码，所以写错的键看 `dev` 的这行日志。
 
-**4. 检查和运行。** `validate` 和 `dev` 都用 Molis Work 本体的命令 `molis-work plugin …`。它不在你装的 contracts、SDK 两个包里，装完它们 PATH 上也没有 `molis-work`。今天拿到它有两条路，命令后面的参数一样：
+**4. 检查和运行。** `validate` 和 `dev` 都由 Molis Work 本体的 CLI 执行。按随包手册设好 `molis_cli`，默认是 Home 下的 `bin/molis-work`。[安装版开发入口](authoring.md#安装版开发入口)
 
-- 在 Molis Work 仓库里 `pnpm build` 之后，在仓库根目录写 `node dist/cli/main.js plugin …`（`docs/platform/PLUGIN-DEVELOPMENT.md`「创建和运行」都这样写）。
-- 按 `docs/installation.md` 装过 Home 的，写全路径 `~/.molis-work/bin/molis-work plugin …`，它不在 PATH 上。公开安装包还没发布。
+在源码树里构建后，可用 `node dist/cli/main.js` 代替 `"$molis_cli"`。独立工具 `molis-work-plugin` 目前供源码树使用，它的 `dev` 会报 `plugin.host_required`，应改用 `molis-work plugin dev`。[构建命令](authoring.md#从源码树构建) · [源码树的安装说明](../../docs/installation.md) · [独立 CLI 的源码树待办](../../specs/backlog/BL-plugin-cli-standalone-install.md)
 
-仓库里另有一个独立工具 `molis-work-plugin`（`tooling/plugin-cli`），今天装不到仓库外面（`specs/backlog/BL-plugin-cli-standalone-install.md`），而且没有 Host：在它上面跑 `dev` 报 `plugin.host_required`，不是 Manifest 写错了，换成 `molis-work plugin dev`。
+把项目路径换成实际位置。最小例子的授权项是 `ui:register`，其他插件填自己 Manifest 所需的权限，以逗号分隔。
 
 ```bash
-molis-work plugin validate <项目>/manifest.json
-molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-development --locale zh
+plugin_project="/实际目录/greeting"
+plugin_state="$(mktemp -d)"
+"$molis_cli" plugin validate "$plugin_project/manifest.json"
+"$molis_cli" plugin dev "$plugin_project" "$plugin_state" ui:register --allow-unsigned-development --locale zh
 ```
 
-`<grants>` 是逗号分隔的、Manifest 要的权限（下面的最小例子只要 `ui:register`）。`<开发状态目录>` 必须是新的、空的，或之前 `dev` 用过、带 `.molis-work-plugin-development.json` 标记的目录，普通的非空目录会被拒绝（`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」；错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 `specs/backlog/BL-plugin-cli-dev-uncoded-errors.md`）；中英文各跑一次可以用同一个。
+开发状态目录必须是新的、空的，或之前 `dev` 用过且带 `.molis-work-plugin-development.json` 标记。中英文各跑一次可以用同一个目录。普通非空目录会被拒绝，`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」。目前错误码为 `plugin.manifest_invalid`，以 `message` 定位目录问题。[源码树的错误码待办](../../specs/backlog/BL-plugin-cli-dev-uncoded-errors.md)
 
 **先 `validate`，再 `dev`。** `dev` 只读这次用的语言和默认语言两个文件：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行，报 `plugin.package_invalid`，`message` 和 `validate` 的写法一样。别的语言（没用到的那几种）它不读，所以全部语言的检查仍要靠 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 
 - `validate` 读 Manifest 旁边声明的语言文件。默认语言缺键（别的语言有、它没有）、参数和默认语言不一样、文字里有那五个字符、文件缺失、`owner` 或 `locale` 和声明不符：都失败，退出码 1，`message` 写哪个文件、哪个键、怎么改。参数不一样时，问题记在非默认语言的文件上，但写错的可能是任何一边：`message` 写出两个文件各用什么参数、哪个是默认语言，改写错的那一边；代码里 `t` 传的参数名以默认语言为准。只是别的语言少几个键不算失败，写进输出的 `locale_notes`（每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`），那种语言暂时显示默认语言的字。
 - `dev` 加 `--locale <语言>` 用那种语言画页面，不写用 `default`。语言不在 `available` 里报 `actions.input_invalid` 并列出可选的；插件没写 `ui.locales` 却传了 `--locale`，同样报错，提示先写 `ui.locales`。中英文各跑一次，看输出 JSON 里 `rendered_ui` 的 HTML。
 
-## 没有页面的地方没有语言
+## 后台工作与稍后显示的文字
 
-今天开发路径只有画页面（`render`）时有语言。`start`、`sync`、`health`、动作处理器、定时器里调 `t` 或 `format`，开发路径直接抛 `ui.text_no_context`，错误里写出是哪个键；正式运行不抛，显示主人的默认语言并记一条问题。一次请求里起的定时器和 promise，在请求结束后同样读不到那次请求的语言。
+开发预览只有在渲染时提供语言。正式运行的请求、动作和后台入口由宿主给上下文：页面随当前调用，后台工作开始时读同一 Home 最近用的语言。请求结束后的 promise 或定时器不能继续用原页面的语言。
 
-所以没有页面的地方**不调 `t`，存键和参数**（如 `{ key: "greeting.sync.done", args: { count } }`），到 `render` 里再 `t(key, args)`；切了语言，存下的句子跟着变。平台自己的后台工作（定时安排、续轮）由宿主给语言（`runBackgroundWork`，读最后一次用的语言），插件今天没有这样的入口。
+消息存下来以后才显示时，用 `TextRef` 保存键和参数（例如 `{ key: "greeting.sync.done", args: { count } }`）。在拥有它的作用域用 `t` 或 `say` 显示，换语言后仍用同一条记录。外部错误和用户原文按原文保留。
 
-写测试时，用 `installTextForTest({ packs, locale })` 装上自己的语言文件（`packs` 用 `parseLocalePack` 读出来，每个主人的第一个算默认语言），它返回撤回函数；`locale: null` 就是没有页面的情形，`t` 会抛。
+测试用 `installTextForTest({ packs, locale })` 装上用 `parseLocalePack` 读出的词包，并在结束时撤回；`locale: null` 模拟无语言上下文。
 
 ## 逻辑不碰译文
 
@@ -143,27 +134,28 @@ molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-de
 ## 颜色和字体
 
 - 样式只写语义变量：颜色 `var(--ink)`、`var(--muted)`、`var(--paper)`、`var(--line)`、`var(--accent)`、`var(--action)`；字体 `var(--font)`、`var(--font-mono)`、`var(--weight-body)`、`var(--weight-title)`；圆角 `var(--r-control)`、`var(--r-card)`；动效 `var(--dur-move)`、`var(--ease-quint)`。不写色值，也不写圆角、阴影、时长的数值和 `!important`。
-- 值只在基线文件里：`packages/design-system/resources/` 的 `ui-spec.json`（有哪些角色）、`skins/soft-workbench.json`（颜色、阴影、圆角、动效的值）、`fonts/system-sans.json`（字族、字重、字距）。缺一个就加进基线文件（角色在 `ui-spec.json`，值在皮肤文件），不写局部值；改这些文件要过设计系统的评审。外部插件作者拿不到私有的 design-system，按名字用变量就行。
+- 安装版插件直接按名字使用上面的语义变量。基线文件是源码树的设计系统资料，`ui-spec.json` 列角色，`skins/soft-workbench.json` 定颜色、阴影、圆角和动效，`fonts/system-sans.json` 定字族、字重和字距。源码树维护者新增角色或取值时走设计系统评审。[源码树基线文件](../../packages/design-system/resources/)
 - 代码不读当前皮肤、明暗或字体（`data-skin`、`data-resolved-theme` 都不碰），换外观时页面不用做任何事。
+
+### 目录和连接服务的文字
+
+清单里原来的名称、简介和视图标题是原文。要随语言切换，分别在 `name_text`、`summary_text`、视图的 `title_text` 或开始/创建入口的对应文字字段声明本插件的 `{ "key": "插件前缀.区域.名称" }`。视图有自己的标题，缺词时回退同一字段的原文。外部品牌或用户原文继续用原来的文字，不用给它们造译文。
+
+成果库类型可以在 `artifacts.produces` 的条目上保留非空 `title` 原文，并用 `title_text` 声明本插件的 `{ "key": "greeting.artifacts.type-title" }`。默认语言文件须有这个键，文字为不超过 80 字的无参单行短句。其他语言缺词时沿默认语言显示。类型名不能取通用词、原文字面引用、参数或复数。成果内容、类型 ID 和版本照原合同写。[成果类型声明](elements.md#artifacts--ports)
+
+集成插件的连接服务标题、简介、提示、能力标签、链接标题，以及凭据和 OAuth 设置的标签与占位文字，也可以用同一份 `TextRef`。默认语言必须有本插件的每个声明键，这些字段不带参数，也不取复数词条。授权端点、域名、范围、枚举值和设置字段名照原合同写；语言切换不改变授权。签名沙箱集成把语言声明写进现有 `contract.json` 的 `ui.locales`，其 `manifest.json` 与之相符，语言文件同包签名。
 
 ## 给模型的内容
 
-一轮用哪种语言回复，由平台在一处给模型（`AgentStartAuthority.reply_language`，今天只接了个人助理）。提示词、Skill、方法和插件代码里都不写「用中文回复」，也不按语言分支；用户这一轮明说要别的语言时，模型照用户的。写法见 [molis-prologue-ai](../molis-prologue-ai/SKILL.md)。
+一轮用哪种语言回复，由平台在一处给模型（`AgentStartAuthority.reply_language`）。提示词、Skill、方法和插件代码里都不写「用中文回复」，也不按语言分支；用户这一轮明说要别的语言时，模型照用户的。写法见 [molis-prologue-ai](../molis-prologue-ai/SKILL.md)。
 
-## 第 16 批起
-
-- 工作台、宿主和内置插件换成 `t` 和语言文件，`L`、`p.text`、`ui.messages`、`ui.translations` 删掉；脚手架、生成插件跟着改。
-- 带 `ui.locales` 的沙箱包能安装，带 `ui.views` 的插件页面能用 `t`；切语言时页面原地换字，不刷新。
-- 存下来以后才显示的句子存 `TextRef`（`@molis-ai/molis-work-contracts/platform/ui`），用 `say` 显示。
-- 长内容每种语言一个文件：Skill 的约定由第 08 批的合同定。
-
-到那时这一章会改；在那之前以本章「今天」的写法为准。
+Skill、方法和提示词的长正文每种语言一个文件，缺译文时用该来源的默认正文；这一轮的回复语言不随正文回退。具体的内容包文件规则留作源码树参考。[源码树的内容包文件约定](../../specs/font-and-skin-system/a-section-contract.md#153-skill-的文件约定交第-08-批合同)
 
 ## 最小的完整例子
 
 一个只画一页的 Integration 插件，中英文，参数带 `'` 和 `&`。上面第 2 步的 `locales/en.json`、`locales/zh.json` 放在同一目录。
 
-插件代码跑在 `molis-work` 的进程里，所以 Node 版本跟它走。仓库锁定 24.15.x：`.nvmrc` 写 24.15.0，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`，npm 安装包也要求这一版；别的版本不在支持范围，能跑也不保证。contracts 和 SDK 两包自己写的是 `>=24`。`import … with { type: "json" }` 在 24.15 能用。入口写成 `.mjs`，不管 `package.json` 的 `"type"` 都按 ES 模块读。`validate` 和 `dev` 不读 `package.json`，自己不用写；`npm install` 装两个包时会建一个。到 `pack` 时才要它：`files` 列出分发的文件（语言文件不用列，自动带上）。
+插件代码在 `molis-work` 的进程里运行，Node 版本跟它走。当前 npm 安装包要求 Node 24.15.x，源码树也锁定这个系列。源码树的 `.nvmrc` 写 24.15.0，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`。contracts 和 SDK 两包自己声明 `>=24`。`import … with { type: "json" }` 在 24.15 能用。入口写成 `.mjs` 时按 ES 模块读，与 `package.json` 的 `"type"` 无关。`validate` 和 `dev` 无需手写 `package.json`，离线安装两包时 npm 会建一个。打包时用 `files` 列出分发文件，Manifest 声明的语言文件自动带上。[离线安装两包](authoring.md#安装版开发入口)
 
 `manifest.json`：
 

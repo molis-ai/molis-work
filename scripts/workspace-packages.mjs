@@ -160,7 +160,6 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-artifacts",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
-      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-plugin-sdk"
     ],
     extraDependencies: {
@@ -204,6 +203,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-service-account",
       "@molis-ai/molis-work-service-agent-host",
+      "@molis-ai/molis-work-service-appearance",
       "@molis-ai/molis-work-service-connector-host",
       "@molis-ai/molis-work-service-runtime-host",
       "@molis-ai/molis-work-service-scheduler",
@@ -284,6 +284,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/ui-host", "@molis-ai/molis-work-contracts/platform/ui", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     capabilities: [
       "ui.contribution.registry.v1",
       "ui.surface.render.v1",
@@ -456,6 +457,15 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "search.query.v1",
       "search.index.v1"
+    ]
+  }),
+  entry("horizontal/appearance", "@molis-ai/molis-work-contracts/platform/ui", {
+    maturity: "slice",
+    capabilities: ["appearance.selection.get.v1", "appearance.selection.apply.v1", "appearance.selection.undo.v1"],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
     ]
   }),
   entry("horizontal/kit", "@molis-ai/molis-work-contracts/services/kit", {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 import { CONTEXT_TOOL_LIMITS } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
@@ -51,7 +52,7 @@ test("W1-06: styles use tokens only; the shared sheets do not carry the bar, the
   assert.doesNotMatch(CONTEXT_TOOLBAR_STYLES, /#[0-9a-fA-F]{3,8}\b|!important|\brgba?\(/u, "no colour literal, no !important");
   assert.match(CONTEXT_TOOLBAR_STYLES, /min-height: 44px/u, "44px where the pointer is coarse");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.doesNotMatch(sheet, /\.mw-ctx\b/u);
-  const board = renderPrimitiveCatalog();
+  const board = withPageText("zh", [], renderPrimitiveCatalog);
   assert.match(board, /id="context-toolbar"/u);
   assert.match(board, /href="#context-toolbar"/u);
   assert.ok(board.includes(CONTEXT_TOOLBAR_STYLES.slice(0, 120)), "the section carries its own style");

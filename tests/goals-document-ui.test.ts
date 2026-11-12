@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import { GOALS_DOCUMENT_UI_CONTRIBUTION_ID, type GoalsDocumentItem, type GoalsDocumentContext } from "@molis-ai/molis-work-plugin-goals";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.document({ translate: L, escapeHtml, icon,
+const renderer = goalsRenderers.document({ translate: t.text, escapeHtml, icon,
   formatDate: value => value ?? "", renderStatus: status => status, renderVisibleGoalStatus: item => item.display_status,
-  sectionHeading: (_icon, title, description = "") => "<header>" + escapeHtml(L(title)) + escapeHtml(L(description)) + "</header>" });
+  sectionHeading: (_icon, title, description = "") => "<header>" + escapeHtml(t.text(title)) + escapeHtml(t.text(description)) + "</header>" });
 const context: GoalsDocumentContext = { activeGoalId: null, decisionCount: 0,
   relatedWorkHtml: "", artifactHtml: "", coverageHtml: "" };
 const item = (): GoalsDocumentItem => ({
@@ -32,7 +30,7 @@ test("collection placeholders preserve full versus refresh behavior", () => {
   const trash = renderer.renderEmptyGoalCollection(true, true);
   assert.match(trash, /移入回收站的 Goal 可以在这里恢复/);
   assert.match(trash, /href="\/"/);
-  const archive = runWithLocale("en", () => renderer.renderEmptyGoalCollection(false, true));
+  const archive = withGoalLocale("en", () => renderer.renderEmptyGoalCollection(false, true));
   assert.match(archive, /No archived Goal yet/);
   assert.match(archive, /Historical facts are not deleted/);
   assert.doesNotMatch(archive, /Trash is empty/);
@@ -72,7 +70,7 @@ test("archived and trashed documents keep restore/history behavior and localized
   assert.match(trashed, /Reason &quot;&lt;y&gt;/);
   assert.doesNotMatch(trashed, /data-open-quick-record|data-open-goal-tui|data-set-active-goal/);
   const empty = { ...value, goal: { ...value.goal, acceptance_criteria: [] } };
-  const english = runWithLocale("en", () => render(empty));
+  const english = withGoalLocale("en", () => render(empty));
   assert.match(english, /保留用户标题 &quot;&lt;title&gt;/);
   assert.match(english, /data-goal-event-document/);
 });

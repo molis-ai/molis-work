@@ -5,9 +5,10 @@ import { readFileSync } from "node:fs";
 import { registration as feedRegistration } from "@molis-ai/molis-work-plugin-feed/registration";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPickerExtend, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
-import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
+import { CLIENT_SCRIPT, builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
+import { pageText } from "./fixtures/page-text.js";
 
 test("plugin market is a catalog directory, not a centered landing form", () => {
   const html = renderPluginMarket({ L: (value) => value, escapeHtml: String, icon });
@@ -65,13 +66,16 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   const script = renderMolisWorkWorkbenchClientScript();
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /hidePopover/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /marketMembership/);
-  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /移除/);
+  const remove = "workbench.plugin-workbench.remove";
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(JSON.stringify(remove)));
+  assert.equal(pageText("zh")(remove), "移除");
+  assert.equal(pageText("en")(remove), "Remove");
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/runtime\/updates/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/"\s*\+\s*encodeURIComponent\(pluginId\)\s*\+\s*"\/upgrade/);
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey:\s*"var\(--hue-gray\)"/);
-  // Inspect the shipped program by object values: build-time minification may rename its private binding.
+  // Inspect the tab map before string pooling substitutes literal values.
   let tabIcons: Record<string, string> | undefined;
   const visit = (node: ts.Node) => {
     if (ts.isObjectLiteralExpression(node)) {
@@ -84,7 +88,7 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
     }
     ts.forEachChild(node, visit);
   };
-  visit(ts.createSourceFile('workbench.js', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS));
+  visit(ts.createSourceFile('workbench.js', CLIENT_SCRIPT, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS));
   assert.ok(tabIcons, 'the shipped bundle contains the plugin icon mapping');
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");

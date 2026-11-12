@@ -1,3 +1,4 @@
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
@@ -55,15 +56,15 @@ function build(child: Child) {
 }
 
 function drawHead(ports: SubagentCardPorts, node: HTMLElement, child: Child) {
-  const L = ports.translate, verdict = child.verdict?.status;
+  const verdict = child.verdict?.status;
   part(node, ".coding-child-mark").dataset.mwState = markOf(child);
   part(node, ".coding-child-role").textContent = ports.roleName(child.role_id) || child.role_name;
-  const states: Readonly<Record<string, string>> = { running: L("coding.state.running"), completed: L("coding.card.state.completed"), failed: L("coding.phase.failed"), cancelled: L("coding.phase.stopped"), "reconcile-required": L("coding.card.state.reconcile") };
-  part(node, ".coding-child-state").textContent = verdict === "accepted" ? L("coding.card.accepted") : verdict === "needs-work" ? L("coding.card.needs-work") : states[child.state] || child.state;
+  const states: Readonly<Record<string, string>> = { running: uiText.text("coding.state.running"), completed: uiText.text("coding.card.state.completed"), failed: uiText.text("coding.phase.failed"), cancelled: uiText.text("coding.phase.stopped"), "reconcile-required": uiText.text("coding.card.state.reconcile") };
+  part(node, ".coding-child-state").textContent = verdict === "accepted" ? uiText.text("coding.card.accepted") : verdict === "needs-work" ? uiText.text("coding.card.needs-work") : states[child.state] || child.state;
   const tokens = child.usage?.tokens;
   part(node, ".coding-child-meta").textContent = [
-    child.workspace_path && child.integration_available ? L("coding.board.own-directory", { path: (child.workspace_path.split("/").pop() ?? "") }) : "",
-    tokens && (tokens.input || tokens.output) ? L("coding.card.usage", { tokens: ((tokens.input || 0) + (tokens.output || 0)).toLocaleString() }) : "",
+    child.workspace_path && child.integration_available ? uiText.text("coding.board.own-directory", { path: (child.workspace_path.split("/").pop() ?? "") }) : "",
+    tokens && (tokens.input || tokens.output) ? uiText.text("coding.card.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) }) : "",
   ].filter(Boolean).join(" · ");
   const task = part(node, ".coding-child-task");
   task.textContent = (child.task || "").trim().split("\n").find(line => line.trim()) || "";
@@ -95,7 +96,7 @@ function drawReviews(ports: SubagentCardPorts, node: HTMLElement, child: Child) 
 }
 
 /** What the child changed, at a glance, without unfolding its timeline or opening the integration dialog. */
-function drawChanged(L: Translate, node: HTMLElement, child: Child, edited: readonly string[]) {
+function drawChanged(_L: Translate, node: HTMLElement, child: Child, edited: readonly string[]) {
   let changed = node.querySelector<HTMLElement>(".coding-child-changed");
   if (!edited.length) {
     changed?.remove();
@@ -105,11 +106,11 @@ function drawChanged(L: Translate, node: HTMLElement, child: Child, edited: read
     changed = el("p", "", "coding-child-changed");
     part(node, ".coding-child-result").before(changed);
   }
-  changed.textContent = L("coding.card.changed", { count: edited.length, files: edited.slice(0, 6).join(L("coding.list.joiner")) + (edited.length > 6 ? L("coding.card.and-more") : "") }) + (child.integration_available ? L("coding.card.own-directory") : "");
+  changed.textContent = uiText.text("coding.card.changed", { count: edited.length, files: edited.slice(0, 6).join(uiText.text("coding.list.joiner")) + (edited.length > 6 ? uiText.text("coding.card.and-more") : "") }) + (child.integration_available ? uiText.text("coding.card.own-directory") : "");
 }
 
 /** Folded by default with a one-line preview: the parent's summary is where the reading happens. */
-function drawResult(L: Translate, node: HTMLElement, child: Child) {
+function drawResult(_L: Translate, node: HTMLElement, child: Child) {
   const result = part(node, ".coding-child-result");
   result.hidden = !child.result;
   if (!child.result) return;
@@ -120,7 +121,7 @@ function drawResult(L: Translate, node: HTMLElement, child: Child) {
     else body.textContent = child.result;
   }
   const preview = child.result.replace(/[#*`>|-]+/g, " ").replace(/\s+/g, " ").trim();
-  part(result, "summary").textContent = L("coding.card.conclusion", { preview: preview.length > 90 ? preview.slice(0, 90) + "…" : preview });
+  part(result, "summary").textContent = uiText.text("coding.card.conclusion", { preview: preview.length > 90 ? preview.slice(0, 90) + "…" : preview });
 }
 
 /** A failure reads in plain words first; the original reason stays next to it. */
@@ -133,19 +134,19 @@ function drawError(ports: SubagentCardPorts, node: HTMLElement, child: Child) {
   }
   const explained = ports.timeline.explainFailure?.(child.error);
   error.replaceChildren();
-  if (explained) error.append(el("strong", explained.title), document.createTextNode(ports.translate("coding.timeline.colon") + explained.hint), el("span", child.error, "coding-child-error-code"));
+  if (explained) error.append(el("strong", explained.title), document.createTextNode(uiText.text("coding.timeline.colon") + explained.hint), el("span", child.error, "coding-child-error-code"));
   else error.textContent = child.error;
 }
 
 /** Asks the Host to stop the running subagent, then reads the session again. */
 function stopButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
-  const { translate: L, lifetime, api, current, status, refresh } = ports;
-  return button(L("coding.card.stop"), async stop => {
+  const { lifetime, api, current, status, refresh } = ports;
+  return button(uiText.text("coding.card.stop"), async stop => {
     stop.disabled = true;
     const id = current();
     try {
       await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "stop" });
-      status(L("coding.card.stop-asked"));
+      status(uiText.text("coding.card.stop-asked"));
     } catch (error) {
       if (!lifetime.alive) return;
       status(errorMessage(error), true);
@@ -163,19 +164,19 @@ const retryRequest = (role: string, child: Child) => "请重新派出子任务�
  * supplemental channel; an ended one gets the request in the composer, sent only when the person chooses.
  */
 function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
-  const { translate: L, lifetime, api, current, status, refresh } = ports;
-  return button(L("coding.card.retry"), async retry => {
+  const { lifetime, api, current, status, refresh } = ports;
+  return button(uiText.text("coding.card.retry"), async retry => {
     const ask = retryRequest(ports.roleName(child.role_id) || child.role_name, child);
     if (!ports.parentLive(run)) {
       ports.prefill(ask);
-      status(L("coding.card.retry-prefilled"));
+      status(uiText.text("coding.card.retry-prefilled"));
       return;
     }
     retry.disabled = true;
     const id = current();
     try {
       await api("/sessions/" + encodeURIComponent(id) + "/control", "POST", { kind: "steer", run_id: run.ref.run_id, text: ask });
-      status(L("coding.card.retry-asked"));
+      status(uiText.text("coding.card.retry-asked"));
     } catch (error) {
       if (!lifetime.alive) return;
       status(errorMessage(error), true);
@@ -187,7 +188,7 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
 
 /** The buttons a child in its state is offered, drawn again only when what they depend on changed. */
 function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, child: Child, edited: readonly string[]) {
-  const L = ports.translate, foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0]);
+  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0]);
   if (foot.dataset.key === key) return;
   foot.dataset.key = key;
   foot.replaceChildren();
@@ -196,10 +197,10 @@ function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, ch
     foot.append(made.node);
   };
   if (child.state === "running") add(stopButton(ports, run, child));
-  if (child.state === "completed") add(button(child.integration_available ? L("coding.card.judge-integrate") : L("coding.card.judge"), () => ports.openInPanel(child.subagent_id)));
+  if (child.state === "completed") add(button(child.integration_available ? uiText.text("coding.card.judge-integrate") : uiText.text("coding.card.judge"), () => ports.openInPanel(child.subagent_id)));
   const ended = ["failed", "cancelled"].includes(child.state);
   // A child that ended badly may still have written real work in its own directory; the person looks before deciding.
-  if (ended && child.integration_available && edited.length) add(button(L("coding.sub.look"), () => ports.openInPanel(child.subagent_id)));
+  if (ended && child.integration_available && edited.length) add(button(uiText.text("coding.sub.look"), () => ports.openInPanel(child.subagent_id)));
   if (ended) add(retryButton(ports, run, child));
 }
 
@@ -222,7 +223,7 @@ function card(ports: SubagentCardPorts, section: HTMLElement, run: CardsRun, chi
 
 /** The "compare" button of two or more children: their conclusions side by side, open. */
 function compareButton(ports: SubagentCardPorts, section: HTMLElement) {
-  const L = ports.translate, compare = el("button", section.dataset.layout === "compare" ? L("coding.card.one-by-one") : L("coding.sub.compare"), "coding-children-compare");
+  const compare = el("button", section.dataset.layout === "compare" ? uiText.text("coding.card.one-by-one") : uiText.text("coding.sub.compare"), "coding-children-compare");
   compare.type = "button";
   compare.setAttribute("aria-pressed", String(section.dataset.layout === "compare"));
   ports.lifetime.listen(compare, "click", () => {
@@ -231,7 +232,7 @@ function compareButton(ports: SubagentCardPorts, section: HTMLElement) {
     section.querySelectorAll<HTMLDetailsElement>(".coding-child-result").forEach(node => {
       if (!node.hidden) node.open = on;
     });
-    compare.textContent = on ? L("coding.card.one-by-one") : L("coding.sub.compare");
+    compare.textContent = on ? uiText.text("coding.card.one-by-one") : uiText.text("coding.sub.compare");
     compare.setAttribute("aria-pressed", String(on));
   });
   return compare;
@@ -239,7 +240,6 @@ function compareButton(ports: SubagentCardPorts, section: HTMLElement) {
 
 /** The subagents of each run as cards under its block: a header, the child's own timeline, its approvals, its conclusion. */
 export function subagentCards(ports: SubagentCardPorts): SubagentCards {
-  const L = ports.translate;
   return {
     render(run, group) {
       if (!group || (!group.children?.length && !group.error)) return null;
@@ -247,7 +247,7 @@ export function subagentCards(ports: SubagentCardPorts): SubagentCards {
       if (!section) {
         section = el("section", "", "coding-children");
         section.dataset.codingSubagentsOf = run.ref.run_id;
-        section.setAttribute("aria-label", L("coding.card.section"));
+        section.setAttribute("aria-label", uiText.text("coding.card.section"));
       }
       let head = section.querySelector<HTMLElement>(":scope > .coding-children-head");
       if (!head) {
@@ -255,11 +255,11 @@ export function subagentCards(ports: SubagentCardPorts): SubagentCards {
         section.prepend(head);
       }
       if (group.error) {
-        head.textContent = L("coding.card.unreadable", { reason: group.error });
+        head.textContent = uiText.text("coding.card.unreadable", { reason: group.error });
         return section;
       }
       const children = group.children ?? [], running = children.filter(child => child.state === "running").length;
-      head.replaceChildren(document.createTextNode(L("coding.call.dispatch.count", { count: children.length }) + " · " + (running ? L("coding.card.running", { count: running }) : L("coding.card.all-ended"))));
+      head.replaceChildren(document.createTextNode(uiText.text("coding.call.dispatch.count", { count: children.length }) + " · " + (running ? uiText.text("coding.card.running", { count: running }) : uiText.text("coding.card.all-ended"))));
       // Two or more children can be read side by side, conclusions open, like comparing parallel agents.
       if (children.length > 1) head.append(compareButton(ports, section));
       for (const child of children) card(ports, section, run, child);

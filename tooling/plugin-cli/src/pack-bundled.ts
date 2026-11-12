@@ -1,7 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginPackageBundle, type PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginLocalesDeclaration, type PluginPackageBundle, type PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { signPluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { contentPayloadFromFolder, type PackContentOptions } from './pack-content.js';
 import { writePluginPackageFile } from './package-files.js';
@@ -17,7 +17,7 @@ const bundledErrors = defineErrorCodes('plugin', { publisher_key_missing: 'inval
 
 /** The file beside `skills/` that writes the publishing choices `pack-content` takes as options. */
 export const BUNDLED_PACK_OPTIONS_FILE = 'pack-content.json';
-const OPTION_KEYS = new Set(['plugin_id', 'version', 'name', 'name_en', 'summary', 'publisher_id', 'scope', 'compatible_from', 'translations']);
+const OPTION_KEYS = new Set(['plugin_id', 'version', 'name', 'name_text', 'summary', 'summary_text', 'publisher_id', 'scope', 'compatible_from', 'locales']);
 
 const invalid = (message: string): never => { throw pluginErrors.package_invalid(`${BUNDLED_PACK_OPTIONS_FILE}：${message}`); };
 const text = (value: unknown, key: string, required: boolean): string | undefined => {
@@ -36,14 +36,13 @@ export async function readBundledPackOptions(directory: string): Promise<Omit<Pa
   if (scope !== 'project' && scope !== 'home') invalid('scope 只能是 project 或 home');
   const from = fields.compatible_from;
   if (from !== undefined && (!Array.isArray(from) || !from.every(item => typeof item === 'string'))) invalid('compatible_from 要写成版本号的列表');
-  const translations = fields.translations;
-  if (translations !== undefined && (!translations || typeof translations !== 'object' || Array.isArray(translations)
-    || !Object.values(translations).every(item => typeof item === 'string'))) invalid('translations 要写成「中文 → 英文」的对象');
-  const nameEn = text(fields.name_en, 'name_en', false), summary = text(fields.summary, 'summary', false);
+  const summary = text(fields.summary, 'summary', false);
   return { pluginId: text(fields.plugin_id, 'plugin_id', true)!, version: text(fields.version, 'version', true)!, name: text(fields.name, 'name', true)!,
     publisherId: text(fields.publisher_id, 'publisher_id', true)!, scope: scope as 'project' | 'home',
-    ...(nameEn ? { nameEn } : {}), ...(summary ? { summary } : {}), ...(from ? { upgradesFrom: from as string[] } : {}),
-    ...(translations ? { translations: translations as Record<string, string> } : {}) };
+    ...(fields.name_text !== undefined ? { nameText: fields.name_text as PackContentOptions['nameText'] } : {}),
+    ...(fields.summary_text !== undefined ? { summaryText: fields.summary_text as PackContentOptions['summaryText'] } : {}),
+    ...(summary ? { summary } : {}), ...(from ? { upgradesFrom: from as string[] } : {}),
+    ...(fields.locales !== undefined ? { localeSource: { directory, declaration: fields.locales as PluginLocalesDeclaration } } : {}) };
 }
 
 /**

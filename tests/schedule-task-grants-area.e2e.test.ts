@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 
 const WIDE = 396, NARROW = 468;
 const AREA = "[data-task-grants-area]";
@@ -24,12 +25,19 @@ const OBSERVE = `(() => { if (window.top !== window) return;
   window.fetch = function (input, init) {
     const url = String(input instanceof Request ? input.url : input);
     window.tgaUrls.push(url);
-    if (url.includes("/api/host/plugin-page-task-grants")) { try { window.tgaKeys.push(JSON.parse(init.body).key); } catch { /* not a JSON body: not an area request */ } }
+    if (url.includes("/api/host/plugin-page-task-grants")) {
+      let body; try { body = JSON.parse(init.body); } catch { /* not a JSON body: not an area request */ }
+      if (body) window.tgaKeys.push(body.key);
+      if (body?.mode === "read" && window.tgaFailNextRead) {
+        window.tgaFailNextRead = false;
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
+    }
     return fetch.apply(this, arguments);
   };
 })();`;
 
-test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detail, closes it with the detail, and marks its list from the area's two flags without reading again", { timeout: 120_000 }, async t => {
+test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localized feedback through a language change", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   await browser.setViewport(1440, 960);
   const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.schedule`;
@@ -37,7 +45,8 @@ test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detai
   const first = await made("Morning brief"), second = await made("Evening review");
   const child = await pluginFrameBrowser(t, browser, "schedule");
   await pluginFrameInitScript(t, browser, OBSERVE);
-  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=schedule` }, browser.sessionId));
+  const path = `/projects/${browser.projectId}/?openPlugin=schedule`;
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, browser.sessionId));
   await browser.surfaceReady("schedule");
   const row = (id: string) => `[data-schedule-row][data-schedule-task-id="${id}"]`;
   const mark = (id: string) => child.evaluate<string>(`document.querySelector(${JSON.stringify(row(id) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark`);
@@ -120,11 +129,65 @@ test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detai
   assert.equal(await mark(second), "files", "only the changed task's mark moves");
   assert.equal(await child.evaluate(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-row-reconfirm]")}).hidden`), true);
   assert.deepEqual((await browser.evaluate<Array<Record<string, unknown>>>("window.tgaDown")).filter(message => message.type === "task-grants-changed").map(message => message.state), [{ granted: true, attention: false }]);
+  const status = `document.querySelector(${JSON.stringify(AREA + " [role=status] > span")})?.textContent`;
+  const categoryWords = `[...document.querySelectorAll(${JSON.stringify(control + " strong, " + control + " small")})].map(node => node.textContent)`;
+  const undo = AREA + ' [data-framed-control="undo"]';
+  assert.equal(await browser.evaluate(status), "已允许读 提醒，下一次运行起能读到");
+  const choose = (tag: "zh" | "en") => browser.evaluate(`(() => {
+    const link=document.createElement('a'); link.dataset.uiLanguage=${JSON.stringify(tag)};
+    link.href='/locale?lang='+link.dataset.uiLanguage; document.body.append(link); link.click(); link.remove();
+  })()`);
+  const areaRequests = await browser.evaluate<number>("tgaKeys.length");
+  await choose("en");
+  try { await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it'`); }
+  catch (error) {
+    t.diagnostic(JSON.stringify(await browser.evaluate(`[document.documentElement.lang, ${status}, ${categoryWords}, tgaKeys.slice(${areaRequests}), document.querySelector('[data-ui-language-status]')?.textContent]`)));
+    throw error;
+  }
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
+  assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project’s reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due"]);
+  assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${areaRequests})`), [first], "language reads the current task once");
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(control)}).dataset.status`), "granted");
   // Undo takes it back, and the mark with it.
   await ready();
-  await press(`${AREA} .mw-platform-area__foot .mw-btn`);
+  await press(undo);
   await browser.waitFor(`document.querySelector(${JSON.stringify(control)}).dataset.status === "off"`);
   await child.waitFor(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark === "files"`);
+  assert.equal(await browser.evaluate(status), "Change undone");
+  await choose("zh");
+  await browser.waitFor(`${status} === '已撤销刚才的改动' && ${categoryWords}[0] === '提醒'`);
   await settle(300);
   assert.equal(await grantReads(), before, "TGA-22 the marks follow the area without another read of the grants");
+
+  // A language read refreshes words while leaving the original Undo bound to its write's revision.
+  await ready();
+  await press(`${control} [data-framed-control^="switch:"]`);
+  await browser.waitFor(`${status} === '已允许读 提醒，下一次运行起能读到'`);
+  const endpoint = `/projects/${browser.projectId}/api/settings/task-grants`;
+  const listed = await browser.web.post<TaskGrantListResult>(endpoint, { mode: "list" });
+  const subject = listed.subjects.find(item => item.key === first);
+  const additional = listed.categories.find(category => category.provider_id + "\n" + (category.group_id ?? "") !== REMINDERS);
+  assert.ok(subject && additional);
+  const { subject: changed } = await browser.web.post<{ subject: TaskGrantSubject }>(endpoint, { mode: "set",
+    plugin_install_id: subject.plugin_install_id, key: first, expected_revision: subject.revision,
+    categories: [{ provider_id: "io.molis.work.schedule", group_id: "reminders" },
+      { provider_id: additional.provider_id, ...(additional.group_id ? { group_id: additional.group_id } : {}) }] });
+  assert.notEqual(changed.revision, subject.revision);
+  const beforeRetry = await browser.evaluate<number>("tgaKeys.length");
+  await browser.evaluate("window.tgaFailNextRead = true");
+  await choose("en");
+  const retry = AREA + ' [data-framed-control="retry-language"]';
+  await browser.waitFor(`document.querySelector(${JSON.stringify(retry)})?.textContent === 'Try again'`);
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
+  assert.equal(await browser.evaluate(`${categoryWords}[0]`), "提醒");
+  await ready();
+  await press(retry);
+  await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it' && ${categoryWords}[0] === 'Reminders'`);
+  assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${beforeRetry})`), [first, first], "one failed read and one user retry");
+  assert.equal(await browser.evaluate(`!!document.querySelector(${JSON.stringify(retry)})`), false);
+  await ready();
+  await press(undo);
+  await browser.waitFor(`${status} === 'Changed elsewhere; refreshed'`);
+  const after = (await browser.web.post<TaskGrantListResult>(endpoint, { mode: "list" })).subjects.find(item => item.key === first);
+  assert.deepEqual(after, changed, "the outdated undo cannot change permissions written elsewhere");
 });

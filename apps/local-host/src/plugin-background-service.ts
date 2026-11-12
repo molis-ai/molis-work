@@ -1,7 +1,8 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { createPluginBackgroundClient } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginBackgroundClient, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { runBackgroundWorkIn } from "./ui-locale-memory.js";
 
 /**
  * Definitions that declare a background command, or (Host-run ones only) an activation's jobs; only they get `services.background`. A sandboxed
@@ -15,6 +16,9 @@ export function hasPluginBackground(definition: PluginDefinition): boolean {
 /** What the executor says about the activation its jobs run in (PG-038): who it acts as, its project, how to read its record again. */
 interface PluginJobGate {
   readonly actor_id: string;
+  readonly home?: string;
+  /** The Runtime's original context, if the executor decorated it with a Host grant check. */
+  readonly activation?: PluginInstance;
   /** A project instance's project; none for a Home instance. */
   readonly project_id?: string;
   /** Reads the installation's record from the Runtime's repository; absent when the Host cannot, and then no job runs. */
@@ -24,12 +28,14 @@ interface PluginJobGate {
 export function pluginBackgroundFor(definition: PluginDefinition, context: PluginStartContext, assertActive: () => void, jobs: PluginJobGate) {
   if (!hasPluginBackground(definition)) return undefined;
   const declarations = definition.manifest.background?.jobs ?? [];
+  const home = jobs.home;
+  const withLocale = home ? <T>(run: (locale: ActionLocale) => T) => runBackgroundWorkIn(home, run) : undefined;
   return createPluginBackgroundClient({ install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission),
-    installationPermissions: definition.manifest.permissions.map(row => row.permission),
-    ...(declarations.length ? { jobs: { declarations, actor_id: jobs.actor_id, ...(jobs.project_id ? { project_id: jobs.project_id } : {}),
+    installationPermissions: definition.manifest.permissions.map(row => row.permission), withLocale,
+    ...(declarations.length ? { jobs: { declarations, activation: jobs.activation ?? context, actor_id: jobs.actor_id, ...(jobs.project_id ? { project_id: jobs.project_id } : {}),
       assertInstallationCurrent: installationCheck(jobs.record),
       // Each job is an operation of its own: the call records name it, never the call that kept it.
-      operation: run => withCallId(newCallId(), run) } } : {}) });
+      operation: run => withCallId(newCallId(), () => withLocale ? withLocale(run) : run()) } } : {}) });
 }
 
 /**

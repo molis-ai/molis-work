@@ -14,7 +14,7 @@ const COMMANDS: readonly { line: string; host?: true }[] = [
   { line: "validate <manifest.json>" },
   { line: "create <directory> <plugin-id> <publisher-id> <binding-signature>" },
   { line: "pack <directory> <output.json>" },
-  { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
+  { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--name-text <JSON>] [--view-title-text <JSON>] [--summary <text>] [--summary-text <JSON>] [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
   { line: "pack-content <skills-directory> <output.json> --plugin-id <id> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--compatible-from <versions>]" },
   { line: "pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>" },
   { line: "identity <public-key.pem>" },

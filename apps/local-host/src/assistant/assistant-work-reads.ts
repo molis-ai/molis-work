@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { SignedAgentInstallation, SignedAgentReference, SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
@@ -9,11 +10,10 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
-import { describeReview } from "./assistant-review-words.js";
+import { projectAssistantReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
 import type { AssistantMethod, AssistantPendingReview, AssistantRound, AssistantWork, AssistantWorkState, AssistantWorkView, AssistantRelatedWork, AssistantWorkObject, AssistantDiagnostics, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
-import { L } from "../web-locale.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
@@ -90,7 +90,7 @@ export class AssistantWorkReads {
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     const reviews = read.runtime_session_id ? this.reviewsFor(host, { ...work, session_id: read.runtime_session_id }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
     return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}),
-      ...(read.recovery ? { problem: { message: read.recovery.message, action: L("到执行方的页面核对") } } : {}) };
+      ...(read.recovery ? { problem: { message: read.recovery.message, action: uiText.text("workbench.assistant-work-reads.check-executor-s-page") } } : {}) };
   }
 
   /**
@@ -273,14 +273,9 @@ export class AssistantWorkReads {
       if (title) titles.set(row.object.id, title);
     }
     for (const round of this.store.rounds(work.work_id)) if (round.context?.object?.title) titles.set(round.context.object.id, round.context.object.title);
-    return pending.map(review => {
-      const readable = describeReview(review.document);
-      // Also an object another work made or a page named (titles are kept per person): a delete of one is the usual case.
-      const titleOf = (value: string) => titles.get(value) ?? (/^[\w.:-]{8,200}$/.test(value) && /\d/.test(value) ? this.store.objectTitleById(this.actorId, value) : null);
-      const fields = readable.fields.map(field => { const title = field.label === "完整参数" ? null : titleOf(field.value.trim()); return title ? { ...field, value: `「${title}」` } : field; });
-      return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields,
-        requested_at: review.requested_at, expires_at: review.expires_at };
-    });
+    // Also an object another work made or a page named (titles are kept per person): a delete of one is the usual case.
+    const titleOf = (value: string) => titles.get(value) ?? (/^[\w.:-]{8,200}$/.test(value) && /\d/.test(value) ? this.store.objectTitleById(this.actorId, value) : null);
+    return pending.map(review => projectAssistantReview(review, titleOf));
   }
 
   /**

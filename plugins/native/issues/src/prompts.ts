@@ -1,4 +1,8 @@
+import readNativeMarkdown from "./native-markdown.js";
 import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+
+const promptBody = (id: string) => readNativeMarkdown("prompts", id, ["en"]);
+
 
 /**
  * The one copy of what makes a good Issue title and type (ISSUE-52). The page's naming call sends it as Issue's own
@@ -31,31 +35,12 @@ export const ISSUE_TYPE_RULES = [
 
 export const ISSUE_ASK = "你在哪个页面做了什么，出现了什么问题？也可以补充截图。";
 
-const bullets = (lines: readonly string[]) => lines.map(line => "- " + line);
 
 /** Names one capture or one edit of a saved record: a title and a type, or the one question to ask instead (ISSUE-50, ISSUE-51). */
 export const ISSUES_NAME = defineInstructionPrompt({
-  owner_id: "io.molis.work.issues", prompt_id: "issues.name", version: /* @version prompt.issues.name */ 1, title: "给 Issue 起标题",
+  owner_id: "io.molis.work.issues", prompt_id: "issues.name", version: /* @version prompt.issues.name */ 2, title: "给 Issue 起标题",
   purpose: "按用户写下的问题描述和截图起一个标题、判一个类型；依据不足时只问一句", used_by: ["Issue 页面录入", "Issue 重新整理"],
-  body: [
-    "下面是用户在开发中遇到的一个问题：原话和截图由用户决定，你只起标题、判类型，不分析原因，不给解决办法。",
-    "",
-    "【依据不足】",
-    ...bullets(ISSUE_TOO_LITTLE),
-    "- 数据里 screenshots.attached 为 false 时截图没有附给你：描述为空又看不到截图，按依据不足处理；描述里有文字时照常记录。",
-    "",
-    "【标题】",
-    ...bullets(ISSUE_TITLE_RULES),
-    "- 数据里的 page 是记录时所在页面的名字，可能为空。",
-    "- 数据里的 title_language 是标题要用的语言：zh 写中文，en 写英文。程序已按描述的文字定好，照它写，不要自己改判。",
-    "",
-    "【类型】",
-    ...bullets(ISSUE_TYPE_RULES),
-    "",
-    "【输出】只输出一个 JSON 对象，不输出解释或代码块。",
-    "依据够时输出 {\"status\":\"named\",\"title\":\"标题\",\"type\":\"bug\"}，title 用数据里 title_language 指定的语言，type 取 bug、experience 或 feature。",
-    `依据不足时输出 {"status":"needs_input","question":"${ISSUE_ASK}"}：只问一句，不写内部编号。`,
-  ].join("\n"),
+  ...promptBody("issues.name"),
 });
 
 export const ISSUES_INSTRUCTIONS: readonly InstructionPrompt[] = [ISSUES_NAME];

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { runtimeDiagnostics } from "../horizontal/agent-host/src/adapters/prologue-node.js";
 import { AGENT_DIAGNOSTICS_CLIENT_SCRIPT, renderAgentDiagnostics } from "../apps/workbench/src/settings-agent-diagnostics.js";
+import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 test("the runtime's own receipts become the diagnostics page's account: slots, missing machine capabilities, unkept records", () => {
   const view = runtimeDiagnostics({
@@ -24,7 +25,8 @@ test("the runtime's own receipts become the diagnostics page's account: slots, m
 });
 
 test("the diagnostics section is a closed disclosure that reads only when opened, and its script parses", () => {
-  const html = renderAgentDiagnostics({ L: text => text });
+  const packs = chinesePagePacks();
+  const html = withPagePacks("zh", packs, () => renderAgentDiagnostics({ readText: pageTextForPacks("zh", packs) }));
   assert.match(html, /<details[^>]*data-agent-diagnostics/);
   assert.doesNotMatch(html, /<details[^>]*\bopen\b/);
   assert.doesNotThrow(() => new Function(AGENT_DIAGNOSTICS_CLIENT_SCRIPT.replace("globalThis.molisWorkBindAgentDiagnostics(document);", "")));

@@ -3,7 +3,7 @@
     "function apps/local-host/src/plugin-actions-client.ts#pluginHostActions": {
       "kind": "cohesive-unit",
       "reason": "同一安装的动作客户端绑定：自有声明、消费依赖、当前 issued 身份、原调用控制与只读约束共同求交；Memory V0 只加记忆来源检查的收紧，plugin-only 自有目录只在当前实例范围可见。拆开会把同一调用身份与生命周期判断分散，不新增注册表或授权路径。",
-      "size": 156
+      "size": 158
     }
   }
 }

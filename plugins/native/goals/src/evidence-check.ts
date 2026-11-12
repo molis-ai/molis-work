@@ -1,4 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { goalErrors } from "./module/errors.js";
 import { goalEventAssessmentKey, type GoalEventJudgmentAssessment, type GoalEventJudgmentBasisInput, type ReportGoalEventsInput } from "./contract/goals.js";
@@ -45,7 +46,7 @@ const sameVersion = (a: ArtifactReference, b: ArtifactReference) => a.artifact_i
  */
 export async function assessGoalReport<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePorts<Caller>, caller: Caller, input: ReportEvents): Promise<NonNullable<ReportGoalEventsInput["trusted"]>> {
   // Only a session the Host bound: an external client's own naming of one is not a platform session (S-goal-evidence-tier).
-  const session = (caller.delegated_audience ?? caller.audience) === "agent" ? caller.runtime_session_id ?? null : null, assessments = new Map<string, GoalEventJudgmentAssessment>();
+  const session = hostBoundSession(caller) ?? null, assessments = new Map<string, GoalEventJudgmentAssessment>();
   const based = (input.events ?? []).flatMap((event, index) => (Array.isArray(event?.judgments) ? event.judgments : [])
     .flatMap(judgment => wellFormed(judgment?.basis) ? [{ index, requirement: judgment.requirement_id, verdict: judgment.verdict, basis: judgment.basis }] : []));
   if (!based.length) return { reporter_session: session, assessments };
@@ -97,6 +98,9 @@ async function assess<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePort
   if (!session) return gap("evidence_missing");
   const artifact = await artifactOf(checkedOf(basis));
   if (artifact === "unreadable" || artifact === null) return gap("evidence_unreadable");
+  // A version cited as evidence that is not there to read backs nothing: the report keeps its own word, with what was missing.
+  const cited = await Promise.all((basis.evidence ?? []).flatMap(ref => ref.kind === "artifact_version" ? [artifactOf({ artifact_id: ref.artifact_id.trim(), version: ref.version })] : []));
+  if (cited.some(found => found === "unreadable" || found === null)) return gap("evidence_unreadable");
   const madeIn = artifact.origin.kind === "pinned" && typeof artifact.origin.revision === "string" ? artifact.origin.revision : null;
   if (receipts.length) {
     // Every receipt must be of the round the version was fixed from; a command of another round says nothing about this version.

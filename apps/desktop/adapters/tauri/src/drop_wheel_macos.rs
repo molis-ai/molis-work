@@ -852,12 +852,12 @@ fn send_terminal_text(items: &[String], text: Option<&str>) {
 
 /// A wheel notice never opens or closes the panel; it only leaves the reason.
 fn quiet_notice(message: &str) {
-    admission_notice(message, false);
+    admission_notice(message, false, None);
 }
 
-fn admission_notice(message: &str, partial: bool) {
+fn admission_notice(message: &str, partial: bool, warning: Option<&str>) {
     let Some(host) = host() else { return };
-    crate::shelf_notice(&host.app, message, partial, 0);
+    crate::shelf_notice(&host.app, message, partial, warning, 0);
 }
 
 /// Returns the shelf item ids the drop produced, in drop order.

@@ -18,6 +18,19 @@ import { LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-a
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 
+/** Reuse the real polling lifecycle with this fixture's own literal connection declaration. */
+function githubFixture(): PluginDefinition {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
+    type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
+    async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
+  }) });
+  const service = base.manifest.connection_services![0]!;
+  return { ...base, connectionText: undefined, manifest: { ...base.manifest, ui: { contributions: base.manifest.ui.contributions },
+    connection_services: [{ ...service, summary: "Fixture GitHub connection",
+      capabilities: [{ label: "Read notifications", fulfillment: "live" }, { label: "Read the current account", fulfillment: "live" }],
+      outbound_note: "No GitHub writes", setup_links: service.setup_links?.map(({ url }) => ({ label: "GitHub setup", url })) }] } };
+}
+
 test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer protocol through consumes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-only-plugin-"));
   const file = join(directory, "board.db");
@@ -32,10 +45,7 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   }), { hostIds: ISOLATED_HOST_IDS });
-  const base = createGithubIntegrationPlugin({ providerFor: () => ({
-    type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
-    async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  }) });
+  const base = githubFixture();
   const definition: PluginDefinition = { ...base,
     manifest: { ...base.manifest, plugin_id: "io.molis.work.example.protected-adapter",
       capabilities: { ...base.manifest.capabilities, consumes: [protectedEntry.capability_id] } },
@@ -75,10 +85,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   let failStart = false;
   let failStop = false;
   const contexts: PluginStartContext[] = [];
-  const base = createGithubIntegrationPlugin({ providerFor: () => ({
-    type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
-    async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  }) });
+  const base = githubFixture();
   const id = "io.molis.work.example.hosted";
   // The 成果 type the plugin pins is named and has a preview of its own (specs/artifact-positioning A1/A7).
   const preview = artifactPreview(id);
@@ -172,7 +179,7 @@ test("compatible Host execution and crash recovery use the implementation versio
     artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) });
   const contexts: PluginStartContext[] = [];
   let failStart = false;
-  const base = createGithubIntegrationPlugin({ providerFor: () => ({ type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } }) });
+  const base = githubFixture();
   const preview = artifactPreview(base.manifest.plugin_id);
   const make = (version: string): PluginDefinition => ({
     ...base,

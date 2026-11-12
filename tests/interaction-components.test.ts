@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
   CRAFT_FINISH_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
   INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES,
@@ -103,7 +104,7 @@ test("AC-17 / AC-06: the operation card states its target and version, the exact
   assert.doesNotMatch(html, /data-ix-action="execute"/, "an unknown result offers no execution");
 });
 test("AC-17, AC-21: the component board shows the parts; a product sheet takes only the segments its pages draw", () => {
-  const board = renderPrimitiveCatalog();
+  const board = runWithLocale("zh", renderPrimitiveCatalog);
   assert.match(board, /<section class="mw-catalog__section" id="interaction" data-primitive="interaction"><h2>AI 交互 \/ Interaction<\/h2>/);
   assert.match(board, /<a href="#interaction" title="AI 交互 \/ Interaction">AI 交互<\/a>/, "the board's index lists it");
   assert.match(board, /id="plugin-composition"/, "the plugin composition example keeps its place");
@@ -140,7 +141,7 @@ test("AC-17: ids and scopes are escaped exactly once, so references match the el
   assert.match(op, /aria-labelledby="op&quot;&amp;-result"><span[^>]*>[\s\S]*<h4 id="op&quot;&amp;-result">/);
 });
 test("AC-17: the board gives every sample its own ids, and calendar labels come from the caller", () => {
-  const board = renderPrimitiveCatalog();
+  const board = runWithLocale("zh", renderPrimitiveCatalog);
   const ids = [...board.matchAll(/ id="([^"]+)"/g)].map(match => match[1]!).filter(id => id.startsWith("ix-"));
   assert.ok(ids.length > 20);
   assert.deepEqual(ids.filter((id, index) => ids.indexOf(id) !== index), [], "no duplicate ids among the interaction samples");

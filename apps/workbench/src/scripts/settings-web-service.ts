@@ -13,7 +13,7 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       document.body.append(dialog);
       const cancel = dialog.querySelector("[data-service-cancel]");
       const apply = dialog.querySelector("[data-service-apply]");
-      cancel.textContent = L("取消");
+      cancel.textContent = globalThis.t.text("common.control.cancel");
       const choose = (decision) => { if (settle) { const resolve = settle; settle = null; dialog.close(); resolve(decision); } };
       cancel.addEventListener("click", () => choose("declined"));
       apply.addEventListener("click", () => choose("confirmed"));
@@ -38,9 +38,9 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
         } catch { /* A short disconnect is expected while launchd replaces the process. */ }
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
-      throw new Error(L("尚未确认服务重启成功，请刷新诊断页检查状态；不要连续重复重启。"));
+      throw new Error(globalThis.t.text("workbench.settings-web-service.restart-has-not-been-verified-refresh-diagnostics-check"));
     };
-    const post = (suffix, body) => molisWorkRequest("/api/settings/web-service/" + suffix, { body, fallback: L("常驻服务操作失败") });
+    const post = (suffix, body) => molisWorkRequest("/api/settings/web-service/" + suffix, { body, fallback: globalThis.t.text("workbench.settings-web-service.persistent-service-action-failed") });
     document.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-web-service-action]");
       if (!button || busy) return;
@@ -56,8 +56,8 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       try {
         const plan = await post("plan", { action: button.dataset.webServiceAction });
         if (plan.status === "no_change") { showStatus(plan.message); return; }
-        if (plan.status !== "ready") throw new Error(plan.message || L("当前不能执行这项常驻服务操作"));
-        dialog.querySelector("h2").textContent = button.textContent.trim() + L(" · 常驻服务预览");
+        if (plan.status !== "ready") throw new Error(plan.message || globalThis.t.text("workbench.settings-web-service.persistent-service-action-cannot-run-now"));
+        dialog.querySelector("h2").textContent = button.textContent.trim() + globalThis.t.text("workbench.settings-web-service.service-preview");
         dialog.querySelector("[data-service-message]").textContent = plan.message;
         dialog.querySelector("[data-service-confirmation]").textContent = plan.confirmation;
         const changes = dialog.querySelector("[data-service-changes]");
@@ -65,20 +65,20 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
         for (const change of plan.changes) {
           const row = document.createElement("li");
           const operation = document.createElement("strong");
-          operation.textContent = ({ create: L("新增"), start: L("启动"), stop: L("停止"), restart: L("重启"), remove: L("移除") })[change.operation];
+          operation.textContent = ({ create: globalThis.t.text("workbench.settings-web-service.add"), start: globalThis.t.text("workbench.settings-web-service.start"), stop: globalThis.t.text("workbench.settings-web-service.stop"), restart: globalThis.t.text("workbench.settings-web-service.restart"), remove: globalThis.t.text("workbench.settings-web-service.remove") })[change.operation];
           const detail = document.createElement("div");
           const target = document.createElement("p");
           target.textContent = change.target;
           detail.append(target); row.append(operation, detail); changes.append(row);
         }
-        apply.textContent = L("确认") + " " + button.textContent.trim();
+        apply.textContent = globalThis.t.text("workbench.settings-web-service.confirm") + " " + button.textContent.trim();
         const decision = await new Promise((resolve) => { settle = resolve; dialog.showModal(); cancel.focus(); });
         const result = await post("confirm", { plan_id: plan.plan_id, decision });
         if (decision === "confirmed") {
           if (result.status === "restarting") {
-            showStatus(L("正在重启常驻服务，等待新进程就绪…"), "running");
+            showStatus(globalThis.t.text("workbench.settings-web-service.restarting-service-waiting-new-process"), "running");
             await waitForRestart(result.previous_process_id);
-            showStatus(L("常驻服务已重启，连接已恢复"));
+            showStatus(globalThis.t.text("workbench.settings-web-service.service-restarted-connection-restored"));
           } else showStatus(result.message);
           setTimeout(() => location.reload(), 450);
         }

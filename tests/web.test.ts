@@ -647,9 +647,9 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
     const onboarding = await (await webFetch(`${origin}/onboarding`)).text();
     assertInlineScriptsCompile(onboarding);
     assert.match(onboarding, /从你正在做的事/);
-    assert.match(onboarding, /带入已有的材料/);
-    assert.match(onboarding, /Google 连接/);
-    assert.match(onboarding, /secondary\('跳过','blank'\)/, "the sources can be skipped: it goes on to a blank start");
+    assert.match(onboarding, /workbench\.context-onboarding\.bring-existing-materials/);
+    assert.match(onboarding, /workbench\.context-onboarding\.google-access-isn-t-set-up-molis-yet/);
+    assert.match(onboarding, /secondary\("workbench\.context-onboarding\.skip",'blank'\)/, "the sources can be skipped: it goes on to a blank start");
     assert.match(onboarding, /api\/onboarding\/context/);
     // The first run is the arrival frame too: the same titlebar and bar as the chooser, and a way out of the journey.
     assert.match(onboarding, /<body class="arrival-page immersive-workbench" data-arrival="onboard" data-onboarding-mode="first_run"/);

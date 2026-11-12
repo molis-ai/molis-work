@@ -24,14 +24,14 @@ interface GoalDocumentPorts {
   planning: GoalsPlanningActionPorts["planning"];
 }
 
-export function readGoalDocument(projectId: string, ports: GoalDocumentPorts, goalId: string): GoalEventDocumentView {
+export function readGoalDocument(projectId: string, ports: GoalDocumentPorts, goalId: string, locale?: string): GoalEventDocumentView {
     const goal = ports.goal(goalId);
     const snapshot = ports.history.snapshot();
     return createGoalEventDocumentView({ projectId, goal, ports: ports.events, snapshot,
       relations: snapshot.relations.filter(r => r.from_goal_id === goalId || r.to_goal_id === goalId),
-      events: ports.history.journalEvents(), planning_methods: ports.planning.effectiveMethods(projectId) });
+      events: ports.history.journalEvents(), planning_methods: ports.planning.effectiveMethods(projectId, locale) });
 }
 
 export function createGoalDocumentActionHandler(projectId: string, ports: GoalDocumentPorts): ActionHandlerBinding {
-  return { ...goalDocumentAction, handle: (_caller, input) => readGoalDocument(projectId, ports, (input as { goal_id: string }).goal_id) };
+  return { ...goalDocumentAction, handle: (caller, input) => readGoalDocument(projectId, ports, (input as { goal_id: string }).goal_id, caller.locale) };
 }

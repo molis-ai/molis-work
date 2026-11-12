@@ -5,8 +5,10 @@ import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import type { PluginPlatformHome } from "./home-side.js";
-import { openHostSession, type HostSession } from "./plugin-host-services.js";
+import { openHostSession, pluginTextViews, type HostSession } from "./plugin-host-services.js";
+import { runWithPluginText } from "./web-locale.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
@@ -30,7 +32,7 @@ export interface PluginHostExecutorOptions {
    * The language files of a definition, registered for the text tools while its session is open and taken back when it is released
    * (specs/font-and-skin-system/a-section-contract.md §8.3). Absent, or `null` for a definition: it has none, and nothing is read or registered.
    */
-  localePacks?(definition: PluginDefinition): import("@molis-ai/molis-work-app-workbench").PluginTextReader | null;
+  localePacks?(definition: PluginDefinition): PluginTextReader | null;
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**
@@ -188,9 +190,9 @@ export class PluginHostExecutor implements PluginExecutor {
   async start(definition: PluginDefinition, context: PluginStartContext) {
     const session = openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
-      const contribution = await session.starting(() => definition.start(session.context));
+      const contribution = await runWithPluginText(context, () => session.starting(() => definition.start(session.context)));
       this.sessions.set(context.install_id, { session, definition });
-      return { contribution };
+      return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       session.dispose();
       throw error;

@@ -1,7 +1,7 @@
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { PLUGIN_COMPONENT_STYLES } from './plugin-components.js';
-import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from './plugin-component-client.js';
+import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from './plugin-component-program.js';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export const readingContract: SandboxPluginContract = {

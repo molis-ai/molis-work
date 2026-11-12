@@ -5,13 +5,15 @@ import { defineKitReportAction, type KitReport, type KitReportedEntry } from "@m
 import type { AgentMcpLibrary } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { KIT_AGENT_MCP_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { CONNECTOR_MCP_SEEN_PATH, type ConnectorMcpSeen } from "./connector-mcp-actions.js";
+import { CONNECTOR_MCP_SEEN_PATH, type ConnectorMcpListingChange, type ConnectorMcpSeen } from "./connector-mcp-actions.js";
 import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { readJsonFile } from "./mcp-tool-actions.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
-import { scopeInstallations, type ScopeInstallation } from "./scope-installations.js";
+import { kitPluginWords, scopeInstallations, type ScopeInstallation } from "./scope-installations.js";
 import { isTaskGrantSubject } from "./task-grant-subjects.js";
+import { textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { workbenchDisplayReader, workbenchPlatformText } from "./ui-text-provider.js";
 
 // MCP as AI kit entries (specs/capability-pack/contract-design.md §4.8, §5.3): each owner reports what it already keeps — the Agent
 // Host's MCP library its safe view, the connections what their servers last listed, the outbound access its grants. Listing the kit
@@ -19,20 +21,27 @@ import { isTaskGrantSubject } from "./task-grant-subjects.js";
 // one cap over every command is neither rows per key nor days, so a tool's usage is `not_counted`.
 
 type Health = "connected" | "disconnected" | "unavailable" | "not-reattached";
-const words = (english: boolean) => english
-  ? { config: (n: number) => `config v${n}`, connections: "Connections", access: "Outside access", server: "Molis Work MCP server", serverAbout: "The tools Molis Work opens to this client.", prologue: "Built-in Agent (Prologue)" }
-  : { config: (n: number) => `配置第 ${n} 版`, connections: "服务连接", access: "对外接入", server: "Molis Work 的 MCP 服务器", serverAbout: "Molis Work 开给这个客户端的工具。", prologue: "内置 Agent（Prologue）" };
+function words(locale?: string) {
+  const { owner } = workbenchPlatformText, { text } = workbenchDisplayReader(locale);
+  return { config: (n: number) => text({ owner, key: "workbench.kit.mcp-config-version", args: textArgs({ n }) }),
+    connections: text({ owner, key: "workbench.kit.mcp-connections" }), access: text({ owner, key: "workbench.kit.mcp-outside-access" }),
+    server: text({ owner, key: "workbench.kit.mcp-host-server" }), serverAbout: text({ owner, key: "workbench.kit.mcp-host-server-description" }),
+    prologue: text({ owner, key: "workbench.kit.mcp-built-in-agent" }) };
+}
 const NONE = { tools: [], permissions: [], connector_categories: [] };
 
 /** One server and each tool it listed, in one pack; the server's switch and health, each tool's own 「能调」. */
 function serverEntries(server: { owner: "project" | "connection"; id: string; label: string; version: number; label_version: string; enabled: boolean; health: Health; where: string },
-  tools: ReadonlyArray<{ name: string; description: string; live: boolean }>, placed: { pack: string; scope: "home" | "project"; manage: { href: string; label: string } }): KitReportedEntry[] {
+  tools: ReadonlyArray<{ name: string; description: string; live: boolean }>, placed: { pack: string; scope: "home" | "project"; manage: { href: string; label: string } },
+  discovered?: ConnectorMcpListingChange): KitReportedEntry[] {
   const source = { kind: "mcp_server" as const, owner: server.owner, server_id: server.id, label: server.label.slice(0, 200) };
   const usable = server.enabled && server.health === "connected";
   const common = { declares: NONE, scope: placed.scope, where: [server.where.slice(0, 200)], usage: { kind: "not_counted" as const }, manage: placed.manage, export: "reference" as const, source, pack: placed.pack };
   const id = `${placed.pack}/${server.id}`;
+  // Only a connection's server entry says what its last listing changed (§4.8); its tools do not repeat it.
+  const version = { label: server.label_version, ...(discovered ? { change: { kind: "discovered" as const, added: discovered.added, removed: discovered.removed, changed: discovered.changed } } : {}) };
   return [
-    { ...common, kind: "mcp", entry_id: id, name: source.label, description: "", version: { label: server.label_version },
+    { ...common, kind: "mcp", entry_id: id, name: source.label, description: "", version,
       availability: usable ? { available: true } : { available: false, reason: server.enabled ? server.health : "server_disabled" },
       ref: { part: "server", owner: server.owner, server_id: server.id, configuration_version: server.version }, mcp: { server_enabled: server.enabled, health: server.health } },
     ...tools.map((tool): KitReportedEntry => ({ ...common, kind: "mcp", entry_id: `${id}/tool:${tool.name}`, name: tool.name.slice(0, 200), description: tool.description.slice(0, 2000),
@@ -48,12 +57,12 @@ export async function agentMcpKitEntries(library: AgentMcpLibrary | undefined, r
   if (!caller.project_id || !library?.catalog) return { entries: [] };
   const servers = (await library.catalog()).filter(({ owner }) => owner.project_id === caller.project_id);
   if (!servers.length) return { entries: [] };
-  const say = words(caller.locale === "en"), installations = await reach();
+  const say = words(caller.locale), installations = await reach();
   const entries = servers.flatMap(({ owner, server }) => {
     const install = installations.find(row => row.record.plugin_id === owner.plugin_id && row.scope === "project") ?? installations.find(row => row.record.plugin_id === owner.plugin_id);
     if (!install) return [];
     return serverEntries({ owner: "project", id: server.id, label: server.label, version: server.version, label_version: say.config(server.version), enabled: server.enabled, health: server.health,
-      where: install.manifest?.name ?? owner.plugin_id }, server.tools.map(tool => ({ name: tool.tool, description: tool.description, live: library.live?.(tool) ?? false })),
+      where: kitPluginWords(install, caller.locale).name }, server.tools.map(tool => ({ name: tool.tool, description: tool.description, live: library.live?.(tool) ?? false })),
     { pack: `plugin:${install.record.install_id}`, scope: install.scope, manage: { href: "/capabilities/connections", label: say.connections } });
   });
   return { entries };
@@ -71,7 +80,7 @@ export const connectorsKitReport = defineKitReportAction("connectors.kit.report"
  * declared the connection when it is in the call's scope, else Molis Work's own. Read from the store and the remembered list.
  */
 export async function connectorsKitEntries(home: string, source: ProjectPluginHost, caller: ActionCallContext): Promise<KitReport> {
-  const say = words(caller.locale === "en"), seen = readJsonFile<ConnectorMcpSeen>(path.join(home, CONNECTOR_MCP_SEEN_PATH), {});
+  const say = words(caller.locale), seen = readJsonFile<ConnectorMcpSeen>(path.join(home, CONNECTOR_MCP_SEEN_PATH), {});
   const connections = withConnectorConnections(home, store => store.list().filter(row => row.auth_method === "mcp").map(row => ({ row, state: store.state(row), declarer: store.view(row).declared_by })));
   if (!connections.length) return { entries: [] };
   const { installations } = await scopeInstallations(source, caller);
@@ -83,7 +92,8 @@ export async function connectorsKitEntries(home: string, source: ProjectPluginHo
     return serverEntries({ owner: "connection", id: row.connection_id, label: row.display_name, version: Number.isFinite(changed) ? Math.floor(changed / 1000) : 0,
       label_version: row.updated_at.slice(0, 10), enabled: row.enabled, health, where: row.display_name },
       (seen[row.connection_id]?.tools ?? []).map(tool => ({ name: tool.name, description: tool.description, live: true })),
-      { pack: declarer ? `plugin:${declarer.record.install_id}` : "system:builtin", scope: declarer ? declarer.scope : "home", manage: { href: "/capabilities/connections", label: say.connections } });
+      { pack: declarer ? `plugin:${declarer.record.install_id}` : "system:builtin", scope: declarer ? declarer.scope : "home", manage: { href: "/capabilities/connections", label: say.connections } },
+      seen[row.connection_id]?.change);
   }) };
 }
 
@@ -100,7 +110,7 @@ export const mcpAccessKitReport = defineKitReportAction("mcp.access.kit.report",
  * external tool. Task grants are the person's per task and are not listed here (as on the access page).
  */
 export async function mcpAccessKitEntries(home: string, caller: ActionCallContext): Promise<KitReport> {
-  const say = words(caller.locale === "en"), preference = await readMcpToolPreference(home);
+  const say = words(caller.locale), preference = await readMcpToolPreference(home);
   const open = [...new Set(preference.action_grants.filter(grant => grant.enabled && !isTaskGrantSubject(grant.client_id)).map(grant => grant.client_id))];
   return { entries: open.map((clientId): KitReportedEntry => {
     const runtime = clientId.startsWith("runtime:") ? clientId.slice("runtime:".length) as ExternalToolId : undefined;

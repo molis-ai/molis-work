@@ -1,11 +1,11 @@
 import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pluginErrors, type PluginPackageBundle, type PluginPackagePayload, type PluginTranslationsDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginPackageBundle, type PluginPackagePayload, type PluginManifest, type PluginLocalesDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_LIMITS } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
-import { contentPackagePayload, skillFromFolder } from '@molis-ai/molis-work-plugin-sdk';
+import { completeContentPackagePayload, contentPackageDraft, parsePluginManifest, skillFromFolder } from '@molis-ai/molis-work-plugin-sdk';
 import { parsePluginPackage } from '@molis-ai/molis-work-plugin-runtime';
-import { writePluginPackageFile } from './package-files.js';
+import { packDeclaredLocales, packageFileReader, writePluginPackageFile } from './package-files.js';
 
 // `pack-content`: a folder of Skill folders (each `<skill_id>/SKILL.md` with its `references/`, `scripts/`, `assets/`) packed into the
 // unsigned content package of a plugin with only declarations (specs/skill-packs/contract-design.md §3, §4.1). The same packer as the
@@ -19,10 +19,10 @@ export interface PackContentOptions {
   publisherKeyId: string;
   scope?: 'project' | 'home';
   upgradesFrom?: string[];
-  /** The package's English name, its one-line summary, and the English of its words; a bundled package's options give them (`pack-bundled`). */
-  nameEn?: string;
+  nameText?: PluginManifest['name_text'];
   summary?: string;
-  translations?: PluginTranslationsDeclaration;
+  summaryText?: PluginManifest['summary_text'];
+  localeSource?: { directory: string; declaration: PluginLocalesDeclaration };
 }
 
 const invalid = (message: string): never => { throw pluginErrors.package_invalid(message); };
@@ -66,11 +66,18 @@ export async function contentPayloadFromFolder(directory: string, options: PackC
     skills.push(skillFromFolder(await folderFiles(path, budget)));
   }
   if (!skills.length) invalid('目录里没有技能：每个技能是一个带 SKILL.md 的子目录');
-  return contentPackagePayload({ plugin_id: options.pluginId, version: options.version, name: options.name,
-    ...(options.nameEn ? { name_en: options.nameEn } : {}), ...(options.summary ? { summary: options.summary } : {}),
-    ...(options.translations ? { translations: options.translations } : {}),
-    publisher: { publisher_id: options.publisherId, signature: options.publisherKeyId }, scope: options.scope ?? 'project',
+  const publisher = { publisher_id: options.publisherId, signature: options.publisherKeyId };
+  const localeSource = options.localeSource;
+  const draft = contentPackageDraft({ plugin_id: options.pluginId, version: options.version, name: options.name,
+    ...(options.nameText !== undefined ? { name_text: options.nameText } : {}), ...(options.summary ? { summary: options.summary } : {}),
+    ...(options.summaryText !== undefined ? { summary_text: options.summaryText } : {}),
+    ...(localeSource ? { locales: localeSource.declaration } : {}), scope: options.scope ?? 'project',
     ...(options.upgradesFrom ? { compatible_from: options.upgradesFrom } : {}), skills });
+  if (!localeSource) return completeContentPackagePayload(draft, publisher);
+  const manifest = parsePluginManifest({ ...draft.manifest, publisher });
+  const files = [...draft.files];
+  await packDeclaredLocales(manifest, files, await packageFileReader(localeSource.directory));
+  return completeContentPackagePayload({ ...draft, files }, publisher);
 }
 
 /** The publishing choices `pack-content` takes; the Manifest is written from them and from the Skills, never taken from the author. */

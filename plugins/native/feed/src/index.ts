@@ -56,7 +56,6 @@ export { FEED_ACTION_PERMISSIONS } from "./runtime-actions.js";
 
 export { FEED_STYLES } from "./styles.js";
 
-export { FEED_EN } from "./en.js";
 
 export { feedContentActions, createFeedContentHandlers } from "./content-actions.js";
 

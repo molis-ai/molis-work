@@ -1,5 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
-import type { ActionCallOrigin, ActionLocale, ExactActionReference, ActionView } from "../platform/actions.js";
+import type { UiLanguageTag } from "../platform/ui-text.js";
+import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
 import type { RunDirectories } from "../modules/projects.js";
@@ -201,7 +202,7 @@ interface AgentFrozenStartFields {
     user_revision?: number }>;
   skills: AgentFrozenSkill[];
   /** The language the round was told to reply in (`AgentStartAuthority.reply_language`); absent when it was told none. */
-  reply_locale?: ActionLocale;
+  reply_locale?: UiLanguageTag;
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
@@ -351,7 +352,7 @@ export interface AgentFrozenRole {
   /** Exact Skill bodies resolved by the Host, never accepted from the request. */
   skills?: AgentRoundSkill[];
   /** The language the Host told the round to reply in; its words are among `prompts`. */
-  reply_locale?: ActionLocale;
+  reply_locale?: UiLanguageTag;
   /** Host tool names this role may call. */
   host_tools: string[];
 }

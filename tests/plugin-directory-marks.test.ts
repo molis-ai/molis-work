@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, builtinMarketDirectory, runningPluginDirectory, type DirectorySource } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, builtinMarketDirectory, installHostUiText, runningPluginDirectory, type DirectorySource } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
+
+installHostUiText();
 
 // W5-02 B1 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §3.0 Q3): which built-in is personal, which one is 常开 and what
 // a plugin brings along are the Host's facts. It writes them on the directory the page is drawn with, from its own registration; the

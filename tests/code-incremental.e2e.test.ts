@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_TAKEN } from "./fixtures/coding-composer.js";
 import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { codeColouringProjection } from "./fixtures/code-colouring.js";
@@ -112,6 +113,8 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "x\n");
   const fill = (selector: string, value: string, owner = false) => (owner ? browser.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => browser.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await browser.click(".navigator-project-settings");
@@ -128,12 +131,12 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await waitFor(`document.querySelector('${coding} [data-coding-new]')`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "写一段代码");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await browser.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "写一段代码");
+  await browser.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
+  await browser.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-turns] [data-kind="assistant"], ${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段'))`, 60_000);
   model.finish();
   const block = `document.querySelector('${coding} [data-coding-turns] [data-kind="assistant"] pre[data-enriched]')`;

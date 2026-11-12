@@ -4,13 +4,14 @@ import test from "node:test";
 import vm from "node:vm";
 import { createUiRequest, UI_REQUEST_CLIENT_SCRIPT, type UiFetchInit } from "@molis-ai/molis-work-ui-host";
 import type { ActionProgressEvent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pageText } from "./fixtures/page-text.js";
 
 const progress = { type: "progress", stage: "writing", progress: 0, text_delta: "第一句 🌱" };
 const line = (value: unknown) => JSON.stringify(value) + "\n";
 const encoder = new TextEncoder();
 function fixture(response: Response | (() => Response)) {
   const sent: UiFetchInit[] = [];
-  const request = createUiRequest({ origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "new-intent", translate: text => text,
+  const request = createUiRequest({ origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "new-intent", readText: text => text,
     fetch: async (_url, init) => { sent.push(init); return typeof response === "function" ? response() : response; } }, UI_HOST_CLIENT_CODES);
   return { request, sent };
 }
@@ -82,6 +83,7 @@ test("RAC-35 caller cancellation and unmounted scopes refuse queued progress/res
 
 test("RAC-35 the serialized browser program exposes the same stream reader without module dependencies", async () => {
   const sandbox = vm.createContext({ URL, TextDecoder, setTimeout, clearTimeout, location: { origin: "http://127.0.0.1:4173" },
+    t: { text: pageText("zh") },
     crypto: { randomUUID: () => "fresh-key" }, navigator: {},
     document: { documentElement: { dataset: {} }, querySelector: () => ({ content: "page-token" }), createElement: () => ({}), addEventListener: () => {} },
     fetch: async () => chunks(line(progress) + line({ type: "result", result: "已保存" }), 1).response });

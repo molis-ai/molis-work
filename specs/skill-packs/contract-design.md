@@ -80,11 +80,11 @@
 
 | 允许 | 说明 |
 | --- | --- |
-| 身份与展示：`schema_version`、`plugin_id`、`version`、`name`、`name_en`、`summary`、`publisher`、`host_api_version`、`developer` | 与其他插件一样 |
+| 身份与展示：`schema_version`、`plugin_id`、`version`、`name`、`name_text`、`summary`、`summary_text`、`publisher`、`host_api_version`、`developer` | 与其他插件一样 |
 | `methods` | 技能，见第 4 节；只有声明的插件至少要有一项（第 20 批加入套组的键以后，改成「`methods` 或套组至少一项」） |
 | `requires` | 依赖的动作：必要的不满足就不能启用，可选的不满足只降级，安装预览列出现在满不满足（第 5 节）；只有声明的插件不要求列进 `capabilities.consumes`（第 08 批主会话 2026-11-06 定） |
 | `upgrade_compatibility` | 与其他插件一样 |
-| `ui.messages`、`ui.translations` | 名称与说明的双语 |
+| `ui.locales` | 同一签名包的语言文件。名称与摘要引用自己的词；技能显示词按主人、技能 id 和声明字段读取，缺词用原文 |
 | `runtime: { scope: "home" }` | 这里只表示范围：装给个人空间，所有项目和个人助理都能用。没有进程可起，所以不受 PG-011 对 Home 代码来源的限制；没写就装进项目 |
 
 **不允许**：`actions`、`action_scenes`、`routes`、`ui.views`、`ui.page_routes`、`ports`、`events`、`databases`、`owner_files`、`background`、`connections`、`connection_services`、`integrations`、`source_presentations`、`notifications`、`attention`、`local_tools`、`model_configuration`、`image_generation`、`process_items`、`always_on`、`agent`。`agent` 是插件自己的 Agent 用的，只有声明的插件没有 Agent。场景套组要不要带角色说明，由第 20 批第 2 项定；要带时，在白名单里加一个只收文字的键，不放开 `agent`。

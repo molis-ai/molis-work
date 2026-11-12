@@ -2,14 +2,14 @@ import { lstat, realpath } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDirectoryGrant, PluginDirectoryReadResult, PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
+import type { DirectoryReadOrigin, PluginDirectoryGrant, PluginDirectoryReadResult, PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { pickLocalDirectory } from "./directory-picker.js";
 import { readGrantedDirectory } from "./plugin-directory-read.js";
 import { tellDirectoryRead } from "./plugin-directory-notices.js";
 import { directoryGrant, forgetInstallationDirectoryGrants, forgetProjectDirectoryGrants, listDirectoryGrants, matchingDirectoryGrant, recordDirectoryRead,
-  revokeDirectoryGrant, revokePluginDirectoryGrants, saveDirectoryGrant, type DirectoryReadOrigin, type StoredDirectoryGrant } from "./plugin-directory-store.js";
+  revokeDirectoryGrant, revokePluginDirectoryGrants, saveDirectoryGrant, type StoredDirectoryGrant } from "./plugin-directory-store.js";
 
 export const DIRECTORY_READ_PERMISSION = "directory:read";
 type Selection = { plugin_id: string; project_id: string | null; actor_id: string };

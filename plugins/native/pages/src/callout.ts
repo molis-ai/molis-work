@@ -2,18 +2,18 @@ import { safePagesTone } from "./tone.js";
 
 /** Marks a callout can wear, drawn from the design-system sprite rather than emoji. */
 export const PAGES_CALLOUT_ICONS = [
-  { id: "info", label: "提示" },
-  { id: "idea", label: "想法" },
-  { id: "alert", label: "注意" },
-  { id: "risk", label: "风险" },
-  { id: "check", label: "完成" },
-  { id: "star", label: "重点" },
-  { id: "flag", label: "标记" },
-  { id: "target", label: "目标" },
-  { id: "question", label: "疑问" },
-  { id: "book", label: "参考" },
-  { id: "zap", label: "行动" },
-  { id: "pin", label: "钉住" },
+  { id: "info", label: "pages.editor.note-2" },
+  { id: "idea", label: "pages.editor.idea" },
+  { id: "alert", label: "pages.editor.heads-up" },
+  { id: "risk", label: "pages.editor.risks" },
+  { id: "check", label: "pages.editor.done" },
+  { id: "star", label: "pages.editor.key-point" },
+  { id: "flag", label: "pages.editor.flag" },
+  { id: "target", label: "pages.editor.goal" },
+  { id: "question", label: "pages.editor.question" },
+  { id: "book", label: "pages.editor.reference" },
+  { id: "zap", label: "pages.editor.action" },
+  { id: "pin", label: "pages.editor.pinned" },
 ] as const;
 
 const ICON_IDS = new Set<string>(PAGES_CALLOUT_ICONS.map((item) => item.id));

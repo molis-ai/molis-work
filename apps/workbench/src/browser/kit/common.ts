@@ -3,24 +3,18 @@ import type { KitEntry, KitKind } from "@molis-ai/molis-work-contracts/platform/
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
 import { escapeHtml, renderBadge, renderButton, renderStatusMark, type AttrValue, type MwTone, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-type Translate = (text: string, values?: Record<string, string | number>) => string;
 /** 08's Skill parts (apps/workbench/src/settings-skills.ts), in the page before this program. */
 export interface SkillUi {
   detail(box: HTMLElement, skill: unknown, project: string, hooks: { notice: HTMLElement; redraw(): void }): HTMLElement;
   importPanel(panel: HTMLElement, project: string, reload: () => Promise<void>): void;
 }
-const page = globalThis as typeof globalThis & { L?: Translate; molisWorkRequest: UiRequest; molisSkillUI?: SkillUi };
+const page = globalThis as typeof globalThis & { molisWorkRequest: UiRequest; molisSkillUI?: SkillUi };
 
-/** The page's translator (apps/workbench i18n.ts writes `globalThis.L`); the Chinese text itself when there is none. */
-export const L: Translate = (text, values) => page.L ? page.L(text, values) : Object.entries(values ?? {}).reduce((out, [key, value]) => out.split("{" + key + "}").join(String(value)), text);
+export const readText = globalThis.t.text;
 export const esc = escapeHtml;
 export const skillUi = (): SkillUi | undefined => page.molisSkillUI;
-export const english = () => document.documentElement.lang.startsWith("en");
-/** Lists and pauses in the page's own language: English punctuation in English (docs/design/capability-pack/README.md). */
-export const joined = (items: readonly string[]) => items.join(english() ? ", " : "、");
-export const colon = () => english() ? ": " : "：";
-/** 08's word for a Skill whose publisher was revoked, as the page wrote it (「已撤销」 means something else in the shared English). */
-export const retracted = () => document.querySelector<HTMLElement>("[data-sk-retracted]")?.dataset.skRetracted ?? "已撤销";
+export const joined = (items: readonly string[]) => items.join(readText("common.list.separator"));
+export const colon = () => readText("workbench.kit.colon");
 
 /** One of the page's actions (apps/local-host/src/kit-settings-http.ts), as the person, in the page's project or personal space. */
 export function post<T>(project: string, path: string, body: object = {}): Promise<T> {
@@ -29,7 +23,7 @@ export function post<T>(project: string, path: string, body: object = {}): Promi
 
 export const KINDS: readonly KitKind[] = ["role", "prompt", "skill", "mcp", "tool"];
 export const KIND_GLYPH: Record<KitKind, PluginIconName> = { role: "user", prompt: "text", skill: "book", mcp: "network", tool: "wand" };
-export const KIND_WORD: Record<KitKind, string> = { role: "角色", prompt: "提示词", skill: "技能", mcp: "MCP", tool: "工具" };
+export const KIND_WORD: Record<KitKind, string> = { role: "workbench.assistant-island.role", prompt: "workbench.settings-agent-diagnostics.prompts", skill: "workbench.settings-skills.skills", mcp: "workbench.kit.mcp", tool: "workbench.context-toolbar.tools" };
 
 export const act = (name: string, value?: string): Record<string, AttrValue> => value === undefined ? { "data-kit-act": name } : { "data-kit-act": name, "data-kit-v": value };
 export const button = (label: string, options: { variant?: "primary" | "secondary" | "ghost" | "link"; icon?: PluginIconName; attrs?: Record<string, AttrValue>; size?: "sm" | "md"; disabled?: boolean } = {}) =>
@@ -46,6 +40,32 @@ export const note = (text: string) => `<p class="kit-note">${esc(text)}</p>`;
 /** What the page knows after one `kit.catalog.list`: the answer, each entry by key, and the derived facts every view uses. */
 export interface Kit { catalog: KitCatalog; byKey: Map<string, KitEntry> }
 export const kitOf = (catalog: KitCatalog): Kit => ({ catalog, byKey: new Map(catalog.entries.map(entry => [entry.key, entry])) });
+/** Apply only current display fields for the records this view already holds. */
+export function updateKitWords(kit: Kit, catalog: KitCatalog): void {
+  const latest = kitOf(catalog);
+  for (const entry of kit.catalog.entries) {
+    const words = latest.byKey.get(entry.key);
+    if (!words || words.kind !== entry.kind || words.pack !== entry.pack) continue;
+    if (entry.kind === "skill" && words.kind === "skill") {
+      if (entry.skill.ref.installation_generation !== words.skill.ref.installation_generation || entry.skill.ref.version !== words.skill.ref.version) continue;
+      const { name, description, when_to_use, when_not_to_use } = words.skill;
+      Object.assign(entry.skill, { name, description, when_to_use, when_not_to_use });
+      Object.assign(entry.skill.pack, { title: words.skill.pack.title });
+    }
+    Object.assign(entry, { name: words.name, description: words.description });
+    Object.assign(entry.version, { label: words.version.label });
+    if (entry.source.kind === words.source.kind && "title" in entry.source && "title" in words.source) Object.assign(entry.source, { title: words.source.title });
+    if (entry.manage?.href === words.manage?.href && entry.manage) Object.assign(entry.manage, { label: words.manage!.label });
+  }
+  for (const pack of kit.catalog.packs) {
+    const words = catalog.packs.find(current => current.pack_id === pack.pack_id);
+    if (!words || words.kind !== pack.kind) continue;
+    Object.assign(pack, { name: words.name, description: words.description });
+    if (pack.source && words.source) Object.assign(pack.source, { title: words.source.title });
+    if (pack.manage?.href === words.manage?.href && pack.manage) Object.assign(pack.manage, { label: words.manage!.label });
+  }
+}
+
 export const entriesOf = (kit: Kit, keys: readonly string[]) => keys.map(key => kit.byKey.get(key)).filter((entry): entry is KitEntry => Boolean(entry));
 
 /** A pack's role row that only refers to Molis Work's own personal assistant (its prompts with no role hang there, §4.2). */
@@ -69,7 +89,7 @@ export function itemsOf(kit: Kit, pack: KitPack): KitEntry[] {
 /** Where an entry comes from, in the person's words: never an internal package name (README rule 6). */
 export function sourceTitle(entry: KitEntry): string {
   const source = entry.source;
-  if (source.kind === "runtime") return L("Molis Work 自带");
+  if (source.kind === "runtime") return readText("workbench.kit.builtin");
   if (source.kind === "mcp_server") return source.label;
   return source.title;
 }

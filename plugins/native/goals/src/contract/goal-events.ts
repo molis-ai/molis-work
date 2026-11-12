@@ -592,6 +592,8 @@ export interface GoalEventFactsApi {
   listLatestReports(projectId: string, goalId: string, query?: GoalEventLatestReportsQuery): GoalEventLatestReports;
   readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord;
   readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[];
+  /** Whether this actor's report under this idempotency key is already recorded (its repeat is answered from the record). */
+  reportRecorded(projectId: string, actorId: string, idempotencyKey: string): boolean;
   /** The platform sessions that reported the requirement done on their own word alone. */
   selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string>;
   /** Persisted createIntent channel; independent of timeline pagination. Null when no intent_created fact exists. */

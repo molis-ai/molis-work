@@ -109,7 +109,7 @@ export function boardInterruptedWork(at: Iso): { view: AssistantWorkView; recove
 /** What the bell holds: a decision and a failure first, a reminder that came due, news folded below, one held by a rule. */
 export function boardNotices(at: Iso): AssistantNotice[] {
   const notice = (notice_id: string, kind: AssistantNotice["kind"], work_id: string, work_title: string, text: string, minutesAgo: number, more: Partial<AssistantNotice> = {}): AssistantNotice =>
-    ({ notice_id, kind, work_id, work_title, text, created_at: at(minutesAgo), ...more });
+    ({ notice_id, kind, work_id, work_title, text: { original: text }, created_at: at(minutesAgo), ...more });
   return [
     notice("n-plan", "needs-decision", "board-plan", "安排试用复盘", "「安排试用复盘」等你确认创建日程", 4),
     notice("n-digest", "failed", "board-digest", "整理上周的 Feed 摘要", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", 25),

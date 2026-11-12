@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { buildSync } from "esbuild";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT, PANE_MESSAGES_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { pageText, pageTextScript } from "./fixtures/page-text.js";
 
 const ORIGIN = "http://127.0.0.1:4173";
 const GREEN = "\u{1F7E2}"; // two UTF-16 units
@@ -85,8 +86,8 @@ function contextPage() {
       return Promise.resolve(path.endsWith("/candidates") || path.endsWith("/judge") ? { plan, receipt: {} } : {});
     },
   });
-  const factory = vm.runInContext(`(${CONTEXT_ACTIONS_FACTORY_SCRIPT})`, context) as (host: unknown) => unknown;
-  factory({ translate: (text: string) => text, route: (path: string) => path, showToast() {}, paneMessages: vm.runInContext(PANE_MESSAGES_SCRIPT, context) });
+  const factory = vm.runInContext(`${pageTextScript("zh")}\n(${CONTEXT_ACTIONS_FACTORY_SCRIPT})`, context) as (host: unknown) => unknown;
+  factory({ translate: pageText("zh"), route: (path: string) => path, showToast() {}, paneMessages: vm.runInContext(PANE_MESSAGES_SCRIPT, context) });
   const settle = async () => { for (let round = 0; round < 6; round += 1) { await new Promise(resolve => setImmediate(resolve)); timers.splice(0).forEach(fn => fn()); } };
   const surface = { getAttribute: (name: string) => name === "data-work-surface" ? "lingguang" : null };
   const control = Object.setPrototypeOf(element({ closest: (selector: string) => selector === "[data-work-surface]" ? surface : null }), PageElement.prototype);

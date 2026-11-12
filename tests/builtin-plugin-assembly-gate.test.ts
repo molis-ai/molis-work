@@ -7,6 +7,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parseImports } from "../scripts/test-imports/parse.mjs";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -205,7 +206,10 @@ test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace G
   const text = new Map(await Promise.all(sources.map(async file => [file, await readFile(join(repoRoot, file), "utf8")] as const)));
   // W5-01-GIT-01: only the project supervisor starts Git, from its registration's project_runtime (PG-067); its companion stage in
   // Coding's page is Git's own contribution (PG-036 C9). The generated platform registry imports its registration only.
-  const importsGit = sources.filter(file => /["']@molis-ai\/molis-work-plugin-git["']/.test(text.get(file)!));
+  const gitPackage = "@molis-ai/molis-work-plugin-git";
+  const importsGit = sources.filter(file => parseImports(file, text.get(file)!, { deep: true }).some(({ spec }) =>
+    (spec === gitPackage || spec.startsWith(gitPackage + "/"))
+    && !(file === "apps/local-host/src/plugin-registry.generated.ts" && spec === gitPackage + "/registration")));
   assert.deepEqual(importsGit, [], "a Host file imports the Git plugin; Git is started by the supervisor and reached through its declarations");
   const git = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "git")?.project_runtime;
   assert.equal(git?.factory_export, "createGitPlugin", "the supervisor starts Git from its declared factory");

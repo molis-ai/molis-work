@@ -1,26 +1,27 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /** The person's restrictions over the App's declared memory classes; never a permission grant. */
-export function renderMemoryClassSettings(L: (text: string) => string): string {
+export function renderMemoryClassSettings(): string {
   const field = (key: string, title: string, values: readonly (readonly [string, string])[]) =>
-    `<label class="setting-copy"><span>${L(title)}</span><select class="mw-select" disabled data-memory-class="${key}" aria-label="${L(title)}">${values.map(([value, text]) => `<option value="${value}">${L(text)}</option>`).join("")}</select></label>`;
+    `<label class="setting-copy"><span>${uiText(title)}</span><select class="mw-select" disabled data-memory-class="${key}" aria-label="${uiText(title)}">${values.map(([value, text]) => `<option value="${value}">${uiText(text)}</option>`).join("")}</select></label>`;
   return `<section class="settings-section" aria-labelledby="memory-classes-title" data-memory-classes>
-    <h2 id="memory-classes-title">${L("按分类控制记忆")}</h2>
-    <p class="settings-muted">${L("选择谁在什么场景下使用哪类记忆，再分别限制读取与自动形成。多条限制同时适用时，采用更严格的一条；总开关和原有权限仍然有效。")}</p>
-    <form data-memory-class-form><fieldset class="mw-fieldset" disabled><legend class="mw-sr-only">${L("按分类控制记忆")}</legend>
+    <h2 id="memory-classes-title">${uiText("workbench.settings-memory-classes.control-memory-class")}</h2>
+    <p class="settings-muted">${uiText("workbench.settings-memory-classes.choose-who-uses-which-memories-each-work-scene")}</p>
+    <form data-memory-class-form><fieldset class="mw-fieldset" disabled><legend class="mw-sr-only">${uiText("workbench.settings-memory-classes.control-memory-class")}</legend>
       <div class="memory-toolbar">
-        ${field("consumer", "使用方", [["agent", "Agent 工作"], ["assistant", "助理"], ["ui", "界面推荐"], ["plugin", "插件"], ["mcp", "外部 AI 客户端"]])}
-        ${field("current_scene", "工作场景", [["coding", "Coding"], ["assistant", "助理"], ["common", "通用"]])}
-        ${field("scene", "记忆场景", [["", "全部场景"], ["coding", "Coding"], ["assistant", "助理"], ["common", "通用"]])}
-        ${field("kind", "类别", [["", "全部类别"], ["preference", "偏好"], ["convention", "约定"], ["fact", "背景事实"], ["experience", "经验"], ["habit", "习惯"], ["project-decision", "项目决策"]])}
-        ${field("lifecycle", "保留时间", [["", "全部保留类型"], ["session", "会话内"], ["short-term", "短期"], ["long-term", "长期"]])}
+        ${field("consumer", "workbench.settings-memory-classes.consumer", [["agent", "workbench.settings-memory.agent-work"], ["assistant", "workbench.settings-memory.assistant"], ["ui", "workbench.settings-memory.interface-suggestions"], ["plugin", "workbench.settings-memory.plugins"], ["mcp", "workbench.settings-memory.external-ai-clients"]])}
+        ${field("current_scene", "workbench.settings-memory-classes.work-scene", [["coding", "workbench.settings-memory.coding"], ["assistant", "workbench.settings-memory.assistant"], ["common", "workbench.settings-memory-classes.common"]])}
+        ${field("scene", "workbench.settings-memory-classes.memory-scene", [["", "workbench.settings-memory-classes.all-scenes"], ["coding", "workbench.settings-memory.coding"], ["assistant", "workbench.settings-memory.assistant"], ["common", "workbench.settings-memory-classes.common"]])}
+        ${field("kind", "workbench.settings-memory.kind", [["", "workbench.settings-memory.all-kinds"], ["preference", "workbench.settings-memory.preference"], ["convention", "workbench.settings-memory.convention"], ["fact", "workbench.settings-memory.background-fact"], ["experience", "workbench.settings-memory.lesson"], ["habit", "workbench.settings-memory-classes.habit"], ["project-decision", "workbench.settings-memory-classes.project-decision"]])}
+        ${field("lifecycle", "workbench.settings-memory-classes.retention", [["", "workbench.settings-memory-classes.all-retention-types"], ["session", "workbench.settings-memory-classes.within-session"], ["short-term", "workbench.settings-memory-classes.short-term"], ["long-term", "workbench.settings-memory-classes.long-term"]])}
       </div>
       <div class="memory-toolbar">
-        ${field("read", "读取方式", [["inherit", "沿用原设置"], ["explicit-only", "仅主动查询"], ["off", "不读取"]])}
-        ${field("form", "自动形成", [["inherit", "沿用原设置"], ["off", "不自动形成"]])}
-        <button class="mw-btn mw-btn--primary mw-btn--sm" type="submit">${L("保存分类限制")}</button>
+        ${field("read", "workbench.settings-memory-classes.reading", [["inherit", "workbench.settings-memory-classes.use-existing-settings"], ["explicit-only", "workbench.settings-memory-classes.explicit-queries-only"], ["off", "workbench.settings-memory-classes.do-not-read"]])}
+        ${field("form", "workbench.settings-memory-classes.automatic-formation", [["inherit", "workbench.settings-memory-classes.use-existing-settings"], ["off", "workbench.settings-memory-classes.do-not-form-automatically"]])}
+        <button class="mw-btn mw-btn--primary mw-btn--sm" type="submit">${uiText("workbench.settings-memory-classes.save-class-restrictions")}</button>
       </div>
     </fieldset></form>
-    <p class="settings-muted">${L("不读取不会删除记忆；不自动形成仍保留本人明确保存与认可。仅主动查询不会自动放进任务上下文。")}</p>
-    <p class="settings-muted">${L("两项都选“沿用原设置”并保存，可移除这一组分类限制。")}</p>
+    <p class="settings-muted">${uiText("workbench.settings-memory-classes.blocking-reads-does-not-delete-memories-blocking-automatic")}</p>
+    <p class="settings-muted">${uiText("workbench.settings-memory-classes.choose-use-existing-settings-both-controls-save-remove")}</p>
     <p class="settings-muted" data-memory-class-status role="status" aria-live="polite"></p>
     <p class="settings-form-error" data-memory-class-error role="alert" hidden></p>
     <ul class="memory-list" data-memory-class-list></ul>
@@ -53,11 +54,11 @@ export const MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT = String.raw`
     for (const control of Object.values(controls)) control.disabled = fields.disabled;
     if (!rows) return;
     if (!loaded) { loaded = true; selectRule(); }
-    if (!rows.length) list.append(el("li", "settings-muted", L("没有额外分类限制，沿用原设置。")));
+    if (!rows.length) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-memory-classes.no-additional-class-restrictions-existing-settings-apply")));
     for (const row of rows) {
       const item = el("li", "memory-row"), copy = el("span", "memory-row-copy");
       copy.textContent = keys.map(key => text(key, row.selector[key])).join(" · ") + "：" + text("read", row.read) + " / " + text("form", row.form);
-      const edit = button(L("修改"), null, L("修改") + "：" + copy.textContent);
+      const edit = button(globalThis.t.text("workbench.settings-memory.edit"), null, globalThis.t.text("workbench.settings-memory.edit") + "：" + copy.textContent);
       edit.addEventListener("click", () => { for (const key of keys) controls[key].value = row.selector[key] || ""; selectRule(); for (const key of keys) value(key, controls[key].value); controls.read.focus(); });
       item.append(copy, edit); list.append(item);
     }
@@ -67,9 +68,9 @@ export const MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT = String.raw`
     const chosen = selector(), read = controls.read.value, formation = controls.form.value;
     const next = rules().filter(row => !same(row.selector, chosen));
     if (read !== "inherit" || formation !== "inherit") next.push({ selector: chosen, read, form: formation });
-    saving = true; error.hidden = true; status.textContent = L("正在保存…"); paint();
-    try { await savePrefs(next); status.textContent = L("分类限制已保存"); }
-    catch (failure) { molisWorkRequest.show(error, failure); error.hidden = false; status.textContent = L("尚未保存，请重试。"); }
+    saving = true; error.hidden = true; status.textContent = globalThis.t.text("workbench.settings-memory-classes.saving"); paint();
+    try { await savePrefs(next); status.textContent = globalThis.t.text("workbench.settings-memory-classes.class-restrictions-saved"); }
+    catch (failure) { molisWorkRequest.show(error, failure); error.hidden = false; status.textContent = globalThis.t.text("workbench.settings-memory-classes.not-saved-please-try-again"); }
     finally { saving = false; paint(); }
   });
   selectRule();

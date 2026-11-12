@@ -1,3 +1,4 @@
+import { parseStrictJson } from "@molis-ai/molis-work-plugin-sdk/ui";
 /** Reading a model's JSON answer: fences and reasoning blocks are dropped, a misordered close is repaired once. */
 /** Closes what JSON text left open or closed out of order; text inside strings is never touched. */
 export function balanceBrackets(source: string): string {
@@ -35,18 +36,29 @@ export function reopenRoot(source: string): string {
   }
   return source;
 }
-export function parseModelJson(input: string): unknown {
+export function parseModelJson(input: string, strict = false): unknown {
   if (typeof input !== "string") throw new Error("模型输出必须是 JSON 文本");
   // Some providers emit their reasoning as <think>…</think> ahead of the answer; it is never part of the answer.
   const trimmed = input.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
   const source = fenced ? fenced[1]! : trimmed;
-  try { return JSON.parse(source) as unknown; }
+  const parse = (candidate: string): unknown => {
+    if (!strict) return JSON.parse(candidate);
+    const result = parseStrictJson(candidate, { file: 'design answer' });
+    if (result.ok) return result.value;
+    const invalid = result.problems.find(problem => problem.code !== 'ui.json_syntax');
+    if (invalid) throw new TypeError(invalid.code === 'ui.json_repeated_name' ? `Duplicate design field: ${invalid.path}` : `${invalid.path}: ${invalid.reason}`);
+    const problem = result.problems[0];
+    const offset = problem?.line ? candidate.split('\n').slice(0, problem.line - 1).reduce((length, line) => length + line.length + 1, 0) + (problem.column ?? 1) - 1 : 0;
+    throw new SyntaxError(`position ${offset}`);
+  };
+  try { return parse(source); }
   catch (error) {
+    if (error instanceof TypeError) throw error;
     // A long answer that ended but closed its brackets out of order (…]}]}} for …]}]}]}) is repaired once; one that
     // was cut off is not guessed at. The result still goes through the full design checks.
-    if (/[}\]]\s*$/.test(source)) try { return JSON.parse(balanceBrackets(source)) as unknown; } catch { /* report the original error */ }
-    if (/}\s*$/.test(source)) try { return JSON.parse(reopenRoot(source)) as unknown; } catch { /* report the original error */ }
+    if (/[}\]]\s*$/.test(source)) try { return parse(balanceBrackets(source)); } catch (repaired) { if (repaired instanceof TypeError) throw repaired; }
+    if (/}\s*$/.test(source)) try { return parse(reopenRoot(source)); } catch (repaired) { if (repaired instanceof TypeError) throw repaired; }
     // Say where the syntax broke, so both the person and a repair round can see the actual problem.
     const position = Number(/position (\d+)/.exec(error instanceof Error ? error.message : "")?.[1]);
     const near = Number.isFinite(position) ? `，第 ${position} 个字符附近：${source.slice(Math.max(0, position - 40), position + 40)}` : "";

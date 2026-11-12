@@ -246,7 +246,8 @@ export const KIT_REPORT_OUTPUT_SCHEMA: ActionSchema = object({
 
 /**
  * One owner's report of its own kit entries in the call's scope. Read-only: it never connects a server, calls a tool or refreshes a
- * credential. Audiences are the owner's rule, `user` at least; it waits for no model, so it is not `concurrent`.
+ * credential. Audiences are the owner's rule, `user` at least. It declares `concurrent` like `kit.catalog.list@1` (contract-design §10):
+ * on a project's serial line one slow reporter would hold up the others; it submits nothing, so no `beforeEffect`.
  */
 export function defineKitReportAction(capabilityId: string, version: number, title: string, permissions: string[],
   options: { scope?: "project" | "home"; audiences?: ActionAudience[] } = {}): ActionDefinition<KitReportInput, KitReport> {

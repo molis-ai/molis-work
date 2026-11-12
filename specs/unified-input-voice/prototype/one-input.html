@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>一个输入框 · 定样稿</title>
+<style>
+  :root {
+    --desk: #eef3f7; --paper: #fcfdfe; --surface-soft: #f5f8fb; --wash: #e9f0f6; --ink: #1f2b37; --ink-soft: #45525f; --muted: #586574;
+    --faint: #8a96a3; --line: #e0e8ef; --line-strong: #c9d5e0; --accent: #3c6e98; --accent-soft: #e4eef7; --primary: #2b4a64; --on-primary: #fff;
+    --copper: #b06a3b; --nav-active: rgba(31,43,55,.08); --nav-hover: rgba(31,43,55,.05);
+    --lift-1: 0 1px 2px rgba(28,42,58,.04), 0 6px 14px -10px rgba(28,42,58,.16);
+    --lift-2: 0 1px 2px rgba(28,42,58,.04), 0 10px 28px -14px rgba(28,42,58,.24);
+    --lift-3: 0 2px 6px rgba(28,42,58,.06), 0 18px 44px -18px rgba(28,42,58,.32);
+    --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", system-ui, sans-serif;
+  }
+  .dark {
+    --desk: #141a20; --paper: #1b2229; --surface-soft: #1f272f; --wash: #26303a; --ink: #e8eef3; --ink-soft: #bac6d1; --muted: #9aa8b5;
+    --faint: #7d8a97; --line: #2c3640; --line-strong: #3f4b57; --accent: #8fb8dc; --accent-soft: #1e2d3b; --primary: #b5d1ea; --on-primary: #17212b;
+    --nav-active: rgba(232,238,243,.11); --nav-hover: rgba(232,238,243,.07);
+    --lift-1: 0 1px 2px rgba(0,0,0,.3); --lift-2: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6); --lift-3: 0 18px 44px -18px rgba(0,0,0,.7);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 24px 64px; background: #dfe6ec; color: #1f2b37; font: 13px/1.5 var(--font); }
+  .page { max-width: 1260px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 24px; font-weight: 600; }
+  .lede { margin: 0 0 28px; color: #45525f; font-size: 15px; max-width: 860px; }
+  h2 { margin: 40px 0 6px; font-size: 17px; font-weight: 600; }
+  .say { margin: 0 0 14px; color: #45525f; max-width: 900px; }
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .notes li { padding: 12px 14px; border-radius: 12px; background: #f5f8fb; color: #45525f; }
+  .notes b { display: block; margin-bottom: 2px; color: #1f2b37; font-weight: 600; }
+  .n { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 6px; border-radius: 9px; background: var(--copper, #b06a3b); color: #fff; font-size: 11px; font-weight: 600; vertical-align: 1px; }
+
+  /* ---------- a window ---------- */
+  .win { position: relative; width: 1200px; height: 760px; overflow: hidden; border-radius: 14px; background: var(--desk); color: var(--ink); box-shadow: 0 30px 60px -30px rgba(20,30,40,.45), 0 0 0 1px rgba(20,30,40,.08); }
+  svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .title { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px 0 84px; }
+  .lights { position: absolute; left: 16px; top: 16px; display: flex; gap: 8px; }
+  .lights i { width: 12px; height: 12px; border-radius: 6px; background: #d8dee4; }
+  .dark .lights i { background: #3a444e; }
+  .navb { display: inline-grid; place-items: center; width: 28px; height: 28px; color: var(--muted); }
+  .tabs { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .tab { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; color: var(--ink-soft); font-size: 13px; }
+  .tab.on { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
+  .tab .x { color: var(--faint); }
+  .tools { display: flex; gap: 4px; margin-left: auto; color: var(--muted); }
+  .tools span { display: inline-grid; place-items: center; width: 30px; height: 30px; }
+
+  .body { position: absolute; inset: 44px 0 68px 0; display: grid; grid-template-columns: 228px 1fr; gap: 0; }
+  .dir { padding: 6px 12px 0 16px; }
+  .dir h3 { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 15px; font-weight: 600; }
+  .dir .row { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 8px; color: var(--ink-soft); }
+  .dir .row.on { background: var(--nav-active); color: var(--ink); font-weight: 500; }
+  .dir .row small { margin-left: auto; color: var(--faint); font-size: 12px; }
+  .dir .cap { margin: 14px 10px 6px; color: var(--muted); font-size: 12px; }
+  .ring { width: 10px; height: 10px; border-radius: 5px; border: 1.5px solid var(--faint); flex: none; }
+  .ring.run { border-color: var(--accent); border-right-color: transparent; }
+  .ring.done { background: #5f8a6a; border-color: #5f8a6a; }
+
+  .sheet { position: relative; margin: 4px 12px 0 0; border-radius: 14px 14px 0 0; background: var(--paper); box-shadow: var(--lift-1); overflow: hidden; }
+  .head { display: flex; align-items: flex-start; gap: 12px; padding: 22px 28px 0; }
+  .head h4 { margin: 0; font-size: 20px; font-weight: 600; }
+  .head .where { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--muted); font-size: 12px; }
+  .seg { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: 9px; background: var(--surface-soft); }
+  .seg span { height: 26px; padding: 0 10px; border-radius: 6px; line-height: 26px; color: var(--muted); font-size: 13px; }
+  .seg span.on { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line-strong); color: var(--ink-soft); font-size: 13px; }
+
+  /* the conversation column: the composer below shares its edges */
+  .col { width: 680px; margin: 0 auto; }
+  .turns { padding: 28px 0 0; }
+  .me { margin-left: auto; width: fit-content; max-width: 520px; padding: 9px 14px; border-radius: 14px 14px 4px 14px; background: var(--wash); font-size: 15px; }
+  .ai { margin: 18px 0 0; font-size: 15px; line-height: 1.65; }
+  .ai p { margin: 0 0 8px; }
+  .step { display: flex; align-items: center; gap: 10px; margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-soft); color: var(--ink-soft); font-size: 13px; }
+  .step code { color: var(--ink); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .step .ok { margin-left: auto; color: #5f8a6a; font-size: 12px; }
+  .doing { display: flex; align-items: center; gap: 8px; margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(transparent, var(--paper)); }
+
+  /* ---------- the bar: one input ---------- */
+  .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 68px; display: grid; grid-template-columns: 228px 1fr; align-items: end; }
+  .dock { display: flex; align-items: center; gap: 4px; height: 52px; margin: 0 0 8px 12px; padding: 0 8px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink-soft); }
+  .dock span { position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; }
+  .dock span.on { background: var(--paper); box-shadow: var(--lift-1); color: var(--ink); }
+  .dock span.on::after { content: ""; position: absolute; bottom: -5px; width: 3px; height: 3px; border-radius: 2px; background: var(--copper); }
+  .dock .sep { width: 1px; height: 20px; background: var(--line-strong); border-radius: 0; }
+  .lane { position: relative; height: 100%; margin-right: 12px; }
+  .tray { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px; color: var(--ink-soft); }
+  .tray span { display: inline-grid; place-items: center; width: 36px; height: 36px; }
+  .mono { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #4e7aa0; color: #fff; font-weight: 600; font-size: 13px; }
+
+  .composer { position: absolute; left: 50%; bottom: 10px; width: 680px; transform: translateX(-50%); border-radius: 15px; background: var(--paper); box-shadow: var(--lift-2), 0 0 0 1px var(--line); }
+  .composer .text { padding: 12px 16px 2px; font-size: 15px; color: var(--ink); min-height: 44px; }
+  .composer .text.ph { color: var(--faint); }
+  .caret { display: inline-block; width: 1.5px; height: 18px; margin-left: 1px; background: var(--accent); vertical-align: -3px; }
+  .foot { display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 6px 0 6px; }
+  .rest { display: flex; align-items: center; gap: 4px; height: 50px; padding: 0 6px; }
+  .rest .ph { flex: 1; min-width: 0; padding: 0 6px; color: var(--faint); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--ink-soft); }
+  .to { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 30px; padding: 0 8px 0 7px; border-radius: 8px; background: var(--surface-soft); color: var(--ink); font-size: 13px; white-space: nowrap; }
+  .to b { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .to .k { color: var(--muted); font-weight: 400; }
+  .to .chev { width: 12px; height: 12px; color: var(--muted); }
+  .sel { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px; border-radius: 8px; color: var(--ink-soft); font-size: 13px; white-space: nowrap; }
+  .sel .chev { width: 12px; height: 12px; color: var(--muted); }
+  .grow { flex: 1; }
+  .send { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--primary); color: var(--on-primary); }
+  .send.off { background: var(--wash); color: var(--faint); }
+  .count { margin-left: 2px; padding: 0 5px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 11px; line-height: 16px; }
+  .strip { display: flex; gap: 6px; padding: 10px 12px 0; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 6px; border-radius: 10px; background: var(--surface-soft); font-size: 13px; }
+  .chip .tile { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .chip small { display: block; color: var(--muted); font-size: 11px; line-height: 14px; }
+  .chip .x { color: var(--faint); }
+
+  .menu { position: absolute; z-index: 5; width: 300px; padding: 6px; border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3), 0 0 0 1px var(--line); }
+  .menu .lab { padding: 6px 10px 4px; color: var(--muted); font-size: 11px; font-weight: 500; }
+  .menu .it { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 6px 10px; border-radius: 8px; color: var(--ink); font-size: 13px; }
+  .menu .it.on { background: var(--nav-active); }
+  .menu .it small { display: block; color: var(--muted); font-size: 12px; line-height: 16px; }
+  .menu .it .end { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .menu hr { margin: 4px 8px; border: 0; border-top: 1px solid var(--line); }
+
+  .call { position: absolute; z-index: 9; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 11px; background: #b06a3b; color: #fff; font-size: 12px; font-weight: 600; box-shadow: 0 0 0 3px rgba(255,255,255,.85); }
+  .ruler { position: absolute; z-index: 8; top: 44px; bottom: 0; width: 0; border-left: 1px dashed rgba(176,106,59,.7); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="send" viewBox="0 0 24 24"><path d="M14.5 21.5 21.5 2.5 2.5 9.5l8 3z"/><path d="m10.5 12.5 11-10"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="code" viewBox="0 0 24 24"><path d="M8 4c-2 0-2 1-2 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 0 3 2 3M16 4c2 0 2 1 2 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2 0 3-2 3"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+  <symbol id="grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h4.5l1 2h5l1-2H20"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4l2 2h8A1.5 1.5 0 0 1 20.5 9v8.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+  <symbol id="arrowl" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="arrowr" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="cols" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M12 4.5v15"/></symbol>
+  <symbol id="pkg" viewBox="0 0 24 24"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="clip" viewBox="0 0 24 24"><path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.3-8.3a3.3 3.3 0 0 1 4.7 4.7l-8.3 8.3a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6"/></symbol>
+  <symbol id="term" viewBox="0 0 24 24"><path d="m5 8 4 4-4 4M12 17h7"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>一个输入框（定样稿）</h1>
+  <p class="lede">工作台只留底栏一个输入框。它跟着眼前的页面：看着 Coding 会话时，它就是这个会话的输入框，任务方式和模型都在它的脚条里；换到助理或别的工作只要点一下「发给」。它的左右边缘和页面的对话栏对齐，「发给」收进框里，不再悬在框外。</p>
+
+  <h2>1 · 在 Coding 会话里，没在写</h2>
+  <p class="say">Coding 页面里不再有自己的输入框，对话一直排到底栏上方。底栏的输入框静止时只有一行：＋、发给谁、提示语、任务方式、模型、发送。</p>
+  <div class="win" id="w1">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="title">
+      <span class="navb"><svg class="i"><use href="#arrowl"/></svg></span><span class="navb"><svg class="i"><use href="#arrowr"/></svg></span>
+      <div class="tabs"><span class="tab"><svg class="i"><use href="#code"/></svg>Coding</span><span class="tab on"><svg class="i"><use href="#code"/></svg>修复登录超时<svg class="i x" style="width:12px;height:12px"><use href="#x"/></svg></span></div>
+      <div class="tools"><span><svg class="i"><use href="#search"/></svg></span><span><svg class="i"><use href="#bell"/></svg></span><span><svg class="i"><use href="#cols"/></svg></span></div>
+    </div>
+    <div class="body">
+      <div class="dir">
+        <h3><svg class="i"><use href="#code"/></svg>Coding</h3>
+        <div class="row on"><span class="ring run"></span>修复登录超时<small>运行中</small></div>
+        <div class="row"><span class="ring done"></span>整理发布说明<small>昨天</small></div>
+        <div class="row"><span class="ring"></span>补一组单元测试<small>周一</small></div>
+        <div class="cap">工作区</div>
+        <div class="row"><svg class="i"><use href="#folder"/></svg>molis-web</div>
+      </div>
+      <div class="sheet">
+        <div class="head">
+          <div><h4>修复登录超时</h4><div class="where"><svg class="i" style="width:13px;height:13px"><use href="#folder"/></svg>molis-web · 执行</div></div>
+          <div class="seg"><span class="on">对话</span><span>任务图</span></div>
+          <span class="btn">结果与审查</span>
+        </div>
+        <div class="col turns">
+          <div class="me">登录接口偶尔 30 秒才返回，帮我找原因并修好，先别动数据库。</div>
+          <div class="ai">
+            <p>先看了调用链：超时出在会话刷新时对令牌服务的同步请求，它没有设超时，令牌服务慢的时候整条请求就挂住。</p>
+            <div class="step"><svg class="i"><use href="#term"/></svg><code>rg "refreshToken" src/auth</code><span class="ok">3 处</span></div>
+            <div class="step"><svg class="i"><use href="#code"/></svg><code>src/auth/session.ts</code>　加 5 秒超时与一次重试<span class="ok">待你审查</span></div>
+            <p>改动只在 <code>session.ts</code>。接下来跑登录相关的测试。</p>
+            <div class="doing"><span class="ring run"></span>正在跑 auth 测试…</div>
+          </div>
+        </div>
+        <div class="fade"></div>
+      </div>
+    </div>
+    <div class="bar">
+      <div class="dock"><span><svg class="i" style="width:18px;height:18px"><use href="#grid"/></svg></span><span class="sep"></span><span><svg class="i" style="width:18px;height:18px"><use href="#home"/></svg></span><span><svg class="i" style="width:18px;height:18px"><use href="#target"/></svg></span><span class="on"><svg class="i" style="width:18px;height:18px"><use href="#code"/></svg></span><span><svg class="i" style="width:18px;height:18px"><use href="#inbox"/></svg></span></div>
+      <div class="lane">
+        <div class="composer">
+          <div class="rest">
+            <span class="ib"><svg class="i"><use href="#plus"/></svg></span>
+            <span class="to"><svg class="i" style="width:14px;height:14px"><use href="#code"/></svg><b>修复登录超时</b><svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="ph">补充，或说下一步…</span>
+            <span class="sel">执行<svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="sel">Claude Sonnet · 中<svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="ib"><svg class="i"><use href="#pause"/></svg></span>
+            <span class="send off"><svg class="i"><use href="#send"/></svg></span>
+          </div>
+        </div>
+        <div class="tray"><span><svg class="i" style="width:18px;height:18px"><use href="#target"/></svg></span><span class="mono">MW</span></div>
+      </div>
+    </div>
+    <span class="ruler" style="left:368px"></span><span class="ruler" style="left:1048px"></span>
+    <span class="call" style="left:357px;top:120px">1</span>
+    <span class="call" style="left:500px;top:666px">2</span>
+    <span class="call" style="left:924px;top:666px">3</span>
+  </div>
+  <ul class="notes">
+    <li><b><span class="n">1</span>边缘对齐</b>输入框和对话栏同宽、同一条左右边（虚线），都以页面中线居中，不再以整个窗口居中。</li>
+    <li><b><span class="n">2</span>发给谁在框里</b>「发给」是框里的一个标签，带会话的图标和名字；点开换收件人。框外不再悬一行「发给：」。</li>
+    <li><b><span class="n">3</span>场景控制跟着收件人</b>发给 Coding 会话时脚条是任务方式和模型（运行中还有暂停、停止）；发给助理时是助理自己的设置。</li>
+  </ul>
+
+  <h2>2 · 在写，＋ 里带上材料；点「发给」换收件人</h2>
+  <p class="say">一写字框就长成两行：上面是字和附件条，下面是脚条。「发给」点开列出这一页的会话和助理；选助理，同一个框就发给助理，Coding 会话不受影响。</p>
+  <div class="win" id="w2">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="title">
+      <span class="navb"><svg class="i"><use href="#arrowl"/></svg></span><span class="navb"><svg class="i"><use href="#arrowr"/></svg></span>
+      <div class="tabs"><span class="tab"><svg class="i"><use href="#code"/></svg>Coding</span><span class="tab on"><svg class="i"><use href="#code"/></svg>修复登录超时<svg class="i x" style="width:12px;height:12px"><use href="#x"/></svg></span></div>
+      <div class="tools"><span><svg class="i"><use href="#search"/></svg></span><span><svg class="i"><use href="#bell"/></svg></span><span><svg class="i"><use href="#cols"/></svg></span></div>
+    </div>
+    <div class="body">
+      <div class="dir">
+        <h3><svg class="i"><use href="#code"/></svg>Coding</h3>
+        <div class="row on"><span class="ring done"></span>修复登录超时<small>刚刚</small></div>
+        <div class="row"><span class="ring done"></span>整理发布说明<small>昨天</small></div>
+        <div class="row"><span class="ring"></span>补一组单元测试<small>周一</small></div>
+      </div>
+      <div class="sheet">
+        <div class="head">
+          <div><h4>修复登录超时</h4><div class="where"><svg class="i" style="width:13px;height:13px"><use href="#folder"/></svg>molis-web · 执行</div></div>
+          <div class="seg"><span class="on">对话</span><span>任务图</span></div>
+          <span class="btn">结果与审查</span>
+        </div>
+        <div class="col turns">
+          <div class="ai">
+            <p>auth 测试 42 项都过了。改动已放进「结果与审查」，等你看过再合。</p>
+            <div class="step"><svg class="i"><use href="#check"/></svg><code>pnpm test auth</code><span class="ok">42 / 42</span></div>
+          </div>
+        </div>
+        <div class="fade"></div>
+      </div>
+    </div>
+    <div class="menu" style="left:410px;top:306px">
+      <div class="lab">这一页</div>
+      <div class="it on"><svg class="i"><use href="#code"/></svg><span>修复登录超时<small>Coding 会话 · 下一轮</small></span><svg class="i end" style="width:14px;height:14px"><use href="#check"/></svg></div>
+      <hr>
+      <div class="lab">助理</div>
+      <div class="it"><svg class="i"><use href="#spark"/></svg><span>新对话<small>问助理，不进这个会话</small></span></div>
+      <div class="it"><svg class="i"><use href="#spark"/></svg><span>本周周报<small>2 小时前</small></span></div>
+      <hr>
+      <div class="lab">别的会话</div>
+      <div class="it"><svg class="i"><use href="#code"/></svg><span>整理发布说明<small>Coding 会话</small></span></div>
+    </div>
+    <div class="bar" style="height:68px">
+      <div class="dock"><span><svg class="i" style="width:18px;height:18px"><use href="#grid"/></svg></span><span class="sep"></span><span><svg class="i" style="width:18px;height:18px"><use href="#home"/></svg></span><span><svg class="i" style="width:18px;height:18px"><use href="#target"/></svg></span><span class="on"><svg class="i" style="width:18px;height:18px"><use href="#code"/></svg></span><span><svg class="i" style="width:18px;height:18px"><use href="#inbox"/></svg></span></div>
+      <div class="lane">
+        <div class="composer">
+          <div class="strip"><span class="chip"><span class="tile"><svg class="i"><use href="#pkg"/></svg></span><span>检查登录页的重试提示<small>待办 · 11-14</small></span><svg class="i x" style="width:13px;height:13px"><use href="#x"/></svg></span></div>
+          <div class="text">顺手把登录页超时后的提示也改成能重试<span class="caret"></span></div>
+          <div class="foot">
+            <span class="ib"><svg class="i"><use href="#plus"/></svg></span>
+            <span class="to" style="box-shadow:0 0 0 2px var(--accent)"><svg class="i" style="width:14px;height:14px"><use href="#code"/></svg><b>修复登录超时</b><svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="sel"><svg class="i" style="width:14px;height:14px"><use href="#clip"/></svg>材料<span class="count">2</span></span>
+            <span class="grow"></span>
+            <span class="sel">执行<svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="sel">Claude Sonnet · 中<svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="send"><svg class="i"><use href="#send"/></svg></span>
+          </div>
+        </div>
+        <div class="tray"><span><svg class="i" style="width:18px;height:18px"><use href="#target"/></svg></span><span class="mono">MW</span></div>
+      </div>
+    </div>
+    <span class="call" style="left:398px;top:294px">4</span>
+    <span class="call" style="left:356px;top:600px">5</span>
+    <span class="call" style="left:572px;top:684px">6</span>
+  </div>
+  <ul class="notes">
+    <li><b><span class="n">4</span>换收件人</b>「发给」列这一页的会话、助理（新对话或最近的）和别的 Coding 会话。框里写的字跟着原收件人存草稿，换过去是那边自己的草稿。</li>
+    <li><b><span class="n">5</span>框向上长</b>写字后框向上长出字和附件条，底边不动；页面的最后一段对话始终露在框上方。待办等来源选中的放在附件条，发出时作为这一轮的材料。</li>
+    <li><b><span class="n">6</span>下一轮带上的东西</b>Coding 的材料、方法、角色等不再挤在 ＋ 菜单深处：选过的在脚条上以「材料 2」这样的小标签出现，点开就是原来的选择。</li>
+  </ul>
+
+  <h2>3 · 深色</h2>
+  <div class="win dark" id="w3">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="title">
+      <span class="navb"><svg class="i"><use href="#arrowl"/></svg></span><span class="navb"><svg class="i"><use href="#arrowr"/></svg></span>
+      <div class="tabs"><span class="tab"><svg class="i"><use href="#code"/></svg>Coding</span><span class="tab on"><svg class="i"><use href="#code"/></svg>修复登录超时<svg class="i x" style="width:12px;height:12px"><use href="#x"/></svg></span></div>
+      <div class="tools"><span><svg class="i"><use href="#search"/></svg></span><span><svg class="i"><use href="#bell"/></svg></span><span><svg class="i"><use href="#cols"/></svg></span></div>
+    </div>
+    <div class="body">
+      <div class="dir">
+        <h3><svg class="i"><use href="#code"/></svg>Coding</h3>
+        <div class="row on"><span class="ring run"></span>修复登录超时<small>运行中</small></div>
+        <div class="row"><span class="ring done"></span>整理发布说明<small>昨天</small></div>
+      </div>
+      <div class="sheet">
+        <div class="head">
+          <div><h4>修复登录超时</h4><div class="where"><svg class="i" style="width:13px;height:13px"><use href="#folder"/></svg>molis-web · 执行</div></div>
+          <div class="seg"><span class="on">对话</span><span>任务图</span></div>
+        </div>
+        <div class="col turns">
+          <div class="me">登录接口偶尔 30 秒才返回，帮我找原因并修好，先别动数据库。</div>
+          <div class="ai"><p>超时出在会话刷新时对令牌服务的同步请求，它没有设超时。</p>
+            <div class="step"><svg class="i"><use href="#code"/></svg><code>src/auth/session.ts</code>　加 5 秒超时与一次重试<span class="ok">待你审查</span></div>
+            <div class="doing"><span class="ring run"></span>正在跑 auth 测试…</div></div>
+        </div>
+        <div class="fade"></div>
+      </div>
+    </div>
+    <div class="bar">
+      <div class="dock"><span><svg class="i" style="width:18px;height:18px"><use href="#grid"/></svg></span><span class="sep"></span><span><svg class="i" style="width:18px;height:18px"><use href="#home"/></svg></span><span><svg class="i" style="width:18px;height:18px"><use href="#target"/></svg></span><span class="on"><svg class="i" style="width:18px;height:18px"><use href="#code"/></svg></span></div>
+      <div class="lane">
+        <div class="composer">
+          <div class="rest">
+            <span class="ib"><svg class="i"><use href="#plus"/></svg></span>
+            <span class="to"><svg class="i" style="width:14px;height:14px"><use href="#code"/></svg><b>修复登录超时</b><svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="ph">补充，或说下一步…</span>
+            <span class="sel">执行<svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="sel">Claude Sonnet · 中<svg class="i chev"><use href="#chev"/></svg></span>
+            <span class="ib"><svg class="i"><use href="#pause"/></svg></span>
+            <span class="send off"><svg class="i"><use href="#send"/></svg></span>
+          </div>
+        </div>
+        <div class="tray"><span class="mono">MW</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>要你拍板的一件事：「共用助理会话」指哪一种</h2>
+  <ul class="notes">
+    <li><b>甲 · 共用一个输入框（这版画的）</b>Coding 会话还是 Coding 的会话（任务记录、审查、任务图都在 Coding），只是没有自己的输入框，用底栏这一个；收件人跟着页面，也能一键换成助理。改动集中在工作台外壳和输入组件，事实的主人不变。</li>
+    <li><b>乙 · 会话也合成一个</b>Coding 会话就是助理的一个会话：在助理里也能看到、接着说，助理按需调用 Coding 去读写代码。体验更统一，但要改「每项事实一个主人」的分工（Coding 的会话记录归谁），是产品语义的变化，工作量也大得多。</li>
+  </ul>
+</div>
+</body>
+</html>

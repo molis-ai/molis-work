@@ -10,6 +10,7 @@
       "DOM.Iterable"
     ]
   },
+  "files": ["../../../packages/plugin-sdk/tooling/hosted-browser-text.d.ts"],
   "include": [
     "src/browser/**/*.ts"
   ],

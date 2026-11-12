@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SidePanelPrimitives } from "./side-panel.js";
 
 /**
@@ -7,25 +8,25 @@ import type { SidePanelPrimitives } from "./side-panel.js";
  * hand back. It is kept apart from the 浏览器 tab on purpose: two different trust levels. The person watches here and
  * acts on the real apps themselves after taking over; the picture is one-way.
  */
-export function renderSideComputer({ L, icon }: SidePanelPrimitives): string {
+export function renderSideComputer({ icon }: SidePanelPrimitives): string {
   const control = (action: string, label: string, glyph: Parameters<SidePanelPrimitives["icon"]>[0]) =>
     `<button class="side-computer-btn" type="button" data-computer-action="${action}" hidden>${icon(glyph)}<span>${label}</span></button>`;
   return `<div class="side-computer" data-computer>
-      <div class="side-computer-approval" data-computer-approval hidden role="alertdialog" aria-live="assertive" aria-label="${L("助理请你确认")}"></div>
-      <div class="side-computer-view" data-computer-view role="application" aria-roledescription="${L("电脑画面")}" aria-label="${L("电脑画面")}">
+      <div class="side-computer-approval" data-computer-approval hidden role="alertdialog" aria-live="assertive" aria-label="${uiText("workbench.side-panel-computer.assistant-asks-confirm")}"></div>
+      <div class="side-computer-view" data-computer-view role="application" aria-roledescription="${uiText("workbench.side-panel-computer.computer-screen")}" aria-label="${uiText("workbench.side-panel-computer.computer-screen")}">
         <canvas data-computer-canvas aria-hidden="true"></canvas>
         <span class="side-computer-marker" data-computer-marker hidden aria-hidden="true"></span>
         <div class="side-computer-cover" data-computer-cover>
           <div class="side-computer-cover-copy" data-computer-cover-copy>
-            <p class="side-computer-cover-title">${L("助理还没有开始操作电脑")}</p>
-            <p>${L("让助理去操作电脑上的应用时，这里会实时显示它正在看的那个应用，每一步先问你。")}</p>
+            <p class="side-computer-cover-title">${uiText("workbench.side-panel-computer.assistant-has-not-started-using-computer-yet")}</p>
+            <p>${uiText("workbench.side-panel-computer.when-ask-assistant-use-app-computer-shows-app")}</p>
           </div>
         </div>
       </div>
       <div class="side-computer-strip" data-computer-strip hidden role="status" aria-live="polite">
         <div class="side-computer-doing"><span class="side-computer-app" data-computer-app></span><span class="side-computer-activity" data-computer-activity></span></div>
         <div class="side-computer-controls">
-          ${control("pause", L("暂停"), "pause")}${control("handback", L("交还助理"), "play")}${control("takeover", L("接手"), "switch")}${control("shelf", L("放进 Shelf"), "archive")}${control("stop", L("停止"), "x")}
+          ${control("pause", uiText.text("workbench.side-panel-computer.pause"), "pause")}${control("handback", uiText.text("workbench.side-panel-computer.hand-back-assistant"), "play")}${control("takeover", uiText.text("workbench.side-panel-computer.take-over"), "switch")}${control("shelf", uiText.text("workbench.side-panel-computer.add-shelf"), "archive")}${control("stop", uiText.text("workbench.side-panel-computer.stop"), "x")}
         </div>
       </div>
       <div class="side-computer-status" data-computer-status hidden></div>
@@ -70,7 +71,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
   const root=document.querySelector('[data-computer]');
   if(!root)return;
-  const L=globalThis.L||((text)=>text);
+  const readText=globalThis.t.text;
   const $=(selector)=>root.querySelector(selector);
   const view=$('[data-computer-view]'),canvas=$('[data-computer-canvas]'),cover=$('[data-computer-cover]'),marker=$('[data-computer-marker]');
   const strip=$('[data-computer-strip]'),appEl=$('[data-computer-app]'),activityEl=$('[data-computer-activity]'),controls=root.querySelectorAll('[data-computer-action]');
@@ -116,20 +117,20 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     // The status panel: off, unsupported, missing permissions, or nothing in the way.
     const problem=state.helper?.problem,perms=state.permissions,missing=perms?Object.keys(perms).filter(k=>!perms[k]):[];
     let statusHtml='';
-    const box=(h,p)=>'<h3>'+esc(L(h))+'</h3><p>'+esc(p)+'</p>';
+    const box=(h,p)=>'<h3>'+esc(globalThis.t.text(h))+'</h3><p>'+esc(p)+'</p>';
     if(!state.enabled){
-      statusHtml=box('助理使用电脑：已关闭',L('它需要系统授权、会影响整台电脑，所以默认关闭。要用它，先在助理设置里打开「允许助理使用电脑」。'));
+      statusHtml=box("workbench.side-panel-computer.assistants-use-computer-off",globalThis.t.text("workbench.side-panel-computer.needs-system-permissions-affects-whole-computer-so-off"));
     }else if(state.helper?.state==='unsupported'){
-      statusHtml=box('不可用',L(problem?.message||'操作电脑只支持 macOS 14 及以上。'));
+      statusHtml=box("workbench.side-panel-computer.unavailable",globalThis.t.text(problem?.message||"workbench.side-panel-computer.using-computer-needs-mac-os-14-later"));
     }else if(state.helper?.state==='missing'){
-      statusHtml=box('缺少电脑助手',L(problem?.message||'这次安装里没有电脑助手。'));
+      statusHtml=box("workbench.side-panel-computer.computer-helper-missing",globalThis.t.text(problem?.message||"workbench.side-panel-computer.install-has-no-computer-helper"));
     }else if(perms&&missing.length){
-      const names={accessibility:L('辅助功能'),screen_recording:L('屏幕录制'),input_monitoring:L('输入监控')};
-      statusHtml=box('需要系统授权',L('请在「系统设置 › 隐私与安全性」里给「Molis Work Computer Helper」打开这几项，然后回到这里。'))+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(L('去授权'))+'</button></div>').join('');
+      const names={accessibility:globalThis.t.text("workbench.side-panel-computer.accessibility"),screen_recording:globalThis.t.text("workbench.side-panel-computer.screen-recording"),input_monitoring:globalThis.t.text("workbench.side-panel-computer.input-monitoring")};
+      statusHtml=box("workbench.side-panel-computer.system-permissions-needed",globalThis.t.text("workbench.side-panel-computer.system-settings-privacy-security-turn-these-molis-work"))+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(globalThis.t.text("workbench.side-panel-computer.grant"))+'</button></div>').join('');
     }else if(problem){
-      statusHtml=box('电脑助手暂时不可用',L(problem.message));
+      statusHtml=box("workbench.side-panel-computer.computer-helper-unavailable-right-now",problem.message);
     }else if(state.presence?.locked||state.presence?.away){
-      statusHtml='<p>'+esc(state.presence.reason?L('{reason}，助理暂时不操作电脑。',{reason:L(state.presence.reason)}):L('助理暂时不操作电脑。'))+'</p>';
+      statusHtml='<p>'+esc(state.presence.reason?globalThis.t.text("workbench.side-panel-computer.reason-assistant-not-using-computer-right-now",{reason:state.presence.reason}):globalThis.t.text("workbench.side-panel-computer.assistant-not-using-computer-right-now"))+'</p>';
     }
     statusBox.innerHTML=statusHtml;statusBox.hidden=!statusHtml;
     // The doing strip and controls.
@@ -137,8 +138,8 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     strip.hidden=!acting;
     if(acting){
       appEl.textContent=state.target?('『'+state.target.name+'』'):(state.control?.activity?.app||'');
-      const paused=mode==='paused'?L('已暂停（{why}）',{why:state.control?.paused_reason==='person-input'?L('你动了鼠标键盘'):L('你暂停了')}):mode==='taken-over'?L('你已接手'):'';
-      activityEl.textContent=paused||state.control?.activity?.summary||L('正在操作电脑');
+      const paused=mode==='paused'?globalThis.t.text("workbench.side-panel-computer.paused-why",{why:state.control?.paused_reason==='person-input'?globalThis.t.text("workbench.side-panel-computer.moved-mouse-keyboard"):globalThis.t.text("workbench.side-panel-computer.paused")}):mode==='taken-over'?globalThis.t.text("workbench.side-panel-computer.have-taken-over"):'';
+      activityEl.textContent=paused||state.control?.activity?.summary||globalThis.t.text("workbench.side-panel-computer.using-computer");
       placeMarker(mode==='assistant'?state.control?.activity?.point:null);
     }else marker.hidden=true;
     const show={pause:mode==='assistant',handback:mode==='paused'||mode==='taken-over',takeover:mode==='assistant'||mode==='paused',shelf:!!state.record_id,stop:acting};
@@ -169,9 +170,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     if(reviewing===row.request.review_id&&reviewMode===held)return;
     reviewing=row.request.review_id;reviewMode=held;
     const doc=row.request.document||{},fields=doc.fields||[],roundAllow=doc.round_allow;
-    approval.innerHTML='<h2>'+esc(L('助理请你确认'))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+'</dl>'+(held
-      ?'<p>'+esc(L('你暂停或接手期间，这一步不会执行。交还后助理会先重新查看，再决定要不要做。'))+'</p><div class="side-computer-approval-row">'+btn('reject',L('不允许'),'ghost')+'</div>'
-      :'<div class="side-computer-approval-row">'+btn('approve',L('允许这一次'),'primary')+btn('reject',L('不允许'),'')+'</div>'+(roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',L('本轮内允许在『{app}』里操作',{app:roundAllow.label}),'ghost')+'</div>':''));
+    approval.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-computer.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||'')+'</p><dl>'+fields.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>').join('')+'</dl>'+(held
+      ?'<p>'+esc(globalThis.t.text("workbench.side-panel-computer.while-have-paused-taken-over-step-will-not"))+'</p><div class="side-computer-approval-row">'+btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'ghost')+'</div>'
+      :'<div class="side-computer-approval-row">'+btn('approve',globalThis.t.text("workbench.side-panel-computer.allow-once"),'primary')+btn('reject',globalThis.t.text("workbench.side-panel-computer.dont-allow"),'')+'</div>'+(roundAllow?'<div class="side-computer-approval-row">'+btn('approve-round',globalThis.t.text("workbench.side-panel-computer.allow-acting-app-turn",{app:roundAllow.label}),'ghost')+'</div>':''));
     approval.hidden=false;
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'computer'}}));
   };
@@ -179,7 +180,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const decide=async(decision,remember)=>{
     const id=reviewing;if(!id)return;
     const body={review_id:id,decision};if(remember)body.remember=remember;
-    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:L('确认没有提交')});}catch(error){sayError(error);}
+    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:globalThis.t.text("workbench.side-panel-computer.answer-was-not-sent")});}catch(error){sayError(error);}
     approval.hidden=true;reviewing=null;void pollReviews();
   };
   const control=async(action)=>{
@@ -198,22 +199,22 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     const id=env.state?.record_id;if(!id)return;
     try{
       const result=await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id));
-      const record=result.record;if(!record)throw new Error(env.L('没能放进 Shelf。'));
-      const outcome=record.outcome==='completed'?env.L('完成'):record.outcome==='failed'?env.L('失败'):record.outcome==='stopped'?env.L('已停止'):env.L('进行中');
-      const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion?env.L(record.conclusion):'',
-        '',env.L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
-      const title=(record.goal?record.goal.slice(0,40):env.L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
-      await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/shelf',{body:{title,text:lines.join('\n')},fallback:env.L('没能放进 Shelf。')});
-      env.say(env.L('已放进 Shelf。'));
-    }catch(error){env.sayError(error,env.L('没能放进 Shelf。'));}
+      const record=result.record;if(!record)throw new Error(globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));
+      const outcome=record.outcome==='completed'?globalThis.t.text("common.control.done"):record.outcome==='failed'?globalThis.t.text("workbench.side-panel-computer.failed"):record.outcome==='stopped'?globalThis.t.text("workbench.side-panel-computer.stopped"):globalThis.t.text("workbench.side-panel-computer.progress");
+      const lines=[record.goal?globalThis.t.text("workbench.side-panel-computer.goal-goal",{goal:record.goal}):'',globalThis.t.text("workbench.side-panel-computer.result-outcome",{outcome}),record.conclusion?record.conclusion:'',
+        '',globalThis.t.text("workbench.side-panel-computer.steps-n",{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
+      const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+'（'+new Date(record.started_at).toLocaleString()+'）';
+      await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/shelf',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
+      env.say(globalThis.t.text("workbench.side-panel-computer.added-shelf"));
+    }catch(error){env.sayError(error,globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));}
   };
-  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,L,state});
+  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,readText,state});
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');
     if(review){if(review.dataset.computerReview==='approve')decide('approve');else if(review.dataset.computerReview==='approve-round')decide('approve','app-this-round');else decide('reject');return;}
     const act=event.target.closest('[data-computer-action]');if(act){control(act.dataset.computerAction);return;}
     const grant=event.target.closest('[data-computer-grant]');
-    if(grant){molisWorkRequest(routePrefix+'/api/computer/permissions',{body:{kind:grant.dataset.computerGrant}}).then(()=>say(L('已打开系统设置，请在那里授权后回到这里。'))).catch(sayError);return;}
+    if(grant){molisWorkRequest(routePrefix+'/api/computer/permissions',{body:{kind:grant.dataset.computerGrant}}).then(()=>say(globalThis.t.text("workbench.side-panel-computer.opened-system-settings-grant-there-come-back-here"))).catch(sayError);return;}
   });
   document.addEventListener('visibilitychange',()=>sendRaw({type:'visible',visible:visible()}));
   connect();

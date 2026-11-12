@@ -1,6 +1,6 @@
 ---
 method_id: domain-brand-communication
-version: 1
+version: 2
 kind: domain
 name: "品牌与传播"
 summary: "从受众认知、独特机制和可信证据形成一致且可传播的品牌表达。"

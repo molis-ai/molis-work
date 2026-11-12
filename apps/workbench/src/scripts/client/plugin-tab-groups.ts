@@ -12,7 +12,7 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, readText, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
   const HUES = { ...${JSON.stringify(SURFACE_HUES)}, ...hues };
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
@@ -47,23 +47,23 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     // A plugin tab with tabs behind it says whether they are shown, and how many, as a person's group label does.
     if (trigger && items) {
       trigger.setAttribute("aria-expanded", String(!head.collapsed));
-      trigger.setAttribute("aria-label", trigger.getAttribute("aria-label") + " · " + L("组里还有 {n} 个标签", { n: items }));
+      trigger.setAttribute("aria-label", trigger.getAttribute("aria-label") + " · " + globalThis.t.text("workbench.plugin-tab-groups.tabs-group-n", { n: items }));
     }
     if (head?.collapsed && items) {
       const count = document.createElement("span"); count.className = "tab-group-count"; count.textContent = String(items);
-      count.title = L("组里还有 {n} 个标签", { n: items }); count.setAttribute("aria-hidden", "true");
+      count.title = globalThis.t.text("workbench.plugin-tab-groups.tabs-group-n", { n: items }); count.setAttribute("aria-hidden", "true");
       pages.querySelector('[data-tab-kind="plugin"]')?.append(count);
     }
     // A plugin taken out of the project keeps its group where it was, greyed and marked removed (07-S1 keeps it, S3 draws it).
     if (removed(plugin)) {
       wrap.dataset.groupState = "removed";
-      const tag = document.createElement("span"); tag.className = "tab-group-tag"; tag.textContent = L("已移除");
+      const tag = document.createElement("span"); tag.className = "tab-group-tag"; tag.textContent = globalThis.t.text("workbench.plugin-tab-groups.removed");
       pages.append(tag);
     }
     wrap.append(pages); parent.append(wrap);
     return end;
   };
-  const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: record.side ? record.title : L(ops.pluginTitle(record.plugin)) });
+  const undoLabel = (record) => globalThis.t.text("workbench.plugin-tab-groups.reopen-plugin", { plugin: record.side ? record.title : ops.pluginTitle(record.plugin) });
   // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
   const live = document.createElement("div");
   live.setAttribute("role", "status"); live.className = "mw-sr-only";
@@ -73,7 +73,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     const record = ops.closePluginGroup(getState(), paneId, plugin);
     if (!record) return record;
     closed.push({ record, until: Date.now() + UNDO_MS });
-    live.textContent = L("已关闭 {plugin} 标签组", { plugin: L(ops.pluginTitle(plugin)) }) + " · " + undoLabel(record);
+    live.textContent = globalThis.t.text("workbench.plugin-tab-groups.closed-plugin-tab-group", { plugin: ops.pluginTitle(plugin) }) + " · " + undoLabel(record);
     if (closed.length > 10) closed.shift();
     clearTimeout(undoTimer);
     undoTimer = setTimeout(() => apply(), UNDO_MS + 20);
@@ -114,7 +114,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     if (tab.kind !== "plugin") return false;
     const pane = getState().panes.find((candidate) => candidate.id === paneId);
     const items = pane ? ops.pluginGroup(pane, tab.plugin).length - 1 : 0;
-    if (items > 0) add(L(tab.collapsed ? "展开标签组" : "收起标签组"), "chevron-down", "toggle-plugin-group", () => ops.togglePluginGroup(getState(), paneId, tab.plugin));
+    if (items > 0) add(globalThis.t.text(tab.collapsed ? "workbench.plugin-tab-groups.expand-tab-group" : "workbench.plugin-tab-groups.collapse-tab-group"), "chevron-down", "toggle-plugin-group", () => ops.togglePluginGroup(getState(), paneId, tab.plugin));
     return true;
   };
   document.addEventListener("keydown", (event) => {

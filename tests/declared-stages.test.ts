@@ -131,9 +131,9 @@ test("T405-FULL-15: the shell applies the same project's saved directory width b
       localStorage: { getItem(name: string) { localReads.push(name); return null; } },
       sessionStorage: { getItem(name: string) { reads.push(name); return name.startsWith(prefix) ? (storage as Record<string, string>)[name.slice(prefix.length)] ?? null : null; } },
       document: { querySelector: () => scope ? { content: "page." + scope + ".signature" } : null, documentElement, createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
-    // The skin preference (DESIGN「皮肤」) is read and applied with the other pre-paint preferences.
-    assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme", "molis-work:skin"]);
-    assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", skin: "soft", terminalTheme: "auto", resolvedTerminalTheme: "light" });
+    // The document supplies the Home skin. Only device preferences are read by this pre-paint script.
+    assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme"]);
+    assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", terminalTheme: "auto", resolvedTerminalTheme: "light" });
     assert.deepEqual(styles.map(style => style.textContent), expected === undefined ? [] : [`body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:${expected}px}`]);
     assert.ok(reads.every(name => name === prefix + key + ":" + collection || collection === "current" && name === prefix + key));
   }

@@ -9,8 +9,8 @@
 export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector("[data-functions-band]");
   const leaveBox = bench.querySelector("[data-functions-leave]");
   const KEEP_FIELDS = [
-    { id: "name", step: "look", label: L("名称") }, { id: "route", step: "look", label: L("在哪里使用结果") },
-    { id: "instructions", step: "fn", label: L("判断说明") }, { id: "criteria", step: "fn", label: L("返回哪些结果") }, { id: "function_key", step: "fn", label: L("函数 key") },
+    { id: "name", step: "look", label: globalThis.t.text("workbench.client-keep.name") }, { id: "route", step: "look", label: globalThis.t.text("workbench.client-keep.where-use-result") },
+    { id: "instructions", step: "fn", label: globalThis.t.text("workbench.client-keep.judgment-instructions") }, { id: "criteria", step: "fn", label: globalThis.t.text("workbench.client-keep.possible-results") }, { id: "function_key", step: "fn", label: globalThis.t.text("workbench.client-keep.function-key") },
   ];
   const OWES = ["conflict", "offline", "second", "deleted", "published"];
   const KEEP_STORE = "molis-work:functions-keep:";
@@ -115,10 +115,10 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
   const fillKept = (node, id, row) => {
     const text = textOf(id, row.swapped ? recDef(latestRec)[id] : row.value), swap = node.querySelector(SWAP), body = node.querySelector(".mw-kept__text");
     node.classList.toggle("is-swapped", row.swapped);
-    node.querySelector(".mw-kept__who").textContent = row.swapped ? L("最新版") : L("你写的");
-    swap.querySelector(LABEL).textContent = row.swapped ? L("换回") : L("放回");
-    swap.setAttribute("aria-label", row.swapped ? L("换回最新版：{field}", { field: labelOf(id) }) : L("放回你写的：{field}", { field: labelOf(id) }));
-    body.textContent = text || L("你清空了这一栏"); body.classList.toggle("is-blank", !text);
+    node.querySelector(".mw-kept__who").textContent = row.swapped ? globalThis.t.text("workbench.client-keep.latest-version") : globalThis.t.text("workbench.client-keep.wrote");
+    swap.querySelector(LABEL).textContent = row.swapped ? globalThis.t.text("workbench.client-keep.swap-back") : globalThis.t.text("workbench.client-keep.put-back");
+    swap.setAttribute("aria-label", row.swapped ? globalThis.t.text("workbench.client-keep.swap-back-latest-field", { field: labelOf(id) }) : globalThis.t.text("workbench.client-keep.put-back-what-wrote-field", { field: labelOf(id) }));
+    body.textContent = text || globalThis.t.text("workbench.client-keep.cleared-field"); body.classList.toggle("is-blank", !text);
   };
   const paintKept = () => {
     bench.querySelectorAll(KEPT).forEach((node) => node.remove());
@@ -135,10 +135,10 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
   const paintLoaded = () => {
     const body = bandEl.querySelector(".mw-alert--success p");
     if (!body || phase !== "loaded") return;
-    const ids = Object.keys(keptRows), open = ids.filter((id) => !keptRows[id].swapped), join = (labels) => labels.join(L("、"));
-    body.textContent = [open.length ? L("{fields}两边都改了，你写的就在它下面。", { fields: join(open.map(labelOf)) }) : ids.length ? L("你写的已放回。") : "",
-      theirsLabels.length ? L("别处还改了{fields}。", { fields: join(theirsLabels) }) : "",
-      yoursLabels.length ? L("你改的{fields}留着。", { fields: join(yoursLabels) }) : ""].filter(Boolean).join("\\n");
+    const ids = Object.keys(keptRows), open = ids.filter((id) => !keptRows[id].swapped), join = (labels) => labels.join(globalThis.t.text("common.list.separator"));
+    body.textContent = [open.length ? globalThis.t.text("workbench.client-keep.fields-changed-both-sides-yours-right-under", { fields: join(open.map(labelOf)) }) : ids.length ? globalThis.t.text("workbench.client-keep.what-wrote-back") : "",
+      theirsLabels.length ? globalThis.t.text("workbench.client-keep.also-changed-elsewhere-fields", { fields: join(theirsLabels) }) : "",
+      yoursLabels.length ? globalThis.t.text("workbench.client-keep.edit-fields-stays", { fields: join(yoursLabels) }) : ""].filter(Boolean).join("\\n");
   };
   /** Puts one field's value into the form, the way a person would have. */
   const put = (id, value) => {
@@ -153,7 +153,7 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
   const gone = () => {
     if (unsaved() || owes()) { mineDef = mineDef || formDef(); enter("deleted"); return; }
     if (sel) forget(sel.id);
-    reset(); enter(""); closeEditor(); showNote(L("这条规则已被删除"), false);
+    reset(); enter(""); closeEditor(); showNote(globalThis.t.text("workbench.client-keep.rule-was-deleted"), false);
   };
   const toPublished = (latest) => {
     if (!unsaved() && !owes()) { fillEditor(latest); latestRec = latest; enter("settled", withVersion(latest)); return; }
@@ -285,7 +285,7 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
     if (more) {
       const open = node.querySelector(".mw-kept__text").classList.toggle("is-open");
       more.setAttribute("aria-expanded", String(open));
-      more.querySelector(LABEL).textContent = open ? L("收起") : L("看全部");
+      more.querySelector(LABEL).textContent = open ? globalThis.t.text("workbench.client-keep.collapse") : globalThis.t.text("workbench.client-keep.show-all");
       fitFolds();
       // Folding a text that fits takes this way away, and the focus was on it: it moves to the row's own button.
       if (more.hidden) node.querySelector(SWAP)?.focus();

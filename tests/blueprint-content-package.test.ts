@@ -66,7 +66,8 @@ function fixture({ skills = false, translated = true } = {}) {
 
 test("SPC-C04/SPC-C05: the content reader accepts a pure Blueprint, a methods pack and a mixed pack", () => {
   const pure = fixture();
-  assert.deepEqual(pure.parse(), { manifest: pure.manifest, skills: [], blueprint: { default: blueprint(), others: [{ locale: "en", blueprint: blueprint("en") }] } });
+  assert.deepEqual(pure.parse(), { manifest: pure.manifest, skills: [], blueprint: { default: blueprint(), others: [{ locale: "en", blueprint: blueprint("en") }] },
+    locale_files: { "locales/zh.json": pure.files["locales/zh.json"], "locales/en.json": pure.files["locales/en.json"] } });
   assert.deepEqual(fixture({ translated: false }).parse().blueprint, { default: blueprint(), others: [] });
   const mixed = fixture({ skills: true }).parse();
   assert.equal(mixed.skills.length, 1);

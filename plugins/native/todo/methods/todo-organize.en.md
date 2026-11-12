@@ -1,0 +1,10 @@
+Use this to extract work from email, files, minutes, a web page or the current object, or to answer “Have I missed any tasks?” or “What plans does this email affect?”
+
+1. Establish which materials and what the person wants. If they named no materials, explain the proposed scope, such as synced email from the last seven days and new project materials. Read only authorized sources.
+2. Read the original body of each named object using `read-capability`. Keep its title, source and date. Do not infer content from a title or summary.
+3. Call `todo.organize.extract` through `change-capability`. Supply the full text, title and arrival date for each entry in `materials` and the person's names in the materials as `me`. Use `organizer` as `method` for the Todo organizer and `basic` otherwise. This stages a result for review; it does not add items.
+4. Tell the person the counts of tasks for them, commitments they made, work waiting on others and suggestions, plus links to existing tasks and uncertain results. Ask them to check entries in Todo's review list. Adopt confident entries with `todo.organize.apply` only if the person explicitly asks to add them now. Ask about ambiguous owners or dates.
+5. To check for missed tasks, look for newly arrived materials rather than the existing Todo list. Find relevant sources via `find-capabilities` (Inbox, Feed, email, project materials, minutes). Read the last seven days' originals and follow steps 2–4. Report only new work or changes to existing work. If there are none, say so and state the sources and period checked. Merely listing existing due dates and states does not check for omissions.
+6. To assess impact, read the message and related Todo items and say which plans change and how. Submit proposed updates as a staged result; update directly only if requested.
+
+The person's tasks are read and written through Todo's `todo.*` capabilities, not your own `update-todo` work list. Do not invent an owner, date, priority or completion state.

@@ -1,6 +1,6 @@
 ---
 method_id: overlay-ugc-trust-safety
-version: 1
+version: 2
 kind: overlay
 name: "UGC 与信任安全"
 summary: "为用户生成内容和社交互动叠加内容生命周期、治理、申诉和受害者保护约束。"

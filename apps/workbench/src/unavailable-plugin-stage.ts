@@ -1,4 +1,4 @@
-import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** What the Host may offer for a project plugin that does not run: start it again, or release its quarantine and start it. */
 export type PluginRestartOffer = "restart" | "release-quarantine";
@@ -23,25 +23,25 @@ export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-proj
 
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
-  L: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
-  if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(L("{plugin} 正在启动", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p></div>`;
-  return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(L("{plugin} 暂不可用", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p>${stage.scope === "home" ? homeHint(stage, L) : projectHint(stage, L)}</div>`;
+  readText: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
+  if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-starting", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p></div>`;
+  return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p>${stage.scope === "home" ? homeHint(stage, readText) : projectHint(stage, readText)}</div>`;
 }
 
 export function renderUnavailablePluginStage(stage: UnavailablePluginStage,
-  L: (text: string, values?: Record<string, string | number>) => string): string {
-  return renderPluginStageShell({ surface: stage.surface, label: L(stage.label), dataset: `${stage.scope}-plugin-unavailable`,
-    body: renderUnavailablePluginStatus(stage, L) });
+  readText: (text: string, values?: Record<string, string | number>) => string): string {
+  return renderPluginStageShell({ surface: stage.surface, label: stage.label, dataset: `${stage.scope}-plugin-unavailable`,
+    body: renderUnavailablePluginStatus(stage, readText) });
 }
 
-function homeHint(stage: UnavailablePluginStage, L: (text: string) => string): string {
-  return `<a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(stage.surface)}">${escapeHtml(L("查看插件状态"))}</a>`;
+function homeHint(stage: UnavailablePluginStage, _L: (text: string) => string): string {
+  return `<a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(stage.surface)}">${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.view-plugin-status"))}</a>`;
 }
 
-function projectHint(stage: UnavailablePluginStage, L: (text: string, values?: Record<string, string | number>) => string): string {
-  const status = stage.status ? `<p data-project-plugin-status>${escapeHtml(L("状态：{status}", { status: stage.status === "failed" ? L("启动失败") : L("已被阻止") }))}${stage.code ? ` <code>${escapeHtml(stage.code)}</code>` : ""}</p>` : "";
+function projectHint(stage: UnavailablePluginStage, _L: (text: string, values?: Record<string, string | number>) => string): string {
+  const status = stage.status ? `<p data-project-plugin-status>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.status-status", { status: stage.status === "failed" ? uiText.text("workbench.unavailable-plugin-stage.failed-start") : uiText.text("workbench.unavailable-plugin-stage.blocked") }))}${stage.code ? ` <code>${escapeHtml(stage.code)}</code>` : ""}</p>` : "";
   const restart = stage.restart && stage.plugin_id
-    ? `<button class="mw-btn mw-btn--secondary" type="button" data-project-plugin-restart="${stage.restart}" data-restart-plugin="${escapeHtml(stage.plugin_id)}">${escapeHtml(stage.restart === "restart" ? L("重启") : L("解除隔离并重启"))}</button><p role="status" data-project-plugin-restart-status hidden></p>`
+    ? `<button class="mw-btn mw-btn--secondary" type="button" data-project-plugin-restart="${stage.restart}" data-restart-plugin="${escapeHtml(stage.plugin_id)}">${escapeHtml(stage.restart === "restart" ? uiText.text("workbench.unavailable-plugin-stage.restart") : uiText.text("workbench.unavailable-plugin-stage.release-quarantine-restart"))}</button><p role="status" data-project-plugin-restart-status hidden></p>`
     : "";
-  return `<p>${escapeHtml(L("请检查插件状态后重新打开。"))}</p>${status}${restart}`;
+  return `<p>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.check-plugin-status-then-reopen"))}</p>${status}${restart}`;
 }

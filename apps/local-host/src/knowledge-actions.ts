@@ -29,6 +29,8 @@ import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostTextGeneration } from "./host-complete-text.js";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { runBackgroundWorkIn } from "./ui-locale-memory.js";
 
 export interface KnowledgeHostPorts {
   homeDirectory: string;
@@ -192,7 +194,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     if (closed || !projectId || timers.has(projectId)) return;
     const timer = setTimeout(() => {
       timers.delete(projectId);
-      const work = settle(projectId).finally(() => settling.delete(work));
+      const work = outsidePluginAction(() => runBackgroundWorkIn(ports.homeDirectory, () => settle(projectId))).finally(() => settling.delete(work));
       settling.add(work);
       void work.catch(error => ports.onError?.(error, "knowledge.catch_up"));
     }, KICK_DELAY_MS);

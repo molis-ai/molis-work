@@ -5,8 +5,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { L, clientI18nScript, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { inWordsOf } from "@molis-ai/molis-work-app-workbench";
+import { hostTextProblems, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
+import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { t as uiText, say } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pageTextScript } from "./fixtures/page-text.js";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { assertGoalsDictionaryMove, expectedGoalsDictionaryMove } from "./fixtures/goals-dictionary-move.js";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-plugin-goals/module";
@@ -18,45 +20,55 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // Goals package) has to give the same bytes, in both interface languages. The view is the demo project read once by the real owners
 // (times and ids fixed), so the pages have a Goal tree with children, a decision waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
-const record = process.env.MOLIS_WORK_GOLDEN_RECORD === "1";const TOKEN = "golden-control-token";
+const record = process.env.MOLIS_WORK_GOLDEN_RECORD === "1";
+const TOKEN = "golden-control-token";
 const NOW = Date.parse("2026-10-30T09:00:00.000Z"); // The instant held by the view fixture.
 const PROJECT = { project_id: "golden", display_name: "Golden project" };
 
 const baseView = JSON.parse(readFileSync(new URL("view.json", GOLDEN), "utf8")) as MolisWorkWebView;
 const view: MolisWorkWebView = { ...baseView, project: PROJECT, projects: [PROJECT], route_prefix: "/projects/golden", demo: false, shown_plugins: ["goals"], enabled_plugins: ["goals"] };
+// The existing frozen view contains Chinese DTO labels. These English fields come from an independent production read of
+// the same seeded Goal states; all business values and every other fixture field stay in the original view.
+type ViewWords = Pick<MolisWorkWebView["goals"][number], "status_label" | "main_action_label" | "action_summary">;
+const englishWords = JSON.parse(readFileSync(new URL("view-words-en.json", GOLDEN), "utf8")) as Record<string, Partial<ViewWords>>;
+function viewFor(locale: "zh" | "en"): MolisWorkWebView {
+  if (locale === "zh") return view;
+  const localized = (goal: MolisWorkWebView["goals"][number]) => ({ ...goal, ...englishWords[goal.goal.goal_id] });
+  return { ...view, goals: view.goals.map(localized), archived_goals: view.archived_goals.map(localized), trashed_goals: view.trashed_goals.map(localized) };
+}
 const methods = BUILTIN_PLANNING_METHOD_PACKS.map(pack => ({ ...pack }));
 const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
 const SECTIONS = ["general", "guidance", "planning", "rules"] as const;
 
-type Draw = () => string;
+type Draw = (view: MolisWorkWebView) => string;
 const pages: Record<string, Draw> = {
-  "page-current": () => renderers.renderMolisWorkWeb(view, "V1", false, false, TOKEN, false),
-  "page-current-decision": () => renderers.renderMolisWorkWeb(view, "DECIDE", false, false, TOKEN, false),
-  "page-current-desktop": () => renderers.renderMolisWorkWeb(view, "V1", false, false, TOKEN, true, { claude: true }),
-  "page-current-none": () => renderers.renderMolisWorkWeb(view, undefined, false, false, TOKEN, false),
-  "page-archive": () => renderers.renderMolisWorkWeb(view, "GRAPH", true, false, TOKEN, false),
-  "page-archive-none": () => renderers.renderMolisWorkWeb({ ...view, archived_goals: [] }, undefined, true, false, TOKEN, false),
-  "page-trash": () => renderers.renderMolisWorkWeb(view, "AUTO-CONNECT", false, true, TOKEN, false),
-  "page-trash-none": () => renderers.renderMolisWorkWeb({ ...view, trashed_goals: [] }, undefined, false, true, TOKEN, false),
-  "refresh-current": () => renderers.renderMolisWorkRefreshFragment(view, "V1", false, false),
-  "refresh-current-none": () => renderers.renderMolisWorkRefreshFragment(view, undefined, false, false),
-  "refresh-archive": () => renderers.renderMolisWorkRefreshFragment(view, "GRAPH", true, false),
-  "refresh-trash": () => renderers.renderMolisWorkRefreshFragment(view, "AUTO-CONNECT", false, true),
-  "momentum-current": () => renderers.renderMolisWorkMomentumFragment(view, "V1", "current") ?? "(none)",
-  "momentum-archive": () => renderers.renderMolisWorkMomentumFragment(view, "GRAPH", "archive") ?? "(none)",
-  "momentum-missing": () => renderers.renderMolisWorkMomentumFragment(view, "NO-SUCH", "current") ?? "(none)",
-  "document-current": () => renderers.renderGoalDocumentFragment(view, "V1", "current") ?? "(none)",
-  "document-decision": () => renderers.renderGoalDocumentFragment(view, "DECIDE", "current") ?? "(none)",
-  "document-archive": () => renderers.renderGoalDocumentFragment(view, "GRAPH", "archive") ?? "(none)",
-  "document-trash": () => renderers.renderGoalDocumentFragment(view, "AUTO-CONNECT", "trash") ?? "(none)",
-  "document-missing": () => renderers.renderGoalDocumentFragment(view, "NO-SUCH", "current") ?? "(none)",
+  "page-current": (view) => renderers.renderMolisWorkWeb(view, "V1", false, false, TOKEN, false),
+  "page-current-decision": (view) => renderers.renderMolisWorkWeb(view, "DECIDE", false, false, TOKEN, false),
+  "page-current-desktop": (view) => renderers.renderMolisWorkWeb(view, "V1", false, false, TOKEN, true, { claude: true }),
+  "page-current-none": (view) => renderers.renderMolisWorkWeb(view, undefined, false, false, TOKEN, false),
+  "page-archive": (view) => renderers.renderMolisWorkWeb(view, "GRAPH", true, false, TOKEN, false),
+  "page-archive-none": (view) => renderers.renderMolisWorkWeb({ ...view, archived_goals: [] }, undefined, true, false, TOKEN, false),
+  "page-trash": (view) => renderers.renderMolisWorkWeb(view, "AUTO-CONNECT", false, true, TOKEN, false),
+  "page-trash-none": (view) => renderers.renderMolisWorkWeb({ ...view, trashed_goals: [] }, undefined, false, true, TOKEN, false),
+  "refresh-current": (view) => renderers.renderMolisWorkRefreshFragment(view, "V1", false, false),
+  "refresh-current-none": (view) => renderers.renderMolisWorkRefreshFragment(view, undefined, false, false),
+  "refresh-archive": (view) => renderers.renderMolisWorkRefreshFragment(view, "GRAPH", true, false),
+  "refresh-trash": (view) => renderers.renderMolisWorkRefreshFragment(view, "AUTO-CONNECT", false, true),
+  "momentum-current": (view) => renderers.renderMolisWorkMomentumFragment(view, "V1", "current") ?? "(none)",
+  "momentum-archive": (view) => renderers.renderMolisWorkMomentumFragment(view, "GRAPH", "archive") ?? "(none)",
+  "momentum-missing": (view) => renderers.renderMolisWorkMomentumFragment(view, "NO-SUCH", "current") ?? "(none)",
+  "document-current": (view) => renderers.renderGoalDocumentFragment(view, "V1", "current") ?? "(none)",
+  "document-decision": (view) => renderers.renderGoalDocumentFragment(view, "DECIDE", "current") ?? "(none)",
+  "document-archive": (view) => renderers.renderGoalDocumentFragment(view, "GRAPH", "archive") ?? "(none)",
+  "document-trash": (view) => renderers.renderGoalDocumentFragment(view, "AUTO-CONNECT", "trash") ?? "(none)",
+  "document-missing": (view) => renderers.renderGoalDocumentFragment(view, "NO-SUCH", "current") ?? "(none)",
   "planning-library-personal": () => renderers.renderMolisWorkPlanningLibrary(methods, null, TOKEN, false, [PROJECT], ["goals"]),
-  "planning-library-project": () => renderers.renderMolisWorkPlanningSettings(view, methods, TOKEN, false),
+  "planning-library-project": (view) => renderers.renderMolisWorkPlanningSettings(view, methods, TOKEN, false),
   "planning-method-detail": () => renderers.renderMolisWorkPlanningMethodPage(methods[0]!, "detail", "personal", null, TOKEN, false),
   "planning-method-edit": () => renderers.renderMolisWorkPlanningMethodPage(methods[0]!, "edit", "project", PROJECT, TOKEN, false),
   "planning-method-new": () => renderers.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN, false),
-  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}`, () => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section)])),
-  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, () => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section, section)])),
+  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section)])),
+  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section, section)])),
 };
 
 // A page is 0.4 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is a SHA-256 and a length, not the text, and of
@@ -137,11 +149,29 @@ const pages: Record<string, Draw> = {
 // Main #2002 integration: all 66 preserved A-1 draws first reproduced their accepted hashes.
 // Derive only the hidden assistant-answer button and English To: → Send to: from that main change.
 // All 16 whole-page draws match the derived markup byte for byte; the other 50 remain identical.
+// Batch 16 (FSS-36): independently built B 33aa421ed59edf69ffbb6880a805918ffd640970 matched 50 old records directly. Reversing only
+// B's appearance hint, introduction and menu whitespace, plus the desktop stylesheet query, reproduced the other 16 hashes and lengths.
+// Of the 49 C/B changes, the markup was checked token by token for language and shell changes. The JSON still matches B except for
+// the Goal DTO labels checked against view-words-en.json, the workbench's owner title model, and the exact Goals planner startup words.
+// Candidate RECORD mode was never used for these expectations.
+// The six trash document/page/refresh drawings later replace only the reason label and wrap the exact stored reason in translate="no".
+// The final main sync changes 48 drawings. A token comparison against all 66 verified pre-sync hashes isolates the new composer,
+// Skills links and Goals state words and cancellation column. The stored view and the independently checked Goal words stay fixed.
 // Batch 09 (#2015, AI kits): all 66 pages drawn on independently built main bac5d62b9e (each matched its record there) and on this branch,
 // compared token by token: the 34 changed records (17 pages in two languages) differ only in the shell's settings navigation — the global
 // rows 提示词 and 技能 (Prompts, Skills; icons text and book) became one 能力包 / AI kits row (icon sparkles, `data-settings-section="kit"`),
 // and the settings links /settings/prompts, /settings/skills and the project's /settings/skills became /settings/kit — besides executable
 // scripts and dictionaries, which the hash leaves out. No Goals markup or JSON changed; the 34 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 11 (#2016, one input, UIV-19): all 66 pages drawn on independently built main ef06fed60 (each matched its record there) and on
+// this branch, compared token by token: the 16 page-* records (8 pages in two languages) differ only in the shell's bar — the receiver
+// moved from a row above the box into the foot after ＋ (`mw-composer__to` now after the box, its 发给： / Send to: in
+// `mw-composer__to-label`, the Assistant's sparkles icon before the name) and the bar is drawn ` data-bar-placing` (the input stays
+// unseen until bar-column.ts places it, VUX-31): +110 characters in each — besides executable scripts and dictionaries, which the hash
+// leaves out. No Goals markup or JSON changed; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 did not change.
+// Batch 16 final integration: an independent build of main 2630160877 reproduced all 66 accepted hashes and lengths. The token
+// comparison found 49 changed drawings from the approved language and appearance work, including the display-only Goal labels,
+// two added language data blocks and the translated planning methods. The Goal data, fixed view and golden Homes were unchanged.
+// The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));
@@ -158,7 +188,7 @@ for (const locale of ["zh", "en"] as const) for (const [name, draw] of Object.en
     t.after(() => { if (timeZone === undefined) delete process.env.TZ; else process.env.TZ = timeZone; });
     process.env.TZ = "UTC";
     t.mock.method(Date, "now", () => NOW);
-    const whole = runWithLocale(locale, draw);
+    const whole = runWithLocale(locale, () => draw(viewFor(locale)));
     const html = markup(whole);
     const key = `${name}.${locale}`;
     drawn[key] = whole;
@@ -246,36 +276,64 @@ test("RAC-2680 exact dictionary comparison checks assignment boundaries and reta
   assert.throws(() => assertGoalsDictionaryMove(fragment, fragment.replace('"x":1', '"x":2'), moved.words, "en"));
 });
 
-test("RAC-2686 moved words retain B's server and browser translation, including Capsule, placeholders and number agreement", { timeout: 60_000 }, async t => {
+// Pair the independently recorded B expectations with the exact new owners. Only typographic apostrophes and the two
+// Capsule labels in their present context change; the Chinese copy, argument values and complete sentences still come from B.
+const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "capsule_words" | "interpolation", string[]>;
+
+const reviewedEnglish: Readonly<Record<string, string>> = {
+  "goals.capsule-items.current-project": "current project",
+  "goals.capsule-items.running": "Running",
+  "goals.guidance-document.project-s-stable-way-working": "The project’s stable way of working",
+  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active revisions are sent, placed before this round’s task and external content. Edits and deactivations take effect in the next prompt.",
+  "goals.inputs.couldn-t-remove": "Couldn’t remove it",
+  "goals.inputs.couldn-t-accept": "Couldn’t accept it",
+  "goals.inputs.version-can-t-be-found": "This version can’t be found",
+  "goals.inputs.follow-original-goal-sees-now-fix-version-goal": "“Follow the original”: the goal sees it as it is now. “Fix this version”: the goal uses the version saved when it was added; later edits don’t change it.",
+};
+
+function examples(locale: "zh" | "en") {
+  const text = (key: string, zh: string, en: string) => {
+    const expected = reviewedEnglish[key] ?? en;
+    return { key, expected: locale === "zh" ? zh : expected, args: undefined };
+  };
+  const result = (["words", "capsule_words"] as const).flatMap(section => {
+    assert.equal(keys[section].length, Object.keys(moved[section]).length);
+    return Object.entries(moved[section]).flatMap(([zh, en], index) =>
+      zh.includes("{") ? [] : [text(keys[section][index]!, zh, en)]);
+  });
+  assert.equal(keys.interpolation.length, moved.interpolation.length);
+  return [...result, ...moved.interpolation.map((sample, index) => ({ key: keys.interpolation[index]!, expected: sample[locale], args: sample.vars })),
+    { key: "goals.guidance-document.count-count", expected: locale === "en" ? "1 change" : "共 1 次变更", args: { count: 1 } },
+    { key: "goals.guidance-document.count-count-2", expected: locale === "en" ? "1 item" : "共 1 条", args: { count: 1 } },
+    { key: "goals.inputs.fixed-version-version", expected: locale === "en" ? "Fixed version North's 原文" : "固定的第 North's 原文 版", args: { version: "North's 原文" } }];
+}
+
+test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and in Chrome, including Capsule and complete plurals", { timeout: 60_000 }, async t => {
   const executable = process.env.MOLIS_WORK_TEST_CHROME;
   assert.ok(executable, "an explicit dedicated test browser executable is required; no default browser fallback");
   const directory = await mkdtemp(join(tmpdir(), "goals-word-browser-"));
   let browser: ChromeHarness | null = null;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
   browser = await ChromeHarness.start(directory, { executable }); assert.ok(browser);
-  const page = await browser.page();
+  const page = await browser.page(), owner = registeredBuiltinText(goalsManifest);
+  assert.ok(owner);
   for (const locale of ["zh", "en"] as const) {
-    const script = runWithLocale(locale, clientI18nScript);
-    const actual = await page.evaluate<{ words: string[][]; capsule: string[][]; interpolation: string[] }>(`(() => {
+    const cases = examples(locale), expected = cases.map(sample => sample.expected);
+    const server = runWithLocale(locale, () => runWithRegisteredText(owner, () => cases.map(({ key, args }) => uiText.text(key, args))));
+    assert.deepEqual(server, expected, locale + " exact Host owners");
+    const script = pageTextScript(locale, "goals");
+    const actual = await page.evaluate<{ words: string[]; wrong: string }>(`(() => {
       ${script}
-      const spec=${JSON.stringify(moved)}, own=globalThis.LFor(spec.owner), other=globalThis.LFor("io.example.no-words");
-      return { words:Object.keys(spec.words).map(key=>[key,own(key),globalThis.L(key),other(key)]),
-        capsule:Object.keys(spec.capsule_words).map(key=>[key,own(key)]),
-        interpolation:spec.interpolation.map(sample=>own(sample.key,sample.vars)) };
+      return { words:${JSON.stringify(cases)}.map(({key,args})=>t.text(key,args)),
+        wrong:say.text({owner:"workbench",key:"goals.chrome.goal-view"}) };
     })()`);
-    runWithLocale(locale, () => {
-      const server = inWordsOf(moved.owner, L);
-      for (const [key, value] of Object.entries(moved.words)) {
-        assert.equal(server(key), locale === "en" ? value : key);
-        assert.equal(L(key), key, "moved words have no global copy");
-      }
-      assert.deepEqual(actual.words, Object.entries(moved.words).map(([key, value]) => [key, locale === "en" ? value : key, key, key]),
-        "real browser LFor uses the owner; global L and another owner have no restored copy");
-      for (const [key, value] of Object.entries(moved.capsule_words)) assert.equal(server(key), locale === "en" ? value : key);
-      assert.deepEqual(actual.capsule, Object.entries(moved.capsule_words).map(([key, value]) => [key, locale === "en" ? value : key]));
-      for (const sample of moved.interpolation) assert.equal(server(sample.key, sample.vars), sample[locale]);
-      assert.deepEqual(actual.interpolation, moved.interpolation.map(sample => sample[locale]));
-    });
+    assert.deepEqual(actual.words, expected, locale + " exact browser owners");
+    const missing = locale === "en" ? "This text cannot be shown right now" : "这句话暂时显示不了";
+    assert.equal(actual.wrong, missing, "the platform owner cannot borrow a Goals word");
+    const wrong = runWithLocale(locale, () => say.text({ owner: "workbench", key: "goals.chrome.goal-view" }));
+    assert.equal(wrong, missing);
+    assert.deepEqual(hostTextProblems().at(-1), { code: "ui.text_missing", owner: "workbench", key: "goals.chrome.goal-view", locale });
   }
-  assert.ok(markup(drawn["page-current.en"]!).includes('aria-label="Goal view"'), "the real Goals contribution draws the moved English in its markup");
+  const drawnEnglish = drawn["page-current.en"] ?? runWithLocale("en", () => pages["page-current"]!(viewFor("en")));
+  assert.ok(markup(drawnEnglish).includes('aria-label="Goal view"'), "the actual Goals contribution draws its English label");
 });

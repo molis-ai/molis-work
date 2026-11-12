@@ -1,12 +1,14 @@
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { arrive, calm, ico, kindName, required, said, settle, when } from "./dom.js";
+import { arrive, calm, ico, kindName, required, settle, when } from "./dom.js";
 import { dataHtml, handoffKey, renderHandoff } from "./handoff.js";
 import type { WorkflowsPage } from "./page.js";
 import { label, readyState, stnMeta } from "./state.js";
 import type { Run, Station } from "./types.js";
 import type { WorkflowStep } from "../model.js";
+
+const uiText = globalThis.t;
 
 type StepState = "done" | "stopped" | "current" | "pending";
 type LinkState = "done" | "working" | "waiting" | "blocked" | "future";
@@ -29,10 +31,9 @@ export function linkState(page: WorkflowsPage, run: Run, index: number): LinkSta
 
 /** How the run reads in a list and in its bar. */
 export function runStatus(page: WorkflowsPage, run: Run) {
-  const { L } = page;
-  if (run.status === "done") return { tone: "done", state: "done", text: L("workflows.run.done") };
-  if (run.status === "stopped") return { tone: "quiet", state: "stopped", text: L("workflows.run.stopped", { n: run.current + 1 }) };
-  return { tone: "progress", state: "doing", text: L("workflows.run.progress", { n: run.current + 1, total: run.chain.stations.length, plugin: label(page, run.chain.stations[run.current]!) }) };
+  if (run.status === "done") return { tone: "done", state: "done", text: uiText.text("workflows.run.done") };
+  if (run.status === "stopped") return { tone: "quiet", state: "stopped", text: uiText.text("workflows.run.stopped", { n: run.current + 1 }) };
+  return { tone: "progress", state: "doing", text: uiText.text("workflows.run.progress", { n: run.current + 1, total: run.chain.stations.length, plugin: label(page, run.chain.stations[run.current]!) }) };
 }
 
 export function pipsHtml(run: Run) {
@@ -40,34 +41,33 @@ export function pipsHtml(run: Run) {
 }
 
 function runBarHtml(page: WorkflowsPage, run: Run) {
-  const { ui, L } = page;
+  const { ui } = page;
   const status = runStatus(page, run);
-  return `<button class="plugin-stage-back" type="button" data-wf-action="back-to-flow" aria-label="${esc(L("workflows.run.back-to-flow"))}" title="${esc(L("workflows.run.back-to-flow"))}">${ico("chevron-right")}</button>`
+  return `<button class="plugin-stage-back" type="button" data-wf-action="back-to-flow" aria-label="${esc(uiText.text("workflows.run.back-to-flow"))}" title="${esc(uiText.text("workflows.run.back-to-flow"))}">${ico("chevron-right")}</button>`
     + `<div class="wf-run__title"><h1>${esc(run.title)}</h1><span class="wf-muted">${esc(ui.instanceWorkflowTitle || "")}</span></div>`
     + pipsHtml(run) + `<span class="mw-status mw-status--${status.tone} mw-status--plain wf-run__status" data-mw-state="${status.state}">${esc(status.text)}</span>`
-    + (run.status === "active" ? `<button class="mw-btn mw-btn--ghost" type="button" data-wf-action="stop">${ico("pause")}<span>${esc(L("workflows.run.end"))}</span></button>` : "");
+    + (run.status === "active" ? `<button class="mw-btn mw-btn--ghost" type="button" data-wf-action="stop">${ico("pause")}<span>${esc(uiText.text("workflows.run.end"))}</span></button>` : "");
 }
 
 const LINK_MARK: Record<LinkState, string> = { done: "done", working: "running", waiting: "answer", blocked: "blocked", future: "idle" };
 
 function vchainHtml(page: WorkflowsPage, run: Run, selected: number) {
-  const { L } = page;
   const chain = run.chain;
   return chain.stations.map((station, index) => {
     const step = run.steps[index]!, state = stepState(run, index);
     const mark = `<i data-mw-state="${state === "current" ? "doing" : state === "pending" ? "waiting" : state}"></i>`;
     let linkRow = "";
     if (index < chain.links.length) {
-      const link = chain.links[index]!, ls = linkState(page, run, index), kind = kindName(L, link.kind);
-      const text = ls === "done" ? L("workflows.run.kind-handed", { kind, time: when(step.handoff?.at) })
-        : ls === "working" ? (link.kind === "ai" ? L("workflows.run.ai-working") : L("workflows.run.handing"))
-        : ls === "waiting" ? (link.kind === "manual" ? L("workflows.run.manual-waiting") : L("workflows.run.waiting-continue", { kind }))
-        : ls === "blocked" ? L("workflows.run.kind-not-connected", { kind }) : kind;
+      const link = chain.links[index]!, ls = linkState(page, run, index), kind = kindName(link.kind);
+      const text = ls === "done" ? uiText.text("workflows.run.kind-handed", { kind, time: when(step.handoff?.at) })
+        : ls === "working" ? (link.kind === "ai" ? uiText.text("workflows.run.ai-working") : uiText.text("workflows.run.handing"))
+        : ls === "waiting" ? (link.kind === "manual" ? uiText.text("workflows.run.manual-waiting") : uiText.text("workflows.run.waiting-continue", { kind }))
+        : ls === "blocked" ? uiText.text("workflows.run.kind-not-connected", { kind }) : kind;
       linkRow = `<div class="wf-vlink" data-wf-vlink="${index}" data-kind="${link.kind}" data-state="${ls}"><span class="wf-vlink__line" aria-hidden="true"></span><span class="wf-vlink__label" data-mw-state="${LINK_MARK[ls]}">${esc(text)}</span></div>`;
     }
     const on = index === selected;
-    const note = station.action ? (step.item ? L("workflows.run.ran-in", { place: station.action.group || L("workflows.run.the-plugin") }) : run.steps[index - 1]?.pending?.attempted_at ? L("workflows.run.unconfirmed") : state === "pending" ? L("workflows.run.not-reached") : "")
-      : step.item ? step.item.title : (state === "pending" ? L("workflows.run.not-reached") : "");
+    const note = station.action ? (step.item ? uiText.text("workflows.run.ran-in", { place: station.action.group || uiText.text("workflows.run.the-plugin") }) : run.steps[index - 1]?.pending?.attempted_at ? uiText.text("workflows.run.unconfirmed") : state === "pending" ? uiText.text("workflows.run.not-reached") : "")
+      : step.item ? step.item.title : (state === "pending" ? uiText.text("workflows.run.not-reached") : "");
     return `<button type="button" class="wf-vstep is-${state}${on ? " is-selected" : ""}" data-wf-step="${index}" tabindex="${on ? "0" : "-1"}" style="--station-tint:${tint(station.plugin)}"${on ? ' aria-current="step"' : ""}>`
       + `<span class="wf-vstep__mark">${mark}</span><span class="wf-station__icon">${ico(stnMeta(page, station.plugin).icon)}</span>`
       + `<span class="wf-vstep__copy"><strong>${esc(label(page, station))}</strong><small>${esc(note)}</small></span></button>${linkRow}`;
@@ -75,12 +75,12 @@ function vchainHtml(page: WorkflowsPage, run: Run, selected: number) {
 }
 
 export function drawRun(page: WorkflowsPage) {
-  const { ui, view, L } = page;
+  const { ui, view } = page;
   const run = ui.instance; if (!run) return;
   let article = view.querySelector<HTMLElement>(".wf-run");
   if (!article || article.dataset.id !== run.instance_id) {
     view.innerHTML = `<article class="wf-run" data-id="${esc(run.instance_id)}"><header class="plugin-stage-detail-bar wf-run__bar" data-wf-run-bar></header>`
-      + `<div class="wf-run__body"><nav class="wf-vchain" data-wf-vchain aria-label="${esc(L("workflows.run.steps-heading"))}"></nav>`
+      + `<div class="wf-run__body"><nav class="wf-vchain" data-wf-vchain aria-label="${esc(uiText.text("workflows.run.steps-heading"))}"></nav>`
       + '<section class="wf-stage"><header class="wf-stage__head" data-wf-stage-head></header><div class="wf-handoff" data-wf-handoff></div>'
       + '<div class="wf-stage__frame" data-wf-frame-slot></div></section></div></article>';
     article = required<HTMLElement>(view, ".wf-run");
@@ -91,7 +91,7 @@ export function drawRun(page: WorkflowsPage) {
 }
 
 function patchInstance(page: WorkflowsPage, article: HTMLElement) {
-  const { ui, L } = page;
+  const { ui } = page;
   const run = ui.instance!;
   const index = Math.max(0, Math.min(ui.step, run.chain.stations.length - 1));
   const step = run.steps[index]!;
@@ -109,7 +109,7 @@ function patchInstance(page: WorkflowsPage, article: HTMLElement) {
   }
   last.steps = steps; last.links = links;
   if (stepFocus !== null && stepFocus !== undefined) vchain.querySelector<HTMLElement>(`[data-wf-step="${stepFocus}"]`)?.focus({ preventScroll: true });
-  required(article, "[data-wf-stage-head]").innerHTML = `<span class="wf-stage__step">${esc(L("workflows.run.step-n", { n: index + 1 }))}</span><span class="wf-station__icon" style="--station-tint:${tint(step.plugin)}">${ico(stnMeta(page, step.plugin).icon)}</span><strong>${esc(label(page, run.chain.stations[index]!))}</strong>`
+  required(article, "[data-wf-stage-head]").innerHTML = `<span class="wf-stage__step">${esc(uiText.text("workflows.run.step-n", { n: index + 1 }))}</span><span class="wf-station__icon" style="--station-tint:${tint(step.plugin)}">${ico(stnMeta(page, step.plugin).icon)}</span><strong>${esc(label(page, run.chain.stations[index]!))}</strong>`
     + (step.item && step.plugin !== "action" ? `<span class="wf-muted">${esc(step.item.title)}</span>` : "");
   const handoffBox = required(article, "[data-wf-handoff]");
   const actionFocus = handoffBox.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.wfAction : null;
@@ -123,22 +123,21 @@ function patchInstance(page: WorkflowsPage, article: HTMLElement) {
 
 /** The part of the stage that shows the step: what an action returned, or the plugin's own page for the item. */
 function syncFrame(page: WorkflowsPage, slot: HTMLElement, step: WorkflowStep, station: Station | undefined) {
-  const { L } = page;
   if (station?.action) {
     const key = "action:" + (step.item ? step.item.item_id : "pending") + ":" + (step.result === undefined ? "" : "done");
     if (slot.dataset.src === key) return;
     slot.dataset.src = key; slot.className = "wf-stage__frame is-empty";
     const result = step.result_presentation;
     slot.innerHTML = step.item
-      ? `<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3>${esc(said(L, result?.summary || "workflows.result.returned"))}</h3>`
-        + (result?.title ? `<p class="wf-result-title">${esc(result.title)}</p>` : "")
-        + (result?.text ? `<p class="wf-result-text">${esc(result.text)}</p>` : "")
-        + (result?.text_truncated ? `<p class="wf-muted">${step.result_truncated ? esc(L("workflows.result.excerpt")) : esc(L("workflows.result.excerpt-full"))}</p>` : "")
-        + (result?.link ? `<a class="mw-btn mw-btn--secondary" data-wf-result-link href="${esc(result.link.href)}">${esc(said(L, result.link.label))}</a>` : "") + "</div>"
-        + `<details class="wf-result-details"><summary>${esc(L("workflows.result.technical"))}</summary>`
-        + (step.result_truncated ? `<p class="wf-muted">${esc(L("workflows.result.too-long"))}</p>` : `<pre class="wf-rule">${esc(JSON.stringify(step.result ?? null, null, 2))}</pre>`) + "</details>"
-        + `<details class="wf-result-details"><summary>${esc(L("workflows.result.input"))}</summary>${dataHtml(step.payload || { title: "", body: "" })}</details></div>`
-      : `<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">${ico("zap")}</span><strong>${esc(L("workflows.run.not-at-step"))}</strong><p>${esc(L("workflows.run.will-run", { action: station.action.title }))}</p></div>`;
+      ? `<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3${result?.summary ? ' translate="no"' : ''}>${esc(result?.summary || uiText.text("workflows.result.returned"))}</h3>`
+        + (result?.title ? `<p class="wf-result-title" translate="no">${esc(result.title)}</p>` : "")
+        + (result?.text ? `<p class="wf-result-text" translate="no">${esc(result.text)}</p>` : "")
+        + (result?.text_truncated ? `<p class="wf-muted">${step.result_truncated ? esc(uiText.text("workflows.result.excerpt")) : esc(uiText.text("workflows.result.excerpt-full"))}</p>` : "")
+        + (result?.link ? `<a class="mw-btn mw-btn--secondary" data-wf-result-link translate="no" href="${esc(result.link.href)}">${esc(result.link.label)}</a>` : "") + "</div>"
+        + `<details class="wf-result-details"><summary>${esc(uiText.text("workflows.result.technical"))}</summary>`
+        + (step.result_truncated ? `<p class="wf-muted">${esc(uiText.text("workflows.result.too-long"))}</p>` : `<pre class="wf-rule">${esc(JSON.stringify(step.result ?? null, null, 2))}</pre>`) + "</details>"
+        + `<details class="wf-result-details"><summary>${esc(uiText.text("workflows.result.input"))}</summary>${dataHtml(step.payload || { title: "", body: "" })}</details></div>`
+      : `<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">${ico("zap")}</span><strong>${esc(uiText.text("workflows.run.not-at-step"))}</strong><p>${esc(uiText.text("workflows.run.will-run", { action: station.action.title }))}</p></div>`;
     settle(slot.firstElementChild);
     return;
   }
@@ -146,7 +145,7 @@ function syncFrame(page: WorkflowsPage, slot: HTMLElement, step: WorkflowStep, s
     if (slot.dataset.src === "") return;
     slot.dataset.src = "";
     slot.className = "wf-stage__frame is-empty";
-    slot.innerHTML = `<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">${ico(stnMeta(page, step.plugin).icon)}</span><strong>${esc(L("workflows.run.not-at-step"))}</strong><p>${esc(L("workflows.run.will-show", { plugin: label(page, step.plugin) }))}</p></div>`;
+    slot.innerHTML = `<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">${ico(stnMeta(page, step.plugin).icon)}</span><strong>${esc(uiText.text("workflows.run.not-at-step"))}</strong><p>${esc(uiText.text("workflows.run.will-show", { plugin: label(page, step.plugin) }))}</p></div>`;
     settle(slot.firstElementChild);
     return;
   }

@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { literalConnectorWord, type ConnectorWordReader } from "./connector-words.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   OAuthClientAuth,
@@ -69,14 +71,14 @@ function accountOrigins(serviceId: string): readonly string[] {
  * What the settings page shows for the method (`ConnectorMethodOption.oauth`): the fields to fill in, whether a client secret is asked
  * for (not when the client auth is or may be set to `none`), and the note.
  */
-export function oauthMethodOption(method: PluginOAuthMethodDeclaration): NonNullable<ConnectorMethodOption["oauth"]> {
+export function oauthMethodOption(method: PluginOAuthMethodDeclaration, word = literalConnectorWord): NonNullable<ConnectorMethodOption["oauth"]> {
   const auth = method.client_auth ?? "post";
   const mayBePublic = typeof auth === "string" ? auth === "none" : (method.settings ?? []).find(setting => setting.key === auth.setting)?.enum?.includes("none") === true;
   return {
     client_secret_required: (method.client_secret ?? "required") === "required" && !mayBePublic,
-    fields: (method.settings ?? []).map(setting => ({ key: setting.key, label: setting.label,
-      ...(setting.placeholder !== undefined ? { placeholder: setting.placeholder } : {}), ...(setting.required ? { required: true } : {}) })),
-    ...(method.note !== undefined ? { note: method.note } : {}),
+    fields: (method.settings ?? []).map(setting => ({ key: setting.key, label: word(setting.label),
+      ...(setting.placeholder !== undefined ? { placeholder: word(setting.placeholder) } : {}), ...(setting.required ? { required: true } : {}) })),
+    ...(method.note !== undefined ? { note: word(method.note) } : {}),
   };
 }
 
@@ -93,28 +95,28 @@ export function oauthTenantOrigin(serviceId: string, raw: string): string {
 }
 
 /** The person's settings checked against the declaration: required, default, `pattern` or `enum`, path-safe, the tenant bounded. */
-export function resolveOAuthSettings(serviceId: string, method: PluginOAuthMethodDeclaration, raw: Readonly<Record<string, string>>): OAuthResolvedSettings {
+export function resolveOAuthSettings(serviceId: string, method: PluginOAuthMethodDeclaration, raw: Readonly<Record<string, string>>, word: ConnectorWordReader = literalConnectorWord): OAuthResolvedSettings {
   const values: Record<string, string> = {};
   let tenant: string | undefined;
   for (const setting of method.settings ?? []) {
     const value = (raw[setting.key] ?? "").trim() || setting.default || "";
     if (!value) {
-      if (setting.required) throw oauthDeclarationErrors.setting_invalid(`请填写${setting.label}`);
+      if (setting.required) throw oauthDeclarationErrors.setting_invalid(t.text("workbench.connector-oauth.setting-required", { label: word(setting.label) }));
       values[setting.key] = "";
       continue;
     }
     switch (oauthSettingValueFault(setting, value, service(serviceId)?.tenant?.domain)) {
-      case "enum": throw oauthDeclarationErrors.setting_invalid(`${setting.label}只能是 ${setting.enum!.join("、")}`);
-      case "pattern": throw oauthDeclarationErrors.setting_invalid(`${setting.label}的格式不对`);
-      case "path": throw oauthDeclarationErrors.setting_invalid(`${setting.label}不能带 /、..、反斜杠或编码过的斜杠`);
-      case "tenant": throw oauthDeclarationErrors.target_refused(`${setting.label}不是可用的租户地址`);
+      case "enum": throw oauthDeclarationErrors.setting_invalid(t.text("workbench.connector-oauth.setting-enum", { label: word(setting.label), values: setting.enum!.join(t.text("common.list.separator")) }));
+      case "pattern": throw oauthDeclarationErrors.setting_invalid(t.text("workbench.connector-oauth.setting-pattern", { label: word(setting.label) }));
+      case "path": throw oauthDeclarationErrors.setting_invalid(t.text("workbench.connector-oauth.setting-path", { label: word(setting.label) }));
+      case "tenant": throw oauthDeclarationErrors.target_refused(t.text("workbench.connector-oauth.setting-tenant", { label: word(setting.label) }));
       case undefined: break;
     }
     // The switch above refused a tenant value off the table's domain, so this is its origin.
     if (setting.use === "tenant") tenant = oauthTenantOriginUnder(service(serviceId)!.tenant!.domain, value);
     values[setting.key] = setting.use === "tenant" ? tenant! : value;
   }
-  for (const key of Object.keys(raw)) if (!Object.hasOwn(values, key)) throw oauthDeclarationErrors.setting_invalid(`这个服务没有设置项 ${key}`);
+  for (const key of Object.keys(raw)) if (!Object.hasOwn(values, key)) throw oauthDeclarationErrors.setting_invalid(t.text("workbench.connector-oauth.setting-unknown", { key }));
   return { values, ...(tenant ? { tenant } : {}) };
 }
 

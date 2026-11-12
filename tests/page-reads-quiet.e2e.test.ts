@@ -184,8 +184,19 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   // CI timing; the ceilings are call budgets, so a duplicate read or a whole page read again lands above them.
   const MEASURED = { chooser: 15, todo: 39, project: 31, tab: 10, side: 10 };
   const CALL_SLACK = 3;
+  // Batch 16 adds one selected language script per document, words per authorized frame, and one appearance subscription.
+  const LANGUAGE_SCRIPT = /^\/assets\/locale\/workbench\.(zh|en)\.[a-f0-9]{24}\.js$/u;
   for (const name of PHASES) {
-    assert.ok(requestsIn(name).length <= MEASURED[name] + CALL_SLACK, `${name}: ${requestsIn(name).length} requests, over the measured ${MEASURED[name]} + ${CALL_SLACK} allowance`);
+    const reads = requestsIn(name);
+    const words = reads.filter(one => one.method === "GET" && LANGUAGE_SCRIPT.test(one.path));
+    const frameWords = reads.filter(one => one.method === "GET" && one.path === "/api/ui/locales");
+    const appearance = reads.filter(one => one.method === "GET" && one.path === "/api/ui/appearance/events");
+    const registrations = reads.filter(one => one.method === "POST" && one.path === "/api/host/plugin-pages");
+    assert.equal(words.length, new Set(words.map(one => one.frame)).size, `${name}: at most one language script per document`);
+    assert.ok(frameWords.length <= registrations.length, `${name}: no repeated frame word reads`);
+    assert.ok(appearance.length <= 1, `${name}: one appearance subscription`);
+    const other = reads.length - words.length - frameWords.length - appearance.length;
+    assert.ok(other <= MEASURED[name] + CALL_SLACK, `${name}: ${other} existing requests, over the measured ${MEASURED[name]} + ${CALL_SLACK} allowance`);
   }
   // Each step really mounts a plugin frame, and a document asked for the shared stylesheet at least once: without this, the checks
   // below could pass because nothing was mounted or fetched at all (b51cb696d1 counted a page registration in every step, 1-2

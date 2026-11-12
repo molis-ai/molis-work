@@ -92,12 +92,20 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
     const changeset = "/runs/r/changeset";
     await read(changeset, "zh", "POST");
     for (const locale of ["zh", "en"] as const) {
-      for (const query of ["change_index=0", "change_index=1", "change_index=1&layout=split", "change_index=1&layout=columns", "change_index=9", "change_index=-1"]) {
+      for (const query of ["change_index=0", "change_index=1", "change_index=1&layout=split", "change_index=1&layout=columns"]) {
         const body = await read<ChangeBody>(`${changeset}?${query}`, locale), drawn = hostReader(body, new URLSearchParams(query), locale);
         assert.equal(body.html, drawn.html, `${query} draws what the Host drew (${locale})`);
         assert.equal(body.patch, drawn.patch, `${query} copies the patch the Host wrote (${locale})`);
         assert.equal(body.view_mode, "write");
         if (locale === "en") assert.doesNotMatch(body.html.replace(/<[^>]*>/g, ""), HAN, `${query}: the English page gets English words`);
+      }
+      for (const index of [9, -1]) {
+        const body = await read<ChangeBody>(`${changeset}?change_index=${index}`, locale);
+        assert.match(body.html, /data-phase="unavailable"/);
+        assert.match(body.html, locale === "en" ? /This change is missing from the turn/ : /这一轮找不到这条改动/);
+        assert.match(body.html, locale === "en" ? /Have Coding run another turn/ : /让 Coding 再跑一轮/);
+        assert.equal(body.patch, "");
+        assert.equal(body.view_mode, "write");
       }
       const write = await read<ChangeBody>(`${changeset}?change_index=1`, locale);
       assert.match(write.html, /latest &lt;script&gt;/); assert.doesNotMatch(write.html, /latest <script>/, "a line's text is escaped");

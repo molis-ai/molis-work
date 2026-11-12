@@ -9,6 +9,7 @@ import type {
   ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { PROJECT_OUTPUT_PATH_PREFIX, projectOutputDirectoryPath } from "./project-output.js";
 import { booleanInt, text, type ProjectsSqliteDatabase, type Row } from "./sqlite.js";
@@ -42,6 +43,19 @@ function resolveThroughExistingParent(absolute: string): string {
     if (path.dirname(at) === at) return absolute;
     rest.push(path.basename(at));
   }
+}
+
+/**
+ * `bound_by` of a relation a tool binding brought in. Which relations are the person's is an allow-list, `bound_by` equal to the person's id:
+ * this mark tells a terminal the person opened from a relation the person made, and a value nobody marked still counts as not theirs.
+ * Other values that are not the person's: the catalog upgrade's `molis-work-upgrade` (`catalog-upgrade.ts`), and the plain actor ids
+ * relations written before this mark carry (a terminal's `cwd` among them, kept as they are by the user's 2026-11-09 decision).
+ */
+export const toolBoundBy = (actorId: string): string => `binding:${actorId}`;
+
+/** Whether the person made any of the project's links, by the same allow-list; for the catalog upgrade, which has its own connection. */
+export function projectHasPersonMembership(db: { prepare(sql: string): { get(...params: unknown[]): unknown } }, projectId: string): boolean {
+  return db.prepare("SELECT 1 FROM workspace_project_memberships WHERE project_id = ? AND bound_by = ? LIMIT 1").get(projectId, LOCAL_PERSON_ACTOR_ID) !== undefined;
 }
 
 const role = (row: Row): DirectoryRole[] => [...(booleanInt(row.role_input) ? ["input" as const] : []), ...(booleanInt(row.role_output) ? ["output" as const] : [])];
@@ -112,14 +126,16 @@ export class WorkspaceRepository {
       ORDER BY workspace.display_name COLLATE NOCASE, workspace.canonical_path
     `).all(...(projectId ? [projectId] : [])) as Row[];
     const memberships = this.listWorkspaceMemberships();
-    return rows.map((row) => ({
-      ...this.ref(row),
-      project_ids: memberships
-        .filter((membership) => membership.workspace_id === text(row.workspace_id))
-        .map((membership) => membership.project_id),
-      created_at: text(row.created_at),
-      updated_at: text(row.updated_at),
-    }));
+    return rows.map((row) => {
+      const own = memberships.filter((membership) => membership.workspace_id === text(row.workspace_id));
+      return {
+        ...this.ref(row),
+        project_ids: own.map((membership) => membership.project_id),
+        person_project_ids: own.filter((membership) => membership.bound_by === LOCAL_PERSON_ACTOR_ID).map((membership) => membership.project_id),
+        created_at: text(row.created_at),
+        updated_at: text(row.updated_at),
+      };
+    });
   }
 
   /** This project's folders with their roles; a project in the recycle bin has none, as it has no other membership. */
@@ -218,12 +234,16 @@ export class WorkspaceRepository {
       .run(canonicalPath, displayName, now, workspaceId);
   }
 
-  /** Links a folder to a project; an existing link keeps its roles. A new link is an input unless `roles` says otherwise. */
+  /**
+   * Links a folder to a project. A new link is an input unless `roles` says otherwise; an existing one keeps its id, roles and times, and only
+   * who made it can change: the person's id replaces any value, nothing replaces the person's, and a tool's value leaves an existing relation
+   * as it is.
+   */
   upsertWorkspaceMembership(input: {
     membership_id: string;
     workspace_id: string;
     project_id: string;
-    actor_id: string;
+    bound_by: string;
     now: string;
     roles?: readonly DirectoryRole[];
   }): void {
@@ -233,18 +253,27 @@ export class WorkspaceRepository {
         membership_id, workspace_id, project_id, role_input, role_output, bound_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(workspace_id, project_id) DO UPDATE SET
-        bound_by = excluded.bound_by,
-        updated_at = excluded.updated_at
+        bound_by = CASE WHEN excluded.bound_by = ? THEN excluded.bound_by ELSE bound_by END
     `).run(
       input.membership_id,
       input.workspace_id,
       input.project_id,
       roles.includes("input") ? 1 : 0,
       roles.includes("output") ? 1 : 0,
-      input.actor_id,
+      input.bound_by,
       input.now,
       input.now,
+      LOCAL_PERSON_ACTOR_ID,
     );
+  }
+
+  /**
+   * Whether the person made this relation. `bound_by` is read as a decision only in this file, always by the same allow-list (this method,
+   * `person_project_ids`, `projectHasPersonMembership` and the write rule of `upsertWorkspaceMembership`).
+   */
+  isPersonMembership(workspaceId: string, projectId: string): boolean {
+    return this.db.prepare("SELECT 1 FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ? AND bound_by = ?")
+      .get(workspaceId, projectId, LOCAL_PERSON_ACTOR_ID) !== undefined;
   }
 
   setMembershipRoles(workspaceId: string, projectId: string, roles: readonly DirectoryRole[], now: string): void {

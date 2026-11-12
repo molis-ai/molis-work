@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -758,6 +758,44 @@ test("current Runtime can create and bind one new project without orphaning data
           error instanceof ActionError && error.code === "work.context.stable_identity_required",
       );
       assert.equal(catalog.listProjects().length, 1);
+    } finally {
+      catalog.close();
+    }
+  });
+});
+
+test("SRB-14 no way a tool brings a directory into a project makes it the person's, the person's own terminal included", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: join(directory, "home", ".molis-work") });
+    const folder = async (name: string) => { const path = join(directory, name); await mkdir(path); return { canonical_path: path, realpath_verified: false }; };
+    const record = (path: string) => catalog.listWorkspaceDirectory().find((row) => row.canonical_path.endsWith(path));
+    try {
+      const project = await catalog.createProject({ display_name: "目录来源", actor_id: "user" });
+      const projectId = project.project_id;
+      const sessionBound = await folder("session-bound"), memberBound = await folder("member-bound"), created = await folder("created"), terminal = await folder("terminal");
+      // context_bind, both places it writes a directory: with a Session, and as a workspace member.
+      catalog.bindRuntimeContext({ context: { ...stableContext("codex", "bound-session"), workspace: sessionBound }, project_id: projectId,
+        actor_id: "codex:bound-session", user_confirmed: true });
+      catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false, workspace: memberBound },
+        project_id: projectId, actor_id: "codex:no-session", user_confirmed: true });
+      // context_create_and_bind goes through the same code: the person agreeing in the conversation does not make the directory theirs.
+      const createdProject = await catalog.createProjectAndBindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false, workspace: created },
+        display_name: "工具新建", actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true, idempotency_key: "tool-created" });
+      // The terminal panel binds with the person's id and its cwd: only the mark tells this from a relation the person made.
+      await catalog.commit(() => catalog.terminalPanels.insert({ install_id: "fixture", project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, panel_id: "source-panel",
+        key: "main", subject: null, runtime: "codex", launch_command: "codex", launch_args: [], title: "终端" }, terminal.canonical_path));
+      for (const name of ["session-bound", "member-bound", "terminal"]) {
+        assert.deepEqual(record(name)?.project_ids, [projectId], name);
+        assert.deepEqual(record(name)?.person_project_ids, [], name);
+      }
+      assert.deepEqual(record("created")?.project_ids, [createdProject.connection!.project_id]);
+      assert.deepEqual(record("created")?.person_project_ids, []);
+      // The tool's relation counts once the person links it, and a terminal opened there afterwards does not take it back.
+      catalog.addWorkspaceProject({ canonical_path: terminal.canonical_path, project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+      assert.deepEqual(record("terminal")?.person_project_ids, [projectId]);
+      await catalog.commit(() => catalog.terminalPanels.insert({ install_id: "fixture", project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, panel_id: "source-panel-2",
+        key: "second", subject: null, runtime: "codex", launch_command: "codex", launch_args: [], title: "终端" }, terminal.canonical_path));
+      assert.deepEqual(record("terminal")?.person_project_ids, [projectId]);
     } finally {
       catalog.close();
     }

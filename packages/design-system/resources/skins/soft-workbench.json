@@ -246,6 +246,7 @@
     "dur-arrive": {"ms": 420},
     "dur-moment": {"ms": 640},
     "dur-reveal": {"ms": 90},
+    "dur-stagger": {"ms": 60},
     "ease-quint": {"bezier": [0.22, 1, 0.36, 1]},
     "ease-spring": {"bezier": [0.2, 1.35, 0.4, 1]},
     "ease-out": {"role": "ease-quint"},

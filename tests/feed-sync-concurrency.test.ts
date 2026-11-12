@@ -32,7 +32,7 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
     const sources = () => createLocalFeedSourceService(runtime.db, reference.project_id, factory);
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: feedManifest.plugin_id, plugin_id: feedManifest.plugin_id,
       title: "Feed", kind: "plugin", project_id: reference.project_id }, definitions: Object.values(feedSourceActions),
-      handlers: createFeedSourceHandlers(reference.project_id, { feed: () => sources().feed, sources, connectorSync: () => createLocalFeedConnectorSync(runtime.db, reference.project_id) }) });
+      handlers: createFeedSourceHandlers(reference.project_id, { feed: () => sources().feed, sources, connectorSync: () => createLocalFeedConnectorSync(runtime.db, reference.project_id, home) }) });
     const actions = bindActionClient(host.actionClient(reference), () => caller);
     const source = (await actions.invoke(feedSourceActions.register, { kind: "web_query", query: "fixture" })).source;
     const id = source.source_id;
@@ -198,7 +198,7 @@ async function committedPull(refuse: () => ActionError) {
         inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
       },
       async shutdown() {},
-    }), undefined, undefined, {
+    }), undefined, {
       captureJudgment: async () => { committed = reader.snapshot(DEMO_PROJECT_ID); throw refuse(); },
     });
     const source = service.register({ kind: "custom_rss", feed_url: "https://example.com/committed-then-failed.xml" }).source;

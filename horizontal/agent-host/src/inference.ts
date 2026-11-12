@@ -47,7 +47,13 @@ export interface PrologueTextResult extends PrologueExecutionReceipt {
 export interface PrologueImageInput extends PrologueCredentialInput {
   protocol: "openai-images" | "gemini"; endpoint: string; model: string; prompt: string;
   size?: string; aspect_ratio?: string; signal?: AbortSignal; timeout_ms: number;
+  /**
+   * The caller's own cap on what is copied out of the provider's resources, checked on every resource's size before any byte is read or
+   * allocated (`agent.inference.image_too_large`); every resource is revoked either way. Without it the adapter's own 20 MiB a picture holds.
+   */
+  output?: PrologueImageOutputLimits;
 }
+export interface PrologueImageOutputLimits { max_images: number; max_image_bytes: number; max_total_bytes: number }
 export interface PrologueTypeSafeInput extends PrologueCredentialInput {
   endpoint: string; model: string; state: string; questions: Record<string, unknown>;
   signal?: AbortSignal; timeout_ms: number;

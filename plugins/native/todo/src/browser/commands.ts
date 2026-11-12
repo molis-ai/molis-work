@@ -192,9 +192,18 @@ const editorControls: Command = async (page, button) => {
   if (button.matches("[data-todo-reload]")) {
     if (state.saving) await state.saving.catch(() => undefined);
     closeMenu(button);
-    if (state.dirtyKeys.size && !(await page.ask(uiText.text("todo.confirm.reload"), uiText.text("todo.action.reload")))) return true;
-    state.dirtyKeys = new Set();
-    await page.openDetail(current.id);
+    const refreshList = () => page.load().catch((error: Error) => page.showNote(error.message || uiText.text("todo.error.request"), { error: true }));
+    if (state.dirtyKeys.size) {
+      await page.ask(uiText.text("todo.confirm.reload"), uiText.text("todo.action.reload"), async () => {
+        clearTimeout(state.saveTimer);
+        state.saveTimer = 0;
+        if (state.saving) await state.saving.catch(() => undefined);
+        if (await page.reloadDetail(current.id)) await refreshList();
+      });
+    } else {
+      await page.openDetail(current.id);
+      await refreshList();
+    }
     return true;
   }
   if (button.matches("[data-todo-delete]")) {
@@ -222,8 +231,11 @@ const CHAIN: Command[] = [listControls, reviewControls, reminderControls, detail
 
 /** One click on a button of the page. Anything but reload and delete first saves what is being typed. */
 export async function runCommand(page: TodoPage, button: HTMLButtonElement): Promise<void> {
+  if (!button.matches("[data-todo-reload],[data-todo-delete]")) {
+    // A failed draft save has already shown its recovery in the detail.
+    try { await page.flush(); } catch { return; }
+  }
   try {
-    if (!button.matches("[data-todo-reload],[data-todo-delete]")) await page.flush();
     for (const command of CHAIN) if (await command(page, button)) return;
   } catch (error) {
     const message = (error as Error).message || uiText.text("todo.error.request");

@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { gzipSync } from "node:zlib";
+import { withFirstScreenHost } from "../scripts/first-screen/host.mjs";
 import { auditFirstScreen } from "../scripts/first-screen/audit.mjs";
 import { requestKey, SSE_FIRST_EVENT } from "../scripts/first-screen/manifest.mjs";
 
@@ -90,7 +91,7 @@ else {
     child.once("close", code => resolve({ code, stdout, stderr }));
   });
   return {
-    child, result, out,
+    child, result, out, root,
     host: () => JSON.parse(readFileSync(join(root, "host.json"), "utf8")),
     waiting: () => existsSync(join(root, "waiting")),
   };
@@ -196,4 +197,68 @@ test("FSS-BG-04 browser audit retains document identity for same-path streams an
   assert.throws(() => auditFirstScreen(http, browser), /from \/plugins\/issues\?side=capture\]: browser returned HTTP 403/);
   requests.splice(1, 1);
   assert.deepEqual(auditFirstScreen(http, browser)[key].registered_not_observed, [requestKey(path, hidden, SSE_FIRST_EVENT)]);
+});
+
+
+test("FSS-BG-01 two checkout seeds isolate process-wide providers and preserve every page", { timeout: 12_000 }, async t => {
+  const runs = [fixture(t, "complete"), fixture(t, "complete")];
+  for (const run of runs) {
+    assert.equal((await run.result).code, 0);
+    const entry = join(run.root, "apps/desktop/dist/index.js");
+    writeFileSync(entry, `
+const slot = Symbol.for("first-screen-test.provider");
+if (globalThis[slot]) throw new Error("provider conflict");
+globalThis[slot] = import.meta.url;
+` + readFileSync(entry, "utf8"));
+  }
+  const pages = [];
+  for (const run of runs) {
+    await withFirstScreenHost(run.root, { signal: new AbortController().signal }, async host => {
+      pages.push(host.pages);
+      assert.equal((await fetch(host.origin + "/health")).status, 200);
+    });
+    assertClean(run);
+  }
+  assert.deepEqual(pages[0], pages[1]);
+  assert.equal(pages[0].length, 7);
+  assert.equal(globalThis[Symbol.for("first-screen-test.provider")], undefined);
+});
+
+test("FSS-BG-03 seed failure refuses measurement and removes its Home", { timeout: 8_000 }, async t => {
+  const run = fixture(t, "complete");
+  assert.equal((await run.result).code, 0);
+  writeFileSync(join(run.root, "apps/desktop/dist/index.js"), `
+import { writeFileSync } from "node:fs";
+export function openMolisWorkProjectCatalog({homeDirectory}) {
+  writeFileSync("seed.json", JSON.stringify({ home: homeDirectory, pid: process.pid }));
+  throw new Error("seed deliberately refused");
+}`);
+  await assert.rejects(withFirstScreenHost(run.root, { signal: new AbortController().signal }, () => assert.fail("must not measure")), /seed deliberately refused/);
+  const { home, pid } = JSON.parse(readFileSync(join(run.root, "seed.json"), "utf8"));
+  assert.equal(existsSync(home), false);
+  assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+});
+
+test("FSS-BG-03 cancellation waits for a blocked seed to exit before removing its Home", { timeout: 8_000 }, async t => {
+  const run = fixture(t, "complete");
+  assert.equal((await run.result).code, 0);
+  writeFileSync(join(run.root, "apps/desktop/dist/index.js"), `
+import { writeFileSync } from "node:fs";
+export async function openMolisWorkProjectCatalog({homeDirectory}) {
+  process.on("SIGTERM", () => {});
+  setInterval(() => {}, 1000);
+  writeFileSync("seed.json", JSON.stringify({ home: homeDirectory, pid: process.pid }));
+  return new Promise(() => {});
+}`);
+  const stop = new AbortController();
+  const result = assert.rejects(withFirstScreenHost(run.root, { signal: stop.signal }, () => assert.fail("must not measure")), /seed cancelled/);
+  const marker = join(run.root, "seed.json");
+  try {
+    for (let n = 0; n < 50 && !existsSync(marker); n++) await delay(50);
+    assert.ok(existsSync(marker));
+  } finally { stop.abort(new Error("seed cancelled")); }
+  await result;
+  const { home, pid } = JSON.parse(readFileSync(marker, "utf8"));
+  assert.equal(existsSync(home), false);
+  assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
 });

@@ -18,28 +18,29 @@ import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-wo
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedApplication, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedConnectorSync, seedLocalFeedSourceAccount } from "./fixtures/feed-library.js";
 
 /** A sync the provider reported as failed is one Feed code, and the provider's own code (what a run and a source fault store) rides in its details. */
 function providerFailure(error: unknown, providerCode: string): boolean {
   return error instanceof ActionError && error.code === "feed.connector_failed" && error.details?.error_code === providerCode;
 }
 
-async function withBoard<T>(run: (store: LocalProjectDatabase) => Promise<T>): Promise<T> {
+async function withBoard<T>(run: (store: LocalProjectDatabase, home: string) => Promise<T>): Promise<T> {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-connectors-"));
   const databasePath = join(directory, "molis-work.sqlite");
+  const home = join(directory, "home");
   const oldHome = process.env.MOLIS_WORK_HOME;
   const oldBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const oldNodeEnv = process.env.NODE_ENV;
   try {
-    process.env.MOLIS_WORK_HOME = join(directory, "home");
+    process.env.MOLIS_WORK_HOME = home;
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     process.env.NODE_ENV = "test";
     resetSecretStoreCache();
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      return await run(store);
+      return await run(store, home);
     } finally {
       store.close();
     }
@@ -498,18 +499,22 @@ test("Gmail range changes force one bounded full sync instead of reusing the old
 });
 
 /** An account Source and the Host connector sync, as Feed's source actions use them; the provider is the test's port. */
-function connectorService(store: LocalProjectDatabase, port: ConnectorPort) {
+function connectorService(store: LocalProjectDatabase, home: string, port: ConnectorPort) {
   const feed = createLocalFeedApplication(store.db);
-  const connectors = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, () => port, feed);
+  const connectors = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, home, () => port, feed);
   return {
     feed,
     sync: (sourceId: string, input: Parameters<typeof connectors.sync>[1]) => connectors.sync(sourceId, input),
-    accountSource: (kind: "github" | "gmail"): FeedSourceRecord => feed.sources.upsert(accountSourceRecord(kind)),
+    accountSource(kind: "github" | "gmail"): FeedSourceRecord {
+      const source = feed.sources.upsert(accountSourceRecord(kind));
+      seedLocalFeedSourceAccount(home, source);
+      return source;
+    },
   };
 }
 
 test("Connector service persists cursor only after success and safely replays or retries", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     let calls = 0;
     const cursor1 = {
       v: 1,
@@ -547,7 +552,7 @@ test("Connector service persists cursor only after success and safely replays or
       async health() { return { ok: true, status: "connected", message: "stub" }; },
       async sync() { calls += 1; return next; },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
@@ -605,14 +610,14 @@ test("Connector service persists cursor only after success and safely replays or
 });
 
 test("Connector failure commits Source and event together while retaining the Listener terminal receipt", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     let calls = 0;
     const port: ConnectorPort = {
       type: "github",
       async health() { return { ok: true, status: "connected", message: "test" }; },
       async sync() { calls += 1; return failure("needs_auth"); },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
@@ -644,7 +649,7 @@ test("Connector failure commits Source and event together while retaining the Li
 
 // J3C-01/J3C-03: the real Feed chain retains retry time and avoids Inbox noise.
 test("Connector service preserves cursor and schedules rate-limit recovery without Inbox noise", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     const retryAfterAt = "2026-08-30T10:05:00.000Z";
     const port: ConnectorPort = {
       type: "github",
@@ -661,7 +666,7 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
         };
       },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
@@ -684,7 +689,7 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
 });
 
 test("disconnected connector stops before any Provider pull", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     let calls = 0;
     const port: ConnectorPort = {
       type: "github",
@@ -694,7 +699,7 @@ test("disconnected connector stops before any Provider pull", async () => {
         return success([], {});
       },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const disconnected = service.accountSource("github");
     assert.equal(disconnected.status, "disconnected");
     await assert.rejects(
@@ -706,7 +711,7 @@ test("disconnected connector stops before any Provider pull", async () => {
 });
 
 test("Connector interruption is recoverable with the same idempotency key", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     let calls = 0;
     const port: ConnectorPort = {
       type: "github",
@@ -717,7 +722,7 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
         return success([], { since: "cursor-after-retry" });
       },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const source = service.feed.sources.upsert({
       ...service.accountSource("github"),
       status: "active",
@@ -742,7 +747,7 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
 });
 
 test("Connector Item dedupe is scoped by Source so Gmail accounts never collide", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     const item = {
       externalId: "same-provider-message-id",
       title: "Account-scoped message",
@@ -756,7 +761,7 @@ test("Connector Item dedupe is scoped by Source so Gmail accounts never collide"
       async health() { return { ok: true, status: "connected", message: "stub" }; },
       async sync() { return success([item], { historyId: "2" }); },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const legacy = service.feed.sources.upsert({
       ...service.accountSource("gmail"),
       status: "active",
@@ -767,10 +772,10 @@ test("Connector Item dedupe is scoped by Source so Gmail accounts never collide"
       source_id: "feed-source-gmail-account-two",
       name: "Gmail · second@example.com",
       account_label: "second@example.com",
-      config: { installation_id: "gmail-account-two" },
       imported_at: now,
       updated_at: now,
     });
+    seedLocalFeedSourceAccount(home, second);
 
     await service.sync(legacy.source_id, { idempotencyKey: "gmail-account-one-0001" });
     await service.sync(second.source_id, { idempotencyKey: "gmail-account-two-0001" });
@@ -781,7 +786,7 @@ test("Connector Item dedupe is scoped by Source so Gmail accounts never collide"
 });
 
 test("Connector service writes Gmail identity and keeps only explicit Gmail attention in Inbox", async () => {
-  await withBoard(async (store) => {
+  await withBoard(async (store, home) => {
     const port: ConnectorPort = {
       type: "gmail",
       async health() { return { ok: true, status: "connected", message: "stub" }; },
@@ -819,7 +824,7 @@ test("Connector service writes Gmail identity and keeps only explicit Gmail atte
         });
       },
     };
-    const service = connectorService(store, port);
+    const service = connectorService(store, home, port);
     const source = service.feed.sources.upsert({
       ...service.accountSource("gmail"),
       status: "active",

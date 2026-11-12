@@ -96,6 +96,11 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
       </section>`;
 }
 
+// Both surfaces are already mounted. The current browser and a drawn, floating Assistant share the available width.
+const SHARED_BROWSER = "html body.immersive-workbench[data-side-open=true]:not([data-side-solo])"
+  + ":has([data-side-panel]:not([hidden],[inert])>[data-side-browser]:not([hidden]))"
+  + ":has(.workbench-bar:not([data-dock-hidden])>[data-assistant-island]>[data-assistant-panel]:not([hidden]))";
+
 /* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
  * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
  * is left out there, so the bar keeps two rows. */
@@ -168,6 +173,20 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) minmax(var(--dock-min),auto)}
  html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
  html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
+ ${SHARED_BROWSER}{
+   --assistant-float-width:calc((100% - 24px)*.44);
+   --float-top:var(--workbench-titlebar-bottom,var(--desktop-titlebar-height,0px))
+ }
+ ${SHARED_BROWSER} .side-panel{
+   left:calc(var(--assistant-float-width) + 16px);
+   height:max(52dvh,350px);
+   max-height:calc(100dvh - var(--float-top) - var(--dock-h,48px) - 16px)
+ }
+ ${SHARED_BROWSER} .workbench-bar .assistant-panel{
+   --float-bottom:calc(var(--dock-h,76px) + 8px + var(--next-row,0px) + var(--context-row,0px));
+   position:fixed;left:8px;right:auto;width:var(--assistant-float-width);bottom:var(--float-bottom);
+   height:min(620px,calc(100dvh - max(var(--float-top),var(--return-bar-bottom,0px)) - var(--float-bottom) - 8px))
+ }
 }
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `.replace(/\n\s*/g, "");
@@ -186,7 +205,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * inside, it closes. ⌘\ / Ctrl+\ (also handed up as `Mod+Backslash`) collapses or opens the side. Tools with a chord load
  * while the page is idle, so the first press shows a ready tool. A tab's own document may report
  * `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab carries a shared state ring.
- * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-toggle`. Same-origin frames post the same
+ * `molis:side-open` { tab, view?, target?, focus? }. Same-origin frames post the same
  * `{ type: "molis:side-open", ... }`, and `{ type: "molis:side-close" }` to collapse it (the page collapses it from the layout menu). Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
  * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
  * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
@@ -358,7 +377,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   },true);
   if(!MAC)strip.querySelectorAll('[data-side-keys]').forEach(tab=>{const item=tab.parentElement;item.title=item.title.replace('⌘⇧','Ctrl+Shift+');});
   document.addEventListener('molis:side-open',event=>{if(request(event.detail||{}))event.preventDefault();});
-  document.addEventListener('molis:side-toggle',event=>{if(open&&!(event.detail?.tab&&event.detail.tab!==current())){setOpen(false);save();}else request(event.detail||{});});
   strip.addEventListener('click',event=>{
     const button=event.target?.nodeType===1?event.target.closest('[data-side-tab]'):null;if(!button)return;
     // A Home tool's glyph, pressed, opens it ready to use, as its titlebar button did before 07-1 S4b moved it here; arrow keys

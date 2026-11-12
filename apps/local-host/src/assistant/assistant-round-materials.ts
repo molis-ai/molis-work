@@ -15,6 +15,7 @@ import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { PersonActions } from "./assistant-executor.js";
 import { landingMaterials } from "./assistant-landing.js";
 import { readPickedPiece } from "./assistant-send-materials.js";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
 import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
@@ -23,8 +24,8 @@ import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
 /** One chosen or listed method, whatever else the page sent with it: a Skill by its installation and id, a role by its installation and entry. */
 function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
   if (method.kind === "role") return `role\0${method.installation.install_id}\0${method.method_id}`;
-  const ref = "skill" in method ? method.skill.ref : method.ref;
-  return `skill\0${ref.install_id}\0${ref.skill_id}`;
+  // The shared comparison key (`/skill-ref`): a Skill's identity is its whole exact reference, not an id two versions share.
+  return `skill\0${skillRefKey("skill" in method ? method.skill.ref : method.ref)}`;
 }
 
 /** Bytes per image, within what the model providers take; how many per Send is in assistant-send-materials.ts. */
@@ -142,10 +143,11 @@ export class AssistantRoundMaterials {
     try {
     for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", directory.text]] as const) if (text) out.push(...chunked({ title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
+    // A manual Skill nobody chose is not listed (the catalog refuses it unnamed); only an auto one is readable by this round.
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.flatMap(item => item.kind === "method" && item.method ? [methodKey(item.method)] : []));
     const listed: object[] = [];
-    for (const method of methods.filter(item => !chosen.has(methodKey(item))).slice(0, 20)) {
+    for (const method of methods.filter(item => !chosen.has(methodKey(item)) && (item.kind !== "skill" || item.skill.state === "auto")).slice(0, 20)) {
       const row = method.kind === "skill" ? { kind: "skill", ref: method.skill.ref, name: method.skill.name, description: method.skill.description,
         ...(method.skill.when_to_use ? { when_to_use: method.skill.when_to_use } : {}), plugin_title: method.skill.pack.title } : method;
       if (JSON.stringify([...listed, row]).length > 18_000) break;

@@ -30,12 +30,12 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
     // A publisher can be revoked during inspection while its installation still runs. Take one snapshot and use it synchronously.
     const pins = publishers();
     const result: CatalogSkill[] = [];
-    for (const { record, manifest, scope, recoveryError, readLocalePacks, assertCurrent: assertInstallation } of installations) {
+    for (const { record, manifest, scope, recoveryCode, readLocalePacks, assertCurrent: assertInstallation } of installations) {
       if (!manifest?.methods?.length) continue;
       const pin = pins.get(record.publisher_signature);
       let availability: SkillAvailability = { available: true };
       if (record.publisher_trust === "pinned" && (!pin || pin.revoked_at)) availability = { available: false, reason: "publisher_revoked" };
-      else if (recoveryError) availability = { available: false, reason: "resource_invalid" };
+      else if (recoveryCode) availability = { available: false, reason: "resource_invalid" };
       else if (record.state !== "running") availability = { available: false, reason: "plugin_disabled" };
       const missing = manifest.requires?.find(required => !required.optional && !directory.some(action => action.capability_id === required.capability_id
         && action.version === required.version && action.availability.available));

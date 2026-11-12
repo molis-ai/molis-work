@@ -82,6 +82,8 @@ try {
   for (const scenario of ['success', 'failure', 'edit', 'disable', 'disabled', 'reenable']) {
     const id = 'io.molis.work.example.controlled.' + scenario;
     const v1 = release(id, '1.0.0'); await host.installPackage(v1);
+    // `notes.add` reaches an approved site with a stored secret: the person switches both on first (BL-701).
+    for (const permission of ['network:request', 'secret:use']) await platform.runtime.regrant(c.recordFor(id).install_id, permission, true);
     const initial = c.recordFor(id), oldApproval = approved(id);
     assert.deepEqual(prompts(id).map(prompt => prompt.prompt_id), ['old-summary']);
     c.secrets.save(id, { name: 'weather', header: 'X-Weather', value: 'fixture-old' });

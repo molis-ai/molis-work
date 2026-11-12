@@ -19,6 +19,15 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 没有全局左侧栏。全局入口只有一处：窗口底部的常驻栏——左侧 Dock 菜单与 Dock（项目首页 + 用户选定常驻的插件），中间统一对话栏（Assistant 输入胶囊，前面是插件切换器，⌘K 搜索也从这里开），右侧 Shelf / 灵光、讨论和项目按钮。插件贡献的 `navigator` Slot id 不变，含义是「出现在插件切换器、可被放进 Dock 的入口」；`island` 是底栏右侧的个人常驻入口。插件自己的目录（`workbench.directory`）是工作面里的一列，不是第二套全局导航。
 
+### 底栏与统一输入（页面全局）
+
+统一输入程序（`/assets/molis-work-composer.js`，`window.molisComposer`）与底栏只在一个文档内交接，靠四个页面全局；它们由工作台自己的脚本设置和调用，不是给插件用的合同（框架页面经 `postMessage` 只拿自己那一个收件人的信息）：
+
+- `molisBarReceivers`（`apps/workbench/src/browser/plugin-frame/composer-parent.ts`）：挂了 AI 输入框、又在可见窗格里登记成底栏收件人的框架页面集合；`front()` 给出焦点窗格里那一个（没有就是号助理的），`column()` 给出页面对话栏的位置，底栏据此把输入框放到它的宽度上。
+- `molisBarReceiverChanged`（同文件）：收件人集合或前台页面变了时由框架桥叫一次，底栏据此换手（谁拥有输入框、要不要重挂）。
+- `molisWorkBarPlace`（`apps/workbench/src/browser/bar-column.ts`）：让底栏重新量列宽并安放输入框；窗格焦点/尺寸、收件人的对话栏、窗口缩放变化时调用。
+- `molisWorkBarColumn`（同文件）：工作台启动、外壳画完之后调用一次，开始测量；页面画底栏时带 `data-bar-placing`，第一次量好位置前输入框不可见，量好后去掉，避免先按默认列画出再滑动。
+
 ## 3. 嵌入
 
 ### 插件页面隔离与公共服务（SYS-15，迁移中）
@@ -57,7 +66,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 登记只覆盖 DOM `CustomEvent`。页面里还有下面这些通道，没有登记，门禁也不看：
 
 - 外壳与 iframe 之间的 `postMessage`（`type` 如 `workbench-surface-focus`、`molis:side-open`、`molis:im-visibility`）；
-- `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（常量 `ASSISTANT_CONTEXT_ATTRIBUTE`，在 `services/assistant` 合同里）；
+- `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（属性值的形状是 `services/assistant` 合同里的 `AssistantSurfaceContext`）；
 - 传给插件客户端脚本的 `host` 对象（`translate`、`mountPluginClient` 等宿主能力）；
 - 存储键（`localStorage` 等）和浏览器自己的事件；
 - 跨标签页的 `BroadcastChannel`：目前只有一条，名字 `molis-work:model-ready`，由模型设置脚本（`apps/workbench/src/scripts/settings-models.ts`）在第一个能用的模型出现时发，开始使用页（`apps/workbench/src/scripts/context-onboarding.ts`）收；它是同名页面事件 `molis-work:model-ready` 的跨标签延伸，说明记在那个事件的登记项里。
@@ -78,12 +87,11 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 （情境浮条的三个事件，主人是 `context-toolbar`（设计系统的页面程序）：`molis:context-tools` 与 `molis:context-panel-open` 是 `request`，发的是拥有内容的插件，听的是浮条；`molis:context-tool-invoke` 是公告，浮条在插件发布工具的那个元素上发，插件自己执行。工作台已经采用它，Pages 是第一个真实的发送方；组件板的示范是另一个。`molis:context-panel-open` 带 `cancelable`：浮条接住了（有这个情境的浮条在）就 `preventDefault()`，没接住时插件自己把表单放在原处。）
 
-另有四处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
+另有三处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
 
 - `molis-work:open-settings-section`：Assistant 在记忆变更卡片上的「去设置查看」（`apps/workbench/src/scripts/client/assistant-island.ts`）在 `window` 上发它并带 `cancelable: true`，没人接住就整页跳到记忆设置页（变更属于项目时跳项目的设置页）。设置目录只在 `document` 上听（`settings-directory.ts`），听不到发在 `window` 上的事件，听到了也不调用 `preventDefault()`，所以这个按钮今天永远是整页跳转。登记里这条是发在 `document`、不带 `cancelable`（真正走通的是 `tab-workspace.ts` 打开「页面放在设置里的插件」时发的那一处），所以登记没有把这第三处 `cancelable` 的用法算进去。要修，不能只把发送改到 `document`：设置目录对这条事件只打开全局设置分类，而项目范围的记忆变更要去的是项目的设置页，那个走 `molis-work:open-settings-path`，按地址打开。
 - `molis-work:place-changed`：`scripts/contextual-slice/client.ts`（情境交互的评估用脚本，不进产品页面）在 `window` 上听它，而它发在 `document` 且不冒泡，那个监听器永远不会触发。
 - `molis-work:work-mode-changed`：`immersive-navigation.ts` 发了，树里没有任何监听者。
-- `molis:side-toggle`：`side-panel.ts` 在听，树里没有任何地方发它。
 
 ## 4. 迁移
 

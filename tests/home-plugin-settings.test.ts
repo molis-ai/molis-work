@@ -35,7 +35,7 @@ test("RAC-2601 the Home's installed list says why a package is not running: none
   const after = await list();
   assert.ok(after, "it is still listed");
   assert.equal(after.state, h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "the state is the record's own, not rewritten to say it failed");
-  assert.match(after.recovery_error ?? "", /找不到已安装的插件包/);
+  assert.equal(after.recovery_error, "plugin.package_missing", "the list carries a code, not the Host's sentence (#1999), and says a missing package apart from an invalid one (BL-915)");
 });
 
 /** A Home package whose publisher the person has taken back, with nothing read in between: the Home's own list is the first to look. */
@@ -58,7 +58,7 @@ test("RAC-2602 the Home's installed list is read after the publishers the person
   const { list, offered } = await revokedHomePackage(t);
   const row = await list();
   assert.equal(row?.state, "disabled");
-  assert.match(row?.recovery_error ?? "", /发布者已被你撤销信任/, "the reason the list gives is the Host's own sentence about the publisher, which the page draws alone for a revoked publisher (RAC-2606)");
+  assert.equal(row?.recovery_error, "plugin.publisher_revoked", "the reason the list gives is the publisher's code, which the page draws as its own sentence for a revoked publisher (RAC-2606)");
   assert.equal(await offered(), 0, "no project is offered its actions");
 });
 
@@ -72,8 +72,9 @@ test("RAC-2602 a Home package of a publisher the person took back cannot be swit
 
 test("RAC-2602 a Home package of a publisher the person took back can still be taken off, its data kept or not, and nothing of it is offered or started on the way", mac, async t => {
   const { home, list, offered } = await revokedHomePackage(t);
-  await list();
-  const removed = await home.web.post<{ plugin_id: string; state: string }>("/api/settings/plugin-permissions/uninstall", { plugin_id: PACKAGE_PLUGIN_ID, keep_data: true });
+  const target = (await list())?.uninstall_target;
+  assert.ok(target, "the row names the installation an uninstall takes off (BL-915)");
+  const removed = await home.web.post<{ plugin_id: string; state: string }>("/api/settings/plugin-permissions/uninstall", { plugin_id: PACKAGE_PLUGIN_ID, keep_data: true, target });
   assert.deepEqual([removed.plugin_id, removed.state], [PACKAGE_PLUGIN_ID, "uninstalled"]);
   assert.equal(await list(), undefined);
   assert.equal(await offered(), 0);
@@ -104,7 +105,9 @@ test("RAC-2605 a package installed in the Home is switched off and on and taken 
   for (const project of [one, two]) assert.ok(await offered(project) > 0, "and they are back");
 
   assert.ok(valuesOf(home.home, installId).length > 0);
-  const gone = await home.web.post<{ state: string }>("/api/settings/plugin-permissions/uninstall", { ...body, keep_data: false });
+  const listed = await home.web.post<{ plugins: PluginInstalledView[] }>("/api/settings/plugin-permissions/list", {});
+  const target = listed.plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!.uninstall_target;
+  const gone = await home.web.post<{ state: string }>("/api/settings/plugin-permissions/uninstall", { ...body, keep_data: false, target });
   assert.equal(gone.state, "uninstalled");
   assert.equal(home.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID), false);
   assert.deepEqual(valuesOf(home.home, installId), [], "its private data is gone");
@@ -123,6 +126,6 @@ test("RAC-2607 a project's installed list says why a signed package of the proje
   await h.reopen();
   const after = await list();
   const lost = after.find(item => item.plugin_id === PACKAGE_PLUGIN_ID), kept = after.find(item => item.plugin_id === SECOND_PLUGIN_ID);
-  assert.match(lost?.recovery_error ?? "", /找不到已安装的插件包/);
+  assert.equal(lost?.recovery_error, "plugin.package_missing");
   assert.equal(kept?.recovery_error, null);
 });

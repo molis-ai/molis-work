@@ -1090,11 +1090,11 @@ test("S-ui-text-page FSS-37 Coding receives only the words of its actual embedde
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(route) }, b.sessionId));
   await child.waitFor("typeof t === 'function'", 25000);
   assert.deepEqual(await child.evaluate("[!!document.querySelector('[data-coding-workbench]'), !!document.querySelector('[data-git-browser]'), !!document.querySelector('[data-files-browser]')]"), [true, true, true]);
-  const words = "[t.text('git.commit.submit'),t.text('files.reader.copy'),t.text('issues.when.minutes-ago',{count:1})]";
-  assert.deepEqual(await child.evaluate(words), ["提交…", "复制全文", "这句话暂时显示不了"]);
+  const words = "[t.text('git.commit.plain'),t.text('files.reader.copy'),t.text('issues.when.minutes-ago',{count:1})]";
+  assert.deepEqual(await child.evaluate(words), ["提交", "复制全文", "这句话暂时显示不了"]);
   await chooseEnglishInSettings(t, b);
   await child.waitFor("document.documentElement.lang === 'en'", 25000);
-  assert.deepEqual(await child.evaluate(words), ["Commit…", "Copy all", "This text cannot be shown right now"]);
+  assert.deepEqual(await child.evaluate(words), ["Commit", "Copy all", "This text cannot be shown right now"]);
   await child.evaluate("document.querySelector('[data-coding-face=files]').click()");
   await child.waitFor("!document.querySelector('[data-git-browser]').hidden && !document.querySelector('[data-git-refresh]').disabled");
   await b.evaluate(`(() => {
@@ -1124,7 +1124,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   const projection = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]')?.textContent || '[]').map(row => [row.slot,row.packs.map(pack => pack.owner)])");
   assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]]]);
   assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建 Goal");
-  assert.equal(await b.evaluate("t.text('git.commit.submit')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
+  assert.equal(await b.evaluate("t.text('git.commit.plain')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
   await b.evaluate("document.querySelector('[data-open-create]').click()");
   await b.waitFor("document.querySelector('dialog[open] input.create-compose-title')");
   await b.evaluate(`(() => {
@@ -1764,7 +1764,8 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
     if (locale === "zh") await select("zh");
     await b.waitFor(`document.documentElement.lang === '${locale === "en" ? "en" : "zh-CN"}'`);
     assert.deepEqual(await b.evaluate(effects), before.map(([, checked, title], i) => [true, checked, title, title,
-      (locale === "en" ? ["Read", "Edit"] : ["读取", "修改"])[i], (locale === "en" ? checked ? "Disable " : "Enable " : checked ? "关闭：" : "打开：") + title, true]));
+      // B27-AC01: a switch's name is its row's action and stays put; the switch role carries whether it is on.
+      (locale === "en" ? ["Read", "Edit"] : ["读取", "修改"])[i], title, true]));
   }
   const cases = [
     ["account.seat.assign", "system.account", "分配席位", "Assign seat"],

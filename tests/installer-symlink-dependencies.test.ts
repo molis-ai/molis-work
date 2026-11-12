@@ -12,7 +12,7 @@ test("T405-FULL-10: Feed's own release dependency collection includes its rich-t
   assert.ok(feed);
   const root = fileURLToPath(new URL("..", import.meta.url));
   const packages = await collectRuntimeDependencies(join(root, feed.path, "package.json"), { name: feed.name, dependencies: feed.extraDependencies });
-  for (const name of ["marked", "sanitize-html"]) {
+  for (const name of ["micromark", "micromark-extension-gfm", "sanitize-html"]) {
     assert.ok(Object.hasOwn(feed.extraDependencies, name), `Feed itself must declare ${name} for release collection`);
     assert.ok(packages.some(entry => entry.name === name), `Feed's own installer metadata must collect the actual ${name} package`);
   }

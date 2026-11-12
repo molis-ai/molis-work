@@ -72,7 +72,9 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
 // measures nothing and takes no parts off. What it still does is tell the sheets above the bar how tall the bar is (one variable).
 test("the bottom bar measures no line of its own and gives the bar's height to the sheets above it through --dock-h", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const fitInput = |dataset\.crowded|dataset\.measuring/, "no line fitting left in the island");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{ const height = bar\.offsetHeight; if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\); \}\)/, "the bar's measured height is --dock-h");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{\s*const height = bar\.offsetHeight;\s*if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\);/, "the bar's measured height is --dock-h");
+  // BL-102: a bar that is not drawn says so, so the side panel's narrow-window rule does not make room for it.
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /bar\.toggleAttribute\("data-dock-hidden", !height\);/, "an undrawn bar is marked for the side panel");
 });
 
 // RAC-2571: the script is cut by job into twelve parts joined in place (W5-10 batch A, T-060), so the main file stays under the
@@ -179,4 +181,26 @@ test("D0007 D0009: the served usage client reads empty, running and failed respo
     if (name === "running" || name === "latestWithoutUsage") assert.match(box.text(), /进行中/);
     if (name === "failed") assert.match(box.text(), /暂不可用/);
   }
+});
+
+// E3 (2026-11-11 review): the page's glyph in 「发给」 comes from the island's own rendered platform glyphs, not from the
+// composer's DOM: reaching into `.mw-composer__to svg` made the bottom bar depend on the component's internals.
+test("the page's glyph in 「发给」 is drawn from the assistant's own rendered glyphs, not read out of the composer", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  assert.doesNotMatch(script, /keepGlyph|pageGlyphs|\.mw-composer__to svg/, "no composer DOM is read for a glyph");
+  assert.match(script, /const glyphSprite = island\.querySelector\("\[data-assistant-glyphs\]"\)/);
+  assert.match(script, /const pageGlyph = \(name\) => \{/);
+  assert.match(script, /mark = pageGlyph\(named\.icon\)/, "the 「发给」 row's mark comes from the receiver's icon name");
+});
+
+// E8 (2026-11-11 review): files the side pane takes are dropped silently when a page in front has the bar. The path is
+// defensive today (the panel is the Assistant's, so that page does not take the bar then), but a silent drop is the wrong
+// failure: say why, so a later path that does reach it cannot lose the person's files without a word.
+test("files the side pane takes say why they were not added while a page has the bar", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  const addFiles = script.match(/function addFiles\(chosen\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.ok(addFiles, "addFiles is found");
+  assert.match(addFiles, /if \(boundPage\) \{ host\.showToast\?\.\(/);
+  assert.match(addFiles, /composer\?\.attach\(chosen\)/);
+  assert.doesNotMatch(addFiles, /^\s*if \(!boundPage\) composer\?\.attach\(chosen\);\s*$/m, "the old silent guard is gone");
 });

@@ -197,12 +197,13 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const mark = phase === "done" && row.request.kind === "command"
     ? { ...PHASE_MARK.done, label: "workbench.agent-review.executed" }
     : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "workbench.agent-review.not-happened" } : PHASE_MARK[phase];
-  const decidable = isDecidable(row);
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const document = row.request.document;
+  const documentReadable = readable(document);
+  const decidable = isDecidable(row);
   // The heading names the thing itself, so a history list reads without opening every row.
   const label = document.kind === "text-edit" ? document.target_path
-    : document.kind === "command" && readable(document) ? [document.command, ...document.args].map(shellWord).join(" ")
+    : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")
     : document.kind === "git-index" ? (document.action === "stage" ? uiText.text("workbench.agent-review.stage") : uiText.text("workbench.agent-review.unstage"))
     : document.kind === "git-integration" ? uiText.text("workbench.agent-review.integrate")
     : document.kind === "rewind" ? uiText.text("workbench.agent-review.rewind") : row.request.kind === "command" ? uiText.text("workbench.agent-review.execute-command")
@@ -218,7 +219,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
       <span class="${labelClass}"${document.kind === "command" || document.kind === "text-edit" ? ' translate="no"' : ""}>${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
     </header>${history ? "</summary>" : ""}
-    ${renderDocument(row.request.document, p)}
+    ${documentReadable ? renderDocument(document, p) : `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape(uiText.text("workbench.agent-review.unreadable"))}</p></div>`}
     ${renderFooter(row, decidable, p)}${history ? "</details>" : ""}
   </article>`;
 }
@@ -259,7 +260,6 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
 }
 
 function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives): string {
-  if (!readable(document)) return `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape(uiText.text("workbench.agent-review.unreadable"))}</p></div>`;
   switch (document.kind) {
     case "git-integration": return `<div class="agent-review-doc" data-agent-review-kind="git-integration">
       <p>${uiText("workbench.agent-review.integrate-workspace")}</p><dl><dt>${uiText("workbench.agent-review.source-directory")}</dt><dd>${p.escape(document.source.directory)}</dd><dt>${uiText("workbench.agent-review.destination-directory")}</dt><dd>${p.escape(document.target_directory)}</dd><dt>${uiText("workbench.agent-review.source-base")}</dt><dd>${p.escape(document.source.branch)} · ${p.escape(document.source.base_commit)}</dd></dl>

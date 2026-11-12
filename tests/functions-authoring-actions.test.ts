@@ -5,13 +5,14 @@ import { join } from "node:path";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionSceneDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
-import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 import { functionsActionProvider } from "@molis-ai/molis-work-module-judgment-rules";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
+import { functionsConnectionSnapshot, withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
 
 const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] };
 /** What a caller holds after reading the rule: the version its next edit names. */
@@ -229,4 +230,61 @@ test("cancelling a registered trial forwards cancellation and does not persist a
     await lateStarted; lateController.abort(); finish(); await lateRejected;
     assert.equal((await actions.invoke(authoring.get, { id: draft.id })).function.last_preview, null, "a provider ignoring cancellation cannot persist a late result");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("D0289 one fresh Host snapshot serves zero, one or many published usage rows", async t => {
+  const home = await mkdtemp(join(tmpdir(), "rule-usage-snapshot-"));
+  const rules = createFunctionsService({ home, env: {}, credential: () => null });
+  let snapshots = 0, available = true;
+  const service = new ActionService();
+  service.registerProvider(functionsActionProvider({
+    read: operation => operation(rules), run: operation => operation(rules),
+    credentialAvailable: () => { assert.fail("a usage row must reuse the Host snapshot"); },
+    connectionStatus: () => { snapshots++; return { connection_id: "account-a", available }; },
+  }));
+  const actions = bindActionClient(service, () => owner);
+  try {
+    for (const count of [0, 1, 50]) {
+      const records = Array.from({ length: count }, (_, i) => ({ function_key: `rule_${i}`, name: `Rule ${i}`, primitive: "noul" as const, version: 1, model: "test-model" }));
+      const list = t.mock.method(rules, "listPublished", () => records);
+      const before = snapshots;
+      const result = await actions.invoke(functionsActions.connectionUsages, { connection_id: "account-a" });
+      assert.equal(snapshots - before, 1, "one read regardless of rule count");
+      assert.equal(result.usages.length, count);
+      assert.ok(result.usages.every(row => row.enabled === available));
+      available = !available;
+      const next = await actions.invoke(functionsActions.connectionUsages, { connection_id: "account-a" });
+      assert.equal(snapshots - before, 2, "the next request refreshes, rather than reusing authority");
+      assert.ok(next.usages.every(row => row.enabled === available));
+      const beforeOther = list.mock.callCount();
+      assert.deepEqual((await actions.invoke(functionsActions.connectionUsages, { connection_id: "another-account" })).usages, []);
+      assert.equal(list.mock.callCount(), beforeOther, "an unrelated account does not read rules");
+      list.mock.restore();
+    }
+  } finally { rules.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("D0289 Host reads the bound connection once and refreshes disabled and overridden credentials", async t => {
+  const home = await mkdtemp(join(tmpdir(), "rule-connection-snapshot-"));
+  try {
+    const account = withConnectorConnections(home, store => {
+      const row = store.createToken({ serviceId: "typesafe", displayName: "Snapshot account", token: "fixture-snapshot-key" });
+      store.bind({ scopeId: "home", pluginId: "functions", slotId: "typesafe", serviceId: "typesafe", connectionId: row.connection_id });
+      return row;
+    });
+    const binding = t.mock.method(ConnectorConnectionStore.prototype, "binding");
+    const get = t.mock.method(ConnectorConnectionStore.prototype, "get");
+    assert.deepEqual(functionsConnectionSnapshot(home, { env: {} }), { connection_id: account.connection_id, available: true });
+    assert.equal(binding.mock.callCount(), 1);
+    assert.equal(get.mock.callCount(), 0, "binding already joins the connection; do not open it again");
+    withConnectorConnections(home, store => store.setEnabled(account.connection_id, false));
+    assert.deepEqual(functionsConnectionSnapshot(home, { env: {} }), { connection_id: account.connection_id, available: false });
+    assert.equal(binding.mock.callCount(), 2);
+    assert.deepEqual(functionsConnectionSnapshot(home, { env: { TYPESAFE_API_KEY: "fixture-env-key" } }), { connection_id: null, available: true });
+    assert.deepEqual(functionsConnectionSnapshot(home, { env: {}, credential: () => null }), { connection_id: null, available: false });
+    assert.equal(binding.mock.callCount(), 2, "overrides never read or claim a saved account");
+    withConnectorConnections(home, store => store.unbind("home", "functions", "typesafe"));
+    assert.deepEqual(functionsConnectionSnapshot(home, { env: {} }), { connection_id: null, available: false });
+  } finally { await rm(home, { recursive: true, force: true }); }
 });

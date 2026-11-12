@@ -1,4 +1,5 @@
 import type { FeedSql } from "./sql.js";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { sourceDeletedAt } from "../contract/sources.js";
 import { randomUUID } from "node:crypto";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -284,13 +285,4 @@ function asText(value: unknown): string {
 function optionalText(value: unknown): string | null {
   const valueText = asText(value);
   return valueText || null;
-}
-
-function parseJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }

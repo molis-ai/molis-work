@@ -60,7 +60,7 @@ test("a fresh project's createIntent is immediately writable", () => {
 });
 
 test("imported criterion and policy requirements follow the same user revise and retire rules", () => {
-  const data = openHistory("legacy");
+  const data = openHistory("imported");
   try {
     const { app, store } = data;
     const human = app.goalEvents.readState(BOARD, "OLD-HUMAN");

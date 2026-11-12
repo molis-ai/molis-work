@@ -1,3 +1,5 @@
+import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js";
+
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
 export const CONTEXT_ONBOARDING_CLIENT = String.raw`
@@ -277,7 +279,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length);
     if (materialsReady) {
       return {kind:'onboard', view:'materials', step:'reading',
-        left:question(globalThis.t.text("workbench.context-onboarding.materials-ready"), globalThis.t.text("workbench.context-onboarding.give-project-name-start-reading-writing-summary-can")) + errorLine(error) + note(config.model ? globalThis.t.text("workbench.context-onboarding.text-model-connected-can-carry-get-summary-todos") : globalThis.t.text("workbench.context-onboarding.connect-text-model-come-back-get-summary-todos"), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : btn({variant:'link', size:'sm', label:globalThis.t.text("workbench.context-onboarding.connect-text-model"), attrs:{'data-action':'model'}}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:globalThis.t.text(config.model ? "workbench.context-onboarding.continue-2" : "workbench.context-onboarding.connected-continue"), attrs:{'data-action':'retry'}}) + '</p>',
+        left:question(globalThis.t.text("workbench.context-onboarding.materials-ready"), globalThis.t.text("workbench.context-onboarding.give-project-name-start-reading-writing-summary-can")) + errorLine(error) + note(config.model ? globalThis.t.text("workbench.context-onboarding.text-model-connected-can-carry-get-summary-todos") : globalThis.t.text("workbench.context-onboarding.connect-text-model-come-back-get-summary-todos"), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : btn({variant:'link', size:'sm', label:globalThis.t.text("workbench.context-onboarding.connect-text-model"), attrs:{'data-action':'model'}}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:globalThis.t.text(config.model ? "workbench.context-onboarding.continue-2" : "workbench.context-onboarding.continue-after-connecting"), attrs:{'data-action':'retry'}}) + '</p>',
         right:stageHead(globalThis.t.text("workbench.context-onboarding.materials-read"), '') + receipts(),
         bar:{start:exitButton() + stepsBar('reading'), center:barStatus({glyph:'check', title:globalThis.t.text("workbench.context-onboarding.materials-ready"), caption:globalThis.t.text("workbench.context-onboarding.originals-kept-device")}), end:secondary("workbench.context-onboarding.adjust-sources",'restart') + primary("workbench.context-onboarding.save-materials-start",'materials-only')}};
     }
@@ -361,15 +363,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       right:briefPreview(journey.adoption.title, journey.adoption.body || '', {title:readText("workbench.project-brief.next"), body:'<p class="mw-brief__quiet">' + globalThis.t.text(saving?"workbench.context-onboarding.saving":"workbench.context-onboarding.waiting-finish-saving") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now")),
       bar:{start:exitButton() + stepsBar('start'), center:barStatus({spin:saving, glyph:'folder', title:globalThis.t.text(saving?"workbench.context-onboarding.saving-project-materials":"workbench.context-onboarding.project-contents-confirmed"), caption:globalThis.t.text("workbench.context-onboarding.one-moment")}), end:primary(saving?"workbench.context-onboarding.saving":"workbench.context-onboarding.finish-saving-project",'adopt',{disabled:busy||saving})}};
   }
-  function blankForm() {
-    const preview = briefPreview(blankName.trim() || globalThis.t.text("workbench.context-onboarding.new-project"), '', {title:readText("workbench.project-brief.next"), body:'<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.when-plugin-has-something-move-confirm-will-show") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now") + ' · ' + globalThis.t.text(materialsOnly ? "workbench.context-onboarding.bring-materials-already-read" : "workbench.context-onboarding.blank-project"));
-    const left = question(globalThis.t.text("workbench.context-onboarding.name-new-project-2"), globalThis.t.text(materialsOnly?"workbench.context-onboarding.imported-materials-come-project-summary-can-be-written":"workbench.context-onboarding.start-space-materials-next-steps-can-follow"))
-      + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + globalThis.t.text("workbench.context-onboarding.project-name") + '</label><input class="mw-input ob-name__input" id="cx-blank-name" required autocomplete="off" data-plain-field placeholder="' + esc(globalThis.t.text("workbench.context-onboarding.example-autumn-content-plan")) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
-      + (materialsOnly ? '' : '<p class="ob-quiet">' + globalThis.t.text("workbench.context-onboarding.not-sure-what-project-yet") + ' ' + btn({variant:'link', size:'sm', label:globalThis.t.text("workbench.context-onboarding.start-personal-space"), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
-    return {kind:'onboard', view:'blank', step:'sources', left, right:preview,
-      bar:{start:exitButton() + steps(stepLabels().length, -1), center:barStatus({glyph:'plus', title:globalThis.t.text(materialsOnly ? "workbench.context-onboarding.bring-materials-already-read" : "workbench.context-onboarding.blank-project"), caption:blankName.trim() ? globalThis.t.text("workbench.context-onboarding.will-create-name", {name:blankName.trim()}) : globalThis.t.text("workbench.context-onboarding.write-name-begin")}),
-        end:secondary(materialsOnly ? "common.control.back" : "workbench.context-onboarding.bring-materials",'back') + btn({variant:'primary', size:'lg', type:'submit', label:globalThis.t.text(busy ? "workbench.context-onboarding.creating" : "workbench.context-onboarding.create-project"), key:'↵', cls:'ob-continue', disabled:busy, attrs:{form:'cx-blank-form', 'aria-keyshortcuts':'Enter'}})}};
-  }
+${CONTEXT_ONBOARDING_BLANK_NAME_PART}
 
   /* ───────── Which screen ───────── */
   let loadError = '';
@@ -654,7 +648,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     // 项目名称封顶 120 个字（码点）：maxlength 按 UTF-16 单元数，含两单元字的名称只能写到 60 个字。
     if(e.target.id==='cx-project-title'||e.target.id==='cx-blank-name'){const chars=[...e.target.value];if(chars.length>120)e.target.value=chars.slice(0,120).join('');}
     if(e.target.id==='cx-project-title'||e.target.id==='cx-summary-editor'){preserveEdits();const preview=app.querySelector('.ob-project-name');if(preview&&e.target.id==='cx-project-title')preview.textContent=e.target.value.trim()||globalThis.t.text("workbench.context-onboarding.new-project");return;}
-    if(e.target.id==='cx-blank-name'){blankName=e.target.value;const typed=blankName.trim();const preview=app.querySelector('.ob-project-name');if(preview)preview.textContent=typed||globalThis.t.text("workbench.context-onboarding.new-project");const status=bar.querySelector('.mw-bar-status__text small');if(status)status.textContent=typed?globalThis.t.text("workbench.context-onboarding.will-create-name",{name:typed}):globalThis.t.text("workbench.context-onboarding.write-name-begin");return;}
+    if(e.target.id==='cx-blank-name'){updateBlankName(e.target);return;}
     if(e.target.dataset.field&&e.target.tagName!=='SELECT'){
       const s=source(e.target.dataset.kind);if(s[e.target.dataset.field]!==e.target.value)invalidateSource(s);
       s[e.target.dataset.field]=e.target.value;if(s.kind==='browser'&&e.target.dataset.field==='text')s.selected=Boolean(s.text?.trim());refreshSelection();clearTimeout(inputTimer);inputTimer=setTimeout(()=>save().catch(e=>{error=keepFailure(e);render();}),400);
@@ -662,7 +656,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   });
   root.addEventListener('change',async e=>{
     const el=e.target;
-    if(!(el instanceof HTMLElement)||!app.contains(el))return;
+    // The name is kept by input. Redrawing here after an error would replace the form before it can submit again.
+    if(!(el instanceof HTMLElement)||!app.contains(el)||el.id==='cx-blank-name')return;
     // Only what changes the selection is saved; leaving the name field, say, must not touch it (a journey already read refuses).
     let changed=false;
     try {
@@ -680,7 +675,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       if(changed)await save();
     }catch(e){error=keepFailure(e);}finally{busy=false;counting=null;if(changed||error)render(el.id);}
   });
-  root.addEventListener('submit',async e=>{if(e.target.id!=='cx-blank-form')return;e.preventDefault();busy=true;try{await adopt(true);}catch(e){error=keepFailure(e);}finally{busy=false;render();}});
+  root.addEventListener('invalid',showMissingBlankName,true);
+  root.addEventListener('submit',submitBlankName);
   root.addEventListener('click',async e=>{
     const link=e.target.closest('a[href^="/locale"]');
     if(link){return;}

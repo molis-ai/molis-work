@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { jellyAssert } from "./error.js";
 import type { JellyCategory, JellyCommand, JellyItem, JellyOccurrence, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
-import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, jellyDaysBetween, jellyLogicalOccurrence, jellyOccurrenceIdentity, jellyWeekday, jellyWithinSeries, validateJellyItem, validateJellySeries, validateJellyWorkspace } from "./calendar-validation.js";
+import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, jellyDaysBetween, jellyLogicalOccurrence, jellyOccurrenceIdentity, jellyWeekday, jellyWithinSeries, validateJellySeries, validateJellyWorkspace } from "./calendar-validation.js";
+import { JellyWorkspaceEdit } from "./workspace-edit.js";
 export { JELLY_UNCATEGORIZED_ID, validateJellyWorkspace } from "./calendar-validation.js";
 
 export function emptyJellyWorkspace(): JellyWorkspace {
@@ -82,11 +83,19 @@ export function jellyProgress(state: JellyWorkspace, start: string, end: string,
   const categories = state.categories.map(category => { const group = items.filter(item => item.category_id === category.id); return { ...category, total: group.length, completed: group.filter(item => item.completed_at !== null).length }; }).filter(category => category.total > 0).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   return { start, end, today, total: items.length, completed_count: completed.length, open_count: open.length, overdue_count: overdue.length, high_priority_open: open.filter(item => item.priority === "P0" || item.priority === "P1").length, completed, open, overdue, categories, factual_summary: items.length === 0 ? "这一时段还没有事项。" : open.length === 0 ? `这一时段的 ${items.length} 件事项已全部完成。` : `已完成 ${completed.length} 件，仍有 ${open.length} 件${overdue.length ? `，其中 ${overdue.length} 件已延期。` : "在进行。"}` };
 }
-function syncLinkedBlock(state: JellyWorkspace, item: JellyItem, now: string): void {
+function syncLinkedBlock(state: JellyWorkspace, item: JellyItem, now: string, edit: JellyWorkspaceEdit): void {
   for (const link of state.task_links.filter(link => link.item_id === item.id)) {
     const note = state.notes.find(note => note.id === link.note_id); const block = note?.blocks.find(block => block.id === link.block_id);
     jellyAssert(note && block?.kind === "task", "关联的任务块已不存在");
-    if (block.text !== item.title || block.completed_at !== item.completed_at || block.completion_description !== item.completion_description) { if (block.text !== item.title) block.inline_spans = undefined; block.text = item.title; block.completed_at = item.completed_at; block.completion_description = item.completion_description; note.revision++; note.updated_at = now; }
+    if (block.text !== item.title || block.completed_at !== item.completed_at || block.completion_description !== item.completion_description) {
+      if (block.text !== item.title) block.inline_spans = undefined;
+      block.text = item.title;
+      block.completed_at = item.completed_at;
+      block.completion_description = item.completion_description;
+      note.revision++;
+      note.updated_at = now;
+      edit.notes.add(note);
+    }
   }
 }
 function removeOwnerRelations(state: JellyWorkspace, id: string, predicate: (day: string | null) => boolean = () => true): void {
@@ -111,7 +120,7 @@ function retainHistory(state: JellyWorkspace, series: JellySeries, boundary: str
   series.completions = Object.fromEntries(Object.entries(series.completions).filter(([day]) => day < boundary));
   return true;
 }
-function mutateSeries(state: JellyWorkspace, command: JellyCommand, now: string): void {
+function mutateSeries(state: JellyWorkspace, command: JellyCommand, now: string, edit: JellyWorkspaceEdit): void {
   const { series, date } = requireSeries(state, command); const scope = command.scope;
   const deleting = command.type === "series.delete";
   if (scope === "onlyThis") {
@@ -119,14 +128,17 @@ function mutateSeries(state: JellyWorkspace, command: JellyCommand, now: string)
     else {
       const patch = record(command.patch, "重复修改"); jellyAssert(patch.weekdays === undefined && patch.until === undefined, "单次修改不能改变重复规则");
       const occurrence = patchItem(effectiveOccurrence(series, date), patch, now);
-      validateJellyItem(occurrence, new Set(state.categories.map(category => category.id)));
       const { series_id: _sid, original_date: _date, ...value } = occurrence;
       series.exceptions[date] = { patch: { ...value, id: series.id } };
     }
-    series.updated_at = now; return;
+    series.updated_at = now;
+    edit.series.add(series);
+    return;
   }
-  const original = structuredClone(series);
+  const original = { ...series };
   const keptHistory = retainHistory(state, series, date, now);
+  if (keptHistory) edit.series.add(series);
+  edit.relations = true;
   if (deleting) { removeOwnerRelations(state, series.id, day => !keptHistory || (day !== null && day >= date)); return; }
   const patch = record(command.patch, "重复修改");
   const newStart = patch.start_date === undefined ? date : jellyDate(patch.start_date);
@@ -151,6 +163,7 @@ function mutateSeries(state: JellyWorkspace, command: JellyCommand, now: string)
   for (const [oldDate, completion] of Object.entries(original.completions)) { const newDate = jellyAddDays(oldDate, delta); if (oldDate >= date && jellyLogicalOccurrence(future, newDate)) future.completions[newDate] = completion; }
   validateJellySeries(future, new Set(state.categories.map(category => category.id)));
   state.series.push(future);
+  edit.series.add(future);
   const baseline = state.relations.filter(relation => relation.owner_id === original.id && relation.original_date === null);
   for (const relation of baseline) state.relations.push({ ...relation, owner_id: future.id });
   state.relations = state.relations.flatMap(relation => {
@@ -171,23 +184,174 @@ export function applyJellyCalendarCommand(state: JellyWorkspace, command: JellyC
   if (!calendarCommandTypes.has(command.type)) return false;
   const now = nowValue instanceof Date ? nowValue.toISOString() : nowValue;
   jellyAssert(typeof now === "string" && Number.isFinite(Date.parse(now)), "操作时间无效");
-  const next = structuredClone(state); apply(next, command, now); validateJellyWorkspace(next); Object.assign(state, next); return true;
+  const next = structuredClone(state);
+  editJellyCalendarCommand(next, command, now, new JellyWorkspaceEdit());
+  validateJellyWorkspace(next);
+  Object.assign(state, next);
+  return true;
 }
-function apply(state: JellyWorkspace, command: JellyCommand, now: string): void {
-  const categoryIds = new Set(state.categories.map(category => category.id));
+
+/** Apply to a store-owned working state. The caller checks the edit before publishing it. */
+export function editJellyCalendarCommand(state: JellyWorkspace, command: JellyCommand, now: string, edit: JellyWorkspaceEdit): boolean {
   switch (command.type) {
-    case "item.create": { const item = makeJellyItem(record(command.item, "事项"), now); validateJellyItem(item, categoryIds); state.items.push(item); break; }
-    case "item.update": { const index = state.items.findIndex(item => item.id === identifier(command.id)); jellyAssert(index >= 0, "事项不存在"); state.items[index] = patchItem(state.items[index]!, record(command.patch, "修改"), now); syncLinkedBlock(state, state.items[index]!, now); break; }
-    case "item.complete": { const item = state.items.find(item => item.id === identifier(command.id)); jellyAssert(item, "事项不存在"); item.completed_at = completeAt(item.completed_at, bool(command.completed), now); if (command.completion_description !== undefined) { jellyAssert(typeof command.completion_description === "string", "完成说明无效"); item.completion_description = command.completion_description; } item.updated_at = now; syncLinkedBlock(state, item, now); break; }
-    case "item.delete": { const id = identifier(command.id); jellyAssert(state.items.some(item => item.id === id), "事项不存在"); state.items = state.items.filter(item => item.id !== id); state.task_links = state.task_links.filter(link => link.item_id !== id); removeOwnerRelations(state, id); break; }
-    case "item.move": case "item.move_many": { const selected = command.type === "item.move" ? [identifier(command.id)] : ids(command.ids); const date = jellyDate(command.date); for (const id of selected) { const index = state.items.findIndex(item => item.id === id); jellyAssert(index >= 0, "事项不存在"); const item = state.items[index]!; state.items[index] = { ...shiftSchedule(item, jellyDaysBetween(item.start_date, date)), updated_at: now }; } break; }
-    case "item.reorder": { const date = jellyDate(command.date); const order = ids(command.ids); const available = state.items.filter(item => item.start_date === date && item.end_date === date && item.start_time === null); jellyAssert(order.length === available.length && available.every(item => order.includes(item.id)), "排序必须包含该日全部单日无时间事项"); for (const item of available) { item.untimed_rank = order.indexOf(item.id); item.updated_at = now; } break; }
-    case "series.create": { const input = record(command.series, "重复系列"); const series: JellySeries = { ...makeJellyItem(input, now), weekdays: input.weekdays as number[], until: input.until === undefined ? null : input.until as string | null, exceptions: {}, completions: {} }; validateJellySeries(series, categoryIds); state.series.push(series); break; }
-    case "series.update": case "series.delete": mutateSeries(state, command, now); break;
-    case "series.complete": { const { series, date } = requireSeries(state, command); const old = series.completions[date]; const completed = bool(command.completed); if (completed) series.completions[date] = { completed_at: completeAt(old?.completed_at ?? null, true, now), completion_description: command.completion_description as string ?? old?.completion_description ?? "" }; else delete series.completions[date]; series.updated_at = now; break; }
-    case "category.create": { const input = record(command.category, "分类"); const category: JellyCategory = { id: input.id === undefined ? randomUUID() : identifier(input.id), name: typeof input.name === "string" ? input.name.trim() : "", color: input.color === undefined ? "#6A8D73" : input.color as string, sort_index: state.categories.length }; state.categories.push(category); break; }
-    case "category.update": { const category = state.categories.find(category => category.id === identifier(command.id)); jellyAssert(category, "分类不存在"); const patch = record(command.patch, "分类修改"); if (patch.name !== undefined) { jellyAssert(category.id !== JELLY_UNCATEGORIZED_ID, "未分类不能改名"); jellyAssert(typeof patch.name === "string", "分类名无效"); category.name = patch.name.trim(); } if (patch.color !== undefined) category.color = patch.color as string; break; }
-    case "category.delete": { const id = identifier(command.id); jellyAssert(id !== JELLY_UNCATEGORIZED_ID && categoryIds.has(id), "不能删除未分类或不存在的分类"); state.categories = state.categories.filter(category => category.id !== id); state.categories.forEach((category, index) => { category.sort_index = index; }); for (const item of [...state.items, ...state.series]) if (item.category_id === id) { item.category_id = JELLY_UNCATEGORIZED_ID; item.updated_at = now; } for (const series of state.series) for (const exception of Object.values(series.exceptions)) if (exception.patch?.category_id === id) exception.patch.category_id = JELLY_UNCATEGORIZED_ID; for (const note of state.notes) if (note.category_id === id) { note.category_id = JELLY_UNCATEGORIZED_ID; note.revision++; note.updated_at = now; } break; }
-    case "category.reorder": { const order = ids(command.ids); jellyAssert(order.length === state.categories.length && state.categories.every(category => order.includes(category.id)), "排序必须包含全部分类"); state.categories.forEach(category => { category.sort_index = order.indexOf(category.id); }); state.categories.sort((a, b) => a.sort_index - b.sort_index); break; }
+    case "item.create": {
+      const item = makeJellyItem(record(command.item, "事项"), now);
+      state.items.push(item);
+      edit.items.add(item);
+      break;
+    }
+    case "item.update": {
+      const index = state.items.findIndex(item => item.id === identifier(command.id));
+      jellyAssert(index >= 0, "事项不存在");
+      const item = patchItem(state.items[index], record(command.patch, "修改"), now);
+      state.items[index] = item;
+      edit.items.add(item);
+      syncLinkedBlock(state, item, now, edit);
+      break;
+    }
+    case "item.complete": {
+      const item = state.items.find(item => item.id === identifier(command.id));
+      jellyAssert(item, "事项不存在");
+      item.completed_at = completeAt(item.completed_at, bool(command.completed), now);
+      if (command.completion_description !== undefined) {
+        jellyAssert(typeof command.completion_description === "string", "完成说明无效");
+        item.completion_description = command.completion_description;
+      }
+      item.updated_at = now;
+      edit.items.add(item);
+      syncLinkedBlock(state, item, now, edit);
+      break;
+    }
+    case "item.delete": {
+      const id = identifier(command.id);
+      jellyAssert(state.items.some(item => item.id === id), "事项不存在");
+      state.items = state.items.filter(item => item.id !== id);
+      state.task_links = state.task_links.filter(link => link.item_id !== id);
+      removeOwnerRelations(state, id);
+      break;
+    }
+    case "item.move":
+    case "item.move_many": {
+      const selected = command.type === "item.move" ? [identifier(command.id)] : ids(command.ids);
+      const date = jellyDate(command.date);
+      for (const id of selected) {
+        const index = state.items.findIndex(item => item.id === id);
+        jellyAssert(index >= 0, "事项不存在");
+        const item = state.items[index];
+        const moved = { ...shiftSchedule(item, jellyDaysBetween(item.start_date, date)), updated_at: now };
+        state.items[index] = moved;
+        edit.items.add(moved);
+      }
+      break;
+    }
+    case "item.reorder": {
+      const date = jellyDate(command.date);
+      const order = ids(command.ids);
+      const available = state.items.filter(item => item.start_date === date && item.end_date === date && item.start_time === null);
+      jellyAssert(order.length === available.length && available.every(item => order.includes(item.id)), "排序必须包含该日全部单日无时间事项");
+      for (const item of available) {
+        item.untimed_rank = order.indexOf(item.id);
+        item.updated_at = now;
+        edit.items.add(item);
+      }
+      break;
+    }
+    case "series.create": {
+      const input = record(command.series, "重复系列");
+      const series: JellySeries = {
+        ...makeJellyItem(input, now),
+        weekdays: input.weekdays as number[],
+        until: input.until === undefined ? null : input.until as string | null,
+        exceptions: {}, completions: {},
+      };
+      state.series.push(series);
+      edit.series.add(series);
+      break;
+    }
+    case "series.update":
+    case "series.delete":
+      mutateSeries(state, command, now, edit);
+      break;
+    case "series.complete": {
+      const { series, date } = requireSeries(state, command);
+      const old = series.completions[date];
+      if (bool(command.completed)) {
+        series.completions[date] = { completed_at: completeAt(old?.completed_at ?? null, true, now), completion_description: command.completion_description as string ?? old?.completion_description ?? "" };
+      } else delete series.completions[date];
+      series.updated_at = now;
+      edit.series.add(series);
+      break;
+    }
+    case "category.create": {
+      const input = record(command.category, "分类");
+      const category: JellyCategory = {
+        id: input.id === undefined ? randomUUID() : identifier(input.id),
+        name: typeof input.name === "string" ? input.name.trim() : "",
+        color: input.color === undefined ? "#6A8D73" : input.color as string,
+        sort_index: state.categories.length,
+      };
+      state.categories.push(category);
+      edit.categories = true;
+      break;
+    }
+    case "category.update": {
+      const category = state.categories.find(category => category.id === identifier(command.id));
+      jellyAssert(category, "分类不存在");
+      const patch = record(command.patch, "分类修改");
+      if (patch.name !== undefined) {
+        jellyAssert(category.id !== JELLY_UNCATEGORIZED_ID, "未分类不能改名");
+        jellyAssert(typeof patch.name === "string", "分类名无效");
+        category.name = patch.name.trim();
+      }
+      if (patch.color !== undefined) category.color = patch.color as string;
+      edit.categories = true;
+      break;
+    }
+    case "category.delete":
+      deleteCategory(state, identifier(command.id), now, edit);
+      break;
+    case "category.reorder": {
+      const order = ids(command.ids);
+      jellyAssert(order.length === state.categories.length && state.categories.every(category => order.includes(category.id)), "排序必须包含全部分类");
+      state.categories.forEach(category => { category.sort_index = order.indexOf(category.id); });
+      state.categories.sort((a, b) => a.sort_index - b.sort_index);
+      edit.categories = true;
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+
+function deleteCategory(state: JellyWorkspace, id: string, now: string, edit: JellyWorkspaceEdit): void {
+  jellyAssert(id !== JELLY_UNCATEGORIZED_ID && state.categories.some(category => category.id === id), "不能删除未分类或不存在的分类");
+  state.categories = state.categories.filter(category => category.id !== id);
+  state.categories.forEach((category, index) => { category.sort_index = index; });
+  edit.categories = true;
+  for (const item of state.items) {
+    if (item.category_id !== id) continue;
+    item.category_id = JELLY_UNCATEGORIZED_ID;
+    item.updated_at = now;
+    edit.items.add(item);
+  }
+  for (const series of state.series) {
+    if (series.category_id === id) {
+      series.category_id = JELLY_UNCATEGORIZED_ID;
+      series.updated_at = now;
+      edit.series.add(series);
+    }
+    for (const exception of Object.values(series.exceptions)) {
+      if (exception.patch?.category_id !== id) continue;
+      exception.patch.category_id = JELLY_UNCATEGORIZED_ID;
+      edit.series.add(series);
+    }
+  }
+  for (const note of state.notes) {
+    if (note.category_id !== id) continue;
+    note.category_id = JELLY_UNCATEGORIZED_ID;
+    note.revision++;
+    note.updated_at = now;
+    edit.notes.add(note);
   }
 }

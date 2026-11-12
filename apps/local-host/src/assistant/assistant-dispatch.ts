@@ -185,7 +185,11 @@ export class AssistantDispatch {
     }
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    let base = await this.ports.authority(work, undefined, replyLocale);
+    // The Skills the person chose for this round, by their exact references: the round's named list, so a `manual` one can be read
+    // (`skill_round.named`, specs/capability-pack/contract-design.md §2.3). A Skill the page sent without the person choosing it is not one.
+    const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
+      ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
+    let base = await this.ports.authority(work, undefined, replyLocale, namedSkills);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
 
     const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart || sourceHandoff ? { ...base, beforeStart: async () => {
@@ -201,7 +205,7 @@ export class AssistantDispatch {
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
       // Action ownership includes the newly created session, also on the very first round.
-      base = await this.ports.authority(work, undefined, replyLocale); authority = startAuthority();
+      base = await this.ports.authority(work, undefined, replyLocale, namedSkills); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));

@@ -6,6 +6,7 @@ export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
 import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
@@ -117,7 +118,7 @@ export interface HomePageSubject {
 }
 
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
-export interface ActionCallContext extends ActionCallOrigin {
+export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
   /** Host-only capture for one exact subject-state call; never business input. */
   readonly subject_state_capture?: import("./action-subjects.js").SubjectStateCapture;
   readonly actor_id: string;
@@ -243,7 +244,7 @@ export interface RetainedActionAuthority {
   readonly assertCurrent: () => void;
 }
 
-export interface ActionExecutionContext extends ActionCallContext {
+export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
   /** Kernel-issued, once while this handler is active; only a synchronous owner reader. */
   readonly provideSubjectState?: (current: () => import("./action-subjects.js").ActionSubjectCurrentState) => void;
   readonly beforeEffect: () => Promise<void>;

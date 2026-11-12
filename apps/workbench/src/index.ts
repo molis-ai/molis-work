@@ -92,6 +92,7 @@ export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 export { renderMolisWorkKitClientScript } from "./settings-kit.js";
+export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 
@@ -105,3 +106,6 @@ export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";
+
+export { accountCacheOwner, ACCOUNT_CACHE_SCOPE_MISSING } from './account-cache-owner.js';
+export { pageSessionScope } from './account-cache-key.js';

@@ -213,6 +213,7 @@ export const agentReviewsRoute: WebRoute<ProjectRuntimeContext> = { id: "agent-r
   await agentReady();
   const projectId = options.projectId;
   return handleAgentReviewHttp(request, response, url, {
+    host: localHost,
     projectId,
     agentHost,
     actorId: LOCAL_PERSON_ACTOR_ID,

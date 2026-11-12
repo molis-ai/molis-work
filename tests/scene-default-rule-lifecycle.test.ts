@@ -3,7 +3,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { collectRetained, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { publishedFunctionReference } from "@molis-ai/molis-work-module-judgment-rules";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 import { DECLARED_RULE_OPTIONS as OPTIONS, declaredRule, declaredScene } from "./fixtures/declared-rules.js";
@@ -106,7 +106,9 @@ async function twoInstalls(t: test.TestContext) {
 test("RAC-504 a project's uninstall takes only its own bindings: another project's install keeps the rule, and the last installation to go takes it", { timeout: 120_000 }, async t => {
   const r = await twoInstalls(t);
 
-  await r.projectA.platform.runtime.uninstall(r.installId, { retain_private_data: false });
+  // B27-UN-02: the rule B still holds is said to the person taking it off in A, by kind and reason.
+  assert.deepEqual(await collectRetained(r.a.project_id, r.installId, async () => { await r.projectA.platform.runtime.uninstall(r.installId, { retain_private_data: false }); }),
+    [{ kind: "declared_rule", reason: "other_holder" }]);
   assert.equal(r.bound(r.key, r.a.project_id), false, "A's own binding goes with A's data");
   r.stillB();
 

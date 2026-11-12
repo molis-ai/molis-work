@@ -404,7 +404,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           if(request.method!=='GET'){sendLocalWebJson(response,405,{error:'不支持此操作。'});return;}
           const identity=selected.session?.auth.identity();
           const personal=identity?personalStorageSpace(personalCloudConfig()!.authOrigin,identity.applicationId,identity.userId):null;
-          sendLocalWebJson(response,200,{current:selected.space,spaces:personal?[personal]:[],syncEnabled:false});return;
+          sendLocalWebJson(response,200,{current:selected.space,spaces:personal?[personal]:[]});return;
         }
         // A stale page cannot use another scope's control token, including on GET APIs.
         const supplied=request.headers['x-molis-work-control-token'];

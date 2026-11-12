@@ -81,6 +81,8 @@ test('installed and authoring model calls bind their own release through the rea
   const one = await ensureInstalledPlugins({ store: a.store, projectId: a.id, homeDirectory: home, actions: a.actions });
   const two = await ensureInstalledPlugins({ store: b.store, projectId: b.id, homeDirectory: home, actions: b.actions });
   await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
+  // `generate` calls the model through a platform capability, a switch that starts off (BL-701).
+  for (const host of [one, two]) for (const record of host.platform.runtime.list()) await host.platform.runtime.regrant(record.install_id, 'capabilities:call', true);
   const invoke = (p: typeof a, version: number, prompt = 'summary') => p.service.invoke({ actor_id: 'person', audience: 'user', project_id: p.actions.project_id, permissions: [] },
     { capability_id: exposedActionId(v1, 'generate'), version, provider_id: 'plugin:' + pluginId }, prompt);
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_ONE/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_TWO/);

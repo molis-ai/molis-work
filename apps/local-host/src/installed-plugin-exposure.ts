@@ -5,10 +5,12 @@ import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-bui
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { followInstalledActions } from './installed-action-registration.js';
+import { operationGrantAvailability } from './installed-permission-projection.js';
+import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 interface ExposurePorts {
   actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
-  exposed: Map<string, InstalledPluginActions>; recoveryErrors: Map<string, string>;
+  exposed: Map<string, InstalledPluginActions>; recoveryErrors: RecoveryErrors;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   closed(): boolean; withdraw(pluginId: string): void; changed(): void; catalog(): Promise<unknown>;
 }
@@ -35,14 +37,16 @@ export function installedPluginExposure(c: ExposurePorts) {
           await c.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + id + '/call', actor_id: context.actor_id, execution, body: { operation, input } })
           ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
       },
-        () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation });
+        () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation },
+        // Read at each call: a permission switch restarts the activation but keeps this exposure (BL-701).
+        id => operationGrantAvailability(release.design.contract, id, c.recordFor(pluginId)?.grants ?? []) ?? { available: true });
       c.exposed.set(pluginId, exposure); c.changed();
       await c.catalog();
       exposure.assertReady();
       if (!current()) throw new ActionError('actions.provider_replaced', '原插件曝光已失效，不能采用旧目录结果');
     } catch (error) {
       if (current()) {
-        c.recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error));
+        c.recoveryErrors.set(pluginId, error);
         // Install/enable owns their cleanup; a version switch restores its old release and keys instead of revoking itself first.
         if (onFailure !== 'caller') {
           c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);

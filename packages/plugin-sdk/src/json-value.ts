@@ -3,6 +3,18 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Parse stored JSON text, or answer `fallback` when the value is not a string or the text is not JSON. Owners read JSON
+ * columns here: a broken or missing value must not take the reader down. The result is cast, not validated: pair it with
+ * `isRecord` (or a declaration check) where the caller acts on fields. */
+export function parseJson<T>(value: unknown, fallback: T): T {
+  if (typeof value !== "string") return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Raw UTF-16 code unit order, the same on every host whatever its language. Anything that ends up in a digest, a
  * signature or a stored comparison sorts with this; `localeCompare` is only for what a person reads. */
 export function compareCodeUnits(left: string, right: string): number {

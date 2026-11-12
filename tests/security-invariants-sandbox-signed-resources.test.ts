@@ -91,7 +91,11 @@ async function rig(t: TestContext) {
     project: (name: string) => served.createProject(name), projectSet: (projectId: string, input: unknown) => served.web.post(`/projects/${projectId}/api/plugin-trust/permissions/set`, input),
     install: (pkg = bundle()) => h.install(pkg),
     list: () => served.web.post<{ plugins: Array<{ plugin_id: string; permissions: Array<{ permission: string; requested: boolean; granted: boolean }> }> }>("/api/settings/plugin-permissions/list", {}),
-    control: (action: string, keep_data?: boolean, id = ID) => served.web.post(`/api/settings/plugin-permissions/${action}`, { plugin_id: id, ...(keep_data === undefined ? {} : { keep_data }) }),
+    // An uninstall names the row's installation, as the 插件 page does (BL-915); a row whose clean-up did not finish is still listed with it.
+    control: async (action: string, keep_data?: boolean, id = ID) => {
+      const target = action === "uninstall" ? (await served.web.post<{ plugins: Array<{ plugin_id: string; uninstall_target?: unknown }> }>("/api/settings/plugin-permissions/list", {})).plugins.find(row => row.plugin_id === id)?.uninstall_target : undefined;
+      return served.web.post(`/api/settings/plugin-permissions/${action}`, { plugin_id: id, ...(keep_data === undefined ? {} : { keep_data }), ...(target ? { target } : {}) });
+    },
     async reopen() { await served.close(); await h.reopen(); served = await serveTestHost(null, { home: h.home, host: h.host }); } };
 }
 const writeFile = (text: string, path = "notes.txt", mode = "create") => ({ op: "files.write", changes: [{ op: "write", path, data_base64: Buffer.from(text).toString("base64"), mode }] });
@@ -167,6 +171,37 @@ test("RAC2866 RAC2870 real signed Home databases persist and remain isolated; in
   }
   await assert.rejects(r.install(bundle(publisher, { id: ID + ".foreign", schema: "CREATE TABLE own(id REFERENCES project_root(project_id));" })), { code: "plugin.project_database.declaration_invalid" });
   assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "one" }]);
+});
+
+test("B27-UN-02 S-94 keeping data keeps the plugin's own Home library; discarding removes its files, directory and ledger row only when the row and verified Manifest agree, and an unknown file keeps it", mac, async t => {
+  const r = await rig(t), publisher = newPublisher(), pkg = bundle(publisher), second = ID + ".second";
+  const store = "sbxdb-" + createHash("sha256").update(ID).digest("hex").slice(0, 32), dir = join(r.h.home, store);
+  const ledgerRow = () => { const ledger = new DatabaseSync(homeSqlitePath(r.h.home, "plugin-libraries"), { readOnly: true });
+    try { return ledger.prepare("SELECT store_name FROM plugin_home_libraries WHERE plugin_id=?").get(ID); } finally { ledger.close(); } };
+  await r.install(pkg); await r.approve(); await r.call({ op: "db.write", text: "one" });
+  await r.install(bundle(publisher, { id: second })); await r.approve(second); await r.call({ op: "db.write", text: "beside" }, second);
+  await r.control("uninstall", true);
+  assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
+  await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "one" }]);
+  assert.deepEqual(await r.control("uninstall", false), { plugin_id: ID, state: "uninstalled" }, "nothing stayed behind, so nothing is reported");
+  assert.equal(existsSync(dir), false, "the library directory, its database and sidecars are gone"); assert.equal(ledgerRow(), undefined);
+  assert.deepEqual(await r.query({ op: "db.read" }, second), [{ text: "beside" }], "another plugin's library is untouched");
+  await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [], "a reinstall starts from an empty library");
+  await r.call({ op: "db.write", text: "two" });
+  const stray = join(dir, "notes.txt"); writeFileSync(stray, "not the Host's");
+  assert.deepEqual(await r.control("uninstall", false), { plugin_id: ID, state: "uninstalled", retained: [{ kind: "home_library", reason: "ownership_unverified" }] });
+  assert.equal((await r.h.host.homePlugins!.ready()).runtime.list().some(row => row.plugin_id === ID && row.state !== "uninstalled"), false, "the uninstall itself finishes");
+  assert.equal(readFileSync(stray, "utf8"), "not the Host's"); assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
+  unlinkSync(stray); await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "two" }], "a kept library is the same one");
+  await r.control("uninstall", false); assert.equal(existsSync(dir), false); assert.equal(ledgerRow(), undefined);
+  // With its kept package gone, nothing proves which library the installation owned: it is kept and said so, and the uninstall still finishes.
+  await r.install(pkg); await r.approve(); await r.call({ op: "db.write", text: "three" });
+  const { publisher_signature, version } = r.record();
+  rmSync(join(r.h.home, "plugin-packages", createHash("sha256").update(JSON.stringify([ID, publisher_signature, version])).digest("hex").slice(0, 32)), { recursive: true });
+  await r.reopen();
+  assert.deepEqual(await r.control("uninstall", false), { plugin_id: ID, state: "uninstalled", retained: [{ kind: "home_library", reason: "ownership_unverified" }] });
+  assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
+  assert.deepEqual(await r.query({ op: "db.read" }, second), [{ text: "beside" }]);
 });
 
 test("RAC2868 true signed slots use the person's existing service binding over controlled HTTPS, and materials read/fetch/local/original retain their real Host gates", mac, async t => {

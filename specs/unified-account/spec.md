@@ -1,6 +1,6 @@
 # Work 统一账号接入
 
-状态：安装登录与 Home 的 V2 账号统一已实现；2026-11-10 最高／高／中账号专项验证及修复已推进，证据见 [当前回归记录](v2-regression-20261110.md)。最终 PR 全量回归仍未完成，不能声明全仓全绿；下文历史全量和 WORK 记录仅证明对应版本。不做 V1 兼容或真实存量迁移。
+状态：安装登录与 Home 的 V2 账号统一已合入 main（2026-11-11，`ef06fed603`/#2013、`93eb5590ac`/#2021、`4d025ff4c6`/#2025；配套 Auth #5），#2013 与 #2021 的常规 CI、32 分片 Full suite 与合并队列通过；#2025 与最终候选只跑了常规 CI 与合并队列，最终候选的 Full suite 与最终全量回归仍待补验，证据见 [当前回归记录](v2-regression-20261110.md)。余项：未部署、不接真实存量与 V1 兼容（按设计不读取、不迁移）；真实渠道、Tauri 安装包端到端与真实账号验收仍待后续阶段，外部服务保持 mock；下文历史全量和 WORK 记录仅证明对应版本。
 
 后续执行按 Auth 仓库 `docs/unified-account/implementation-plan.md` 第 11 节，T-01 至 T-07 状态以其交付台账为准。本仓库仍遵守 [AGENTS.md](../../AGENTS.md)、[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)和[并行开发规范](../../docs/system/PARALLEL-DEVELOPMENT.md)；当前先做集成收尾，代码与合同变化后须核对对应版本的验证证据。
 
@@ -138,7 +138,7 @@ Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开�
 
 最终验证（2026-11-05）：整体构建、包边界、相对 `origin/main` 的健康门禁、公开 API 快照、源码/构建混用、资源与 diff 检查通过。真实 Auth/WASM/D1 + 临时 Home + Chrome 的 WORK-05 资料安全联调通过；原 WORK-02 持久会话、WORK-03 注册登录/找回及 WORK-04 第三方回跳的真实联调再次通过。账号客户端 14 项、会话 23 项、Host 安全 12 项以及动作快照 25 项全部通过。
 
-单进程点名回归 423 个文件，首轮 420 个通过。`tests/action-read-compatibility.test.ts` 对新增账号查询补充了明确断言：本地历史数据夹具没有中央账号配置时必须返回 `account.invalid_configuration`，其他查询和拒绝检查保持；真实登录方式读取由上述 Auth 联调验证。修正后该文件 6/6 通过，合并计算最终 421/423 个文件通过、4,309 项通过、两项未通过、两项既有可选验证跳过（未安装 Grok CLI、未启用公网沙箱探测）。未运行 CI Full suite，不将定向回归表述为全仓全部通过。
+单进程点名回归 423 个文件，首轮 420 个通过。`tests/action-read-history.test.ts` 对新增账号查询补充了明确断言：本地历史数据夹具没有中央账号配置时必须返回 `account.invalid_configuration`，其他查询和拒绝检查保持；真实登录方式读取由上述 Auth 联调验证。修正后该文件 6/6 通过，合并计算最终 421/423 个文件通过、4,309 项通过、两项未通过、两项既有可选验证跳过（未安装 Grok CLI、未启用公网沙箱探测）。未运行 CI Full suite，不将定向回归表述为全仓全部通过。
 
 两项未通过均在独立、干净的 `4fd250564e8f48577f9f95d041106569773fcd1d` 基线、相同 Node/Swift/Chrome 环境下复现：`security-invariants-knowledge-lifecycle.test.ts` 的删除后停止知识任务在 60 秒超时；`model-first-setup.e2e.test.ts` 的知识卡为 `pending` 而非 `ready`，并伴随 `knowledge.organize` 的 `ERR_OUT_OF_RANGE`。未修改或跳过这两项测试。对照完成后临时基线工作树已清理。
 
@@ -295,7 +295,7 @@ WORK-09 最终门禁：相对 `origin/main` 的健康、包边界、公开 API�
 
 ## T-01 远端评审与最终集成（2026-11-06）
 
-本轮已将主线 `d82329833844a7dee4c7df56a2d9568b636d9957` 合入账号分支。`action-read-compatibility` 的冲突同时保留账号参数拒绝和主线动作版本 1 的断言；公开 API 与动作快照按构建结果核对，中央合同仍为 1.1.0。整体构建、相对该主线的健康、包边界、67 份公开 API 快照、48 个合同测试文件、资源、版本与逐提交密钥扫描通过。资源仍为 51 项、7,442,218 字节，无新增增长授权。
+本轮已将主线 `d82329833844a7dee4c7df56a2d9568b636d9957` 合入账号分支。`action-read-history` 的冲突同时保留账号参数拒绝和主线动作版本 1 的断言；公开 API 与动作快照按构建结果核对，中央合同仍为 1.1.0。整体构建、相对该主线的健康、包边界、67 份公开 API 快照、48 个合同测试文件、资源、版本与逐提交密钥扫描通过。资源仍为 51 项、7,442,218 字节，无新增增长授权。
 
 独立前置评审为 [K-06 #1842](https://github.com/molis-ai/molis-work/pull/1842)、[既有资源放行 #1843](https://github.com/molis-ai/molis-work/pull/1843)、[FTS 整数处理 #1844](https://github.com/molis-ai/molis-work/pull/1844)；中央服务为 [Auth #2](https://github.com/molis-ai/auth/pull/2)，Club 为 [#27](https://github.com/molis-ai/molis-club/pull/27)。前置与账号最终集成的 CI 必须分别绑定实际提交，不能把排队或运行中写成通过；最新运行链接、结果和最终源码摘要统一维护于 Auth 的交付台账。
 

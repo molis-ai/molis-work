@@ -188,7 +188,7 @@
 
 起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准：
 
-- 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
+- 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`，以及别的工作区包的 `./contract`，BL-901 起）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
 - 动作合同快照（每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`）：**已就位**（路线图 W2-15，门禁见第 3 节第 6 条）。阶段一形状变了而版本没变，检查仍逐条显示差异，PR 写清对已保存引用和调用方的影响。阶段二按第 4 节的规则升版本。
 - 插件回放工具与样本集（路线图 W4-01）。
 - **提议（未经用户确认，见第 4 节第 5 条）：** 兼容标记门禁改成允许「带窗口编号、登记表里有对应行」的标记，其余仍只许减少。现在的门禁一律只许减少，起点之后的第一段兼容会被它拦住；放宽门禁要另开 PR，改 `tooling/gates/` 与门禁脚本，请求 @yijunw0212 评审。

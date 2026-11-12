@@ -187,6 +187,14 @@ export declare const homePageActions: {
     readFiles: ActionDefinition<HomePageRef, HomePageFilesResult>;
 };
 
+export declare const servicesHomeContract: {
+    readonly contractId: "io.molis.work.service.home.v1";
+    readonly kind: "service";
+    readonly schemaVersion: 1;
+    readonly maturity: "contract-only";
+    readonly ssot: "specs/scene-and-page-contract/spec.md";
+};
+
 // Declarations the exports above refer to, which no entry exports itself:
 
 declare const approvalOperations: readonly ["adopt", "restore"];

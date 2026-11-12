@@ -43,8 +43,9 @@ export function installSlides(page: PptPage): void {
   page.setColor = (root, value) => {
     if (!(root instanceof HTMLElement)) return;
     root.dataset.value = value;
+    const hex = value.toLowerCase();
     root.querySelectorAll<HTMLElement>("[data-ppt-swatch]").forEach((button) => {
-      button.setAttribute("aria-checked", String(button.dataset.pptSwatch === value));
+      button.setAttribute("aria-checked", String(button.dataset.pptSwatch?.toLowerCase() === hex));
     });
   };
 

@@ -12,4 +12,12 @@ export const PLUGIN_TRUST_SETTINGS_STYLES = `
   .plugin-trust-settings .plugin-trust-review h3 { margin: 0; font-size: 15px; font-weight: 600; }
   .plugin-trust-settings .plugin-trust-pin { display: flex; flex-direction: column; gap: 6px; }
   .plugin-trust-settings .plugin-trust-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .plugin-trust-settings .plugin-trust-list > li.plugin-trust-result { padding: 8px 0 12px; }
+  .plugin-trust-settings .plugin-trust-list > li.plugin-trust-result:is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+  .plugin-trust-settings .plugin-trust-kept { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+  .plugin-trust-settings .plugin-trust-kept > li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; row-gap: 2px; padding: 6px 0; overflow-wrap: anywhere; }
+  .plugin-trust-settings .plugin-trust-kept > li + li { border-top: 1px solid var(--line); }
+  .plugin-trust-settings .plugin-trust-kept > li > svg { grid-row: span 2; width: 16px; height: 16px; margin-top: 2px; color: var(--muted); }
+  .plugin-trust-settings .plugin-trust-kept > li > strong { font-size: 13px; font-weight: 500; color: var(--ink); }
+  .plugin-trust-settings .plugin-trust-kept > li > span { font-size: 12px; line-height: 18px; color: var(--muted); }
 `;

@@ -10,7 +10,7 @@
 | `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
 | `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
-| `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
+| `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK，以及别的工作区包的 `./contract` 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `schemas/stores.tsv` | 这个构建会建的每个库的结构快照（位置、主人、版本、结构哈希、升级段的 `from`） | `pnpm schemas:update`（见「库的结构快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
@@ -18,6 +18,14 @@
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
 | `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 | `sqlite-driver-owners.json` | 允许直接 import `better-sqlite3` 的目录（以 `/` 结尾）和理由：今天只有 `plugins/native/alchemist/`（已有审批的私有驱动，BL-377 重做前保留；其余项目库连接已由 storage 统一走 `node:sqlite`）。文件缺失、形状或理由不合格时 `pnpm boundary:check` 直接失败（`scripts/gates/project-sqlite-driver.mjs`） | 人，过评审；新增一个例外要加一条带理由的目录 |
+
+## 宿主源码行数报告（A2）
+
+`pnpm health:check` 显示 `apps/local-host/src/` 的总行数。有实际 merge-base 时，同时显示基点行数和净变化。按用户 2026-11-01 的决定，增长只报告。本地快查不保存这项数字。
+
+在 Git 跟踪的文件里统计 `.ts`、`.mts`、`.cts`、`.tsx`、`.js`、`.mjs`、`.cjs` 和 `.jsx`，各级目录中的生成源码、夹具、测试和声明都计入。空行、注释和未以换行结束的末行各算一行。LF 和 CRLF 都只换一次行，尾换行不多算一行，空文件是零行。
+
+`node scripts/check-health-gates.mjs --base origin/main --report` 按行数变化幅度列出变更文件，可以用 `--top N` 收窄。Git 识别到范围内的改名时，同时显示两个路径。省略 `--base` 则列当前文件的行数。再加 `--json` 可从 `hostLines` 读取两份总量与逐文件计数、净变化和变更明细。JSON 的明细完整输出。
 
 ## 按文件计数、只许减少的项
 
@@ -132,7 +140,7 @@
 
 ## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
 
-分两半，每一项都要是 1，差一个就失败。扫描范围与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。测试文件只在两条边界都不扫时才跳过：那份共用的测试边界，和这个门禁原来的「任意深度的 `tests/`、`fixtures/` 目录」。所以包顶层 `tests/`、`fixtures/` 里的不扫；`*.test.*`、`test.*`、包顶层 `test/` 不在这两种目录里的照扫（如 `apps/sync-worker/*.test.mjs`），`src/tests/`、`src/fixtures/` 也扫。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
+分两半，每一项都要是 1，差一个就失败。扫描范围与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。测试文件只在两条边界都不扫时才跳过：那份共用的测试边界，和这个门禁原来的「任意深度的 `tests/`、`fixtures/` 目录」。所以包顶层 `tests/`、`fixtures/` 里的不扫；`*.test.*`、`test.*`、包顶层 `test/` 不在这两种目录里的照扫（如 `apps/sync-worker/*.test.mjs`），`src/tests/`、`src/fixtures/` 也扫。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。同一门禁也扫所有 `/* @version <entry> */` 标记紧邻的整数字面量（不只看 `*VERSION` 常量名；数值字符串也算，「恰好长成标记样子的注释在模板串里」不归它，`version-exceptions.json` 的内联例外也不适用）：持久化格式的条目 >1 要有连续升级段和旧版本金样，其余必须为 1；未登记的 `database.*` 条目这个门禁跳过（库版本由 store-schemas 与金样回放管，UPG-01）。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
 
 持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件的常量：`ONBOARDING_SCHEMA_VERSION`、`PROJECT_ARRIVAL_SCHEMA_VERSION`、`BROWSER_SITES_VERSION`、`COMPUTER_SETTINGS_VERSION`、`COMPUTER_RECORD_VERSION`、`MODEL_PREFERENCE_SCHEMA_VERSION`（`jelly/preferences.json`），按 `文件#名字` 认，别处的同名常量不算；还有三项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记由 `registeredUpgradeChains` 从源码读（`X_VERSION` 配同一文件的 `const X_UPGRADES` 数组，基线对象读 `upgrades`，和上一节同一个读法 `upgrade-steps.mjs`，读不出来的算没有链），接在这两半；`replay_passed` 读金样（U2-d）：`tests/fixtures/golden-homes/<版本>/manifest.json` 的 `formats` 按 `tooling/versions.json` 的条目名记着每个持久化格式的版本（位置写在 `scripts/golden/formats.mjs`，生成时读主人存版本的地方），从 1 到链的版本减 1，每个都要有一份金样存着，才是真；缺哪几个，提示里写出来。库那条（UPG-01）只要升级前的那个版本，两边不一样是有意的：UPG-01 和 merge-base 比，知道这次从哪个版本升；这条只读一棵树，只有每个都要才漏不掉。清单里记的版本由回放核对：还原后用生成时的读法把记下的每一项重读一遍，不符、读不出来或没有读法就失败（`golden.recorded_version_mismatch`）；没记的不核，所以格式表以后加条目不会让老金样失败，条目换位置或改名则要给老位置留读法。回放本身是 `golden-replay` 作业，`Verify` 要它过，所以这里只证明有东西可回放，不证明回放过了。`config/installation.json`（安装器写的，金样是跑宿主生成的）和 `search/`（可重建，快照不收）金样存不了，`computer/` 的两个文件第一份金样还没有（BL-golden-computer-settings），这几项大于 1 现在都过不了；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
 
@@ -188,7 +196,7 @@
 
 ## 公开 API 快照
 
-`api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。
+`api/` 下每个 contracts 的 subpath（`packages/contracts/package.json` 的 `exports`）和插件 SDK 各一个文件，如 `api/contracts/platform/plugin.txt`、`api/plugin-sdk/index.txt`。别的工作区包（按根的 `pnpm-workspace.yaml` 找，测试根也一样，不写名单）只收它声明的精确 `./contract` 子路径，记在包目录下，如 `api/plugins/native/feed/contract.txt`、`api/modules/shelf/contract.txt`（BL-901）：插件或 Module 给调用方的合同；根入口、登记、样式等别的子路径不收。这些包都是 private，外部插件作者仍只装 contracts 与 SDK；快照只让工作区调用方依赖的合同变化不再悄悄发生。
 
 - 内容：用编译器对包自己的源码做声明输出（不需要先构建，`paths` 把包名指到 `src/`，旧的 `dist/` 不会被读到），**去掉注释**。每个导出名一段，按名字排序：函数签名、接口的每个字段、常量的类型或字面值都在里面。改注释或函数体不改变快照。
 - 一个名字有几条声明就写几段，一条不漏：函数的每个重载（按源码里的先后写，因为重载的顺序决定调用落到哪一个）、同名的类型和常量（`export const X = [...] as const; export type X = …`）、同一个声明以两个名字导出（别名那一段末尾注明 `exported from this entry as`）。重载的实现签名不是 API，不记。

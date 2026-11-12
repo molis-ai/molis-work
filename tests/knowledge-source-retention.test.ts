@@ -123,8 +123,8 @@ test("A4-K unavailable/missing state retains adopted cards; withdrawn current pr
   const client = host.actionClient(reference);
   let person = await host.localPersonContext(reference), agent: ActionCallContext = { ...person, audience: "agent" };
   const freshCaller = async () => { person = await host.localPersonContext(reference); agent = { ...person, audience: "agent" }; };
-  const source = defineSearchEntriesAction("a4.entries", [{ kind: "a4_document", title: "资料", surface: "a4" }], "资料", ["artifact:read"]);
-  const reader = defineSubjectContextAction("a4.read", "a4_document", "资料", ["artifact:read"]);
+  const source = defineSearchEntriesAction("a4.entries", 1, [{ kind: "a4_document", title: "资料", surface: "a4" }], "资料", ["artifact:read"]);
+  const reader = defineSubjectContextAction("a4.read", 1, "a4_document", "资料", ["artifact:read"]);
   const state = { ...reader, capability_id: "a4.state", version: 1, action: { ...reader.action, input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_STATE_TYPE, input_schema: SUBJECT_STATE_INPUT_SCHEMA, output_schema: SUBJECT_STATE_OUTPUT_SCHEMA } };
   const subject = { kind: "a4_document", id: "one" };
   let listed = true, available = true, hold = false;
@@ -205,7 +205,7 @@ test("A4-K a current legacy reader without a search source keeps the raw-subject
   const { defineSubjectContextAction, subjectContext } = await import("@molis-ai/molis-work-contracts/platform/actions");
   const home = await openTestHome(t, { catalogPolicy: false }), project = await home.createProject("reader only");
   const host: MolisWorkLocalHost = home.host;
-  const reader = defineSubjectContextAction("legacy.body", "legacy_document", "原资料", ["artifact:read"]), subject = { kind: "legacy_document", id: "direct" };
+  const reader = defineSubjectContextAction("legacy.body", 1, "legacy_document", "原资料", ["artifact:read"]), subject = { kind: "legacy_document", id: "direct" };
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.reader-only", version: "1.0.0", name: "reader only",
     kind: "app", publisher: { publisher_id: "example", signature: "reader-only" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "artifact:read", required: false, reason: "读取" }], actions: [reader], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

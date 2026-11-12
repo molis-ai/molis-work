@@ -115,14 +115,14 @@ export class AgentDefinitions {
     this.refreshOwner(ownerId);
   }
 
-  /** Settings show one editable key; execution resolves the calling installation's declaration separately. */
+  /** Settings share one editable key across installations. Execution resolves the calling installation's declaration. */
   private refreshOwner(ownerId: string): void {
     const declarations = [...(this.scopes.get(ownerId)?.values() ?? [])];
     if (!declarations.length) { this.scopes.delete(ownerId); this.owners.delete(ownerId); return; }
     const enabled = declarations.filter(owner => owner.source.kind !== "plugin" || owner.source.state === "enabled");
     const preferred = enabled.length ? enabled : declarations;
     const prompts = new Map<string, AgentPromptRegistration>();
-    // Keep older-only prompts editable too; an enabled declaration takes precedence over a disabled one.
+    // Keep prompts unique to any declaration editable. Enabled declarations take precedence on shared IDs.
     for (const group of [declarations, preferred]) {
       const selected = new Map<string, AgentPromptRegistration>();
       for (const owner of group) for (const prompt of owner.prompts) {
@@ -186,6 +186,8 @@ export class AgentDefinitions {
   /**
    * Methods running owners declare for business work, one per declaring installation for a signed package's. Not a reference: who may
    * read one, and its exact `SkillRef`, are the shared catalog's (`skills.catalog.list@1`), which reads the bodies with `installation`.
+   * Since 9-2 the Assistant and Coding read the catalog, so nothing in production calls this: it is the register's own read view,
+   * kept for tests and the development pages. A new consumer should read the catalog instead of adding one.
    */
   methods(): AgentSkillView[] {
     const view = (owner: AgentDefinitionRegistration, method: AgentSkillRegistration, install_id?: string): AgentSkillView => ({ key: keyOf(owner.owner_id, method.skill_id),
@@ -281,12 +283,16 @@ export class AgentDefinitions {
     return this.instructionForDeclaration(ownerId, prompt, caller, locale, deferUse);
   }
 
-  /** Host-selected release declaration, never a prompt body supplied by a model action's business input. */
+  /**
+   * Host-selected release declaration, never a prompt body supplied by a model action's business input. With `deferUse` the caller records the use
+   * when the call it was read for is dispatched; a retried dispatch hook records one use, and a call refused before dispatch records none.
+   */
   instructionForDeclaration(ownerId: string, prompt: Pick<AgentPromptRegistration, "prompt_id" | "version" | "kind" | "body" | "body_by_locale">, caller: string, locale?: string, deferUse?: (record: () => void) => void): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
     const selected = { body: edited?.body ?? agentBodyIn(prompt, locale), version: prompt.version, user_revision: edited?.revision ?? null };
-    const record = () => this.uses.record({ key, version: selected.version, user_revision: selected.user_revision, caller, at: this.now().toISOString() });
+    let recorded = false;
+    const record = () => { if (recorded) return; recorded = true; this.uses.record({ key, version: selected.version, user_revision: selected.user_revision, caller, at: this.now().toISOString() }); };
     if (deferUse) deferUse(record); else record();
     return selected;
   }

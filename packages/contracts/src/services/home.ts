@@ -6,7 +6,17 @@ import {
   type ContentAdoptionInput, type ContentAdoptionQuery, type ContentAdoptionReadResult, type ContentAdoptionResult,
 } from "../platform/blueprints.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
+import type { ContractDescriptor } from "../platform/package.js";
 import type { SandboxSchema } from "../platform/plugin-sandbox.js";
+
+/** The homepage service's public contract (specs/scene-and-page-contract/spec.md §6): the basic homepage, generated page versions and their approval; the page's run is batch 37's. */
+export const servicesHomeContract = {
+  contractId: /* @version contract.io.molis.work.service.home "io.molis.work.service.home.v{version}" */ "io.molis.work.service.home.v1",
+  kind: "service",
+  schemaVersion: /* @version contract.io.molis.work.service.home */ 1,
+  maturity: "contract-only",
+  ssot: "specs/scene-and-page-contract/spec.md",
+} as const satisfies ContractDescriptor;
 
 export const HOME_PAGE_CONTENT_TYPE = /* @version type.molis.home-page "molis.home-page.v{version}" */ "molis.home-page.v1";
 export const HOME_PAGE_LIMITS = { files: 64, fileBytes: 1024 * 1024, totalBytes: 4 * 1024 * 1024 } as const;

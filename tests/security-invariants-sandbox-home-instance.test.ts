@@ -108,13 +108,13 @@ test("RAC-966 RAC-2644 S-91 S-107 without a triggering project and its consent, 
   const homeRead = reads(await h.homeClient().discover(caller), "home"), projectRead = reads(await h.projectClient().discover(h.projectCaller()), "project");
   assert.ok(homeRead && projectRead, "the Host offers a read of each range");
 
-  await h.install(reaching(newPublisher(), { "probe.home": homeRead.capability_id }));
+  await h.install(reaching(newPublisher(), { "probe.home": homeRead.capability_id })); await h.switchOn(PACKAGE_PLUGIN_ID, "capabilities:call");
   const views = await operationsOf(h.homeClient(), caller);
   assert.notEqual(await operate(h.homeClient(), caller, views, "probe.home", {}), "plugin_builder.capability_denied", "a read of the Home's passes");
 
   // A package naming an action of a project installs (the Home cannot know what a person's projects will hold), but the Home's catalog does
   // not have it: the operation that depends on it is refused before any code runs, and the one that does not depend on it is not affected.
-  await h.install(reaching(newPublisher(), { "probe.project": projectRead.capability_id }, SECOND_PLUGIN_ID));
+  await h.install(reaching(newPublisher(), { "probe.project": projectRead.capability_id }, SECOND_PLUGIN_ID)); await h.switchOn(SECOND_PLUGIN_ID, "capabilities:call");
   const second = await operationsOf(h.homeClient(), caller, SECOND_PLUGIN_ID);
   await assert.rejects(operate(h.homeClient(), caller, second, "probe.project", {}), (error: { code?: string; message?: string }) =>
     error.code === "plugin_builder.capability_unavailable" || /这项功能依赖的能力当前不可用/.test(error.message ?? ""));

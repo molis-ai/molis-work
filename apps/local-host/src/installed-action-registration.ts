@@ -5,6 +5,7 @@ import type { ProjectActions } from './plugin-builder/catalog.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { definitionOrigin, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
+import { operationGrantAvailability } from './installed-permission-projection.js';
 
 // Only the Host's actual sandbox definition has a released contract (the Runtime's view of it counts as it). Nothing decoded from a
 // package supplies this port.
@@ -45,7 +46,8 @@ export function registerInstalledActions(definition: PluginDefinition, contribut
     }));
   }, caller => resolved ? registration.availability?.(caller) ?? { available: true }
     : { available: false, code: 'actions.plugin_unavailable', reason: '插件的实际依赖尚未完成注册' }, record, (id, caller) => {
-    return registration.handlers.find(item => item.capability_id === exposedActionId(release, id))?.availability?.(caller) ?? { available: true };
+    return operationGrantAvailability(release.design.contract, id, record.grants)
+      ?? registration.handlers.find(item => item.capability_id === exposedActionId(release, id))?.availability?.(caller) ?? { available: true };
   });
   const refresh = exposed.refresh;
   exposed.refresh = policies => { const changed = refresh(policies); resolved = true; return changed; };

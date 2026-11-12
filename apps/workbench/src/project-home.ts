@@ -30,7 +30,6 @@ export function renderProjectHome(name: string, { escapeHtml: e, icon }: Immersi
             <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
           </section>
           <section class="placement-related" data-placement-related aria-label="${uiText("workbench.project-home.linked-materials")}" hidden></section>
-          <p class="home-margin-note">${icon("shield")}${uiText("workbench.project-home.pace-workspace")}</p>
         </aside>
         <section class="home-tl" aria-label="${uiText("workbench.project-home.today-s-events")}">
           <div class="home-tl__head"><h2>${uiText("workbench.project-home.today-s-events")}<small data-home-list-count></small></h2><span data-home-list-stats></span></div>

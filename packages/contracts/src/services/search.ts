@@ -16,6 +16,18 @@ export const SEARCH_READ_PERMISSION = "search:read";
 export const SEARCH_MANAGE_PERMISSION = "search:manage";
 export const SEARCH_PERMISSIONS = [SEARCH_READ_PERMISSION, SEARCH_MANAGE_PERMISSION] as const;
 
+/**
+ * What a route resolver refuses with when its own route cannot serve this request (the provider is unavailable): the one
+ * `SearchError` input the Host's web-query route (search-query-routes.ts) and the RSS integration's exact route
+ * (official-integrations/rss/src/exact-source-routes.ts) throw with, so the two cannot answer differently.
+ */
+export const SEARCH_PROVIDER_UNAVAILABLE = {
+  code: "provider_unavailable",
+  retryable: false,
+  sideEffectState: "none",
+  recoveryAction: "change_provider",
+} as const;
+
 /** `all` is the caller's project plus personal content; a caller without a project only has personal content. */
 export type SearchScope = "project" | "personal" | "all";
 export interface SearchQueryRequest {

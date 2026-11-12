@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionCallContext, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * One running instance of a Plugin. The Home half and the project half of a dual-instance plugin share `install_id` and differ in
@@ -32,6 +32,12 @@ export interface PluginActionScope extends PluginInstance {
    * (`markPluginActionChecked`). From then on the call may keep a job (PG-038). Work that carries the call on shares it.
    */
   readonly checked?: { passed: boolean };
+  /**
+   * The action this handler runs, as the dispatcher resolved it for this very registration, with `direct_person_entry` when the call
+   * entered here as the person's own (BL-803). The Host's action directory hands it to the targets of this handler's calls, one hop
+   * only (`delegated_action`). Work that carries the call on (a background execution) does not carry it.
+   */
+  readonly source?: Readonly<ExactActionReference & { readonly direct_person_entry?: true }>;
 }
 
 interface PluginSceneScope extends PluginInstance {

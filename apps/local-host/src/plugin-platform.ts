@@ -47,6 +47,7 @@ import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
+import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -203,7 +204,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
         if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         return options.home.capturePermission(record, permission);

@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
-import { jellySourceHash } from "@molis-ai/molis-work-plugin-jelly";
+import { applyJellyContentCommand, emptyJellyWorkspace, jellyHash, jellySourceHash, validateJellyContent, validateJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
 import { jellyMarkdownToBlocks, jellyBlocksToMarkdown, jellyBlocksToHtml, jellyHtmlToBlocks } from "@molis-ai/molis-work-plugin-jelly";
 import { decodeJellyImport } from "@molis-ai/molis-work-plugin-jelly";
 import type { JellyPlan } from "@molis-ai/molis-work-plugin-jelly/contract";
 function temporary(t: test.TestContext): string { const home = mkdtempSync(join(tmpdir(), "molis-jelly-")); t.after(() => rmSync(home, { recursive: true, force: true })); return home; }
 const schedule = { start_date: "2026-09-22", end_date: "2026-09-22", start_time: 540, end_time: 600 };
 
-test("Jelly persists commands and undo/redo across reopen, rejects stale revisions without changing data", t => {
+test("JLY-27-04: Jelly persists commands and undo/redo across reopen, rejects stale revisions without changing data", t => {
   const home = temporary(t); let store = openJellyStore(home);
   const first = store.execute({ type: "note.create", title: "我的笔记", markdown: "# 今天\n- [ ] 完成插件" }, 0);
   assert.equal(first.revision, 1); assert.throws(() => store.execute({ type: "note.create", title: "冲突" }, 0), /其他窗口/);
@@ -22,12 +22,12 @@ test("Jelly persists commands and undo/redo across reopen, rejects stale revisio
   assert.equal(store.read().revision, 3); store.close();
 });
 
-test("Jelly two connections use atomic revision checks", t => {
+test("JLY-27-04: Jelly two connections use atomic revision checks", t => {
   const home = temporary(t), first = openJellyStore(home), second = openJellyStore(home);
   try { first.execute({ type: "note.create", title: "窗口1" }, 0); assert.throws(() => second.execute({ type: "note.create", title: "窗口2" }, 0), /其他窗口/); assert.equal(second.read().notes.length, 1); } finally { first.close(); second.close(); }
 });
 
-test("Jelly task scheduling remains one-to-one and title/completion synchronize in both directions", t => {
+test("JLY-27-02: Jelly task scheduling remains one-to-one and title/completion synchronize in both directions", t => {
   const store = openJellyStore(temporary(t)); t.after(() => store.close());
   let state = store.execute({ type: "note.create", title: "发布", markdown: "- [ ] 编写文档\n一些说明" }); const note = state.notes[0]!, block = note.blocks[0]!;
   state = store.execute({ type: "task.schedule", note_id: note.id, block_id: block.id, schedule }); const item = state.items[0]!;
@@ -89,7 +89,7 @@ test("Jelly Swift schema5 alternating dictionary import preserves IDs, links, ci
   const before = JSON.stringify(doc), result = decodeJellyImport(doc); assert.equal(result.workspace.items[0]!.start_date, "2026-09-22"); assert.equal(result.workspace.notes[0]!.blocks[0]!.id, "block-native"); assert.equal(result.workspace.relations[0]!.note_id, "note-native"); assert.deepEqual(result.workspace.imported_sources?.[0]?.source, doc); assert.equal(JSON.stringify(doc), before);
 });
 
-test("Jelly undo/redo revisions stay above old drafts, including delete and restart recovery", t => {
+test("JLY-27-04: Jelly undo/redo revisions stay above old drafts, including delete and restart recovery", t => {
   const home = temporary(t); let store = openJellyStore(home);
   let state = store.execute({ type: "note.create", title: "v0" }); const id = state.notes[0]!.id;
   state = store.execute({ type: "note.update", id, patch: { title: "v1" }, expected_note_revision: 0 }); const oldRevision = state.notes[0]!.revision;
@@ -111,7 +111,7 @@ test("Jelly proposal catches later calendar occupancy and overlapping proposed a
   plan.actions[1]!.schedule = { ...schedule, start_time: 660, end_time: 720 }; state = store.execute({ type: "plan.apply", plan }); assert.equal(state.task_links.length, 2);
 });
 
-test("Jelly malformed backup metadata and inline formatting are rejected without changing live data", t => {
+test("JLY-27-03: Jelly malformed backup metadata and inline formatting are rejected without changing live data", t => {
   const store = openJellyStore(temporary(t)); t.after(() => store.close()); store.execute({ type: "note.create", title: "原文" });
   for (const mutate of [(s: any) => { s.notes[0].created_at = 1; }, (s: any) => { s.notes[0].blocks[0].inline_spans = [{ text: "坏数据", marks: ["script"] }]; }, (s: any) => { s.notes[0].blocks[0].language = {}; }]) {
     const snapshot = store.export(); mutate(snapshot); assert.throws(() => store.previewImport(snapshot), /无效/); assert.equal(store.read().notes[0]!.title, "原文");
@@ -138,4 +138,206 @@ test("Jelly legacy notes migrate atomically into the primary note and repeated i
   state = store.execute({ type: "series.update", id: seriesId, original_date: schedule.start_date, scope: "onlyThis", patch: { notes: "本次记录" } });
   state = store.execute({ type: "item.notes_to_note", owner_id: seriesId, original_date: schedule.start_date, mode: "new" }); assert.equal(state.notes.length, 2); assert.equal(state.relation_overrides?.[0]?.primary, state.notes[1]!.id); assert.equal(state.series[0]!.exceptions[schedule.start_date]?.patch?.notes, "");
   state = store.execute({ type: "relation.reset", owner_id: seriesId, original_date: schedule.start_date }); assert.equal(state.relation_overrides?.length, 0); assert.equal(state.relations[0]!.note_id, primary.id);
+});
+
+test("JLY-27-05: direct content commands publish nothing when removing a linked task fails", () => {
+  const state = emptyJellyWorkspace(), now = "2026-09-22T01:00:00.000Z";
+  assert.equal(applyJellyContentCommand(state, {
+    type: "note.create", id: "note", title: "保留标题", blocks: [{ id: "task", kind: "task", text: "保留任务" }],
+  }, now), true);
+  assert.equal(applyJellyContentCommand(state, { type: "task.schedule", note_id: "note", block_id: "task", schedule }, now), true);
+  const before = structuredClone(state);
+  assert.throws(() => applyJellyContentCommand(state, {
+    type: "note.update", id: "note", patch: { title: "部分修改", blocks: [] },
+  }, now), { code: "jelly.linked_task" });
+  assert.deepEqual(state, before);
+});
+
+test("JLY-27-02: stored edits move repeating relations and reassign only the affected categories", t => {
+  const store = openJellyStore(temporary(t));
+  t.after(() => store.close());
+  store.execute({ type: "category.create", category: { id: "work", name: "工作" } });
+  const blocks = [{ id: "block", text: "原始记录", inline_spans: [{ text: "原始记录", marks: ["bold"] }] }];
+  const created = store.execute({ type: "note.create", id: "note", category_id: "work", blocks });
+  blocks[0].inline_spans[0].text = "外部修改";
+  assert.equal(created.notes[0].blocks[0].inline_spans?.[0].text, "原始记录");
+
+  store.execute({ type: "series.create", series: { id: "series", title: "周会", start_date: "2026-09-21", weekdays: [1] } });
+  store.execute({ type: "relation.attach", owner_id: "series", original_date: "2026-10-05", note_id: "note", role: "primary" });
+  store.execute({ type: "series.update", id: "series", original_date: "2026-10-05", scope: "onlyThis", patch: { category_id: "work" } });
+  const old = store.read();
+  const split = store.execute({
+    type: "series.update", id: "series", original_date: "2026-09-28", scope: "thisAndFuture",
+    new_series_id: "future", patch: { start_date: "2026-09-29" },
+  });
+  assert.equal(split.relation_overrides?.[0].owner_id, "future");
+  assert.equal(split.relation_overrides?.[0].original_date, "2026-10-06");
+  assert.equal(split.relation_overrides?.[0].primary, "note");
+  assert.equal(old.relation_overrides?.[0].owner_id, "series");
+  const remapped = store.execute({ type: "category.delete", id: "work" });
+  assert.equal(remapped.series[1].exceptions["2026-10-06"]?.patch?.category_id, "uncategorized");
+  assert.equal(remapped.notes[0].category_id, "uncategorized");
+  assert.equal(remapped.notes[0].revision, created.notes[0].revision + 1);
+  assert.equal(created.notes[0].category_id, "work");
+  assert.equal(split.series[1].exceptions["2026-10-06"]?.patch?.category_id, "work");
+  assert.deepEqual(store.read(), remapped);
+
+  assert.throws(() => store.execute({ type: "item.create", item: { ...schedule, title: "重复 ID", id: "future" } }), { code: "jelly.invalid" });
+  assert.throws(() => store.execute({ type: "series.complete", id: "future", original_date: "2026-10-06", completed: true, completion_description: 12 }), { code: "jelly.invalid" });
+  assert.deepEqual(store.read(), remapped);
+});
+
+test("JLY-27-03: workspace and history still reject invalid content with correct checksums", t => {
+  const home = temporary(t), store = openJellyStore(home);
+  const db = new DatabaseSync(join(home, "jelly", "jelly.db"));
+  t.after(() => { db.close(); store.close(); });
+  const initial = store.execute({ type: "note.create", id: "note", markdown: "**原文**" });
+  const latest = store.execute({ type: "note.update", id: "note", patch: { title: "保留" } });
+  const invalid = structuredClone(latest);
+  const malformed = { ...invalid.notes[0].blocks[0], inline_spans: [{ text: "原文", marks: ["invalid"] }] };
+  const badWorkspace = JSON.stringify({ ...invalid, notes: [{ ...invalid.notes[0], blocks: [malformed] }] });
+  const update = db.prepare("UPDATE jelly_workspace SET body = ?, checksum = ?");
+  update.run(badWorkspace, jellyHash(badWorkspace));
+  assert.throws(() => store.read(), { code: "jelly.corrupt" });
+  assert.throws(() => store.execute({ type: "note.pin", id: "note" }), { code: "jelly.corrupt" });
+  assert.equal(db.prepare("SELECT body FROM jelly_workspace").get()?.body, badWorkspace);
+
+  const valid = JSON.stringify(latest);
+  update.run(valid, jellyHash(valid));
+  const badHistory = JSON.stringify({ ...initial, notes: [{ ...initial.notes[0], blocks: [malformed] }] });
+  db.prepare("UPDATE jelly_history SET before_body = ?, before_checksum = ? WHERE command = 'note.update'").run(badHistory, jellyHash(badHistory));
+  assert.throws(() => store.execute({ type: "undo" }), { code: "jelly.invalid" });
+  assert.equal(db.prepare("SELECT undone FROM jelly_history WHERE command = 'note.update'").get()?.undone, 0);
+  assert.deepEqual(store.read(), latest);
+});
+
+test("JLY-27-03: a scoped write rejects content that changes into an invalid form in JSON", t => {
+  const store = openJellyStore(temporary(t));
+  t.after(() => store.close());
+  const original = store.execute({ type: "note.create", id: "note", markdown: "原文" });
+  // A sparse marks array has a hole in memory and an invalid null in the stored JSON.
+  assert.throws(() => store.execute({
+    type: "note.update", id: "note",
+    patch: { blocks: [{ text: "变更", inline_spans: [{ text: "变更", marks: Array(1) }] }] },
+  }), { code: "jelly.corrupt" });
+  assert.deepEqual(store.read(), original);
+  assert.equal(store.execute({ type: "undo" }).notes.length, 0);
+});
+
+test("JLY-27-03: rejected SQLite readback rolls back the note deletion and retains the preview", t => {
+  const home = temporary(t), store = openJellyStore(home);
+  const db = new DatabaseSync(join(home, "jelly", "jelly.db"));
+  t.after(() => { db.close(); store.close(); });
+  store.execute({ type: "note.create", id: "note", title: "保留直到确认" });
+  const archived = store.execute({ type: "note.archive", id: "note" });
+  const preview = store.previewDelete("note");
+  const persisted = () => ["jelly_workspace", "jelly_history", "jelly_note_versions", "jelly_previews"].map(table => db.prepare(`SELECT * FROM ${table}`).all());
+  const before = persisted();
+  db.exec("CREATE TRIGGER test_rewrite_jelly AFTER UPDATE ON jelly_workspace BEGIN UPDATE jelly_workspace SET checksum = 'test-corrupt'; END");
+  const command = { type: "note.delete", id: "note", confirmation_token: preview.confirmation_token };
+  assert.throws(() => store.execute(command, archived.revision), { code: "jelly.corrupt" });
+  assert.deepEqual(persisted(), before);
+  db.exec("DROP TRIGGER test_rewrite_jelly");
+
+  const deleted = store.execute(command, archived.revision);
+  assert.equal(deleted.notes.length, 0);
+  assert.equal(deleted.revision, archived.revision + 1);
+  assert.throws(() => store.execute(command), { code: "jelly.stale_preview" });
+  const restored = store.execute({ type: "undo" });
+  assert.ok(restored.notes[0].revision > archived.notes[0].revision);
+  assert.equal(store.execute({ type: "redo" }).notes.length, 0);
+
+  const workspace = store.export(), source = JSON.stringify(workspace);
+  const importPreview = store.previewImport(source);
+  assert.equal(store.execute({ type: "workspace.import", source, confirmation_token: importPreview.confirmation_token }).revision, workspace.revision);
+  assert.throws(() => store.execute({ type: "workspace.import", source, confirmation_token: importPreview.confirmation_token }), { code: "jelly.stale_preview" });
+});
+
+test("JLY-27-04: a redo after the note disappeared still exceeds its persisted high-water revision", t => {
+  const home = temporary(t);
+  let high: number;
+  {
+    const store = openJellyStore(home);
+    try {
+      store.execute({ type: "note.create", id: "note", title: "原文" });
+      store.execute({ type: "note.update", id: "note", patch: { title: "更新" } });
+      high = store.execute({ type: "undo" }).notes[0].revision;
+      assert.equal(store.execute({ type: "undo" }).notes.length, 0);
+    } finally { store.close(); }
+  }
+  const store = openJellyStore(home);
+  t.after(() => store.close());
+  const restored = store.execute({ type: "redo" });
+  assert.equal(restored.notes[0].title, "原文");
+  assert.ok(restored.notes[0].revision > high);
+  assert.throws(() => store.execute({ type: "note.update", id: "note", patch: { title: "旧草稿" }, expected_note_revision: high }), { code: "jelly.conflict" });
+  assert.deepEqual(store.read(), restored);
+});
+
+// A scoped write checks only the records a command says it touched (`JellyWorkspaceEdit`). The whole-library checks that run when
+// the library is next opened must accept every state such a write keeps, or the next read would refuse the person's own data.
+test("JLY-27-03: every command kind keeps a library that the whole-library checks accept", t => {
+  const store = openJellyStore(temporary(t));
+  t.after(() => store.close());
+  const kinds = new Set<string>();
+  const run = (command: { type: string; [key: string]: unknown }) => {
+    const state = store.execute(command);
+    kinds.add(command.type);
+    assert.doesNotThrow(() => { validateJellyWorkspace(state); validateJellyContent(state); }, command.type);
+    assert.deepEqual(store.read(), state, command.type);
+    return state;
+  };
+  const refused = (command: { type: string; [key: string]: unknown }) => {
+    const before = store.read();
+    assert.throws(() => store.execute(command), { code: /^jelly\./ }, command.type);
+    assert.deepEqual(store.read(), before, command.type);
+  };
+  run({ type: "category.create", category: { id: "work", name: "工作" } });
+  run({ type: "category.create", category: { id: "home", name: "家" } });
+  run({ type: "category.update", id: "home", patch: { name: "家里" } });
+  run({ type: "category.reorder", ids: store.read().categories.map(category => category.id).reverse() });
+  let state = run({ type: "note.create", id: "plan", category_id: "work", markdown: "- [ ] 写报告\n说明" });
+  const block = state.notes[0]!.blocks[0]!.id;
+  run({ type: "note.update", id: "plan", patch: { title: "计划" } });
+  run({ type: "note.import", id: "plan", source: "<p><b>附录</b></p>", format: "html", mode: "append" });
+  run({ type: "note.pin", id: "plan" });
+  run({ type: "item.create", item: { id: "trip", title: "出差", category_id: "work", ...schedule } });
+  run({ type: "item.create", item: { id: "call", title: "电话", start_date: "2026-09-22" } });
+  run({ type: "item.update", id: "trip", patch: { title: "出差（改）" } });
+  run({ type: "item.move", id: "trip", date: "2026-09-23" });
+  run({ type: "item.move_many", ids: ["trip", "call"], date: "2026-09-24" });
+  run({ type: "item.reorder", date: "2026-09-24", ids: ["call"] });
+  run({ type: "item.complete", id: "call", completed: true });
+  run({ type: "task.schedule", note_id: "plan", block_id: block, schedule });
+  run({ type: "task.complete", note_id: "plan", block_id: block, completed: true, completion_description: "已交" });
+  run({ type: "task.unlink", note_id: "plan", block_id: block });
+  run({ type: "series.create", series: { id: "weekly", title: "周会", category_id: "home", start_date: "2026-09-21", weekdays: [1], notes: "会前读材料" } });
+  run({ type: "relation.attach", owner_id: "weekly", original_date: "2026-09-28", note_id: "plan", role: "primary" });
+  run({ type: "relation.detach", owner_id: "weekly", original_date: "2026-09-28", note_id: "plan" });
+  run({ type: "relation.attach", owner_id: "weekly", original_date: "2026-10-05", note_id: "plan", role: "reference" });
+  run({ type: "relation.reset", owner_id: "weekly", original_date: "2026-10-05" });
+  run({ type: "series.update", id: "weekly", original_date: "2026-10-05", scope: "onlyThis", patch: { title: "周会（改）" } });
+  run({ type: "series.complete", id: "weekly", original_date: "2026-09-21", completed: true });
+  run({ type: "item.notes_to_note", owner_id: "weekly", mode: "new" });
+  run({ type: "series.delete", id: "weekly", original_date: "2026-09-21", scope: "onlyThis" });
+  run({ type: "category.delete", id: "work" });
+  run({ type: "item.delete", id: "call" });
+  run({ type: "note.archive", id: "plan" });
+  run({ type: "note.restore", id: "plan" });
+  run({ type: "note.archive", id: "plan" });
+  run({ type: "note.delete", id: "plan", confirmation_token: store.previewDelete("plan").confirmation_token });
+
+  // A write that would leave a record pointing at nothing is refused on the records it touched, before anything is stored.
+  refused({ type: "item.create", item: { id: "lost", title: "无分类", category_id: "missing", start_date: "2026-09-22" } });
+  refused({ type: "item.create", item: { id: "trip", title: "重复", start_date: "2026-09-22" } });
+  refused({ type: "note.create", id: "orphan", category_id: "missing", markdown: "无分类" });
+  refused({ type: "relation.attach", owner_id: "missing", original_date: "2026-09-22", note_id: "nothing", role: "primary" });
+  refused({ type: "category.update", id: "uncategorized", patch: { name: "改名" } });
+  state = store.read();
+  assert.doesNotThrow(() => { validateJellyWorkspace(state); validateJellyContent(state); });
+  const missing = ["category.create", "category.update", "category.reorder", "category.delete", "note.create", "note.update", "note.import", "note.pin",
+    "note.archive", "note.restore", "note.delete", "item.create", "item.update", "item.move", "item.move_many", "item.reorder", "item.complete",
+    "item.delete", "item.notes_to_note", "task.schedule", "task.complete", "task.unlink", "series.create", "series.update", "series.complete",
+    "series.delete", "relation.attach", "relation.detach", "relation.reset"].filter(kind => !kinds.has(kind));
+  assert.deepEqual(missing, [], "every scoped command kind is exercised");
 });

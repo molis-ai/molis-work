@@ -1,4 +1,4 @@
-import { webSocketAuthority } from "./web-sessions.js";
+import { bindWebSocketAuthority } from "./socket-authority.js";
 import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
@@ -111,14 +111,10 @@ export function attachMolisWorkPtySocket(
 
   wss.on("connection", (ws, request) => {
     let authed = false;
-    let authority: ReturnType<typeof webSocketAuthority>;
+    let authority: ReturnType<typeof bindWebSocketAuthority>;
     const bindAuthority = (proof: unknown) => {
-      authority = webSocketAuthority(request, controlToken, proof);
-      if (!authority) return false;
-      const close = () => ws.close();
-      authority.signal?.addEventListener("abort", close, { once: true });
-      ws.once("close", () => authority?.signal?.removeEventListener("abort", close));
-      return authority.valid();
+      authority = bindWebSocketAuthority(request, controlToken, proof, ws);
+      return authority !== null && authority.valid();
     };
     let pageAccess: PageTerminalAccess | undefined;
     let receiving = Promise.resolve();

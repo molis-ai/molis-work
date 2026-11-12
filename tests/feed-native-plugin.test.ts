@@ -271,7 +271,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({
-      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI" }],
+      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI", limited: false }],
     }),
   });
   assert.match(catalogOverlays, /data-feed-choose-kind="rss"/);
@@ -442,8 +442,8 @@ test("RING-05 Feed pull history separates running, interrupted, failed and compl
   assert.equal(rows.length, 4);
   const expected = [
     ["running", "syncing", "正在拉取", "已开始，等待来源返回"],
-    ["error", "interrupted", "拉取已中断", "新增 2 · 去重 1"],
-    ["error", "failed", "拉取失败", "错误：connector_rate_limited · 可安全重试"],
+    ["error", "interrupted", "拉取已中断", "已有内容仍在，请稍后重试。"],
+    ["error", "failed", "拉取失败", "已有内容仍在，请稍后重试。"],
     ["complete", "done", "拉取完成", "新增 2 · 去重 1"],
   ];
   for (const [index, row] of rows.entries()) {

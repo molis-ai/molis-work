@@ -19,7 +19,7 @@ import { sandboxLocaleProblems } from './locale-declarations.js';
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
 const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 const HOME_READ = 'home-database:read', HOME_WRITE = 'home-database:write', FILE_READ = 'owner-files:read', FILE_WRITE = 'owner-files:write';
 
 /**
@@ -33,7 +33,44 @@ export function sandboxDerivedPermissions(effects: DerivedEffects | undefined): 
 
 /** Actual requested rows, distinct from the read/write pair a resource's shape declares. Recomputed from the saved validated contract. */
 export function sandboxRequestedPermissions(effects: DerivedEffects | undefined): string[] {
-  return ['storage:private', ...(effects?.projects?.includes('exist') ? [PLUGIN_PROJECTS_EXIST_PERMISSION] : []), ...serviceRows(effects).map(row => row.permission)];
+  return ['storage:private', ...(effects?.projects?.includes('exist') ? [PLUGIN_PROJECTS_EXIST_PERMISSION] : []), ...serviceRows(effects).map(row => row.permission),
+    ...projectedRows(effects).map(row => row.permission)];
+}
+
+type PermissionRow = NonNullable<PluginManifest['permissions']>[number];
+/**
+ * Switches for effects a sandboxed package's signed Manifest has no row for (BL-701, user decision 2026-11-09 A). The Host projects them
+ * from the verified release onto its installation, beside the Manifest and never into it, so the signed bytes and digest stay as they are.
+ * Each is optional and starts off: what the person approved at installation is the most it can reach, the switch whether it may now.
+ */
+const PROJECTED_ROWS: ReadonlyArray<readonly [keyof SandboxEffects, string, string]> = [
+  ['networkDomains', 'network:request', '访问这个插件安装时获准的网站'],
+  ['secretRefs', 'secret:use', '在获准的请求里使用为这个插件保存的密钥'],
+  ['capabilities', 'capabilities:call', '调用安装时获准的平台能力'],
+  ['background', 'background:start', '在后台运行安装时获准的工作'],
+  ['connections', 'connections:use', '通过你绑定的服务账号发请求'],
+];
+
+function projectedRows(effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined, declared: ReadonlySet<string> = new Set(['connections:use'])): PermissionRow[] {
+  return PROJECTED_ROWS.filter(([key, permission]) => effects?.[key]?.length && !declared.has(permission))
+    .map(([, permission, reason]) => ({ permission, reason, required: false }));
+}
+
+/**
+ * The installation's switches beyond its Manifest's rows, from what its verified release asks for (`effects`, the union of its operations'):
+ * the Host attaches them to the sandboxed definition it builds and the Runtime counts them in the grants it may hold (BL-701). An
+ * integration's Manifest has no `connections:use` row, so its source connection is one of them; an app's Manifest already has it.
+ */
+export function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): PermissionRow[] {
+  return projectedRows(effects, new Set(manifest.permissions.map(row => row.permission)));
+}
+
+/**
+ * The switches one operation needs before its code runs (BL-701). A background launcher's `effects` already hold its targets'
+ * (`sandboxOperationEffects`). The Manifest's own rows are not among them: the Host's client for each service checks those at each call.
+ */
+export function sandboxOperationSwitches(effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): string[] {
+  return projectedRows(effects).map(row => row.permission);
 }
 
 /** Exact per-operation service permissions. A read-only operation cannot borrow a write grant held by its installation. */

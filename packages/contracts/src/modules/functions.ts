@@ -8,7 +8,6 @@ export const modulesFunctionsContract = {
   ssot: "specs/archive/functions-independent-authoring/spec.md",
 } as const satisfies ContractDescriptor;
 
-export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";
 /** The provider every published rule is registered under, and the prefix of its capability id: the one place a rule's key is read from a reference. */
 export const FUNCTIONS_PROVIDER_ID = "system.functions";
 export const PUBLISHED_FUNCTION_PREFIX = "functions.published.";
@@ -40,8 +39,6 @@ export const NOUL_TRUE_MAP_KEY = "true";
 export const NOUL_FALSE_MAP_KEY = "false";
 export const NOUL_POSITIVE_THRESHOLD = 0.5;
 
-export const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
-export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
 export const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 export const FUNCTIONS_MAX_SAMPLES = 8;
 

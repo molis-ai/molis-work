@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import test from "node:test";
 import { sampleFirstScreen } from "../scripts/first-screen/http.mjs";
 import { comparisonRows, GATED_PAGES, registeredPaths, removedManifestRows, requestKey, SSE_FIRST_EVENT } from "../scripts/first-screen/manifest.mjs";
-import { firstScreenProblems } from "../scripts/gates/first-screen.mjs";
+import { firstScreenProblems, measureFirstScreenApart } from "../scripts/gates/first-screen.mjs";
 import { assetProblems, readNewAllowances } from "../scripts/gates/page-assets-policy.mjs";
 
 const arrival = { id: "arrival-empty", path: "/" };
@@ -337,4 +340,25 @@ test("FSS-BG-02 page-only and combined allowances preserve old asset rejection a
   ]) {
     assert.match(readNewAllowances(permit(invalid), {}).errors.join(), /invalid allowance/);
   }
+});
+
+// FSS-BG-05: each build is measured by the candidate's checker, in a process of its own. A build's Host installs process-wide state
+// (its UI text context), so the merge-base's and the candidate's Hosts seeded in one process refused each other's plugins.
+test("FSS-BG-05 each build's first screen is measured in a child process of its own, and a failing child says why", async t => {
+  const folder = mkdtempSync(join(tmpdir(), "first-screen-apart-"));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const script = join(folder, "measure.mjs");
+  writeFileSync(script, `import { readFileSync, writeFileSync } from "node:fs";
+const at = name => process.argv[process.argv.indexOf(name) + 1];
+if (at("--root").endsWith("broken")) { console.error("the build is missing"); process.exit(3); }
+console.log("noise a Host prints on its way");
+writeFileSync(at("--pages"), JSON.stringify({ pid: process.pid, root: at("--root"), rows: JSON.parse(readFileSync(at("--measure"), "utf8")) }));
+`);
+  const rows = [row("<page>")];
+  const base = await measureFirstScreenApart("/builds/base", rows, signal, { script });
+  const candidate = await measureFirstScreenApart("/builds/candidate", rows, signal, { script });
+  assert.deepEqual([base.root, candidate.root], ["/builds/base", "/builds/candidate"], "each child measures the root it is given");
+  assert.deepEqual(base.rows, rows, "the rows reach the child");
+  assert.ok(base.pid !== process.pid && candidate.pid !== process.pid && base.pid !== candidate.pid, "neither build is measured in this process or with the other");
+  await assert.rejects(measureFirstScreenApart("/builds/broken", rows, signal, { script }), /\/builds\/broken: first-screen measurement exited 3\nthe build is missing/);
 });

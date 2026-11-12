@@ -191,7 +191,7 @@ test("W3-07-6-02: a removed developer protocol cannot be granted by a manifest o
 test("A4-K retained owner current re-enters a synchronous read-only plugin scope without extending the old effect", async () => {
   const { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA, defineSubjectContextAction, defineSearchEntriesAction } = await import("@molis-ai/molis-work-contracts/platform/actions");
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } }), project = reference("retained-state");
-  const reader = defineSubjectContextAction("owner.read", "doc", "资料", []), source = defineSearchEntriesAction("owner.entries", [{ kind: "doc", title: "资料", surface: "owner" }], "资料", []);
+  const reader = defineSubjectContextAction("owner.read", 1, "doc", "资料", []), source = defineSearchEntriesAction("owner.entries", 1, [{ kind: "doc", title: "资料", surface: "owner" }], "资料", []);
   const state: ActionDefinition = { ...reader, capability_id: "owner.state", version: 1, action: { ...reader.action, input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_STATE_TYPE, input_schema: SUBJECT_STATE_INPUT_SCHEMA, output_schema: SUBJECT_STATE_OUTPUT_SCHEMA } };
   const write: ActionDefinition = { ...save, capability_id: "host.write", action: { ...save.action, audiences: ["user", "plugin"] } };
   let writes = 0, jobs = 0, armed = false, retained: import("@molis-ai/molis-work-contracts/platform/actions").RetainedSubjectState | undefined;

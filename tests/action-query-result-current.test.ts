@@ -46,8 +46,8 @@ test("A4-K normal async and sync queries still return; a sync handler cannot rep
 
 async function subjectFixture() {
   const { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA, defineSubjectContextAction, defineSearchEntriesAction } = await import("@molis-ai/molis-work-contracts/platform/actions");
-  const reader = defineSubjectContextAction("owner.read", "document", "资料", ["fixture:read"]);
-  const source = defineSearchEntriesAction("owner.entries", [{ kind: "document", title: "资料", surface: "owner" }], "资料", ["fixture:read"]);
+  const reader = defineSubjectContextAction("owner.read", 1, "document", "资料", ["fixture:read"]);
+  const source = defineSearchEntriesAction("owner.entries", 1, [{ kind: "document", title: "资料", surface: "owner" }], "资料", ["fixture:read"]);
   const state: ActionDefinition = { ...reader, capability_id: "owner.state", version: 1, action: { ...reader.action, input_type: SUBJECT_REFERENCE_TYPE,
     output_type: SUBJECT_STATE_TYPE, input_schema: SUBJECT_STATE_INPUT_SCHEMA, output_schema: SUBJECT_STATE_OUTPUT_SCHEMA } };
   const exact = (ref: { capability_id: string; version: number }) => ({ ...ref, provider_id: "owner" });

@@ -1,6 +1,6 @@
 # 第 27 批 · 损坏签名包卸载与沙箱生图传输
 
-状态：合同设计稿，统筹已确定独立 Home 库沿原验收，待公共合同台 C 合审（2026-11-09）。设计负责人为第 27 批沙箱合同设计 Agent，实施写手待分配。基点 `359fe1fd8ef4ed9cf98cb5d8425403b66d01f5dc`。 [认领 #1743](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6746910253)
+状态：BL-915、BL-918 两项已在第 27 批实现（2026-11-11，各节末的「实现记录」）；设置页呈现用户 2026-11-11 选 A。公共合同台 C 在整批最终头合审，本人验收未做。设计 2026-11-09（第 27 批沙箱合同设计 Agent），基点 `359fe1fd8ef4ed9cf98cb5d8425403b66d01f5dc`。 [认领 #1743](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6746910253)
 
 ## 交付与证据
 

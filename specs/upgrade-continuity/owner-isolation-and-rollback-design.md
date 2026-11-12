@@ -41,60 +41,51 @@
 
 它和 `owner` 同写在 `platform-upgrade-stores.ts` 的一行里，再加一种库只改这一行。`home` 是少数：密钥文件读不了，所有连接都用不了，只能整体说明（§2.4）。
 
-### 2.2 读：`HomeUnavailableOwners`
+### 2.2 认出是哪一块：只在被拒的那一刻读
 
-宿主在升级过程之后（维护态跑完，或 `acquireUpgradedHomeOwner` 返回之后）读一次升级记录，得到一张表，放在内存里，进程内只有这一份：
+不另建一张「谁不可用」的表。打开路径已经各自拒绝（U1），错误里带 `details.path`（相对 Home）；页面层在接到这个拒绝时才问一次 `describeUnavailable(home, error)`：
 
 ```ts
 interface UnavailableOwner {
-  readonly block: UpgradeBlock;          // §2.1
-  readonly project_id: string | null;    // block 为 project／plugin 时由路径推出；Home 级为 null
+  readonly block: UpgradeBlock;          // §2.1，按 details.path 对描述符的 pattern 匹配（只比字符串，不读目录、不开库）
   readonly reason: "upgrade_failed" | "store_too_new" | "upgrade_no_space" | "snapshot_invalid";
   readonly diagnostic_id: string;        // §2.3
-  readonly units: readonly string[];     // relative_path，只用于日志与诊断，不显示
+  readonly rollback: boolean;            // 有回退点（§5.2）
 }
 ```
 
-- 来源只有升级记录里 `failed`、`too_new` 的单元，以及记录里 `upgrade_no_space`（这一轮没动的 Home）。不读库、不扫目录：升级过程已经扫过，开库 0 次。
-- 同一块有几个单元失败，合成一行，`reason` 取最重的（`snapshot_invalid` > `upgrade_failed` > `store_too_new` > `upgrade_no_space`）。
-- 换版本或回退之后升级过程重跑，表随之更新；进程运行期间不变（打开路径不升级，§10 已定），所以不用推送变化。
-- 打开路径照旧各自拒绝（U1 不变）。这张表只回答「哪一块该显示说明」，不替代拒绝。
-
-表经宿主内部端口给页面层和 Dock 用，不是动作，也不进合同：它只描述这个宿主进程自己的状态。插件拿不到这张表（插件只会在自己的库被拒时收到 `storage.*` 错误，平台已经停掉这个插件的实例）。
+- `reason` 从错误码与升级记录里这个单元的 `error.reason` 来；记录读一次（一个小文件），只在失败时读。
+- 平时没有任何额外开销：没有拒绝就没有这一步。打开路径不升级（§10 已定），所以一次启动里结论不变，也不用推送变化。
+- 插件拿不到它：插件只会在自己的库被拒时收到 `storage.*` 错误，平台已经停掉这个插件的实例。
 
 ### 2.3 诊断号
 
-`diagnostic_id` = `run_id` 与这一块所有 `relative_path` 排序后拼接的 sha256 的前 10 个十六进制字符，分两段显示（`3f9a2-c81d0`）。
+`diagnostic_id` = sha256(`run_id` + `\n` + `relative_path`) 的前 10 个十六进制字符，分两段显示（`3f9a2-c81d0`）。记录里没有这个单元（比如手工放进来一个坏库）时 `run_id` 记 `none`。
 
-- 同一轮、同一块，每次显示都一样；换一轮就换号。
-- 宿主日志在单元失败时已经写 `home_upgrade_failed`（`home-upgrade.ts`），这一行加上 `diagnostic_id`，所以拿着号能在日志里找到原因和错误的 `cause`。号里没有路径和内容。
+- 同一轮、同一个库，每次显示都一样；换一轮就换号。
+- 升级过程把单元记成 `failed`／`too_new` 时，宿主日志写一行 `home_upgrade_unit_failed`，带 `diagnostic_id`、主人、码与固定原因（不带路径），拿着号能在日志里找到它和同一轮里的 `cause`。号里没有路径和内容。
 - 「发送诊断」（第 26 批诊断导出）以后用同一个号定位，本批说明卡上只给「复制诊断号」。
 
 ### 2.4 显示
 
 **说明卡**（`mw-empty`，定样「某块暂不可用」）：标题是这一块的名字，正文按 `reason` 一句原因，下面是出路按钮和诊断号。
 
-| `reason` | 原因（中文） | 出路 |
+| `reason` | 原因 | 出路 |
 | --- | --- | --- |
-| `upgrade_failed` | 「升级没有成功，已经退回到升级前的样子，这一块暂时不能用。」 | 「回到上一版」（有回退点时，§5）；「重新加载」；复制诊断号 |
-| `store_too_new` | 「这份数据来自更新版本的 Molis Work，这个版本不读也不改它。」 | 「更新到最新版」说明（更新器归第 26 批：本批写「装上更新版本的 Molis Work 后就能打开」，不给按钮）；复制诊断号 |
-| `upgrade_no_space` | 「磁盘空间不够，这次没有升级。」 | 「重新加载」（腾出空间后下次启动再升）；复制诊断号 |
-| `snapshot_invalid` | 「升级前的备份对不上，没有放回，这一块保持现状。」 | 「回到上一版」不出现（回退要用这份备份）；复制诊断号 |
+| `upgrade_failed` | 升级没有成功，已经退回到升级前的样子，这一块暂时不能用 | 「回到上一版」（有回退点时，§5）；「重新加载」；复制诊断号 |
+| `store_too_new` | 这份数据来自更新版本的 Molis Work，这个版本不读也不改它 | 写「装上更新版本的 Molis Work 后就能打开」（更新器归第 26 批，不给按钮）；复制诊断号 |
+| `upgrade_no_space` | 磁盘空间不够，这次没有升级 | 「重新加载」（腾出空间后下次启动再升）；复制诊断号 |
+| `snapshot_invalid` | 升级前的备份对不上，没有放回，这一块保持现状 | 不给「回到上一版」（回退要用这份备份）；复制诊断号 |
 
-文字照 `t("workbench.owner-unavailable.<reason>")` 写进工作台的语言文件；第 16 批已经合入，按现行写法用 `t`。
+文字写进工作台的语言文件（`workbench.owner-unavailable.*`），中英两份。
 
-**出现在哪：**
+**出现在哪，接在已有的两层上：**
 
-- `plugin`：工作台主区本来渲染插件内容的地方。插件实例没有起（平台已停），主区直接给说明卡；Dock 上这一颗带「暂不可用」点（组件板新增 `mw-dock-pin--unavailable`，琥珀色，`aria-label` 加「暂不可用」）。Home 级插件在每个项目里都这样。原来的 `renderPluginStoreUnavailablePage`、`withHomePluginStorePageRecovery` 只为 Home 插件库开了一张整页，改成同一张卡，删掉旧的专页与 `isHomePluginStoreRefusal` 的页面分支（拒绝本身留着，那是打开路径）。
-- `project`：进这个项目时主区给说明卡，底栏、项目切换照常，可以切到别的项目。
-- `projects`：目录库是项目列表的主人。页面请求不再 500：`withCatalog` 见到目录库被拒（`isSqliteVersionRefusal`），GET 页面给一张整页说明卡（只有这一种是整页，因为没有项目可以进），`/api/` 的 GET 回 `unavailable`，写操作照旧拒绝。设置页里与项目无关的几页（模型、外观、MCP）照常能开，这正是「其余照常」。
-- `setting`：设置里那一页的内容区给说明卡，左侧导航照常；那一页在导航里带同样的点。
-- `shelf`：Shelf 面板里给说明卡。
-- `home`：首页顶部一张 `mw-alert`（危险），说明哪些功能受影响；其余能用的照常。
+- **插件**：平台已经把表被拒的插件实例停掉，工作台主区给「插件暂不可用」的那一格（`unavailable-plugin-stage.ts`），Dock 上这一颗已经带琥珀点（`nav-warn-dot`，`navigation-presentation.ts`）。U3 只把这一格的内容换成说明卡：宿主组装这一格时（`project-plugin-stages.ts` 的 `unavailableStage`、`home-plugin-http.ts` 的 `homeUnavailableStage`）见到拒绝是升级一类，就带上 `upgrade` 字段；带了它就不给「重新启动」（重启升不了库）。点的 `aria-label` 改成「暂不可用」。定样里的「组件板新增 Dock 点」用的就是这颗现成的点，不新造部件。
+- **其余各块**：页面请求已经在一处包着 `withHomePluginStorePageRecovery`（`web-request.ts` 的两次分派）。把它推广成 `withOwnerUnavailablePage`：接到 Home 插件库的拒绝照旧，另外接住任何库与文件的版本／升级拒绝（`isSqliteVersionRefusal` 与带版本文件的同类码），GET 页面给一张说明卡页（按 `block` 写标题，项目块保留项目名与「回到项目列表」），`/api/` 的 GET 回 `unavailable`，写操作照旧拒绝。原来的 `renderPluginStoreUnavailablePage` 改成这张页的一种情况，不留两套。
+- **项目目录**：`resolveOrChooser` 在目录库被拒时现在给一张空的项目选择页（`load_error`）。升级一类的拒绝改给说明卡；别的读取失败照旧。设置里与项目无关的几页（模型、外观、MCP）照常能开，这就是「其余照常」。
 
-不加全局提示（11-04 定）。
-
-**HTTP 一处收口。** 现在各页各自 catch 拒绝。改成页面路由表上一处：路由声明它属于哪一块（插件路由已经知道 `plugin_id`，项目路由知道 `project_id`，设置页知道 `page`），渲染前查 §2.2 的表，命中就给说明卡，不进业务代码。这样「再加一块」只在描述符那一行写 `block`。拒绝仍由打开路径抛：表没命中却被拒（升级记录之外的情况，比如手工放进来一个坏库），落到同一张卡的 `upgrade_failed`，诊断号用 `relative_path` 单独算（`run_id` 记为 `none`）。
+不加全局提示（11-04 定）。再加一块，只在描述符那一行写 `block`。
 
 ### 2.5 回退点与「回到上一版」按钮
 
@@ -182,9 +173,8 @@ type RollbackPoint =
 
 | 改动 | 位置 | 轨道 |
 | --- | --- | --- |
-| 描述符加 `block`；`HomeUnavailableOwners`；诊断号；日志加号 | `apps/local-host/src/platform-upgrade-stores.ts`、`home-upgrade-stores.ts`、`home-upgrade.ts`、新文件 `home-unavailable-owners.ts` | C1（宿主启动，按枢纽文件处理） |
-| 说明卡、Dock 的点、设置页导航的点、整页（目录库） | `apps/workbench/src/`（新 `owner-unavailable.ts`，删 `plugin-store-unavailable.ts`）、`apps/local-host/src/web-request.ts`、`web-route-table.ts`、`web-catalog-access.ts`、删 `web-home-plugin-recovery.ts` | D（界面）、宿主枢纽 |
-| 组件板新增 `mw-dock-pin--unavailable` | `packages/design-system/`、`/__ui/catalog` 标本 | D 轨合审 |
+| 描述符加 `block`；`describeUnavailable`；诊断号；日志加号 | `apps/local-host/src/platform-upgrade-stores.ts`、`home-upgrade-stores.ts`、`home-upgrade.ts`、新文件 `home-unavailable-owners.ts` | C1（宿主启动，按枢纽文件处理） |
+| 说明卡、插件格的说明、页面恢复 | `apps/workbench/src/`（新 `owner-unavailable.ts`，`plugin-store-unavailable.ts` 并入）、`unavailable-plugin-stage.ts`、`apps/local-host/src/web-request.ts`、`web-home-plugin-recovery.ts`（改名 `web-owner-unavailable.ts`）、`project-plugin-stages.ts`、`home-plugin-http.ts` | D（界面）、宿主枢纽 |
 | 开场页、`/upgrade-progress` | `apps/local-host/src/upgrade-maintenance.ts` | C1 |
 | 结果卡、`seen.json` | `apps/local-host/src/home-upgrade-ledger.ts`、首页 | C1、D |
 | 回退点、`home rollback`、保留上一版、hold | `apps/local-host/src/installer/`（`home.ts`、`home-release.ts`、新 `home-rollback.ts`）、`apps/cli` | F（安装器） |

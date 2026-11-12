@@ -72,12 +72,12 @@ export function renderSettingsNav(
   });
 }
 
-export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, shown?: readonly string[]): string {
+export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, shown?: readonly string[], desktop = false): string {
   const { icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.settings")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown), "appearance", "workbench.settings-directory.system-settings", "settings")}
+      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown, desktop), "appearance", "workbench.settings-directory.system-settings", "settings")}
     </div>
   </section>`;
 }

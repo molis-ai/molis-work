@@ -76,6 +76,13 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser { --side-w: clamp(296px, 24vw, 344px); }
   .chooser-list { display: flex; flex-direction: column; gap: 12px; padding: 4px 8px 6px 14px; }
   .chooser-head { padding: 2px 8px 0; }
+  /* What was missed while Molis Work was not running (resident-runtime-design §4): above the directory, each with 现在做 and 跳过. */
+  .chooser-list > .runtime-panel[hidden] { display: none; }
+  .runtime-rows { display: grid; gap: 2px; margin-top: 8px; }
+  .runtime-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; padding-inline: 0; }
+  .runtime-row .mw-dir-row__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .runtime-row__actions { display: flex; gap: 6px; }
+  .runtime-row .runtime-failed { grid-column: 1 / -1; color: var(--red); font-size: 11px; }
   .chooser-greeting { display: grid; gap: 2px; }
   .chooser-greeting strong { font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   .chooser-greeting span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

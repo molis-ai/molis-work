@@ -15,6 +15,7 @@ import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "../scripts/co
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
+import { renderRuntimePanel, RUNTIME_PANEL_CLIENT_SCRIPT } from "../runtime-panel.js";
 import type { WebProjectNavigation } from "../settings-navigation.js";
 
 /** What the chooser remembers about this Home's projects. Presentation only; the Host reads it from `config/project-arrival.json`. */
@@ -91,7 +92,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const entry = last ?? personal;
     const subtitle = last && arrival.opened[last.project_id]
       ? uiText.text("workbench.chooser.last-name-when", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : uiText.text("workbench.chooser.welcome-molis-work");
-    const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>
+    const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>${renderRuntimePanel("home")}
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${uiText("workbench.chooser.search-projects")}" aria-label="${uiText("workbench.chooser.search-projects")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
       <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${uiText("workbench.chooser.personal-space-projects")}">${rows}</div>
       <p class="chooser-none" data-chooser-none hidden role="status">${uiText("workbench.chooser.no-matching-projects")}</p>
@@ -129,7 +130,7 @@ const chosenRoute = path => { const id = document.querySelector('.chooser')?.dat
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, projectId: null, openItem: () => {} });
 globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
   placeholder: project => project && project.title ? globalThis.t.text("workbench.chooser.ask-about-name-give-assistant-task", { name: project.title }) : globalThis.t.text("workbench.chooser.ask-assistant-do-something-personal-space") });
-${CHOOSER_CLIENT_SCRIPT}`;
+${CHOOSER_CLIENT_SCRIPT}${RUNTIME_PANEL_CLIENT_SCRIPT}`;
     return shell.document({
       title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,

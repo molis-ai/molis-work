@@ -21,7 +21,8 @@ interface GlobalSettingsSection {
   readonly addressHash: string;
 }
 
-interface HostSection { id: string; label: string; icon: PluginIconName; group: string; order: number }
+/** `desktop`: the page is the desktop app's own (设置 › 运行), listed only there. */
+interface HostSection { id: string; label: string; icon: PluginIconName; group: string; order: number; desktop?: true }
 
 /** The address a global settings category is served from. */
 export function globalSettingsSectionPath(id: string): string {
@@ -42,6 +43,7 @@ const HOST_SECTIONS: readonly HostSection[] = [
   { id: "connections", label: "workbench.settings-sections.service-connections", icon: "link", group: "workbench.settings-sections.tools-and-access", order: 61 },
   { id: "access", label: "workbench.settings-sections.external-access", icon: "shield", group: "workbench.settings-sections.tools-and-access", order: 62 },
   { id: "history", label: "workbench.settings-sections.call-history", icon: "workflow", group: "workbench.settings-sections.tools-and-access", order: 63 },
+  { id: "running", label: "workbench.settings-sections.running", icon: "clock", group: "workbench.settings-sections.system", order: 88, desktop: true },
   { id: "update", label: "workbench.settings-sections.update", icon: "download", group: "workbench.settings-sections.system", order: 89 },
   { id: "diagnostics", label: "workbench.settings-sections.diagnostics", icon: "bug", group: "workbench.settings-sections.system", order: 90 },
 ];
@@ -56,9 +58,9 @@ export function hostSettingsSectionLabel(id: string): string | undefined {
 const PLUGIN_GROUP = "workbench.settings-sections.plugins";
 const HOST_ORDER_END = 100;
 
-function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSection[] {
+function globalSettingsSections(shown: readonly string[] | undefined, desktop: boolean): GlobalSettingsSection[] {
   const placed = [
-    ...HOST_SECTIONS.map((section) => ({ ...section, kind: "host" as const, addressQuery: "", addressHash: "" })),
+    ...HOST_SECTIONS.filter(section => desktop || !section.desktop).map((section) => ({ ...section, kind: "host" as const, addressQuery: "", addressHash: "" })),
     ...listPluginSettingsNavItems(shown).map((item) => ({
       id: item.section_id,
       label: item.label,
@@ -79,9 +81,9 @@ function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSectio
 }
 
 /** The same list, split where the group changes, for a navigation with group labels. */
-export function groupedGlobalSettingsSections(shown?: readonly string[]): { group: string; sections: GlobalSettingsSection[] }[] {
+export function groupedGlobalSettingsSections(shown?: readonly string[], desktop = false): { group: string; sections: GlobalSettingsSection[] }[] {
   const groups: { group: string; sections: GlobalSettingsSection[] }[] = [];
-  for (const section of globalSettingsSections(shown)) {
+  for (const section of globalSettingsSections(shown, desktop)) {
     const last = groups.at(-1);
     if (last?.group === section.group) last.sections.push(section);
     else groups.push({ group: section.group, sections: [section] });

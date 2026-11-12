@@ -235,7 +235,9 @@ test("B27-UI-05/06 · F-01/F-02: both call views show local time and keep techni
         const page = await read(path, locale);
         const byId = (id: string) => rowsOf(page).find(row => row.includes(`data-molis-call-id="${id}"`))!;
         const [main, details] = byId(A).split('<details class="capability-contract">');
-        assert.match(main!, locale === "en" ? /<strong>New Goal<\/strong>.*Not run.*Goals · MCP client/ : /<strong>新建目标<\/strong>.*未执行.*Goals · MCP 客户端/);
+        // The title is the one the call record kept, shown as recorded in both languages (batch 16 dropped the Chinese-keyed dictionary;
+        // action titles in English are BL-455～463); the page's own words around it follow the language.
+        assert.match(main!, locale === "en" ? /<strong>新建目标<\/strong>.*Not run.*Goals · MCP client/ : /<strong>新建目标<\/strong>.*未执行.*Goals · MCP 客户端/);
         assert.doesNotMatch(main!, /fixture-client|test\.fixture\.write|test\.disconnected|失败原因|Reason for failure/);
         assert.match(details!, locale === "en" ? /<summary>Technical details<\/summary>/ : /<summary>技术详情<\/summary>/);
         assert.match(details!, /test\.fixture\.write@1.*fixture-client/);

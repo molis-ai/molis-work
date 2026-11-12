@@ -91,8 +91,8 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
   await v.press('[data-issue-flag] a[href="/settings/models"]');
   await b.waitFor("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-home-model-retry]').hidden");
   assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
-    // A dropped connection is said by the shared request helper, in English here (W3-10).
-    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Can’t reach the Molis Work service. Try again in a moment." });
+    // A dropped connection is said by the shared request helper, in English here (W3-10), after the settings' own sentence (B27-FF06).
+    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Settings could not load. Your input is preserved. Can’t reach the Molis Work service. Try again in a moment." });
   const settingsNotice = "document.querySelector('[data-home-model-status]').textContent";
   const firstFailure = await b.evaluate<string>(settingsNotice);
   await v.shot("models-read-failed");
@@ -145,7 +145,7 @@ test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, re
   assert.equal(notice.inView, true, "returning to a cached model form brings the existing error and Retry into view");
   for (const message of [firstFailure, cachedFailure]) {
     assert.match(message, /Your input is preserved/);
-    assert.match(message, /Can't reach the Molis Work service\. Try again in a moment\./);
+    assert.match(message, /Can’t reach the Molis Work service\. Try again in a moment\./);
   }
 });
 

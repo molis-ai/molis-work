@@ -7,7 +7,7 @@ import type {
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
-import { feedRunFailure } from "./source-presentation.js";
+import { feedRunFailure, type FeedRunFailure } from "./run-failure.js";
 import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
 import type { FeedReaderData, FeedStageData } from "./query-actions.js";
 import { t as uiText, type MwButtonOptions, renderAlert, renderButton, renderKept, renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -419,9 +419,18 @@ export function renderSourceWorkbench(model: FeedUiModel): string {
   return `<section class="desktop-work-surface source-workbench" data-work-surface="sources" data-work-surface-label="${uiText("feed.ui.source")}" data-source-workbench hidden>${panels}<div class="feed-detail-empty" data-source-detail-empty${panels ? " hidden" : ""}>${p.icon("settings")}<h1>${panels ? uiText("feed.ui.select-source") : uiText("feed.ui.no-manageable-sources-yet")}</h1>${panels ? "" : `<button class="mw-btn mw-btn--primary" type="button" data-feed-sources-open>${p.icon("plus")}${uiText("feed.ui.add-source")}</button>`}</div></section>`;
 }
 
+/** What each kind of failed pull says (run-failure.ts decides which). */
+const RUN_FAILURE: Readonly<Record<FeedRunFailure, string>> = Object.freeze({
+  kept: "feed.run.existing-kept-retry-later",
+  refused: "feed.run.source-refused-access",
+  not_feed: "feed.run.not-rss-atom",
+  unusable: "feed.run.unusable-response",
+  unavailable: "feed.run.source-unavailable",
+});
+
 function renderSourceRuns(source: FeedUiSource, p: FeedUiModel["primitives"]): string {
   return source.runs.length ? `<ol class="source-run-ledger">${source.runs.map((run) => {
-    const failure = feedRunFailure(run);
+    const kind = feedRunFailure(run), failure = kind ? uiText.text(RUN_FAILURE[kind]) : null;
     const state = run.phase === "running" ? "running" : failure ? "error" : "complete";
     const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : failure ? "failed" : "done";
     const title = run.phase === "running" ? uiText.text("feed.ui.pulling") : run.phase === "interrupted" ? uiText.text("feed.ui.pull-interrupted") : failure ? uiText.text("feed.ui.pull-failed") : uiText.text("feed.ui.pull-completed");

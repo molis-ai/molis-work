@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { agentReviewProvider, assistantPanelProvider, contextOnboardingProvider, webEntryDoor, webEntryProvider } from "@molis-ai/molis-work-app-local-host";
+import { agentReviewProvider, assistantPanelProvider, contextOnboardingProvider, installHostUiText, webEntryDoor, webEntryProvider } from "@molis-ai/molis-work-app-local-host";
+
+// The doors' refusals are said in the request's language, from the Host's own text.
+installHostUiText();
 
 // S-page-entry-actions (docs/system/security-invariants/S-page-entry-actions.md; B9, specs/visual-ui-experience/work-items/batch27-http-write-actions):
 // the writes of the first-run journey, the review queue and the Assistant panel became actions, and stay the person's own on that page. Each

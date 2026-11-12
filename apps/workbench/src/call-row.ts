@@ -52,7 +52,7 @@ function renderCallIdButton(id: string, { escapeHtml: e }: CallText): string {
 export function renderCallRow(row: CallRowView, p: CallText, where?: { label: string; href?: string }): string {
   const { readText, escapeHtml: e } = p;
   const at = row.last_at ?? row.at;
-  const localTime = (value: string) => Number.isNaN(Date.parse(value)) ? value : format.date(value, "datetime");
+  const localTime = (value: string) => Number.isNaN(Date.parse(value)) ? value : format.date(value, "datetime-with-seconds");
   const title = row.operation === "unknown" ? uiText.text("workbench.call-row.unknown-operation") : row.title;
   const source = row.provider_title ? e(row.provider_title) + " · " : "";
   const actor = row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : "";

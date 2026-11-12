@@ -56,8 +56,9 @@ export function inboxClient(host: InboxHost): void {
       check();
       const reason = molisWorkRequest.text(error);
       if (!reason) throw error;
-      // Copying the failure's own fields (code, status, callId) keeps its diagnostic ID button beside the new sentence.
-      throw Object.assign(new Error(uiText.text("inbox.client.list-refresh-failed-input-kept") + " " + reason), error);
+      // The failure itself, with the new sentence in front: its own code, status and callId keep its diagnostic ID button.
+      if (error instanceof Error) error.message = uiText.text("inbox.client.list-refresh-failed-input-kept") + " " + reason;
+      throw error;
     });
     check(); if (sequence !== refreshSequence) return;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(uiText.text("inbox.client.could-not-refresh-inbox-list"));

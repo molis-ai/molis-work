@@ -16,8 +16,8 @@ export function goalActor(caller: ActionCallContext) {
  * A source names its owner's exact action, so any other Feed action handing in, another version or another provider is not the person.
  */
 const PERSON_SOURCE_ACTIONS: Readonly<Record<string, { readonly capability_id: string; readonly version: number; readonly provider_id: string }>> = {
-  feed: { capability_id: "feed.items.promote", version: 1, provider_id: "io.molis.work.feed" },
-  feed_item: { capability_id: "feed.items.promote", version: 1, provider_id: "io.molis.work.feed" },
+  feed: { capability_id: "feed.items.promote", version: /* @version action.feed.items.promote */ 1, provider_id: "io.molis.work.feed" },
+  feed_item: { capability_id: "feed.items.promote", version: /* @version action.feed.items.promote */ 1, provider_id: "io.molis.work.feed" },
 };
 
 /**

@@ -107,7 +107,7 @@ test("BL-915 B27-UN-02 B27-UN-04 the 插件 page shows what an uninstall left in
   await press("dialog[open]", "Uninstall and delete data");
   await page.wait("document.querySelector('[data-plugin-trust-home] .plugin-trust-result') !== null", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
   const english = await page.evaluate<string>("document.querySelector('[data-plugin-trust-home] .plugin-trust-result').innerText");
-  for (const words of ["Kept notes is uninstalled · 1 left in place", "Its library", "Couldn't confirm it was this plugin's, so it was left in place", "Everything else was deleted.", "Got it"]) assert.ok(english.includes(words), words);
+  for (const words of ["Kept notes is uninstalled · 1 left in place", "Its library", "Couldn’t confirm it was this plugin’s, so it was left in place", "Everything else was deleted.", "Got it"]) assert.ok(english.includes(words), words);
   assert.equal(english.match(/[㐀-鿿]/u), null, "no Chinese is left in English");
   await page.screenshot(join(shots, "kept-1024-en-dark.png"));
   await page.command("Emulation.setEmulatedMedia", { features: [] });

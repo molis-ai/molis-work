@@ -5,7 +5,8 @@ import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/r
 import type { FeedItemRecord, FeedItemType, FeedSourceRecord } from "./projection.js";
 import type { FeedStageData, FeedReaderData } from "./query-actions.js";
 import type { FeedUiEntry, FeedUiItem, FeedUiModel, FeedUiPrimitives, FeedUiSource, PersistedFeedDetailModel } from "./ui.js";
-import { feedRunHttpStatus, feedSourceUiKind } from "./source-presentation.js";
+import { feedSourceUiKind } from "./source-presentation.js";
+import { feedRunHttpStatus } from "./run-failure.js";
 
 type FeedText = { readText: FeedUiPrimitives["text"] };
 type FeedStageView = { route_prefix: string; data: FeedStageData };

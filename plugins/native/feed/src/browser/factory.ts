@@ -64,8 +64,9 @@ export function feedClient(host: FeedHost): void {
         check();
         const reason = molisWorkRequest.text(error);
         if (!reason) throw error;
-        // Copying the failure's own fields (code, status, callId) keeps its diagnostic ID button beside the new sentence.
-        throw Object.assign(new Error(uiText.text("feed.factory.list-refresh-failed-input-kept") + " " + reason), error);
+        // The failure itself, with the new sentence in front: its own code, status and callId keep its diagnostic ID button.
+        if (error instanceof Error) error.message = uiText.text("feed.factory.list-refresh-failed-input-kept") + " " + reason;
+        throw error;
       }).finally(() => reading--);
       check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }

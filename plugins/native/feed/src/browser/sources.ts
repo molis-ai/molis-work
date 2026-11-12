@@ -1,6 +1,6 @@
 import type { UiConnectionSlotChoice } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FeedSourceRunRecord } from "../projection.js";
-import { feedRunFailure, feedRunHttpStatus } from "../source-presentation.js";
+import { feedRunFailure, feedRunHttpStatus, type FeedRunFailure } from "../run-failure.js";
 import type { FeedPage } from "./factory.js";
 
 const uiText = globalThis.t;
@@ -15,8 +15,17 @@ const SCHEDULE_MAY_HAVE_LANDED: ReadonlySet<string> = new Set(["ui_host.outcome_
 interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: FeedSourceRunRecord }
 
+/** What each kind of failed pull says (run-failure.ts decides which). */
+const RUN_FAILURE: Readonly<Record<FeedRunFailure, string>> = Object.freeze({
+  kept: "feed.run.existing-kept-retry-later",
+  refused: "feed.run.source-refused-access",
+  not_feed: "feed.run.not-rss-atom",
+  unusable: "feed.run.unusable-response",
+  unavailable: "feed.run.source-unavailable",
+});
+
 function showSyncResult(host: FeedPage["host"], { created, deduped, run }: SyncAnswer): void {
-  const reason = run && feedRunFailure({ ...run, http_status: feedRunHttpStatus(run.receipt) });
+  const kind = run && feedRunFailure({ ...run, http_status: feedRunHttpStatus(run.receipt) }), reason = kind ? uiText.text(RUN_FAILURE[kind]) : null;
   if (reason) host.showToast(uiText.text("feed.sources.pull-failed-reason", { reason }), true);
   else host.showToast(uiText.text("feed.sources.pull-complete-created-new-deduped-deduplicated", { created: created || 0, deduped: deduped || 0 }));
 }

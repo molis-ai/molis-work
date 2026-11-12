@@ -62,7 +62,7 @@ export const SESSION_SOURCE_STYLES = `
   .mw-step__what > code { min-width: 0; overflow: hidden; color: var(--ink-soft); font: 12px/18px var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
   .mw-step__result { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .mw-transcript__note { color: var(--muted); font-size: 12px; line-height: 18px; text-align: center; overflow-wrap: anywhere; }
-  .mw-transcript__hit { padding: 0 2px; border-radius: calc(var(--r-tag) / 2); background: var(--amber-soft); color: var(--ink); box-shadow: inset 0 -1px 0 var(--amber); }
+  .mw-transcript__hit { padding: 0 2px; border-radius: 4px; background: var(--amber-soft); color: var(--ink); box-shadow: inset 0 -1px 0 var(--amber); }
   @media (max-width: 760px) {
     .mw-setting.mw-permit--action { flex-wrap: wrap; }
     .mw-setting.mw-permit--action > div:first-child { flex-basis: 100%; }

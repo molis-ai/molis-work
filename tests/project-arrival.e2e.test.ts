@@ -249,8 +249,21 @@ test("BCS-01 BCS-02 BCS-03: the chooser searches the person's own content in the
   await command("Input.insertText", { text: "foot" }, sessionId);
   await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(others[2])}`);
   await settled();
+  // The search's program is not in the list's document, read on every visit: it comes on the first press of the button, and a fetch
+  // that fails says so under it and leaves the next press to try again (user 2026-11-12).
+  assert.equal(await evaluate("Boolean(globalThis.__CHOOSER_SEARCH__) || [...document.scripts].some(script => script.src.endsWith('/assets/molis-work-chooser-search.js'))"), false,
+    "nothing of the search's program before the first press");
+  await command("Network.enable", {}, sessionId);
+  await command("Network.setBlockedURLs", { urls: ["*/assets/molis-work-chooser-search.js"] }, sessionId);
+  try {
+    await click(".chooser-personal-search");
+    await waitFor("!document.querySelector('[data-chooser-search-error]').hidden && !document.querySelector('.chooser-personal-search').hasAttribute('aria-busy')");
+    assert.equal(await evaluate("document.querySelector('[data-chooser-search-error]').textContent"), "暂时搜不了，稍后再试");
+    assert.equal(await evaluate("document.querySelector('[data-global-search-dialog]').open"), false);
+  } finally { await command("Network.setBlockedURLs", { urls: [] }, sessionId); }
   await click(".chooser-personal-search");
   await waitFor("document.querySelector('[data-global-search-dialog]').open && document.activeElement === document.querySelector('[data-global-search]')");
+  assert.equal(await evaluate("document.querySelector('[data-chooser-search-error]').hidden"), true, "the retry clears the failure");
   assert.equal(await evaluate("document.querySelector('[data-global-search-dialog]').getAttribute('aria-label')"), "搜索个人内容");
   assert.equal(await evaluate("document.querySelector('[data-global-search-scopes]')"), null, "the person's own content is the one scope");
   assert.equal(await evaluate("document.querySelector('[data-global-search-status]').textContent"), "搜索个人内容");

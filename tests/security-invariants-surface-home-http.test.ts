@@ -6,6 +6,10 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { join } from "node:path";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import { registration as inbox } from "@molis-ai/molis-work-plugin-inbox/registration";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -16,6 +20,48 @@ async function json<T>(response: Response, status = 200): Promise<T> {
   const body = await response.json() as T;
   assert.equal(response.status, status, JSON.stringify(body));
   return body;
+}
+
+type Fixture = Awaited<ReturnType<typeof fixture>>;
+const INBOX = "io.molis.work.inbox";
+
+/** The person's membership as the settings page reads it, with the revision a write must name. */
+async function members(f: Fixture): Promise<VersionedProjectPluginMembership> {
+  const { projects } = await json<{ projects: Array<VersionedProjectPluginMembership & { project_id: string }> }>(await f.request("/api/settings/project-plugins"));
+  const row = projects.find(item => item.project_id === f.project.project_id);
+  assert.ok(row);
+  return { plugins: row.plugins, hidden: row.hidden, revision: row.revision };
+}
+
+async function setMember(f: Fixture, plugin_id: string, enabled: boolean) {
+  const path = "/api/settings/projects/" + f.project.project_id + "/plugins";
+  await json(await f.request(path, { method: enabled ? "POST" : "DELETE", body: { plugin_id, expected_revision: (await members(f)).revision } }));
+}
+
+function memberEvents(f: Fixture) {
+  const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { readonly: true });
+  try {
+    return db.prepare(`SELECT type, json_extract(payload_json, '$.plugin_id') AS plugin_id FROM project_events
+      WHERE project_id = ? AND type IN ('project.plugin_added', 'project.plugin_removed') ORDER BY rowid`).all(f.project.project_id);
+  } finally { db.close(); }
+}
+
+async function inboxRecords(f: Fixture) {
+  const records = await f.host.withProject(f.project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const record = () => { const found = records.list().find(item => item.plugin_id === INBOX); assert.ok(found); return found; };
+  return { records, record };
+}
+
+/** Inbox chosen, warmed and then removed: its home card is the restore card. */
+async function removedInbox(f: Fixture) {
+  await setMember(f, "inbox", true);
+  await f.warm();
+  await setMember(f, "inbox", false);
+  const card = findCard(await f.read(), INBOX);
+  assert.equal(card?.state, "disabled");
+  const enable = card.plugin_card?.enable;
+  assert.ok(enable?.kind === "project_membership");
+  return enable;
 }
 
 async function fixture(t: TestContext) {
@@ -118,8 +164,7 @@ test("S-surface-composition SCS-08 SCS-09 a real overview suspended at the owner
 
 test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed startup remain different", { timeout: 60_000 }, async t => {
   const f = await fixture(t);
-  const membership = "/api/settings/projects/" + f.project.project_id + "/plugins";
-  await json(await f.request(membership, { method: "POST", body: { plugin_id: "inbox" } }));
+  await setMember(f, "inbox", true);
   await f.warm();
   const read = await f.read();
   assert.equal(findCard(read, "io.molis.work.inbox")?.state, "ok");
@@ -135,12 +180,16 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   assert.deepEqual(cold.plugin_card, {});
   await f.warm();
 
-  await json(await f.request(membership, { method: "DELETE", body: { plugin_id: "inbox" } }));
-  await json(await f.request(membership, { method: "DELETE", body: { plugin_id: "todo" } }));
+  await setMember(f, "inbox", false);
+  await setMember(f, "todo", false);
   const next = await f.read({ home_order: ["io.molis.work.todo"] });
   const disabled = findCard(next, "io.molis.work.inbox");
   assert.equal(disabled?.state, "disabled");
-  assert.deepEqual(disabled.plugin_card, {}, "removal does not give a stage, summary or guessed member revision");
+  const { enable, ...rest } = disabled.plugin_card ?? {};
+  assert.deepEqual(rest, {}, "removal gives no stage or summary");
+  assert.ok(enable?.kind === "project_membership");
+  assert.equal(enable.expected_revision, (await members(f)).revision, "the restore card carries the revision of this same Catalog read");
+  assert.deepEqual(enable.action, { ref: projectPluginActions.set.capability_id + "@" + projectPluginActions.set.version, provider_id: PROJECT_WORKSPACE_PROVIDER_ID, primary: true });
   assert.equal(findCard(next, "io.molis.work.todo"), undefined);
   assert.equal(findCard(next, f.crashing.id)?.state, "unreadable");
   assert.equal(findCard(next, "io.molis.work.coding"), undefined);
@@ -180,4 +229,110 @@ test("SCS-11 a committed homepage command keeps its fact if the original authori
     const executions = log.list(f.project.project_id).filter(call => call.capability_id === f.dual.actions.project.capability_id);
     assert.equal(executions.reduce((count, call) => count + (call.count ?? 1), 0), 1, "the entry never retries an already committed command");
   } finally { log.record = record; records.save(original); }
+});
+
+test("S-surface-composition SCS-12 a removed native plugin comes back from its home card through Projects' setter, and only with the revision it showed", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  const stale = await removedInbox(f), events = memberEvents(f).length;
+  await setMember(f, "inbox", true);
+  await setMember(f, "inbox", false);
+  assert.equal((await members(f)).plugins.includes("inbox"), false, "an ABA leaves the same members under a new revision");
+  await json(await f.click(INBOX, stale), 409);
+  assert.equal(memberEvents(f).length, events + 2, "the stale card writes nothing");
+
+  const { records, record } = await inboxRecords(f);
+  const card = findCard(await f.read(), INBOX)?.plugin_card?.enable;
+  assert.ok(card?.kind === "project_membership");
+  const before = await members(f), original = record();
+  records.save({ ...original, installation_generation: original.installation_generation + 1 });
+  try {
+    await json(await f.click(INBOX, card), 409);
+  } finally { records.save(original); }
+  assert.deepEqual(await members(f), before, "an unchanged revision does not cover a replaced installation");
+
+  const restored = await json<{ kind: string }>(await f.click(INBOX, card));
+  assert.deepEqual(restored, { kind: "enabled" });
+  const after = await members(f);
+  assert.ok(after.plugins.includes("inbox"));
+  assert.notEqual(after.revision, before.revision);
+  assert.deepEqual(memberEvents(f).at(-1), { type: "project.plugin_added", plugin_id: "inbox" });
+  assert.equal(record().state, "running", "the Runtime switched the restored member on");
+  assert.equal(findCard(await f.read(), INBOX)?.state, "ok");
+  const count = memberEvents(f).length;
+  await json(await f.click(INBOX, card), 409);
+  assert.equal(memberEvents(f).length, count, "the same card is spent once it was used");
+});
+
+test("S-surface-composition SCS-12 a membership restore queued behind the Catalog writes nothing when its card or the page authority changed meanwhile", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  const card = await removedInbox(f), before = await members(f), events = memberEvents(f).length;
+  const { records, record } = await inboxRecords(f), original = record();
+  const catalog = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, value => value);
+  const commit = catalog.commit;
+  let waiting = deferred(), checks = 0;
+  t.mock.method(catalog, "commit", <T>(write: () => T, check?: () => Promise<void>) => commit(write, async () => {
+    await check?.();
+    // The second acquisition check follows an actual SQLITE_BUSY: the change lands before the owner transaction's synchronous fence.
+    if (++checks === 2) waiting.resolve();
+  }));
+  const queued = async (send: () => Promise<number | string>, during: () => Promise<unknown> | void) => {
+    checks = 0; waiting = deferred();
+    const blocker = openTestSqlite(join(f.home, "projects", "catalog.db"));
+    blocker.exec("BEGIN IMMEDIATE");
+    try {
+      const pending = send();
+      await Promise.race([waiting.promise, pending.then(status => assert.fail(`the restore answered ${status} before waiting for the Catalog`))]);
+      await during();
+      blocker.exec("ROLLBACK");
+      return await pending;
+    } finally { blocker.close(); }
+  };
+  try {
+    const status = await queued(() => f.click(INBOX, card).then(response => response.status),
+      () => records.save({ ...original, installation_generation: original.installation_generation + 1 }));
+    assert.equal(status, 409);
+  } finally { records.save(original); }
+
+  const page = await fetch(f.origin + "/settings/appearance");
+  const proof = /<meta name="molis-work-page-session" content="([^"]+)"/.exec(await page.text())?.[1];
+  const cookie = page.headers.getSetCookie().find(value => value.startsWith("molis-work-web-"))?.split(";")[0];
+  assert.ok(proof && cookie);
+  const headers = { cookie, "x-molis-work-page-session": proof };
+  const status = await queued(() => f.request(f.prefix + route + "/click", { method: "POST", authorized: false, headers, body: { owner_plugin_id: INBOX, target: card } })
+    .then(response => response.status, () => "disconnected"), async () => {
+    assert.equal((await f.request("/api/web-session", { method: "DELETE", authorized: false, headers })).status, 200);
+  });
+  assert.ok(status !== 200, `a revoked page could still restore (${status})`);
+  assert.deepEqual(await members(f), before);
+  assert.equal(memberEvents(f).length, events, "neither a replaced installation nor a revoked page left a membership event");
+  assert.equal(record().state, "disabled");
+});
+
+test("S-surface-composition SCS-12 a restore saved before its Runtime switch failed answers Projects' 503, and the card is not retried", { timeout: 60_000 }, async t => {
+  let fail = false;
+  const declaration = inbox.project_runtime!, create = declaration.create;
+  t.mock.method(declaration, "create", () => {
+    const definition = create();
+    return { ...definition, async start(context: Parameters<typeof definition.start>[0]) {
+      if (fail) throw new Error("fixture Inbox start failed");
+      return definition.start(context);
+    } };
+  });
+  const f = await fixture(t);
+  const card = await removedInbox(f), events = memberEvents(f).length;
+  fail = true;
+  const answer = await json<{ code: string; details: { committed: boolean; membership?: VersionedProjectPluginMembership } }>(await f.click(INBOX, card), 503);
+  assert.equal(answer.code, "host.project_plugins_refresh_failed");
+  assert.equal(answer.details.committed, true);
+  const saved = await members(f);
+  assert.deepEqual(answer.details.membership, saved);
+  assert.ok(saved.plugins.includes("inbox"), "the choice is saved although the switch did not finish");
+  assert.equal(memberEvents(f).length, events + 1);
+  await json(await f.click(INBOX, card), 409);
+  assert.equal(memberEvents(f).length, events + 1, "a retry with the shown card writes nothing");
+  fail = false;
+  assert.equal((await f.request(f.prefix + "/")).status, 200);
+  const { record } = await inboxRecords(f);
+  assert.equal(record().state, "running", "reopening the project page repairs only the Runtime");
+  assert.deepEqual(await members(f), saved);
 });

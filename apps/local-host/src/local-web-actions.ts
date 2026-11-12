@@ -6,7 +6,7 @@ import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runti
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { activeLocale, inLanguagePreview } from "./web-locale.js";
 import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentProjectPlatform, runningProjectPlatform } from "./project-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { sameInstalledRelease } from "./installed-stage-identity.js";
@@ -72,20 +72,21 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   signal?.throwIfAborted();
   const repository = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db)) : undefined;
   const platform = reference ? await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id)) : null;
-  return localWebAuthority(host, reference, caller, sessionCurrent, catalog, repository, platform, entry, stageAction);
+  return localWebAuthority(host, reference, caller, sessionCurrent, catalog, repository, platform, host.homePlugins?.installations() ?? [], entry, stageAction);
 }
 
-/** The homepage may use only registrations and installations that are already here. */
+/** The homepage may use only registrations and installations that are already here: a Home owner not yet started adds none. */
 export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal: AbortSignal) {
   const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
   const metadata = host.inspectActionMetadata(caller, reference);
   return { metadata, inspect: () => host.inspectActionMetadata(caller, reference), caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
-    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id)) };
+    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.startedInstallations() ?? []) };
 }
 
 function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
   catalog: readonly LocalActionMetadata[], projectRepository: SqlitePluginRuntimeRepository | undefined,
-  platform: Awaited<ReturnType<typeof runningProjectPlatform>>, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): ActionCallContext {
+  platform: Awaited<ReturnType<typeof runningProjectPlatform>>, homeInstalled: readonly PluginInstanceRecord[], entry: LocalWebEntry = {},
+  stageAction?: ActionDefinition): ActionCallContext {
   const { permissions: builtinPermissions, signal } = base;
   sessionCurrent();
   signal?.throwIfAborted();
@@ -93,7 +94,7 @@ function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProject
   // A plugin that runs as the Home's instance and as a project's has one install_id in both databases (a hash of its id and publisher),
   // each record with its own generation and grants. The two tables are never merged: an instance reads the record of its own database.
   const projectRecords = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
-  const homeRecords = new Map((host.homePlugins?.installations() ?? []).filter(record => record.state === "running").map(record => [record.install_id, record]));
+  const homeRecords = new Map(homeInstalled.filter(record => record.state === "running").map(record => [record.install_id, record]));
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
   // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id. A project's
   // Plugin Runtime registers with its project_id, the Home's without, and that decides which database's record is the provider's.

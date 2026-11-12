@@ -205,6 +205,8 @@ export class HomePluginHost {
     }
     return includeSurfaceSlots ? withSurfaceSlots(platform, platform.runtime.list()) : platform.runtime.list();
   }
+  /** What a started Home owner runs, and none before it started or after it failed: for a read that must neither start nor wait for it. */
+  startedInstallations(includeSurfaceSlots = false) { return this.platform ? this.installations(includeSurfaceSlots) : []; }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest

@@ -7,6 +7,9 @@ import { startSurfaceRead } from "@molis-ai/molis-work-service-surfaces";
 import { assertStageInstallation, sameInstalledRelease } from "./installed-stage-identity.js";
 import type { LocalHost } from "./local-host.js";
 import { pluginControlActions } from "./plugin-install-actions.js";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { invokeLocalWebCatalogAction } from "./local-web-actions.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
@@ -81,7 +84,36 @@ async function enablePackage(client: ActionClient, caller: ActionCallContext, ru
   deliver({ kind: "enabled" });
 }
 
-async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: HomeReadSample,
+/**
+ * A removed native plugin returns through Projects' own membership setter (batch 20) with the revision this card showed. Until the
+ * member is saved, the card and the exact disabled installation it named must still be current; Projects checks the revision in its
+ * transaction. Once the member is shown again only the edition is checked: the Runtime may already be starting it, and a member someone
+ * else saved meanwhile has moved the revision, which Projects refuses.
+ */
+async function enableMembership(owner: MolisWorkLocalHost, project: LocalHostProjectReference, runtime: MolisWorkProjectRuntime, entry: HomeDirectoryEntry,
+  target: Extract<SurfaceHomeEnable, { kind: "project_membership" }>, transport: ReturnType<typeof pluginRouteControl>,
+  card: { assertCurrent(): void; isShownMember(member: string): boolean }, deliver: (value: unknown) => void) {
+  const member = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === entry.plugin.plugin_id && item.project_runtime)?.project_plugin_id;
+  if (!member) throw changed();
+  const records = pluginInstallRecords(runtime.store.db);
+  const assertCurrent = () => {
+    requireSynchronous(transport.assert_authority_current?.());
+    const now = records.get(target.installation.install_id);
+    if (!now || now.plugin_id !== entry.plugin.plugin_id || now.publisher_trust !== "host" || now.publisher_signature !== entry.record.publisher_signature
+      || !sameInstalledRelease(target.installation, now)) throw changed();
+    if (card.isShownMember(member)) return;
+    card.assertCurrent();
+    if (now.state !== "disabled") throw changed();
+  };
+  await transport.beforeEffect();
+  // Saved even when the Runtime switch then fails: that 503 is Projects' receipt, passed on as it is, and a retry with this card is stale.
+  await invokeLocalWebCatalogAction(owner, async () => project, { ...projectPluginActions.set, provider_id: PROJECT_WORKSPACE_PROVIDER_ID },
+    { plugin_id: member, enabled: true, expected_revision: target.expected_revision }, { signal: transport.signal!, sessionCurrent: assertCurrent });
+  requireSynchronous(transport.assert_authority_current?.());
+  deliver({ kind: "enabled" });
+}
+
+async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: HomeReadSample, owner: MolisWorkLocalHost, project: LocalHostProjectReference,
   runtime: MolisWorkProjectRuntime, caller: ActionCallContext, client: ActionClient, prefix: string, transport: ReturnType<typeof pluginRouteControl>,
   deliver: (value: unknown) => void) {
   const object = homeObjectClick(intent.target, intent.owner, sample);
@@ -121,8 +153,9 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   if (target.kind === "project_installation") return enablePackage(client, caller, runtime, entry, target, view, transport, () => {
     sample.actionsCurrent?.(); sample.catalog.assertVisiblePackage(intent.owner);
   }, deliver);
-  // Only the real Projects member revision/setter may expose this branch after the batch 20 join.
-  if (target.kind === "project_membership") throw changed();
+  if (target.kind === "project_membership") return enableMembership(owner, project, runtime, entry, target, transport, {
+    assertCurrent() { sample.actionsCurrent?.(); sample.catalog.assertCurrent(); }, isShownMember: member => sample.catalog.isShownMember(member),
+  }, deliver);
   assertStageInstallation(entry.installation.scope, entry.record, target.installation);
   if (view.provider.plugin_id !== intent.owner || view.provider.plugin_install_id !== entry.installation.install_id || view.action.scope !== entry.installation.scope) throw changed();
   if (target.kind === "form") return deliver(stageNavigation(entry, target, prefix));
@@ -182,7 +215,7 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
           const current = () => { requireSynchronous(transport.assert_authority_current?.()); sample.assertCurrent(); };
           const result = await preparePositionPlacement(sample, context, object.item, intent.target.kind, object.revision, { window }, current);
           current(); deliverCurrent(result);
-        } else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliverCurrent);
+        } else await clickHomeCard(intent, sample, owner, reference, runtime, caller, client, prefix, transport, deliverCurrent);
         return true;
       } finally { deadline?.dispose(); }
     }, window);

@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionSubjectContext, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
@@ -59,18 +60,21 @@ export function objectStageLocation(entries: readonly HomeDirectoryEntry[], entr
 
 const projectEnable = { kind: "project_installation", action: { capability_id: pluginControlActions.enable.capability_id,
   version: pluginControlActions.enable.version, provider_id: PLUGIN_INSTALL_PROVIDER_ID } } as const;
+/** A removed native plugin comes back through Projects' own membership write (batch 20), not through its installation. */
+const MEMBERSHIP_ENABLE = { capability_id: projectPluginActions.set.capability_id, version: projectPluginActions.set.version,
+  provider_id: PROJECT_WORKSPACE_PROVIDER_ID } as const;
 
 function homeMembership(ports: DirectoryPorts) {
   const { homeDirectory, reference: { project_id, storage_key } } = ports;
   const membership = withFreshReadOnlyPluginDirectory(homeDirectory, () => ports.readCatalog(catalog => {
     if (resolve(catalog.getProject(project_id).database_path) !== storage_key || catalog.recycle.isRecycled(project_id))
       throw new ActionError("actions.scope_mismatch", "原项目已关闭或变化");
-    const { plugins, hidden } = catalog.projectPluginMembership(project_id, () => readOnlyAlwaysOnProjectPlugins(homeDirectory));
+    const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(project_id, () => readOnlyAlwaysOnProjectPlugins(homeDirectory));
     const shown = shownProjectPlugins(plugins, hidden).filter(key => !hidden.includes(key));
     const reach = availableProjectPluginIds(shown);
     const removed = new Set(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !reach.has(entry.project_plugin_id)
       && !hidden.includes(entry.project_plugin_id) && catalog.wasProjectPluginRemoved(project_id, entry.project_plugin_id)).map(entry => entry.project_plugin_id));
-    return { shown: new Set(shown), hidden: new Set(hidden), removed };
+    return { shown: new Set(shown), hidden: new Set(hidden), removed, revision };
   }));
   if (!membership) throw new ActionError("actions.unavailable", "项目目录尚未打开");
   return membership;
@@ -124,7 +128,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
   const halves = currentHomeStageHalves(home);
   const entries = [
     ...installedPluginEntries(store.db).map(item => ({ ...item, scope: "project" as const })),
-    ...(home?.installations() ?? []).filter(record => record.state !== "uninstalled").map(record =>
+    ...(home?.startedInstallations() ?? []).filter(record => record.state !== "uninstalled").map(record =>
       ({ record, manifest: home?.manifest(record.plugin_id), scope: "home" as const })),
   ];
   const rows = entries.flatMap(({ record, manifest, scope }) => {
@@ -151,17 +155,17 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
       : owner?.scope === scope && sameInstalledRelease(owner.installation, record) ? nativeRoute(owner, exact) : undefined
       : undefined;
     const { forms, signedForms } = formsFor(ports, record, scope, exact, route);
-    const enable = record.state !== "disabled" || record.publisher_trust !== "pinned" ? undefined
-      : scope === "home" && !!exact && home?.hasPackage(id) ? { kind: "home_plugin_settings" as const }
-        : scope === "project" && installedStageReleaseMatches(record, installed?.releaseFor(id), exact) ? projectEnable : undefined;
+    // The member revision read in this same Catalog sample goes into the card and back, unchanged, to the setter.
+    const enable = removed ? { kind: "project_membership" as const, action: MEMBERSHIP_ENABLE, expected_revision: membership.revision }
+      : record.state !== "disabled" || record.publisher_trust !== "pinned" ? undefined
+        : scope === "home" && !!exact && home?.hasPackage(id) ? { kind: "home_plugin_settings" as const }
+          : scope === "project" && installedStageReleaseMatches(record, installed?.releaseFor(id), exact) ? projectEnable : undefined;
     const unavailable = record.state === "running" ? !active : record.state === "disabled" && !!builtin?.project_runtime && scope === "project" && !removed;
     const installation = installedStageIdentity(scope, record);
     const contribution = active ? platform?.supervisor.contribution(id) : undefined;
     const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
     const directory = { id: route?.shell ?? key, plugin_id: id, name: exact?.name ?? stage?.manifest.name ?? id,
       chosen: builtin !== undefined, ...(builtin?.personal || !builtin && scope === "home" && !home?.dualInstance(id) ? { personal: true as const } : {}), ui: { views: exact?.ui.views ?? [] } };
-    // The real member revision and setter land together in batch 20. Until then a removed native installation is a disabled card,
-    // without a guessed revision or a second write path.
     return [{ record, installation, route, directory, presentation: exact?.presentation, slots, forms, signedForms, enable, unavailable }];
   });
   const ordered = projectHomeRailOrder(rows.map(row => row.directory));
@@ -184,6 +188,8 @@ export function surfaceHomeDirectory(ports: DirectoryPorts) {
   return { entries, plugins: entries.map(entry => entry.plugin), assertVisiblePackage(pluginId: string) {
     if (homeMembership(ports).hidden.has(pluginId))
       throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
+  }, isShownMember(member: string) {
+    return homeMembership(ports).shown.has(member);
   }, assertCurrent() {
     if (!ports.store.db.open || facts(sample(ports)) !== original)
       throw new ActionError("actions.provider_changed", "首页的插件目录已变化，请重新读取");

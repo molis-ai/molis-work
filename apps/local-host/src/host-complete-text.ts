@@ -61,6 +61,11 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
   return generate && (async (prompt, request) => (await generate(prompt, request)).value);
 }
 
+/** Whether this Home has a usable text model set up: asks nothing of a model (the runtime overview's `waiting.model`). */
+export function hostHasTextModel(options: HostTextOptions = {}): boolean {
+  return hostTextGeneration(options) !== undefined;
+}
+
 /**
  * The same guarded model binding, with the complete execution receipt for consumers that need it. Asked by the availability checks
  * of one action directory, it reads the model settings once for each Home and selection; a call outside a directory reads afresh.

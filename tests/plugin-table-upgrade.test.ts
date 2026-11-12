@@ -39,7 +39,7 @@ function home(t: TestContext) {
 
 const library = { pattern: LIBRARY, paths: () => [LIBRARY], version: N + 1 };
 /** The platform's own step on the file: one more table, so the file is at N + 1 once it is through. */
-const platform = (sql = "CREATE TABLE platform_extra (id INTEGER PRIMARY KEY)"): HomeUpgradeDescriptor => ({ owner: "tests/project", pattern: LIBRARY, open: file => openSqliteConnection(file),
+const platform = (sql = "CREATE TABLE platform_extra (id INTEGER PRIMARY KEY)"): HomeUpgradeDescriptor => ({ owner: "tests/project", block: { kind: "project" }, pattern: LIBRARY, open: file => openSqliteConnection(file),
   baseline: { version: N + 1, schema: `${PROJECT_DATABASE_BASELINE.schema}\nCREATE TABLE platform_extra (id INTEGER PRIMARY KEY);`, upgrades: [{ from: N, sql }] } });
 
 function round(root: string, lock: string, file: string) {

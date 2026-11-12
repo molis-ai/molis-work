@@ -10,7 +10,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  SCHEDULE_ACTIONS, SCHEDULE_ACTION_PERMISSIONS, createScheduleRouteHandlers, scheduleActions as s,
+  SCHEDULE_ACTIONS, SCHEDULE_ACTION_PERMISSIONS, createScheduleRouteHandlers, scheduleActions as s, scheduleRunsActions,
   type ScheduleConversationTaskView,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -38,7 +38,8 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
   const clients: Client[] = [];
   try {
     const directory = (await client.discover(caller)).filter(row => row.provider.plugin_id === "io.molis.work.schedule");
-    assert.deepEqual(directory.map(row => row.capability_id).sort(), SCHEDULE_ACTIONS.map(row => row.capability_id).sort());
+    // The two runs actions (第 25 批, RES-01/02) are the person's too: the panel reads and decides through them.
+    assert.deepEqual(directory.map(row => row.capability_id).sort(), [...SCHEDULE_ACTIONS, ...Object.values(scheduleRunsActions)].map(row => row.capability_id).sort());
     assert.ok(directory.every(row => row.availability.available && row.provider.project_id === project.project_id));
     const probe = registerProbe(host.actionRegistry(ref), "project");
     await startProjectPlugins(host, ref);

@@ -24,6 +24,7 @@ import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fix
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
+import { decideMissedPull, feedRunsOverview } from "@molis-ai/molis-work-plugin-feed";
 
 test("public Feed sources register offline, replay terminal sync, and roll back failed commits", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
@@ -461,6 +462,8 @@ test("source scheduler persists the next run, collapses missed slots, and preven
         interval_minutes: 15,
         next_pull_at: "2026-08-30T09:15:00.000Z",
       });
+      const overview = feedRunsOverview(service.feed, DEMO_PROJECT_ID, { now: now.toISOString(), upcoming_until: "2026-08-30T10:00:00.000Z" });
+      assert.deepEqual(overview.upcoming.map(run => [run.open?.id, run.due_at, run.needs]), [[source.source_id, "2026-08-30T09:15:00.000Z", ["network"]]], "RES-03 the next pull, needing the network");
 
       let dispatches = 0;
       let release!: () => void;
@@ -484,13 +487,23 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       const afterFirst = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterFirst.schedule.mode === "interval" ? afterFirst.schedule.next_pull_at : null, "2026-08-30T09:30:00.000Z");
 
+      // RES-03: after a sleep the pull is not made on its own (user 2026-11-04, 「不自动补跑」): it is written down once, for the person,
+      // and the next time comes as usual; 「现在做」 makes it the next tick's pull, with its own idempotency identity.
       now = new Date("2026-08-30T10:20:00.000Z");
       const catchup = await scheduler.tick(now);
       assert.equal(catchup.due, 1);
-      assert.equal(dispatches, 2, "sleep recovery performs one catch-up pull, not every missed slot");
-      assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
+      assert.equal(catchup.skipped, 1);
+      assert.equal(dispatches, 1, "sleep recovery makes no pull of its own, for none of the missed slots");
+      const missed = service.feed.sources.missed.list(DEMO_PROJECT_ID, 50);
+      assert.deepEqual(missed.map(entry => [entry.source_id, entry.due_at, entry.decision]), [[source.source_id, "2026-08-30T09:30:00.000Z", null]]);
       const afterCatchup = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterCatchup.schedule.mode === "interval" ? afterCatchup.schedule.next_pull_at : null, "2026-08-30T10:30:00.000Z");
+      assert.deepEqual(decideMissedPull(service.feed, DEMO_PROJECT_ID, { run_id: missed[0]!.run_id, decision: "run_now" }, now), { state: "started" });
+      assert.deepEqual(decideMissedPull(service.feed, DEMO_PROJECT_ID, { run_id: missed[0]!.run_id, decision: "run_now" }, now), { state: "gone" }, "a second click finds it decided");
+      await scheduler.tick(now);
+      assert.equal(dispatches, 2, "现在做 pulls it once, on the usual path");
+      assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
+      assert.deepEqual(service.feed.sources.missed.list(DEMO_PROJECT_ID, 50), []);
     } finally {
       store.close();
     }

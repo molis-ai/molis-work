@@ -30,6 +30,7 @@ export {
   captureUpgradeSnapshot,
   pruneUpgradeSnapshots,
   restoreUpgradeSnapshot,
+  upgradeSnapshotListed,
   verifyUpgradeSnapshot,
   type UpgradeHomeLock,
   type UpgradeSnapshotEntry,

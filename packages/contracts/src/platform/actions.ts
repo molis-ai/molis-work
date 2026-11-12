@@ -13,6 +13,7 @@ import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./home-background-tasks.js";
 export * from "./home-events.js";
 export * from "./due-reminders.js";
+export * from "./scheduled-runs.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";

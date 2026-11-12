@@ -104,6 +104,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       translate: readText,
       receipt: showToast, changed: () => positionChanged(),
       offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
+      words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
     });
     const positionChanged = () => {
       projectHome?.sync(); projectPositions?.invalidate();

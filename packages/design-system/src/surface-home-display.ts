@@ -14,7 +14,13 @@ export interface SurfaceHomeRowDisplay {
   fallback?: true;
   read: Pick<PresentationValueItem, "revision" | "state" | "values" | "read_at"> | { state: "unreadable" };
 }
+/**
+ * Which shown positions take their words from one exact source, by an opaque grant the shell reads only through the locale entry
+ * (surface-composition §14.6). It is not a page, an action or a form credential.
+ */
+export interface SurfaceHomeText { ref: string; owner: string; positions: readonly string[] }
 export interface SurfaceHomeDisplay extends SurfaceDescription {
+  surface_text?: readonly SurfaceHomeText[];
   position?: { kind: SurfaceSlot["kind"]; forms: readonly FormKind[]; pin: boolean; reasons?: readonly (OwnedTextRef | null | undefined)[] };
   object_restore_available?: true;
   display: {

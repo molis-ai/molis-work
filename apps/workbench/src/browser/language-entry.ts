@@ -6,6 +6,7 @@ import { settingsContentOf } from "../settings-content.js";
 import type { InlinePageText } from "../language-resource.js";
 import { mountDiscussionLanguage } from "./discussion-language.js";
 import { installLanguageText } from "./language-text.js";
+import { surfaceTextState } from "./surface-text.js";
 import { assetOf, installLanguageAssets } from "./language-asset.js";
 import { nativeLanguagePublisher, type NativeDocumentLanguage } from "./native-language.js";
 import type {} from "./plugin-frame/types.js";
@@ -192,9 +193,9 @@ function watchLanguageControls(local: boolean, currentCatalog: () => UiLanguageC
 }
 
 /** A settings view and a work surface may project different keys from the same registered owner. */
-function packsFor(pack: UiLocalePack, pages: readonly InlinePageText[]): readonly UiLocalePack[] {
+function packsFor(pack: UiLocalePack, pages: readonly InlinePageText[], surface: readonly UiLocalePack[] = []): readonly UiLocalePack[] {
   const packs = new Map<string, UiLocalePack>();
-  for (const value of [pack, ...pages.flatMap(page => page.packs)]) {
+  for (const value of [pack, ...pages.flatMap(page => page.packs), ...surface]) {
     const id = `${value.owner}/${value.locale}`, found = packs.get(id);
     packs.set(id, found ? { ...found, messages: { ...found.messages, ...value.messages } } : value);
   }
@@ -207,10 +208,9 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   const cachedSettingsText = () => (globalThis.molisWorkSettingsLanguageRoots?.() ?? []).flatMap(panel => settingsText.get(panel) ?? []);
   const matches = (value: string | undefined | null): value is UiLanguageTag => knownLanguage(displayed.catalog, value);
   const text = installLanguageText(initial.pack.locale, packsFor(initial.pack, inline), intlLocale(initial.catalog));
-  globalThis.molisWorkInstallSettingsText = (root, page) => {
-    settingsText.set(root, viewPacks(page));
-    text.select(displayed.pack.locale, packsFor(displayed.pack, [...inline, ...cachedSettingsText()]), intlLocale(displayed.catalog));
-  };
+  const reselect = () => text.select(displayed.pack.locale, packsFor(displayed.pack, [...inline, ...cachedSettingsText()], surface.packs()), intlLocale(displayed.catalog));
+  const surface = surfaceTextState(molisWorkRequest, () => displayed.pack.locale, reselect);
+  globalThis.molisWorkInstallSettingsText = (root, page) => { settingsText.set(root, viewPacks(page)); reselect(); };
   showLanguage(initial);
   globalThis.molisWorkLanguageCatalog = () => displayed.catalog;
   const publishNative = nativeLanguagePublisher(() => nativeLanguageOf(languageOf(displayed)));
@@ -244,14 +244,15 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       if (choice.native && (choice.native.language.html_lang !== language.html_lang || choice.native.language.direction !== language.direction)) {
         throw new Error(t.text("workbench.language.load-failed"));
       }
-      const [frames, settings, im, artifacts] = previous && next ? await Promise.all([
+      const [frames, settings, im, artifacts, words] = previous && next ? await Promise.all([
         globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next),
         prepareSettings(render, displayed.pack.locale, locale, signal),
         discussion.prepare(frameUiLanguage(language), signal),
         artifactLanguage ? prepareArtifactLanguage(molisWorkRequest, locale, signal) : undefined,
+        surface.prepare(locale, signal),
       ]) : [];
-      const packs = packsFor(asset.pack, [...projected, ...(settings?.regions.flatMap(region => region.words) ?? [])]);
-      return { asset, choice, frames, settings, im, artifacts, agentDisplayWords: next && prepareAgentDisplayModels(next, settings?.regions ?? []), deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
+      const packs = packsFor(asset.pack, [...projected, ...(settings?.regions.flatMap(region => region.words) ?? [])], words?.packs ?? []);
+      return { asset, choice, frames, settings, im, artifacts, words, agentDisplayWords: next && prepareAgentDisplayModels(next, settings?.regions ?? []), deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
         inline: projected, packs, reader: createTextReader({ packs, locale, intlLocale: intlLocale(asset.catalog) }) };
     },
     regions: prepared => [...(prepared?.settings?.regions ?? []), ...(prepared?.artifacts?.current() ? prepared.artifacts.regions : [])],
@@ -275,7 +276,8 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       prepared?.frames?.assertCurrent();
       prepared?.settings?.assertCurrent();
       const commit = () => {
-        text.select(locale, prepared?.packs ?? packsFor(asset.pack, [...projected, ...cachedSettingsText()]), intlLocale(asset.catalog));
+        text.select(locale, prepared?.packs ?? packsFor(asset.pack, [...projected, ...cachedSettingsText()], surface.packs()), intlLocale(asset.catalog));
+        prepared?.words?.apply();
         showLanguage(asset);
         prepared?.frames?.apply();
         prepared?.deletionScopeWords?.();

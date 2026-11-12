@@ -18,6 +18,8 @@ interface HomeHost {
   offers(input: { root: HTMLElement; current: () => { subject: SurfaceHomeRowDisplay["subject"] } | null;
     projectKey: string; api: (path: string, method: string, body: unknown) => Promise<unknown>;
     refresh: () => Promise<void>; translate: HomeHost["translate"] }): { refresh(): void; clear(): void };
+  /** Reads the displayed language's words for this response's grants into the page (surface-composition §14.6). */
+  words(text: NonNullable<SurfaceHomeDisplay["surface_text"]>, signal: AbortSignal): Promise<void>;
 
 }
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
@@ -140,8 +142,14 @@ export function mountHome(host: HomeHost) {
   const cancel = (release: boolean) => {
     reading?.abort(); reading = null; clicking?.abort(); clicking = null;
     closePeek(); placement.close(false); needsRead = true;
-    if (release) { display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); }
+    if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); }
   };
+  /** A replaced or dropped response ends its own word grants; a newer one keeps its own. */
+  const releaseText = (old: SurfaceHomeDisplay | null) => {
+    const text = old?.surface_text?.map(item => item.ref);
+    if (text?.length) void host.read("", { release_text: text }, new AbortController().signal).catch(() => undefined);
+  };
+  const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) => !!a && JSON.stringify({ ...a, surface_text: undefined }) === JSON.stringify({ ...b, surface_text: undefined });
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
 
   async function sync(invalidate = false) {
@@ -153,15 +161,18 @@ export function mountHome(host: HomeHost) {
     caption(display ? "refreshing" : "loading");
     try {
       const result = await host.read<SurfaceHomeDisplay>("", { home_order: host.order() }, request.signal);
-      if (request.signal.aborted || reading !== request || !visible()) return;
-      const before = display && JSON.stringify(display) === JSON.stringify(result);
+      if (request.signal.aborted || reading !== request || !visible()) { releaseText(result); return; }
+      // Without the owners' words the drawing falls back to the unavailable mark; the response itself stays good.
+      if (result.surface_text?.length) await host.words(result.surface_text, request.signal).catch(() => undefined);
+      if (request.signal.aborted || reading !== request || !visible()) { releaseText(result); return; }
+      const before = sameShown(display, result);
       if (inspected) {
         const key = subjectKey(inspected.owner, inspected.subject);
         const previous = display?.display.rows.find(row => subjectKey(row.owner, row.subject) === key);
         const next = result.display.rows.find(row => subjectKey(row.owner, row.subject) === key);
         if (JSON.stringify(previous) !== JSON.stringify(next)) closePeek();
       }
-      display = result; needsRead = false;
+      releaseText(display); display = result; needsRead = false;
       const editing = corrections.rendering(result);
       if (!before) {
         const html = renderHome(result, controls, editing);
@@ -172,7 +183,7 @@ export function mountHome(host: HomeHost) {
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);
     } catch (error) {
       if (request.signal.aborted || reading !== request || !visible()) return;
-      if (unsafe(error)) { display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
+      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
   }
@@ -213,7 +224,7 @@ export function mountHome(host: HomeHost) {
       }
     } catch (error) {
       if (!request.signal.aborted && clicking === request && visible()) {
-        if (unsafe(error)) { display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
+        if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
         caption(key === "open-result" ? "open-failed" : "navigation-failed", key === "open-result" ? key : "refresh");
       }
     } finally {

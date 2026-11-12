@@ -73,6 +73,19 @@ interface PageTextSource {
   readonly reader: PluginTextReader | null;
   readonly embedded: boolean;
 }
+/** Words only (surface-composition §14.6): one shown source's bounded keys, never a page, action or form. */
+interface TextGrant {
+  readonly activation: Activation;
+  /** The project whose home response showed the words; a Home half's activation has none of its own. */
+  readonly project_id: string | null;
+  readonly keys: ReadonlySet<string>;
+  readonly expiresAt: number;
+  sessionCurrent(reader?: IncomingMessage): void;
+  assertCurrent(): void;
+}
+export interface SurfaceTextSource { readonly id: string; readonly manifest: PluginManifest; readonly reader: PluginTextReader | null; readonly keys: ReadonlySet<string> }
+/** The existing bound on what one Home keeps open, pages and word grants together. */
+const OPEN_LIMIT = 256;
 export type ReadShownProjectPlugins = () => Promise<readonly string[]>;
 type AssertPageScope = (shown?: ReadShownProjectPlugins) => Promise<void>;
 
@@ -136,6 +149,7 @@ export function pluginPagesFor(home: string): PluginPageAuthority {
 export class PluginPageAuthority {
   private readonly activations = new Set<Activation>();
   private readonly pages = new Map<string, Page>();
+  private readonly texts = new Map<string, TextGrant>();
   constructor(private readonly storageScope: string = randomUUID()) {}
 
   connect(activation: Activation): () => void {
@@ -143,6 +157,7 @@ export class PluginPageAuthority {
     return () => {
       this.activations.delete(activation);
       for (const [id, page] of this.pages) if (page.activation === activation) this.close(id);
+      for (const [id, grant] of this.texts) if (grant.activation === activation) this.texts.delete(id);
     };
   }
 
@@ -181,8 +196,8 @@ export class PluginPageAuthority {
     activation.assertCurrent();
     const embedded = capturedEmbedded(this.activations, activation, selected);
     if (activation === registered) this.activations.add(activation);
-    for (const [id, page] of this.pages) if (page.expiresAt < Date.now()) this.close(id);
-    if (this.pages.size >= 256) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
+    this.expire();
+    if (this.pages.size + this.texts.size >= OPEN_LIMIT) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
     this.pages.set(id, { activation, embedded, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
@@ -244,18 +259,57 @@ export class PluginPageAuthority {
 
   clearProject(projectId: string): void {
     for (const [id, page] of this.pages) if (page.project_id === projectId) this.close(id);
+    for (const [id, grant] of this.texts) if (grant.project_id === projectId) this.texts.delete(id);
+  }
+
+  private expire() {
+    const now = Date.now();
+    for (const [id, page] of this.pages) if (page.expiresAt < now) this.close(id);
+    for (const [id, grant] of this.texts) if (grant.expiresAt < now) this.texts.delete(id);
+  }
+
+  /**
+   * Lets the trusted shell read, in another language, the words a protected home response showed from one exact running source (§14.6).
+   * Taken from the request that composed it, after its last check; the response's own session and the source's own checks hold every read.
+   */
+  grantText(requester: string | null, source: { plugin_id: string; project_id: string | null; actor_id: string; install_id: string; installation_generation: string },
+    keys: ReadonlySet<string>, assertCurrent: () => void): string | undefined {
+    const matches = [...this.activations].filter(item => item.manifest.plugin_id === source.plugin_id && item.project_id === source.project_id
+      && item.actor_id === source.actor_id && item.install_id === source.install_id && item.instance?.installation_generation === source.installation_generation);
+    const activation = matches.length === 1 ? matches[0]! : undefined;
+    if (!activation || !keys.size || keys.size > 512) return undefined;
+    assertTextSource(activation, this.activations); assertCurrent();
+    this.expire();
+    if (this.pages.size + this.texts.size >= OPEN_LIMIT) return undefined;
+    const id = randomUUID();
+    this.texts.set(id, { activation, project_id: requester, keys, sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000, assertCurrent });
+    return id;
+  }
+
+  /** A replaced or left home response ends only its own word grants. */
+  releaseText(ids: readonly string[], project: string | null): void {
+    for (const id of ids) if (this.texts.get(id)?.project_id === project) this.texts.delete(id);
   }
 
   /** Capture the same grants already minted for this document, and read their exact owners only after the last asynchronous scope check. */
   async withPageText(request: IncomingMessage, ids: readonly string[], project: string | null, signal: AbortSignal,
-    read: (sources: readonly PageTextSource[]) => void, shown?: ReadShownProjectPlugins): Promise<void> {
+    read: (sources: readonly PageTextSource[], texts: readonly SurfaceTextSource[]) => void, shown?: ReadShownProjectPlugins, textIds: readonly string[] = []): Promise<void> {
     const entries = ids.map(id => {
       const page = this.pages.get(id);
       if (!page || page.project_id !== project) throw refused();
       return { id, page };
     });
+    const grants = textIds.map(id => {
+      const grant = this.texts.get(id);
+      if (!grant || grant.project_id !== project) throw refused();
+      return { id, grant };
+    });
     const check = () => {
       signal.throwIfAborted();
+      for (const { id, grant } of grants) {
+        if (this.texts.get(id) !== grant || grant.expiresAt < Date.now()) throw refused();
+        grant.sessionCurrent(request); assertTextSource(grant.activation, this.activations); grant.assertCurrent();
+      }
       for (const { id, page } of entries) {
         if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now()) throw refused();
         page.sessionCurrent(request); page.selection?.assertCurrent();
@@ -268,7 +322,8 @@ export class PluginPageAuthority {
     const requestSelection = shown && (() => selection ??= shown());
     await Promise.all(entries.map(({ page }) => page.assertScope?.(requestSelection)));
     check();
-    read(entries.flatMap(({ id, page }) => pageTextSources(id, page)));
+    read(entries.flatMap(({ id, page }) => pageTextSources(id, page)), grants.map(({ id, grant: { activation, keys } }) => ({ id, manifest: activation.manifest,
+      reader: activation.instance ? pluginTextReader(activation.instance) : activation.registeredText ?? null, keys })));
   }
 
   /** A terminal transport keeps this closure, never a caller-supplied installation or project. */

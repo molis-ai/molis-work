@@ -11,7 +11,8 @@ import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/m
 import { invokeLocalWebCatalogAction } from "./local-web-actions.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
-import { pluginPageRequest } from "./plugin-page-authority.js";
+import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
+import { grantSurfaceHomeText } from "./surface-home-text.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import type { HomeDirectoryEntry, SurfaceHomeCatalogReader } from "./surface-home-directory.js";
@@ -205,7 +206,11 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
         if (intent.kind === "read") {
           const display = await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport));
           sample.assertCurrent();
-          deliverCurrent(display);
+          const words = homeDirectory ? grantSurfaceHomeText(sample, display, { home: homeDirectory, project_id: reference.project_id, actor_id: caller.actor_id,
+            record: installation => installation.scope === "home" ? owner.homePlugins?.installation(installation.install_id)
+              : pluginInstallRecords(runtime.store.db).get(installation.install_id) }) : undefined;
+          try { deliverCurrent(words?.text.length ? { ...display, surface_text: words.text } : display); }
+          catch (error) { words?.release(); throw error; }
         } else if (intent.kind === "correct") {
           deliverCurrent(await correctSurfacePosition(sample, context, { kind: "home" }, sample.description.groups, intent.correction,
             displayValues(sample, client, caller, transport)));
@@ -248,6 +253,12 @@ export async function handleSurfaceHomeHttp(context: ProjectRequestContext): Pro
       try { if (!await confirmPositionOffer(localHost, hostReference, disconnected.signal, undefined, claimed, response)) throw changed(); }
       finally { claimed.window.close(); }
       return true;
+    }
+    if (!click && Object.keys(body).length === 1 && Object.hasOwn(body, "release_text")) {
+      const ids = body.release_text;
+      if (!Array.isArray(ids) || ids.length > 256 || ids.some(id => typeof id !== "string")) throw invalid();
+      if (context.serverOptions.homeDirectory) pluginPagesFor(context.serverOptions.homeDirectory).releaseText(ids as string[], hostReference.project_id);
+      sendLocalWebJson(response, 200, { released: true }); return true;
     }
     const intent = homeIntent(body, click);
     const delivered = await withPositionOfferWindow(scope, intent.kind === "click" && isPlacementKind(intent.target.kind), window =>

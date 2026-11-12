@@ -81,7 +81,7 @@ test("first-use skip remains clickable on a narrow desktop page and creates no p
   assert.equal(status.state.completed_project_id, null);
 });
 
-test("project general settings persist a rename, cancel safely, and retry deletion after network failure and a lost response", { timeout: 60_000 }, async t => {
+test("B27-UI-04 · F-14: project settings persist a rename, cancel deletion safely and retry after network failure and a lost response", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty");
   if (!browser) return;
   const { origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
@@ -108,6 +108,11 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => click('[data-project-rename] button[type=submit]'));
   await waitFor(general, 15_000);
   assert.equal(await evaluate("document.querySelector('[data-project-rename] input').value"), "项目的新名称");
+  // VUX-52 / VUX-56: the dangerous entry has a visible boundary before it asks for confirmation.
+  assert.equal(await evaluate(`(() => {
+    const style = getComputedStyle(document.querySelector('[data-project-delete-open]'));
+    return style.borderTopStyle === 'solid' && parseFloat(style.borderTopWidth) > 0 && style.borderTopColor !== 'rgba(0, 0, 0, 0)';
+  })()`), true);
   await click('[data-project-delete-open]');
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog]').open"), true);
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog] button[type=submit]').disabled"), true);
@@ -116,11 +121,12 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await waitFor("!document.querySelector('[data-project-delete-scope]').hidden && document.querySelector('[data-project-delete-scope]').textContent.includes('Pages 文稿与文件夹')");
   assert.match(await evaluate<string>("document.querySelector('[data-project-delete-scope]').textContent"), /Forms 问卷及收到的全部回答/);
   await click('[data-project-delete-cancel]');
+  await waitFor("!document.querySelector('[data-project-delete-dialog]').open && document.activeElement.matches('[data-project-delete-open]')");
   assert.equal((await fetch(origin + prefix + "/settings/general")).status, 200);
   await click('[data-project-delete-open]');
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  await waitFor("!document.querySelector('[data-project-delete-dialog]').open");
+  await waitFor("!document.querySelector('[data-project-delete-dialog]').open && document.activeElement.matches('[data-project-delete-open]')");
   assert.equal((await fetch(origin + prefix + "/settings/general")).status, 200);
 
   // The same dialog in an English UI: the sentence, and the plugins' labels (their own English tables, served by the Host).
@@ -183,7 +189,7 @@ test("project general settings persist a rename, cancel safely, and retry deleti
 
 // SSC-23, design 05-materials-directories A3 (user 2026-11-08): when the project's default output directory has files, the two option cards
 // are the confirmation (no checkbox); keeping says where the folder stays, deleting removes it; an empty folder keeps today's checkbox.
-test("SSC-23 A3 the delete dialog asks about the default output directory's files with option cards, says where kept files stay, and deletes them only when chosen", { timeout: 60_000 }, async t => {
+test("B27-UI-04 · SSC-23 A3 the delete dialog asks about the default output directory's files with option cards, says where kept files stay, and deletes them only when chosen", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty");
   if (!browser) return;
   const { origin, sessionId, command, evaluate, waitFor, click, navigate, homeDirectory } = browser;
@@ -215,7 +221,14 @@ test("SSC-23 A3 the delete dialog asks about the default output directory's file
   const keptFolder = join(homeDirectory, "outputs", keep);
   await mkdir(keptFolder, { recursive: true });
   await writeFile(join(keptFolder, "报告.md"), "# 留着\n");
+  await browser.setViewport(390, 740);
   await openSettings(keep);
+  await click("[data-project-delete-open]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-output]').hidden`);
+  await click("[data-project-delete-cancel]");
+  await waitFor(`!${dialog}.open && document.activeElement.matches('[data-project-delete-open]')`);
+  assert.equal((await fetch(`${origin}/projects/${keep}/settings/general`)).status, 200);
+  assert.equal(await readFile(join(keptFolder, "报告.md"), "utf8"), "# 留着\n");
   await click("[data-project-delete-open]");
   await waitFor(`!${dialog}.querySelector('[data-project-delete-output]').hidden`);
   assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-confirm]').hidden`), true);
@@ -388,4 +401,55 @@ test("global settings retain project context through sections, planning cancel a
   await click('[data-cover-close]');
   await waitFor("!document.querySelector('[data-tab-workspace]')?.dataset.exclusive");
   assert.equal(await evaluate('location.pathname'),`/projects/${projectId}/`);
+});
+
+test("B27-UI-03 · BL-958 / VUX-30 / VUX-40: narrow settings links stay single-line and reachable by keyboard", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "empty");
+  if (!browser) return;
+  const { command, sessionId, origin, navigate, waitFor, evaluate, setViewport } = browser;
+  const links = ".settings-nav-body > a";
+  const press = async (key: string, windowsVirtualKeyCode: number) => {
+    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key, code: key, windowsVirtualKeyCode }, sessionId);
+  };
+  for (const language of ["zh", "en"]) {
+    await command("Network.setCookie", { name: "molis_work_locale", value: language, url: origin }, sessionId);
+    await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance" }, sessionId));
+    await waitFor(`document.querySelector('${links}[aria-current=page]')`);
+    for (const width of [1440, 1024]) {
+      await setViewport(width, 900);
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.settings-nav-body')).flexDirection"), "column");
+    }
+    await setViewport(390, 500);
+    const geometry = await evaluate<{ overflow: boolean; scrollable: boolean; invalid: string[]; selected: string }>(`(() => {
+      const rail = document.querySelector('.settings-nav-body');
+      const anchors = [...document.querySelectorAll('${links}')];
+      const invalid = anchors.filter(link => {
+        const text = [...link.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const style = getComputedStyle(link);
+        const lines = new Set([...range.getClientRects()].filter(rect => rect.height && rect.width).map(rect => Math.round(rect.top)));
+        return lines.size !== 1 || link.getBoundingClientRect().height < 44 || parseFloat(style.borderTopWidth) === 0 || style.borderTopColor === 'rgba(0, 0, 0, 0)';
+      }).map(link => link.textContent.trim());
+      return {
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        scrollable: rail.scrollWidth > rail.clientWidth,
+        invalid,
+        selected: rail.querySelector('[aria-current=page]').textContent.trim(),
+      };
+    })()`);
+    assert.equal(geometry.selected, language === "en" ? "Interface & language" : "界面与语言");
+    assert.deepEqual(geometry.invalid, []);
+    assert.equal(geometry.overflow, false);
+    assert.equal(geometry.scrollable, true);
+    await evaluate(`document.querySelector('${links}').focus()`);
+    const toConnections = await evaluate<number>(`[...document.querySelectorAll('${links}')].findIndex(link => new URL(link.href).pathname === '/capabilities/connections')`);
+    assert.ok(toConnections > 0);
+    for (let count = 0; count < toConnections; count++) await press("Tab", 9);
+    assert.equal(await evaluate("new URL(document.activeElement.href).pathname"), "/capabilities/connections");
+    assert.equal(await evaluate("document.querySelector('.settings-nav-body').scrollLeft > 0"), true);
+    await navigate(() => press("Enter", 13));
+    assert.equal(await evaluate("location.pathname"), "/capabilities/connections");
+    assert.equal(await evaluate("document.querySelector('.settings-content h1').textContent.trim()"), language === "en" ? "Service connections" : "服务连接");
+  }
 });

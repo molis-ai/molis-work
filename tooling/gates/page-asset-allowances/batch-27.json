@@ -1,0 +1,77 @@
+{
+  "reason": "第 27 批整批净增（对 main 206884b447 的隔离构建），全部是本批的现有界面修复，没有新资源、单项都在 10 KB 以下（合计 12,264 字节）：workbench.css +4283（BL-102 窄窗审批约 +3.0 KB、BL-138 问卷窄卡、F-20 设置缺页、BL-915 留下项结果）；workbench.js +3283（BL-102 审批接手、BL-041 个人内容搜索、F-20、B9 记忆建议带版本、调用行的技术详情折叠）；arrival.css +1010（BL-041 带字入口）；feed.js +1721（拉取失败按原因说明、刷新失败保留输入与诊断号；失败分类拆进不带 SDK 的 run-failure.ts，从 +11.8 KB 降下来）；todo.js +584（冲突后恢复与重新载入去重）；form.css +557（导出与必填可见）；coding.js +390（原文与增量回改）；inbox.js +171、git.js +148、ppt.js +47（失败说明、上游推送说明、色板名称）；plugin-frame.js +70（视图未就绪与入口缺失说明）。",
+  "review": "第 27 批 PR #2010「页面资源」节列出逐项增长，由统筹审 PR 时核对；单项都未超过 10 KB、无新资源，不需用户批准；合计 12,264 字节，分属 11 个资源。 首屏按 first-screen 门禁对 main 206884b447 的隔离 Host 实测（两份构建各在自己的进程里量）：pages 为各页冷、热净增；工作台语言包随本批键的增删换了内容地址（中文 +740、英文 +643 字节，只计冷访），按门禁算新条目。项目列表 / 文档在搜索按需载入后热访 +7.2 KB（载入前 +30.3 KB）。",
+  "userApproval": "用户于 2026-11-12 选「搜索按需载入」：项目列表「搜索个人内容」的程序（第 27 批 BL-041）改成新资源 /assets/molis-work-chooser-search.js，只在第一次按这个按钮时取，项目列表文档不再内联 24 KB 搜索脚本；同时批准本批各首屏页面的小幅增长与工作台语言包内容变化（键随本批增删）。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 1010,
+    "/assets/molis-work-plugin-frame.js": 70,
+    "/assets/molis-work-workbench.css": 4283,
+    "/assets/molis-work-workbench.js": 3283,
+    "/assets/molis-work-plugins/feed.js": 1721,
+    "/assets/molis-work-plugins/inbox.js": 171,
+    "/assets/molis-work-plugins/ppt.js": 47,
+    "/assets/molis-work-plugins/todo.js": 584,
+    "/assets/molis-work-plugins/coding.js": 390,
+    "/assets/molis-work-plugins/git.js": 148,
+    "/assets/molis-work-plugins/form.css": 557,
+    "/assets/molis-work-chooser-search.js": 13907
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 9056,
+      "warm": 2953
+    },
+    "arrival-empty/en": {
+      "cold": 8959,
+      "warm": 2953
+    },
+    "chooser/zh": {
+      "cold": 13289,
+      "warm": 7186
+    },
+    "chooser/en": {
+      "cold": 13213,
+      "warm": 7207
+    },
+    "workbench-default/zh": {
+      "cold": 9153,
+      "warm": 372
+    },
+    "workbench-default/en": {
+      "cold": 9086,
+      "warm": 402
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 9925,
+      "warm": 1144
+    },
+    "workbench-all-plugins/en": {
+      "cold": 9843,
+      "warm": 1159
+    }
+  },
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ]
+}

@@ -76,10 +76,11 @@ export function listen(page: TodoPage): void {
     if (!id) return;
     const name = String(id);
     if (name.startsWith("batch:")) {
-      void page.closeDetail().then(() => { state.focusBatch = name.slice(6); state.view = "review"; return page.load(); }).catch((error: Error) => page.showNote(error.message, { error: true }));
+      void page.closeDetail().then(() => { state.focusBatch = name.slice(6); state.view = "review"; return page.load(); }, () => undefined).catch((error: Error) => page.showNote(error.message, { error: true }));
       return;
     }
-    void page.flush().then(() => page.openDetail(name)).catch((error: Error & { status?: number }) => {
+    // Saving the open draft and reading the requested item are separate failures.
+    void page.flush().then(() => page.openDetail(name), () => undefined).catch((error: Error & { status?: number }) => {
       if (error.status === 404 || error.status === 403) el.bench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: name } }));
       page.showNote(error.message, { error: true });
     });

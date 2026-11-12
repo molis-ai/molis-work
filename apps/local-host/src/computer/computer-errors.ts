@@ -21,6 +21,8 @@ export const computerErrors = defineErrorCodes("computer", {
   person_present: "cancelled",
   screen_locked: "unavailable",
   outside_target: "forbidden",
+  /** A confirm that arrived right after the round's own step landed on screen: the Assistant cannot approve itself (agent reviews). */
+  self_approval: "conflict",
 });
 
 const REFUSAL = {

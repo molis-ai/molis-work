@@ -35,9 +35,11 @@ import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
-import { APPROVED_KEY, installedLifecycle } from './installed-plugin-lifecycle.js';
+import { APPROVED_KEY, installedLifecycle, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
+import { RecoveryErrors } from './installed-recovery-errors.js';
+import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
@@ -120,7 +122,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   // The studio's installs, and the ones from a signed package a pinned publisher made: both run in the sandbox and are listed, started and removed alike.
   const records = () => platform.runtime.list().filter(item => (item.publisher_signature.startsWith(SIGNATURE) || item.publisher_trust === 'pinned') && item.state !== 'uninstalled');
-  const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
+  /** `retryUninstall`: also the one signed tombstone of this plugin whose uninstall has not finished its clean-up (BL-915), never another. */
+  const recordFor = (pluginId: string, retryUninstall = false) => records().find(item => item.plugin_id === pluginId)
+    ?? (retryUninstall ? onlyOne(platform.runtime.list().filter(item => item.plugin_id === pluginId && isPendingUninstall(item))) : undefined);
   const packages = new SandboxPackageStore(homeDirectory), packaged = new Map<string, InstalledRelease>();
   /** A packaged release is read back (and checked again) from the Home's package store the first time an installation asks for it; a signature that checks is not enough, the publisher must still be trusted (BL-559). */
   const packagedFor = (record: PluginInstanceRecord): InstalledRelease => {
@@ -133,7 +137,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
     if (!record) return undefined;
-    if (record.publisher_trust === 'pinned') { try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error)); return undefined; } }
+    if (record.publisher_trust === 'pinned') { try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error); return undefined; } }
     return releases.versions(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
   };
   const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
@@ -164,7 +168,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
-  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
+  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new RecoveryErrors();
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
@@ -180,7 +184,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+  const lifecycleContext: InstalledLifecycleContext = { platform, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId)); declared.release(pluginId);
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
@@ -189,7 +193,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });
       // What the person let its tasks here read goes with it too (task grant subjects of this installation in this project).
       await forgetTaskGrantSubjects(homeDirectory, subject => subject.plugin_install_id === installId && subject.project_id === projectId);
-    } });
+    } };
+  const lifecycle = installedLifecycle(lifecycleContext);
   const close = async () => {
     if (closed) return;
     closed = true; disposePlatform(); declared.releaseAll();
@@ -206,7 +211,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       try {
         if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
+        // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
+        if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
         if (record.state === 'disabled' || record.state === 'quarantined') {
@@ -217,13 +223,16 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
+      } catch (error) { recoveryErrors.set(record.plugin_id, error); }
     }
 
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
       packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
+      /** Takes a signed package's installation off from its trusted row, its package not read; and the tombstones whose clean-up did not finish, listed until it has (BL-915). */
+      uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
+      pendingUninstalls: () => platform.runtime.list().filter(isPendingUninstall),
       refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); }, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };

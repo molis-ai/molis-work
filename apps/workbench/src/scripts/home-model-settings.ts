@@ -63,7 +63,19 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
         pages.set(key, holder);
       }
       status.hidden = true;
-    } catch(error) { if (!controller.signal.aborted) { molisWorkRequest.show(status,error,globalThis.t.text("workbench.home-model-settings.settings-could-not-load-input-preserved-please-retry")); retry.hidden = false; } }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        molisWorkRequest.show(status, error);
+        status.prepend(globalThis.t.text("workbench.home-model-settings.settings-could-not-load-input-preserved"), ' ');
+        retry.hidden = false;
+        // Let the cached form and the retry row lay out before correcting the dialog's scroll anchor.
+        requestAnimationFrame(() => {
+          if (pending !== controller || !dialog.open) return;
+          const body = status.parentElement;
+          if (status.getBoundingClientRect().top < body.getBoundingClientRect().top) body.scrollTop = 0;
+        });
+      }
+    }
     finally { if (pending === controller) content.removeAttribute('aria-busy'); }
   };
   // Keep the settings document mounted on close, including any unsaved settings input.

@@ -95,11 +95,18 @@ export function createAllowlistedRssTransport(
             body: { body: "<rss version=\"2.0\"><channel><title>Not modified</title><link>https://example.invalid/</link></channel></rss>" },
           };
         }
-        if (!response.ok) { await response.body?.cancel(); return { status: response.status, body: "" }; }
+        const received = { status: response.status, not_modified: false, final_url: current };
+        if (!response.ok) {
+          await response.body?.cancel();
+          call.signal.throwIfAborted();
+          options.onReceipt?.(received);
+          return { status: response.status, body: "" };
+        }
         const bodyText = result?.body ?? await readBoundedResponse(response, MAX_FEED_BYTES);
         call.signal.throwIfAborted();
         const classification = classifyFeedBody(bodyText, response.headers.get("content-type"));
         if (classification.class !== "rss_xml") {
+          options.onReceipt?.(received);
           throw new SearchError({
             code: classification.class === "empty" ? "feed_unavailable" : "feed_parse_failed",
             retryable: false,
@@ -109,9 +116,7 @@ export function createAllowlistedRssTransport(
           });
         }
         options.onReceipt?.({
-          status: response.status,
-          not_modified: false,
-          final_url: current,
+          ...received,
           ...(response.headers.get("etag") ? { etag: response.headers.get("etag")! } : {}),
           ...(response.headers.get("last-modified") ? { last_modified: response.headers.get("last-modified")! } : {}),
           ...extractRssDocumentMetadata(bodyText, current),

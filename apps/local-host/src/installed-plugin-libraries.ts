@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -213,4 +213,61 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
   } finally {
     ledger.close();
   }
+}
+
+/** Why a library an uninstall would have removed is kept (BL-915): no verified Manifest or ledger row to match, or another holder. */
+export type InstalledLibraryKept = { readonly reason: "ownership_unverified" | "other_holder"; readonly store_name: string };
+
+/**
+ * Removes the library of an installed plugin taken off without its data (BL-915 A, BL-628 §3.7), under the same ledger lock as opening it. Only
+ * when the ledger row is the installation's (plugin, publisher) and the installation's own verified Manifest (`declaration`, from its release
+ * snapshot) names the same store, version and schema; the directory must be the plain one the Host made, holding nothing but that database and
+ * its SQLite sidecars. Files first, then the directory, then the row: a retry after a failure finds the row and an empty or missing path and
+ * finishes. Anything else is kept and said so; nothing outside that directory is looked at. The library's process has exited by then.
+ */
+export function removeInstalledPluginLibrary(home: string, owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration | undefined,
+  reserved: HomeStoreRegistry): InstalledLibraryKept | undefined {
+  if (!existsSync(join(home, INSTALLED_LIBRARIES_HOME_STORE.path))) return undefined;
+  const ledger = openBaselineHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path, LEDGER_BASELINE);
+  try {
+    ledger.exec("PRAGMA busy_timeout = 5000");
+    ledger.exec("BEGIN IMMEDIATE");
+    const row = ledger.prepare("SELECT plugin_id, publisher_signature, store_name, version, schema_digest FROM plugin_home_libraries WHERE plugin_id = ?")
+      .get(owner.plugin_id) as LedgerRow | undefined;
+    const kept = row && libraryKept(home, row, owner, declaration, reserved);
+    if (row && !kept) {
+      removeLibraryDirectory(realpathSync(home), row.store_name);
+      ledger.prepare("DELETE FROM plugin_home_libraries WHERE plugin_id = ? AND publisher_signature = ? AND store_name = ?").run(row.plugin_id, row.publisher_signature, row.store_name);
+    }
+    ledger.exec("COMMIT");
+    return kept;
+  } catch (error) {
+    try { ledger.exec("ROLLBACK"); } catch { /* the transaction is already gone */ }
+    throw error;
+  } finally { ledger.close(); }
+}
+
+function libraryKept(home: string, row: LedgerRow, owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration | undefined, reserved: HomeStoreRegistry): InstalledLibraryKept | undefined {
+  const keep = (reason: InstalledLibraryKept["reason"]) => ({ reason, store_name: row.store_name });
+  if (row.publisher_signature !== owner.publisher_signature || holderOf(row.store_name, reserved) !== undefined) return keep("other_holder");
+  if (!declaration || !INSTALLED_LIBRARY_NAME.test(row.store_name) || declaration.store_name !== row.store_name || declaration.version !== Number(row.version)
+    || digestOf(declaration) !== row.schema_digest) return keep("ownership_unverified");
+  const path = join(realpathSync(home), row.store_name);
+  let found: ReturnType<typeof lstatSync>;
+  try { found = lstatSync(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
+  if (!found.isDirectory() || found.isSymbolicLink()) return keep("ownership_unverified");
+  const files = libraryFiles(row.store_name);
+  for (const entry of readdirSync(path, { withFileTypes: true })) if (!files.includes(entry.name) || !entry.isFile()) return keep("ownership_unverified");
+  return undefined;
+}
+
+/** The only files a library's directory may hold: its database and SQLite's sidecars. */
+const libraryFiles = (name: string) => ["", "-wal", "-shm", "-journal"].map(suffix => `${name}.db${suffix}`);
+
+/** Only the known files, by name; `rmdirSync` then refuses a directory something else appeared in, and the row stays for a retry. */
+function removeLibraryDirectory(home: string, name: string): void {
+  const path = join(home, name);
+  try { lstatSync(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  for (const file of libraryFiles(name)) rmSync(join(path, file), { force: true });
+  rmdirSync(path);
 }

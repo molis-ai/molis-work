@@ -62,7 +62,7 @@ export function codeTokens(text: string, language: string, from = 0): Array<[Cod
   if (lang === "html") {
     // A comment left open runs to the end, as it does in HTML; a quoted value ends on its line. So no piece reaches back over
     // another when the text changes further down (see `from`).
-    const pattern = /<!--[\s\S]*?(?:-->|$)|<\/?[A-Za-z][\w:-]*|\s[\w:-]+(?==)|"[^"\n]*"|'[^'\n]*'|\/?>/g;
+    const pattern = /<!--[\s\S]*?(?:-->|$)|<\/?[A-Za-z][\w:-]*|\s[\w:-]+(?==)|"[^"\r\n]*"|'[^'\r\n]*'|\/?>/g;
     let at = from;
     pattern.lastIndex = from;
     for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
@@ -78,12 +78,12 @@ export function codeTokens(text: string, language: string, from = 0): Array<[Cod
   while (at < text.length) {
     const rest = text.slice(at), char = text[at]!;
     let match: RegExpExecArray | null;
-    if (lineComment && rest.startsWith(lineComment) && (lang !== "sh" || at === 0 || /\s/.test(text[at - 1]!))) { const end = text.indexOf("\n", at); const value = end < 0 ? rest : text.slice(at, end); push("comment", value); at += value.length; continue; }
+    if (lineComment && rest.startsWith(lineComment) && (lang !== "sh" || at === 0 || /\s/.test(text[at - 1]!))) { const end = rest.search(/[\r\n]/); const value = end < 0 ? rest : rest.slice(0, end); push("comment", value); at += value.length; continue; }
     if (blockComment && rest.startsWith("/*")) { const end = text.indexOf("*/", at + 2); const value = end < 0 ? rest : text.slice(at, end + 2); push("comment", value); at += value.length; continue; }
     if (lang === "py" && (rest.startsWith('"""') || rest.startsWith("'''"))) { const quote = rest.slice(0, 3), end = text.indexOf(quote, at + 3); const value = end < 0 ? rest : text.slice(at, end + 3); push("string", value); at += value.length; continue; }
     if (char === '"' || char === "'" || (char === "`" && ["js", "ts", "go", "sh"].includes(lang))) {
       let end = at + 1;
-      while (end < text.length && text[end] !== char && !(char !== "`" && text[end] === "\n")) end += text[end] === "\\" ? 2 : 1;
+      while (end < text.length && text[end] !== char && !(char !== "`" && (text[end] === "\n" || text[end] === "\r"))) end += text[end] === "\\" ? 2 : 1;
       const value = text.slice(at, Math.min(end + 1, text.length));
       // A quoted key followed by a colon reads as a property in JSON and YAML-like data.
       push(["json", "yaml"].includes(lang) && /^[ \t]*:/.test(text.slice(at + value.length)) ? "property" : "string", value); at += value.length; continue;
@@ -92,7 +92,7 @@ export function codeTokens(text: string, language: string, from = 0): Array<[Cod
     if ((match = /^[A-Za-z_$][\w$]*/.exec(rest))) {
       const word = match[0], next = text.slice(at + word.length).match(/^[ \t]*(.)/)?.[1];
       const kind: CodeTokenKind | null = keywords.has(lang === "sql" ? word.toLowerCase() : word) ? "keyword"
-        : lang === "yaml" && next === ":" && /^\s*$/.test(text.slice(text.lastIndexOf("\n", at) + 1, at)) ? "property"
+        : lang === "yaml" && next === ":" && /^\s*$/.test(text.slice(Math.max(text.lastIndexOf("\n", at), text.lastIndexOf("\r", at)) + 1, at)) ? "property"
         : lang === "css" && next === ":" ? "property"
         : next === "(" ? "function" : /^[A-Z][a-z0-9]/.test(word) && !["py", "sh", "sql"].includes(lang) ? "type" : null;
       push(kind, word); at += word.length; continue;
@@ -123,7 +123,9 @@ export function growCodeTokens(last: CodeColouring | null, text: string, languag
   while (same < shorter && last.text.charCodeAt(same) === text.charCodeAt(same)) same += 1;
   if (same === last.text.length && same === text.length) return { ...last, from: last.pieces.length };
   // From the piece covering the line break before that line: a piece may begin with the break (an HTML attribute after it).
-  const line = same === 0 ? 0 : Math.max(0, last.text.lastIndexOf("\n", same - 1));
+  // LF, CRLF and CR each end a line; a CRLF counts from its CR, so a CR that later gains its LF is coloured again with it.
+  const end = same === 0 ? -1 : Math.max(last.text.lastIndexOf("\n", same - 1), last.text.lastIndexOf("\r", same - 1));
+  const line = Math.max(0, end > 0 && last.text[end] === "\n" && last.text[end - 1] === "\r" ? end - 1 : end);
   let index = 0;
   for (let at = last.starts.length - 1; at >= 0; at -= 1) if (last.starts[at]! <= line) { index = at; break; }
   const kept = last.pieces.slice(0, index), fresh = tokens(text, language, last.starts[index] ?? 0);

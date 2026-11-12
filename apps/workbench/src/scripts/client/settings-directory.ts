@@ -246,11 +246,14 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         failed.dataset.settingsLoading = "1";
         failed.setAttribute("role", "alert");
         failed.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-        failed.querySelector("strong").textContent = globalThis.t.text("workbench.settings-directory.couldn-t-load-settings");
-        molisWorkRequest.show(failed.querySelector("p"), error);
+        // A page that is not there is not fixed by trying again (F-20): say so, and offer the settings' first page instead.
+        const missing = error?.status === 404 && section !== options.preset;
+        failed.querySelector("strong").textContent = missing ? globalThis.t.text("workbench.settings-directory.page-missing") : globalThis.t.text("workbench.settings-directory.couldn-t-load-settings");
+        if (missing) failed.querySelector("p").textContent = globalThis.t.text("workbench.settings-directory.page-missing-detail");
+        else molisWorkRequest.show(failed.querySelector("p"), error);
         const retry = failed.querySelector("button");
-        retry.textContent = globalThis.t.text("common.control.retry");
-        retry.addEventListener("click", () => { if (!body.contains(failed)) return; retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });
+        retry.textContent = missing ? globalThis.t.text("workbench.settings-directory.back-to-settings") : globalThis.t.text("common.control.retry");
+        retry.addEventListener("click", () => { if (!body.contains(failed)) return; retry.disabled = true; if (loading === request) loading = null; void (missing ? loadSection(options.preset) : loadSection(section, fetchPath)); });
         showNode(failed);
       } finally {
         if (loading === request) loading = null;

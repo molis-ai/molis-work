@@ -18,7 +18,7 @@ import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
-import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync, createLocalFeedSourceScheduler, seedLocalFeedSourceAccount } from "./fixtures/feed-library.js";
 
 const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Product Signals</title><link>https://example.com/</link>
 <item><guid>https://example.com/posts/automatic-public</guid><title>公开来源材料</title><link>https://example.com/automatic-public</link>
@@ -142,11 +142,12 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
 
     await runWithMolisWorkHome(home, async () => {
       const connectorFeed = createLocalFeedApplication(runtime.store.db, feedOptions);
-      const connectors = createLocalFeedConnectorSync(runtime.store.db, runtime.project_id, () => ({ type: "github",
+      const connectors = createLocalFeedConnectorSync(runtime.store.db, runtime.project_id, home, () => ({ type: "github",
         async health() { return { ok: true, status: "connected", message: "fixture" }; },
         async sync() { return { ok: true, mode: "live", cursor: { fixture: 1 }, items: [{ externalId: "auto-issue", title: "连接器材料", summary: "需要处理", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } }] }; },
-      }), connectorFeed, home);
+      }), connectorFeed);
       const connector = connectorFeed.sources.upsert(accountSourceRecord("github", { project_id: runtime.project_id, status: "active" }));
+      seedLocalFeedSourceAccount(home, connector);
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
       assert.equal(localCalls, 3, "connector sync passes the trigger through its own application");
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
@@ -157,7 +158,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     // The pull runs as production runs it: Feed's own `feed.sources.sync` in the Runtime, its capture scene judging the items the action
     // fetched and holds, only the RSS response stood in for.
     const pull = t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
-    const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, () => now, home, feedOptions);
+    const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, () => now, feedOptions);
     const publicSource = publicSources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     publicSources.feed.outRules.create(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
     const feedActions = bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: [...new Set([...caller.permissions, ...FEED_ACTION_PERMISSIONS])] }));
@@ -180,7 +181,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     now = new Date("2026-09-25T00:05:00Z");
     const scheduler = createLocalFeedSourceScheduler(runtime.store.db, runtime.project_id, async () => {
       throw Object.assign(new Error("fixture auth failure"), { code: "connector.needs_auth" });
-    }, () => now, home, feedOptions);
+    }, () => now, feedOptions);
     assert.equal((await scheduler.tick(now)).failed, 1);
     assert.equal(localCalls, 5, "scheduler-created source faults also flush their scene event");
     const faults = publicSources.feed.listInboxEntries(runtime.project_id).filter(entry => entry.subject_type === "source_fault");

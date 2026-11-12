@@ -11,11 +11,15 @@ import {
 import { renderAssistantDock } from "../assistant-dock.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
+import { CHOOSER_SEARCH_LOADER_SCRIPT } from "./chooser-search.js";
+import { renderGlobalSearchOverlay } from "../immersive-shell.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "../scripts/control.js";
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
 import type { WebProjectNavigation } from "../settings-navigation.js";
+import { renderPluginDirectoryData, type PluginDirectory } from "../plugin-directory.js";
+import { pluginDirectoryFor } from "../plugin-catalog.js";
 
 /** What the chooser remembers about this Home's projects. Presentation only; the Host reads it from `config/project-arrival.json`. */
 export interface ChooserArrival {
@@ -26,6 +30,8 @@ export interface ChooserArrival {
   opened: Readonly<Record<string, string>>;
   /** The project list could not be read: the chooser says so where the list would be, and the personal space still opens. */
   load_error?: boolean;
+  /** The plugins the Home's pages run, as each project page has them: where a personal search hit opens (BL-041). */
+  plugin_directory?: PluginDirectory;
 }
 
 const PERSONAL = "personal";
@@ -87,6 +93,8 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       ? uiText.text("workbench.chooser.last-name-when", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : uiText.text("workbench.chooser.welcome-molis-work");
     const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${uiText("workbench.chooser.search-projects")}" aria-label="${uiText("workbench.chooser.search-projects")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
+      ${renderButton({ variant: "secondary", icon: "search", label: uiText("workbench.chooser.search-personal"), className: "chooser-personal-search", attrs: { "data-global-search-open": "", "aria-haspopup": "dialog" } })}
+      <p class="ob-error" role="alert" data-chooser-search-error hidden></p>
       <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${uiText("workbench.chooser.personal-space-projects")}">${rows}</div>
       <p class="chooser-none" data-chooser-none hidden role="status">${uiText("workbench.chooser.no-matching-projects")}</p>
       <p class="chooser-foot">${icon("folder")}<span>${uiText("workbench.chooser.projects-documents-saved-computer")}</span></p>`;
@@ -123,11 +131,14 @@ const chosenRoute = path => { const id = document.querySelector('.chooser')?.dat
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, projectId: null, openItem: () => {} });
 globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
   placeholder: project => project && project.title ? globalThis.t.text("workbench.chooser.ask-about-name-give-assistant-task", { name: project.title }) : globalThis.t.text("workbench.chooser.ask-assistant-do-something-personal-space") });
+// The person's own content, searched from here with the workbench's dialog (BL-041): the Host fixes the scope to the Home, and a hit opens in its own space.
+// Its program comes on the first press of its button (chooser-search.ts).
+${CHOOSER_SEARCH_LOADER_SCRIPT}
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,
-      after: `${templates}<script type="application/json" id="arrival-data">${data}</script>`,
+      after: `${renderGlobalSearchOverlay({ icon }, { personal: true })}${renderPluginDirectoryData(pluginDirectoryFor(arrival.plugin_directory))}${templates}<script type="application/json" id="arrival-data">${data}</script>`,
       scripts,
     });
   }

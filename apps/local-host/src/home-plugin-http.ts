@@ -130,15 +130,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   }
   if (["enable", "disable", "uninstall"].includes(operation)) {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return true; }
-    // A package installed in the Home (BL-628) is switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
-    if (host.homePlugins.hasPackage(pluginId)) {
-      try {
-        const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
-        await host.homePlugins.packageAction(pluginId, operation as "enable" | "disable" | "uninstall", { keepData: body?.keep_data === true });
-        sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
-      } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
-      return true;
-    }
+    if (host.homePlugins.hasPackage(pluginId)) { await answerPackageAction(request, response, host.homePlugins, pluginId, operation as "enable" | "disable" | "uninstall"); return true; }
     if (operation === "uninstall") { sendLocalWebJson(response, 404, { error: "插件没有这个入口" }); return true; }
     if (operation === "enable") {
       const state = await platform.supervisor.enable(pluginId);
@@ -183,6 +175,22 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
+}
+
+/** A package installed in the Home (BL-628): switched and removed by the install lifecycle a project's packages have, not by the supervisor alone. */
+async function answerPackageAction(request: IncomingMessage, response: ServerResponse, homePlugins: HomePluginHost, pluginId: string,
+  operation: "enable" | "disable" | "uninstall"): Promise<void> {
+  try {
+    if (operation === "uninstall" && pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
+    const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
+    // The installation this request reaches is fixed when it arrives (BL-915): a reinstall or upgrade while it waits is not taken off in its place; what it kept is answered as the settings door answers it (`retained`).
+    // Read once the Home has started: before that no installation is known, and the uninstall would fall back to whatever is current then.
+    if (operation === "uninstall") await homePlugins.ready();
+    const row = operation === "uninstall" ? homePlugins.installation(pluginId) : undefined;
+    const retained = await homePlugins.packageAction(pluginId, operation, { keepData: body?.keep_data === true,
+      ...row ? { target: { install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } } : {} });
+    sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true, ...retained.length ? { retained } : {} });
+  } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
 }
 
 /**

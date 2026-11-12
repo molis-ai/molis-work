@@ -306,16 +306,22 @@ export function renderWorkspaceChrome(_primitives: ImmersiveShellPrimitives, chr
 
 export { renderProjectHome } from "./project-home.js";
 
-export function renderGlobalSearchOverlay({ icon }: ImmersiveShellPrimitives): string {
-  return `<dialog class="global-search-dialog" data-global-search-dialog aria-label="${uiText("workbench.immersive-shell.search-project")}">
-    <form class="global-search-shell" data-global-search-form>
-      <div class="global-search-field">${icon("search")}<input class="global-search-query" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="global-search-results" data-global-search placeholder="${uiText("workbench.immersive-shell.search")}" aria-label="${uiText("workbench.immersive-shell.search-project")}" autocomplete="off" enterkeyhint="search"><kbd>⌘K</kbd><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-global-search-close aria-label="${uiText("common.control.close")}">${icon("x")}</button></div>
-      <div class="global-search-scopes" data-global-search-scopes role="group" aria-label="${uiText("workbench.immersive-shell.search-scope")}">
+/**
+ * The workbench search dialog. `personal`: the project list's variant (BL-041), where the person's own content is the one
+ * scope, so it has no scope switch, and ⌘K stays with the project filter, so the field does not offer it.
+ */
+export function renderGlobalSearchOverlay({ icon }: Pick<ImmersiveShellPrimitives, "icon">, options: { personal?: boolean } = {}): string {
+  const label = options.personal ? uiText("workbench.immersive-shell.search-personal") : uiText("workbench.immersive-shell.search-project");
+  const scopes = options.personal ? "" : `<div class="global-search-scopes" data-global-search-scopes role="group" aria-label="${uiText("workbench.immersive-shell.search-scope")}">
         <button type="button" class="global-search-scope-option" data-global-search-scope-option="all" aria-pressed="true">${uiText("workbench.immersive-shell.project-personal")}</button>
         <button type="button" class="global-search-scope-option" data-global-search-scope-option="project" aria-pressed="false">${uiText("workbench.immersive-shell.project")}</button>
         <button type="button" class="global-search-scope-option" data-global-search-scope-option="personal" aria-pressed="false">${uiText("workbench.immersive-shell.personal-2")}</button>
-      </div>
-      <p class="global-search-scope" data-global-search-status role="status" aria-live="polite">${uiText("workbench.immersive-shell.search-everything-project-personal-space-jump-tool-name")}</p>
+      </div>`;
+  return `<dialog class="global-search-dialog" data-global-search-dialog aria-label="${label}">
+    <form class="global-search-shell" data-global-search-form>
+      <div class="global-search-field">${icon("search")}<input class="global-search-query" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="global-search-results" data-global-search placeholder="${uiText("workbench.immersive-shell.search")}" aria-label="${label}" autocomplete="off" enterkeyhint="search">${options.personal ? "" : "<kbd>⌘K</kbd>"}<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-global-search-close aria-label="${uiText("common.control.close")}">${icon("x")}</button></div>
+      ${scopes}
+      <p class="global-search-scope" data-global-search-status role="status" aria-live="polite">${options.personal ? label : uiText("workbench.immersive-shell.search-everything-project-personal-space-jump-tool-name")}</p>
       <div id="global-search-results" class="global-search-body" data-global-search-results role="listbox" aria-label="${uiText("workbench.immersive-shell.search-results")}"></div>
     </form>
   </dialog>`;

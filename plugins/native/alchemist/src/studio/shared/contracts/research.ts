@@ -4,8 +4,6 @@ import type { LensKind, LensRun, ResearchPlan } from "../../domain/research/lens
 import { lensKinds } from "../../domain/research/lens.js";
 import type { Evidence, LensReport } from "../../domain/research/report.js";
 
-export const lensParamsSchema = z.object({ id: z.string().min(1), lens: z.enum(lensKinds) }).strict();
-
 export const researchPlanRequestSchema = z
   .object({
     ideaVersion: z.number().int().positive(),
@@ -19,12 +17,6 @@ export const researchPlanRequestSchema = z
       context.addIssue({ code: "custom", path: ["modelId"], message: "指定模型时必须选择模型" });
     }
   });
-
-export const startLensRunRequestSchema = z.object({ planId: z.string().min(1) }).strict();
-
-export const ideaResearchParamsSchema = z
-  .object({ id: z.string().min(1), version: z.coerce.number().int().positive() })
-  .strict();
 
 export type LensViewStatus =
   | "not_started"

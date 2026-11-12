@@ -13,6 +13,7 @@ export const DETAIL_READING_STYLES = `
   .inbox-next-config button { margin: 4px 4px 0 0; white-space: normal; }
   .inbox-next-suggestion { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; }
   .inbox-next-suggestion small { color: var(--muted); }
+  .inbox-compose-trigger { align-self: flex-start; }
   .inbox-compose-dialog { width: min(640px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 0; border-radius: 16px; background: var(--paper); color: var(--ink); box-shadow: var(--lift-3); }
   .inbox-compose-dialog::backdrop { background: var(--scrim); }
   .inbox-compose-dialog form { display: grid; gap: 16px; }

@@ -1,7 +1,9 @@
 import { SANDBOX_IMAGE_PERMISSIONS } from '@molis-ai/molis-work-plugin-sdk';
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginImageGenerationClient, PluginImageGenerationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginImageGenerationClient, type PluginImageGenerationPort } from "@molis-ai/molis-work-plugin-runtime";
-import { sandboxNotAuthorized } from "@molis-ai/molis-work-plugin-sandbox";
+import { SANDBOX_IMAGE_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { sandboxNotAuthorized, sandboxResponseTooLarge } from "@molis-ai/molis-work-plugin-sandbox";
 import { forgetConnectorPluginBindings, withConnectorConnections } from "./connector-connection-store.js";
 import type { PluginPlatformHome } from "./home-side.js";
 import { createPluginImageGenerationPort } from "./plugin-image-generation-service.js";
@@ -32,8 +34,11 @@ function assertPinnedTo(home: string, connectionId: string | null, baseUrl: stri
   requirePinnedTo(withConnectorConnections(home, store => store.targetOrigin(connectionId)), baseUrl);
 }
 
+// What a package may receive is capped where the provider's resources are copied out, before any buffer (BL-918): the channel's own limits.
+const OUTPUT = Object.freeze({ max_images: SANDBOX_IMAGE_LIMITS.max_images, max_image_bytes: SANDBOX_IMAGE_LIMITS.max_image_bytes, max_total_bytes: SANDBOX_IMAGE_LIMITS.max_bytes });
+
 function pinnedPort(home: string, namespace: string): PluginImageGenerationPort {
-  const shared = createPluginImageGenerationPort(home, namespace);
+  const shared = createPluginImageGenerationPort(home, namespace, OUTPUT);
   return {
     ...shared,
     // Checked and written in one pass over the store, and never through `assertTarget`, which would pin an address that is not yet pinned.
@@ -43,9 +48,13 @@ function pinnedPort(home: string, namespace: string): PluginImageGenerationPort 
       requirePinnedTo(store.targetOrigin(connectionId), target.base_url);
       store.bind({ scopeId: "home", pluginId: namespace, slotId: target.slot_id, serviceId: "image-api", connectionId });
     }),
-    generate: (request, dispatch) => {
+    generate: async (request, dispatch) => {
       assertPinnedTo(home, imageConnectionSnapshot(home, namespace, request).connection_id, request.base_url);
-      return shared.generate(request, dispatch);
+      try { return await shared.generate(request, dispatch); }
+      catch (error) {
+        if (error instanceof ActionError && error.code === "host.image_too_large") throw sandboxResponseTooLarge(error.message);
+        throw error;
+      }
     },
   };
 }

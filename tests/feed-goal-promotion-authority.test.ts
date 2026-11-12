@@ -118,7 +118,9 @@ test("Goals takes the person only from the Host's delegated caller: no other ori
   const [item] = f.items;
   const delegated = (delegated_audience: ActionAudience, extra: Partial<ActionCallContext> = {}): ActionCallContext =>
     ({ ...f.personContext, audience: "workflow", delegated_by: FEED_PLUGIN_ID, delegated_audience, ...extra });
-  const callers: Array<[string, ActionCallContext]> = [["person", delegated("user")], ["agent", delegated("agent")], ["workflow", delegated("workflow")],
+  // BL-803: the Host also hands in the delegating handler's own action from the Runtime's scope; only Feed's real promotion entered by the person counts.
+  const promote = { delegated_action: { capability_id: "feed.items.promote", version: 1, provider_id: FEED_PLUGIN_ID, direct_person_entry: true as const } };
+  const callers: Array<[string, ActionCallContext]> = [["person", delegated("user", promote)], ["no proof", delegated("user")], ["agent", delegated("agent", promote)], ["workflow", delegated("workflow", promote)],
     ["mcp", delegated("mcp")], ["scene", delegated("user", { scene_binding: { scene_id: "feed.capture", binding_id: "capture-binding" } })],
     ["claimed", { ...f.personContext, audience: "workflow", delegated_audience: "user" }],
     ["other plugin", { ...f.personContext, audience: "workflow", delegated_by: "io.molis.work.native.workflows", delegated_audience: "user" }]];
@@ -136,6 +138,7 @@ test("Goals takes the person only from the Host's delegated caller: no other ori
     }
     assert.deepEqual(outcomes, [
       ["person", "named", "runtime", "confirmed"],
+      ["no proof", "actions.input_invalid", "runtime", "proposed"],
       ["agent", "actions.input_invalid", "runtime", "proposed"],
       ["workflow", "actions.input_invalid", "runtime", "proposed"],
       ["mcp", "actions.input_invalid", "runtime", "proposed"],

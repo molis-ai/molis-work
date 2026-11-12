@@ -117,6 +117,18 @@
     "ppt.capability-library.ppt-create-v1.title": "New deck",
     "ppt.capability-library.ppt-files-entries-v1.title": "Presentation",
     "ppt.capability-library.ppt-placement-copy-v1.title": "Presentation",
-    "ppt.capability-library.ppt-placement-move-v1.title": "Presentation"
+    "ppt.capability-library.ppt-placement-move-v1.title": "Presentation",
+    "ppt.color.swatch": "{role} · {color}",
+    "ppt.color.indigo": "Indigo",
+    "ppt.color.blue": "Blue",
+    "ppt.color.purple": "Purple",
+    "ppt.color.green": "Green",
+    "ppt.color.red": "Red",
+    "ppt.color.off-white": "Off-white",
+    "ppt.color.pale-purple": "Pale purple",
+    "ppt.color.pale-blue": "Pale blue",
+    "ppt.color.charcoal": "Charcoal",
+    "ppt.color.dark-gray": "Dark gray",
+    "ppt.color.blue-gray": "Blue gray"
   }
 }

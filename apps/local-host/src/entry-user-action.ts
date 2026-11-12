@@ -32,6 +32,6 @@ export function entryUserAction(source: EntrySource, scope: string, message: Ent
  * What one page request says about the act it carries: the key the transport already asks of every change (a retry of the same act
  * reuses it), and the header only the page's whole-confirmation control sends. A request with no key (a read) gets a name of its own.
  */
-export function webEntryMessage(request: IncomingMessage): EntryMessage {
+export function webEntryMessage(request: Pick<IncomingMessage, "headers">): EntryMessage {
   return { id: requestHeader(request, "x-molis-work-idempotency-key") || randomUUID(), whole_confirmation_prompted: requestHeader(request, WHOLE_CONFIRMATION_HEADER) === "1" };
 }

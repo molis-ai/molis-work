@@ -46,10 +46,12 @@ export const pptUiContribution: UiContribution<PptUiModel> = {
   },
 };
 
-function pptSwatches(name: string, colors: readonly string[], label: string): string {
-  const chips = colors.map((color) => (
-    `<button class="ppt-swatch" type="button" role="radio" data-ppt-swatch="${color}" style="background:${color}" aria-label="${color}"></button>`
-  )).join("");
+function pptSwatches(name: string, colors: readonly (readonly [color: string, labelKey: string])[], labelKey: string): string {
+  const role = uiText.text(labelKey), label = uiText(labelKey);
+  const chips = colors.map(([color, key]) => {
+    const accessibleName = uiText("ppt.color.swatch", { role, color: uiText.text(key) });
+    return `<button class="ppt-swatch" type="button" role="radio" data-ppt-swatch="${color}" style="background:${color}" aria-label="${accessibleName}"></button>`;
+  }).join("");
   return `<div class="ppt-color-field"><span>${label}</span><div class="ppt-swatches" data-ppt-color-${name} role="radiogroup" aria-label="${label}">${chips}</div></div>`;
 }
 
@@ -104,9 +106,9 @@ export function renderPptWorkbench(_model: PptUiModel): string {
           <label class="ppt-field">${uiText("ppt.field.title")}<input class="mw-input" data-ppt-title autocomplete="off"></label>
           <label class="ppt-field">${uiText("ppt.field.description")}<input class="mw-input" data-ppt-description autocomplete="off" placeholder="${uiText("ppt.field.optional")}"></label>
           <div class="ppt-colors">
-            ${pptSwatches("primary", PPT_PRIMARY_SWATCHES, uiText.text("ppt.color.primary"))}
-            ${pptSwatches("background", PPT_BACKGROUND_SWATCHES, uiText.text("ppt.color.background"))}
-            ${pptSwatches("text", PPT_TEXT_SWATCHES, uiText.text("ppt.field.text"))}
+            ${pptSwatches("primary", PPT_PRIMARY_SWATCHES, "ppt.color.primary")}
+            ${pptSwatches("background", PPT_BACKGROUND_SWATCHES, "ppt.color.background")}
+            ${pptSwatches("text", PPT_TEXT_SWATCHES, "ppt.field.text")}
           </div>
         </div>
         <div class="ppt-split">

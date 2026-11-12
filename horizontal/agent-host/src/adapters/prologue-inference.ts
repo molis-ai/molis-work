@@ -2,6 +2,9 @@ import { collectRun, type ExactRef, type Runtime } from "@prologue/sdk";
 import { withInferenceImages } from "./prologue-inference-materials.js";
 import { PrologueInferenceError, isDispatchRefusal, markDispatchRefusal, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
 
+/** The most one picture resource may hold before it is copied out, whoever asks. */
+const IMAGE_RESOURCE_BYTES = 20 * 1024 * 1024;
+
 /** Borrows the owning Runtime; never constructs a Host or a second model execution path. */
 export function createPrologueInference(runtime: Runtime,
   credential: (input: PrologueCredentialInput, signal: AbortSignal, optional?: boolean) => Promise<{ ref?: ExactRef<"credential">; assertCurrent(): Promise<void> }>,
@@ -70,15 +73,24 @@ export function createPrologueInference(runtime: Runtime,
         ...(input.aspect_ratio ? { aspectRatio: input.aspect_ratio as `${number}:${number}` } : {}), timeoutMs: input.timeout_ms, signal });
       const images: { bytes: Uint8Array; mime?: string }[] = [];
       try {
+        // Every size is checked against the caller's cap before the first buffer: a batch that does not fit is refused whole, nothing read.
+        const cap = input.output, sizes: number[] = [];
+        let total = 0;
+        if (cap && receipt.images.length > cap.max_images) throw new PrologueInferenceError("agent.inference.image_too_large", `最多交付 ${cap.max_images} 张图片`);
         for (const ref of receipt.images) {
+          const size = runtime.resources.inspect(ref)?.byteLength;
+          if (typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0 || size > IMAGE_RESOURCE_BYTES) throw new PrologueInferenceError("agent.inference.image_invalid", "图片资源不可读取或超出大小限制");
+          sizes.push(size); total += size;
+          if (cap && (size > cap.max_image_bytes || total > cap.max_total_bytes)) throw new PrologueInferenceError("agent.inference.image_too_large", "图片超出这次能交付的大小");
+        }
+        for (const [index, ref] of receipt.images.entries()) {
           signal.throwIfAborted();
-          const resource = runtime.resources.inspect(ref);
-          if (!resource || resource.byteLength > 20 * 1024 * 1024) throw new PrologueInferenceError("agent.inference.image_invalid", "图片资源不可读取或超出大小限制");
-          const bytes = new Uint8Array(resource.byteLength);
+          const bytes = new Uint8Array(sizes[index]!);
           for (let offset = 0; offset < bytes.length;) {
-            const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.length - offset));
+            const want = Math.min(64 * 1024, bytes.length - offset), chunk = await runtime.resources.readChunk(ref, offset, want);
             signal.throwIfAborted();
-            if (chunk.offset !== offset || !chunk.bytes.length || offset + chunk.bytes.length > bytes.length) throw new PrologueInferenceError("agent.inference.image_invalid", "图片资源不完整");
+            // A short chunk is allowed; one that moves nowhere, reads past what was asked, or says it is done before the announced size is not.
+            if (chunk.offset !== offset || !chunk.bytes.length || chunk.bytes.length > want || (chunk.done && offset + chunk.bytes.length !== bytes.length)) throw new PrologueInferenceError("agent.inference.image_invalid", "图片资源不完整");
             bytes.set(chunk.bytes, offset); offset += chunk.bytes.length;
           }
           images.push({ bytes });

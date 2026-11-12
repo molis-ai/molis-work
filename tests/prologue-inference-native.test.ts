@@ -103,3 +103,39 @@ test("native final dispatch rechecks source after an awaited credential check", 
     await rm(storageRoot, { recursive: true, force: true });
   }
 });
+
+// BL-918 (S-60): the cap a sandboxed package's image port passes down, checked where the provider's resources are copied out.
+test("BL-918 B27-IMG-01 the agent-host adapter checks every resource's size against the caller's cap before any buffer, reads nothing and revokes every resource", async () => {
+  const KiB = 1024, MiB = 1024 * KiB, MiB4 = 4 * MiB, cap = { max_images: 4, max_image_bytes: MiB4, max_total_bytes: 8 * MiB };
+  const run = async (sizes: number[], output: typeof cap | undefined, chunks?: (ref: string, offset: number, length: number) => { offset: number; bytes: Uint8Array; done: boolean }) => {
+    const reads: string[] = [], revoked: string[] = [], refs = sizes.map((_, index) => `res-${index}`);
+    const runtime = {
+      images: { generate: async () => ({ images: refs }) },
+      resources: {
+        inspect: (ref: string) => ({ byteLength: sizes[refs.indexOf(ref)]! }),
+        readChunk: async (ref: string, offset: number, length: number) => { reads.push(ref); return chunks ? chunks(ref, offset, length) : { offset, bytes: new Uint8Array(Math.min(length, sizes[refs.indexOf(ref)]! - offset)), done: offset + length >= sizes[refs.indexOf(ref)]! }; },
+        revoke: async (ref: string) => { revoked.push(ref); },
+      },
+    };
+    const inference = createPrologueInference(runtime as never, async () => ({ ref: undefined, assertCurrent: async () => {} }), (_guard, work) => work());
+    try {
+      const result = inference.generateImages({ protocol: "openai-images", endpoint: "https://images.example.com/v1/images/generations", model: "m", prompt: "p", timeout_ms: 10_000, credential_ref: "c",
+        resolveCredential: () => "", ...(output ? { output } : {}) });
+      return { result: await result.then(images => images.map(image => image.bytes.byteLength), (error: { code?: string }) => error.code), reads, revoked, refs };
+    } finally { await inference.close(); }
+  };
+  const fits = await run([MiB4, MiB4], cap);
+  assert.deepEqual(fits.result, [MiB4, MiB4]); assert.deepEqual(fits.revoked, fits.refs);
+  for (const [sizes, what] of [[[MiB4 + 1], "one over 4 MiB"], [[MiB4, MiB4, 1], "8 MiB + 1"], [[1, 1, 1, 1, 1], "five"]] as const) {
+    const refused = await run([...sizes], cap);
+    assert.equal(refused.result, "agent.inference.image_too_large", what);
+    assert.deepEqual(refused.reads, [], `${what}: nothing read`); assert.deepEqual(refused.revoked, refused.refs, `${what}: every resource revoked`);
+  }
+  // Without a cap the adapter keeps its own limit (a native client's pictures are not the sandbox's business).
+  assert.deepEqual((await run([MiB4 + 1], undefined)).result, [MiB4 + 1]);
+  // A chunk that claims to be done before the announced size, or reads past what was asked, is an incomplete resource.
+  const early = await run([100 * KiB], cap, (_ref, offset, length) => ({ offset, bytes: new Uint8Array(length), done: true }));
+  assert.equal(early.result, "agent.inference.image_invalid"); assert.deepEqual(early.revoked, early.refs);
+  const over = await run([100 * KiB], cap, (_ref, offset, length) => ({ offset, bytes: new Uint8Array(length + 1), done: false }));
+  assert.equal(over.result, "agent.inference.image_invalid");
+});

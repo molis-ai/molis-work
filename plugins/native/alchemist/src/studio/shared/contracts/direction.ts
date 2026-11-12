@@ -7,8 +7,6 @@ export const createDirectionInputSchema = z
   })
   .strict();
 
-export const directionIdParamsSchema = z.object({ id: z.string().min(1) }).strict();
-
 export function deriveDirectionTitle(description: string): string {
   const firstLine = description.trim().split(/\r?\n/, 1)[0] ?? description.trim();
   return firstLine.length > 28 ? `${firstLine.slice(0, 28)}…` : firstLine;

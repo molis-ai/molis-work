@@ -25,18 +25,6 @@ export interface ActionClient {
 const key = (ref: ActionRef): string => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
 const exact = (view: ActionRow): ActionRef => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 
-/** Markup from an older Characters release has no action fields: the rest of the page keeps working, and a draft saved from it keeps the action choice it already had rather than clearing it. */
-function keepingView(): ActionClient {
-  let kept: ActionRef[] | null = null;
-  return {
-    controls() {},
-    async refresh() {},
-    value: () => structuredClone(kept),
-    render: value => { kept = value == null ? null : structuredClone(value); },
-    describe: value => value == null ? globalThis.t.text("workbench.characters.actions-inherit-task") : value.length ? value.map(ref => ref.capability_id + " · v" + ref.version).join("、") : globalThis.t.text("workbench.characters.actions-none"),
-  };
-}
-
 /** What the catalog offers to an Agent, then the selected references the catalog no longer offers (kept, shown unavailable). */
 function choicesOf(rows: ActionRow[], refs: ActionRef[]): Choice[] {
   const found: Choice[] = rows.filter(row => row.action.audiences.includes("agent")).map(row => ({ ref: exact(row), title: row.action.title, source: row.provider.title,
@@ -59,19 +47,23 @@ function describeRefs(rows: ActionRow[], value: ActionRef[] | null | undefined):
 /** A view of the common Agent catalog; selected references remain in the original Character draft. */
 export function characterActionClient(host: ActionHost): ActionClient {
   const { q, request, changed } = host;
-  if (!q("actions-inherit") || !q("actions-list")) return keepingView();
   const part = <T extends HTMLElement = HTMLElement>(name: string): T => {
     const node = q<T>(name);
     if (!node) throw new Error("Characters page part missing: data-character-" + name);
     return node;
   };
+  const inherit = part<HTMLInputElement>("actions-inherit");
+  const container = part("actions-list");
+  const field = part("actions-field");
+  const status = part("actions-status");
+  const refreshButton = part<HTMLButtonElement>("actions-refresh");
   let rows: ActionRow[] = [], refs: ActionRef[] = [], busy = false, reading = false;
 
   const controls = (value: boolean): void => {
     busy = value;
-    part<HTMLInputElement>("actions-inherit").disabled = busy;
-    part<HTMLButtonElement>("actions-refresh").disabled = busy || reading;
-    part("actions-list").querySelectorAll("input").forEach(input => { input.disabled = busy || (input.dataset.available !== "true" && !input.checked); });
+    inherit.disabled = busy;
+    refreshButton.disabled = busy || reading;
+    container.querySelectorAll("input").forEach(input => { input.disabled = busy || (input.dataset.available !== "true" && !input.checked); });
   };
   const choiceRow = (row: Choice): HTMLLabelElement => {
     const label = document.createElement("label"), input = document.createElement("input"), copy = document.createElement("span");
@@ -84,8 +76,7 @@ export function characterActionClient(host: ActionHost): ActionClient {
     return label;
   };
   const list = (): void => {
-    const container = part("actions-list");
-    container.replaceChildren(); part("actions-field").hidden = part<HTMLInputElement>("actions-inherit").checked;
+    container.replaceChildren(); field.hidden = inherit.checked;
     const shown = choicesOf(rows, refs);
     for (const row of shown) container.append(choiceRow(row));
     if (!shown.length) container.textContent = globalThis.t.text("workbench.characters.actions-empty");
@@ -93,23 +84,23 @@ export function characterActionClient(host: ActionHost): ActionClient {
   };
   const refresh = async (): Promise<void> => {
     if (reading) return;
-    reading = true; controls(busy); part("actions-status").textContent = globalThis.t.text("workbench.characters.actions-reading");
+    reading = true; controls(busy); status.textContent = globalThis.t.text("workbench.characters.actions-reading");
     try {
       const data = await request<{ actions: ActionRow[] }>("GET", "/actions");
-      rows = data.actions; list(); part("actions-status").textContent = globalThis.t.text("workbench.characters.actions-updated");
+      rows = data.actions; list(); status.textContent = globalThis.t.text("workbench.characters.actions-updated");
     } catch (error) {
       const original = el("span", messageOf(error)); original.translate = false;
-      part("actions-status").replaceChildren(el("span", globalThis.t.text("workbench.characters.actions-failed")), original);
+      status.replaceChildren(el("span", globalThis.t.text("workbench.characters.actions-failed")), original);
     } finally {
       reading = false; controls(busy);
     }
   };
-  part<HTMLInputElement>("actions-inherit").onchange = () => { list(); changed(); };
-  part<HTMLButtonElement>("actions-refresh").onclick = () => void refresh();
+  inherit.onchange = () => { list(); changed(); };
+  refreshButton.onclick = () => void refresh();
   return {
     controls, refresh,
-    value: () => part<HTMLInputElement>("actions-inherit").checked ? null : structuredClone(refs),
-    render: value => { refs = structuredClone(value || []); part<HTMLInputElement>("actions-inherit").checked = value == null; list(); },
+    value: () => inherit.checked ? null : structuredClone(refs),
+    render: value => { refs = structuredClone(value || []); inherit.checked = value == null; list(); },
     describe: value => describeRefs(rows, value),
   };
 }

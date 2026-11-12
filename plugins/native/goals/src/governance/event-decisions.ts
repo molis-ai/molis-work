@@ -8,7 +8,8 @@ import type {
 } from "../contract/goals.js";
 import type { GovernanceEventDecisionApi } from "../contract/governance-collaboration.js";
 import { GovernanceProvenance } from "./provenance.js";
-import { json, parseJson } from "./mappers.js";
+import { storedJson } from "../stored-json.js";
+import { json } from "./mappers.js";
 import type { GovernanceSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
@@ -62,7 +63,7 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
 
   read(projectId: string, decisionId: string): GoalEventTrustedDecisionRecord | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_trusted_decisions WHERE decision_id = ? AND project_id = ?",
+      "SELECT *, rowid AS stored_row FROM goal_event_trusted_decisions WHERE decision_id = ? AND project_id = ?",
     ).get(decisionId, projectId) as Row | undefined;
     if (!row) return null;
     return {
@@ -78,13 +79,13 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
       selected_option_id: row.selected_option_id == null ? null : String(row.selected_option_id),
       conclusion: String(row.conclusion),
       accepts_requirements: Number(row.accepts_requirements) === 1,
-      scope: parseJson(row.scope_json, {
+      scope: storedJson(row, "goal_event_trusted_decisions", "scope_json", {
         requirement_ids: [],
         event_ids: [],
         concern_ids: [],
         action: null,
       }),
-      authorized_change: row.change_json == null ? null : parseJson<GoalEventAgreementChange | null>(row.change_json, null),
+      authorized_change: storedJson<GoalEventAgreementChange | null>(row, "goal_event_trusted_decisions", "change_json", null),
       recorded_at: String(row.recorded_at),
     };
   }

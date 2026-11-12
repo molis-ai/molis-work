@@ -1,3 +1,4 @@
+import { SUBJECT_CONTEXT_PATH, type SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
@@ -17,10 +18,18 @@ export interface AdvancePromptOptions {
   showToast(message: string, error?: boolean): void;
 }
 
-/** The "advance this Goal" prompt: read from the route the pane names, typed into the live panel (never sent unless asked), or copied. */
+/**
+ * The "advance this Goal" prompt: read from the route the pane names, typed into the live panel (never sent unless asked), or copied.
+ * Before it, the text the project's plugins keep about this Goal is read as the person (GAS-01) and handed to the prompt, which binds it
+ * as untrusted data; without that text the prompt is the Goal's own. Each read names the one Goal, so another Goal's text never comes.
+ */
 export function createAdvancePrompt(options: AdvancePromptOptions) {
   const { route, goalId, promptRoute, guard } = options;
-  let promptCache = "";
+  let promptCache: { goalId: string; text: string } | null = null;
+
+  const sourceContexts = (id: string) => options.request<SubjectContextAnswer | null>(
+    route(`${SUBJECT_CONTEXT_PATH}?kind=goal&id=${encodeURIComponent(id)}`), { fallback: uiText.text("workbench.client-prompt.could-not-open") },
+  ).then(answer => answer?.contexts ?? [], () => []);
 
   const loadAdvancePrompt = async (requestedGoalId?: string) => {
     const id = requestedGoalId || goalId(), path = promptRoute();
@@ -29,13 +38,14 @@ export function createAdvancePrompt(options: AdvancePromptOptions) {
     if (requestedGoalId && requestedGoalId !== goalId()) {
       throw new Error(uiText.text("workbench.client-prompt.page-has-switched-another-goal-return-goal-that"));
     }
+    const contexts = await sourceContexts(id);
     const payload = await options.request<{ prompt?: string } | null>(
       route(path.replace(":goalId", encodeURIComponent(id))),
-      { fallback: uiText.text("workbench.client-prompt.could-not-open") },
+      { method: "POST", body: contexts.length ? { source_contexts: contexts } : {}, fallback: uiText.text("workbench.client-prompt.could-not-open") },
     );
-    const text = payload?.prompt || promptCache;
+    const text = payload?.prompt || (promptCache?.goalId === id ? promptCache.text : "");
     if (!text) throw new Error(uiText.text("workbench.client-prompt.could-not-open"));
-    promptCache = text;
+    promptCache = { goalId: id, text };
     return text;
   };
 
@@ -57,5 +67,5 @@ export function createAdvancePrompt(options: AdvancePromptOptions) {
     if (!copied) options.showToast(uiText.text("workbench.client-prompt.clipboard-unavailable-copy-manually"), true);
   };
 
-  return { writePrompt, copyAdvancePrompt, resetCache: () => { promptCache = ""; } };
+  return { writePrompt, copyAdvancePrompt, resetCache: () => { promptCache = null; } };
 }

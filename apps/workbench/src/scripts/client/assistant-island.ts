@@ -159,7 +159,8 @@ ${ASSISTANT_LAYOUT_PART}
   const showWork = async (id) => {
     curId = id; remember(); problem = null; view = null; pendingChar = undefined;
     openTab(id); if (!spacious()) drawerOpen = false;
-    thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
+    thread.querySelectorAll(":scope > [data-round], :scope > .assistant-problem").forEach((node) => node.remove());
+    thread.querySelectorAll(":scope > [data-review]").forEach(removeReview);
     render(); paintLayout();
     if (panel) { panel.removeAttribute("data-arrive"); void panel.offsetWidth; panel.setAttribute("data-arrive", ""); }
     if (id) { await reload(); poll(); }
@@ -209,7 +210,7 @@ ${ASSISTANT_SIDE_KIT_PART}
           actions: open ? [sideAct(readText("workbench.assistant-island.open"), object.title, open, false, "secondary")] : [] }));
       });
       suggestions.forEach((candidate) => {
-        const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
+        const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", { expected_version: candidate.version }); await reload(); };
         cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: readText(candidate.held ? "workbench.assistant-island.asked-me-remember" : "workbench.assistant-island.remember") + "：" + candidate.text, detail: candidate.held,
           sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
           actions: [sideAct(readText("workbench.assistant-island.keep"), candidate.text, settle("/accept"), false, "primary"), sideAct(readText("workbench.assistant-island.no-thanks"), candidate.text, settle("/discard"), false, "secondary")] }));
@@ -425,7 +426,7 @@ ${ASSISTANT_TABS_PART}
     putPageCards(null);
     receipts.after(thread, put, work && view);
     const reviews = work ? view.reviews : [];
-    [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
+    [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) removeReview(card); });
     reviews.forEach((review) => {
       const card = keyed(thread, "data-review", review.review_id, () => el("div", "assistant-card assistant-card--review"));
       if (!card.dataset.painted) { card.dataset.painted = "1"; renderReview(card, work, review); }
@@ -633,8 +634,16 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   // from --dock-h, written here; while the bar is not drawn (a page embedded in a pane) the sheets' rest height stands.
   const bar = island.closest(".workbench-bar");
   if (bar && "ResizeObserver" in window) {
-    const watcher = new ResizeObserver(() => { const height = bar.offsetHeight; if (height) document.body.style.setProperty("--dock-h", height + "px"); else document.body.style.removeProperty("--dock-h"); });
-    watcher.observe(bar); watchers.push(watcher);
+    const titlebar = bar.closest(".immersive-workspace")?.querySelector(".immersive-titlebar");
+    const watcher = new ResizeObserver(() => {
+      const height = bar.offsetHeight;
+      if (height) document.body.style.setProperty("--dock-h", height + "px"); else document.body.style.removeProperty("--dock-h");
+      bar.toggleAttribute("data-dock-hidden", !height);
+      if (titlebar) document.body.style.setProperty("--workbench-titlebar-bottom", Math.ceil(titlebar.getBoundingClientRect().bottom) + "px");
+    });
+    watcher.observe(bar);
+    if (titlebar) watcher.observe(titlebar);
+    watchers.push(watcher);
   }
   // A finished work is where the next message goes only while it is fresh: once it has rested a while (and its panel is
   // closed, the input empty) a message starts a new work. It stays in the list, and its notices still open it.

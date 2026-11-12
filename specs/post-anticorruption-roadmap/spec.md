@@ -72,12 +72,12 @@
 |  | [插件升级 U4 与合同过渡 U5](reference/batches/26.md#batch-26-item-5) |
 |  | [副本演练与回退 U6](reference/batches/26.md#batch-26-item-6) |
 |  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
+|  | [状态词汇门禁与文档](reference/batches/26.md#batch-26-item-8)（原 27-6） |
 | [27](reference/batches/27.md) | [基础交互体验债](reference/batches/27.md#batch-27-item-1) |
 |  | [代码／Diff 及性能余项](reference/batches/27.md#batch-27-item-2) |
 |  | [首批文案与帮助](reference/batches/27.md#batch-27-item-3) |
 |  | [Runtime、Goals 与沙箱余项](reference/batches/27.md#batch-27-item-4) |
 |  | [宿主出口、文档门禁与各包清理](reference/batches/27.md#batch-27-item-5) |
-|  | [状态词汇门禁与文档](reference/batches/27.md#batch-27-item-6) |
 | [28](reference/batches/28.md) | [采集事实接入](reference/batches/28.md#batch-28-item-1) |
 | [29](reference/batches/29.md) | [历史查询与记录管理](reference/batches/29.md#batch-29-item-1) |
 | [30](reference/batches/30.md) | [最小真实评测路径](reference/batches/30.md#batch-30-item-1) |

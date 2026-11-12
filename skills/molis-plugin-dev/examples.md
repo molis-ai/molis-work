@@ -24,7 +24,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 人盯着一条 `inbox_entry`。处置只有做完了 / 忽略。查看原消息是导航。
 
 - 不读 Feed / Goals 表，标题由 Host 注入。
-- 场景：`action_scenes` 中的 `inbox.next`，兑现 prepare/bind/consume/failed。显式调用和 Feed 自动事件共用绑定及执行，不再依赖旧 `functions.evaluate`。
+- 场景：`action_scenes` 中的 `inbox.next`，兑现 prepare/bind/consume/failed。显式调用和 Feed 自动事件共用绑定及执行，不再依赖旧的判断能力。
 - 完成/忽略只改 Attention 状态，不删原对象。
 - 搜索：`inbox.search.entries` 只列未处理的事项（仅摘要）；做完或忽略后不在列表里，就从索引里删掉。
 

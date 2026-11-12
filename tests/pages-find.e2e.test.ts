@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
@@ -101,4 +104,131 @@ test("W5-10-PGF-02: find cycles, replaces and undoes through the bundled editor;
   assert.equal(await text(), "beta only");
   await b.evaluate("window.MolisWorkPagesEditor.destroy(findEditor);document.querySelector('#find-editor-fixture').remove()");
   assert.equal(await b.evaluate("document.querySelectorAll('.pages-find').length"), 0);
+});
+
+test("QA-033: Pages find remains usable under the real workbench tabs and after reload", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(b?.projectId);
+  const { command, sessionId, projectId } = b;
+  const frame = await pluginFrameBrowser(t, b, "pages");
+  const paragraph = (text: string) => ({ type: "paragraph", attrs: { note: "" }, content: [{ type: "text", text }] });
+  const content = [paragraph("Find target at the start"),
+    ...Array.from({ length: 54 }, (_, index) => paragraph(`Paragraph ${index + 1} in a long document.`)),
+    paragraph("Find target at the end")];
+  const store = openPagesStore(b.homeDirectory);
+  const record = (() => {
+    try { return store.create({ project_id: projectId, title: "Find and replace journey", body: { type: "doc", content } }); }
+    finally { store.close(); }
+  })();
+  const url = `${b.origin}/projects/${projectId}/?openPlugin=pages`;
+  const editor = "[data-pages-editor] .ProseMirror";
+  const query = ".pages-find input[type=search]";
+  const replacement = ".pages-find input[type=text]";
+  const one = ".pages-find button:first-of-type";
+  const count = (value: string) => frame.waitFor(`document.querySelector('.pages-find-count')?.textContent === ${JSON.stringify(value)}`);
+  const shots = new URL("../.impeccable/qa/review/batch27-pages-find/", import.meta.url);
+  await mkdir(shots, { recursive: true });
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await b.navigate(() => command("Page.navigate", { url }, sessionId));
+  const mod = await b.evaluate<number>("/Mac/.test(navigator.platform) ? 4 : 2");
+  const openFind = async () => {
+    await press(b, "f", "KeyF", 70, mod);
+    await frame.waitFor(`document.activeElement === document.querySelector('${query}') && !document.querySelector('.pages-find').hidden`);
+  };
+  const closeFind = async () => {
+    await press(b, "Escape", "Escape", 27);
+    await frame.waitFor(`document.querySelector('.pages-find')?.hidden && document.activeElement === document.querySelector('${editor}')`);
+  };
+  const openedRecord = () => frame.waitFor(`document.querySelector('${editor}')?.textContent.includes('Paragraph 54')`);
+  await frame.click(`button[data-page-id="${record.id}"]`);
+  await openedRecord();
+  for (const locale of ["zh", "en"]) {
+    await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: b.origin, path: "/" }, sessionId);
+    for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+      await b.setViewport(width, height);
+      for (const theme of ["light", "dark"]) {
+        const variant = `${width}-${locale}-${theme}`;
+        await t.test(variant, async () => {
+          await b.evaluate(`localStorage.setItem('molis-work:theme', '${theme}')`);
+          await b.reloadPage();
+          await openedRecord();
+          assert.equal(await b.evaluate("document.documentElement.dataset.resolvedTheme"), theme);
+          await frame.click(`${editor} p:first-of-type`);
+          await openFind();
+          assert.equal(await frame.evaluate(`document.querySelector('${query}').placeholder`), locale === "en" ? "Find in the text" : "在文中查找");
+          await command("Input.insertText", { text: "Find target" }, sessionId);
+          await count("1/2");
+          await press(b, "Enter", "Enter", 13);
+          await count("2/2");
+          const point = await frame.point(`${editor} p:nth-of-type(7)`);
+          const textTop = `document.querySelector('${editor} p:first-of-type').getBoundingClientRect().top`;
+          const beforeScroll = await frame.evaluate<number>(textTop);
+          await command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: 440 }, sessionId);
+          await frame.waitFor(`${textTop} < ${beforeScroll - 80}`);
+
+          const capture = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
+          await writeFile(new URL(`${variant}.png`, shots), Buffer.from(capture.data, "base64"));
+          const bar = await frame.evaluate<{ left: number; top: number; right: number; bottom: number; controlsHit: boolean }>(`(() => {
+            const bar = document.querySelector('.pages-find');
+            const {left, top, right, bottom} = bar.getBoundingClientRect();
+            const controlsHit = [...bar.querySelectorAll('input,button')].every(control => {
+              const box = control.getBoundingClientRect();
+              const x = (box.left + box.right) / 2;
+              return box.width > 0 && box.height > 0 && [box.top + 2, box.bottom - 2].every(y => control.contains(document.elementFromPoint(x, y)));
+            });
+            return {left, top, right, bottom, controlsHit};
+          })()`);
+          assert.ok(bar.controlsHit, "find and replace controls hit throughout the row inside the Pages frame");
+          const shell = await b.evaluate<{ belowTabs: boolean; insideFrame: boolean; frameHit: boolean; twoRows: boolean }>(`(() => {
+            const frame = document.querySelector('iframe[data-plugin-frame=pages]');
+            const bounds = frame.getBoundingClientRect();
+            const strip = document.querySelector('[data-titlebar-tabs]').getBoundingClientRect();
+            const history = document.querySelector('.workspace-history').getBoundingClientRect();
+            const bar = ${JSON.stringify(bar)};
+            const x = bounds.left + (bar.left + bar.right) / 2;
+            const y = bounds.top + (bar.top + bar.bottom) / 2;
+            return {
+              belowTabs: bounds.top + bar.top >= strip.bottom,
+              insideFrame: bar.left >= 0 && bar.top >= 0 && bar.right <= bounds.width && bar.bottom <= bounds.height,
+              frameHit: document.elementFromPoint(x, y) === frame,
+              twoRows: strip.top >= history.bottom - 1 && strip.height > 0 && history.height > 0,
+            };
+          })()`);
+          assert.ok(shell.insideFrame && shell.belowTabs && shell.frameHit, JSON.stringify({ shell, bar }));
+          if (width === 390) assert.ok(shell.twoRows, "reproduces the workbench's two actual titlebar rows");
+          await frame.click(replacement);
+          assert.equal(await frame.evaluate(`document.activeElement === document.querySelector('${replacement}')`), true);
+          await closeFind();
+          await openFind();
+          await count("2/2");
+          await closeFind();
+        });
+      }
+    }
+  }
+
+  // A real replace goes through the same document save as an edit, and the workbench restores it on reload.
+  await b.reloadPage();
+  await openedRecord();
+  await frame.click(`${editor} p:first-of-type`);
+  await openFind();
+  await command("Input.insertText", { text: "Find target" }, sessionId);
+  await count("1/2");
+  await frame.click(replacement);
+  await command("Input.insertText", { text: "Saved replacement" }, sessionId);
+  await frame.click(one);
+  await frame.waitFor("document.querySelector('[data-pages-editor-status]')?.dataset.mwState === 'saved'");
+  const after = openPagesStore(b.homeDirectory);
+  try {
+    assert.deepEqual(after.get(record.id, projectId).body.content, [paragraph("Saved replacement at the start"), ...content.slice(1)]);
+  } finally { after.close(); }
+  await closeFind();
+  await b.reloadPage();
+  await openedRecord();
+  assert.match(await frame.evaluate<string>(`document.querySelector('${editor} p:first-of-type').textContent`), /^Saved replacement at the start$/);
+  await frame.click(`${editor} p:first-of-type`);
+  await openFind();
+  await command("Input.insertText", { text: "Saved replacement" }, sessionId);
+  await count("1/1");
+  await closeFind();
 });

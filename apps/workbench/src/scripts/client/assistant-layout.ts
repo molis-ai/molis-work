@@ -29,4 +29,13 @@ export const ASSISTANT_LAYOUT_PART = String.raw`  // A narrow panel shows the si
   let spaciousBefore = spacious();
   const sideChanged = () => { const now = spacious(); if (now !== spaciousBefore) { spaciousBefore = now; drawerOpen = false; } paintLayout(); };
   if ("MutationObserver" in window) new MutationObserver(sideChanged).observe(document.body, { attributes: true, attributeFilter: ["data-side-open", "style"] });
-  window.addEventListener("resize", () => { if (sideWidth()) sideChanged(); });`;
+  window.addEventListener("resize", () => { if (sideWidth()) sideChanged(); });
+  // The side browser and this panel, both drawn, share the width (side-panel.ts): the root carries it, not a page-wide :has().
+  const sidePanel = document.querySelector("[data-side-panel]"), sideBrowser = sidePanel?.querySelector(":scope>[data-side-browser]"), barNode = island.parentElement, root = document.body;
+  const markShared = () => root.toggleAttribute("data-side-shared", root.dataset.sideOpen === "true" && !root.hasAttribute("data-side-solo") && !!sidePanel && !sidePanel.hidden
+    && !sidePanel.inert && !!sideBrowser && !sideBrowser.hidden && !!barNode?.matches(".workbench-bar:not([data-dock-hidden])") && !!panel && !panel.hidden);
+  if ("MutationObserver" in window) {
+    const shared = new MutationObserver(markShared);
+    for (const node of [root, sidePanel, sideBrowser, barNode, panel]) if (node) shared.observe(node, { attributes: true, attributeFilter: ["data-side-open", "data-side-solo", "hidden", "inert", "data-dock-hidden"] });
+  }
+  markShared();`;

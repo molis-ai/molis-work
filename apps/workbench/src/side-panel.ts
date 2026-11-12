@@ -96,10 +96,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
       </section>`;
 }
 
-// Both surfaces are already mounted. The current browser and a drawn, floating Assistant share the available width.
-const SHARED_BROWSER = "html body.immersive-workbench[data-side-open=true]:not([data-side-solo])"
-  + ":has([data-side-panel]:not([hidden],[inert])>[data-side-browser]:not([hidden]))"
-  + ":has(.workbench-bar:not([data-dock-hidden])>[data-assistant-island]>[data-assistant-panel]:not([hidden]))";
+// Both surfaces are already mounted. The current browser and a drawn, floating Assistant share the available width: the Assistant's
+// layout script marks it on the root (data-side-shared, assistant-layout.ts), so no rule here re-checks the whole page (VUX-36).
+const SHARED_BROWSER = "html body.immersive-workbench[data-side-shared]";
 
 /* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
  * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line

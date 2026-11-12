@@ -1,0 +1,8 @@
+{
+  "reason": "VUX-36：第 27 批 side-panel.ts 的侧栏浏览器与助理并排规则在页面根上用 :has() 查整棵子树，main 上 style-has-scope 因此失败。改由助理布局脚本只盯侧栏、侧栏浏览器、底栏、助理面板与 body 的相关属性，在 body 上标 data-side-shared，样式读这个属性。工作台 JS 增 557 字节，工作台 CSS 同时少 627 字节；没有新资源。",
+  "review": "第 15 批 PR #2017 全 PR 评审核对，见 PR 评论的评审台结论。",
+  "userApproval": "用户于 2026-11-12 在第 15 批主会话弹窗选择「本批一起修」VUX-36，并选择「批准 557 字节（推荐）」：工作台 JS 对 539d2d7d46 共 +51,034，在已批 50,477 之外补这 557 字节。仅覆盖本次准确增量。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 557
+  }
+}

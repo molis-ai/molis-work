@@ -52,6 +52,11 @@
 - 同意：`retireFilesConsents`（Home 一步，宿主持 storage owner）只在本 Home 所有项目库都已采用后，由 Runtime 的 `revokeRetiredPlugin` 撤回 Files 自己（精确 id 与签名）仍有效的同意；已撤回的保留原时间，别的插件指向 Files 的默认连线不撤，它的 subject 指向已不存在的来源，自然不再生效，是否曾被本人撤回仍可读。重跑不再撤。安装与私有值随删除步骤处理。
 - 本人恢复默认：插件设置「你给过的同意」里，为宿主随带插件声明、读平台资料服务且当前无本人同意的默认来源各列一行（`PluginInstalledView.pending_defaults`），按钮「同意默认来源」经确认框走 `/api/settings/plugin-consents/grant-default-source`（用户 2026-11-12 弹窗定样）。
 
+实施记录（2026-11-12，H7 旧构建 Home 的读回门，M3）：
+- 夹具：`tests/fixtures/files-era-home/` 由旧构建（54a12642c）自己生成，生成器同目录 `generate.mjs`（只能在那份构建上跑）。两个项目，按本人的路线走 Web：设输出文件夹、读文件、固定快照。第一个项目有快照 before 两版、after、选区和文件夹集合两版，第二个项目有 before、集合，以及 Files 换文件夹时撤下的 after、selection 两个端口；两项目都有 Diff、Text Stats、Shelf 的默认连线和 Files 的阅读位置。本人撤回了 Diff 指向 Files before 端口的一条同意。旧构建没有不经模型写 Coding 轮次的路由，草稿和排队轮次的材料按旧 `{kind,id,title}` 形状由生成器直接写入。夹具只留采用要读的库（目录库、两份项目库、Home 插件库、记忆库）和空间文件；各安装的发布代码行不留，留了多少行记在 manifest。
+- 读回：`tests/files-era-adoption.test.ts` 用现行代码逐项目采用。这个 Home 从没同步过，待上传的过程项带进新日志；每个固定版本逐字节不变，身份、输出（含撤下的端口）、默认连线改归资料服务，Coding 与 Git 的连线不动，阅读位置成为资料服务的项目级值，Coding 的旧材料由 Coding 转成现行形状；同意账本与采用前完全相同。随后用现行宿主打开这个 Home：资料服务把每个采用后的快照和选区当作自己的读出来；本人再固定一次，新过程项交给 Diff 的 before 端口，写入记在新日志的末尾。
+- 实测发现，记在这里供删除前核对：旧构建里 Files 自己没有任何同意，同意都在 Diff、Text Stats 名下，指名 Files 的端口。所以 `retireFilesConsents` 在真实旧数据上撤回 0 条，这些同意按 H5 的规则原样保留（来源已不在，不再算数），本人在插件设置里用「同意默认来源」给资料服务新的同意。旧构建没有让本人替换 Files 输出连线的路由，Files 也不产成果，真实旧 Home 里不会有「替换过的连线」和「固定 Files 成果」两类数据；采用对它们的处理仍由 `tests/process-items-adoption.test.ts` 的合成库覆盖。Coding 旧材料里的 `kind:"artifact"` 是知识选择器选的成果版本（过程项从不在知识里），转成 fixed 引用。
+
 ## 验收与实证限制
 
 - BSH-14-A/B/C/E 沿原矩阵，在真实隔离 Worker 另钉同版的错 lane、猜内部 key、跨账号 cutoverId、旧 policy PUT 回开、同 opId 旧重放与现行独立回执、并发 policy/封印/续播/R2 交错及 quota/GC。受保护引用、老正文与 R2 读回、读到完整图是断言，单比键或计数不够。

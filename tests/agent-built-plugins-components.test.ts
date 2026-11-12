@@ -29,7 +29,7 @@ test('SCS-11: opening a signed record refuses two matches in one component and o
   const browser = await openStudioChrome(directory);
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
   assert.ok(browser, 'dedicated Chrome is required');
-  const page = await browser.page();
+  const page = await componentPage(browser);
   const nodes = ['first', 'second'].map(id => ({ id, pageId: 'home', regionId: 'main', intent: 'collection', kind: 'directory', purpose: id,
     props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }));
   const view = { contract: packageContract(), nodes, connected: ['notes.list'] };

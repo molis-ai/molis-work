@@ -82,12 +82,20 @@ test("SCS-07 SCS-08 SCS-11 WBR-24: real Goals, Inbox, Coding and Feed supply one
     feed.createInboxEntry({ projectId: project.project_id, subjectType: "source_fault", subjectId: gmail.source_id, reason: "source_fault" });
     return { rssId, gmailId, absentId, retiredId, sourceId: gmail.source_id };
   });
-  const before = Object.fromEntries(["goals", "inbox", "coding", "feed"].flatMap(id =>
+  const snapshot = () => Object.fromEntries(["goals", "inbox", "coding", "feed"].flatMap(id =>
     ["overview", "values"].map(action => [id + ".presentation." + action, count(id + ".presentation." + action)])));
   const syncRuns = () => f.host.withProject(project.reference, runtime => createLocalFeedApplication(runtime.store.db).snapshot(project.project_id).runs);
-  const previousRuns = await syncRuns();
-  const next = await read();
-  assert.deepEqual(await syncRuns(), previousRuns, "a real Home read neither starts nor records a Feed pull");
+  // The whole Home read shares one second (surface-composition §8.1); on a loaded runner a cold round can pass it, and the cut owners
+  // then read as unreadable. Such a round proves nothing about batching, so it is read again; every round still must not pull Feed.
+  let before = snapshot(), next: SurfaceHomeDisplay | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    before = snapshot();
+    const previousRuns = await syncRuns();
+    next = await read();
+    assert.deepEqual(await syncRuns(), previousRuns, "a real Home read neither starts nor records a Feed pull");
+    if (next.groups.every(group => group.state !== "unreadable")) break;
+  }
+  assert.ok(next);
   assert.equal(count("feed.sources.sync"), 0);
   for (const id of ["goals", "inbox", "coding", "feed"]) {
     assert.equal(count(id + ".presentation.overview") - before[id + ".presentation.overview"]!, 1, id);

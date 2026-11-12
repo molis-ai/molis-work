@@ -381,6 +381,11 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   /* The target reaches past the drawn line, to the bar's 28px floor (44px to a finger, in the touch rules). */
   ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -4px 0; }
   ${ASSIST} .assistant-attention[hidden] { display: none; }
+  /* At rest the composer is one row, so its receiver row is also its send row: the count then stands beside the composer
+     instead of over its send button. */
+  ${ASSIST} .assistant-composer:has(> .mw-composer[data-rest] ~ .assistant-attention:not([hidden])) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 6px; }
+  ${ASSIST} .assistant-composer > .mw-composer[data-rest] ~ .assistant-attention { position: relative; top: auto; right: auto; }
+  ${ASSIST} .assistant-composer > .assistant-answer { grid-column: 1 / -1; }
   ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }

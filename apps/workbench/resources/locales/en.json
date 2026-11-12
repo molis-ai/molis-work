@@ -3966,7 +3966,13 @@
     "workbench.home.disabled": "Turned off. Your content is still here.",
     "workbench.home.empty": "There’s nothing to show in this project yet",
     "workbench.home.enable": "Enable",
-    "workbench.home.excluded": "{count} items belong to plugins that are turned off",
+    "workbench.home.excluded": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} item belongs to a plugin that is turned off",
+        "other": "{count} items belong to plugins that are turned off"
+      }
+    },
     "workbench.home.hidden-above": "Also listed above: {count}",
     "workbench.home.lead": "See what’s in the project and start with what needs you.",
     "workbench.home.loading": "Loading the project home…",

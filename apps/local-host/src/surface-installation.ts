@@ -77,7 +77,10 @@ function installedActions(catalog: SurfaceInstallCatalog, candidate: PluginManif
     pending.delete(record.plugin_id);
     if (record.plugin_id === candidate.plugin_id) return [];
     const archived = manifest && hasRelease(manifest, record) ? manifest : readPluginReleaseManifest(db, record);
-    const source = archived && hasRelease(archived, record) ? archived : planned && hasRelease(planned, record) ? planned : undefined;
+    // A plugin of the Host's build runs over its record at the build's Manifest whatever release the record holds (followHostBuild,
+    // docs/releases/POLICY.md §7), so its declared actions are the build's; a built-in release left by an earlier build is not refused.
+    const followed = record.publisher_trust === "host" && planned?.publisher.signature === record.publisher_signature ? planned : undefined;
+    const source = followed ?? (archived && hasRelease(archived, record) ? archived : planned && hasRelease(planned, record) ? planned : undefined);
     if (source && (source.kind !== "app" || source.actions?.length || record.publisher_trust !== "pinned")) {
       return (source.actions ?? []).filter(action => action.action.scope === scope);
     }

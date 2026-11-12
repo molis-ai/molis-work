@@ -1,5 +1,5 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
+import { UiViewRegistry, placedDirectoryViews as placedViews, stageOnlyDirectoryViews as stageOnlyViews, type PlacedDirectoryView, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -147,15 +147,7 @@ function registryFor(directory: PluginDirectory, enabled: readonly ProjectPlugin
   return new UiViewRegistry(directory.map((entry) => ({ manifest: entry, enabled: !entry.chosen || enabled.includes(entry.id) })));
 }
 
-/** The enabled plugins' views in one slot, in the order the Manifests declare, each with its plugin's shell key and whether the project chooses it. */
-function placedViews(directory: PluginDirectory, enabled: readonly ProjectPluginId[], slot: "navigator" | "island" | "side" | "stage"): Array<{ id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }> {
-  return directory.flatMap(entry => registryFor([entry], enabled).slot(slot).map(view => ({ id: entry.id, entry, view })))
-    .sort((left, right) => left.view.order - right.view.order
-      || left.view.plugin_id.localeCompare(right.view.plugin_id)
-      || left.view.view_id.localeCompare(right.view.view_id));
-}
-
-function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
+function railEntry({ id, entry, view }: PlacedDirectoryView): RailEntry {
   return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package",
     // The 个人 group is the person's own plugins, by the one rule ＋ and the bar's right tray use too (isPersonalPlugin; 07-1 S4b):
     // a view does not put itself there, nor keep another group once it is the person's.
@@ -181,17 +173,6 @@ function navigationEntries(enabled: readonly ProjectPluginId[], directory: Plugi
 /** Personal island entries above the project card. */
 export function islandEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
   return placedViews(directory, enabled, "island").map(railEntry);
-}
-
-/** The plugins the project does not choose that have no directory view: they open at their stage. */
-function stageOnlyViews(directory: PluginDirectory, enabled: readonly ProjectPluginId[]) {
-  const placed = new Set([...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].map(item => item.id));
-  const seen = new Set<string>();
-  return placedViews(directory, enabled, "stage").filter(item => {
-    if (item.entry.chosen || placed.has(item.id) || seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
 }
 
 /**

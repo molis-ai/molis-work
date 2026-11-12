@@ -11,7 +11,8 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
 .tree-presentation-name>*{grid-area:1/1;min-inline-size:0}
 .tree-presentation-name .mw-presentation{pointer-events:none}
 .tree-presentation-name .mw-presentation__tag{background:none;border-color:transparent}
-.inbox-object-title .mw-presentation__tag{font-size:var(--type-title-size,1rem)}
+.inbox-object-title .mw-presentation__tag{font-size:var(--type-title-size,1rem);display:flex;align-items:flex-start;block-size:auto;max-width:none;white-space:normal}
+.inbox-object-title .mw-presentation__tag strong{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
   .immersive-plugin-stage > .immersive-home, .tab-pane-body > .immersive-home { container-type: inline-size; padding: 0; min-block-size: 0; block-size: 100%; overflow: hidden; display: flex; flex-direction: column; position: relative; }
   .immersive-home .home-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; width: 100%; max-width: 1280px; margin: 0 auto; padding: clamp(1rem, 4cqi, 3.5rem); }
   .immersive-home .home-heading h1 { margin: 0; font-family: var(--type-display-font); font-size: var(--type-display-size); line-height: var(--type-display-line-height); }

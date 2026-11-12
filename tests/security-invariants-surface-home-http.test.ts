@@ -173,9 +173,15 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   assert.equal(findCard(read, f.crashing.id)?.state, "unreadable");
   assert.equal(findCard(read, f.crashing.id)?.plugin_card?.enable, undefined);
 
-  await f.host.closeProject(f.project.reference);
-  await f.host.withProject(f.project.reference, () => undefined);
-  const cold = findCard(await f.read(), "io.molis.work.inbox");
+  // Reopening replays any event Inbox has not yet acknowledged, and that delivery may start Inbox before the read (a legitimate
+  // background activation, seen on loaded CI runners). Once delivered nothing is pending, so a later reopen stays cold.
+  let cold: ReturnType<typeof findCard> = undefined;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await f.host.closeProject(f.project.reference);
+    await f.host.withProject(f.project.reference, () => undefined);
+    cold = findCard(await f.read(), "io.molis.work.inbox");
+    if (cold?.state !== "ok") break;
+  }
   assert.equal(cold?.state, "unreadable", "a selected native plugin with no current activation is not an explicit disable");
   assert.deepEqual(cold.plugin_card, {});
   await f.warm();

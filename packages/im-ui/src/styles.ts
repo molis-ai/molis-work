@@ -9,7 +9,7 @@ ${FIELD_FIT_STYLES}
 ${HIDDEN_SCROLLBAR_STYLES}
 ${SR_ONLY_STYLES}
 .im-draft-objects{display:flex;flex-wrap:wrap;gap:6px}
-.im-object-chip{border:1px solid var(--line);background:var(--surface-soft);border-radius:var(--radius-sm);padding:4px 8px;max-width:100%;overflow-wrap:anywhere}
+.im-object-chip{border:1px solid var(--line);background:var(--surface-soft);border-radius:var(--r-tag);padding:4px 8px;max-width:100%;overflow-wrap:anywhere}
 [data-im-object-part]:not(:empty){display:grid;gap:6px;margin-block:6px;min-width:0}
 ${renderFontScope(BASELINE_FONT, true)}
 ${renderMonoScope(BASELINE_FONT, true)}

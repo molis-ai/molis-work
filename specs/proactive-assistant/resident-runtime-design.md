@@ -201,8 +201,8 @@ interface RuntimeOverview {
 
 - **退出被拦住时的系统注销与关机**：桌面在 `ExitRequested` 上先问，macOS 注销或关机时也会先等这一问；系统会提示应用没退出。系统发起的退出不问直接退，另立事项 [BL-desktop-quit-on-system-logout](../backlog/BL-desktop-quit-on-system-logout.md)。
 - **换端口后旧端口的授权**：Tauri 运行时加上的能力不撤下，留到桌面退出；两个端口都只在本机回环、都要过核身份才会被用到。
-- **Feed 的「现在做」**：把下次拉取设成当下；如果之后十分钟以上没有轮到（例如马上睡眠），会再记一次错过，人再决定一次即可。
-- **没决定的错过不过期**：一直列着，直到人选「现在做」或「跳过」，或来源被删。
+- **Feed 的「现在做」**：把下次拉取设成当下；如果之后十分钟以上没有轮到（例如马上睡眠），会再记一次错过，人再决定一次即可（[BL-feed-run-now-missed-again](../backlog/BL-feed-run-now-missed-again.md)）。
+- **没决定的错过不过期**：一直列着，直到人选「现在做」或「跳过」，或来源被删（[BL-missed-runs-never-expire](../backlog/BL-missed-runs-never-expire.md)）。
 - **面板读不到时**：读失败一律显示「没在运行」，不区分宿主没起和一次读超时；30 秒后再读。
 
 ## 11. 开工前检查

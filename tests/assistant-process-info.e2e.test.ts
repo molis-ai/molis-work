@@ -352,13 +352,16 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   revoke = () => manager.invoke(memoryActions.savePrefs, { scope: "project", prefs: { consumers: { ...prefs.consumers, assistant: false } } }).then(() => {});
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  const send = async (text: string) => { await waitFor("Boolean(document.querySelector('[data-assistant-input]'))"); await click("[data-assistant-input]");
+  // The unified composer (UIC-05): its input is the composer's, and it sends on ⌘↵ / Ctrl+↵ (Enter is a new line).
+  const send = async (text: string) => { await waitFor("Boolean(document.querySelector('[data-assistant-composer] .mw-composer__input'))"); await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId); };
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId); };
   await send(original);
-  await waitFor("Boolean(localStorage.getItem('molis.assistant.current'))");
-  const workId = await evaluate<string>("localStorage.getItem('molis.assistant.current')"), workPath = `/projects/${projectId}/api/assistant/works/${workId}`;
+  // The open work is kept per project (`molis.assistant.current:<project>`).
+  const currentKey = JSON.stringify(`molis.assistant.current:${projectId}`);
+  await waitFor(`Boolean(localStorage.getItem(${currentKey}))`);
+  const workId = await evaluate<string>(`localStorage.getItem(${currentKey})`), workPath = `/projects/${projectId}/api/assistant/works/${workId}`;
   const waiting = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.reviews.length ? view : undefined; }, "the actual Goals write is held for the person");
   await web.post(workPath + "/reviews/" + waiting.reviews[0]!.review_id, { decision: "approve" });
   const failed = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.work.state === "failed" ? view : undefined; }, "revoked Memory stops the real Work");
@@ -440,11 +443,18 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   assert.equal((await manager.invoke(memoryActions.list, {})).items.find(item => item.memory_id === wrongId)?.state, "disabled");
   assert.ok((await manager.invoke(memoryActions.list, {})).items.some(item => item.text === corrected && item.state === "active"));
   await capture("disabled-after-permission-recovery");
-  await click('[data-assistant-panel] .assistant-side-action[aria-label=' + JSON.stringify("去设置查看：" + rule) + ']');
+  // The work's side panel can start collapsed; open it the way the person does before using its memory row.
+  await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)");
+  if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
+  // Nothing on this page answers the island's open-settings event, so the link goes to the Memory settings page.
+  await navigate(() => click('[data-assistant-panel] .assistant-side-action[aria-label=' + JSON.stringify("去设置查看：" + rule) + ']'));
   await waitFor("location.pathname.includes('/settings/memory') || Boolean(document.querySelector('[data-memory-list]'))");
   // Reopen the same real Work from the existing bar after visiting Memory, then use its original failed round's result card.
-  await waitFor(`document.querySelector('[data-assistant-target-label]')?.textContent.endsWith(${JSON.stringify("：" + retry.work.title)})`);
-  await click('[data-assistant-target]');
+  // The unified composer (UIC-05) names the open work as its receiver; an empty ⌘↵ opens that work without sending anything.
+  await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent.includes(${JSON.stringify(retry.work.title)})`);
+  await click("[data-assistant-composer] .mw-composer__input");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(guidanceLink)})?.getClientRects().length)`);
   await click(guidanceLink);
   const guidancePanel = '[data-work-surface=project-settings] .guidance-document[data-settings-panel=guidance]';

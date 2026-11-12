@@ -21,6 +21,7 @@ import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-m
 import { toolField, untilSetup } from "./fixtures/connector-assistant-model.js";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_OPEN, codingAdd } from "./fixtures/coding-composer.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 type Product = Awaited<ReturnType<typeof codingProductHost>>;
@@ -172,9 +173,9 @@ async function openCoding(j: Journey, target: Target) {
   await j.frame.waitFor(`document.querySelector('[data-coding-session="${target.id}"]')`);
   await j.frame.click(`[data-coding-session="${target.id}"]`);
   await j.frame.waitFor(`document.querySelector('[data-coding-memory-open]')?.getAttribute('href') === ${JSON.stringify(settingsPath(target))}`);
-  await j.frame.click("[data-coding-attach-toggle]");
-  await j.frame.waitFor("document.querySelector('[data-coding-context-toggle]')?.checkVisibility()");
-  await j.frame.click("[data-coding-context-toggle]");
+  // Since one input (#1991) Coding draws no box of its own: its context row opens from the workbench bar's ＋ (`/context`).
+  await j.page.wait(CODING_OPEN);
+  await j.page.evaluate(codingAdd("context"));
   await j.frame.waitFor("document.querySelector('[data-coding-memory-open]')?.checkVisibility()");
   const at = j.requests.length; await j.frame.click("[data-coding-memory-open]"); await activateMemory(j.page); assertProtectedReads(j, at, target);
 }

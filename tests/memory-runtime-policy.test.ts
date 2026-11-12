@@ -147,6 +147,43 @@ test("MEM-20 with form off the assistant still turns a memory off; turning it on
   assert.equal((await memory.update({ ...at(third), operation_id: "on-update", change: { text: "Rewritten convention" } })).text, "Rewritten convention");
 });
 
+test("MEM-20 with form off a retried pause or disable passes again, before and after reopening, asking the Authority its first question", async t => {
+  // Prologue #113: a replay carries the before state its operation recorded, so the form-off deactivation rule recognises it again.
+  type Asked = { target: unknown; before?: { paused?: boolean; disabled?: boolean } };
+  const asked: Asked[] = [];
+  const f = await fixture(t, async (caller, requests) => {
+    if (caller.consumer === "assistant") asked.push(...(requests as readonly (Asked & { action: string; target: { paused?: boolean; disabled?: boolean } })[])
+      .filter(request => request.action === "save" && request.before !== undefined && (request.target.paused || request.target.disabled)));
+    return true;
+  });
+  const assistant: AgentMemoryCaller = { ...person, consumer: "assistant", person: false, purpose: "management" };
+  const at = (entry: { memory_id: string; version: number }) => ({ scope: "project" as const, owner: "a", memory_id: entry.memory_id, expected_version: entry.version });
+  const [toPause, toDisable, pausedFirst] = [await f.save("retry-pause"), await f.save("retry-disable"), await f.save("retry-paused-disable")];
+  const earlier = await f.bound(assistant).pause({ ...at(pausedFirst), operation_id: "retry-earlier-pause", reason: "assistant" });
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { form: false });
+  const calls = [
+    { name: "pause", run: () => f.bound(assistant).pause({ ...at(toPause), operation_id: "retry-off-pause", reason: "assistant" }), before: { paused: false, disabled: false } },
+    { name: "disable", run: () => f.bound(assistant).disable({ ...at(toDisable), operation_id: "retry-off-disable", reason: "assistant" }), before: { paused: false, disabled: false } },
+    { name: "disable after pause", run: () => f.bound(assistant).disable({ ...at(earlier), operation_id: "retry-off-paused-disable", reason: "assistant" }), before: { paused: true, disabled: false } },
+  ];
+  for (const call of calls) {
+    asked.length = 0;
+    const first = await call.run();
+    const original = asked.splice(0);
+    assert.ok(original.length > 0, `${call.name}: the first call asked the Authority`);
+    assert.deepEqual({ paused: original[0]!.before!.paused === true, disabled: original[0]!.before!.disabled === true }, call.before, `${call.name}: first before`);
+    const replayed = async (when: string) => {
+      assert.deepEqual(await call.run(), first, `${call.name} ${when}: the retry returns the committed result`);
+      const again = asked.splice(0);
+      assert.ok(again.length > 0, `${call.name} ${when}: the retry asked the Authority`);
+      for (const request of again) assert.deepEqual({ target: request.target, before: request.before }, { target: original[0]!.target, before: original[0]!.before }, `${call.name} ${when}: same question`);
+    };
+    await replayed("in the same runtime");
+    await f.reopen();
+    await replayed("after reopening");
+  }
+});
+
 test("mixed on/off scope queries remain admitted while canonical task reads use current consumer switches", async t => {
   const f = await fixture(t); await f.save("project");
   await f.bound().write({ scope: "user", owner: person.actor_id, text: "Private convention", origin: "person", operation_id: "personal", meta });

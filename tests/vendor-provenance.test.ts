@@ -210,15 +210,15 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the clean upstream main after Memory V0 (#109), its golden fixes (#110, #111) and per-request read answers (#112), consumed by agent-host", () => {
+  test("the current Prologue package is the clean upstream main after Memory V0 (#109), its golden fixes (#110, #111), per-request read answers (#112) and same-question replays of pause and disable (#113), consumed by agent-host", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // Built from upstream main at the #112 merge; its first parent is the #111 merge 1128126d, which holds #110, #109 and 1cc80b05 (#107).
-    assert.equal(provenance.source.commit, "83bee7fc3baafd960024b2b759abda616d8a9de3");
-    assert.equal(provenance.source.baseCommit, "1128126de14e9209152f7dc36d152991fb933aea");
-    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/112");
-    assert.equal(provenance.source.candidateUpstream.head, "b4197b50b2cbf323f00a0241ab11da7609448bc0");
+    // Built from upstream main at the #113 merge; its first parent is the #112 merge 83bee7fc, whose first parent 1128126d holds #111, #110, #109 and 1cc80b05 (#107).
+    assert.equal(provenance.source.commit, "770a2e27bd96f51377842d289d18a0678c84e408");
+    assert.equal(provenance.source.baseCommit, "83bee7fc3baafd960024b2b759abda616d8a9de3");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/113");
+    assert.equal(provenance.source.candidateUpstream.head, "08470eb619754e7c99465562a3181e9d27215fa0");
     assert.equal(provenance.source.candidateUpstream.status, "merged");
     assert.equal(provenance.source.candidateUpstream.mergeCommit, provenance.source.commit);
     assert.equal(provenance.source.inFlight, undefined);

@@ -1541,7 +1541,7 @@
     "workbench.assistant-process.memory-list.completed": "Looked at what is remembered",
     "workbench.assistant-process.memory-list.started": "Looking at what is remembered",
     "workbench.assistant-process.memory-suggest.bare": "suggest something to keep",
-    "workbench.assistant-process.memory-suggest.completed": "Suggested something to keep",
+    "workbench.assistant-process.memory-suggest.completed": "Suggested to remember (needs your OK)",
     "workbench.assistant-process.memory-suggest.started": "Suggesting something to keep",
     "workbench.assistant-process.memory-updated-old-text-hidden": "Memory updated; old text hidden",
     "workbench.assistant-process.model-service-unavailable-retrying-time": "The model service is unavailable. Retrying in {time}",

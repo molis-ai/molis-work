@@ -1,5 +1,13 @@
 # Prologue SDK 构建来源
 
+当前唯一采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,428,464 字节**，SHA-256 `723b07ebf42d03150284352752951288e1ce0db2555c21653ffea4daca49f44c`。来源为上游 main 的 [#113](https://github.com/molis-ai/molis-prologue/pull/113) 合并提交 `770a2e27bd96f51377842d289d18a0678c84e408`（tree `2a2380e17cd8be5a44d509301cb4c3acc85814d8`，父提交 `83bee7fc` 即上一份来源，与 #113 头 `08470eb6`）。#113 让重放的 pause / disable 向 Authority 问与第一次相同的问题：`lastOperation` 可选 `before` 记下调用前的 paused / disabled，重放时请求的 `before` 带同一状态，所以 App 凭 `before` 判断「这次保存是在停用」在重放时也成立；没有这一项的旧行照旧不带 `before` 重放，不升 shape。用户 2026-11-12 选择合并后立即换包。
+
+Node 24.15.0（engines 写 24.14.0，本机没有，如实记录）/ pnpm 11.9.0，两个独立干净目录经 build 槽离线 frozen 安装、整体 build/pack，完整 tgz 逐字节相同，打包后源码树干净。824 个普通文件；相对上一份 `83bee7fc` 只变四个构建文件（`memory/core/memory-mutations.{js,d.ts}`、`memory/core/memory-record.{js,d.ts}`），manifest 逐字不变。`83bee7fc` 包只在 #2020 分支上采用过，没有进 main，记在相邻 provenance 的 `previousArtifact`。这只是来源记录，不是性能、完整 App 或用户验收结果。
+
+## 上一份隔离采用：83bee7fc（保留原记录）
+
+以下是当时的原文，「当前」指那一次。
+
 当前唯一采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,427,973 字节**，SHA-256 `bb4faf36eb919e3c8d4be0d81bbe7f3e0a0ff16fe4075100434ab7a727f86af7`。来源为上游 main 的 [#112](https://github.com/molis-ai/molis-prologue/pull/112) 合并提交 `83bee7fc3baafd960024b2b759abda616d8a9de3`（tree `cc2d689534e3deb3b1d8caf7eae5e39f5f34319f`，父提交 `1128126d` 即上一份来源，与 #112 头 `b4197b50`）。#112 让 `MemoryAuthority` 可选 `authorizeEach`：一次调用对一页读取逐条答复，每条照旧过本地策略、Session 证明、生命周期与同步复核；没有这个方法时 Host 调用次序不变（BL-1072）。评审台审过最终头；远端 CI 因 GitHub 账单限制没有启动（重跑也没启动），用户自己合并，并在得知 CI 未跑后于 2026-11-12 批准换包。本地 `pnpm quality` 跑到 `cargo` 之前全过；本机没有 Rust 工具链，`crates/` 未改。
 
 Node 24.15.0（engines 写 24.14.0，本机没有，如实记录）/ pnpm 11.9.0，两个独立干净目录经 build 槽离线 frozen 安装、整体 build/pack，完整 tgz 逐字节相同，打包后源码树干净。824 个普通文件；相对上一份 `1128126d` 只变五个构建文件（`memory/core/access.{js,d.ts}`、`memory/core/memory-read.js`、`memory/core/recall-candidates.{js,d.ts}`），manifest 逐字不变。`1128126d` 包只在 #2020 分支上采用过，没有进 main，记在相邻 provenance 的 `previousArtifact`。这只是来源记录，不是性能、完整 App 或用户验收结果。

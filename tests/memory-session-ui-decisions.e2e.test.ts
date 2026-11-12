@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
+import { workbenchLanguageResource } from "@molis-ai/molis-work-app-workbench";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -40,6 +41,9 @@ async function open(t: TestContext, sessionMode = true) {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url!, "http://local"), path = url.pathname;
     if (path.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderMolisWorkSettingsStylesheet()); return; }
+    // The page reads its words from the language asset (stable keys, #2031); the other scripts stay empty.
+    const language = workbenchLanguageResource(path);
+    if (language) { response.setHeader("content-type", "text/javascript; charset=utf-8"); response.end(language.body); return; }
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
     if (!path.includes("/api/memory/")) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(html); return; }
     assert.ok(path.startsWith(sessionMode ? "/projects/project/api/memory/sessions/coding/business/" : "/projects/project/api/memory/"), "all binder requests use the selected management target");

@@ -1461,7 +1461,7 @@
     "workbench.assistant-process.memory-list.completed": "已查看记住的事",
     "workbench.assistant-process.memory-list.started": "正在查看记住的事",
     "workbench.assistant-process.memory-suggest.bare": "建议记住一条",
-    "workbench.assistant-process.memory-suggest.completed": "已建议记住一条",
+    "workbench.assistant-process.memory-suggest.completed": "建议记住（等你认可）",
     "workbench.assistant-process.memory-suggest.started": "正在建议记住一条",
     "workbench.assistant-process.memory-updated-old-text-hidden": "记忆已更新，隐藏旧内容",
     "workbench.assistant-process.model-service-unavailable-retrying-time": "模型服务暂时不可用，{time} 后自动重试",

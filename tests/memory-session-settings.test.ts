@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createServer } from "node:http";
+import { workbenchLanguageResource } from "@molis-ai/molis-work-app-workbench";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { createLocalHostWorkbenchRenderer, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, installHostUiText, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import type { MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 
+installHostUiText();
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
 const settings = (section: string): MolisWorkSettingsView => ({ section, runtimes: [], projects: [],
   web_service: { provider: "unsupported", state: "unsupported", supported: false, owned: false, running: false,
@@ -39,6 +41,9 @@ async function browserOpening(t: TestContext) {
     const url = new URL(request.url!, "http://local");
     if (url.pathname.includes("/api/memory/")) { requested.push(url.pathname + url.search); firstRead.resolve(); return; }
     if (url.pathname.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderer.renderMolisWorkSettingsStylesheet()); return; }
+    // The page reads its words from the language asset (stable keys, #2031); the other scripts stay empty.
+    const language = workbenchLanguageResource(url.pathname);
+    if (language) { response.setHeader("content-type", "text/javascript; charset=utf-8"); response.end(language.body); return; }
     if (url.pathname.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
     response.setHeader("content-type", "text/html; charset=utf-8");
     response.end(url.pathname === "/embedded" ? carrierHtml : url.pathname === "/project-fragment" ? projectHtml : personalHtml);

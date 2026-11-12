@@ -225,6 +225,22 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - 另在已有的相关用例上补了编号注释（MEM-21、MEM-29、MEM-32）。MEM-21 与 MEM-32 的新用例各做过一次反向检查：把条件改反（期限前一分钟、助理记忆改成 Coding）后用例失败。
 - **记录过时。** `docs/system/CONTRACT-CHANGES.md`、`docs/system/HOME-DATA.md` 开头写的恢复日志 schema 2 与「无旧库迁移」改成 schema 1 与已登记的 1 → 2 升级段；本 spec 状态句、BL-1071、BL-1072 改到现状；补上本节之前的开工前检查。
 
+### 换入 770a2e27 与并入 main 的稳定键文字（2026-11-12）
+
+用户 11-12 选「合并后立即换包」，并要求修完剩下的待办后合入 #2020。
+
+- **换包。** Prologue [#113](https://github.com/molis-ai/molis-prologue/pull/113) 由用户合入，合并提交 `770a2e27`。从它在两个独立干净目录各构建一次，两份 tgz 逐字节相同：1,428,464 字节，SHA-256 `723b07eb…`。相对上一份 `83bee7fc` 只变 `memory-mutations`、`memory-record` 的四个构建文件，manifest 不变。来源、校验值、`patch-history.json`、README、锁文件里的 integrity 与 `tests/vendor-provenance.test.ts` 同步改好。
+- **Molis 一侧的重试用例（MEM-20）。** `tests/memory-runtime-policy.test.ts` 新增一条：形成开关关着时，助理用同一个操作号重试暂停、停用、以及停用一条已暂停的记忆，同一运行时里和重开之后都通过，返回与第一次相同；Authority 收到的目标与 `before` 与第一次逐项相同，`before` 的 paused / disabled 分别是 false/false、false/false、true/false。
+- **并入 main。** main 的 #2031 把界面文字改成稳定键。记忆设置页、助理停止原因、会话记忆入口、Coding 的记忆与归档文字随之改成键，新增约 140 条中英文；删掉 `memory-en.ts`、`assistant-en.ts` 和 Coding 的 `messages.ts`。英文里的直引号按规则改成弯引号。助理提示词里的「长期内容」规则移到 `apps/local-host/prompts/assistant-work.md` 与英文版。工作台脚本增量按实测记成 +25,415 字节（并入前 +21,804；多出的 3,611 字节是键名与翻译表），仍在用户批准的合计 +27,407 之内；Coding 脚本 +5,543。巨大单元尺寸按实测重记，`contracts/platform/actions.ts` 已不超限，删掉它的登记。
+- **并入后相关用例的失败与去向（没有删或放宽断言）。** 一次 `pnpm build`，相关 134 个文件 `--jobs 1` 一次，128 个通过；6 个失败逐个处理：
+  - `clean-home-memory-baseline`：本 PR 在 `e9d93f517` 把记忆账本升到第 2 版时漏改，库结构没变；改成读账本自己的当前版本，「更新的版本被拒」改用当前加一。
+  - `assistant-memory`：main 把两份助理提示词升到 4 / 2；本 PR 的记忆规则又改了正文，健康门禁要求升版本。用户 11-12 批准升到 5 / 3（`tooling/versions.json`，`pnpm versions:generate`），用例跟着改。
+  - `memory-session-settings`、`memory-session-ui-decisions.e2e`：#2031 起页面从语言资源读文字，这两个用例的假服务器把所有脚本都给空，页面一加载就出错；改成和 main 的用例一样下发语言资源。
+  - `memory-session-management.e2e`、`assistant-process-info.e2e`：#1991 统一输入框后 Coding 不再有自己的输入框，助理的输入框、当前工作的存放键和重新打开方式都变了；按 main 用例的写法改。
+  - `assistant-process-info.e2e` 还查出一个真问题：并入后助理工作侧栏变窄，折叠块是网格项，一条长的记忆标题把它撑到 432 px，行内「去设置查看」被对话盖住。给 `.assistant-block-body` 加 `min-width: 0` 与 `minmax(0, 1fr)` 一列，三份样式表各 +48 字节，记进 `memory-v0.json`。
+  - 同一处的完成词：并入时取了 main 的「已建议记住一条」，本 PR 定的是「建议记住（等你认可）」，候选不能读成已保存；改回，main 新加的 `assistant-tool-words` 两行（停用、建议记住）随之改。
+- **复验。** 上述 6 个与相邻的助理侧栏用例共 11 个文件一次通过；`assistant-tool-words`、`agent-definitions`、`version-source`、`memory-runtime-policy`、`vendor-provenance` 通过；健康门禁、翻译、页面资源门禁对 main `206884b4` 通过。
+
 ## 1. 用户结果与责任边界
 
 用户说“本项目主要服务小型设计工作室”，下次继续该项目时应能参考这个背景；切到个人助理安排日程时，不应带入无关项目背景。用户说“这周会议尽量放下午”，应成为有期限的助理记忆，不能变成永久习惯。用户纠正了旧偏好，旧值应停止影响回答；打开记忆管理时，应看得懂记住了什么、来自哪里、在哪些场景使用，并能纠正、停用、遗忘和撤销自动修改。像“这个项目只用 pnpm”这样的长期项目规矩，按 §1.3 写入项目长期说明。

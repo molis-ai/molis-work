@@ -1,8 +1,8 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-11，用户批准将已有成果提交、推送并开 Draft PR。交付候选基于 App `19a147808` 与 SDK `6664b9ca`，本轮仅补交性能结果与 backlog，不改生产代码。11 月 9 日的唯一一次 180 读：1000 条暖读中位数 22.283 ms，仍超原上限 10.660 ms；用户批准的性能门 B 路尚未测量。V0 未完成，其余仍按 BL-1071～BL-1077。
+状态：2026-11-12，Memory 收口 P0 在 Draft PR molis-ai/molis-work#2020：已并入 main `4d025ff4`，SDK 换到上游 `83bee7fc`（molis-prologue#112）；评审台对整个 PR 的审查要改，正在按「评审台整 PR 审查后的修改」一节改，CI 全量在跑。BL-1072 唯一一次正式测量未通过、重测未做；BL-1073、BL-1075 的 MEM-43/44、BL-1076 未做。V0 未完成。
 
-本次远端交付范围：App 分支 `claude/memory-v0-adopt-6664-20261107` 开一个面向 main 的 Draft PR；SDK 来源分支 `codex/memory-v0-closeout-delivery-20261106` 推送私有上游保全。11 月 11 日核到 App main `ef06fed60`，比候选多 122 个提交；不在本次交付里重新集成，已有工程结果只对应 11 月 9 日的候选与基线 `c79236860`。本轮不新跑测量、本地 Full 或手动触发 Full，不付费、不操作真实 Home；开 PR 可能触发普通 CI，不添加 `full-suite` 标签。以下日期节保留历史授权与结果，不能把历史“未推送”读成当前禁止交付。
+交付范围：App 分支 `claude/memory-v0-adopt-6664-20261107` 一个面向 main 的 Draft PR（#2020）；SDK 改动先走上游 molis-prologue 的 PR，合入后再换包。下面各日期节保留当时的授权与结果，现状以本节和「收口执行记录」为准。
 
 ## 当前交接与 backlog（2026-11-07）
 
@@ -130,6 +130,11 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - 收起的子任务（11-12）：收起现在连同它的执行会话一起归档，归档会话不能开新的一轮；委托它的工作再对它追加时明确拒绝，请用户先恢复（旧行为是追加能让收起的子任务悄悄再跑）。
 - 助理提示词版本（11-12）：用户先同意把改写过的两段升到第 2 版；随后版本门禁 N34-VS-01 指出阶段一就地改、保持第 1 版（[CONTRACT-CHANGES §3](../../docs/system/CONTRACT-CHANGES.md)），所以保持第 1 版，用例原来断言的 32 / 3 是旧线的数字。
 - BL-1072 上游（11-12）：请上游把一次召回逐条的授权合成一批，并缓存 SDK 指纹；批内改动保留。上游请求先给用户过目再发。
+- 助理停用记忆（11-12）：停用（SDK 的暂停或停用，一次让目标从开变关的保存）不受「形成」开关管，助理自己的授权和插件命名空间照旧；重新启用和改写仍要形成开关。用例 `tests/memory-runtime-policy.test.ts`「MEM-20 with form off …」。
+- Inbox 读后检查（11-12，同日更正出处后再确认）：一次 Inbox 读以读出条目那一刻为准，读出之后、交付前的检查里才停用的不追溯，下次读才去掉；写进 S-68。这个读后检查是本 PR 在 `9a12bc8e7` 给查询加的交付前复核（`packages/kernel/src/action-execution-context.ts` 的 `prepareSubjectStateResult`），不是 main #1999 带来的；最初问用户时说成了后者，评审台指出后更正，用户仍选保留。RAC-808 只数读出之前的检查。
+- 恢复日志版本（11-12）：保持 1（#1837 统一起点），用例里「低于第一版」用 0。
+- 重试停用（11-12）：同一个操作号重试暂停或停用时，SDK 发给 Authority 的请求不带原条目，形成开关关着时重试被拒。用户定改 Prologue；评审台指出只凭已提交条目推不出原状态（已暂停再暂停、已停用再停用、停用顶替暂停都不留痕迹），用户再选「存下准确状态」：暂停或停用在最后一次操作里记下调用前是否已暂停、已停用，重试时照原样带上，与第一次问的完全相同。推送、合入、换包各一步都先问用户。
+- Coding 会话绑定（11-12）：宿主里按 Coding 与助理开的记忆会话绑定（`apps/local-host/src/memory/memory-session-binding.ts`、合同 `packages/contracts/src/services/memory-session.ts` 把会话种类写成 `"coding" | "assistant"`），记为插件同等待遇的已批例外，不在本 PR 改；以后改成任何插件都能声明会话种类，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md)。
 
 ### BL-1072：配对测量结果，性能门未通过（2026-11-11）
 
@@ -175,6 +180,39 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - 桥接测试：空批答 `[]`；混入有副作用的动作、拿不到可信调用者、调用者上下文不一致时全部答否；App 没提供 `authorizeEach` 时 SDK 的 Authority 上没有这个键。
   - 端到端：一页里有一条被拒时其余照常召回，可见集合与没有 `authorizeEach` 时相同，每页只问一次 Authority；管理列表同样；页内遗忘事实变化时整次失败，不交付旧正文。
   - 在新包上重跑 S-13 的 `tests/prologue-memory-boundary.test.ts`。
+
+### 开工前检查（P0 收口，2026-11-12 补）
+
+按[开发流程第 4 节](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)，对照 #2020 的最终 diff 回答。
+
+| # | 项 | 回答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 记忆正文、版本与索引归 Prologue SDK，只经 `horizontal/agent-host` 读写；分类、偏好、遗忘决定和账本归 `horizontal/memory` 与 `packages/storage` 的记忆账本；Goals 等业务事实仍归原插件，记忆只存引用 |
+| 2 | 插件同等待遇 | 插件只写自己的命名空间，走同一个 Authority 与运行时策略。例外：记忆会话绑定按 Coding 与助理写死，用户 11-12 定记为已批例外，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md) |
+| 3 | 能力注册 | 记忆动作在动作目录注册一次，设置页、助理、MCP 共用；调用者身份取自调用上下文（`withCaller`），不从输入读 |
+| 4 | 合同 | 阶段一原位改，本 PR 改完全部消费者：五份公开 API 快照与动作快照；运行时策略主人接口 `isForgotten` → `forgettingPhase()`（用户 11-11 批准）、可选 `authorizeEach`；Run 视图 `elapsed_ms` 改为可选 |
+| 5 | 放在哪个包 | 没有新包；运行时策略在 `apps/local-host/src/memory/`，SDK 桥在 `horizontal/agent-host` |
+| 6 | 表与存储 | 记忆账本只由 `packages/storage` 读写；`tooling/gates/table-owners.json` 未改 |
+| 7 | 兼容与迁移 | 不搬旧记忆（用户 11-07 定）；`memory.db` 1 → 2 登记在 [合同变更流程](../../docs/system/CONTRACT-CHANGES.md)「当前保留机制」与升级表；没有新增兼容读取 |
+| 8 | 安全边界 | S-68 加一句 Inbox 读以读出那一刻为准（用户 11-12 定）；S-13 边界测试在新 SDK 上重跑；拒绝测试在 `tests/security-invariants-*.test.ts` |
+| 9 | 调用次数 | 一次召回从逐条授权变成一页一次（`authorizeEach`）；一批授权只读一次遗忘事实，多条时批末复读一次。已知增加：一次 promote 的 `beforeEffect` 约 20 次，main 上 6 次 |
+| 10 | 升级与数据 | 旧 Home 升到新格式后归属与开关都在；金样 Home 逐字节重放；完整 Home 恢复用例 `home-restore-*` |
+| 11 | 成果与过程项 | 不涉及：记忆不进成果库 |
+| 12 | 页面、外壳与文字 | 记忆管理挂在工作台设置位置，不出整页；资源增长用 `tooling/gates/page-asset-allowances/memory-v0.json`（工作台 +21,063 B、Coding +6,496 B，在用户已批合计之内），没有新资源 |
+| 13 | 错误 | 错误码用 `defineErrorCodes("memory", …)`（`horizontal/memory/src/errors.ts`），没有新 Error 子类 |
+| 14 | 冲突面 | 公开 API 快照、动作快照、`tooling/versions.json`、vendored SDK、`packages/kernel/src/action-execution-context.ts` |
+| 15 | 全局最优 | 逐条答复的授权做进 SDK 的 `MemoryAuthority`，任何 App 和插件都能用；助理、Coding、插件走同一个运行时策略；会话绑定的通用化记为后续，不为猜测的使用者先造抽象 |
+
+### 评审台整 PR 审查后的修改（2026-11-12）
+
+评审台审 #2020 头 `d450ff626`，结论要改（[评论](https://github.com/molis-ai/molis-work/pull/2020#issuecomment-6812603159)）。逐项去向：
+
+- **`tests/vendor-provenance.test.ts` 还钉着 `1128126d`。** 换到 `83bee7fc` 时漏改，CI 门禁作业会挡；`vendor/prologue-sdk/patch-history.json` 的说明同样过时。已改到 `83bee7fc`（#112），`tests/vendor-provenance.test.ts` 79/79；下一次换包再跟着改。
+- **重试停用被拒。** 见上面「本会话的用户决定」的「重试停用」。Prologue 分支 `claude/memory-deactivation-replay` 提交 `08470eb6`：最后一次操作新增可选 `before: { paused, disabled }`，只在暂停与停用上出现；读取时严格检查（别的操作带它、不是两个布尔值、暂停前已停用、两项同时为真都拒读）。没有它的旧行照旧不带原条目重试，行格式不升（旧读者忽略这一项也是这样）；SDK 公开 API 只加这一个可选字段。重试的新用例在 Prologue main 的源码上全部失败，七种拒读去掉规则后全部失败，`memory-state-lifecycle` 64/64；SDK 记忆用例 971/972，唯一失败的 `memory-context-handles`「concurrently prepared handles」在 `1128126d`、`83bee7fc` 的源码上同样失败，与这次无关。换包时 Molis 一侧随之补用例：形成开关关着时，同一个操作号重试暂停、停用都通过，且问到 Authority 的原条目与第一次相同。SDK 的 `memory-context-handles`「concurrently prepared handles」在本机失败，在 `1128126d` 与 `83bee7fc` 的源码上同样失败，与这次改动无关，另记。
+- **读后检查的出处。** 见「本会话的用户决定」的「Inbox 读后检查」：出处更正后用户仍选保留。
+- **Coding 会话绑定。** 记为已批例外，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md)。
+- **巨大单元。** `apps/workbench/src/settings-memory.ts` 在本 PR 从 536 行涨到 887 行，登记的「内聚单元」理由自己列了几件事。按职责拆：改一条记忆（正文、分类与期限、续期、历史）移到 `apps/workbench/src/settings-memory-editors.ts`，沿用分类矩阵已有的工厂写法；页面文件回到 713 行，删掉它的巨大单元登记。
+- **记录过时。** `docs/system/CONTRACT-CHANGES.md`、`docs/system/HOME-DATA.md` 开头写的恢复日志 schema 2 与「无旧库迁移」改成 schema 1 与已登记的 1 → 2 升级段；本 spec 状态句、BL-1071、BL-1072 改到现状；补上本节之前的开工前检查。
 
 ## 1. 用户结果与责任边界
 

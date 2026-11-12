@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeSqliteSchema, describeSqliteBaseline, sqliteBaselineTriggers } from "@molis-ai/molis-work-storage";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -18,7 +18,7 @@ if (ORIGINAL_SCHEMA === PROJECT_DATABASE_BASELINE.schema) throw new Error("proje
 const layoutRefused = (path: string) => new ActionError("actions.service_unavailable", `${path} 既不是采用前的项目库，也不是现行项目库，不做采用`);
 
 /** Same tables, columns, keys, checks and indexes as `schema`, and exactly its triggers. Extra tables are plugins' own. */
-function layoutIs(db: DatabaseSync, schema: string): boolean {
+function layoutIs(db: SqliteDatabase, schema: string): boolean {
   const expected = describeSqliteBaseline({ version: PROJECT_DATABASE_BASELINE.version, schema, upgrades: [] }), found = describeSqliteSchema(db);
   if (!Object.entries(expected.tables).every(([name, table]) => JSON.stringify(found.tables[name]) === JSON.stringify(table))) return false;
   for (const [name, sql] of sqliteBaselineTriggers(schema)) {
@@ -28,7 +28,7 @@ function layoutIs(db: DatabaseSync, schema: string): boolean {
   return true;
 }
 
-export function layoutOf(db: DatabaseSync, path: string): ProjectLayout {
+export function layoutOf(db: SqliteDatabase, path: string): ProjectLayout {
   const { user_version: version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
   if (version !== PROJECT_DATABASE_BASELINE.version) throw layoutRefused(path);
   if (layoutIs(db, PROJECT_DATABASE_BASELINE.schema)) return "current";

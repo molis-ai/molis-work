@@ -265,7 +265,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const hits=query&&found&&found.query===query?found.cards.map(card=>'<button class="side-files-row side-files-hit" type="button" data-knowledge-hit data-kind="'+esc(card.subject.kind)+'" data-id="'+esc(card.subject.id)+'" data-surface="'+esc(card.open?.surface||'')+'" data-open="'+esc(card.open?.id||'')+'">'+icons.file+'<span><strong>'+esc(card.title)+'</strong><em>'+esc(card.hint||card.brief||'')+'</em></span><small>'+esc(card.plugin_title)+'</small></button>').join(''):'';
     const hitGroup=hits?'<section class="side-files-group"><h3>'+esc(L('按内容找到'))+'</h3>'+hits+'</section>':'';
     const searching=query&&query.length>=2&&(!found||found.query!==query);
-    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?L('正在按内容查找…'):query?L('没有找到相关的资料'):sources.length?L('这些插件里还没有资料'):L('这个项目里还没有提供资料的插件。Files、Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。'))+'</p>';
+    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?L('正在按内容查找…'):query?L('没有找到相关的资料'):sources.length?L('这些插件里还没有资料'):L('这个项目里还没有提供资料的插件。Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。'))+'</p>';
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};

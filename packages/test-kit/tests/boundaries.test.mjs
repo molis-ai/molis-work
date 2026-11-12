@@ -740,12 +740,12 @@ test("rejects a Plugin importing a private UI package, and lets only Plugin Stud
     specifier: target.name,
     sourceFile: `${path}/src/ui.ts`,
   });
-  assert.ok(violationCodes(importing("plugins/native/files", "@molis-ai/molis-work-plugin-files")).has("plugin-private-ui-dependency"));
+  assert.ok(violationCodes(importing("plugins/native/diff", "@molis-ai/molis-work-plugin-diff")).has("plugin-private-ui-dependency"));
   for (const other of [
     boundaryPackage("@molis-ai/molis-work-im-ui", "packages/im-ui", "foundation"),
     boundaryPackage("@molis-ai/molis-work-ui-host", "packages/ui-host", "foundation"),
   ]) {
-    assert.ok(violationCodes(importing("plugins/native/files", "@molis-ai/molis-work-plugin-files", other)).has("plugin-private-ui-dependency"), other.name);
+    assert.ok(violationCodes(importing("plugins/native/diff", "@molis-ai/molis-work-plugin-diff", other)).has("plugin-private-ui-dependency"), other.name);
   }
   assert.deepEqual(PRIVATE_UI_EXEMPT_PLUGINS, ["plugins/native/plugin-builder"]);
   assert.ok(!violationCodes(importing("plugins/native/plugin-builder", "@molis-ai/molis-work-plugin-builder")).has("plugin-private-ui-dependency"));

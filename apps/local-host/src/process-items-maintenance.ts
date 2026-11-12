@@ -4,7 +4,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listProcessItemsRecoveries, processItemsSyncFailureKeys, type PersonalSync, type ProcessItemsTakeoverOutcome, type SyncCutoverView } from "@molis-ai/molis-work-module-sync-replication";
 import { readStorageSpace, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { projectDatabases } from "./platform-upgrade-stores.js";
-import { adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type ProjectAdoptionReport } from "./process-items-adoption.js";
+import { adoptionPending, adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type ProjectAdoptionReport } from "./process-items-adoption.js";
 import { captureProcessItemsRecovery, processItemKey, verifyProcessItemsRecovery } from "./process-items-recovery.js";
 
 /**
@@ -113,7 +113,7 @@ export function processItemsMaintenance(sync: Pick<PersonalSync, "processItems">
         const cutover = complete(observed), recovery = verified(cutover.cutoverId)?.header.captureId;
         const reports: ProjectAdoptionReport[] = [];
         for (const { projectId, report } of inspect()) {
-          const waiting = report.layout !== "current" || report.items || report.outputs || report.bindings || report.private_values || report.positions || report.refused.length;
+          const waiting = report.layout !== "current" || adoptionPending(report) || report.refused.length;
           if (!waiting) continue;
           reports.push(await ports.holdProject(projectId, () => adoptProjectDatabase({ home: home(), owner: ports.owner(), projectId,
             backupDirectory: pathUtil.join(home(), "sync", "process-items-adoption-backups"), ...(recovery ? { recovery } : {}) })));

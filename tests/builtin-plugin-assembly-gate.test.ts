@@ -74,8 +74,10 @@ test("RAC-2650 every built-in catalog entry is started by a supervisor or is one
 });
 
 test("a plugin listed as Runtime-assembled really is started by the supervisor", async () => {
-  // RAC-2530: Files, the last plugin whose factory took a port from the Host, is a declared project instance like the others (BL-616).
-  assert.equal(RUNTIME_ASSEMBLED.get("files"), "@molis-ai/molis-work-plugin-files", "Files is started from its registration's project_runtime");
+  // RAC-2530 (BL-616) made Files a declared project instance like the others; batch 06 retired it (its snapshots, selections and
+  // reading position are the platform's materials service now), so no registration of any kind names it any more.
+  assert.equal(BUILTIN_PLUGIN_CATALOG.some(entry => entry.project_plugin_id === "files" || entry.manifest.plugin_id === "io.molis.work.files"), false,
+    "the retired Files plugin is not registered");
   // A declared project instance is the factory its package ships, under the registration's own Manifest.
   for (const entry of PROJECT_RUNTIME_ENTRIES) {
     const declaration = entry.project_runtime!;
@@ -271,7 +273,7 @@ test("Home Runtime declarations resolve shipped factories and start once without
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// RAC-571 (W5-02 PR-B4, PG-067), RAC-2530 (BL-616): each project's Runtime starts every declared project instance, Files among them,
+// RAC-571 (W5-02 PR-B4, PG-067), RAC-2530 (BL-616): each project's Runtime starts every declared project instance
 // from the registration alone, one installation each, under the Host's build trust.
 test("RAC-571 a project's Runtime installs every registration's project_runtime, once each", { timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "project-assembly-"));

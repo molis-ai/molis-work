@@ -6,12 +6,12 @@ import { execFileSync } from "node:child_process";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-// W5-02-REG-06: real generated-catalog startup, Files snapshots, Diff and Git readers, and Coding's files face (WMD-05: a file
+// W5-02-REG-06: real generated-catalog startup, materials snapshots, Diff and Git readers, and Coding's files face (WMD-05: a file
 // opened there shows in the side panel's reader, whose 固定快照 menu hands Diff its versions before and after).
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { command, sessionId } = b;
-  const views = Object.fromEntries(await Promise.all(["files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
+  const views = Object.fromEntries(await Promise.all(["git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
   let active: Pick<typeof b, "evaluate" | "waitFor" | "click"> = b;
   const evaluate: typeof b.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof b.waitFor = (...args) => active.waitFor(...args);
@@ -30,7 +30,6 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
     await b.waitFor(`document.querySelector('[data-work-surface="${plugin}"]').getBoundingClientRect().width > 100 && !document.querySelector('[data-work-surface="${plugin}"]').hidden`);
     active = views[plugin]!;
   };
-  const files = '[data-companion="files"]';
   const coding = '[data-coding-workbench]';
   const capture = async (name: string) => {
     const directory = join(process.cwd(), ".tmp/coding-component-board-v2"); await mkdir(directory, { recursive: true });
@@ -42,7 +41,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/__ui/catalog" }, sessionId));
   const boardFrame = await evaluate(`(()=>{const h=document.querySelector('.mw-catalog-shell .mw-frame__header'),title=h.querySelector('h2');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`);
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
-  // Folders are added in project settings (「输入与输出」); the output is the folder Files, Git and Coding use when none is named.
+  // Folders are added in project settings (「输入与输出」); the output is the folder Git and Coding use when none is named.
   const showWorkspaceSettings = async () => {
     active = b;
     await click('.navigator-project-settings');
@@ -81,37 +80,10 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
     await waitFor("document.body.dataset.sideOpen === 'false'");
   };
   await fixFromCoding("before", "first");
-  await open("files");
-  await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
-  try { await click(`${files} [data-files-tree] [title="nested"]`); }
-  catch (error) { throw new Error(JSON.stringify(await evaluate(`({tree:document.querySelector('${files} [data-files-tree]').textContent,rows:[...document.querySelectorAll('${files} [data-files-tree] button')].map(b=>[b.title,b.dataset.filePath])})`)), {cause:error}); }
-  await waitFor(`document.querySelector('${files} [data-files-tree] [title="nested/empty.txt"]')`);
-  await click(`${files} [data-files-tree] [title="nested/empty.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-notice]').textContent.includes('空的')`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-capture="before"]').disabled`), false);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-text]').value === 'first\\n中文🙂\\n'`);
-  await click(`${files} [data-files-capture="before"]`);
-  await waitFor(`!document.querySelector('${files} [data-files-capture="before"]').disabled`);
   await writeFile(join(workspace, "note.txt"), "second\n中文🙂\n");
-  // Since S1 Diff compares the versions fixed through the materials service; Files' own summary shows that pair.
+  // Since S1 Diff compares the versions fixed through the materials service, from the reader's 固定快照 menu.
   await fixFromCoding("after", "second");
-  await open("files");
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
-  await click(`${files} [data-files-capture="after"]`);
-  await waitFor(`document.querySelector('${files} [data-files-diff] [data-phase="ready"]')`);
-  await capture("files-desktop");
   await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.files/open"] }, sessionId);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  // The shared request helper says the failure in words (W3-10; no browser English such as "Failed to fetch").
-  await waitFor(`/连不上|不知道这次操作有没有完成/.test(document.querySelector('${files} [data-files-notice]').textContent) && !/fetch/i.test(document.querySelector('${files} [data-files-notice]').textContent)`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
-  await command("Network.setBlockedURLs", { urls: [] }, sessionId);
-  await click(`${files} [data-files-reload]`);
-  await waitFor(`!document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
   // Diff and Text Stats are laid out as plugin stages (E-14): the heading drawn by the stage, the page's actions at its right,
   // one centred column at most 960px wide, and the content inside it, not from the window's edge.
   const stage = (id: string) => evaluate<{ heading: string; actions: string[]; inset: number; column: number; contentLeft: number }>(`(() => {
@@ -124,13 +96,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const compared = await evaluate<string>("document.querySelector('[data-companion=diff] [data-companion-content]').textContent");
   assert.match(compared, /first/); assert.match(compared, /second/, "Diff reads both versions fixed from the reader");
   const diffStage = await stage("diff");
-  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开 Files"]);
+  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开资料"]);
   assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
   await capture("diff-desktop");
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
@@ -252,27 +224,16 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-directory-back]`);
   await click(`${coding} [data-coding-session]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
-  await open("files");
-  await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
-  await b.click('.navigator-directory-toggle');
-  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Dock's drawer");
-  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
+  // The drawer and the explicit main navigation, on a companion's page (Git's; Files', which this used, retired in batch 06).
+  await open("git");
+  await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");
   await b.click('[data-directory-show]');
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), true);
-  await b.evaluate("molisWorkOpenPlugin('files')");
+  await b.evaluate("molisWorkOpenPlugin('git')");
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "explicit main navigation dismisses the actual open drawer");
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`!document.querySelector('${files} [data-files-text]').hidden`);
   await b.evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
-  await capture("files-mobile-dark");
-  await click(`${files} [data-files-close]`);
-  assert.equal(await evaluate(`document.activeElement?.getAttribute('title')`), 'note.txt', 'return restores the originating file row');
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${files} [data-files-results]')).animationName`), 'none');
-  await click(`${files} [data-files-close]`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-tree]').getBoundingClientRect().width > 100`), true);
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await open('git');
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");

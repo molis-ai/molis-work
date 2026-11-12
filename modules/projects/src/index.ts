@@ -195,6 +195,7 @@ export {
   removeProjectOutputDirectory,
 } from "./project-output.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
+export { projectsHoldingPlugin, retireProjectPlugin } from "./plugin-retirement.js";
 export {projectReplicationOwner,validatePortableProject,validateProjectSyncKey,projectPluginRequirements,installProjectReplicationJournal} from './portable-project.js';
 export type {PortableProject,ProjectReplicationOptions} from './portable-project.js';
 

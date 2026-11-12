@@ -11,7 +11,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 // and filters grew when the period's name and the categories came (0.071 at 820 px); Todo's placement choices came after
 // first paint and wrapped the row (0.088 at 390 px).
 
-const SURFACES = ["project", "todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "files", "git"];
+const SURFACES = ["project", "todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "git"];
 const WIDTHS = [[1440, 950], [820, 900], [390, 844]] as const;
 // Chrome's own score for each shift not caused by input, with what moved. Touch emulation reports none, so widths are
 // emulated with a pointer.

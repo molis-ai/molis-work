@@ -52,9 +52,9 @@ export const diffUiContribution: UiContribution<DiffUiModel | CompanionStageMode
   },
 };
 
-/** Diff's stage in the project page: a refresh, a way to Files, and the comparison the page's client fills. */
+/** Diff's stage in the project page: a refresh, a way to the materials, and the comparison the page's client fills. */
 export function renderDiffStage(model: CompanionStageModel): string {
   const { text } = model.primitives;
   return renderCompanionListStage({ surface: "diff", label: "Diff", refresh: text("diff.stage.refresh"),
-    files: { enabled: model.shown_plugins?.includes("files") ?? false, open: text("diff.stage.open-files"), add: text("diff.stage.add-files") } });
+    materials: text("diff.stage.open-materials") });
 }

@@ -23,11 +23,10 @@ export const DIFF_MESSAGES = {
   "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This turn didn't change {path}" },
   "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
   "diff.stage.refresh": { zh: "刷新", en: "Refresh" },
-  "diff.stage.open-files": { zh: "打开 Files", en: "Open Files" },
+  "diff.stage.open-materials": { zh: "打开资料", en: "Open materials" },
   "diff.stage.reading": { zh: "正在读取固定内容…", en: "Reading the pinned versions…" },
   "diff.stage.retry": { zh: "。请点击刷新重试。", en: ". Select Refresh to try again." },
   "diff.error.unreadable": { zh: "无法读取文件工作区", en: "Couldn't read the file workspace" },
-  "diff.stage.add-files": { zh: "到插件市场添加 Files", en: "Add Files from the plugin market" },
 } as const;
 
 /** The keys above that are sentences with values in them. */

@@ -15,7 +15,7 @@ import {createProcessItemReplication} from '@molis-ai/molis-work-module-artifact
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {FILE_SNAPSHOT_SCHEMA_VERSION,FILE_SNAPSHOT_TYPE} from '@molis-ai/molis-work-contracts/modules/workspace-artifacts';
 import {CODING_PLAN_TYPE,codingManifest} from '@molis-ai/molis-work-plugin-coding';
-import {cloudFixture} from './testing.mjs';
+import {cloudFixture,filesEraWriter} from './testing.mjs';
 
 const N=JSON.stringify(['io.molis.work.artifacts','molis','official-artifacts-binding','process_items',1]);
 const FILES={plugin_id:'io.molis.work.files',plugin_version:'1.0.0',binding_signature:'official-files-binding'};
@@ -55,7 +55,8 @@ test('BSH-14-D a dirty device keeps its unsent lines, adopts with them and takes
   {
     const source=new LocalProjectDatabase(project.database_path),stores=openProjectVersionStores(source);
     const owner=createProcessItemReplication(source.db,{spaceId:space.spaceId,projectId:project.project_id,authorize(){}},{appendEvent:event=>source.appendEvent(event),eventCursor:id=>source.eventCursor(id)});
-    const snapshot=(id,version,text)=>stores.processItems.commands.registerVersion({project_id:project.project_id,artifact_id:id,version,artifact_type_id:FILE_SNAPSHOT_TYPE,
+    const filesEra=filesEraWriter(project.database_path);
+    const snapshot=(id,version,text)=>filesEra.write({project_id:project.project_id,artifact_id:id,version,artifact_type_id:FILE_SNAPSHOT_TYPE,
       schema_version:FILE_SNAPSHOT_SCHEMA_VERSION,actor_id:'alice',producer:FILES,content:{kind:'inline',payload:{text}}});
     const upload=async id=>{
       const encoded=codec.encode(key(id),{project:{id:project.project_id,title:'Old device'},artifact:owner.read(id)});assert.equal(encoded.blobs.length,0);
@@ -68,7 +69,7 @@ test('BSH-14-D a dirty device keeps its unsent lines, adopts with them and takes
     await upload('coding-plan');await upload('files-shared');
     // After its last upload the device fixed the shared snapshot again and fixed a new one, and never sent either.
     snapshot('files-shared',2,'second fix');snapshot('files-local',1,'only here');
-    source.close();
+    filesEra.close();source.close();
   }
   toOriginalLayout(project.database_path);
   // The old device kept the receipt of each upload as its head: it took part in the old stream, so its unsent lines need keeping.

@@ -494,12 +494,6 @@
     "reason": "内置判断规则发布后的动作，版本是规则记录自身的发布修订号，运行时才有，不是自有版本。"
   },
   {
-    "file": "plugins/native/files/src/browser/request.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "Files 内嵌页按路由拼出动作 id，发一个共同的版本；一张逐动作的表放不进页面资源预算。这个字面量与它能到的动作条目相等，由 tests/version-source.test.ts 核对，其中一个动作升版本时那条测试失败，届时再改成逐动作传。"
-  },
-  {
     "file": "plugins/native/git/src/browser/request.ts",
     "name": "version",
     "values": { "1": 1 },
@@ -599,12 +593,6 @@
     "file": "plugins/native/feed/src/ui.ts",
     "name": "io.molis.work.native.feed.ui.v1",
     "values": { "io.molis.work.native.feed.ui.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
-    "file": "plugins/native/files/src/ui.ts",
-    "name": "io.molis.work.native.files.ui.v1",
-    "values": { "io.molis.work.native.files.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {

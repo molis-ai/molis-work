@@ -43,7 +43,7 @@ export const KNOWLEDGE_EN: Record<string, string> = {
   "按内容找到": "Found by content",
   "没有找到相关的资料": "Nothing found",
   "这些插件里还没有资料": "These plugins have no pieces yet",
-  "这个项目里还没有提供资料的插件。Files、Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。": "No plugin in this project provides pieces yet. Once Files, Pages, Artifacts or similar plugins are on, their pieces show here; you can also import above.",
+  "这个项目里还没有提供资料的插件。Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。": "No plugin in this project provides pieces yet. Once Pages, Artifacts or similar plugins are on, their pieces show here; you can also import above.",
   "简介": "Brief",
   "保存卡片": "Save card",
   "编辑卡片": "Edit card",

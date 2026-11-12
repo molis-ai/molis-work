@@ -184,7 +184,6 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
  */
 const DEMO_WITHHELD_PLUGIN_IDS: readonly string[] = [
   "workspace",
-  "files",
   "git",
   "diff",
   "text-stats",

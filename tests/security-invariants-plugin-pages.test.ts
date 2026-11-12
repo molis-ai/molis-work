@@ -332,15 +332,15 @@ for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transp
 });
 
 
-test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
+test("SYS-15-U5 S-47 Coding and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
-  for (const plugin_id of ["coding", "files", "git", "diff", "text-stats"]) {
+  for (const plugin_id of ["coding", "git", "diff", "text-stats"]) {
     const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);
-  for (const [source, capabilities] of [["files", ["diff.state", "text-stats.state"]], ["git", ["diff.state"]], ["coding", ["diff.state", "text-stats.state"]]] as const) {
+  for (const [source, capabilities] of [["git", ["diff.state"]], ["coding", ["diff.state"]]] as const) {
     const opened = await f.request(prefix + "/api/host/plugin-pages", {method: "POST", body: {plugin_id: "io.molis.work." + source}});
     assert.equal(opened.status, 200, await opened.clone().text());
     const {page_id} = await opened.json(), headers = {"x-molis-plugin-page": page_id};
@@ -353,8 +353,7 @@ test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw forei
     // SYS-15-U7: embedding declares only a presentation invalidation hint; ordinary routes retain their own authority.
     assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.git/view-revision", {headers})).status, source === "coding" || source === "git" ? 200 : 403);
     if (source === "coding") {
-      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.files/view-revision", {headers})).status, 200);
-      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.files/state", {headers})).status, 403);
+      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.git/state", {headers})).status, 403);
       assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.pages/view-revision", {headers})).status, 403);
     }
     assert.equal((await f.request(prefix + "/api/host/plugin-page-actions", {method: "POST", headers,

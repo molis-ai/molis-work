@@ -11,7 +11,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // are kept clear for the window controls. A background notice does not take the focus: the page's focus stays where it was
 // while a toast comes and goes.
 
-const PAGES = ["goals", "todo", "pages", "coding", "files", "issues", "inbox"];
+const PAGES = ["goals", "todo", "pages", "coding", "issues", "inbox"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const AUDIT = String.raw`(() => {

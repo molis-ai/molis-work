@@ -141,15 +141,15 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
     }
     assert.deepEqual(await membership(project_id), before, "rejected platform membership operations do not change members");
   }
-  await click('[data-market-add="files"]');
-  await waitFor("document.querySelector('[data-market-add=files]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=files]').classList.contains('is-available')");
+  await click('[data-market-add="git"]');
+  await waitFor("document.querySelector('[data-market-add=git]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=git]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
   const afterAdd = await evaluate<{ project_id: string; plugins: string[] }[]>("fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects)");
-  assert.equal(afterAdd.find(item => item.project_id === projectId)!.plugins.includes("files"), true);
-  assert.equal(afterAdd.find(item => item.project_id === otherId)!.plugins.includes("files"), false, "only the selected project gains Files");
+  assert.equal(afterAdd.find(item => item.project_id === projectId)!.plugins.includes("git"), true);
+  assert.equal(afterAdd.find(item => item.project_id === otherId)!.plugins.includes("git"), false, "only the selected project gains Git");
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
-  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Files';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["files"]);
+  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Git';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["git"]);
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.querySelector('[data-artifact-directory] .artifact-version-list')");
   await evaluate("window.__workbenchInstance=document.querySelector('[data-workspace]')");

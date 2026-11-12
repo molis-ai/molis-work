@@ -107,13 +107,13 @@ test('RAC-635 no plugin source writes a plugin_id into a contribution declaratio
   assert.ok(!probe(`const a = { contribution_id: 'x', slot: 'main' }; const b = { plugin_id: 'p' };`));
 });
 
-test('RAC-540 PG-070 every client is a bundle of its own: Files, Git, Diff and Text Stats borrow nothing from Coding', () => {
+test('RAC-540 PG-070 every client is a bundle of its own: Git, Diff and Text Stats borrow nothing from Coding', () => {
   const clients = new Map(pluginSurfaceClients().map(client => [client.id, client]));
-  for (const id of ['coding', 'files', 'git', 'diff', 'text-stats']) {
+  for (const id of ['coding', 'git', 'diff', 'text-stats']) {
     assert.equal(clients.get(id)?.bundle, id, `${id} is its own bundle`);
     assert.ok(pluginWorkbenchClientAsset(id), `the Host serves ${id}.js`);
   }
-  for (const id of ['files', 'git', 'diff', 'text-stats']) assert.notEqual(clients.get(id)?.factory, clients.get('coding')?.factory, `${id} has a client of its own`);
+  for (const id of ['git', 'diff', 'text-stats']) assert.notEqual(clients.get(id)?.factory, clients.get('coding')?.factory, `${id} has a client of its own`);
   for (const client of clients.values()) assert.equal(client.bundle, client.id, client.id);
   // Coding calls Git's client, so the page loads its bundle before it mounts Coding's; Coding's files face is its own (WMD-05).
   assert.deepEqual(clients.get('coding')?.assets, ['/assets/molis-work-plugins/git.js']);

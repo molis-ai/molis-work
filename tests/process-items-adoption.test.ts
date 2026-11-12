@@ -86,7 +86,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.throws(() => new LocalProjectDatabase(h.path), /结构与当前完整基线不符|SQLITE_BASELINE_TRIGGER_MISMATCH/u);
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
-  assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, carried: 0, refused: [], unsettled: [] });
+  assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, installs: 0, cursors: 0, carried: 0, refused: [], unsettled: [] });
   assert.deepEqual(inspected.unsettled, inspected.refused, "all that stops it is what a recovery file can keep");
   assert.match(inspected.refused.join("\n"), unsent, "lines the original journal never sent are unsettled");
   // BSH-14-D: those lines are adopted only once a recovery file of this Home keeps them.
@@ -103,7 +103,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
 
   const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: capture.captureId! });
   assert.equal(report.state, "adopted");
-  assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, carried: 0, refused: [], backup: undefined });
+  assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, installs: 0, cursors: 0, carried: 0, refused: [], backup: undefined });
   assert.ok(report.backup && existsSync(report.backup), "a backup is taken before the first change");
   const backup = openTestSqlite(report.backup!);
   assert.equal((backup.prepare("SELECT COUNT(*) AS n FROM process_items WHERE producer_plugin_id=?").get(FILES.id) as { n: number }).n, 3, "the backup is the library before adoption");
@@ -304,10 +304,14 @@ test("BSH-14-F the official Files install's reading position is carried to the m
   value.run("files-official", "reading-position", position);
   value.run("files-copy", "reading-position", JSON.stringify({ workspace_id: "ws2", path: ["b.md"] }));
   value.run(SYSTEM.id, "reading-position:user", JSON.stringify({ workspace_id: "ws3", path: ["c.md"] }));
+  const cursor = db.prepare(`INSERT INTO plugin_event_cursors(project_id,subscriber_plugin_id,subscriber_install_id,subscriber_generation,source_plugin_id,event_type_id,type_version,state,updated_at)
+    VALUES (?,?,?,?,?,?,1,'idle','2026-11-01T00:00:00Z')`);
+  cursor.run(h.projectId, FILES.id, "files-official", "g1", "io.molis.work.git", "git.changed");
+  cursor.run(h.projectId, "io.molis.work.diff", "diff-1", "g1", "io.molis.work.git", "git.changed");
   db.close();
   const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups });
   assert.equal(report.state, "adopted");
-  assert.equal(report.positions, 1);
+  assert.deepEqual([report.positions, report.installs, report.cursors], [1, 1, 1], "the official install and its cursor are its leftovers; the copy is not Files");
   const read = openTestSqlite(h.path);
   t.after(() => read.close());
   assert.deepEqual(rows(read, "SELECT install_id,item_key,item_value FROM plugin_private_values ORDER BY install_id,item_key"), [
@@ -316,7 +320,19 @@ test("BSH-14-F the official Files install's reading position is carried to the m
     { install_id: SYSTEM.id, item_key: "reading-position", item_value: position },
     { install_id: SYSTEM.id, item_key: "reading-position:user", item_value: JSON.stringify({ workspace_id: "ws3", path: ["c.md"] }) },
   ], "the project's value is kept under the project-level key; a person's own position and the original row stay as they were");
+  assert.deepEqual(rows(read, "SELECT install_id, json_extract(record_json,'$.state') AS state, json_extract(record_json,'$.retain_private_data') AS retain FROM plugin_runtime_installs ORDER BY install_id"), [
+    { install_id: "files-copy", state: null, retain: null }, { install_id: "files-official", state: "uninstalled", retain: 1 },
+  ], "the official install is uninstalled keeping its values; another publisher's copy of the id is not touched");
+  assert.deepEqual(rows(read, "SELECT subscriber_plugin_id FROM plugin_event_cursors"), [{ subscriber_plugin_id: "io.molis.work.diff" }], "only Files' cursor goes");
   assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups }).state, "current", "carrying it twice changes nothing");
+  // Once the install is retired its value has moved: a position the project chose later in the materials service is its own.
+  const later = JSON.stringify({ workspace_id: "ws1", path: ["docs", "b.md"] });
+  const write = openTestSqlite(h.path);
+  write.prepare("UPDATE plugin_private_values SET item_value=? WHERE install_id=? AND item_key='reading-position'").run(later, SYSTEM.id);
+  write.close();
+  assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups }).state, "current");
+  assert.equal((rows(read, "SELECT item_value FROM plugin_private_values WHERE install_id=? AND item_key='reading-position'", SYSTEM.id)[0] as { item_value: string }).item_value, later,
+    "the retired install's old value does not come back over it");
 
   // A value the materials service could not read is not carried, and does not stop the project.
   const other = await home(t);
@@ -326,8 +342,7 @@ test("BSH-14-F the official Files install's reading position is carried to the m
   db2.prepare("INSERT INTO plugin_private_values(install_id,item_key,item_value) VALUES (?,?,?)").run("files-official", "reading-position", "{not json");
   db2.close();
   const kept = adoptProjectDatabase({ home: other.directory, owner: other.owner, projectId: other.projectId, backupDirectory: other.backups });
-  assert.equal(kept.state, "current");
-  assert.equal(kept.positions, 0);
+  assert.deepEqual([kept.state, kept.positions, kept.installs, kept.refused], ["adopted", 0, 1, []], "the install is still retired");
 });
 
 test("BSH-14-F/BSH-06 Files' own current consents are taken back once every project is adopted; a revoked one keeps its first time, another publisher's and another plugin's wiring stay", async t => {
@@ -343,20 +358,33 @@ test("BSH-14-F/BSH-06 Files' own current consents are taken back once every proj
   const db = openTestSqlite(h.path);
   toOriginalLayout(db); filesEra(db, h.projectId); synced(db, h.projectId);
   db.close();
+  // A Home that added Files to the project itself (golden 0.1.0 has it): the membership, local and portable, names the retired plugin.
+  const catalogPath = join(h.directory, "projects", "catalog.db");
+  const catalog = openTestSqlite(catalogPath);
+  catalog.prepare("INSERT INTO project_plugins(project_id,plugin_id,added_at) VALUES (?,?,?)").run(h.projectId, "files", "2026-11-01T00:00:00Z");
+  catalog.prepare("INSERT INTO project_portable_plugins(project_id,plugin_id) VALUES (?,?)").run(h.projectId, "files");
+  const members = () => ({ active: rows(catalog, "SELECT plugin_id FROM project_plugins WHERE project_id=? ORDER BY plugin_id", h.projectId).map(row => (row as { plugin_id: string }).plugin_id),
+    portable: rows(catalog, "SELECT plugin_id FROM project_portable_plugins WHERE project_id=? ORDER BY plugin_id", h.projectId).map(row => (row as { plugin_id: string }).plugin_id),
+    removed: rows(catalog, "SELECT actor_id, json_extract(payload_json,'$.plugin_id') AS plugin_id FROM project_events WHERE project_id=? AND type='project.plugin_removed'", h.projectId) });
+  const membersBefore = members();
+  t.after(() => catalog.close());
 
   const waiting = retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-12T00:00:00Z" });
   assert.deepEqual(waiting.waiting.map(row => row.project_id), [h.projectId], "a project still on the Files source holds the Home step back");
   assert.equal(waiting.revoked, 0);
+  assert.deepEqual([waiting.memberships, members()], [0, membersBefore], "nor is the membership touched while a project waits");
   assert.equal(ledger.consent(kept.consent_id)!.revoked_at, null);
 
   const { captureId } = captureProcessItemsRecovery({ home: h.directory, owner: h.owner, cutoverId: "cutover-0123456789abcdef" });
   assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: captureId! }).state, "adopted");
-  assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-12T00:00:00Z" }), { waiting: [], revoked: 1 });
+  assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-12T00:00:00Z" }), { waiting: [], revoked: 1, memberships: 1 });
+  assert.deepEqual(members(), { active: membersBefore.active.filter(id => id !== "files"), portable: membersBefore.portable.filter(id => id !== "files"),
+    removed: [{ actor_id: "local-host", plugin_id: "files" }] }, "Files leaves the membership with one ordinary removal event, sync's to carry; the rest stay");
   assert.equal(ledger.consent(kept.consent_id)!.revoked_at, "2026-11-12T00:00:00Z");
   assert.equal(ledger.consent(earlier.consent_id)!.revoked_at, "2026-11-02T00:00:00Z", "the person's own revocation keeps its time");
   assert.equal(ledger.consent(copy.consent_id)!.revoked_at, null, "another publisher's plugin of the same id is not Files");
   assert.equal(ledger.consent(wiring.consent_id)!.revoked_at, null, "Diff's agreement stays readable; its subject names a source that is gone");
-  assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-13T00:00:00Z" }), { waiting: [], revoked: 0 }, "a second run takes nothing more back");
+  assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-13T00:00:00Z" }), { waiting: [], revoked: 0, memberships: 0 }, "a second run takes nothing more back");
   assert.equal(ledger.consent(kept.consent_id)!.revoked_at, "2026-11-12T00:00:00Z");
 });
 

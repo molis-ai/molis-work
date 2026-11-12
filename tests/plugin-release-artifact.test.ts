@@ -12,7 +12,7 @@ import {
   type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import {
   NativePluginExecutor,
   PluginRuntime,
@@ -98,12 +98,12 @@ test("SQLite release artifacts restore an installed Native version after Host re
 });
 
 test("Native plugin factory archives are bundled and rehydrated as exact definitions", async () => {
-  const artifact = nativePluginReleaseArtifact<typeof createFilesPlugin>(
-    "@molis-ai/molis-work-plugin-files",
-    "createFilesPlugin",
+  const artifact = nativePluginReleaseArtifact<typeof createTextStatsPlugin>(
+    "@molis-ai/molis-work-plugin-text-stats",
+    "createTextStatsPlugin",
     factory => factory(),
   );
-  const current = createFilesPlugin();
+  const current = createTextStatsPlugin();
   const source = await artifact.capture();
   const restored = await artifact.restore(source);
   assert.deepEqual(restored.manifest, current.manifest);

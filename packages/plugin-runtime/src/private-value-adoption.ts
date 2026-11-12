@@ -56,7 +56,9 @@ export function planPrivateValueMove(db: Pick<PluginRuntimeDatabase, "prepare">,
   accept(value: string): boolean;
 }): { readonly moves: readonly PrivateValueMove[]; readonly refused: readonly string[] } {
   if (!/^system\.[a-z][a-z0-9_.-]*$/u.test(input.to.system_id)) throw new Error("a value moves only to a platform producer");
-  const installs = readPluginRuntimeRecords(db).filter(record => record.plugin_id === input.from.plugin_id && record.publisher_signature === input.from.signature && record.publisher_trust === "host");
+  // An uninstalled source is done: its value moved when it was retired, and a later preference at the target is the person's own.
+  const installs = readPluginRuntimeRecords(db).filter(record => record.plugin_id === input.from.plugin_id && record.publisher_signature === input.from.signature
+    && record.publisher_trust === "host" && record.state !== "uninstalled");
   const read = db.prepare("SELECT item_value FROM plugin_private_values WHERE install_id = ? AND item_key = ?");
   const moves: PrivateValueMove[] = [];
   for (const { install_id } of installs) {

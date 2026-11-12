@@ -33,7 +33,6 @@ tests/coding-actions.test.ts
 tests/coding-product-http.test.ts
 tests/feed-item-actions.test.ts
 tests/files-era-adoption.test.ts
-tests/files-product-http.test.ts
 tests/git-product-http.test.ts
 tests/goals-actions.test.ts
 tests/goals-library-actions.test.ts
@@ -369,7 +368,6 @@ tests/document-import-providers.test.ts
 tests/draft-dialogue-boundaries.test.mjs
 tests/execution-lifetime.test.ts
 tests/feishu-cli-status.test.ts
-tests/files-plugin.test.ts
 tests/form-draft-questions.test.ts
 tests/form-draft-retry.test.ts
 tests/form-fillpage-answer-length.test.ts

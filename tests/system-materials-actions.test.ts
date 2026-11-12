@@ -12,6 +12,7 @@ import { ActionError, type ActionCallContext, type ActionReference, type FileCon
 import { MATERIALS_PROVIDER_ID, MATERIALS_SURFACE, materialsActions, materialsFileSource, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureResult, type MaterialsOpenResult,
   type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
+import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { person } from "./fixtures/home-runtime.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -23,9 +24,9 @@ const DIFF = "io.molis.work.diff";
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 const reading = ["workspace:read"];
 
-async function materialsHome(t: TestContext) {
+async function materialsHome(t: TestContext, plugins: readonly string[] = ["diff"]) {
   const f = await openTestHome(t);
-  const project = await f.createProject("Materials", ["diff"]);
+  const project = await f.createProject("Materials", plugins);
   const folder = await realpath(await mkdtemp(join(tmpdir(), "materials-output-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
   await writeFile(join(folder, "notes.md"), "第一行\nsecond line 🙂\n");
@@ -119,6 +120,19 @@ test("BSH-05 materials.capture fixes what was seen as the platform's process ite
   assert.equal((await m.call<MaterialsReadResult>(materialsActions.read, { ref: captured.ref, mode: "text" })).text, text);
 });
 
+test("BSH-05 the snapshot the materials service fixes reaches Text Stats by its default source, and Text Stats counts that one, not the disk", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t, ["text-stats"]);
+  const text = "中文🙂\nfirst\n";
+  await writeFile(join(m.folder, "notes.md"), text);
+  const counted = async () => (await m.call<{ view: { phase: string; characters?: number; lines?: number } }>(textStatsActions.state, {}, person(["artifact:read"], m.project.project_id))).view;
+  assert.equal((await counted()).phase, "waiting", "nothing fixed yet");
+  await m.call<MaterialsCaptureResult>(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha(text), port: "before" });
+  const view = await counted();
+  assert.deepEqual([view.phase, view.characters, view.lines], ["ready", Array.from(text).length, 2]);
+  await writeFile(join(m.folder, "notes.md"), "rewritten on disk\n");
+  assert.deepEqual(await counted(), view, "Text Stats keeps counting the fixed snapshot, not the file as it is now");
+});
+
 test("BSH-05 a refused capture writes no process item, no port value and no event", { timeout: 60_000 }, async t => {
   const m = await materialsHome(t);
   const text = "第一行\nsecond line 🙂\n";
@@ -146,6 +160,14 @@ test("BSH-05 a refused capture writes no process item, no port value and no even
     } };
   await refused("revoked after the read", () => m.call(materialsActions.capture, input, revoking), "actions.forbidden");
   assert.ok(read, "the file was read before the refusal");
+
+  // Cancelled after the read (the person closed the page, the run stopped): nothing is written either.
+  const controller = new AbortController();
+  const cancelling: ActionCallContext = { ...person(reading, m.project.project_id), signal: controller.signal,
+    validate_authority: async (reference: ActionReference) => { if (reference.capability_id === workspaceReadActions.file.capability_id) controller.abort(); } };
+  await assert.rejects(m.call(materialsActions.capture, input, cancelling), (error: unknown) => (error as Error).name === "AbortError", "cancelled after the read");
+  assert.ok(controller.signal.aborted);
+  assert.deepEqual(quiet(), start, "cancelled after the read: nothing written");
 
   // The port fails inside the commit: the version recorded with it rolls back too.
   const publish = t.mock.method(PluginInputGraph.prototype, "publish", () => { throw new Error("port write failed"); });

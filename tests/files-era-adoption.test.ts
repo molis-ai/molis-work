@@ -65,7 +65,13 @@ const library = (path: string) => read(path, rows => ({
   bindings: rows("SELECT target_plugin_id, target_port, source_plugin_id, source_port, origin FROM plugin_port_bindings ORDER BY target_plugin_id, target_port"),
   values: rows("SELECT install_id, item_key, item_value FROM plugin_private_values ORDER BY install_id, item_key"),
   pending: rows("SELECT DISTINCT key FROM process_items_replica_changes ORDER BY key").map(row => row.key),
-  installs: rows("SELECT install_id, json_extract(record_json, '$.plugin_id') AS plugin_id FROM plugin_runtime_installs ORDER BY install_id"),
+  installs: rows("SELECT install_id, json_extract(record_json, '$.plugin_id') AS plugin_id, json_extract(record_json, '$.state') AS state, json_extract(record_json, '$.retain_private_data') AS retain FROM plugin_runtime_installs ORDER BY install_id"),
+  cursors: rows("SELECT subscriber_plugin_id, source_plugin_id, event_type_id FROM plugin_event_cursors ORDER BY subscriber_plugin_id, source_plugin_id, event_type_id"),
+}));
+const membership = (home: string) => read(join(home, "projects/catalog.db"), rows => ({
+  active: rows("SELECT project_id, plugin_id FROM project_plugins ORDER BY project_id, plugin_id"),
+  portable: rows("SELECT project_id, plugin_id FROM project_portable_plugins ORDER BY project_id, plugin_id"),
+  removed: rows("SELECT project_id, actor_id, json_extract(payload_json, '$.plugin_id') AS plugin_id FROM project_events WHERE type = 'project.plugin_removed' ORDER BY project_id"),
 }));
 const consents = (home: string) => read(join(home, "plugin-runtime/plugin-runtime.db"), rows => rows("SELECT * FROM plugin_consents ORDER BY consent_id"));
 const install = (state: ReturnType<typeof library>, pluginId: string) => state.installs.find(row => row.plugin_id === pluginId)!.install_id as string;
@@ -86,7 +92,7 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
   assert.ok(first && second);
   const pathOf = (project: { database: string }) => join(home, project.database);
   const before = new Map(manifest.projects.map(project => [project.project_id, library(pathOf(project))]));
-  const consentsBefore = consents(home);
+  const consentsBefore = consents(home), membershipBefore = membership(home);
 
   // What the old build left: every Files type, with history, handed on and bound by default, and nothing that ever synced.
   const a = before.get(first.project_id)!, b = before.get(second.project_id)!;
@@ -104,6 +110,13 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
   assert.deepEqual([revoked.plugin_id, revoked.subject, revoked.revoked_at === null], ["io.molis.work.diff", "before<-io.molis.work.files:before@official-files-binding", false],
     "the person took Diff's agreement to the Files before port back");
   assert.equal(consentsBefore.filter(row => row.plugin_id === FILES.id).length, 0, "Files itself held no agreements; its sources were named in Diff's and Text Stats'");
+  // Its leftovers: an official install in each library and the event cursors it held as a subscriber. This build shipped Files inside
+  // Coding, so no project's catalog membership names it (a Home that added it on its own is covered in process-items-adoption).
+  for (const state of [a, b]) assert.deepEqual(state.installs.filter(row => row.plugin_id === FILES.id).map(row => row.state), ["installed"]);
+  const filesCursors = (state: ReturnType<typeof library>) => state.cursors.filter(row => row.subscriber_plugin_id === FILES.id).length;
+  assert.ok(filesCursors(a) + filesCursors(b) > 0, "Files subscribed to events it will never read again");
+  const filesMembers = (rows: Row[]) => rows.filter(row => row.plugin_id === "files").map(row => row.project_id).sort();
+  assert.deepEqual([filesMembers(membershipBefore.active), filesMembers(membershipBefore.portable)], [[], []]);
 
   const owner = acquireStorageOwner(join(home, "agent-runtime"));
   try {
@@ -113,15 +126,20 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
       const inspected = inspectProjectAdoption(pathOf(project), { failures: [], neverSynced: processItemsNeverSynced(home) });
       const values = project === first ? 2 : 0;
       assert.deepEqual({ ...inspected }, { layout: "original", items: files, versions: state.versions.length, outputs: state.outputs.filter(row => row.plugin_id === FILES.id).length,
-        bindings: filesBindings(state).length, private_values: values, positions: 1, carried: state.pending.length, refused: [], unsettled: [] }, project.display_name);
+        bindings: filesBindings(state).length, private_values: values, positions: 1, installs: 1, cursors: filesCursors(state), carried: state.pending.length, refused: [], unsettled: [] }, project.display_name);
       // Before the Home step nothing is taken back: a project still waits.
       if (project === first) assert.deepEqual(retireFilesConsents({ home, owner, at: "2026-11-12T00:00:00.000Z" }).revoked, 0);
       const report = adoptProjectDatabase({ home, owner, projectId: project.project_id, backupDirectory: join(root, "backups") });
       assert.deepEqual([report.state, report.refused, report.carried], ["adopted", [], state.pending.length], `${project.display_name}: adopted, its never-sent lines carried`);
     }
-    // Every project adopted: the Home step finds nothing waiting and, Files having held no agreement of its own, takes nothing back.
-    assert.deepEqual(retireFilesConsents({ home, owner, at: "2026-11-12T00:00:00.000Z" }), { waiting: [], revoked: 0 });
+    // Every project adopted: the Home step finds nothing waiting and, Files having held no agreement or membership of its own, takes
+    // nothing back.
+    assert.deepEqual(retireFilesConsents({ home, owner, at: "2026-11-12T00:00:00.000Z" }), { waiting: [], revoked: 0, memberships: 0 });
+    for (const project of manifest.projects) {
+      assert.equal(adoptProjectDatabase({ home, owner, projectId: project.project_id, backupDirectory: join(root, "backups") }).state, "current", `${project.display_name}: nothing left to adopt`);
+    }
   } finally { owner.release(); }
+  assert.deepEqual(membership(home), membershipBefore, "the catalog is as it was");
   assert.deepEqual(consents(home), consentsBefore, "the person's agreements are exactly as they were: the one taken back keeps its time, the rest stay current");
 
   for (const project of manifest.projects) {
@@ -130,6 +148,9 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
     assert.deepEqual(now.items, was.items.map(row => ({ ...row, producer_plugin_id: SYSTEM.id, producer_binding_signature: SYSTEM.signature })), "each line is the materials source's, its owner kept");
     assert.deepEqual(now.outputs, was.outputs.map(row => row.plugin_id === FILES.id ? { ...row, plugin_id: SYSTEM.id } : row).sort((x, y) => `${x.plugin_id}.${x.port}` < `${y.plugin_id}.${y.port}` ? -1 : 1));
     assert.deepEqual(now.bindings, was.bindings.map(row => row.source_plugin_id === FILES.id ? { ...row, source_plugin_id: SYSTEM.id } : row), "default bindings now name the materials source; Coding's and Git's stay");
+    assert.deepEqual(now.installs, was.installs.map(row => row.plugin_id === FILES.id ? { ...row, state: "uninstalled", retain: 1 } : row), "the Files install is uninstalled as an uninstall records it; every other install stays");
+    assert.deepEqual(now.cursors, was.cursors.filter(row => row.subscriber_plugin_id !== FILES.id), "Files' event cursors are gone, everyone else's stay");
+    assert.deepEqual(now.values.filter(row => row.install_id === install(was, FILES.id)), was.values.filter(row => row.install_id === install(was, FILES.id)), "its private values are kept for the deletion step");
     assert.ok(![...now.items, ...now.outputs, ...now.bindings].some(row => Object.values(row).includes(FILES.id)), "the retired identity names no line, output or binding");
     const adopted = read(pathOf(project), rows => rows("SELECT key FROM process_items_adopted_replica_changes ORDER BY seq").map(row => row.key));
     assert.deepEqual([...adopted].sort(), was.pending, "the never-sent lines are unsent on the adopted journal, once each");

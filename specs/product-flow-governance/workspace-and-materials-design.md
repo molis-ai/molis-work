@@ -12,7 +12,7 @@
 | --- | --- |
 | [项目设置](../../apps/workbench/src/project-settings-pages.ts)已有“工作目录”，支持关联多个本机文件夹；[Projects](../../modules/projects/src/workspace.ts)保存目录身份与项目关联 | 用户说的“项目目录”确实已有；复用这一份目录记录，项目不必等于一个磁盘文件夹 |
 | [Coding](../../plugins/native/coding/src/browser/main/workspace.ts)已让 Files / Git 随会话目录刷新，Host 写入项目浏览选择 | 联动已有一部分；临时查看与多窗口隔离还需按 R1 接通验证，不能继续用一个项目共享的浏览选择表达每个任务的位置 |
-| [Files](../../plugins/native/files/src/manifest.ts)负责树、阅读位置、文件预览、集合／快照／选区过程项；实际列目录与读文件已由 Host 提供 | 去掉 Files 是撤掉独立插件身份与专属装配；保留用户需要的文件能力，不能只删入口。Files 现有职责不是通用文件写入 |
+| Files（`plugins/native/files/src/manifest.ts`，第 06 批退役删除）负责树、阅读位置、文件预览、集合／快照／选区过程项；实际列目录与读文件已由 Host 提供 | 去掉 Files 是撤掉独立插件身份与专属装配；保留用户需要的文件能力，不能只删入口。Files 现有职责不是通用文件写入 |
 | [资料选择器](../../apps/workbench/src/browser/knowledge/picker.ts)、[侧栏来源聚合](../../apps/local-host/src/side-files-http.ts)、[knowledge 服务](../../horizontal/knowledge/README.md)已覆盖多种来源 | 复用发现、读取、引用与预览协议，补齐本机目录的共同入口；不再做一个同名资料插件 |
 
 项目的内部数据库存储位置属于高级信息，不是工作目录，也不是需要用户再次选择的资料源。

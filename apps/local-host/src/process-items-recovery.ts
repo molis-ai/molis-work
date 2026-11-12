@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import { realpathSync } from "node:fs";
 import pathUtil from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -7,7 +6,7 @@ import {
   PROCESS_ITEMS_NAMESPACE, PROCESS_ITEMS_RECOVERY_FORMAT, newProcessItemsCaptureId, readProcessItemsRecovery, readProcessItemsSyncEvidence, writeProcessItemsRecovery,
   type ProcessItemsRecovery, type ProcessItemsRecoveryProject, type ProcessItemsSyncEvidence,
 } from "@molis-ai/molis-work-module-sync-replication";
-import { assertStorageOwner, readDatabaseSpace, readStorageSpace, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, openSqliteConnection, readDatabaseSpace, readStorageSpace, type SqliteDatabase, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { layoutOf } from "./project-layout.js";
 import { projectDatabases } from "./platform-upgrade-stores.js";
@@ -46,18 +45,19 @@ export function processItemKey(key: string): { projectId: string; artifactId: st
 }
 
 /** The original journal as stored, in a stable order. Table names are this owner's fixed prefix, never a value read from anywhere. */
-function readJournal(db: DatabaseSync): Journal {
+function readJournal(db: SqliteDatabase): Journal {
+  type Row = Record<string, unknown>;
   const table = (name: string) => `${ORIGINAL_JOURNAL}_replica_${name}`;
-  const state = db.prepare(`SELECT device,cursor FROM ${table("state")} WHERE id=1`).get();
+  const state = db.prepare<[], Row>(`SELECT device,cursor FROM ${table("state")} WHERE id=1`).get();
   return {
     state: state ? { device: String(state.device), cursor: Number(state.cursor) } : null,
-    changes: db.prepare(`SELECT seq,key FROM ${table("changes")} ORDER BY seq`).all().map(row => ({ seq: Number(row.seq), key: String(row.key) })),
-    heads: db.prepare(`SELECT key,revision FROM ${table("heads")} ORDER BY key`).all().map(row => ({ key: String(row.key), revision: Number(row.revision) })),
-    outbox: db.prepare(`SELECT key,through_seq,operation FROM ${table("outbox")} ORDER BY key`).all()
+    changes: db.prepare<[], Row>(`SELECT seq,key FROM ${table("changes")} ORDER BY seq`).all().map(row => ({ seq: Number(row.seq), key: String(row.key) })),
+    heads: db.prepare<[], Row>(`SELECT key,revision FROM ${table("heads")} ORDER BY key`).all().map(row => ({ key: String(row.key), revision: Number(row.revision) })),
+    outbox: db.prepare<[], Row>(`SELECT key,through_seq,operation FROM ${table("outbox")} ORDER BY key`).all()
       .map(row => ({ key: String(row.key), through_seq: Number(row.through_seq), operation: String(row.operation) })),
-    conflicts: db.prepare(`SELECT key,event,reason,waiting FROM ${table("conflicts")} ORDER BY key`).all()
+    conflicts: db.prepare<[], Row>(`SELECT key,event,reason,waiting FROM ${table("conflicts")} ORDER BY key`).all()
       .map(row => ({ key: String(row.key), event: String(row.event), reason: String(row.reason), waiting: Number(row.waiting) })),
-    resolutions: db.prepare(`SELECT id,key,choice,local_json,remote_json FROM ${table("resolutions")} ORDER BY id`).all()
+    resolutions: db.prepare<[], Row>(`SELECT id,key,choice,local_json,remote_json FROM ${table("resolutions")} ORDER BY id`).all()
       .map(row => ({ id: Number(row.id), key: String(row.key), choice: String(row.choice), local_json: String(row.local_json), remote_json: String(row.remote_json) })),
   };
 }
@@ -77,8 +77,8 @@ function libraries(home: string) {
 }
 
 /** One library read in a single read transaction, after its bound space is checked. */
-function withLibrary<T>(path: string, spaceId: string, read: (db: DatabaseSync) => T): T {
-  const db = new DatabaseSync(path, { readOnly: true });
+function withLibrary<T>(path: string, spaceId: string, read: (db: SqliteDatabase) => T): T {
+  const db = openSqliteConnection(path, { readonly: true, fileMustExist: true });
   try {
     db.exec("PRAGMA busy_timeout=5000");
     if (readDatabaseSpace(db)?.spaceId !== spaceId) throw new ActionError("actions.forbidden", `${path} 不属于这个 Home 的空间`);
@@ -88,7 +88,7 @@ function withLibrary<T>(path: string, spaceId: string, read: (db: DatabaseSync) 
 }
 
 /** The graph the current owner reads for a key now, or null for a key whose line no longer exists (a deletion intent). */
-function graphOf(db: DatabaseSync, path: string, spaceId: string, projectId: string, key: string): unknown {
+function graphOf(db: SqliteDatabase, path: string, spaceId: string, projectId: string, key: string): unknown {
   const { projectId: owner, artifactId } = processItemKey(key);
   if (owner !== projectId) throw invalid("过程项同步键不属于这个项目，原件已保留");
   const refuse = (): never => { throw invalid("恢复件读取不能写入项目库"); };

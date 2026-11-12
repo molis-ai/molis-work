@@ -109,7 +109,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 **运行时登记**：在插件包里导出 `X_MESSAGES`，并在包 `src/manifest.ts` 的 `ui` 写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加插件词典的 import，也不在 `registration` 里写词典（`registration.messages` 已删）。键必须以插件自己的名字（`plugin_id` 的最后一段）开头，`common` 留给通用词；SDK 的 `messageDeclarationProblems` 在 Manifest 解析时检查形状、大小、占位符，Host 登记时再拒绝与别的插件重复的键。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在目录里某个插件的 Manifest 的 `ui.messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
 
-**动作输出里的句子**：视图或拒绝理由里的句子（如 Diff 的 `view.message`、Files 动作的拒绝理由）同时是 Agent 读到的动作输出，不改成键；页面画它们时经翻译（`p.text(view.message)`、浏览器 `L(error.message)`），句子本身就是 Manifest `ui.translations` 里的键（中文原文 → 英文，写在插件包的 `src/en.ts`），随已登记的插件发到页面，不并进 `i18n/en.ts`；没有的照原样显示。这条路任何发布者的插件都能用，但只在它自己的贡献和框架里生效；宿主自己画的第三方文字（动作标题、句子形式的动作输出）要有英文，让视图给稳定键并在 `ui.messages` 里声明（已知限制）。Host 画插件页面时把当前请求语言的 `L` 作为 `text` 交给渲染函数，浏览器脚本从 `host.translate` 拿同一张表（visual-ui-experience 第三十五片）。
+**动作输出里的句子**：视图或拒绝理由里的句子（如 Diff 的 `view.message`、Git 动作的拒绝理由）同时是 Agent 读到的动作输出，不改成键；页面画它们时经翻译（`p.text(view.message)`、浏览器 `L(error.message)`），句子本身就是 Manifest `ui.translations` 里的键（中文原文 → 英文，写在插件包的 `src/en.ts`），随已登记的插件发到页面，不并进 `i18n/en.ts`；没有的照原样显示。这条路任何发布者的插件都能用，但只在它自己的贡献和框架里生效；宿主自己画的第三方文字（动作标题、句子形式的动作输出）要有英文，让视图给稳定键并在 `ui.messages` 里声明（已知限制）。Host 画插件页面时把当前请求语言的 `L` 作为 `text` 交给渲染函数，浏览器脚本从 `host.translate` 拿同一张表（visual-ui-experience 第三十五片）。
 
 ### 第一个样板：Images（`plugins/native/images`）
 
@@ -178,7 +178,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-当前项目的输入目录与输出目录由项目设置的「工作目录」页统一维护（项目不记 Files/Git 的浏览选择，页面看哪个目录是页面自己的状态），Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
+当前项目的输入目录与输出目录由项目设置的「工作目录」页统一维护（项目不记资料与 Git 的浏览选择，页面看哪个目录是页面自己的状态），Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
 
 工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖。Coding 与伴随视图的装配在 Coding 包里（`plugins/native/coding/src/browser/workbench.ts`），工作台没有 Coding 专用脚本：Files、Git、Diff、Text Stats 各有自己的客户端包（`/assets/molis-work-plugins/<id>.js`）与样式（登记的 `stylesheet`），不借 Coding 的，打开一个伴随面只下载它自己的一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）；Coding 的登记写 `clientUses: ["git", "files"]`，`plugin-workbench.ts` 把这两个包加进 Coding 的 `clientAssets`（挂载前先加载），并把这两个插件登记的客户端作为 `host.clients.git`、`host.clients.files`，以各自插件的身份，把宿主的评审动作作为 `host.reviews` 交给 Coding 的工厂（只是渲染钩子，不给决定权），两边写得不对应就在派生时抛错。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
 

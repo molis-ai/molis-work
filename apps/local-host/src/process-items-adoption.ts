@@ -1,14 +1,17 @@
-import { DatabaseSync } from "node:sqlite";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import pathUtil from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { planProcessItemReassignment, reassignProcessItems, type ProcessItemProducer } from "@molis-ai/molis-work-module-artifacts";
-import { applyPrivateValueAdoption, applyPrivateValueMove, planPrivateValueAdoption, planPrivateValueMove, planWiringReassignment, reassignWiringSource, SqlitePluginConsentLedger, type PrivateValueAdoptionPlan } from "@molis-ai/molis-work-plugin-runtime";
+import { applyPrivateValueAdoption, applyPrivateValueMove, planPrivateValueAdoption, planPrivateValueMove, planRetiredInstalls, planWiringReassignment, reassignWiringSource, retireInstalls, SqlitePluginConsentLedger, type PrivateValueAdoptionPlan } from "@molis-ai/molis-work-plugin-runtime";
+import { projectsHoldingPlugin, retireProjectPlugin } from "@molis-ai/molis-work-module-projects";
+import { assertCurrentCatalog, assertOwnedCatalog } from "./catalog-schema.js";
+import { preflightProjectCatalog } from "./project-catalog-replication.js";
 import { MATERIALS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { PROJECT_POSITION_KEY, parsePosition } from "./system-materials-actions.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { assertStorageOwner, readDatabaseSpace, readStorageSpace, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, LocalSqliteStorage, openSqliteConnection, readDatabaseSpace, readStorageSpace, type SqliteDatabase, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { PROCESS_ITEMS_TRIGGER_NAMES } from "./project-database-schema.js";
 import { ADOPTED_PROCESS_ITEMS_JOURNAL, ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL } from "./project-replication-schema.js";
 import { layoutOf, type ProjectLayout } from "./project-layout.js";
@@ -41,6 +44,10 @@ export interface ProjectAdoptionReport {
   readonly private_values: number;
   /** The project's Files reading position carried to the materials service (0 or 1). */
   readonly positions: number;
+  /** Files' official installs in this library marked uninstalled, their private values kept (spec.md「本库安装清理」). */
+  readonly installs: number;
+  /** Event cursors Files still held as a subscriber, dropped: with no package left nothing would read them again. */
+  readonly cursors: number;
   /**
    * Keys of a library that never took part in the old stream, carried into the adopted journal as unsent changes (user 2026-11-12): they
    * were never offered to any stream, so if sync is turned on later they go to the adopted one as new writes. 0 for any other library.
@@ -70,14 +77,14 @@ export function processItemsNeverSynced(home: string): boolean {
 }
 
 /** A library whose original journal never received, froze or conflicted anything: its changes are lines no stream was ever offered. */
-function neverOffered(db: DatabaseSync): boolean {
+function neverOffered(db: SqliteDatabase): boolean {
   const empty = (table: string) => !db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
   const cursor = db.prepare("SELECT cursor FROM process_items_replica_state WHERE id=1").get() as { cursor: number } | undefined;
   return ["process_items_replica_heads", "process_items_replica_outbox", "process_items_replica_conflicts", "process_items_replica_resolutions"].every(empty) && Number(cursor?.cursor ?? 0) === 0;
 }
-const pendingKeys = (db: DatabaseSync) => (db.prepare("SELECT COUNT(DISTINCT key) AS n FROM process_items_replica_changes").get() as { n: number }).n;
+const pendingKeys = (db: SqliteDatabase) => (db.prepare("SELECT COUNT(DISTINCT key) AS n FROM process_items_replica_changes").get() as { n: number }).n;
 
-function unsettled(db: DatabaseSync, failures: readonly string[]): string[] {
+function unsettled(db: SqliteDatabase, failures: readonly string[]): string[] {
   const count = (table: string) => (db.prepare(`SELECT COUNT(DISTINCT key) AS n FROM ${table}`).get() as { n: number }).n;
   const reasons: string[] = [];
   const changes = count("process_items_replica_changes"), outbox = count("process_items_replica_outbox"), conflicts = count("process_items_replica_conflicts");
@@ -88,43 +95,48 @@ function unsettled(db: DatabaseSync, failures: readonly string[]): string[] {
   return reasons;
 }
 
-interface Plan { layout: ProjectLayout; items: number; versions: number; outputs: number; bindings: number; private_values: number; positions: number; carried: number; refused: string[]; unsettled: string[] }
+interface Plan { layout: ProjectLayout; items: number; versions: number; outputs: number; bindings: number; private_values: number; positions: number; installs: number; cursors: number; carried: number; refused: string[]; unsettled: string[] }
 /** What sync.db says that bears on one library: its failures and deferred events, and whether the Home ever took part in the collection. */
 export interface ProcessItemsSyncFacts { readonly failures: readonly string[]; readonly neverSynced: boolean }
 
-/** Files kept the project's last reading position under this key (plugins/native/files/src/position.ts), as `{workspace_id,path}`. */
+/** Files kept the project's last reading position under this key (its `position.ts`, deleted with the plugin), as `{workspace_id,path}`. */
 const FILES_POSITION_KEY = "reading-position";
 /** The Files reading position this library would carry to the materials service: only one the materials service itself reads. */
-const positionMoves = (db: DatabaseSync) => planPrivateValueMove(db, {
+const positionMoves = (db: SqliteDatabase) => planPrivateValueMove(db, {
   from: { plugin_id: FILES_PRODUCER.plugin_id, signature: FILES_PRODUCER.signature, key: FILES_POSITION_KEY },
   to: { system_id: MATERIALS_PROVIDER_ID, key: PROJECT_POSITION_KEY }, accept: value => parsePosition(value) !== null,
 });
 
 /** Each built-in plugin that converts its own private values at adoption, and what it would change in this library. */
-const privateValues = (db: DatabaseSync): PrivateValueAdoptionPlan[] =>
+const privateValues = (db: SqliteDatabase): PrivateValueAdoptionPlan[] =>
   PLATFORM_PLUGIN_REGISTRATIONS.filter(registration => registration.private_value_adoption).map(registration => planPrivateValueAdoption(db, registration));
 
-function plan(db: DatabaseSync, path: string, sync: ProcessItemsSyncFacts = { failures: [], neverSynced: false }): Plan {
+function plan(db: SqliteDatabase, path: string, sync: ProcessItemsSyncFacts = { failures: [], neverSynced: false }): Plan {
   const layout = layoutOf(db, path);
   const items = planProcessItemReassignment(db, FILES_PRODUCER, SYSTEM_MATERIALS_SOURCE.process_items);
   const wiring = planWiringReassignment(db, FILES_PRODUCER.plugin_id, SYSTEM_PRODUCER.plugin_id, SYSTEM_MATERIALS_SOURCE.outputs.map(output => output.port));
-  const values = privateValues(db), positions = positionMoves(db);
+  const values = privateValues(db), positions = positionMoves(db), retired = planRetiredInstalls(db, FILES_PRODUCER);
   const refused = [...items.refused, ...wiring.refused, ...values.flatMap(plan => plan.refused), ...positions.refused];
   // An output moves with its line: what a Files port hands on must be a Files process item, or the reference would change producer.
   const moving = new Set(items.items);
   for (const row of wiring.handed) if (!moving.has(row.artifact_id)) refused.push(`output ${row.port}: ${row.artifact_id} is not a Files process item`);
   return { layout, items: items.items.length, versions: items.versions, outputs: wiring.outputs, bindings: wiring.bindings,
-    private_values: values.reduce((sum, plan) => sum + plan.changes.length, 0), positions: positions.moves.length, refused,
+    private_values: values.reduce((sum, plan) => sum + plan.changes.length, 0), positions: positions.moves.length,
+    installs: retired.installs.length, cursors: retired.cursors, refused,
     ...(layout === "original" && sync.neverSynced && neverOffered(db) ? { carried: pendingKeys(db), unsettled: [] }
       : { carried: 0, unsettled: layout === "original" ? unsettled(db, sync.failures) : [] }) };
 }
+
+/** Whether a library still has something for adoption to move or clean up (layout aside). */
+export const adoptionPending = (found: Pick<Plan, "items" | "outputs" | "bindings" | "private_values" | "positions" | "installs" | "cursors">): boolean =>
+  !!(found.items || found.outputs || found.bindings || found.private_values || found.positions || found.installs || found.cursors);
 
 /**
  * Read-only: what adopting this library would do, without taking a backup or changing anything. `refused` names everything that stops
  * it now; `unsettled` is the part of that a recovery file of this Home can keep (lines sync has not settled, given its `failures`).
  */
 export function inspectProjectAdoption(path: string, sync?: ProcessItemsSyncFacts): Omit<ProjectAdoptionReport, "project_id" | "state" | "backup"> & { readonly unsettled: readonly string[] } {
-  const db = new DatabaseSync(path, { readOnly: true });
+  const db = openSqliteConnection(path, { readonly: true, fileMustExist: true });
   try { const { unsettled, refused, ...found } = plan(db, path, sync); return { ...found, refused: [...refused, ...unsettled], unsettled }; } finally { db.close(); }
 }
 
@@ -139,7 +151,7 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
   const relative = space && projectDatabases(home, space).find(entry => pathUtil.basename(pathUtil.dirname(entry)) === input.projectId);
   if (!space || !relative) throw new ActionError("actions.missing", `这个 Home 没有项目 ${input.projectId}`);
   const path = pathUtil.join(home, relative);
-  const db = new DatabaseSync(path);
+  const db = openSqliteConnection(path, { fileMustExist: true });
   try {
     db.exec("PRAGMA busy_timeout=5000");
     const bound = readDatabaseSpace(db);
@@ -152,7 +164,7 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
     const { unsettled: open, ...rest } = found;
     const report = { project_id: input.projectId, ...rest, refused: [...found.refused, ...(kept ? [] : open)] };
     if (report.refused.length) return { ...report, state: "refused" };
-    if (found.layout === "current" && !found.items && !found.outputs && !found.bindings && !found.private_values && !found.positions) return { ...report, state: "current" };
+    if (found.layout === "current" && !adoptionPending(found)) return { ...report, state: "current" };
     mkdirSync(input.backupDirectory, { recursive: true });
     const backup = pathUtil.join(input.backupDirectory, `${input.projectId}-${Date.now()}.db`);
     if (existsSync(backup)) throw new ActionError("actions.conflict", `备份 ${backup} 已存在`);
@@ -169,14 +181,16 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
       const wiring = reassignWiringSource(db, FILES_PRODUCER.plugin_id, SYSTEM_PRODUCER.plugin_id);
       const values = privateValues(db).reduce((sum, plan) => sum + applyPrivateValueAdoption(db, plan), 0);
       const positions = applyPrivateValueMove(db, positionMoves(db).moves);
+      // The reading position is read from the install's values above, so the install is retired after it; its values stay.
+      const retired = retireInstalls(db, FILES_PRODUCER, planRetiredInstalls(db, FILES_PRODUCER), new Date().toISOString());
       if (found.layout === "original") db.exec(`${ADOPTED_PROCESS_ITEMS_JOURNAL_SQL}\n${ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL}`);
       // Lines no stream was ever offered stay unsent, now in the adopted journal, in the order they were first recorded; the original stays.
       if (found.carried) db.exec(`INSERT INTO ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_changes(key) SELECT key FROM process_items_replica_changes GROUP BY key ORDER BY MIN(seq)`);
       else db.exec(`UPDATE ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_state SET applying=0 WHERE id=1`);
       const after = plan(db, path);
       const carried = (db.prepare(`SELECT COUNT(DISTINCT key) AS n FROM ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_changes`).get() as { n: number }).n;
-      if ((found.layout === "original" && carried !== found.carried) || items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || values !== found.private_values || positions !== found.positions || after.layout !== "current"
-        || after.items || after.outputs || after.bindings || after.private_values || after.positions || after.refused.length) {
+      if ((found.layout === "original" && carried !== found.carried) || items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || values !== found.private_values || positions !== found.positions
+        || retired.installs !== found.installs || retired.cursors !== found.cursors || after.layout !== "current" || adoptionPending(after) || after.refused.length) {
         throw new ActionError("actions.service_unavailable", `${path} 采用后的读回与计划不符，已回滚`);
       }
       db.exec("COMMIT");
@@ -191,29 +205,54 @@ export interface FilesConsentRetirement {
   readonly waiting: readonly { readonly project_id: string; readonly reasons: readonly string[] }[];
   /** The consents this run took back (none on a second run). */
   readonly revoked: number;
+  /** Projects whose catalog membership (local and portable) this run took Files out of (none on a second run). */
+  readonly memberships: number;
 }
 
+/** The short id the project catalog records Files' membership under. */
+const FILES_CATALOG_ID = "files";
+
 /**
- * The Home step of the Files retirement (spec.md「项目库 v2 同版本采用与交接」): Files' own current consents in the Home ledger are taken
- * back by the ledger's owner, only after every project library of this Home is adopted, so no project still runs on the retired source
- * when it loses them. Idempotent; a Home with no ledger yet has nothing to take back. Installs and values go with the deletion step.
+ * The Home step of the Files retirement (spec.md「项目库 v2 同版本采用与交接」), only after every project library of this Home is adopted
+ * (its installs retired there), so no project still runs on the retired source: Files' own current consents in the Home ledger are taken
+ * back by the ledger's owner, and the project catalog (Projects) takes Files out of each project's membership with the ordinary removal
+ * event, which account sync carries. Idempotent; a Home with no ledger or catalog yet has nothing to take back. Private values stay.
  */
 export function retireFilesConsents(input: { home: string; owner: StorageOwner; at: string }): FilesConsentRetirement {
   assertStorageOwner(agentRuntimeDirectory(input.home), input.owner);
   const home = realpathSync(input.home), space = readStorageSpace(home);
   if (!space) throw new ActionError("actions.missing", "这个 Home 还没有账号空间");
   const waiting = projectDatabases(home, space).flatMap(relative => {
-    const { layout, items, outputs, bindings, private_values, positions, refused } = inspectProjectAdoption(pathUtil.join(home, relative));
-    const reasons = [...(layout === "current" ? [] : [`layout ${layout}`]), ...(items || outputs || bindings || private_values || positions ? ["not adopted yet"] : []), ...refused];
+    const found = inspectProjectAdoption(pathUtil.join(home, relative));
+    const reasons = [...(found.layout === "current" ? [] : [`layout ${found.layout}`]), ...(adoptionPending(found) ? ["not adopted yet"] : []), ...found.refused];
     return reasons.length ? [{ project_id: pathUtil.basename(pathUtil.dirname(relative)), reasons }] : [];
   });
-  if (waiting.length) return { waiting, revoked: 0 };
+  if (waiting.length) return { waiting, revoked: 0, memberships: 0 };
+  const memberships = retireCatalogMembership(home, input.at);
   const existing = openReadOnlyHomePluginStore(home);
-  if (!existing) return { waiting, revoked: 0 };
+  if (!existing) return { waiting, revoked: 0, memberships };
   existing.close();
   const { db } = openHomePluginStore(home);
   try {
     const revoked = new SqlitePluginConsentLedger(db).revokeRetiredPlugin({ plugin_id: FILES_PRODUCER.plugin_id, publisher_signature: FILES_PRODUCER.signature }, input.at);
-    return { waiting, revoked: revoked.length };
+    return { waiting, revoked: revoked.length, memberships };
   } finally { db.close(); }
+}
+
+/** The catalog half of the Home step, checked as every catalog writer checks it; one transaction, read back before it commits. */
+function retireCatalogMembership(home: string, at: string): number {
+  const path = pathUtil.join(home, "projects", "catalog.db");
+  if (!existsSync(path)) return 0;
+  preflightProjectCatalog(path);
+  const store = new LocalSqliteStorage(path, { fileMustExist: true });
+  try {
+    assertOwnedCatalog(store, path);
+    assertCurrentCatalog(store, path);
+    if (!projectsHoldingPlugin(store.db, FILES_CATALOG_ID).length) return 0;
+    return store.db.transaction(() => {
+      const projects = retireProjectPlugin(store.db, { plugin_id: FILES_CATALOG_ID, actor_id: "local-host", at, eventId: () => `project-event-${randomUUID()}` });
+      if (projectsHoldingPlugin(store.db, FILES_CATALOG_ID).length) throw new ActionError("actions.service_unavailable", `${path} 移除 Files 成员后读回仍有，已回滚`);
+      return projects.length;
+    }).immediate();
+  } finally { store.close(); }
 }

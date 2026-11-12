@@ -14,7 +14,7 @@ import {createProcessItemReplication} from '@molis-ai/molis-work-module-artifact
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {FILE_SNAPSHOT_SCHEMA_VERSION,FILE_SNAPSHOT_TYPE} from '@molis-ai/molis-work-contracts/modules/workspace-artifacts';
 import {CODING_PLAN_TYPE,codingManifest} from '@molis-ai/molis-work-plugin-coding';
-import {cloudFixture} from './testing.mjs';
+import {cloudFixture,filesEraWriter} from './testing.mjs';
 
 const N=JSON.stringify(['io.molis.work.artifacts','molis','official-artifacts-binding','process_items',1]);
 const FILES={plugin_id:'io.molis.work.files',plugin_version:'1.0.0',binding_signature:'official-files-binding'};
@@ -31,8 +31,10 @@ test('BSH-14-A/C the Host adopts an old stream: a Files line moves to the materi
   const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},catalog=>catalog.createProject({display_name:'Old process lines',actor_id:'alice'}));
   const source=new LocalProjectDatabase(project.database_path),stores=openProjectVersionStores(source);
   const big='一份很长的固定快照🙂\n'.repeat(60000),planSchema=codingManifest.process_items.produces.find(type=>type.artifact_type_id===CODING_PLAN_TYPE).schema_version;
-  stores.processItems.commands.registerVersion({project_id:project.project_id,artifact_id:'files-snapshot',version:1,artifact_type_id:FILE_SNAPSHOT_TYPE,schema_version:FILE_SNAPSHOT_SCHEMA_VERSION,
+  const filesEra=filesEraWriter(project.database_path);
+  filesEra.write({project_id:project.project_id,artifact_id:'files-snapshot',version:1,artifact_type_id:FILE_SNAPSHOT_TYPE,schema_version:FILE_SNAPSHOT_SCHEMA_VERSION,
     actor_id:'alice',producer:FILES,content:{kind:'inline',payload:{text:big}}});
+  filesEra.close();
   stores.processItems.commands.registerVersion({project_id:project.project_id,artifact_id:'coding-plan',version:1,artifact_type_id:CODING_PLAN_TYPE,schema_version:planSchema,actor_id:'plugin:coding',
     producer:{plugin_id:codingManifest.plugin_id,plugin_version:codingManifest.version,binding_signature:codingManifest.publisher.signature},content:{kind:'inline',payload:{text:'a plan'}}});
 

@@ -27,7 +27,7 @@
 | 外部 Runtime（MCP） | `runtime:<runtime_id>`（无 Runtime 标识时 `local-mcp`），`mcp`；会话作审计作者 | 每个客户端、每个项目、每个动作的显式授权（`{home}/config/mcp-tools.json`） | 同上，经常驻 Host | 文本 `错误: …` 加 `{"code":…}`，`isError: true`；这次操作留了行时，这个 JSON 里还有 `call_id` | 每条 MCP 消息一个（`handleMessage` 打开作用域）；经网关的由 MCP 进程在 `invoke` 的 `call_id` 里给，常驻宿主在同一个编号下运行；错误文本和留了行的命令的结果（`_meta`）带它，别的什么都不带 |
 | 助理 | `web-user`，`agent`；`audit_actor_id` 为 `assistant:<work_id>` | 本工作范围内对 `agent` 开放、且人没关掉的动作 | 同上 | 工具结果里的文字；对界面是共同 `ActionError`，保留实际 owner 的 code/kind/details，失败 Send 的工作与修复入口放在 details | 一轮一个：`assistantAuthority` 开头取，页面发消息开的一轮与那次请求同号，定时器和定时队列开的一轮是新号；工具调用显式带它 |
 | Agent（Coding、定时任务、Character） | `agent:<runtime_id>`，`agent`；`runtime_session_id` 为宿主核过的这一轮会话，`audit_actor_id` 为 `agent:<runtime_id>:<会话>`；人点这一轮的建议执行的动作同样带 | Manifest 角色的精确 `action_tools` 或能力网关 | 同上 | 工具结果 | 一轮一个：`startAuthority` 在 `agent.run.start` 那次调用的作用域里取，Coding 的一轮与点「开始」的那次请求同号；定时任务的一轮沿用那次 tick 的编号；工具调用显式带它，冻结记录也带 |
-| Runtime 内置插件（Coding、Files 等） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`（`apps/local-host/src/plugin-executor.ts` 的 `actionCaller`） | 安装时用户确认的 grant；`allowed_actions` 只含本插件 Manifest 声明的动作 | 同上 | 抛给插件代码 | 沿用调用它的那次操作的编号（嵌套调用共用） |
+| Runtime 内置插件（Coding、Git 等） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`（`apps/local-host/src/plugin-executor.ts` 的 `actionCaller`） | 安装时用户确认的 grant；`allowed_actions` 只含本插件 Manifest 声明的动作 | 同上 | 抛给插件代码 | 沿用调用它的那次操作的编号（嵌套调用共用） |
 | 创作台生成的插件（沙箱进程） | `plugin:<插件 id>`，`actor_kind` 为 `runtime`，受众 `plugin`（`apps/local-host/src/plugin-builder/catalog.ts` 的 `catalogCapabilities`） | 每次调用只带被调那一项能力自己的权限，先由沙箱 broker 对照该安装的 grant；能调用的是目录里对 `plugin` 受众开放的能力：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外（`actionReachesAudience`），不限于自己声明的动作 | 同上 | 抛给沙箱里的插件代码；不确定的结局报 `unknown` | 沿用调起这次操作的编号：沙箱在 `call()` 记下当时的异步上下文，SDK 调用在其中重进，同一次操作里的调用同号 |
 | 工作流 | 沿用触发运行的调用者，Workflows 插件把受众改成 `workflow` | 调用者原有的权限 | 同上 | 步骤状态 | 内核补：沿用此刻打开的作用域里的编号，没有就新生成；比触发它的请求活得久的步骤拿到新编号 |
 | 后台定时器 | 到期拉取（连同它触发的判断）：`web-user`，`user`，权限为本机用户的权限集（`LOCAL_OWNER_PERMISSIONS`）；Schedule 唤醒投递提醒或定时操作结果后的判断（项目运行环境打开时装配的触发器）：`workflow-events`，`workflow` | 前者是权限集，后者是触发器写死的权限串 | 到期拉取是 concurrent | 只记在来源状态与事件里 | 每次一个新编号：Feed 的每次拉取、Schedule 的每次 tick、助理的两个定时器各开自己的作用域；Schedule 到点跑的 Agent 一轮沿用那次 tick 的编号 |
@@ -115,7 +115,7 @@
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
 | 构建期内置插件（只剩用户批过的两个例外 Alchemist、插件创作台，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
-| Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
+| Runtime 内置插件（Coding、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。

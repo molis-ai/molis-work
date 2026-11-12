@@ -22,7 +22,7 @@ import { CODING_COMPANION_DIRECTORY_SLOT, CODING_COMPANION_RESULT_SLOT, codingMa
 
 type State = Awaited<ReturnType<typeof ensureProjectPlugins>>;
 const repoRoot = process.cwd();
-const SHOWN = ["coding", "files", "git", "diff", "text-stats"];
+const SHOWN = ["coding", "git", "diff", "text-stats"];
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 /** The page's primitives with `text` answering the key itself, so the markup says which stable key each place uses. */
 const model = (shown: readonly string[] = SHOWN) => () => ({ route_prefix: "/p", shown_plugins: shown, primitives: { escape, text: (key: string) => key } });
@@ -75,7 +75,7 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
   await withProject(async (store, state) => {
     const { html, surfaces, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
     assert.deepEqual(unavailable, []);
-    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 5, "one stage for each of the five plugins");
+    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 4, "one stage for each of the four plugins");
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
     assert.match(coding, /data-coding-directory/);
@@ -94,24 +94,22 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
 test("RAC-434 each companion's own stage keeps the markup the Coding client fills, built from stable keys of the plugin's own words", async () => {
   await withProject(async (store, state) => {
     const { html } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
-    for (const surface of ["files", "git", "diff", "text-stats"]) {
+    for (const surface of ["git", "diff", "text-stats"]) {
       const stage = stageOf(html, surface);
       assert.match(stage, new RegExp(`data-coding-companion="workbench"[^>]*data-companion="${surface}"`), `${surface} keeps its companion hooks`);
       assert.match(stage, /hidden/, `${surface} starts hidden until the client shows it`);
       assert.match(stage, new RegExp(`${surface}\\.stage\\.`), `${surface} words its stage with its own keys`);
     }
-    const files = stageOf(html, "files");
-    assert.match(files, /href="\/p\/settings\/workspaces"/);
-    assert.match(files, /companion-directory/); assert.match(files, /data-files-browser/); assert.match(files, /data-files-results/);
     const git = stageOf(html, "git");
     assert.match(git, /data-git-browser/); assert.match(git, /data-git-results/);
-    // A list companion reaches the files through Files when Files is shown, and through the market otherwise.
-    assert.match(stageOf(html, "diff"), /data-companion-open="files"/);
-    assert.match(stageOf(html, "text-stats"), /data-companion-open="files"/);
+    // A list companion reaches the files it compares or counts through the platform's 资料, which every project page has, so the
+    // way is the same whichever plugins the project shows (Files, the plugin it used to name, retired in batch 06).
+    assert.match(stageOf(html, "diff"), /data-companion-open="materials"/);
+    assert.match(stageOf(html, "text-stats"), /data-companion-open="materials"/);
     const without = renderProjectRuntimeStages(state, store, { shown: ["coding", "diff", "text-stats"], drawn: [], model: model(["coding", "diff", "text-stats"]) }).html;
-    assert.match(stageOf(without, "diff"), /data-companion-open="market"/);
-    assert.match(stageOf(without, "text-stats"), /data-companion-open="market"/);
-    assert.equal(stageOf(without, "files"), "", "a plugin the project does not show draws no stage");
+    assert.match(stageOf(without, "diff"), /data-companion-open="materials"/);
+    assert.match(stageOf(without, "text-stats"), /data-companion-open="materials"/);
+    assert.equal(stageOf(without, "git"), "", "a plugin the project does not show draws no stage");
   });
 });
 
@@ -164,13 +162,13 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   const importers = (pluginName: string) => readdirSync(dir).filter(file => file.endsWith(".ts"))
     .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}(/registration)?"`).test(readFileSync(join(dir, file), "utf8")));
   // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
-  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package, Files included since its
-  // factory takes nothing from the Host (BL-616, RAC-2530).
+  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Files (BL-616, RAC-2530)
+  // retired in batch 06, so nothing in the Host names its package any more.
   const registry = "plugin-registry.generated.ts";
   assert.deepEqual(importers("git"), [registry]);
   assert.deepEqual(importers("diff"), [registry]);
   assert.deepEqual(importers("text-stats"), [registry]);
-  assert.deepEqual(importers("files"), [registry]);
+  assert.deepEqual(importers("files"), []);
   assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*create\(\)/s, "the supervisor starts the companions from their registrations' project_runtime");
   // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
   // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).

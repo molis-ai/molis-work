@@ -49,7 +49,8 @@
 实施记录（2026-11-12，H5 私有值、阅读位置与同意）：
 - Coding 私有值：`PluginRegistration.private_value_adoption`（`packages/contracts/src/platform/plugin-registration.ts`）由插件自己声明要转的 key 前缀和转换函数（`plugins/native/coding/src/material-adoption.ts`）；Runtime（`packages/plugin-runtime/src/private-value-adoption.ts`）只对精确官方安装（插件 id、发布者签名、宿主信任）按原整值写回，与过程项改属同一项目事务。旧 `{kind,id,title}` 中可解析的 artifact id/version 转为固定引用；其余转为 `{recorded:{kind,id},title}`，不补造版本，发起时经 `knowledge.read` 读当前内容，冻结记录不带 `material_ref`。缺省、`null`、`[]` 三种队列选择原样保留。转换读不懂的值使整个项目拒绝采用。
 - 阅读位置：采用把精确官方 Files 安装的 `reading-position` 原值复制到资料服务自己的私有值（`system.materials` 下的项目级键 `reading-position`），不补造 actor，原行保留到删除步骤；资料服务读不懂的值不搬、不挡项目。`materials.position` 先读调用者自己的位置，没有时才读这个项目级值，两者都按调用者当前可读的目录解析，失权即为空。
-- 同意：`retireFilesConsents`（Home 一步，宿主持 storage owner）只在本 Home 所有项目库都已采用后，由 Runtime 的 `revokeRetiredPlugin` 撤回 Files 自己（精确 id 与签名）仍有效的同意；已撤回的保留原时间，别的插件指向 Files 的默认连线不撤，它的 subject 指向已不存在的来源，自然不再生效，是否曾被本人撤回仍可读。重跑不再撤。安装与私有值随删除步骤处理。
+- 同意：`retireFilesConsents`（Home 一步，宿主持 storage owner）只在本 Home 所有项目库都已采用后，由 Runtime 的 `revokeRetiredPlugin` 撤回 Files 自己（精确 id 与签名）仍有效的同意；已撤回的保留原时间，别的插件指向 Files 的默认连线不撤，它的 subject 指向已不存在的来源，自然不再生效，是否曾被本人撤回仍可读。重跑不再撤。同一步里，Projects 的 `retireProjectPlugin` 把 `files` 移出各项目成员（`project_plugins` 与 `project_portable_plugins` 两份），每个项目记一条普通的 `project.plugin_removed` 事件，账号同步照常带走；它不查插件目录（Files 已不在，普通移除会以 plugin_not_found 拒绝）、不连带伴随插件、不记排除行；一个事务、提交前读回。重跑不再移。
+- 本库安装清理（spec.md「项目库 v2 同版本采用与交接」）：项目库采用的同一事务里，Runtime 的 `planRetiredInstalls`／`retireInstalls` 把 Files 的官方安装（精确 id、签名、宿主信任）照卸载的写法记成已卸载，`retain_private_data` 为真，私有值不删，留给删除步骤；删去 Files 作为订阅方的事件游标（没有包了，没人再读）。阅读位置先从这条安装搬到资料服务，再卸载；已卸载的来源不再参与位置搬运，本人之后在资料里改的位置不会被旧值盖回。计数进采用报告（`installs`、`cursors`），读回与计划不符就回滚。
 - 本人恢复默认：插件设置「你给过的同意」里，为宿主随带插件声明、读平台资料服务且当前无本人同意的默认来源各列一行（`PluginInstalledView.pending_defaults`），按钮「同意默认来源」经确认框走 `/api/settings/plugin-consents/grant-default-source`（用户 2026-11-12 弹窗定样）。
 
 实施记录（2026-11-12，H7 旧构建 Home 的读回门，M3）：

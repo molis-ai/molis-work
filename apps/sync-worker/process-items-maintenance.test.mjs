@@ -15,7 +15,7 @@ import {openMolisWorkProjectCatalog,withMolisWorkProjectCatalog} from '@molis-ai
 import {createProcessItemReplication} from '@molis-ai/molis-work-module-artifacts';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {FILE_SNAPSHOT_SCHEMA_VERSION,FILE_SNAPSHOT_TYPE} from '@molis-ai/molis-work-contracts/modules/workspace-artifacts';
-import {cloudFixture} from './testing.mjs';
+import {cloudFixture,filesEraWriter} from './testing.mjs';
 
 const N=JSON.stringify(['io.molis.work.artifacts','molis','official-artifacts-binding','process_items',1]);
 const FILES={plugin_id:'io.molis.work.files',plugin_version:'1.0.0',binding_signature:'official-files-binding'};
@@ -50,9 +50,10 @@ test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, ad
   const key=id=>JSON.stringify([project.project_id,'process_item',id]);
   const codec=createSyncJsonContent({spaceId:space.spaceId,authorize(){}});
   {
-    const source=new LocalProjectDatabase(project.database_path),stores=openProjectVersionStores(source);
+    const source=new LocalProjectDatabase(project.database_path);
     const owner=createProcessItemReplication(source.db,{spaceId:space.spaceId,projectId:project.project_id,authorize(){}},{appendEvent:event=>source.appendEvent(event),eventCursor:id=>source.eventCursor(id)});
-    const snapshot=(id,version,text)=>stores.processItems.commands.registerVersion({project_id:project.project_id,artifact_id:id,version,artifact_type_id:FILE_SNAPSHOT_TYPE,
+    const filesEra=filesEraWriter(project.database_path);
+    const snapshot=(id,version,text)=>filesEra.write({project_id:project.project_id,artifact_id:id,version,artifact_type_id:FILE_SNAPSHOT_TYPE,
       schema_version:FILE_SNAPSHOT_SCHEMA_VERSION,actor_id:'alice',producer:FILES,content:{kind:'inline',payload:{text}}});
     snapshot('files-shared',1,'first fix');
     const encoded=codec.encode(key('files-shared'),{project:{id:project.project_id,title:'Old device'},artifact:owner.read('files-shared')});
@@ -61,7 +62,7 @@ test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, ad
     assert.equal(receipt.status,200,await receipt.clone().text());
     // After its last upload the device fixed a new snapshot and never sent it.
     snapshot('files-local',1,'only here');
-    source.close();
+    filesEra.close();source.close();
   }
   toOriginalLayout(project.database_path);
   // The old device kept the receipt of each upload as its head: it took part in the old stream, so its unsent lines need keeping.

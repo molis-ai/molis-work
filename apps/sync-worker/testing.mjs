@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {personalStorageSpace} from '@molis-ai/molis-work-storage';
+import {projectVersionStores} from '@molis-ai/molis-work-module-artifacts';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 
 /** Run one sync migration file as separate statements, in file order (D1's local binding takes one statement per prepare). */
 export async function applySql(db,file){
@@ -36,4 +38,14 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   const transport=(url,options={})=>{const headers=new Headers(options.headers);if(options.body instanceof Uint8Array)headers.set('Content-Length',String(options.body.byteLength));return mf.dispatchFetch(String(url),{...options,headers});};
   const writeMode=async value=>{options.bindings.SYNC_WRITE_MODE=value;await mf.setOptions(convertV4MiniflareOptions(options));db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('FILES');};
   return {get db(){return db;},call,space,namespace,selection,enable,write,requests,transport,writeMode,get bucket(){return bucket;},scheduled:async()=>{const worker=await mf.getWorker();return worker.scheduled({cron:'17 * * * *',scheduledTime:Date.now()});}};
+}
+
+/**
+ * The previous Host's process-item writes for Files, made while Files was installed: the library's own stores on a connection of their
+ * own, without today's Manifest check (Files is retired, so the Host's check refuses its types). Seeds old states only; close it after.
+ */
+export function filesEraWriter(path){
+  const db=new LocalProjectDatabase(path);
+  const {processItems}=projectVersionStores({db:db.db,homeOwner:'web-user',now:()=>new Date().toISOString(),appendEvent:event=>db.appendEvent(event),eventCursor:id=>db.eventCursor(id)});
+  return {write:input=>processItems.commands.registerVersion(input),close:()=>db.close()};
 }

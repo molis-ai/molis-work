@@ -77,12 +77,15 @@ async fn version(
         .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(revision as f64)])?.first::<Value>(None).await?.ok_or(Failure(404,"SYNC_RECOVERY_MISSING"))
 }
 
-async fn list(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+async fn list(
+    req: &Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = query(req, &["namespace", "key", "before"])?;
-    let (namespace, key) = (
-        string(&value, "namespace", 2500)?,
-        string(&value, "key", 500)?,
-    );
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
+    let (namespace, key) = (routed.as_str(), string(&value, "key", 500)?);
     let before = number(&value, "before", Some(9_007_199_254_740_991))?;
     selected(db, space, namespace, None).await?;
     let current = head(db, space, namespace, key).await?;
@@ -94,9 +97,15 @@ async fn list(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
     )
 }
 
-async fn keys(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+async fn keys(
+    req: &Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = query(req, &["namespace", "after"])?;
-    let namespace = string(&value, "namespace", 2500)?;
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
+    let namespace = routed.as_str();
     let after = if value["after"].is_null() {
         ""
     } else {
@@ -110,12 +119,15 @@ async fn keys(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
     )
 }
 
-async fn inspect(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+async fn inspect(
+    req: &Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = query(req, &["namespace", "key", "revision"])?;
-    let (namespace, key) = (
-        string(&value, "namespace", 2500)?,
-        string(&value, "key", 500)?,
-    );
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
+    let (namespace, key) = (routed.as_str(), string(&value, "key", 500)?);
     selected(db, space, namespace, None).await?;
     let current = head(db, space, namespace, key).await?;
     let row = version(db, space, namespace, key, number(&value, "revision", None)?).await?;
@@ -124,32 +136,43 @@ async fn inspect(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value
     )
 }
 
-async fn archive(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
-    let value = body(req).await?;
-    let (namespace, key) = (
-        string(&value, "namespace", 2500)?,
-        string(&value["mutation"], "key", 500)?,
-    );
+async fn archive(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
+    let mut value = body(req).await?;
+    let namespace = scope.route(string(&value, "namespace", 2500)?)?;
+    let key = string(&value["mutation"], "key", 500)?.to_owned();
     let base = integer(&value["mutation"], "base")?;
     require(base > 0, 400, "INVALID_NUMBER")?;
+    value["namespace"] = json!(namespace);
+    if scope.sealed() && namespace == crate::cutover::PUBLIC {
+        // The sealed stream answers only its exact original receipts; the insert itself refuses anything new.
+        return crate::changes::upload_value(value, db, space, "archive", None).await;
+    }
     selected(
         db,
         space,
-        namespace,
+        &namespace,
         Some(integer(&value, "policyRevision")?),
     )
     .await?;
-    head(db, space, namespace, key).await?;
+    head(db, space, &namespace, &key).await?;
     crate::changes::upload_value(value, db, space, "archive", None).await
 }
 
-async fn pin(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+async fn pin(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = body(req).await?;
     fields(&value, &["namespace", "key", "revision", "policyRevision"])?;
-    let (namespace, key) = (
-        string(&value, "namespace", 2500)?,
-        string(&value, "key", 500)?,
-    );
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
+    let (namespace, key) = (routed.as_str(), string(&value, "key", 500)?);
     let (revision, policy) = (
         integer(&value, "revision")?,
         integer(&value, "policyRevision")?,
@@ -167,7 +190,12 @@ async fn pin(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value
     Ok(json!({"accepted":true,"revision":revision,"retainedAt":row["retained_at"]}))
 }
 
-async fn restore(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+async fn restore(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = body(req).await?;
     fields(
         &value,
@@ -180,8 +208,9 @@ async fn restore(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<V
             "policyRevision",
         ],
     )?;
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
     let (namespace, key, operation) = (
-        string(&value, "namespace", 2500)?,
+        routed.as_str(),
         string(&value, "key", 500)?,
         string(&value, "operationId", 150)?,
     );
@@ -189,13 +218,6 @@ async fn restore(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<V
         integer(&value, "sourceRevision")?,
         integer(&value, "revision")?,
     );
-    selected(
-        db,
-        space,
-        namespace,
-        Some(integer(&value, "policyRevision")?),
-    )
-    .await?;
     let previous=db.prepare("SELECT key,base,action,source_revision,revision FROM sync_receipts WHERE space=? AND namespace=? AND operation=?").bind(&[space.into(),namespace.into(),operation.into()])?.first::<Value>(None).await?;
     if let Some(previous) = previous {
         require(
@@ -208,6 +230,14 @@ async fn restore(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<V
         )?;
         return Ok(json!({"accepted":true,"revision":previous["revision"]}));
     }
+    // An exact original receipt replays first, even on a sealed stream; anything new needs the live selection.
+    selected(
+        db,
+        space,
+        namespace,
+        Some(integer(&value, "policyRevision")?),
+    )
+    .await?;
     require(
         head(db, space, namespace, key).await?["revision"] == base,
         409,
@@ -218,17 +248,20 @@ async fn restore(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<V
     crate::changes::upload_value(json!({"namespace":namespace,"policyRevision":integer(&value,"policyRevision")?,"mutation":{"operationId":operation,"key":key,"base":base,"value":serde_json::from_str::<Value>(string(&row,"value",524288)?)?},"attachments":serde_json::from_str::<Value>(string(&row,"attachments",524288)?)?}),db,space,"restore",Some(source)).await
 }
 
-async fn purge(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+async fn purge(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = body(req).await?;
     fields(
         &value,
         &["namespace", "key", "sourceRevision", "revision", "confirm"],
     )?;
     require(value["confirm"] == true, 400, "CONFIRM_REQUIRED")?;
-    let (namespace, key) = (
-        string(&value, "namespace", 2500)?,
-        string(&value, "key", 500)?,
-    );
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
+    let (namespace, key) = (routed.as_str(), string(&value, "key", 500)?);
     let (source, base) = (
         integer(&value, "sourceRevision")?,
         integer(&value, "revision")?,
@@ -240,22 +273,27 @@ async fn purge(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Val
         "SYNC_CONFLICT",
     )?;
     require(source != base, 409, "SYNC_HISTORY_CURRENT")?;
-    db.prepare("DELETE FROM sync_events WHERE space=? AND namespace=? AND key=? AND revision=? AND revision<>? AND EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=sync_events.space AND h.namespace=sync_events.namespace AND h.key=sync_events.key AND h.revision=? AND h.purged_at IS NULL AND (h.deleted_at IS NULL OR h.deleted_at>unixepoch()*1000-2592000000))")
+    db.prepare("DELETE FROM sync_events WHERE space=? AND namespace=? AND key=? AND revision=? AND revision<>? AND EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=sync_events.space AND h.namespace=sync_events.namespace AND h.key=sync_events.key AND h.revision=? AND h.purged_at IS NULL AND (h.deleted_at IS NULL OR h.deleted_at>unixepoch()*1000-2592000000)) AND EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=sync_events.space AND n.value=sync_events.namespace)")
         .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(source as f64),JsValue::from_f64(base as f64),JsValue::from_f64(base as f64)])?.run().await?;
     let remaining=db.prepare("SELECT revision FROM sync_events WHERE space=? AND namespace=? AND key=? AND revision=?").bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(source as f64)])?.first::<Value>(None).await?;
     require(remaining.is_none(), 409, "SYNC_CONFLICT")?;
     Ok(json!({"accepted":true}))
 }
 
-pub(crate) async fn handle(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Response> {
+pub(crate) async fn handle(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Response> {
     let value = match (req.method(), req.url()?.path()) {
-        (Method::Get, "/v1/history") => list(req, db, space).await,
-        (Method::Get, "/v1/history/keys") => keys(req, db, space).await,
-        (Method::Get, "/v1/history/version") => inspect(req, db, space).await,
-        (Method::Post, "/v1/history/archive") => archive(req, db, space).await,
-        (Method::Post, "/v1/history/pin") => pin(req, db, space).await,
-        (Method::Post, "/v1/history/restore") => restore(req, db, space).await,
-        (Method::Post, "/v1/history/purge") => purge(req, db, space).await,
+        (Method::Get, "/v1/history") => list(req, db, space, scope).await,
+        (Method::Get, "/v1/history/keys") => keys(req, db, space, scope).await,
+        (Method::Get, "/v1/history/version") => inspect(req, db, space, scope).await,
+        (Method::Post, "/v1/history/archive") => archive(req, db, space, scope).await,
+        (Method::Post, "/v1/history/pin") => pin(req, db, space, scope).await,
+        (Method::Post, "/v1/history/restore") => restore(req, db, space, scope).await,
+        (Method::Post, "/v1/history/purge") => purge(req, db, space, scope).await,
         _ => Err(Failure(404, "NOT_FOUND")),
     }?;
     Ok(Response::from_json(&value)?)

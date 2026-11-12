@@ -254,7 +254,12 @@ export interface ComposerSubmission {
   delivery?: AgentSteerMode;
   /** Each control's value by its id. */
   controls: Readonly<Record<string, string>>;
-  /** Names this send, so the target can tell a repeat of it. */
+  /**
+   * Names this send, so the target can tell a repeat of it. The mount page decides what it means: the Assistant sends it as the
+   * Host's `request_id` and its unknown-outcome check looks the same id up; Coding keeps its own receipt keys (its `draft.adapter`
+   * and `input-receipts` own the retry identity on the Coding server) and ignores this value. The composer itself reuses the id
+   * only for a retry of the same words while its outcome is unknown, and drops it once the words change.
+   */
   request_id: string;
 }
 

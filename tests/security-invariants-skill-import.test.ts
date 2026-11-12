@@ -51,7 +51,7 @@ async function writeSkill(skills: string, folder: string, markdown: string, file
 }
 
 /** A person's home with a Claude Code Skills folder, and the install service of a project over a Home of its own. */
-async function harness(hooks: { installed?(): Promise<void>; committing?(): Promise<void> } = {}) {
+async function harness(hooks: { installed?(): Promise<void>; committing?(): Promise<void>; publisherKeyId?(): string | null; sealedKeyId?(): string | null } = {}) {
   const root = await mkdtemp(join(tmpdir(), "molis-work-skill-import-")), userHome = join(root, "user"), home = join(root, "home");
   const skills = join(userHome, ".claude", "skills");
   await mkdir(skills, { recursive: true }); await mkdir(home);
@@ -74,10 +74,13 @@ async function harness(hooks: { installed?(): Promise<void>; committing?(): Prom
   const actions = new ActionService(undefined, { settled: (_caller, action, outcome) => {
     if (action.capability_id === signing.capability_id) signOutcomes.push(outcome);
   } });
-  const publisherKeyId = () => existsSync(identityPath(home)) ? (JSON.parse(readFileSync(identityPath(home), "utf8")) as { key_id: string }).key_id : null;
-  const importer = new SkillImportService({ install, scan: localSkillScan(userHome, {}), publisherKeyId, readSealedPublisherKeyId: async () => null,
+  const storedPublisherKeyId = () => existsSync(identityPath(home)) ? (JSON.parse(readFileSync(identityPath(home), "utf8")) as { key_id: string }).key_id : null;
+  const publisherKeyId = () => (hooks.publisherKeyId ? hooks.publisherKeyId() : storedPublisherKeyId());
+  const importer = new SkillImportService({ install, scan: localSkillScan(userHome, {}), publisherKeyId,
+    readSealedPublisherKeyId: async () => (hooks.sealedKeyId ? hooks.sealedKeyId() : null),
     sign: async (input, caller) => await actions.invoke(retainActionAuthority(caller, confirming, caller.beforeEffect), signing, input) as LocalPackageSignResult,
     retained: (pluginId, keyId) => packages.releases(pluginId, keyId),
+    retainedOf: pluginId => packages.releasesOf(pluginId),
     installed: async (pluginId, scope, project) => {
       await hooks.installed?.();
       const record = scope === "project" ? recordsFor(project).find(item => item.plugin_id === pluginId) : undefined;
@@ -96,7 +99,7 @@ async function harness(hooks: { installed?(): Promise<void>; committing?(): Prom
     assert.equal(publisherKeyId(), null, "no signing identity was created");
     assert.equal(signOutcomes.some(outcome => outcome.ok), false, "no signing completed");
   };
-  return { root, userHome, skills, home, ledger, records, recordsFor, packages, service, actions, publisherKeyId, kept, nothingWritten, signOutcomes,
+  return { root, userHome, skills, home, ledger, records, recordsFor, packages, service, actions, publisherKeyId: storedPublisherKeyId, kept, nothingWritten, signOutcomes,
     done: () => rm(root, { recursive: true, force: true }) };
 }
 
@@ -160,6 +163,28 @@ test("SKC-10 S-skill-import the preview lists every Skill found, each that canno
     await h.service.confirm({ preview_id: native.preview_id, skill_ids: ["leaky"], scope: "project" }, who);
     assert.equal(h.kept()[0]?.manifest.methods?.[0]?.native_only_reason, by.get("leaky")!.reason);
 
+  } finally { await h.done(); }
+});
+
+// B12 (round-2 review): the preview used to fall back to 「1.0.0」 when this Home's publisher metadata was unreadable, while the
+// confirmation recovered the sealed identity and installed the next major. Both now count the retained releases of the source, so the
+// version the person sees in the preview is the one the confirmation installs.
+test("B12 S-skill-import the preview and the confirmation name the same next version when the publisher metadata is unreadable and the sealed identity recovers it", async () => {
+  let metadataUnreadable = true, sealed: string | null = null;
+  const h = await harness({ publisherKeyId: () => metadataUnreadable ? null : sealed, sealedKeyId: () => sealed });
+  try {
+    await writeSkill(h.skills, "notes", good("notes"));
+    const source = { kind: "runtime" as const, runtime_id: "claude-code" as const };
+    const first = await h.service.preview({ source }, who);
+    assert.deepEqual([first.package.version, first.package.installed_version], ["1.0.0", null]);
+    assert.equal((await h.service.confirm({ preview_id: first.preview_id, skill_ids: ["notes"], scope: "project" }, who)).version, "1.0.0");
+    sealed = h.publisherKeyId();
+    assert.ok(sealed, "the confirmation created this Home's sealed publisher identity");
+    await writeFile(join(h.skills, "notes", "SKILL.md"), good("notes").replace("按步骤做。", "改过的正文。"));
+    const second = await h.service.preview({ source }, who);
+    const upgraded = await h.service.confirm({ preview_id: second.preview_id, skill_ids: ["notes"], scope: "project" }, who);
+    assert.deepEqual([second.package.version, second.package.installed_version], ["2.0.0", "1.0.0"]);
+    assert.equal(upgraded.version, "2.0.0", "the version the confirmation installs is the one the preview named");
   } finally { await h.done(); }
 });
 

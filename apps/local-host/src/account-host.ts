@@ -104,6 +104,7 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
     });
     return host.homeActionClient().invoke({ ...caller, ...authority }, typeof operation === "string" ? accountActions[operation] : operation, input);
   }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(options?.session?{...authentication!,create:(input,guard)=>{
+    // S-unified-account-borrowed-home: the installation entry owns login and switching; this Home only re-verifies.
     if(!input||typeof input!=="object"||!("purpose" in input)||!["BIND","REPLACE"].includes(String(input.purpose)))throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
     return authentication!.create(input,guard);
   }}:authentication!, control)), matchesNativeCallback: (url, origin) => {
@@ -111,6 +112,8 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
     try { assertCurrent(); return authentication.matchesNativeCallback(url, origin); }
     catch { return false; }
   }, read: (origin, signal) => {
+    // The contract AccountView is the canonical identity projection; the page status uses the same UserView
+    // fields through `personalIdentity` in personal-auth.ts, never a second user record.
     if (configuration !== undefined) return run(origin, signal, (owner, control) => owner.readSession(control));
     return track((async () => {
       assertCurrent();
@@ -138,6 +141,7 @@ export async function handleAccountHttp(request: IncomingMessage, response: Serv
   const read = url.pathname === "/api/account/session" && request.method === "GET";
   const activity = url.pathname === "/api/account/activity" && request.method === "POST";
   const logout = url.pathname === "/api/account/logout" && request.method === "POST";
+  // S-unified-account-borrowed-home: signing out needs the installation's preparation barrier, not this Home's request.
   if(logout&&account.borrowedSession)throw accountErrors.conflict("Use the installation account preparation protocol to sign out");
   if (!read && !activity && !logout && !profile && !methods && !managementRoute) throw accountErrors.not_found("Account operation is not available");
   if ((read || methods || (managementRoute && !managementRoute.write)) && (request.headers["transfer-encoding"] || (request.headers["content-length"] && request.headers["content-length"] !== "0")))

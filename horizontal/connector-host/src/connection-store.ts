@@ -418,10 +418,7 @@ export class ConnectorConnectionStore {
    * reports as its uses (`connectors.plugin_slot.usages`, T-121). A scope that is not a plugin's is a built-in consumer's, not listed.
    */
   pluginBindings(connectionId?: string): Array<PluginBindingTarget & { plugin_id: string; slot_id: string }> {
-    const rows = (connectionId === undefined
-      ? this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all()
-      : this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings WHERE connection_id = ? ORDER BY scope_id, plugin_id, slot_id").all(connectionId)) as Array<{ scope_id: string; plugin_id: string; slot_id: string }>;
-    return rows.flatMap(row => { const target = parsePluginBindingScope(row.scope_id); return target ? [{ ...target, plugin_id: row.plugin_id, slot_id: row.slot_id }] : []; });
+    return connectorBindingRows(this.db, connectionId).flatMap(row => { const target = parsePluginBindingScope(row.scope_id); return target ? [{ ...target, plugin_id: row.plugin_id, slot_id: row.slot_id }] : []; });
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {
@@ -429,6 +426,13 @@ export class ConnectorConnectionStore {
       .run(scopeId, pluginId, slotId);
     if (result.changes) this.onBindingChange?.({ scope_id: scopeId, plugin_id: pluginId, slot_id: slotId });
   }
+}
+
+/** The binding rows of one connection, or of every one: one statement, kept out of the class so the store stays inside its size limit. */
+function connectorBindingRows(db: DatabaseSync, connectionId?: string): Array<{ scope_id: string; plugin_id: string; slot_id: string }> {
+  return (connectionId === undefined
+    ? db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all()
+    : db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings WHERE connection_id = ? ORDER BY scope_id, plugin_id, slot_id").all(connectionId)) as Array<{ scope_id: string; plugin_id: string; slot_id: string }>;
 }
 
 /**

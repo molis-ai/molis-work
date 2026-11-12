@@ -7,10 +7,11 @@ import { githubAccountIdentity, grantedScopes, type GithubAccountIdentity } from
  * Tokens never written to Item rows.
  * Live failures are closed typed results (no silent fixture fallback).
  */
-import type {
-  IntegrationProviderItem,
-  IntegrationProviderPort,
-  IntegrationProviderSyncResult,
+import {
+  integrationLiveFailure,
+  type IntegrationProviderItem,
+  type IntegrationProviderPort,
+  type IntegrationProviderSyncResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 type ConnectorHealth = Awaited<ReturnType<IntegrationProviderPort["health"]>>;
@@ -102,22 +103,6 @@ function fixtureSuccess(items: ConnectorIngestItem[]): ConnectorSyncSuccess {
   };
 }
 
-function liveFailure(
-  failure: ConnectorSyncFailure["failure"],
-  message: string,
-  opts?: { action?: string; httpStatus?: number; retryAfterAt?: string },
-): ConnectorSyncFailure {
-  return {
-    ok: false,
-    mode: "live",
-    failure,
-    message,
-    action: opts?.action,
-    httpStatus: opts?.httpStatus,
-    retryAfterAt: opts?.retryAfterAt,
-  };
-}
-
 export function createGithubProvider(opts?: {
   fixture?: ConnectorIngestItem[];
   token?: string;
@@ -196,7 +181,7 @@ export function createGithubProvider(opts?: {
       await control.beforeEffect(); control.current();
       if (!token) {
         if (!allowFixture) {
-          return liveFailure(
+          return integrationLiveFailure(
             "needs_auth",
             "GitHub 未绑定凭据",
             { action: "在设置中绑定 GitHub Token 或完成 Device Flow" },
@@ -205,7 +190,7 @@ export function createGithubProvider(opts?: {
         return fixtureSuccess(fixture);
       }
       if (!fetchImpl) {
-        return liveFailure("provider", "GitHub fetch unavailable", {
+        return integrationLiveFailure("provider", "GitHub fetch unavailable", {
           action: "检查本机网络能力后重试",
         });
       }
@@ -262,7 +247,7 @@ function classifyGithubLiveError(e: unknown): ConnectorSyncFailure {
       retryAfterAt?: string;
     };
     if (err.kind === "needs_auth") {
-      return liveFailure(
+      return integrationLiveFailure(
         "needs_auth",
         `GitHub reauth required HTTP ${err.status ?? 401}`,
         {
@@ -272,7 +257,7 @@ function classifyGithubLiveError(e: unknown): ConnectorSyncFailure {
       );
     }
     if (err.kind === "rate_limited") {
-      return liveFailure(
+      return integrationLiveFailure(
         "rate_limited",
         "GitHub 暂时限制轮询频率",
         {
@@ -283,17 +268,17 @@ function classifyGithubLiveError(e: unknown): ConnectorSyncFailure {
       );
     }
     if (err.kind === "provider") {
-      return liveFailure(
+      return integrationLiveFailure(
         "provider",
         `GitHub notifications HTTP ${err.status ?? 0}`.replace(/ HTTP 0$/, " error"),
         { httpStatus: err.status, action: err.action || "稍后重试同步" },
       );
     }
-    return liveFailure("network", "GitHub notifications network error", {
+    return integrationLiveFailure("network", "GitHub notifications network error", {
       action: "网络恢复后重试",
     });
   }
-  return liveFailure("network", "GitHub notifications network error", {
+  return integrationLiveFailure("network", "GitHub notifications network error", {
     action: "网络恢复后重试",
   });
 }

@@ -1,4 +1,4 @@
-import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeAttribute, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   Activity,
   AlertTriangle,
@@ -311,13 +311,6 @@ export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: rea
   },
 ];
 
-function escapeAttribute(value: string | number | undefined): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
 
 function renderNode([tag, attributes]: IconNode[number]): string {
   const attrs = Object.entries(attributes)

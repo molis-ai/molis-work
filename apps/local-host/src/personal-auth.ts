@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import { accountErrors, createAccountSessionManager, createAccountAuthentication, parseAccountEnvironment, type AccountSessionManager } from "@molis-ai/molis-work-service-account";
-import type { AccountEnvironmentConfig, AccountCallControl, AccountView } from "@molis-ai/molis-work-contracts/services/account";
+import type { AccountEnvironmentConfig, AccountCallControl, AccountView, UserView } from "@molis-ai/molis-work-contracts/services/account";
 
 /**
  * Where the account's credentials are kept, and the question asked before anything is sent: can `feed/secrets.json` take this login's
@@ -16,7 +16,14 @@ export function fileAccountSecrets(): AccountSecrets {
 }
 
 export type PersonalCloudConfig = AccountEnvironmentConfig;
-export interface PersonalIdentity { userId: string; displayName: string; emails: string[]; applicationId: string }
+/**
+ * The one Host projection of the contract user used by the page status and by every account lease. The Home account
+ * API returns the same `UserView` through `AccountView`; this projection must never hold a second user record.
+ */
+export type PersonalIdentity = Readonly<Pick<UserView, "userId" | "displayName" | "email"> & { applicationId: string }>;
+export function personalIdentity(user: Pick<UserView, "userId" | "displayName" | "email">, applicationId: string): PersonalIdentity {
+  return { userId: user.userId, displayName: user.displayName, email: user.email ?? null, applicationId };
+}
 export interface PersonalAccountLease {
   readonly userId: string; readonly applicationId: string; readonly authOrigin: string; readonly signal: AbortSignal;
   assertCurrent(): void;
@@ -69,8 +76,8 @@ export class PersonalAuth {
   }
   async drained():Promise<void>{await Promise.allSettled([...this.closing]);}
   private accept(value:unknown,replaceLogin=false):void {
-    const record=value as {user?:{userId:string;displayName:string}}|null;
-    const next=record?.user?{userId:record.user.userId,displayName:record.user.displayName,emails:[],applicationId:this.config.applicationId}:null;
+    const record=value as {user?:Pick<UserView,"userId"|"displayName"|"email">}|null;
+    const next=record?.user?personalIdentity(record.user,this.config.applicationId):null;
     if(replaceLogin||(next?.userId??null)!==(this.user?.userId??null)){
       this.epoch++;this.controller.abort();this.controller=new AbortController();
     }
@@ -135,6 +142,5 @@ export class PersonalAuth {
   finishLogin():void{this.pending=null;}
   async logout(scope:'CURRENT_LOGIN'|'ALL_MOLIS_PRODUCTS'='CURRENT_LOGIN'):Promise<boolean>{this.cancelLogin();this.active.authentication.close();const result=await this.sessions.logout(scope,randomBytes(24).toString('hex'),this.control());return result.remoteRevocation==='CONFIRMED';}
   suspend():void{this.cancelLogin();this.closed=true;this.controller.abort();this.active.authentication.close();this.retire(this.active);}
-  dispose():void{this.suspend();}
   async safeView(control:AccountCallControl):Promise<AccountView>{return this.sessions.readSession(control);}
 }

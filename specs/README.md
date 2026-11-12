@@ -12,7 +12,7 @@
 
 - [daily-quality-d0002](daily-quality-d0002/spec.md)：工作资产恢复使用宿主身份，不从资产包继承团队共享授权；2026-11-08 获批，实施中。
 
-- [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 已完成本地隔离实现与验证；接续中央执行指引做集成收尾，真实存量与外部服务仍待补验。
+- [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 的本地隔离实现与 V2 账号统一已完成，并随 [#2013](https://github.com/molis-ai/molis-work/pull/2013)、[#2021](https://github.com/molis-ai/molis-work/pull/2021)、[#2025](https://github.com/molis-ai/molis-work/pull/2025) 合入 main（2026-11-11，`2630160877`）；真实存量迁移、外部服务与最终全量回归仍待补验。
 
 - [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。
 
@@ -52,7 +52,7 @@
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
 - [feed-bounded-reads](feed-bounded-reads/spec.md)：Feed完整快照改为分页与按需读取；2026-11-11 实现及本地定向验收完成，随 [#2026](https://github.com/molis-ai/molis-work/pull/2026) 合入 main（`96a1c70c37`），后续增量按新增项处理。
-- [daily-quality-low-a1](daily-quality-low-a1/spec.md)：2026-11-08 日评低优先级A-1的50项修复；2026-11-09获批，D0328暂缓，其余实施中。
+- [daily-quality-low-a1](daily-quality-low-a1/spec.md)：2026-11-08 日评低优先级A-1的50项修复；2026-11-09获批，D0328暂缓，已在 2026-11-10 随 [#1999](https://github.com/molis-ai/molis-work/pull/1999) 合入 main。
 - [daily-quality-d0039](daily-quality-d0039/spec.md)：项目关闭与删除等待激活作业真实收尾；2026-11-08 获批，实施中。
 - [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-302、BL-306～308；A5 已按 main 重核（2026-11-11，[A5 重核](prologue-adoption/a5-recheck-2026-11.md)）。
 - [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。

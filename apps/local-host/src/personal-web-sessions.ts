@@ -35,12 +35,6 @@ export class PersonalWebSessions {
     const timer=setTimeout(()=>this.remove(session),TTL);timer.unref();this.expiryTimers.set(session,timer);
     return session;
   }
-  rotate(session:WebAccountSession):void {
-    if(this.sessions.get(session.id)!==session || session.expires<=this.now())throw new Error('WEB_SESSION_EXPIRED');
-    this.sessions.delete(session.id);session.id=randomBytes(32).toString('base64url');
-    session.authenticated=true;session.generation=session.auth.accountGeneration();session.lease=session.auth.identity()?session.auth.accountLease():undefined;session.space=session.auth.identity()?'account':'local';
-    this.sessions.set(session.id,session);
-  }
   remove(session:WebAccountSession):void { clearTimeout(this.expiryTimers.get(session));this.expiryTimers.delete(session);this.sessions.delete(session.id);session.navigation=null; }
   close():void { for(const session of this.sessions.values())this.remove(session); }
   cookie(session:WebAccountSession|null,secure:boolean):string {

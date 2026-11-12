@@ -1,4 +1,6 @@
 import { installAccountCache } from './account-cache.js';
+import { accountCacheOwner, missingAccountCacheScope } from '../account-cache-owner.js';
+import { pageSessionScope } from '../account-cache-key.js';
 interface AccountTransition {
   readonly preparing: boolean;
   page(root: HTMLElement, flush: () => Promise<void>, dispose: () => void | Promise<void>, resume: () => void): () => void;
@@ -11,15 +13,20 @@ interface AccountTransition {
 }
 declare global { var molisWorkAccountTransition: AccountTransition | undefined; interface Window { molisWorkAccountTransition?: AccountTransition } }
 
-/** Account controls and opaque-frame transport are separate bundles in the same trusted document. */
-export function accountTransition(): AccountTransition {
+/**
+ * Account controls and opaque-frame transport are separate bundles in the same trusted document.
+ * `options.scope` is only for tests and embedded carriers that already hold the Host page-session scope; a page
+ * that does not carry the Host meta is the refusal case in `account-cache.ts` (fail closed, never a silent no-op).
+ */
+export function accountTransition(options?: { scope?: string | null }): AccountTransition {
   if (globalThis.molisWorkAccountTransition) return globalThis.molisWorkAccountTransition;
   const pages = new Map<HTMLElement, {flush(): Promise<void>; dispose(): void | Promise<void>; resume(): void}>();
   const listeners = new Set<() => void>();
   const changed = () => { for (const listener of listeners) listener(); };
   const inert = new Map<HTMLElement, boolean>();
-  const scope = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split('.')[1];
-  const accountCache = scope ? installAccountCache(scope) : {clear: async () => {}, hasDrafts: async () => false};
+  const scope = options && 'scope' in options ? options.scope ?? null
+    : pageSessionScope(document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content);
+  const accountCache = accountCacheOwner(scope, installAccountCache);
   let preparing = false, invalidated = false, disposal = Promise.resolve();
   const lock = () => {
     preparing = true;
@@ -42,6 +49,10 @@ export function accountTransition(): AccountTransition {
     },
     resume() { if (invalidated) return; preparing = false; for (const page of pages.values()) page.resume(); for (const [node, value] of inert) node.inert = value; inert.clear(); for (const notice of document.querySelectorAll<HTMLElement>('[data-account-transition-notice]')) notice.hidden = true; },
     invalidate(clearCache = true) {
+      if (!scope) {
+        // The page cannot prove which account data to clear; do not pretend the account left or changed.
+        return Promise.reject(missingAccountCacheScope());
+      }
       const cleanup = clearCache ? accountCache.clear() : Promise.resolve();
       if (!invalidated) {
         lock(); invalidated = true;

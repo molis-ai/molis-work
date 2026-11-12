@@ -1,6 +1,6 @@
 # 统一输入框定样
 
-状态：方案已定（用户 2026-11-04，七块都照推荐；同日按组件板改过后复看，照这版定），记入 [`specs/unified-input-voice/spec.md`](../../../specs/unified-input-voice/spec.md) §10。K2／K3 已随第 10 批实现（首页／助理已用上组件；组件板三标本已落）；Coding 与其余入口待后续批。本目录整页仍是模拟原型，不连 Home、不调模型，回复、回执和状态都是假的。
+状态：方案已定（用户 2026-11-04，七块都照推荐；同日按组件板改过后复看，照这版定），记入 [`specs/unified-input-voice/spec.md`](../../../specs/unified-input-voice/spec.md) §10。K2／K3 已随第 10 批实现（首页／助理已用上组件；组件板三标本已落）；K4 Coding 与 K5「待办」来源随第 11 批合入（2026-11-11，[#2016](https://github.com/molis-ai/molis-work/pull/2016)）；K6 其余入口待后续批。本目录整页仍是模拟原型，不连 Home、不调模型，回复、回执和状态都是假的。
 
 需求出处：[统一输入体验](../../../specs/unified-input-voice/spec.md) §3～§5、§8、UIV-01～17；[输入回执 §4.1](../../../specs/ai-input-receipts/spec.md)（三种送达方式）；[视觉体验](../../../specs/visual-ui-experience/spec.md) VUX-16～18；路线书[第 10 批](../../../specs/post-anticorruption-roadmap/reference/batches/10.md)的本批核账与统筹 2026-11-04 定下的五条；H4 用词。现状盘点见[输入框盘点](../../../specs/unified-input-voice/input-inventory.md)。
 

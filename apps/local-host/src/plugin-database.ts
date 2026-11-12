@@ -14,22 +14,30 @@ import type { ArtifactHomeLibrary } from "./plugin-artifact-row-library.js";
 import { artifactRowReplication } from "./plugin-artifact-row-sql.js";
 
 /** The single typed declaration bridge used by the authorized Host client and the bounded SQL worker. */
-export function openPluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration,
+export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration,
   partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
-  if (declaration.project_rows?.artifact_join) {
-    home = realpathSync(home);
-    const path = homeSqlitePath(home, declaration.store_name, partition?.project_id);
-    assertArtifactLibraryReady(path);
-    const existing = lstatSync(path, { throwIfNoEntry: false });
-    if (!existing || existing.size === 0) {
-      // The existing initializer establishes the space in WAL before the fresh file receives any business schema.
-      openHomeSqliteDatabase(home, declaration.store_name, partition?.project_id, db => {
-        if (db.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode !== "wal") throw new ActionError("actions.service_unavailable", "插件库初始化日志模式暂不可用");
-        db.exec("PRAGMA synchronous=FULL");
-      }).close();
-    }
-  }
   return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
+}
+
+/**
+ * A Home library's connection: one whose rows join the project's artifacts is first checked against the artifact library and, when
+ * new, created in WAL at the Home's real path before any business schema; every library then opens through the declaration bridge.
+ */
+export function openHomePluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration,
+  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
+  if (!declaration.project_rows?.artifact_join) return openPluginDatabaseConnection(home, declaration, partition);
+  const real = realpathSync(home);
+  const path = homeSqlitePath(real, declaration.store_name, partition?.project_id);
+  assertArtifactLibraryReady(path);
+  const existing = lstatSync(path, { throwIfNoEntry: false });
+  if (!existing || existing.size === 0) {
+    // The existing initializer establishes the space in WAL before the fresh file receives any business schema.
+    openHomeSqliteDatabase(real, declaration.store_name, partition?.project_id, db => {
+      if (db.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode !== "wal") throw new ActionError("actions.service_unavailable", "插件库初始化日志模式暂不可用");
+      db.exec("PRAGMA synchronous=FULL");
+    }).close();
+  }
+  return openPluginDatabaseConnection(real, declaration, partition);
 }
 
 /**
@@ -48,7 +56,7 @@ export function openPluginDatabase(home: string, declaration: PluginDatabaseDecl
   const business = manifest?.databases?.home;
   const root = manifest && business && projectArtifactRoot(business, manifest.plugin_id);
   if (root) home = realpathSync(home);
-  const writer = openPluginDatabaseConnection(home, declaration, partition);
+  const writer = openHomePluginDatabaseConnection(home, declaration, partition);
   let reader: ReturnType<typeof openReadOnlyHomeSqlite>;
   try {
     if (root) {

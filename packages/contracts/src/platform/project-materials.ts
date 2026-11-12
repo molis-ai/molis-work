@@ -158,7 +158,7 @@ export const SYSTEM_OUTPUT_SOURCES: readonly SystemOutputSource[] = Object.freez
 export const systemOutputSource = (pluginId: string): SystemOutputSource | undefined => SYSTEM_OUTPUT_SOURCES.find(source => source.plugin_id === pluginId);
 
 /** The version the platform records as `producer_plugin_version` on what the materials service writes; its `signature` is what is checked. */
-export const SYSTEM_MATERIALS_PRODUCER_VERSION = "1";
+export const SYSTEM_MATERIALS_PRODUCER_VERSION = /* @version identity.system.materials-producer */ "1";
 
 /** One of the project's folders as the materials service shows it; `handle` is the folder's id, never a path. */
 export interface MaterialsWorkspace { workspace_id: string; name: string; handle: string }

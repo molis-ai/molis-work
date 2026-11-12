@@ -1060,6 +1060,7 @@
     "format.workspace.git-worktree": 1,
     "host.api": 1,
     "identity.mcp.server": "1.0.0",
+    "identity.system.materials-producer": "1",
     "manifest.schema": 1,
     "method.coding-diagnose-fix": 1,
     "method.coding-git-delivery": 1,

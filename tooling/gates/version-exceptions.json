@@ -1,5 +1,11 @@
 [
   {
+    "file": "apps/local-host/src/system-materials-actions.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "资料服务新建过程项的第一个固定版本号：每个新过程项都从第 1 版开始，是数据里的版本序号，不是产品或合同声明的版本（用户 2026-11-12 批准登记）。"
+  },
+  {
     "file": "packages/design-system/src/primitives/catalog-skill-packs.ts",
     "name": "version",
     "values": { "1.4": 1 },

@@ -79,7 +79,7 @@ test("RCPT-311, RC-12: the fact line says only the ledger's state, and the model
   const claimed = root.all("mw-receipt__claimed")[0]!;
   assert.match(claimed.text, /^AI 自己说的，Molis 没有核对/u, "the detail puts the claim under its own heading");
   assert.match(claimed.text, /说明过 2 次，以最新一次为准 · 工具调用 call-9/u);
-  assert.match(claimed.text, /“放到第 4 步一起测”/u);
+  assert.match(claimed.text, /「放到第 4 步一起测」/u, "zh quotes the model's own words with the shared quoted key");
   assert.equal(root.all("mw-receipt__facts")[0]!.text.includes("留到后面"), false, "the run record holds no claim");
   assert.match(root.all("mw-receipt__note")[0]!.text, /读到不代表已遵循/u, "the caveat is text, not a tooltip");
 });
@@ -235,7 +235,7 @@ test("RCPT-325: the original says what it was changed to and the correction what
   const turn = (state: string): Turn => ({ turn_id: "t5", kind: "user", text: "只测失败路径", steer: { id: "steer-5", state, about: "steer-1" } });
   const correction = ui.line(here, turn("received"), { run_id: "run-1" }, act)!;
   assert.equal(correction.all("mw-receipt__link")[0]!.text, "纠正：针对「顺便把注册接口也覆盖一下」");
-  assert.equal(original.all("mw-receipt__link")[0]!.text, "你改为：「只测失败路径」", "RCPT-325 the original's receipt changes as soon as its correction is seen");
+  assert.equal(original.all("mw-receipt__link")[0]!.text, "你改为「只测失败路径」", "RCPT-325 the original's receipt changes as soon as its correction is seen");
   assert.deepEqual(await said(), [], "a link is not a change of state");
   original.button("看更正").click();
   assert.equal(correction.open, true); assert.equal(correction.revealed, 1);
@@ -361,7 +361,7 @@ test("RCPT-344, 3d-2: the receipt quotes each step report that names it, under t
   const { ui } = receipts();
   const root = ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: board("steer-1") })!;
   const claimed = root.all("mw-receipt__claimed")[0]!;
-  assert.match(claimed.text, /^AI 自己说的，Molis 没有核对步骤报告提到它S2 “已按补充改用新 fixture”插入 “补了注册接口的用例”$/u, "RCPT-344 quoted next to the AI's note heading, S2 and 插入 as the plan card keys them");
+  assert.match(claimed.text, /^AI 自己说的，Molis 没有核对步骤报告提到它S2 「已按补充改用新 fixture」插入 「补了注册接口的用例」$/u, "RCPT-344 quoted next to the AI's note heading, S2 and 插入 as the plan card keys them");
   assert.doesNotMatch(root.text, /建好 fixture|已生效/u, "a report that does not name it is not shown, and nothing is said to have taken effect (D21)");
   assert.equal(root.all("mw-receipt__fact")[0]!.text, "AI 已读到", "RCPT-344 a report moves no fact");
   assert.equal(ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: board("steer-1") }), root);
@@ -370,7 +370,7 @@ test("RCPT-344, 3d-2: the receipt quotes each step report that names it, under t
   assert.equal(unread.all("mw-receipt__claimed").length, 0, "RCPT-344 a board not read this time is not a board with no reports: nothing is drawn");
   const later = ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: { nodes: [...board("steer-1").nodes, { reports: [{ note: "又跑了一遍", inputs: [{ session_id: "s", input_id: "steer-1" }] }] }] } })!;
   assert.equal(later, root, "the same element");
-  assert.match(later.all("mw-receipt__claimed")[0]!.text, /S4 “又跑了一遍”$/u, "RCPT-344 a new report redraws it");
+  assert.match(later.all("mw-receipt__claimed")[0]!.text, /S4 「又跑了一遍」$/u, "RCPT-344 a new report redraws it");
 });
 
 test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's own step, and is null when it drew none", () => {
@@ -449,7 +449,7 @@ test("RCPT-348: one receipt per surface that draws it; a correction updates ever
   assert.equal(ui.line(here, supplement({ state: "read" }), { run_id: "run-1" }), mine, "each keeps its own across repaints");
   const fix = { turn_id: "t2", kind: "user", text: "不是这个意思，而是：只看登录", steer: { id: "steer-2", state: "received", about: "steer-1" } };
   ui.line(here, fix, { run_id: "run-1" }); ui.line(beside, fix, { run_id: "run-1" });
-  for (const copy of [mine, theirs]) assert.equal(copy.all("mw-receipt__link")[0]?.text, "你改为：「不是这个意思，而是：只看…」", "RCPT-348 the correction changes both copies of its original");
+  for (const copy of [mine, theirs]) assert.equal(copy.all("mw-receipt__link")[0]?.text, "你改为「不是这个意思，而是：只看…」", "RCPT-348 the correction changes both copies of its original");
   assert.equal(ui.link(beside, "steer-1")!.text, "关于补充「顺便把注册接口也覆盖一下」");
   ui.link(beside, "steer-1")!.click();
   assert.equal([theirs.open, mine.open].join(), "true,false", "RCPT-348 link opens the copy on its own surface");

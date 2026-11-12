@@ -105,10 +105,9 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
   const say = (words: string) => {
     if (!pending.length) queueMicrotask(() => {
       if (!live?.isConnected) { live = make("p", "mw-sr-only"); live.setAttribute("role", "status"); document.body.append(live); }
-      live.textContent = pending.join("；"); pending = [];
+      live.textContent = pending.join(readText("common.punctuation.semicolon")); pending = [];
     });
-    pending.push(words);
-  };
+    pending.push(words); };
   const row = (list: HTMLElement, term: string | undefined, value: string) => { list.append(make("dt", "", term ? readText(term) : ""), make("dd", "", value)); };
   const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
   /** Both ends of a correction, as drawn on the same surface: the input this one corrects, and the latest one correcting it. */
@@ -122,8 +121,7 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
   const claimLine = (claim: AgentInputModelClaim) => treatment(claim) + (claim.impacts.length ? readText("common.input-receipts.affects") + impacts(claim) : "");
   const asking = (questions: readonly AgentInputQuestion[]) => {
     const open = questions.filter(one => one.state === "open").length;
-    return open ? readText("common.input-receipts.question-about-waits-answer") : questions.some(one => one.state === "unresolved") ? readText("common.input-receipts.question-about-was-never-answered") : "";
-  };
+    return open ? readText("common.input-receipts.question-about-waits-answer") : questions.some(one => one.state === "unresolved") ? readText("common.input-receipts.question-about-was-never-answered") : ""; };
   const word = (state: AgentStepState, mine?: boolean) => readText(mine && MARK[state] || STEP[state]), { cites, added } = board(readText, word);
   const body = (steer: AgentTurnSteer, cited: string[][], steps: string[]) => {
     const part = make("div", "mw-receipt__body"), facts = make("dl", "mw-receipt__facts"), claim = steer.model_claim, beside = Boolean(claim || cited.length);
@@ -139,11 +137,11 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
       row(said, "common.input-receipts.handling", (claim.kind ? readText(KIND[claim.kind]) + " · " : "") + treatment(claim));
       if (claim.targets.length) row(said, "common.input-receipts.points", claim.targets.map(target => readText(TARGET[target.kind]) + " " + target.id).join(readText("common.list.separator")));
       if (claim.impacts.length) row(said, "common.input-receipts.says-changes", impacts(claim));
-      if (claim.note) row(said, "common.input-receipts.ai-s-words", "“" + claim.note + "”");
+      if (claim.note) row(said, "common.input-receipts.ai-s-words", readText("common.punctuation.quoted", { value: claim.note }));
       row(said, "common.input-receipts.provenance", (claim.revisions > 1 ? readText("common.input-receipts.stated") + claim.revisions + readText("common.input-receipts.times-latest-stands") : readText("common.input-receipts.stated-once")) + (claim.tool_call_id ? readText("common.input-receipts.tool-call") + claim.tool_call_id : ""));
     }
     // A step's report is the AI's words about the step, quoted like its own note: it says nothing took effect (D21).
-    for (const [index, [step, note]] of cited.entries()) row(said, index ? undefined : "common.input-receipts.step-reports-naming", step + " " + "“" + note + "”");
+    for (const [index, [step, note]] of cited.entries()) row(said, index ? undefined : "common.input-receipts.step-reports-naming", step + " " + readText("common.punctuation.quoted", { value: note }));
     part.append(group);
     return part;
   };
@@ -166,8 +164,7 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
   const attempt = async (holder: { problem?: string }, work: () => Promise<string | void>) => {
     holder.problem = undefined;
     try { const words = await work(); if (words) say(words); }
-    catch (error) { holder.problem = (error as Error).message; say(holder.problem); }
-  };
+    catch (error) { holder.problem = (error as Error).message; say(holder.problem); } };
   /** Draws `summary` and `part` in place of what `root` showed, keeping `form`; focus on what was redrawn moves to its new copy. */
   const redraw = (root: HTMLElement, summary: HTMLElement, part: HTMLElement, form?: HTMLElement) => {
     const focused = document.activeElement, kept = focused && root.contains(focused) && !form?.contains(focused) ? focused.textContent : null;
@@ -186,7 +183,9 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
     const fact = readText(waits ? "common.input-receipts.added-turn-question-still-waits-answer" : FACT[steer.state]);
     const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
     const [about, fixed] = ends(entry), cited = cites(steer, round?.step_board), steps = added(steer, round?.step_board);
-    const link = steer.about ? readText("common.input-receipts.corrects") + (about ? "「" + quote(about.turn.text) + "」" : readText("common.input-receipts.earlier-one")) : fixed ? readText("common.input-receipts.changed") + quote(fixed.turn.text) + "」" : "";
+    const link = steer.about ? readText("common.input-receipts.corrects")
+      + (about ? readText("common.punctuation.quoted", { value: quote(about.turn.text) }) : readText("common.input-receipts.earlier-one"))
+      : fixed ? readText("common.input-receipts.changed") + readText("common.punctuation.quoted", { value: quote(fixed.turn.text) }) : "";
     const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act), cited, steps]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
     if (!force && entry.said === key) return;
     const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact), part = body(steer, cited, steps);
@@ -199,10 +198,11 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
     // A correction being written stays where it is, focus and words untouched: only what comes before it is drawn again,
     // and focus on what was redrawn moves to its new copy rather than falling back to the page.
     redraw(root, summary, part, entry.form);
-    if (before) {
-      const words = quote(turn.text);
-      if (before[0] !== fact) say(readText("common.input-receipts.supplement") + words + "」：" + fact);
-      if (claim && before[1] !== claim) say(readText("common.input-receipts.ai-says-supplement") + words + "」：" + claim);
+    if (before) { const words = quote(turn.text);
+      if (before[0] !== fact) say(readText("common.input-receipts.supplement") + readText("common.punctuation.quoted", { value: words })
+        + readText("common.punctuation.label-separator") + fact);
+      if (claim && before[1] !== claim) say(readText("common.input-receipts.ai-says-supplement") + readText("common.punctuation.quoted", { value: words })
+        + readText("common.punctuation.label-separator") + claim);
       if (ask && before[2] !== ask) say(ask);
     }
     entry.said = key;
@@ -254,7 +254,9 @@ export function createCorrection<E extends CorrectionEntry>({ readText, say, mak
   return (entry: E) => {
     const steer = entry.turn.steer!, claim = steer.model_claim;
     const form = entry.form = make("form", "mw-receipt__body"), area = make("textarea", "mw-textarea"), status = make("p", "mw-receipt__note");
-    const phrases = [claim ? readText("common.input-receipts.not") + treatment(claim) + readText("common.input-receipts.but") : readText("common.input-receipts.not-what-i-meant-instead"), readText("common.input-receipts.about"), readText("common.input-receipts.one-more-thing")];
+    const phrases = [claim ? readText("common.input-receipts.not") + readText("common.punctuation.quoted", { value: treatment(claim) })
+      + readText("common.punctuation.clause-separator") + readText("common.input-receipts.but") : readText("common.input-receipts.not-what-i-meant-instead"),
+      readText("common.input-receipts.about"), readText("common.input-receipts.one-more-thing")];
     const choices = make("div", "mw-receipt__acts"), send = make("button", "mw-btn mw-btn--sm mw-btn--primary", readText("common.input-receipts.send-correction"));
     for (const phrase of phrases) choices.append(button("mw-btn--secondary", phrase, () => {
       area.value = !area.value.trim() || phrases.includes(area.value) ? phrase : area.value + "\n" + phrase; area.focus(); area.selectionStart = area.value.length;
@@ -262,7 +264,7 @@ export function createCorrection<E extends CorrectionEntry>({ readText, say, mak
     const close = () => { entry.form = undefined; form.remove(); again(entry); entry.root.querySelector<HTMLElement>(".mw-receipt__acts .mw-btn--ghost")?.focus(); };
     const done = make("div", "mw-receipt__acts");
     done.append(send, button("mw-btn--ghost", readText("common.control.cancel"), close));
-    area.setAttribute("aria-label", readText("common.input-receipts.correct-2") + quote(entry.turn.text) + "」");
+    area.setAttribute("aria-label", readText("common.input-receipts.correct-2") + readText("common.punctuation.quoted", { value: quote(entry.turn.text) }));
     status.setAttribute("role", "status"); status.hidden = true;
     form.append(make("p", "mw-receipt__note", readText("common.input-receipts.correction-goes-out-new-supplement-that-points-one")), choices, area, status, done);
     form.addEventListener("keydown", event => { if (event.key === "Escape") { event.stopPropagation(); close(); } });
@@ -396,7 +398,7 @@ export function createAgreements({ readText, make, button, latest }: InputReceip
  * comments are `//` lines, which `compactScript` drops: a page that inlines the program unminified (the arrival chooser) would
  * carry a doc comment.
  */
-function readBoard(readText: (text: string) => string, word: (state: AgentStepState, mine?: boolean) => string) {
+function readBoard(readText: InputReceiptParts["readText"], word: (state: AgentStepState, mine?: boolean) => string) {
   // Each step's key on the plan card (S1, S2…, 插入).
   const step = (node: InputReceiptBoard["nodes"][number], index: number) => node.inserted ? readText("common.input-receipts.inserted") : "S" + (index + 1);
   // The reports on the round's board that name this input, each under its step's key.
@@ -406,7 +408,10 @@ function readBoard(readText: (text: string) => string, word: (state: AgentStepSt
   // that a person added it, and its state now, said as whoever holds it ended it. Not when it was added or at which version:
   // the board does not keep those.
   const added = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
-    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index) + (node.title ? "「" + node.title + "」" : "") + (node.inserted ? readText("common.input-receipts.added") : "") + readText("common.input-receipts.now") + word(node.state, node.owner?.kind === "person")] : []);
+    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index)
+      + (node.title ? readText("common.punctuation.quoted", { value: node.title }) : "")
+      + (node.inserted ? readText("common.input-receipts.added") : "")
+      + readText("common.input-receipts.now") + readText("common.punctuation.label-separator") + word(node.state, node.owner?.kind === "person")] : []);
   return { cites, added };
 }
 

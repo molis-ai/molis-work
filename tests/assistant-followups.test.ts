@@ -8,8 +8,12 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { AssistantFollowUp } from "@molis-ai/molis-work-contracts/services/assistant";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, sameLocalTimeLater } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";

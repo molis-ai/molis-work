@@ -99,7 +99,7 @@ renderPluginStageShell({
 - `plugin-stage-shell` + `plugin-stage-list`（`feed-stage-list feed-stage-tree`）+ `plugin-stage-workspace`。
 - 点插件条：`is-plugin-directory-empty`，不要 `data-directory-open` 第二栏（来源管理等隐藏 panel 除外）。
 - 列表页由 Host 画成原型的页：居中 960px 一栏，页标题取自 `label`（Host 写进 `--stage-title`，插件不要自己再画标题），`plugin-stage-chrome` 里的动作排在标题右侧，其中第一个 `tree-create` 是本页唯一的石墨按钮。行至少 44px。分组用 `goal-collection-fold`：caret + 状态 mark（勾=安好，三角=要盯）+ 标题 + 计数。点分组头只开合，不自动打开第一行。
-- `label` 写界面语言的原文（中文），并在插件的英文表里给出对应；Host 用 `L()` 取当前语言的标题。
+- `label` 引用自己的稳定键，由各主人语言文件提供当前语言（例如 `label: t.text("notes.stage.title")`）；旧写法「中文原文当键 + 插件英文表 + Host `L()`」已随第 16 批删除。
 - 编辑器是单个表单时，放进全宽滚动容器里的居中一栏（参考 Forms 52rem、Dataset 72rem）；写作类（灵光）是写作页：文档标题 + 阅读字号正文。
 - 宽屏点行：`data-expanded="true"`，列表收成 `--tree-width` 的浅色侧栏（`--surface-soft`），右边详情。窄屏只看正文，`plugin-stage-back` 回列表。
 - 行：`feed-stage-entry directory-list-row`，不要 `mw-dir-row` 当主列表。

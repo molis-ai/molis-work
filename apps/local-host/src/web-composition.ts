@@ -43,7 +43,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   const projectSettings = createLocalProjectSettingsHttp(withCatalog,diagnostics);
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();
-  const { buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell } = createLocalHostCapsule(platform.renderDesktopCapsuleShell);
+  const { buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell } = createLocalHostCapsule(platform.renderDesktopCapsuleShell, appearance);
   const planningHttp = createLocalPlanningHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const goalsReadHttp = createLocalGoalsReadHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const handleOnboarding = createLocalOnboardingHttp({

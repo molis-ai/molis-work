@@ -377,7 +377,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
           if (conflict) {
             conflict.hidden = false;
             conflict.innerHTML = "<p>" + escapeText(body.error || globalThis.t.text("goals.event-document-client.current-agreement-has-changed-input-kept")) + "</p>"
-              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.current-expected-result")) + "：" + escapeText(current.agreement?.outcome || globalThis.t.text("goals.event-document-client.not-filled")) + "</p>"
+              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.current-expected-result")) + globalThis.t.text("common.punctuation.label-separator") + escapeText(current.agreement?.outcome || globalThis.t.text("goals.event-document-client.not-filled")) + "</p>"
               + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.agreement-version")) + " " + escapeText(current.agreement?.version ?? "") + " · " + escapeText(globalThis.t.text("goals.event-document-client.configuration-version")) + " " + escapeText(current.config?.version ?? "") + "</p>"
               + '<button type="button" class="mw-btn mw-btn--secondary" data-conflict-retry>' + escapeText(globalThis.t.text("goals.event-document-client.review-against-current-version-then-submit")) + "</button>";
           }
@@ -559,7 +559,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
           if (box) {
             box.hidden = false;
             box.innerHTML = "<p>" + escapeText(globalThis.t.text("goals.event-document-client.switched-current-version-check-inputs-before-submitting")) + "</p>"
-              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.current-expected-result")) + "：" + escapeText(state.agreement?.outcome || globalThis.t.text("goals.event-document-client.not-filled")) + "</p>"
+              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.current-expected-result")) + globalThis.t.text("common.punctuation.label-separator") + escapeText(state.agreement?.outcome || globalThis.t.text("goals.event-document-client.not-filled")) + "</p>"
               + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.agreement-version")) + " " + escapeText(state.agreement?.version ?? "") + " · " + escapeText(globalThis.t.text("goals.event-document-client.configuration-version")) + " " + escapeText(state.config?.version ?? "") + "</p>";
           }
         })();

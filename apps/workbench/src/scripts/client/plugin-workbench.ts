@@ -31,7 +31,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     return heading ? heading.textContent : id;
   };
   // One sentence with the names filled in; no sentence when the list is empty (so a button has no empty title).
-  const relation = (ids, template) => ids.length ? globalThis.t.text(template).replace("{list}", ids.map(marketName).join(globalThis.t.text("common.list.separator"))) : "";
+  const relation = (ids, template) => ids.length ? globalThis.t.text(template, { list: ids.map(marketName).join(globalThis.t.text("common.list.separator")) }) : "";
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
@@ -39,7 +39,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);
     }
     if (marketLink) marketLink.setAttribute("aria-label", updates.length
-      ? globalThis.t.text("workbench.plugin-workbench.plugin-market") + "，" + updates.length + globalThis.t.text("workbench.plugin-workbench.available-updates")
+      ? globalThis.t.text("workbench.plugin-workbench.plugin-market-updates", { n: updates.length })
       : globalThis.t.text("workbench.plugin-workbench.plugin-market"));
   };
   const refreshUpdates = () => {
@@ -141,7 +141,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const title = added
         ? relation(neededBy.filter(id => addedIds.includes(id)), "workbench.plugin-workbench.removing-also-removes-list")
         : [relation(needs.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.also-adds-list"),
-          relation(neededBy.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list")].filter(Boolean).join("；");
+          relation(neededBy.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list")].filter(Boolean).join(" · ");
       if (title) button.title = title; else button.removeAttribute("title");
       const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
       const upgradeButton = card.querySelector("[data-market-upgrade]");

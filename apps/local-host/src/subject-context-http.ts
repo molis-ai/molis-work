@@ -24,7 +24,7 @@ function requested(url: URL): { kind: UiSubjectContextKind; id: string } {
     throw new ActionError("actions.input_invalid", "关联原文只接受一个 kind 和一个 id");
   }
   const kind = kinds[0]!, id = ids[0]!;
-  if (!KINDS.has(kind)) throw new ActionError("actions.input_invalid", `关联原文的 kind 只能是 ${[...KINDS].join("、")}`);
+  if (!KINDS.has(kind)) throw new ActionError("actions.input_invalid", `关联原文的 kind 只能是 ${[...KINDS].join(" 或 ")}`);
   if (!id.trim() || [...id].length > ID_LIMIT) throw new ActionError("actions.input_invalid", `关联原文的 id 必须是 1 到 ${ID_LIMIT} 个字符`);
   return { kind: kind as UiSubjectContextKind, id };
 }

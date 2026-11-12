@@ -1,4 +1,5 @@
 import { errorMessage } from "./dom.js";
+import { sessionTitle } from "./session-title.js";
 import { commandPalette, type Command, type PaletteControl, type PalettePorts } from "./palette.js";
 import type { PagePorts } from "./types.js";
 
@@ -26,7 +27,7 @@ function shortcuts(ports: CommandPorts, palette: PaletteControl, run: (command: 
   const { lifetime, input, commands, sessions, current, openSession } = ports;
   const step = (delta: number) => {
     const list = sessions(), at = list.findIndex(session => session.session_id === current()), next = list[at < 0 ? 0 : (at + delta + list.length) % list.length];
-    if (next) void openSession(next.session_id, next.title);
+    if (next) void openSession(next.session_id, sessionTitle(next.title));
   };
   lifetime.listen(document, "keydown", event => {
     if (!(event instanceof KeyboardEvent)) return;

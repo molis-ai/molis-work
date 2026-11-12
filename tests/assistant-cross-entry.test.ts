@@ -4,8 +4,12 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, AssistantService, AssistantStore, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { openTestHome } from "./fixtures/test-home.js";
 import { crossEntrySchedule as subject, isCrossEntryObject } from "./fixtures/cross-entry-subjects.js";

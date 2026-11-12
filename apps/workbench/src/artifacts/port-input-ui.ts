@@ -11,7 +11,7 @@ const STATE = { this: "workbench.port-input-ui.reading-version", "another-versio
  */
 export function renderArtifactPortInputs(inputs: ReadonlyArray<ArtifactPluginInput>, reference: { artifact_id: string; version: number }, p: Primitives): string {
   const rows = inputs.map((input) => {
-    const state = input.source === "plugin" ? uiText.text("workbench.port-input-ui.following-source").replace("{source}", p.escape(input.source_title ?? "")) : uiText.text(STATE[input.source]);
+    const state = input.source === "plugin" ? uiText("workbench.port-input-ui.following-source", { source: input.source_title ?? "" }) : uiText.text(STATE[input.source]);
     const action = input.source === "this" ? "restore" : "use";
     return `<li data-artifact-port data-plugin-id="${p.escape(input.plugin_id)}" data-port="${p.escape(input.port)}"><strong>${p.escape(input.plugin_title)}</strong><span>${p.escape(input.port)}</span><small>${state}</small><button class="mw-btn mw-btn--sm${action === "restore" ? " mw-btn--ghost" : ""}" type="button" data-artifact-port-input="${action}">${uiText(action === "restore" ? "workbench.port-input-ui.back-former-source" : "workbench.port-input-ui.use-version")}</button></li>`;
   }).join("");

@@ -156,7 +156,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     rendered = after; revision = next.body.dataset.projectPluginRevision;
     try { saveUiState?.(); } catch {}
     const also = [...came, ...gone].filter((id) => id !== pluginId);
-    if (also.length) showToast?.((adding ? globalThis.t.text("workbench.plugin-membership.also-added-list") : globalThis.t.text("workbench.plugin-membership.also-removed-list")).replace('{list}', also.map(nameOf).join('、')));
+    if (also.length) showToast?.(globalThis.t.text(adding ? "workbench.plugin-membership.also-added-list" : "workbench.plugin-membership.also-removed-list", { list: also.map(nameOf).join(globalThis.t.text("common.list.separator")) }));
   };
 
   const save = async (target, pluginId, adding, expectedRevision) => {

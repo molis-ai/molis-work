@@ -25,6 +25,7 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
 const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
 
+
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
 /** What this file refuses about a session that is archived, busy, or not waiting: each code says what sort of refusal it is (W3-02). */
@@ -164,7 +165,7 @@ const ROUTES: RouteMaker[] = [
       control?.provideSubjectState?.(current);
       const { state } = current();
       return { subject, state };
-    });;
+    });
   },
   (a) => a.route("coding.subject", (request, _api, execution, beforeWrite) => codingSessionSubject(a, request, execution, beforeWrite)),
   // Like /compact: the next round starts from the digest of earlier rounds instead of replaying them verbatim.

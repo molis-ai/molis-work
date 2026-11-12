@@ -14,9 +14,9 @@ const GOALS_RELATION_PREVIEW_SCRIPT = `    const relationWordKey = (${relationWo
       const dependencies = [...form.querySelectorAll('[name="dependency_goal_ids"]:checked')];
       const dependencyPreview = form.querySelector("[data-dependency-preview]");
       if (dependencyPreview) {
-        const names = dependencies.map((input) => "「" + (input.dataset.goalName || input.value) + "」");
+        const names = dependencies.map((input) => globalThis.t.text("common.punctuation.quoted", { value: input.dataset.goalName || input.value }));
         dependencyPreview.textContent = names.length
-          ? globalThis.t.text("goals.relation-client.preview-new-goal-depends-names-new-goal-cannot", { names: names.join(currentLocale() === "en" ? ", " : "、") })
+          ? globalThis.t.text("goals.relation-client.preview-new-goal-depends-names-new-goal-cannot", { names: names.join(globalThis.t.text("common.list.separator")) })
           : globalThis.t.text("goals.relation-client.preview-there-no-execution-prerequisite-goal-can-move");
       }
     };

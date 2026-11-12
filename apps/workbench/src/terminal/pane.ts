@@ -38,7 +38,7 @@ export function renderTerminalPane(model: TerminalPaneModel): string {
     .filter(([kind]) => cliAvailability[kind] === false)
     .map(([, label]) => label);
   const missingHint = missingKinds.length
-    ? `<p class="tui-menu-missing">${uiText("workbench.pane.these-clis-not-installed-list-install-them-then", { list: missingKinds.join("、") })}</p>`
+    ? `<p class="tui-menu-missing">${uiText("workbench.pane.these-clis-not-installed-list-install-them-then", { list: missingKinds.join(uiText.text("common.list.separator")) })}</p>`
     : "";
   return `
       <div class="tui-resizer" role="separator" aria-label="${uiText("workbench.pane.resize-terminal-double-click-collapse")}" aria-orientation="vertical" aria-valuemin="280" aria-valuemax="720" aria-valuenow="480" tabindex="0" data-tui-resizer></div>

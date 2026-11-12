@@ -16,6 +16,7 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import { homeHostUrl } from "./host-endpoint.js";
 
 interface ContextGatewayOwner {
   home: string; host: MolisWorkLocalHost; withCatalog: LocalWebCatalogRunner; deletion: ProjectDeletionPorts;
@@ -83,7 +84,7 @@ async function executeContext(owner: ContextGatewayOwner, body: Record<string, u
     if (body.tool !== undefined) throw new ActionError("actions.input_invalid", "恢复连接不能携带工具参数");
     const resolution = await withCatalog({ homeDirectory: owner.home }, catalog => catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues ?? []));
     if (resolution.status === "bound" && resolution.connection) connection.accept({ projectId: resolution.connection.project_id,
-      databasePath: resolution.connection.database_path, webBaseUrl: host.webBaseUrl ?? "http://127.0.0.1:4173" }, host.runtimeContext);
+      databasePath: resolution.connection.database_path, webBaseUrl: host.webBaseUrl ?? homeHostUrl(owner.home) }, host.runtimeContext);
     return null;
   }
   const tool = closedRecord(body.tool, ["name", "arguments"]);

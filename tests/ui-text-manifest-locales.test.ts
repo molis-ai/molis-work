@@ -24,12 +24,14 @@ test("FSS-52 a Manifest declares its languages and the parsed Manifest keeps the
   }
 });
 
-test("FSS-52 a Manifest may omit ui.locales, but neither removed field is accepted", () => {
+test("FSS-52 a Manifest may omit ui.locales, but neither removed field is accepted, each named on its own", () => {
   assert.equal(parsePluginManifest(declarationManifest()).ui.locales, undefined);
-  for (const field of ["messages", "translations"]) {
+  // Each removed field is refused by its own name: a Manifest that writes one is told exactly which item to delete,
+  // not that "messages or translations" is unwelcome (`packages/plugin-sdk/src/manifest.ts`).
+  for (const field of ["messages", "translations"] as const) {
     for (const locales of [undefined, LOCALES]) {
       const problem = manifestProblems(declarationManifest({ ui: { contributions: [], ...(locales ? { locales } : {}), [field]: {} } }));
-      assert.match(problem, /声明 ui\.locales；Manifest 不再接收 messages 或 translations/u);
+      assert.match(problem, new RegExp(`ui\\.${field} 已取消：界面文字请放在 locales/<语言>\\.json 并声明 ui\\.locales，请删掉这一项`, "u"), `${field} is named, not merged with the other removed field`);
     }
   }
 });

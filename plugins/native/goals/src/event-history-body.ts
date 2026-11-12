@@ -7,7 +7,7 @@ import { JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, type GoalHistoryIndexItem } fr
 
 export function renderProgressSource(source: GoalProgressArtifactSource | undefined, escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
   if (!source) return "";
-  return `<p>${escapeHtml(source.title)} · v${source.version}</p><p><button type="button" class="mw-btn mw-btn--secondary" aria-label="打开固定成果：${escapeHtml(source.title)} · v${source.version}" data-workbench-item-plugin="${escapeHtml(source.origin.plugin_id)}" data-workbench-item-id="${escapeHtml(source.origin.item_id)}" data-workbench-item-title="${escapeHtml(source.title)}">打开固定成果 · v${source.version}</button></p>`;
+  return `<p>${escapeHtml(source.title)} · v${source.version}</p><p><button type="button" class="mw-btn mw-btn--secondary" aria-label="${uiText("goals.event-history-body.open-fixed-artifact")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(source.title)} · v${source.version}" data-workbench-item-plugin="${escapeHtml(source.origin.plugin_id)}" data-workbench-item-id="${escapeHtml(source.origin.item_id)}" data-workbench-item-title="${escapeHtml(source.title)}">${uiText("goals.event-history-body.open-fixed-artifact")} · v${source.version}</button></p>`;
 }
 
 interface GoalHistoryBodyLookups {
@@ -51,18 +51,18 @@ export function renderWorkEventBody(
     const judgments = event.judgments.length
       ? `<div class="proof">${event.judgments.map((item) => {
         const name = requirementNames[item.requirement_id] || item.requirement_id;
-        return `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>：${escapeHtml(verdictLabel(item.verdict, readText))}</p>`;
+        return `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>${uiText.text("common.punctuation.label-separator")}${escapeHtml(verdictLabel(item.verdict, readText))}</p>`;
       }).join("")}</div>`
       : "";
     return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>${fields}${judgments}</article>`;
   }
   if (event.kind === "configuration") {
     const types = event.payload.types.map((type) => `<li>${escapeHtml(type.name)} v${type.version}<small> · ${escapeHtml(type.type_id)}</small></li>`).join("");
-    const adopted = event.payload.adopted_planning.map((item) => `${item.source} · ${item.method_id} v${item.version}`).join("；");
+    const adopted = event.payload.adopted_planning.map((item) => `${item.source} · ${item.method_id} v${item.version}`).join(uiText.text("common.punctuation.semicolon"));
     const extras = event.payload.extra_requirements.map((item) => `<li>${escapeHtml(item.statement)}</li>`).join("");
     return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>
       <p>${uiText("goals.event-history-body.configuration-version")} ${event.payload.config_version}</p>
-      ${adopted ? `<p>${uiText("goals.event-history-body.adopt-plan")}：${escapeHtml(adopted)}</p>` : `<p>${uiText("goals.event-history-body.no-template-used")}</p>`}
+      ${adopted ? `<p>${uiText("goals.event-history-body.adopt-plan")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(adopted)}</p>` : `<p>${uiText("goals.event-history-body.no-template-used")}</p>`}
       ${types ? `<h3>${uiText("goals.event-history-body.register-type")}</h3><ul>${types}</ul>` : ""}
       ${extras ? `<h3>${uiText("goals.event-history-body.new-completion-requirement")}</h3><ul>${extras}</ul>` : ""}
     </article>`;
@@ -88,19 +88,19 @@ function renderSystemPayload(
   const heading = `<article class="event"><h2>${escapeHtml(title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>`;
   switch (payload.operation) {
     case "progress_summary":
-      return `${heading}${renderProgressSource(payload.source, escapeHtml)}<p>${escapeHtml(payload.summary)}</p>${payload.next_step ? `<p>${uiText("goals.event-history-body.next")}：${escapeHtml(payload.next_step)}</p>` : ""}${payload.next_actor ? `<p>${uiText("goals.event-history-body.who-will-do")}：${escapeHtml(payload.next_actor)}</p>` : ""}</article>`;
+      return `${heading}${renderProgressSource(payload.source, escapeHtml)}<p>${escapeHtml(payload.summary)}</p>${payload.next_step ? `<p>${uiText("goals.event-history-body.next")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(payload.next_step)}</p>` : ""}${payload.next_actor ? `<p>${uiText("goals.event-history-body.who-will-do")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(payload.next_actor)}</p>` : ""}</article>`;
     case "concern_opened":
       return `${heading}<p>${escapeHtml(payload.statement)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}${payload.blocks_closure ? `<p>${uiText("goals.event-history-body.blocks-completion")}</p>` : ""}</article>`;
     case "concern_resolved":
     case "concern_accepted":
     case "concern_overturned":
-      return `${heading}<p>${escapeHtml(payload.reason)}</p>${payload.cited_decision_id ? `<p>${uiText("goals.event-history-body.referenced-decision")} ${escapeHtml(payload.cited_decision_id)}</p>` : ""}${payload.supporting_event_ids.length ? `<p>${uiText("goals.event-history-body.based-event")}：${escapeHtml(payload.supporting_event_ids.join("、"))}</p>` : ""}</article>`;
+      return `${heading}<p>${escapeHtml(payload.reason)}</p>${payload.cited_decision_id ? `<p>${uiText("goals.event-history-body.referenced-decision")} ${escapeHtml(payload.cited_decision_id)}</p>` : ""}${payload.supporting_event_ids.length ? `<p>${uiText("goals.event-history-body.based-event")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(payload.supporting_event_ids.join(uiText.text("common.list.separator")))}</p>` : ""}</article>`;
     case "decision_requested":
       return `${heading}<p>${escapeHtml(payload.question)}</p><ul>${payload.options.map((option) => `<li><strong>${escapeHtml(option.label)}</strong> · ${escapeHtml(option.impact)}</li>`).join("")}</ul>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     case "user_decision": {
-      const effects = payload.effects.map((item) => effectLabel(item.kind, readText) + (item.action ? `（${item.action}）` : "")).join("、");
+      const effects = payload.effects.map((item) => effectLabel(item.kind, readText) + (item.action ? uiText.text("common.punctuation.in-parens", { value: escapeHtml(item.action) }) : "")).join(uiText.text("common.list.separator"));
       const option = payload.selected_option_id ? `<p>${uiText("goals.event-history-body.selected-option")} ${escapeHtml(payload.selected_option_id)}</p>` : "";
-      return `${heading}<p>${escapeHtml(payload.conclusion)}</p>${option}<p>${uiText("goals.event-history-body.effect")}：${escapeHtml(effects)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
+      return `${heading}<p>${escapeHtml(payload.conclusion)}</p>${option}<p>${uiText("goals.event-history-body.effect")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(effects)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     }
     case "decision_cited":
       return `${heading}<p>${uiText("goals.event-history-body.referenced-decision")} ${escapeHtml(payload.decision_id)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
@@ -140,15 +140,15 @@ function renderScope(
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   requirementNames: Readonly<Record<string, string>> = {},
 ): string {
-  const requirements = scope.requirement_ids.map((id) => escapeHtml(requirementNames[id] || id)).join("、");
+  const requirements = scope.requirement_ids.map((id) => escapeHtml(requirementNames[id] || id)).join(uiText.text("common.list.separator"));
   const events = scope.event_ids.map((id) => `<button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(id)}">${uiText("goals.event-history-body.related-event")}</button>`).join(" ");
   const parts = [
     requirements ? `${uiText.text("goals.event-history-body.requirement")} ${requirements}` : "",
     events ? `${uiText.text("goals.event-history-body.event")} ${events}` : "",
-    scope.concern_ids.length ? `${"Concern"} ${escapeHtml(scope.concern_ids.join("、"))}` : "",
+    scope.concern_ids.length ? `${"Concern"} ${escapeHtml(scope.concern_ids.join(uiText.text("common.list.separator")))}` : "",
     scope.action ? `${uiText.text("goals.event-history-body.action")} ${escapeHtml(scope.action)}` : "",
   ].filter(Boolean);
-  return parts.length ? `<p>${uiText("goals.event-history-body.scope")}：${parts.join(" · ")}</p>` : "";
+  return parts.length ? `<p>${uiText("goals.event-history-body.scope")}${uiText.text("common.punctuation.label-separator")}${parts.join(" · ")}</p>` : "";
 }
 
 function renderJournal(event: GoalsDecisionEvent, _readText: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], relationInfo?: GoalHistoryIndexItem["relation"]): string {

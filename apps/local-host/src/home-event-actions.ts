@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, assertHomeEventWindow, ACTION_REFERENCE_SCHEMA, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_SCHEMA, HOME_EVENT_SOURCE_SCHEMA, HOME_OPEN_TARGET_SCHEMA,
-  type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type HomeEventView, type HomeEventCollection, type HomeEventWindow, type HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type HomeEventView, type HomeEventCollection, type HomeEventWindow, type HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { hostLog } from "./host-log.js";
 
 export type { HomeEventView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -25,6 +26,8 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
     const events: HomeEventView[] = [], issues: string[] = [];
+    // A source that failed while reading is not reported again as withdrawn: the same reference is one line, by its exact identity.
+    const reported = new Set<string>(), sourceKey = (source: ActionView) => JSON.stringify([source.provider.provider_id, source.capability_id, source.version]);
     // The exposure judgement is only needed for a source that cannot answer; when it is needed and the read fails, the person sees
     // that code (not a plugin silently turned off). A read with no such source never asks for it.
     let reaches: ((pluginId: string) => boolean | undefined) | undefined, judgedFailed = false;
@@ -34,7 +37,7 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
         catch (error) {
           if (!(error instanceof ActionError && error.code === "host.catalog_unavailable")) throw error;
           judgedFailed = true;
-          issues.push("首页事项：项目的插件清单读取失败（host.catalog_unavailable）");
+          issues.push(uiText.text("workbench.home-event-actions.catalog-unavailable") + uiText.text("common.punctuation.in-parens", { value: "host.catalog_unavailable" }));
         }
       }
       return reaches?.(pluginId);
@@ -47,7 +50,10 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
         const pluginId = source.provider.plugin_id;
         // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code.
         const judged = projectPlugins && caller.project_id && pluginId !== undefined ? await reachesOf(pluginId) : undefined;
-        if (source.availability.code !== "actions.plugin_disabled" || judged === true) issues.push(source.action.title + "：" + source.availability.reason);
+        if (source.availability.code !== "actions.plugin_disabled" || judged === true) {
+          issues.push(source.action.title + uiText.text("common.punctuation.label-separator") + source.availability.reason);
+          reported.add(sourceKey(source));
+        }
         continue;
       }
       const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };
@@ -61,7 +67,9 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
         events.push(...result.events.map(event => ({ ...event, id: JSON.stringify([reference.provider_id, reference.capability_id, event.event_id]), source: reference, origin: result.source, suggested_behavior_ids: [] })));
       } catch (error) {
         if (pinned) throw error;
-        issues.push(source.action.title + "：" + (error instanceof ActionError ? error.message : "暂时无法读取事项"));
+        issues.push(source.action.title + uiText.text("common.punctuation.label-separator")
+          + (error instanceof ActionError ? error.message : uiText.text("workbench.home-event-actions.could-not-read-items")));
+        reported.add(sourceKey(source));
       }
     }
     if (!pinned && directory.some(view => view.capability_id === recommendations.capability_id && view.version === recommendations.version && view.availability.available)) {
@@ -78,7 +86,9 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
     // Only sources that were read can have been withdrawn during the read; ones unavailable from the start were handled above.
     const withdrawn = sources.filter(source => source.availability.available && !current.some(view => view.capability_id === source.capability_id && view.version === source.version && view.provider.provider_id === source.provider.provider_id && view.availability.available));
     if (pinned && withdrawn.length) throw new ActionError("actions.event_source_changed", "事项提供方在读取期间已失效");
-    for (const source of withdrawn) if (!issues.some(issue => issue.startsWith(source.action.title + "："))) issues.push(source.action.title + "：提供方已失效");
+    for (const source of withdrawn) if (!reported.has(sourceKey(source))) {
+      issues.push(source.action.title + uiText.text("common.punctuation.label-separator") + uiText.text("workbench.home-event-actions.source-unavailable"));
+    }
     return { events: events.filter(event => !withdrawn.some(source => same(event.source, { ...source, provider_id: source.provider.provider_id }))), issues };
   };
   return [

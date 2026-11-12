@@ -7,12 +7,16 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { HostSurfaceAction, HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surface-driver.js";
 import type { BrowserPage } from "../apps/local-host/dist/browser/browser-host.js";
+
+// The Assistant words every round's materials in the language it runs in (`format.date`): the process needs the
+// Host's text context installed, as a running Host has it.
+installHostUiText();
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 /*

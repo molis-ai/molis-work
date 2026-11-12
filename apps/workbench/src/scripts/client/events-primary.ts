@@ -119,7 +119,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       box.setAttribute("role", "alert");
       box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
       box.querySelector("strong").textContent = globalThis.t.text("workbench.events-primary.couldn-t-load-settings");
-      if(typeof message==="string")box.querySelector("p").textContent=message && message!==globalThis.t.text("workbench.events-primary.couldn-t-load-settings")?message:globalThis.t.text("workbench.events-primary.try-again-moment");else molisWorkRequest.show(box.querySelector("p"),message,globalThis.t.text("workbench.events-primary.try-again-moment"));
+      if(typeof message==="string")box.querySelector("p").textContent=message||globalThis.t.text("workbench.events-primary.try-again-moment");else molisWorkRequest.show(box.querySelector("p"),message,globalThis.t.text("workbench.events-primary.try-again-moment"));
       const button = box.querySelector(":scope > button");
       button.textContent = globalThis.t.text("common.control.retry");
       button.addEventListener("click", () => { button.disabled = true; void retry(); });

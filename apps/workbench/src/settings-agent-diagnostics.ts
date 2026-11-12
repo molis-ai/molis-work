@@ -44,17 +44,17 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
     slots.append(el("strong", "", globalThis.t.text("workbench.settings-agent-diagnostics.assembly-slots")));
     const slotList = el("ul", "prompt-diagnostics-issues");
     runtime.slots.forEach((slot) => {
-      const words = slot.slot + "：" + globalThis.t.text(SLOT[slot.state] || slot.state) + (slot.implementation ? " · " + slot.implementation + (slot.version ? " " + slot.version : "") : "")
+      const words = slot.slot + globalThis.t.text("common.punctuation.label-separator") + globalThis.t.text(SLOT[slot.state] || slot.state) + (slot.implementation ? " · " + slot.implementation + (slot.version ? " " + slot.version : "") : "")
         + (slot.fallback ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.using-fallback-implementation") : "") + (slot.why ? " · " + slot.why : "");
       const status = issue(words, slot.state === "ready" ? "info" : "warning"); status.dataset.mwState = slot.state; slotList.append(status);
     });
     slots.append(slotList);
     list.append(slots);
     const host = el("li", "prompt-diagnostics-owner");
-    host.append(el("strong", "", globalThis.t.text("workbench.settings-agent-diagnostics.local-capabilities")), line(globalThis.t.text("workbench.settings-agent-diagnostics.present") + "：" + (runtime.host.effective.join("、") || globalThis.t.text("workbench.settings-agent-diagnostics.none"))));
+    host.append(el("strong", "", globalThis.t.text("workbench.settings-agent-diagnostics.local-capabilities")), line(globalThis.t.text("workbench.settings-agent-diagnostics.present") + globalThis.t.text("common.punctuation.label-separator") + (runtime.host.effective.join(globalThis.t.text("common.list.separator")) || globalThis.t.text("workbench.settings-agent-diagnostics.none"))));
     if (runtime.host.not_present.length) {
       const missing = el("ul", "prompt-diagnostics-issues");
-      runtime.host.not_present.forEach((item) => missing.append(issue(item.capability + "：" + globalThis.t.text(HOST[item.state] || item.state)
+      runtime.host.not_present.forEach((item) => missing.append(issue(item.capability + globalThis.t.text("common.punctuation.label-separator") + globalThis.t.text(HOST[item.state] || item.state)
         + (runtime.host.requested.includes(item.capability) ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.requested-app") : ""), runtime.host.requested.includes(item.capability) ? "warning" : "info")));
       host.append(missing);
     }
@@ -82,22 +82,22 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
     const frozen = round.frozen;
     if (frozen) {
       item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.model") + " ", code(frozen.model_id), " · " + globalThis.t.text("workbench.settings-agent-diagnostics.role") + " ", code(frozen.role.id + " v" + frozen.role.version), " · " + globalThis.t.text("workbench.settings-agent-diagnostics.execute") + " " + frozen.execution
-        + (frozen.character ? " · Character " + frozen.character.title + "（" + frozen.character.artifact_id + " v" + frozen.character.version + "）" : "")
+        + (frozen.character ? " · Character " + frozen.character.title + globalThis.t.text("common.punctuation.in-parens", { value: frozen.character.artifact_id + " v" + frozen.character.version }) : "")
         + (frozen.history === "digest" ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.earlier-turns-summarized") : "") + (frozen.thinking ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.thinking") + " " + frozen.thinking : "")));
-      if (frozen.prompts.length) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.prompts") + "：" + frozen.prompts.map((prompt) => prompt.prompt_id + " v" + prompt.version + "（" + globalThis.t.text(LAYER[prompt.layer] || prompt.layer)
-        + (prompt.user_revision !== undefined ? "，" + globalThis.t.text("workbench.settings-agent-diagnostics.version") + " #" + prompt.user_revision : "") + "）").join("、")));
+      if (frozen.prompts.length) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.prompts") + globalThis.t.text("common.punctuation.label-separator") + frozen.prompts.map((prompt) => prompt.prompt_id + " v" + prompt.version + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text(LAYER[prompt.layer] || prompt.layer)
+        + (prompt.user_revision !== undefined ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-agent-diagnostics.version") + " #" + prompt.user_revision : "") })).join(globalThis.t.text("common.list.separator"))));
     } else item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.runtime-no-longer-holds-record-when-turn-started")));
-    if (round.materials.length) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.materials") + "：" + round.materials.map((material) => material.title + "（" + globalThis.t.text(MATERIAL[material.kind] || material.kind) + "，"
-      + (material.explicit ? globalThis.t.text("workbench.settings-agent-diagnostics.added") : globalThis.t.text("workbench.settings-agent-diagnostics.page")) + (material.draft ? "，" + globalThis.t.text("workbench.settings-agent-diagnostics.unsaved-edits") : "")
-      + (material.object ? "，" + material.object.kind + ":" + material.object.id + (material.object.version !== undefined && material.object.version !== null ? "@" + material.object.version : "") : "")
-      + (material.capability ? "，" + material.capability.capability_id + " v" + material.capability.version : "") + (material.method ? "，" + (material.method.kind === "skill" ? material.method.ref.skill_id + " v" + material.method.ref.version : material.method.method_id) : "") + "）").join("、")));
-    if (round.usage) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.usage") + "：" + globalThis.t.text("workbench.settings-agent-diagnostics.inputs") + " " + round.usage.input.toLocaleString() + " · " + globalThis.t.text("workbench.settings-agent-diagnostics.output") + " " + round.usage.output.toLocaleString()
+    if (round.materials.length) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.materials") + globalThis.t.text("common.punctuation.label-separator") + round.materials.map((material) => material.title + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text(MATERIAL[material.kind] || material.kind) + globalThis.t.text("common.punctuation.clause-separator")
+      + (material.explicit ? globalThis.t.text("workbench.settings-agent-diagnostics.added") : globalThis.t.text("workbench.settings-agent-diagnostics.page")) + (material.draft ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-agent-diagnostics.unsaved-edits") : "")
+      + (material.object ? globalThis.t.text("common.punctuation.clause-separator") + material.object.kind + ":" + material.object.id + (material.object.version !== undefined && material.object.version !== null ? "@" + material.object.version : "") : "")
+      + (material.capability ? globalThis.t.text("common.punctuation.clause-separator") + material.capability.capability_id + " v" + material.capability.version : "") + (material.method ? globalThis.t.text("common.punctuation.clause-separator") + (material.method.kind === "skill" ? material.method.ref.skill_id + " v" + material.method.ref.version : material.method.method_id) : "") })).join(globalThis.t.text("common.list.separator"))));
+    if (round.usage) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.usage") + globalThis.t.text("common.punctuation.label-separator") + globalThis.t.text("workbench.settings-agent-diagnostics.inputs") + " " + round.usage.input.toLocaleString() + " · " + globalThis.t.text("workbench.settings-agent-diagnostics.output") + " " + round.usage.output.toLocaleString()
       + (round.usage.cached_input ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.cached-reads") + " " + round.usage.cached_input.toLocaleString() : "")));
     if (round.failures.length) {
       const failures = el("ul", "prompt-diagnostics-issues");
       // The runtime's summary often opens with the tool's name again: shown once. Its own words follow when the summary
       // alone only names a generic code: the developer needs which rule refused the call, not just its error kind.
-      round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.outcome-unknown") : "") + "："
+      round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.outcome-unknown") : "") + globalThis.t.text("common.punctuation.label-separator")
         + (failure.summary.startsWith(failure.tool + " · ") ? failure.summary.slice(failure.tool.length + 3) : failure.summary)
         + (failure.detail && !failure.summary.includes(failure.detail) ? " · " + failure.detail : ""))));
       item.append(failures);

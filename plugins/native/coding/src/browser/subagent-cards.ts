@@ -106,7 +106,7 @@ function drawChanged(_L: Translate, node: HTMLElement, child: Child, edited: rea
     changed = el("p", "", "coding-child-changed");
     part(node, ".coding-child-result").before(changed);
   }
-  changed.textContent = uiText.text("coding.card.changed", { count: edited.length, files: edited.slice(0, 6).join(uiText.text("coding.list.joiner")) + (edited.length > 6 ? uiText.text("coding.card.and-more") : "") }) + (child.integration_available ? uiText.text("coding.card.own-directory") : "");
+  changed.textContent = uiText.text("coding.card.changed", { count: edited.length, files: edited.slice(0, 6).join(uiText.text("common.list.separator")) + (edited.length > 6 ? uiText.text("coding.card.and-more") : "") }) + (child.integration_available ? uiText.text("coding.card.own-directory") : "");
 }
 
 /** Folded by default with a one-line preview: the parent's summary is where the reading happens. */

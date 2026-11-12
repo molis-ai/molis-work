@@ -230,7 +230,13 @@ export function interactionReferences(host: InteractionClientHost, fields: Retur
     p.list.hidden = !items.length;
     p.input.ariaExpanded = String(!!items.length);
     const readText = (globalThis as typeof globalThis & { t: UiTextTool }).t?.text;
-    p.status.textContent = items.length ? p.labels.found?.replace("{n}", String(items.length)) ?? (readText ? readText("common.interaction.reference-results", { count: items.length }) : String(items.length)) : p.labels.empty!;
+    // The count is one named value: a sentence the caller handed in has its one `{n}` filled by name; otherwise the platform's
+    // sentence by key takes it as `count`. Never a hand-spliced template.
+    const fill = (text: string, value: string) => text.split("{n}").join(value);
+    p.status.textContent = items.length
+      ? p.labels.found !== undefined ? fill(p.labels.found, String(items.length))
+        : readText ? readText("common.interaction.reference-results", { count: items.length }) : String(items.length)
+      : p.labels.empty!;
   };
   const search = (p: Parts) => {
     const text = p.input.value.trim(), mine = ++asked;

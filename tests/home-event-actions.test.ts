@@ -8,8 +8,12 @@ import { definePlugin, defineHomeEventsAction } from "@molis-ai/molis-work-plugi
 import { ActionError, type ActionCallContext, type ActionDefinition, type HomeEvent, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHomeEventHandlers, homeEventActions, type HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, installHostUiText, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+// The Home events' issue lines are built with the platform's words (label separator, in-parens, source-unavailable): the
+// process needs the Host's text context installed, as a running Host has it. Without a language scope the words come from
+// the owner's default language, so the Chinese assertions below read as before.
+installHostUiText();
 const caller: ActionCallContext = { actor_id: "owner", project_id: "event-project", audience: "user", permissions: ["home:read", "notes:read"] };
 const window = { from: "2026-09-16T00:00:00Z", to: "2026-09-23T00:00:00Z", now: "2026-09-19T12:00:00Z" };
 const original: HomeEvent = { event_id: "feed:collision", subject: { kind: "unknown-note", id: "n1" }, occurred_at: window.now, placement: "occurred", category: "personal",

@@ -20,6 +20,11 @@ import { repeatingFailure } from "../host-log.js";
  */
 
 export const FOLLOW_UP_KIND = "assistant.follow-up";
+/**
+ * The first words of a timed round, kept as a bound key rather than a sentence: the round starts from the durable queue,
+ * outside the page that created it, so the sentence is written where it starts, in the language last used (FSS-69).
+ */
+export type FollowUpMessageWords = Extract<AssistantSavedText, { readonly key: string }>;
 /** Missed times kept per follow-up for the person to decide on; older ones fall off. */
 const MISSED_KEPT = 10;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
@@ -91,8 +96,8 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   homeActions?(): Promise<FollowUpHomeActions>;
   host(): Promise<AgentHost>;
   state(host: AgentHost, work: W): Promise<AssistantWorkState>;
-  /** Start one round of the work with these words; `stillCurrent` is checked again right before it starts. */
-  send(work: W, text: string, requestId: string, stillCurrent: () => boolean): Promise<unknown>;
+  /** Start one round of the work with these words; the service writes them where the round starts, in the language last used; `stillCurrent` is checked again right before it starts. */
+  send(work: W, words: FollowUpMessageWords, requestId: string, stillCurrent: () => boolean): Promise<unknown>;
   schedule(): Promise<AgentScheduleCapability>;
 }
 
@@ -232,7 +237,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       if (!current()) return;
       if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.busy"); }
       else {
-        try { await ports.send(work, `（按你的定时安排「${followUp.label}」）${followUp.text}`, `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
+        try { await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
         catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
       }
     }
@@ -279,7 +284,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       if (!work || work.archived) { this.#forgetMissed(followUp.followup_id, due); return { state: "gone" }; }
       const host = await ports.host(), state = await ports.state(host, work);
       if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
-      await ports.send(work, `（按你的定时安排「${followUp.label}」）${followUp.text}`, `fu-${followUp.followup_id}-${parsed.due}`, () => find() !== null);
+      await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${parsed.due}`, () => find() !== null);
     }
     return this.#forgetMissed(followUp.followup_id, due) ? { state: decision.decision === "run_now" ? "started" : "skipped" } : { state: "gone" };
   }

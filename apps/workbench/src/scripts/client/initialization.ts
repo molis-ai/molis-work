@@ -338,7 +338,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {
-      showToast(globalThis.t.text("workbench.initialization.page-does-not-exist-path").replace("{path}", missingPage), true);
+      showToast(globalThis.t.text("workbench.initialization.page-does-not-exist-path", { path: missingPage }), true);
       const cleaned = new URL(location.href); cleaned.searchParams.delete("missing");
       history.replaceState(history.state, "", cleaned);
     }

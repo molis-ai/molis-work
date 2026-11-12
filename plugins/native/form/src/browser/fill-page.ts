@@ -45,7 +45,7 @@ export const openFillPage = (page: FormPage, record: FormRecord) => {
       event.preventDefault();
       const answers = collectAnswers(fields);
       const missing = missingRequired(record.questions || [], answers);
-      if (missing) { error.textContent = uiText.text("form.fill.missing-required") + "：" + missing.title; return; }
+      if (missing) { error.textContent = uiText.text("form.fill.missing-required-title", { title: missing.title }); return; }
       attempt ||= crypto.randomUUID();
       submit.disabled = true; error.textContent = "";
       try {

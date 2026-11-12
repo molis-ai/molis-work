@@ -3,6 +3,7 @@ import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
+import { sessionTitleFor } from "./session-title.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingExecution } from "./routes.js";
 
@@ -10,7 +11,7 @@ const sourceErrors = defineErrorCodes("coding", { subject_archived: "unavailable
 
 /** The owner's existing listing material; updated_at/state retain their original Search invalidation meaning. */
 export function codingSessionEntry(record: CodingSessionRecord, goalTitle?: string): SearchEntry {
-  const title = record.title || "编码会话", summary = record.goal_id ? `关联目标：${goalTitle ?? record.goal_id}` : "";
+  const title = sessionTitleFor(record.title), summary = record.goal_id ? `关联目标：${goalTitle ?? record.goal_id}` : "";
   return { subject: { kind: "coding_session", id: record.session_id },
     revision: `${record.updated_at}:${record.state}`, title, summary, updated_at: record.updated_at,
     content: "context", open: { surface: "coding", id: record.session_id } };

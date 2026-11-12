@@ -41,7 +41,7 @@ function describeRefs(rows: ActionRow[], value: ActionRef[] | null | undefined):
   return value.map(ref => {
     const row = rows.find(item => key(exact(item)) === key(ref));
     return (row?.action.title || ref.capability_id) + " · v" + ref.version + " · " + (row?.provider.title || ref.provider_id);
-  }).join("、");
+  }).join(globalThis.t.text("common.list.separator"));
 }
 
 /** A view of the common Agent catalog; selected references remain in the original Character draft. */

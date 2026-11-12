@@ -79,7 +79,7 @@ export function openAccountManagement(ui: AccountUi, user: UserView, back: () =>
   function confirm(action: Mutation, methods: LoginMethodsView, reauthHandle: string, identityHandle?: string) {
     reset(action.kind==='password'?"workbench.account-management.set-change-password":"workbench.account-management.confirm-sign-method-update");const key=crypto.randomUUID();
     if(action.kind==='password'){const password=field('workbench.account.new-password','password','password','new-password');password.minLength=12;const again=field('workbench.account.confirm-password','confirm','password','new-password');again.minLength=12;form.append(node('p',uiText.text("workbench.account-management.keeps-login-signs-out-all-other-products-devices"),'mw-muted'));}
-    else form.append(node('p',action.kind==='unlink'?uiText.text("workbench.account-management.confirm-unbind")+' '+action.label+'？':uiText.text("workbench.account-management.verification-complete-confirm-sign-method-update")));
+    else form.append(node('p',action.kind==='unlink'?uiText.text("workbench.account-management.confirm-unbind-named", { name: action.label ?? "" }):uiText.text("workbench.account-management.verification-complete-confirm-sign-method-update")));
     const submit=button('workbench.account.confirm-save',()=>{});submit.type='submit';submit.className='mw-btn mw-btn--primary';
     form.onsubmit=e=>{e.preventDefault();const values=new FormData(form);void perform(async()=>{
       if(action.kind==='password'&&values.get('password')!==values.get('confirm')){message.textContent=uiText.text("workbench.account-management.passwords-do-not-match");return;}

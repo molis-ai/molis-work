@@ -1,4 +1,5 @@
 import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
 import { api } from "./request.js";
 import { el, errorMessage } from "../dom.js";
@@ -83,8 +84,9 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
   row.classList.toggle("is-selected", s.current === session.session_id);
   const title = row.querySelector<HTMLElement>(".coding-session-title"), time = row.querySelector("time"), mark = row.querySelector<HTMLElement>(".coding-session-state");
   if (!title || !time || !mark) return;
-  if (title.textContent !== session.title) title.textContent = session.title;
-  title.title = session.title;
+  const shown = sessionTitle(session.title);
+  if (title.textContent !== shown) title.textContent = shown;
+  title.title = shown;
   drawTime(time, session.updated_at);
   const label = stateLabel(page, session, visible);
   if (mark.textContent !== label) mark.textContent = label;
@@ -125,7 +127,7 @@ function reorder(page: Page, visible: readonly SessionRecord[]) {
 }
 
 function matches(session: SessionRecord, needle: string, filter: string): boolean {
-  if (!session.title.toLocaleLowerCase().includes(needle)) return false;
+  if (!sessionTitle(session.title).toLocaleLowerCase().includes(needle)) return false;
   return filter === "all" || filter === "running" && session.state === "running" || filter === "needs-you" && Boolean(session.checkpoint_busy || NEEDS_YOU.includes(session.state));
 }
 

@@ -4,6 +4,7 @@ import { ActionError, requireSynchronous, type RetainedActionAuthority, type Act
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
 import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantService } from "./assistant-service.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -138,7 +139,10 @@ export class AssistantThreads {
     this.retainAuthority(work, caller);
     try {
       const result = await this.service.send({ work_id: work.work_id, text: round.context.message.body, request_id: round.attempt_id,
-        materials: [{ material_id: `thread-${round.attempt_id}`, kind: "text", title: `${round.context.title} · 原评论上下文${round.context.truncated ? "（部分内容）" : ""}`, text: round.context.text, explicit: true }] },
+        materials: [{ material_id: `thread-${round.attempt_id}`, kind: "text",
+          title: round.context.title + " · " + uiText.text("workbench.assistant-threads.original-comment-context")
+            + (round.context.truncated ? uiText.text("common.punctuation.in-parens", { value: uiText.text("workbench.assistant-threads.partial-content") }) : ""),
+          text: round.context.text, explicit: true }] },
       { project_ref: work.project_ref, thread_request: round.attempt_id, beforeStart: async () => { await this.authorize(work); await caller.beforeEffect(); },
         assertBeforeStart: () => { this.assertRoundCurrent(work); this.guards.get(work.work_id)?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } }, "page");
       await this.authorize(work);

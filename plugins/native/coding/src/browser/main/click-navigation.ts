@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { loadArtifacts } from "./artifacts.js";
 import { showBoard, onShow } from "./board.js";
 import type { ClickRule } from "./click-types.js";
@@ -52,7 +53,7 @@ async function openSession(page: Page, target: HTMLButtonElement, event: MouseEv
   const { host, s } = page;
   event.preventDefault();
   const id = target.dataset.codingSession || "", session = s.state.sessions.find(item => item.session_id === id);
-  const title = session?.title || (target.querySelector(".coding-session-title,strong,.mw-dir-row__title")?.textContent || "").trim();
+  const title = session ? sessionTitle(session.title) : (target.querySelector(".coding-session-title,strong,.mw-dir-row__title")?.textContent || "").trim();
   if ((event.metaKey || event.ctrlKey) && host.openBeside) {
     host.openBeside("coding", id, title);
     return;

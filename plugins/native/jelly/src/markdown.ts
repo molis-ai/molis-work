@@ -92,7 +92,8 @@ export function jellyBlocksToHtml(blocks: readonly JellyBlock[]): string {
   }).join("\n");
 }
 export function jellyNoteToMarkdown(note: JellyNote): string { return `# ${note.title}\n\n${jellyBlocksToMarkdown(note.blocks)}\n`; }
-export function jellyNoteToHtml(note: JellyNote): string { return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escape(note.title)}</title></head><body><h1>${escape(note.title)}</h1>${jellyBlocksToHtml(note.blocks)}</body></html>`; }
+/** The exported note keeps the language of the caller that asked for it; an export with no known language says so instead of claiming one. */
+export function jellyNoteToHtml(note: JellyNote, language = ""): string { return `<!doctype html><html lang="${escape(language)}"><head><meta charset="utf-8"><title>${escape(note.title)}</title></head><body><h1>${escape(note.title)}</h1>${jellyBlocksToHtml(note.blocks)}</body></html>`; }
 export function jellyHtmlToBlocks(html: string, previous: readonly JellyBlock[] = []): JellyBlock[] {
   // Import is a text codec, never a browser insertion of untrusted HTML.
   const decode = (s: string) => s.replace(/&#x([0-9a-f]+);/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16))).replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n))).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");

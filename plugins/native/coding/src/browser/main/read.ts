@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { sessionTitle } from "../session-title.js";
 import { mountCodingComposer } from "./composer-mount.js";
 import { showSavedHistory, type SavedHistory } from "../saved-history.js";
 import { SESSION_WINDOW } from "../../session-window-sizes.js";
@@ -58,9 +59,9 @@ function adoptRuns(page: Page, id: string, data: SessionData) {
 /** The title, what the Assistant is told about the screen, and the goal the next round is for. */
 function adoptHeader(page: Page, id: string, data: SessionData) {
   const { host, q, root, s } = page;
-  if (!root.querySelector("[data-coding-title] input")) q("[data-coding-title]").textContent = data.session.title;
+  if (!root.querySelector("[data-coding-title] input")) q("[data-coding-title]").textContent = sessionTitle(data.session.title);
   // What the person is on, for the bottom Assistant: this session, at its round count. Data about the screen only.
-  root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: host.pluginId, surface_title: "Coding", object: { kind: "coding_session", id, title: data.session.title || uiText.text("coding.session.untitled"), version: String(data.run_count ?? data.runs.length) } }));
+  root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: host.pluginId, surface_title: "Coding", object: { kind: "coding_session", id, title: sessionTitle(data.session.title) || uiText.text("coding.session.untitled"), version: String(data.run_count ?? data.runs.length) } }));
   q("[data-coding-goal-label]").textContent = data.session.goal_id ? uiText.text("coding.goal.next", { title: data.session.goal_title || data.session.goal_id }) : uiText.text("coding.goal.none-next-label");
   retitle(page, id, s.state.sessions.find(record => record.session_id === id)?.title, data.session.title);
   // The same current state response owns SDK lifecycle; a detail's business record cannot replace that field.

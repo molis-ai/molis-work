@@ -56,7 +56,7 @@ function handleExit(ctx: PanelContext, value: Extract<PtyServerMessage, { type: 
   const session = options.screens.get(value.panelId);
   if (session) {
     const exitCode = value.exitCode ?? 0;
-    session.term.write(`\r\n${uiText.text("workbench.panels.terminal-process-exited")}${value.exitCode != null ? `（${uiText.text("workbench.panels.exit-code")} ${exitCode}）` : ""}\r\n`);
+    session.term.write(`\r\n${uiText.text("workbench.panels.terminal-process-exited")}${value.exitCode != null ? uiText.text("common.punctuation.in-parens", { value: uiText.text("workbench.panels.exit-code") + " " + exitCode }) : ""}\r\n`);
     if (!session.hasOutput && exitCode !== 0) {
       session.term.write(`\r\n${uiText.text("workbench.panels.process-exited-immediately-after-starting-common-causes-command")}\r\n`);
     }

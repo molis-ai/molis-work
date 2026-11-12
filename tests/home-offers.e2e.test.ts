@@ -1,4 +1,5 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { waitForHomeRow } from "./fixtures/home-rows.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -88,7 +89,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     await runtime.start(installed.install_id);
     await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__homeRequests=[]; const originalFetch=window.fetch; window.fetch=(url,options)=>{window.__homeRequests.push(String(url));return originalFetch(url,options)}" }, sessionId);
     await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-    await waitFor(`!!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title')`);
+    await waitForHomeRow(browser, `[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`, "io.molis.work.inbox");
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('正在查找')");
     assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "The retired Talk entry stays absent while offers load");
@@ -150,7 +151,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     // The owner makes this material actionable again. Lose the next response after the real write.
     store.db.prepare("UPDATE fixture_home_tags SET tag = '', revision = revision + 1 WHERE id = ?").run(item.item_id);
     await reloadPage();
-    await waitFor(`!!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title')`);
+    await waitForHomeRow(browser, `[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`, "io.molis.work.inbox");
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
     await evaluate("(()=>{const previous=window.fetch;window.fetch=async(url,options)=>{const response=await previous(url,options);if(String(url).endsWith('/api/home/actions/execute'))throw new TypeError('fixture response lost');return response;}})()");
@@ -161,7 +162,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     await capture("mobile-response-unknown");
     await runtime.stop(installed.install_id);
     await reloadPage();
-    await waitFor(`!!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title')`);
+    await waitForHomeRow(browser, `[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`, "io.molis.work.inbox");
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果尚未确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找')");
     assert.equal(writes, 2, "stopping the provider never converts uncertainty into a retry");

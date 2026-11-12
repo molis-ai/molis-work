@@ -103,6 +103,8 @@ export const PRESENTATION_BOARD_STYLES = `
   .mw-presentation-inventory { margin-block-start: 1.5em; }
   .mw-presentation-inventory h3 { margin: 0 0 .6em; font-size: inherit; }
   .mw-presentation-inventory .mw-item { justify-content: space-between; flex-wrap: wrap; }
+  /* A static inventory row: nothing here takes focus, so a long plugin name wraps instead of being cut (VUX-05). */
+  .mw-presentation-inventory .mw-item strong { white-space: normal; overflow-wrap: anywhere; }
   .mw-presentation-board__chip { position: relative; justify-self: start; max-inline-size: 100%; }
   .mw-presentation-board__trigger.mw-btn { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border-radius: var(--sk-r-slot, var(--r-tag)); }
   .mw-presentation-board__trigger.mw-btn:is(:hover, :focus-visible, :active) { background: transparent; }

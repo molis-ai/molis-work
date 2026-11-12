@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { waitForHomeRow } from "./fixtures/home-rows.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import test, { type TestContext } from "node:test";
@@ -55,7 +56,7 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
   assert.match(await b.evaluate<string>(`document.querySelector(${quoted(notices + ' ' + item)}).innerText`), /Report for the inbox mount/);
   await b.click(attention);
   const homeEntry = '[data-home-card="io.molis.work.inbox"] [data-home-subject-id="' + entry.entry_id + '"] [data-presentation-action$=":open"]';
-  await b.waitFor(visible(homeEntry)); await b.click(homeEntry);
+  await waitForHomeRow(b, homeEntry, "io.molis.work.inbox"); await b.click(homeEntry);
 
   const own = '[data-inbox-detail="' + entry.entry_id + '"]', slot = '[data-inbox-origin-slot]';
   await inbox.waitFor(`document.querySelector(${quoted(own)})?.hidden === false`);

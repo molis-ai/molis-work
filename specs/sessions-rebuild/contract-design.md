@@ -769,7 +769,8 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 
 | 写入口 | 算不算本人建的 |
 | --- | --- |
-| `projects.workspaces.add`、`repair`（本人，只给 `user`） | 算 |
+| `projects.workspaces.add`、`add_input`、`set_output`（本人，只给 `user`；`set_output` 选已有目录时也认领） | 算 |
+| `repair`（本人） | 不改：只挪目录行，关系原来算不算照旧 |
 | Onboarding 选目录（`web-onboarding.ts`） | 算 |
 | 工作树目录授权（`system-agent-service.ts` 的 `authorizeWriterDirectory`，经本人审查通过） | 算 |
 | `context_bind`（`project-binding-commands.ts` 的两处 `upsertWorkspaceMembership`） | 不算 |
@@ -779,7 +780,7 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 
 不加列：沿用 `bound_by`，所以 `projects/catalog.db` 版本不变，不碰真实 Home 的库。规则：
 
-- **判法是白名单：** `bound_by` 等于 `LOCAL_PERSON_ACTOR_ID` 才算本人建的，别的值一律不算。读取范围是权限边界，不能默认放行：新增的写入口忘了标记，结果是不算，不是算。P-1 要核表里算的三处写的都是这个值（Onboarding、工作树授权已是，`add`、`repair` 取调用者）。团队批再扩。
+- **判法是白名单：** `bound_by` 等于 `LOCAL_PERSON_ACTOR_ID` 才算本人建的，别的值一律不算。读取范围是权限边界，不能默认放行：新增的写入口忘了标记，结果是不算，不是算。P-1 要核表里算的几处写的都是这个值（Onboarding、工作树授权已是，`add`、`add_input`、`set_output` 取调用者）。团队批再扩。
 - **标记在 Projects 内部加：** `lifecycle.upsertWorkspaceMembership` 这个入口进来的关系写 `binding:<actor>`：前缀由 `modules/projects/src/workspace.ts` 的 `link()` 按 intent 加（`session` 加，`explicit` 记调用者），`project-binding-commands.ts` 不拼字符串。`requiredActorId` 和事件里的 actor 用原值。
 - **不降级：** `upsert` 不用工具的值覆盖本人的值；本人再连一次，工具带进来的关系升为本人的。
 - **工具只能解除工具带进来的：** `context_unbind` 的 `binding_scope: "workspace"` 分支走 `lifecycle.unlinkWorkspaceMembership`。它改成返回解除没解除，判法仍在 Projects。遇到本人建的关系不解除，这个分支回 `changed: false`、`unbound_project: null`，再带一个有码的原因，不说成已解除；会话绑定这个分支本来就不碰，要解除走 `session` 范围。这样读取范围既不会被工具放大，也不会被工具收窄。

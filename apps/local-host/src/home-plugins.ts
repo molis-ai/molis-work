@@ -168,6 +168,7 @@ export class HomePluginHost {
       await installed.lifecycle(action, release, { ...input, assertCurrent });
       await installed.refreshPublicActions(); return [];
     };
+    // Disabling takes effect at once and does not wait behind an install on the Home line (surface-composition §14.4); the rest go through it.
     if (action !== "disable") return this.installationScope.run(change);
     await this.ready(); return change();
   }

@@ -1,4 +1,4 @@
-import { bindActionHandler, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler, ActionError, type ActionAvailability, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindPresentationValuesHandler, definePresentationOverviewAction, definePresentationValuesAction, PRESENTATION_LIMITS,
   type PresentationDeclaration, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { codingCreateSessionAction } from "./route-actions.js";
@@ -25,7 +25,10 @@ export const codingPresentation = {
   overview: { capability_id: overview.capability_id, version: overview.version, start: [start] },
 } as const satisfies PresentationDeclaration;
 
-export function createCodingPresentationHandlers(projectId: string, sessions: Pick<CodingSessionStore, "get" | "list">) {
+/** Sessions are the local owner's personal state, like every other Coding read: only that owner reads their displayed values and overview. */
+export function createCodingPresentationHandlers(projectId: string, sessions: Pick<CodingSessionStore, "get" | "list">, ownerActorId: string | undefined) {
+  const owner = (caller: ActionCallContext): ActionAvailability => ownerActorId && caller.actor_id === ownerActorId ? { available: true }
+    : { available: false, code: "actions.owner_mismatch", reason: "此入口使用本地用户的个人状态与成果；当前调用者尚未接通独立归属，不能借用该用户身份" };
   return [
     bindPresentationValuesHandler(values, input => ({ items: input.subjects.filter(subject => subject.kind === "coding_session").map((subject): PresentationValueItem => {
       try {
@@ -36,11 +39,11 @@ export function createCodingPresentationHandlers(projectId: string, sessions: Pi
         if (!(error instanceof ActionError && error.code === "coding.session_unknown")) throw error;
       }
       return { subject, revision: "0", state: "deleted" };
-    }) })),
+    }) }), owner),
     bindActionHandler(overview, () => {
       const recent = sessions.list(projectId).slice(0, PRESENTATION_LIMITS.overview_subjects);
       return { summary: { key: recent.length ? "coding.presentation.summary" : "coding.presentation.empty" },
         subjects: recent.map(session => ({ kind: "coding_session", id: session.session_id })), start: [start] };
-    }),
+    }, { availability: owner }),
   ];
 }

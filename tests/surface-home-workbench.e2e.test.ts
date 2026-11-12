@@ -75,6 +75,8 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
     assert.equal(sample.overflow, false);
     assert.match(sample.words, lang === "zh" ? /进行中/ : /In progress/);
     assert.doesNotMatch(sample.content, /(?:接着做|Pick up where you left off|当天的事件|Today’s events)/u);
+    // F-11 (batch 27 item 14, now on this home): no standing greeting or slogan, and no second explanation of how to start above the actions.
+    assert.doesNotMatch(sample.content, /(?:早上好|中午好|下午好|晚上好|夜深了|Good (?:morning|midday|afternoon|evening)|Working late|今天的工作|Today’s work|插件提供的新事项和待处理事项会出现在这里|New and pending items from plugins appear here)/u);
     if (width === 1440 && lang === "zh" && theme === "light" || width === 390 && lang === "en" && theme === "dark") {
       const captures = reviewEvidenceUrl("surface-home-consumers/");
       await mkdir(captures, { recursive: true });

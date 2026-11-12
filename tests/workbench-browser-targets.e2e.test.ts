@@ -213,4 +213,7 @@ test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices re
   assert.deepEqual(bodies.map(body => JSON.parse(body)), [{ review_id: id, decision: "reject" }]);
   assert.equal(queue.receipt(id)?.status, "rejected");
   assert.equal(a.effects(), 0);
+  // VUX-36: minimising the Assistant no longer shares the width, and the mark goes with it.
+  await browser.click("[data-assistant-panel-close]");
+  await browser.waitFor("document.querySelector('[data-assistant-panel]').hidden && !document.body.hasAttribute('data-side-shared')");
 });

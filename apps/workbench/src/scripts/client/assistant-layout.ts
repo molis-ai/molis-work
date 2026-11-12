@@ -1,6 +1,9 @@
 /** How the panel is laid out: the side pane beside the conversation or as a drawer over it, and the room it takes. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place.
  * It also marks the root (data-side-shared) while the side browser and this panel are both drawn and share the width (side-panel.ts), watching
- * only those few nodes' attributes, so no style rule re-checks the whole page with :has() (VUX-36).
+ * only those few nodes' attributes, so no style rule re-checks the whole page with :has() (VUX-36). In the shipped script `sideP` is the side
+ * panel, `sideB` its browser pane, `o` the observer and `n` each watched node (short, since every byte ships on each page). It relies on the
+ * side panel, its browser pane, the Dock bar and this panel being drawn by the server and never replaced at run time: a replaced node would
+ * no longer be watched.
  */
 export const ASSISTANT_LAYOUT_PART = String.raw`  // A narrow panel shows the side pane as a drawer over the conversation; a wide one beside it, as the person left it.
   const SIDE_KEY = "molis.assistant.side";

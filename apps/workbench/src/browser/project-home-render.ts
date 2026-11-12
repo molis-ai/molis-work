@@ -11,13 +11,10 @@ type CardTarget = SurfaceHomeStart | SurfaceHomeEnable | NonNullable<SurfacePlug
 export type HomeControl = { owner_plugin_id: string; target: CardTarget | ObjectTarget };
 export type FramedSurfaceControl = { owner: string; subject: SurfaceItem["subject"]; kind: string; command?: string } & NonNullable<PresentationFormValues["actions"]>[number];
 export const subjectKey = (owner: string, subject: SurfaceItem["subject"]) => JSON.stringify([owner, subject.kind, subject.id]);
-const locale = () => document.documentElement.lang.startsWith("en") ? "en" : "zh";
 
-/**
- * The document's text context is the one the workbench installed for this realm (`installLanguageText`); plugin owners' home words join it
- * through the protected surface-text projection (surface-composition §14.6). Drawing never installs a second context.
- */
-export function inHomeWords<Result>(draw: () => Result): Result { return draw(); }
+// The document's text context is the one the workbench installed for this realm (`installLanguageText`); plugin owners' home words join it
+// through the protected surface-text projection (surface-composition §14.6). Drawing never installs a second context, and the forms take
+// their language from it (`locale: null`), not from the page.
 
 const home = (key: string, count?: number): string => say.text({ owner: "workbench", key: "workbench.home." + key,
   ...(count === undefined ? {} : { args: [{ name: "count", kind: "number", number: count }] }) });
@@ -26,9 +23,9 @@ const note = (text: OwnedTextRef | undefined) => text ? `<p>${say(text)}</p>` : 
 const controlKey = (owner: string, suffix: string) => owner + ":" + suffix;
 export const homeButton = (key: string, label: string, primary = false) =>
   renderButton({ label, variant: primary ? "primary" : "secondary", attrs: { "data-home-control": key } });
-export const homeWord = (key: string) => inHomeWords(() => home(key));
-export const presentationWord = (key: string) => inHomeWords(() => common(key));
-export const surfaceCorrectionWord = (key: string) => inHomeWords(() => correctionText(key));
+export const homeWord = (key: string) => home(key);
+export const presentationWord = common;
+export { correctionText as surfaceCorrectionWord };
 
 function ownerOf(data: SurfaceHomeDisplay, owner: string): PresentationFormValues["ownerDisplay"] {
   return { ...data.display.owners[owner], name: data.display.owners[owner]?.name ?? owner, hue: data.display.owners[owner]?.hue ?? "gray" };
@@ -54,7 +51,7 @@ function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, group: SurfaceGr
     row.declaration.fields.find(field => field.key === key)?.role !== "held_in")) } : row.read;
   const corrections = read.state === "ok" && !row.fallback ? objectCorrections(data, group, item, fix?.controls) : [];
   return `<div class="home-row" data-home-row="${e(key)}" data-home-subject-kind="${e(row.subject.kind)}" data-home-subject-id="${e(row.subject.id)}"${actions.some(action => action.key.endsWith(":peek")) && (read.state === "ok" || read.state === "stale") ? ` data-home-row-peek="${e(controlKey(key, "peek"))}"` : ""}>
-    ${renderPresentationForm(row.declaration, item.form, { locale: locale(), ownerDisplay: ownerOf(data, row.owner), read, actions: item.form === "row" ? [...actions, ...corrections] : actions,
+    ${renderPresentationForm(row.declaration, item.form, { locale: null, ownerDisplay: ownerOf(data, row.owner), read, actions: item.form === "row" ? [...actions, ...corrections] : actions,
       notices: item.notices?.map(({ reason }) => ({ reason })) })}
     ${item.form === "row" ? "" : correctionMenu(corrections, "surface-correction-menu")}
     ${item.merged?.length ? renderBadge({ label: home("same") + " · " + item.merged.map(merge => ownerOf(data, merge.owner_plugin_id).name).join(" · ") }) : ""}</div>`;
@@ -99,47 +96,43 @@ function pluginCard(data: SurfaceHomeDisplay, group: SurfaceGroup, rows: ReturnT
 }
 
 export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeControl>, fix?: CorrectionRender) {
-  return inHomeWords(() => {
-    controls.clear();
-    fix?.controls.clear();
-    const byKey = new Map(data.display.rows.map(row => [subjectKey(row.owner, row.subject), row]));
-    const cards: string[] = [], groups: string[] = [];
-    for (const group of data.groups) {
-      const rows = rowList(data, group, controls, byKey, undefined, fix);
-      if (group.kind === "plugin" && group.owner_plugin_id) { cards.push(pluginCard(data, group, rows, controls)); continue; }
-      if (group.kind !== "attention" && group.kind !== "continue") continue;
-      const attention = group.kind === "attention", unreadable = group.state === "unreadable" || rows.unreadable;
-      const excluded = group.excluded?.reduce((count, entry) => count + (entry.count ?? 0), 0) ?? 0;
-      const title = attention ? home("attention", rows.count) : home("continue");
-      const lead = unreadable ? `<p>${e(home("attention-unreadable"))}</p>`
-        : attention && !rows.count ? `<p>${e(home("attention-empty"))}</p>` : "";
-      groups.push(`<section data-home-group="${group.kind}"><h2>${e(attention && unreadable && !rows.count ? home("attention-unreadable") : title)}</h2>
-        ${unreadable && !rows.count ? "" : lead}<div class="home-rows">${rows.html}</div>${excluded ? `<p>${e(home("excluded", excluded))}</p>` : ""}</section>`);
-    }
-    if (cards.length) groups.push(`<section data-home-group="plugins"><h2>${e(home("plugins"))}</h2><div class="home-plugin-cards">${cards.join("")}</div></section>`);
-    if (!data.display.rows.length) groups.splice(cards.length ? groups.length - 1 : groups.length, 0,
-      `<section class="mw-empty" data-home-group="start"><h2>${e(home("start-here"))}</h2>${cards.length ? "" : `<p>${e(home("empty"))}</p>`}
-        ${homeButton("market", home("add"))}</section>`);
-    return correctionHeader(data, 0, fix) + groups.join("");
-  });
+  controls.clear();
+  fix?.controls.clear();
+  const byKey = new Map(data.display.rows.map(row => [subjectKey(row.owner, row.subject), row]));
+  const cards: string[] = [], groups: string[] = [];
+  for (const group of data.groups) {
+    const rows = rowList(data, group, controls, byKey, undefined, fix);
+    if (group.kind === "plugin" && group.owner_plugin_id) { cards.push(pluginCard(data, group, rows, controls)); continue; }
+    if (group.kind !== "attention" && group.kind !== "continue") continue;
+    const attention = group.kind === "attention", unreadable = group.state === "unreadable" || rows.unreadable;
+    const excluded = group.excluded?.reduce((count, entry) => count + (entry.count ?? 0), 0) ?? 0;
+    const title = attention ? home("attention", rows.count) : home("continue");
+    const lead = unreadable ? `<p>${e(home("attention-unreadable"))}</p>`
+      : attention && !rows.count ? `<p>${e(home("attention-empty"))}</p>` : "";
+    groups.push(`<section data-home-group="${group.kind}"><h2>${e(attention && unreadable && !rows.count ? home("attention-unreadable") : title)}</h2>
+      ${unreadable && !rows.count ? "" : lead}<div class="home-rows">${rows.html}</div>${excluded ? `<p>${e(home("excluded", excluded))}</p>` : ""}</section>`);
+  }
+  if (cards.length) groups.push(`<section data-home-group="plugins"><h2>${e(home("plugins"))}</h2><div class="home-plugin-cards">${cards.join("")}</div></section>`);
+  if (!data.display.rows.length) groups.splice(cards.length ? groups.length - 1 : groups.length, 0,
+    `<section class="mw-empty" data-home-group="start"><h2>${e(home("start-here"))}</h2>${cards.length ? "" : `<p>${e(home("empty"))}</p>`}
+      ${homeButton("market", home("add"))}</section>`);
+  return correctionHeader(data, 0, fix) + groups.join("");
 }
 
 export function renderHomePeek(data: SurfaceHomeDisplay, row: SurfaceHomeRowDisplay, controls: Map<string, HomeControl>, framed?: readonly FramedSurfaceControl[]) {
   const id = controlKey(subjectKey(row.owner, row.subject), "peek-open");
   controls.set(id, objectControl(row, "open"));
-  return inHomeWords(() => renderPresentationForm(row.declaration, "peek", { locale: locale(), ownerDisplay: ownerOf(data, row.owner), read: row.read,
-    actions: framed ?? [{ key: id, label: home("open"), primary: true }] }));
+  return renderPresentationForm(row.declaration, "peek", { locale: null, ownerDisplay: ownerOf(data, row.owner), read: row.read,
+    actions: framed ?? [{ key: id, label: home("open"), primary: true }] });
 }
 
 /** Other positions select their own group; the form, owner words, fields and row controls are the same as Home. */
 export function renderPositionGroup(data: SurfaceHomeDisplay, index: number, controls: Map<string, HomeControl>, framed?: readonly FramedSurfaceControl[], fix?: CorrectionRender) {
-  return inHomeWords(() => {
-    const group = data.groups[index];
-    if (!group) return { html: "", count: 0 };
-    fix?.controls.clear();
-    const head = correctionHeader(data, index, fix);
-    if (fix?.headerOnly) return { html: head, count: 0 };
-    const rows = rowList(data, group, controls, new Map(data.display.rows.map(row => [subjectKey(row.owner, row.subject), row])), framed, fix);
-    return { html: head + rows.html, count: rows.count, overflow: group.overflow?.count };
-  });
+  const group = data.groups[index];
+  if (!group) return { html: "", count: 0 };
+  fix?.controls.clear();
+  const head = correctionHeader(data, index, fix);
+  if (fix?.headerOnly) return { html: head, count: 0 };
+  const rows = rowList(data, group, controls, new Map(data.display.rows.map(row => [subjectKey(row.owner, row.subject), row])), framed, fix);
+  return { html: head + rows.html, count: rows.count, overflow: group.overflow?.count };
 }

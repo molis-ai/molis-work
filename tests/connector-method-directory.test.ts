@@ -1,20 +1,44 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
-import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
-import { listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
-import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
-import { recommendedMethod, renderConnectorConnect, renderConnectorWays } from "../apps/workbench/src/settings-connector-guide.ts";
-import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts/connectors-settings.ts";
+import { CATALOG_CONNECTORS, createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
+import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
+import { createGmailIntegrationPlugin } from "@molis-ai/molis-work-integration-gmail";
+import { connectorDirectory, homeIntegrationRegistry, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { workbenchPlatformText } from "@molis-ai/molis-work-app-workbench";
+import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { renderMolisWorkSettings, type MolisWorkSettingsView } from "./workbench-renderer-fixture.js";
 
 // A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
 // without the three flags a listing adds from this machine's own settings.
 const HOME = "connector-method-directory-test-home";
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map((entry) => entry);
+const listConnectorSettingsCards = async (home: string) => connectorDirectory(await homeIntegrationRegistry(home));
+const HOST_CONNECTOR_DIRECTORY = await runWithLocale("zh", () => listConnectorSettingsCards(HOME));
+const notNeeded = () => assert.fail("No provider binding is needed to inspect its declared guides");
+const official = [createGithubIntegrationPlugin({ providerFor: notNeeded }), createGmailIntegrationPlugin({ providerFor: notNeeded }),
+  ...CATALOG_CONNECTORS.map(({ id }) => createCatalogIntegrationPlugin({ connectorId: id, providerFor: notNeeded }))];
+const OFFICIAL_CONNECTOR_METHODS = Object.fromEntries(official.flatMap(({ manifest, connectionText }) => {
+  const fallback = pluginLocaleReader(manifest, connectionText.readLocale)?.pack("zh");
+  const project = (word: PluginConnectionWord): string => typeof word === "string" ? word : "literal" in word ? word.literal : String(
+    (word.key.startsWith("common.") ? workbenchPlatformText.pack("zh") : fallback)?.messages[word.key] ?? "");
+  return Object.entries(connectionText.guides).map(([id, methods]) => [id, methods.map(method => ({
+    ...method, note: project(method.note), links: method.links.map(link => ({ ...link, label: project(link.label) })),
+  }))] as const);
+}));
+const officialMethodsFor = (id: string) => OFFICIAL_CONNECTOR_METHODS[id] ?? [];
+type DirectoryView = Pick<MolisWorkSettingsView, "connectors" | "connector_connections">;
+const renderDirectory = (view: DirectoryView, locale = "zh") => runWithLocale(locale, () => renderMolisWorkSettings({
+  section: "connectors", projects: [], runtimes: [],
+  web_service: { provider: "macos-launchagent", state: "absent", supported: true, owned: false, running: false,
+    label: "Web", plist_path: "", command: [], stdout_log: "", stderr_log: "", message: "" },
+  diagnostics: { home_directory: "/tmp", installation_state: "ready", version: "0.2.0", release_directory: "/tmp", project_count: 0, launchers: [] },
+  ...view,
+}, "connector-method-directory-test"));
 /** A service's open part on the connections page: from its row to the next service's row. */
 const serviceBody = (html: string, id: string) => html.split(`data-connector-item="${id}"`)[1]?.split("data-connector-item=")[0] ?? "";
 /** The part of it before 高级: what the row offers without opening anything else. */
-const connectPart = (html: string, id: string) => serviceBody(html, id).split("data-connector-advanced")[0]!;
+const advanced = /<details\b[^>]*\bdata-connector-advanced(?=[ >])/u;
+const connectPart = (html: string, id: string) => serviceBody(html, id).split(advanced)[0]!;
 
 test("every catalog service and the two host account services have official method choices", () => {
   const ids = new Set(["github", "gmail", ...CATALOG_CONNECTORS.map((row) => row.id)]);
@@ -66,12 +90,10 @@ test("all current Connector cards expose a method directory with safe official l
       assert.ok(method.links.every((link) => link.url.startsWith("https://")), `${row.connector_id}:${method.kind}`);
     }
   }
-  const settingsCards = await listConnectorSettingsCards(HOME);
+  const settingsCards = await runWithLocale("zh", () => listConnectorSettingsCards(HOME));
   assert.deepEqual(new Set(settingsCards.map((row) => row.connector_id)), new Set(HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id)));
   assert.ok(settingsCards.every((row) => row.method_options?.length), "settings endpoint cards must forward method options");
-  const html = renderConnectorsSettings({
-    connectors: HOST_CONNECTOR_DIRECTORY,
-  }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const html = renderDirectory({ connectors: HOST_CONNECTOR_DIRECTORY });
   const notionDetail = serviceBody(html, "notion");
   assert.match(notionDetail, /data-connector-method="mcp" data-method-support="in_app"/);
   assert.match(notionDetail, /需另行授权/);
@@ -82,7 +104,7 @@ test("all current Connector cards expose a method directory with safe official l
 
 
 test("every displayed official method has an executable host adapter and configuration controls", () => {
-  const html = renderConnectorsSettings({ connectors: HOST_CONNECTOR_DIRECTORY }, { L: value => value, escapeHtml: value => String(value ?? ""), icon: () => "" });
+  const html = renderDirectory({ connectors: HOST_CONNECTOR_DIRECTORY });
   for (const service of HOST_CONNECTOR_DIRECTORY) {
     for (const method of service.method_options ?? []) {
       assert.notEqual(method.support, "external", `${service.connector_id}:${method.kind}`);
@@ -96,7 +118,7 @@ test("every displayed official method has an executable host adapter and configu
 });
 
 test("ASC-28: MCP method facts distinguish authentication from OAuth client registration", async () => {
-  const cards = await listConnectorSettingsCards(HOME);
+  const cards = await runWithLocale("zh", () => listConnectorSettingsCards(HOME));
   const mcp = (id: string) => cards.find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
   const github = mcp("github");
   assert.equal(github.mcp?.client_registration, "manual");
@@ -107,56 +129,56 @@ test("ASC-28: MCP method facts distinguish authentication from OAuth client regi
 });
 
 test("onboarding prefers ready account login and keeps developer configuration optional", () => {
-  const L = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
-  const p = { L, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
+  const connect = (entry: NonNullable<DirectoryView["connectors"]>[number]) => connectPart(renderDirectory({ connectors: [entry] }), entry.connector_id);
+  const waysOf = (entry: NonNullable<DirectoryView["connectors"]>[number]) => serviceBody(renderDirectory({ connectors: [entry] }), entry.connector_id).split(advanced)[1]!;
+  const script = [...renderDirectory({ connectors: HOST_CONNECTOR_DIRECTORY }).matchAll(/<script(?:\s+[^>]*)?>([\s\S]*?)<\/script>/gu)]
+    .find(match => match[1]?.includes("molisWorkBindConnectorsSettings"))?.[1];
+  assert.ok(script);
   for (const service of ["gmail", "notion", "github"]) {
     const entry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === service)!;
     // Gmail's and Notion's ready login is their OAuth method's own `login_ready` (the generic flow's product client), never a per-service flag.
     const ready = { ...entry,
       method_options: entry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: true, ...(m.oauth?.device ? { oauth: { ...m.oauth, device: { login_ready: true } } } : {}) } : m) };
-    assert.equal(recommendedMethod(ready)?.kind, "oauth", service);
-    const html = renderConnectorConnect(ready, p);
+    const html = connect(ready);
     // Gmail and Notion sign in through the generic flow: the same start button, with no dedicated-login marker of their own.
     assert.equal(html.includes("data-device-login"), service === "github", service);
     // The device button names the service the code is typed at, and the page script starts the device flow from it, never the web one.
     if (service === "github") {
       assert.match(html, /data-device-login="GitHub"/u);
-      assert.match(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /'deviceLogin' in button\.dataset[^;]*deviceFlow\(area, body, popup, button\.dataset\.deviceLogin\)/u);
-      assert.match(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /api\('methods\/device\/start', body\)/u);
-      assert.doesNotMatch(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /输入设备码[^)]*GitHub/u, "no service is written into the generic script");
+      assert.match(script, /'deviceLogin' in button\.dataset[^;]*deviceFlow\(area, body, popup, button\.dataset\.deviceLogin\)/u);
+      assert.match(script, /api\('methods\/device\/start', body\)/u);
+      assert.doesNotMatch(script, /输入设备码[^)]*GitHub/u, "no service is written into the generic script");
     }
     assert.ok(html.includes("data-protocol-start=\"oauth\""), service);
     // ASC-75: the one click asks for nothing; an own app is under 高级, with its fields.
     assert.doesNotMatch(html, /<input[^>]* required/);
-    const ways = renderConnectorWays(ready, p);
+    const ways = waysOf(ready);
     assert.match(ways, /data-method-choice="oauth"><summary>用自己的应用/);
     assert.match(ways, /data-protocol-field="client_id"[^>]*required/);
   }
   const gmailEntry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "gmail")!;
   const gmail = { ...gmailEntry, method_options: gmailEntry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: false } : m) };
-  const main = renderConnectorConnect(gmail, p);
+  const main = connect(gmail);
   // ASC-47 ASC-75: a service with no one-click login says so, why, and the ways that work now; no button that cannot work.
   assert.match(main, /还不能一键连接：Molis Work 还没开通 Gmail 的一键登录/);
   assert.match(main, /现在能走的路：用你自己的 Google 应用登录/);
   assert.match(main, /data-connector-advanced-open/);
   assert.doesNotMatch(main, /<input|data-protocol-start/);
-  assert.equal(recommendedMethod(gmail), undefined);
-  const ways = renderConnectorWays(gmail, p);
+  const ways = waysOf(gmail);
   assert.match(ways, /data-protocol-field="client_id"[^>]*required/);
   assert.doesNotMatch(main + ways, /data-device-login/);
-  assert.equal(recommendedMethod({ ...gmail, connector_id: "loom", method_options: HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "loom")!.method_options })?.kind, "mcp");
+  assert.match(connect(HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "loom")!), /data-protocol-start="mcp"/);
   // Compile the actual generated browser program, including template escaping.
-  assert.doesNotThrow(() => new Function(CONNECTORS_SETTINGS_CLIENT_SCRIPT));
+  assert.doesNotThrow(() => new Function(script));
 });
 
 test("ASC-73 ASC-75: a ready official login is the row's one click; account management and services without one stay apart", () => {
   const cards = HOST_CONNECTOR_DIRECTORY;
-  const html = renderConnectorsSettings({ connectors: cards }, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
+  const html = renderDirectory({ connectors: cards });
   for (const id of ["notion", "linear", "gitlab", "stripe"]) {
     const main = connectPart(html, id);
     assert.match(main, /data-protocol-start="mcp"/, id);
     assert.doesNotMatch(main, /<input[^>]* required/, id);
-    assert.equal(recommendedMethod(cards.find(c => c.connector_id === id)!)?.kind, "mcp");
   }
   for (const id of ["gmail", "dropbox", "box", "zoom", "x"]) {
     assert.doesNotMatch(connectPart(html, id), /data-protocol-start/, id);
@@ -164,16 +186,16 @@ test("ASC-73 ASC-75: a ready official login is the row's one click; account mana
   }
   const jira = cards.find(c => c.connector_id === "jira")!;
   const productJira = { ...jira, method_options: jira.method_options!.map(m => m.kind === "oauth" ? { ...m, login_ready: true } : m) };
-  const jiraMain = renderConnectorConnect(productJira, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
+  const jiraMain = connectPart(renderDirectory({ connectors: [productJira] }), "jira");
   assert.match(jiraMain, /data-protocol-start="oauth"/);
   assert.doesNotMatch(jiraMain, /<input[^>]* required/, "server-owned workspace settings must not block the browser login button");
 });
 
 test("composite credentials keep separate labeled inputs when adding and replacing an account", () => {
   const card = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "jira")!;
-  const html = renderConnectorsSettings({ connectors: [{ ...card }], connector_connections: [{
+  const html = renderDirectory({ connectors: [{ ...card }], connector_connections: [{
     connection_id: "11111111-1111-4111-8111-111111111111", service_id: "jira", display_name: "工作 Jira", account_label: "me@example.com", auth_method: "token", source: "managed", state: "connected",
-  }] }, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
+  }] });
   const replace = html.match(/<form[^>]*data-connection-replace=[\s\S]*?<\/form>/)![0];
   assert.match(replace, /data-credential-separator="\|"/);
   assert.match(replace, /站点域名/);
@@ -187,14 +209,10 @@ test("RAC-2528 a connection pinned to a package shows 建于 and its name throug
   const pinned = { connection_id: "22222222-2222-4222-8222-222222222222", service_id: "example-feed", display_name: "Feed 账号", account_label: null, auth_method: "token" as const,
     source: "managed" as const, state: "connected" as const, declared_by: { plugin_id: "io.molis.work.example.feed", title: "Example <Feed>" } };
   const plain = { ...pinned, connection_id: "33333333-3333-4333-8333-333333333333", service_id: "github", display_name: "GitHub 账号", declared_by: undefined };
-  const render = (L: (value: string) => string) => renderConnectorsSettings({ connectors: [], connector_connections: [pinned, plain] },
-    { L, escapeHtml: v => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), icon: () => "" });
+  const render = (locale: string) => renderDirectory({ connectors: [], connector_connections: [pinned, plain] }, locale);
   const row = (html: string, id: string) => html.match(new RegExp(`data-connection-row="${id}"[\\s\\S]*?</div>`))![0];
-  const zh = render(value => value);
+  const zh = render("zh");
   assert.match(row(zh, pinned.connection_id), /<small data-connection-declared-by>建于 · Example &lt;Feed&gt;<\/small>/);
   assert.doesNotMatch(row(zh, plain.connection_id), /data-connection-declared-by/);
-  // Its words go through the translator like the row's others; the translation gate (pnpm health:check) holds their English.
-  const asked: string[] = [];
-  render(value => { asked.push(value); return value; });
-  assert.ok(asked.includes("建于"));
+  assert.match(row(render("en"), pinned.connection_id), /Made for · Example &lt;Feed&gt;/);
 });

@@ -290,6 +290,8 @@ test("DRT-13 S-plugin-connection-card 还不能一键连接 opens the connection
   p.account("Connected meanwhile");
   const reads = async () => (await p.sent()).filter(item => item.body?.operation === "read").length;
   const before = await reads();
+  await browser.evaluate(`document.querySelector('[data-settings-return-bar]').scrollIntoView({ behavior: 'instant', block: 'center' })`);
+  await browser.waitFor(`(() => { const box = document.querySelector('[data-return-bar-back]').getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight; })()`);
   await browser.click("[data-settings-return-bar] [data-return-bar-back]");
   await browser.waitFor("document.body.dataset.desktopSurface === 'feed'", 15_000);
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "choose"`, 15_000);

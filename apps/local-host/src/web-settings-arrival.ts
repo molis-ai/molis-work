@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { markProjectOpened, pruneProjectArrival } from "./project-arrival.js";
 import { isTopLevelNavigation } from "./web-http.js";
+import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 
 /**
  * Settings, 能力 among them, are part of the workbench (specs/artifact-positioning S6, S6b). A settings address opened
@@ -25,6 +26,7 @@ function sendToWorkbench(response: ServerResponse, routePrefix: string, settings
 export function arriveAtProjectPage(request: IncomingMessage, response: ServerResponse, url: URL,
   project: { project_id: string; routePrefix: string } | null, homeDirectory: string | undefined, desktop: boolean): boolean {
   if (!project) return false;
+  if (request.headers[UI_LANGUAGE_PREVIEW_HEADER] !== undefined) return false;
   if (request.method === "GET" && url.pathname === "/" && !url.searchParams.has("workbenchPane") && url.searchParams.get("embed") !== "1"
     && (request.headers["sec-fetch-dest"] ?? "document") === "document") markProjectOpened(homeDirectory, project.project_id);
   if (!isTopLevelNavigation(request) || !SETTINGS_PATH.test(url.pathname) || url.searchParams.get("embed") === "1") return false;

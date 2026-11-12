@@ -5,6 +5,8 @@ import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createPageTerminal } from "@molis-ai/molis-work-app-workbench/terminal";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { shippedPagePack } from "./fixtures/page-text-packs.js";
 
 // PG-053 (specs/archive/repository-anti-corruption/slices/pg053-plugin-terminals.md): the terminal the shell gives a page it draws itself, and the
 // rule that the workbench's terminal entry names no plugin. The Shelf and Characters clients that use it have their own tests.
@@ -30,6 +32,7 @@ class FakeSocket {
 }
 
 function page(t: TestContext) {
+  t.after(installTextForTest({ locale: "zh", packs: [shippedPagePack("workbench", "zh")] }));
   FakeSocket.all = [];
   const install = (key: string, value: unknown) => {
     const before = Object.getOwnPropertyDescriptor(globalThis, key);

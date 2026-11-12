@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SidePanelPrimitives } from "./side-panel.js";
 
 /**
@@ -5,30 +6,30 @@ import type { SidePanelPrimitives } from "./side-panel.js";
  * its screencast and sends the person's pointer, keys and input-method text back over one socket. The address bar,
  * problems, dialogs, file choosing and downloads are all this tab's; what the assistant does on the page shows here too.
  */
-export function renderSideBrowser({ L, icon }: SidePanelPrimitives): string {
+export function renderSideBrowser({ icon }: SidePanelPrimitives): string {
   const tool = (action: string, label: string, glyph: Parameters<SidePanelPrimitives["icon"]>[0], extra = "") =>
     `<button class="side-browser-tool" type="button" data-browser-action="${action}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
   return `<div class="side-browser" data-browser>
-      <form class="side-browser-bar" data-browser-bar role="toolbar" aria-label="${L("浏览器地址与导航")}">
-        ${tool("back", L("后退"), "back", " disabled")}${tool("forward", L("前进"), "arrow", " disabled")}${tool("reload", L("刷新"), "refresh")}${tool("stop", L("停止加载"), "x", " hidden")}
+      <form class="side-browser-bar" data-browser-bar role="toolbar" aria-label="${uiText("workbench.side-panel-browser.browser-address-navigation")}">
+        ${tool("back", uiText.text("workbench.side-panel-browser.back"), "back", " disabled")}${tool("forward", uiText.text("workbench.side-panel-browser.forward"), "arrow", " disabled")}${tool("reload", uiText.text("workbench.side-panel-browser.refresh"), "refresh")}${tool("stop", uiText.text("workbench.side-panel-browser.stop-loading"), "x", " hidden")}
         <label class="side-browser-address" data-browser-address-field>
           <span class="side-browser-identity" data-browser-identity aria-hidden="true">${icon("globe")}</span>
           <span class="side-browser-lock" data-browser-lock hidden aria-hidden="true">${icon("lock")}</span>
-          <input type="text" inputmode="url" data-browser-address placeholder="${L("输入网址或搜索")}" aria-label="${L("网址")}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+          <input type="text" inputmode="url" data-browser-address placeholder="${uiText("workbench.side-panel-browser.enter-address-search")}" aria-label="${uiText("workbench.side-panel-browser.address")}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
         </label>
-        ${tool("sites", L("助理在网站上的权限"), "shield", ' aria-haspopup="true" aria-expanded="false"')}${tool("give", L("把这一页交给助理"), "sparkles")}
+        ${tool("sites", uiText.text("workbench.side-panel-browser.what-assistant-may-do-sites"), "shield", ' aria-haspopup="true" aria-expanded="false"')}${tool("give", uiText.text("workbench.side-panel-browser.hand-page-assistant"), "sparkles")}
       </form>
-      <div class="side-browser-sites" data-browser-sites hidden role="dialog" aria-label="${L("助理在网站上的权限")}"></div>
-      <div class="side-browser-approval" data-browser-approval hidden role="alertdialog" aria-live="assertive" aria-label="${L("助理请你确认")}"></div>
+      <div class="side-browser-sites" data-browser-sites hidden role="dialog" aria-label="${uiText("workbench.side-panel-browser.what-assistant-may-do-sites")}"></div>
+      <div class="side-browser-approval" data-browser-approval hidden role="alertdialog" aria-live="assertive" aria-label="${uiText("workbench.side-panel-browser.assistant-asks-confirm")}"></div>
       <div class="side-browser-strip" data-browser-strip hidden></div>
-      <div class="side-browser-view" data-browser-view role="application" aria-roledescription="${L("网页画面")}" aria-label="${L("网页画面")}">
+      <div class="side-browser-view" data-browser-view role="application" aria-roledescription="${uiText("workbench.side-panel-browser.web-page")}" aria-label="${uiText("workbench.side-panel-browser.web-page")}">
         <canvas data-browser-canvas aria-hidden="true"></canvas>
-        <textarea class="side-browser-keys-textarea" data-browser-keys aria-label="${L("向网页输入")}" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1"></textarea>
+        <textarea class="side-browser-keys-textarea" data-browser-keys aria-label="${uiText("workbench.side-panel-browser.type-into-page")}" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1"></textarea>
         <span class="side-browser-marker" data-browser-marker hidden aria-hidden="true"></span>
         <div class="side-browser-cover" data-browser-cover>
           <div class="side-browser-cover-copy" data-browser-cover-copy>
-            <p class="side-browser-cover-title">${L("在上方输入网址开始浏览")}</p>
-            <p>${L("这里的登录状态与你自己的浏览器分开：在这里登录过的网站，只在 Molis Work 里保持登录。")}</p>
+            <p class="side-browser-cover-title">${uiText("workbench.side-panel-browser.enter-address-above-start-browsing")}</p>
+            <p>${uiText("workbench.side-panel-browser.sign-ins-here-separate-own-browser-site-sign")}</p>
           </div>
         </div>
         <div class="side-browser-sheet" data-browser-sheet hidden role="dialog" aria-modal="false" aria-labelledby="side-browser-sheet-title"></div>
@@ -128,7 +129,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
   const root=document.querySelector('[data-browser]'),projectId=document.body.dataset.projectId;
   if(!root||!projectId)return;
-  const L=globalThis.L||((text)=>text);
+  const readText=globalThis.t.text;
   const $=(selector)=>root.querySelector(selector);
   const view=$('[data-browser-view]'),canvas=$('[data-browser-canvas]'),keys=$('[data-browser-keys]'),address=$('[data-browser-address]');
   const cover=$('[data-browser-cover]'),coverCopy=$('[data-browser-cover-copy]'),strip=$('[data-browser-strip]'),sheet=$('[data-browser-sheet]');
@@ -175,7 +176,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const say=(text,urgent)=>{if(!text||text===announced)return;announced=text;live.setAttribute('role',urgent?'alert':'status');live.textContent=text;};
   const tool=(name)=>$('[data-browser-action="'+name+'"]');
-  const button=(action,label,kind='secondary',scope)=>'<button class="mw-btn mw-btn--'+kind+' mw-btn--sm" type="button" data-browser-action="'+action+'"'+(scope===undefined?'':' data-scope="'+esc(scope)+'"')+'>'+esc(label)+'</button>';
+  const browserButton=(action,label,kind='secondary',scope)=>'<button class="mw-btn mw-btn--'+kind+' mw-btn--sm" type="button" data-browser-action="'+action+'"'+(scope===undefined?'':' data-scope="'+esc(scope)+'"')+'>'+esc(label)+'</button>';
   const render=()=>{
     if(!state)return;
     tool('back').disabled=!state.can_go_back;tool('forward').disabled=!state.can_go_forward;
@@ -183,41 +184,41 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     tool('give').disabled=!state.url;
     if(document.activeElement!==address)address.value=state.url||'';
     $('[data-browser-lock]').hidden=!state.secure;$('[data-browser-identity]').hidden=state.secure;
-    $('[data-browser-address-field]').title=state.origin?(state.secure?L('安全连接')+' · ':L('连接未加密')+' · ')+state.origin:'';
-    view.setAttribute('aria-label',state.title||state.origin?L('网页画面')+'：'+(state.title||state.origin):L('网页画面'));
+    $('[data-browser-address-field]').title=state.origin?(state.secure?globalThis.t.text("workbench.side-panel-browser.secure-connection")+' · ':globalThis.t.text("workbench.side-panel-browser.connection-not-encrypted")+' · ')+state.origin:'';
+    view.setAttribute('aria-label',state.title||state.origin?globalThis.t.text("workbench.side-panel-browser.web-page")+'：'+(state.title||state.origin):globalThis.t.text("workbench.side-panel-browser.web-page"));
     // What covers the page: a problem that leaves nothing to show, or the start page.
     const fault=state.problem;
     const blank=!state.url&&!state.loading;
     if(fault&&(state.status==='unavailable'||state.status==='stopped'||state.status==='crashed')){
       cover.hidden=false;
-      const action=fault.code==='browser.not_found'?button('retry',L('重试')):fault.code==='browser.page_crashed'?button('reload',L('重新加载')):button('restart',L('重新启动浏览器'));
-      coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(fault.code==='browser.not_found'?L('没有可用的浏览器'):fault.code==='browser.page_crashed'?L('页面崩溃了'):L('浏览器没有运行'))+'</p><p>'+esc(fault.message)+'</p>'+action;
+      const action=fault.code==='browser.not_found'?browserButton('retry',globalThis.t.text("common.control.retry")):fault.code==='browser.page_crashed'?browserButton('reload',globalThis.t.text("workbench.side-panel-browser.reload")):browserButton('restart',globalThis.t.text("workbench.side-panel-browser.restart-browser"));
+      coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(fault.code==='browser.not_found'?globalThis.t.text("workbench.side-panel-browser.no-browser-available"):fault.code==='browser.page_crashed'?globalThis.t.text("workbench.side-panel-browser.page-crashed"):globalThis.t.text("workbench.side-panel-browser.browser-not-running"))+'</p><p>'+esc(fault.message)+'</p>'+action;
       say(fault.message,true);
     }else if(state.status==='starting'){
-      cover.hidden=false;coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(L('正在启动浏览器…'))+'</p>';
+      cover.hidden=false;coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(globalThis.t.text("workbench.side-panel-browser.starting-browser"))+'</p>';
     }else if(blank){
       cover.hidden=false;
-      coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(L('在上方输入网址开始浏览'))+'</p><p>'+esc(L('这里的登录状态与你自己的浏览器分开：在这里登录过的网站，只在 Molis Work 里保持登录。'))+(state.engine?'</p><p>'+esc(L('使用本机的 {name}',{name:state.engine})):'')+'</p>';
+      coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(globalThis.t.text("workbench.side-panel-browser.enter-address-above-start-browsing"))+'</p><p>'+esc(globalThis.t.text("workbench.side-panel-browser.sign-ins-here-separate-own-browser-site-sign"))+(state.engine?'</p><p>'+esc(globalThis.t.text("workbench.side-panel-browser.using-name-computer",{name:state.engine})):'')+'</p>';
     }else cover.hidden=true;
     // The strip above the page: a page problem the page still shows behind, or the window a page opened.
-    if(fault&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(fault.message)+'</p>'+(fault.code==='browser.load_failed'?button('reload',L('刷新')):'');say(fault.message,true);}
-    else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(L('这是网页打开的新窗口（例如登录）。关闭后回到原来的页面。'))+'</p>'+button('popup-close',L('关闭并返回'));}
+    if(fault&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(fault.message)+'</p>'+(fault.code==='browser.load_failed'?browserButton('reload',globalThis.t.text("workbench.side-panel-browser.refresh")):'');say(fault.message,true);}
+    else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(globalThis.t.text("workbench.side-panel-browser.window-page-opened-example-sign-closing-returns-original"))+'</p>'+browserButton('popup-close',globalThis.t.text("workbench.side-panel-browser.close-return"));}
     else{strip.hidden=true;strip.innerHTML='';}
     renderSheet();renderControl();
     // A page that failed to load is announced by its problem above, never as opened.
-    if(state.status==='ready'&&!state.loading&&state.title&&!fault)say(L('已打开：{title}',{title:state.title}));
+    if(state.status==='ready'&&!state.loading&&state.title&&!fault)say(globalThis.t.text("workbench.side-panel-browser.opened-title",{title:state.title}));
   };
   const renderSheet=()=>{
     const dialog=state.dialog,chooser=state.file_chooser,download=[...state.downloads].reverse().find(item=>item.state==='completed'&&!seenDownloads.has(item.id));
     if(dialog){
-      const title={alert:L('网页提示'),confirm:L('网页请你确认'),prompt:L('网页请你输入'),beforeunload:L('确定离开这个页面？')}[dialog.type]||L('网页提示');
-      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(title)+' · '+esc(state.origin)+'</h2><p>'+esc(dialog.message)+'</p>'+(dialog.type==='prompt'?'<input type="text" data-browser-prompt value="'+esc(dialog.default_prompt)+'" aria-label="'+esc(L('输入内容'))+'">':'')+'<div class="side-browser-actions">'+(dialog.type==='alert'?'':button('dialog-cancel',L('取消')))+button('dialog-accept',dialog.type==='beforeunload'?L('离开'):L('确定'),'primary')+'</div>';
+      const title={alert:globalThis.t.text("workbench.side-panel-browser.message-page"),confirm:globalThis.t.text("workbench.side-panel-browser.page-asks-confirm"),prompt:globalThis.t.text("workbench.side-panel-browser.page-asks-input"),beforeunload:globalThis.t.text("workbench.side-panel-browser.leave-page")}[dialog.type]||globalThis.t.text("workbench.side-panel-browser.message-page");
+      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(title)+' · '+esc(state.origin)+'</h2><p>'+esc(dialog.message)+'</p>'+(dialog.type==='prompt'?'<input type="text" data-browser-prompt value="'+esc(dialog.default_prompt)+'" aria-label="'+esc(globalThis.t.text("workbench.side-panel-browser.input"))+'">':'')+'<div class="side-browser-actions">'+(dialog.type==='alert'?'':browserButton('dialog-cancel',globalThis.t.text("common.control.cancel")))+browserButton('dialog-accept',dialog.type==='beforeunload'?globalThis.t.text("workbench.side-panel-browser.leave"):globalThis.t.text("common.control.confirm"),'primary')+'</div>';
       sheet.dataset.kind='dialog';sheet.dataset.id=dialog.id;sheet.hidden=false;
     }else if(chooser){
-      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(L('网页请你选择文件'))+'</h2><p>'+esc(L('选中的文件会发送给 {origin}。',{origin:state.origin||L('这个网页')}))+'</p><div class="side-browser-actions">'+button('file-cancel',L('取消'))+button('file-pick',chooser.multiple?L('选择文件…'):L('选择一个文件…'),'primary')+'</div>';
+      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(globalThis.t.text("workbench.side-panel-browser.page-asks-file"))+'</h2><p>'+esc(globalThis.t.text("workbench.side-panel-browser.files-choose-will-be-sent-origin",{origin:state.origin||globalThis.t.text("workbench.side-panel-browser.page")}))+'</p><div class="side-browser-actions">'+browserButton('file-cancel',globalThis.t.text("common.control.cancel"))+browserButton('file-pick',chooser.multiple?globalThis.t.text("workbench.side-panel-browser.choose-files"):globalThis.t.text("workbench.side-panel-browser.choose-file"),'primary')+'</div>';
       sheet.dataset.kind='file';sheet.dataset.id=chooser.id;sheet.hidden=false;fileInput.multiple=!!chooser.multiple;
     }else if(download){
-      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(L('下载完成'))+'</h2><p>'+esc(download.filename)+'</p><div class="side-browser-actions">'+button('download-dismiss',L('关闭'))+'<a class="mw-btn mw-btn--primary mw-btn--sm" data-browser-download="'+esc(download.id)+'" href="/projects/'+encodeURIComponent(projectId)+'/api/browser/downloads/'+encodeURIComponent(download.id)+'" download="'+esc(download.filename)+'">'+esc(L('保存到本机'))+'</a></div>';
+      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(globalThis.t.text("workbench.side-panel-browser.download-finished"))+'</h2><p>'+esc(download.filename)+'</p><div class="side-browser-actions">'+browserButton('download-dismiss',globalThis.t.text("common.control.close"))+'<a class="mw-btn mw-btn--primary mw-btn--sm" data-browser-download="'+esc(download.id)+'" href="/projects/'+encodeURIComponent(projectId)+'/api/browser/downloads/'+encodeURIComponent(download.id)+'" download="'+esc(download.filename)+'">'+esc(globalThis.t.text("workbench.side-panel-browser.save-computer"))+'</a></div>';
       sheet.dataset.kind='download';sheet.dataset.id=download.id;sheet.hidden=false;
     }else{sheet.hidden=true;sheet.innerHTML='';delete sheet.dataset.kind;}
   };
@@ -226,12 +227,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const mode=state.control?.mode||'person',activity=state.control?.activity;
     if(mode==='assistant'){
       control.hidden=false;control.dataset.mode=mode;
-      control.innerHTML='<p><strong>'+esc(L('助理正在操作'))+'</strong> · '+esc(activity?.summary||state.origin)+'</p>'+button('takeover',L('接手'));
+      control.innerHTML='<p><strong>'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-working-here"))+'</strong> · '+esc(activity?.summary||state.origin)+'</p>'+browserButton('takeover',globalThis.t.text("workbench.side-panel-browser.take-over"));
       if(activity?.point){const scaleX=view.clientWidth/(state.viewport.width||1),scaleY=view.clientHeight/(state.viewport.height||1);marker.style.left=activity.point.x*scaleX+'px';marker.style.top=activity.point.y*scaleY+'px';marker.hidden=false;}else marker.hidden=true;
-      say(activity?.summary||L('助理正在操作'));
+      say(activity?.summary||globalThis.t.text("workbench.side-panel-browser.assistant-working-here"));
     }else if(mode==='taken-over'){
       control.hidden=false;control.dataset.mode=mode;marker.hidden=true;
-      control.innerHTML='<p>'+esc(L('你已接手，助理暂停中。'))+'</p>'+button('handback',L('交还助理'),'primary');
+      control.innerHTML='<p>'+esc(globalThis.t.text("workbench.side-panel-browser.have-taken-over-assistant-paused"))+'</p>'+browserButton('handback',globalThis.t.text("workbench.side-panel-browser.hand-back-assistant"),'primary');
     }else{control.hidden=true;control.innerHTML='';marker.hidden=true;}
   };
   // When the Assistant starts using this project's page, the panel opens on it (once per piece of work), without focus.
@@ -278,13 +279,13 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
     // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
-    const note=held?'<p class="side-browser-approval-note">'+esc(L('你接手期间，这一步不会执行。交还后助理会先重新查看页面，再决定要不要做。'))+'</p>':'';
+    const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':'';
     const details=fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
-    const choices=held?'':button('approve-once',L('允许这一次'),'primary')+(remember?button('approve-site',L('这个网站以后不用问'),'secondary'):'');
-    approval.innerHTML='<h2 id="side-browser-approval-title">'+esc(L('助理请你确认'))+'</h2>'
+    const choices=held?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
+    approval.innerHTML='<h2 id="side-browser-approval-title">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
       +'<div class="side-browser-approval-copy" role="group" aria-labelledby="side-browser-approval-title" tabindex="0">'
-      +note+'<p>'+esc(doc.summary||L('助理想在这个页面上操作'))+'</p><dl>'+details+'</dl></div>'
-      +'<div class="side-browser-actions-row">'+choices+button('reject',L('不允许'),'ghost')+'</div>';
+      +note+'<p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+details+'</dl></div>'
+      +'<div class="side-browser-actions-row">'+choices+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>';
     approval.dataset.site=site;approval.hidden=false;
     paintApprovalBusy();
     const copy=approval.querySelector('.side-browser-approval-copy');
@@ -294,14 +295,14 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       (next?.getClientRects().length?next:tool('reject')).focus({preventScroll:true});
     }
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
-    say(L('助理请你确认：{what}',{what:doc.summary||''}),true);
+    say(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm-what",{what:doc.summary||''}),true);
   };
   const decide=async(decision,id,site)=>{
     if(!id||deciding.has(id))return;
     deciding.add(id);paintApprovalBusy();
     try{
       if(site)await setSite(site,'allow');
-      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:L('确认没有提交')});
+      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
       if(reviewing===id)renderApproval(null);
       void pollReviews();
     }catch(error){fail(error);}
@@ -313,14 +314,14 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     let rows=[],enabled=true;try{rows=(await molisWorkRequest(sitesUrl)).sites||[];enabled=(await molisWorkRequest('/api/browser/assistant')).enabled!==false;}catch{}
     if(request!==sitesRender||sitesBox.hidden)return;
     const mine=rows.find(row=>row.scope===here);
-    const label=(row)=>row.decision==='allow'?L('不用问就可以操作'):L('禁止查看和操作');
-    sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作'),'secondary',here):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站'),'secondary',here):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost',here):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
-      +(rows.filter(row=>row.scope!==here).length?'<ul>'+rows.filter(row=>row.scope!==here).map(row=>'<li><span>'+esc(row.scope)+' · '+esc(label(row))+'</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-browser-action="site-forget" data-scope="'+esc(row.scope)+'">'+esc(L('撤销'))+'</button></li>').join('')+'</ul>':'')
-      +'<p class="side-browser-cover-copy">'+esc(L('上传文件永远要先问你。'))+'</p>'
-      +'<label class="side-browser-toggle"><input type="checkbox" data-browser-assistant'+(enabled?' checked':'')+'> '+esc(L('允许助理使用侧栏浏览器'))+'</label>';
+    const label=(row)=>row.decision==='allow'?globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"):globalThis.t.text("workbench.side-panel-browser.blocked-looking-acting");
+    sitesBox.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-browser.what-assistant-may-do-sites"))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):globalThis.t.text("workbench.side-panel-browser.asks-before-every-action"))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?browserButton('site-allow',globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"),'secondary',here):'')+(mine?.decision!=='block'?browserButton('site-block',globalThis.t.text("workbench.side-panel-browser.block-assistant-site"),'secondary',here):'')+(mine?browserButton('site-forget',globalThis.t.text("workbench.side-panel-browser.ask-every-time-again"),'ghost',here):'')+'</div>':'<p>'+esc(globalThis.t.text("workbench.side-panel-browser.open-site-set-here"))+'</p>')
+      +(rows.filter(row=>row.scope!==here).length?'<ul>'+rows.filter(row=>row.scope!==here).map(row=>'<li><span>'+esc(row.scope)+' · '+esc(label(row))+'</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-browser-action="site-forget" data-scope="'+esc(row.scope)+'">'+esc(globalThis.t.text("workbench.side-panel-browser.undo"))+'</button></li>').join('')+'</ul>':'')
+      +'<p class="side-browser-cover-copy">'+esc(globalThis.t.text("workbench.side-panel-browser.uploading-file-always-asks-first"))+'</p>'
+      +'<label class="side-browser-toggle"><input type="checkbox" data-browser-assistant'+(enabled?' checked':'')+'> '+esc(globalThis.t.text("workbench.side-panel-browser.let-assistant-use-side-panel-browser"))+'</label>';
   };
-  const setSite=(scope,decision)=>molisWorkRequest(sitesUrl,{body:{scope,decision},fallback:L('没有保存')});
-  const post=(path,body)=>molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/browser/'+path,{body:body||{},fallback:L('操作没有完成')});
+  const setSite=(scope,decision)=>molisWorkRequest(sitesUrl,{body:{scope,decision},fallback:globalThis.t.text("workbench.side-panel-browser.not-saved")});
+  const post=(path,body)=>molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/browser/'+path,{body:body||{},fallback:globalThis.t.text("workbench.side-panel-browser.that-did-not-finish")});
   const fail=(error)=>say(molisWorkRequest.text(error),true);
   root.addEventListener('submit',event=>{event.preventDefault();sendRaw({type:'navigate',input:address.value});address.blur();focusPage();});
   address.addEventListener('focus',()=>address.select());
@@ -347,16 +348,16 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       // Assistant offers it above the bar and the person decides what to ask (continuity.md: suggest).
       try{
         const capture=(await post('capture',{})).capture;
-        const at=new Date(capture.captured_at).toLocaleString();
-        const title=(capture.selection?L('网页选段'):L('网页'))+' · '+(capture.title||capture.origin);
-        const text=L('来源：{url}',{url:capture.url})+'\n'+L('取自侧栏浏览器，{at}',{at})+(capture.truncated?'\n'+L('页面较长，只取了开头'):'')+'\n\n'+capture.text;
-        window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'browser',title:L('侧栏浏览器')},
+        const at=globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: capture.captured_at, style: "datetime-with-seconds" } });
+        const title=(capture.selection?globalThis.t.text("workbench.side-panel-browser.selection-page"):globalThis.t.text("workbench.side-panel-browser.web-page-2"))+' · '+(capture.title||capture.origin);
+        const text=globalThis.t.text("workbench.side-panel-browser.source-url",{url:capture.url})+'\n'+globalThis.t.text("workbench.side-panel-browser.taken-side-panel-browser",{at})+(capture.truncated?'\n'+globalThis.t.text("workbench.side-panel-browser.page-long-only-its-beginning-was-taken"):'')+'\n\n'+capture.text;
+        window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'browser',title:globalThis.t.text("workbench.side-panel-browser.side-panel-browser")},
           text:'',materials:[{title,text:text.slice(0,20000)}]}}));
-        say(L('已把这一页交给助理，在底栏上方确认后放进输入框。'));
+        say(globalThis.t.text("workbench.side-panel-browser.handed-page-assistant-confirm-above-bar-put-input"));
       }catch(error){fail(error);}
       return;
     }
-    if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(L('已交还给助理。助理会先重新查看页面再继续。'));return;}
+    if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(globalThis.t.text("workbench.side-panel-browser.handed-back-assistant-looks-page-again-before-going"));return;}
     if(action==='approve-once'||action==='reject'||action==='approve-site'){
       await decide(action==='reject'?'reject':'approve',reviewing,action==='approve-site'?approval.dataset.site:undefined);return;
     }
@@ -366,16 +367,16 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   sitesBox.addEventListener('change',async event=>{
     if(event.target?.nodeType!==1||!event.target.matches('input[data-browser-assistant]'))return;
     const enabled=event.target.checked;
-    try{await molisWorkRequest('/api/browser/assistant',{body:{enabled}});}catch{event.target.checked=!enabled;say(L('没有保存'),true);return;}
-    say(enabled?L('助理可以使用侧栏浏览器了（每次操作前仍会问你）。'):L('助理不再使用侧栏浏览器。'));
+    try{await molisWorkRequest('/api/browser/assistant',{body:{enabled}});}catch{event.target.checked=!enabled;say(globalThis.t.text("workbench.side-panel-browser.not-saved"),true);return;}
+    say(enabled?globalThis.t.text("workbench.side-panel-browser.assistant-may-use-side-panel-browser-still-asks"):globalThis.t.text("workbench.side-panel-browser.assistant-no-longer-uses-side-panel-browser"));
   });
   fileInput.addEventListener('change',async()=>{
     const files=[...fileInput.files||[]],choice=fileChoice;fileChoice=null;if(!files.length||!choice)return;
     try{
       const encoded=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:String(reader.result).split(',')[1]||''});reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);})));
-      if(choice.id!==state?.file_chooser?.id||choice.origin!==state.origin||choice.url!==state.url)throw new Error(L('文件没有交给网页'));
+      if(choice.id!==state?.file_chooser?.id||choice.origin!==state.origin||choice.url!==state.url)throw new Error(globalThis.t.text("workbench.side-panel-browser.files-were-not-given-page"));
       await post('upload',{chooser_id:choice.id,files:encoded});
-      say(L('已把 {count} 个文件交给网页',{count:files.length}));
+      say(globalThis.t.text("workbench.side-panel-browser.gave-count-file-s-page",{count:files.length}));
     }catch(error){fail(error);}
     focusPage();
   });

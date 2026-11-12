@@ -45,10 +45,26 @@ impl AdmitReceipt {
     }
 }
 
+pub struct AdmissionFeedback {
+    outcome: Result<Option<&'static str>, String>,
+    original_warning: Option<&'static str>,
+}
+
+impl AdmissionFeedback {
+    pub fn notify(self, notify: impl FnOnce(&str, bool, Option<&str>)) -> bool {
+        match self.outcome {
+            Ok(None) => return false,
+            Ok(Some(message)) => notify(message, true, self.original_warning),
+            Err(error) => notify(&error, false, self.original_warning),
+        }
+        true
+    }
+}
+
 /// Collect a complete native batch before choosing its one visible outcome.
 pub fn collect_admissions(
     admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
-) -> (Vec<String>, Result<Option<&'static str>, String>) {
+) -> (Vec<String>, AdmissionFeedback) {
     let mut admitted = Vec::new();
     let mut warning = None;
     let mut last_error = None;
@@ -58,21 +74,23 @@ pub fn collect_admissions(
             Err(error) => last_error = Some(error),
         }
     }
-    let feedback = finish_capture(admitted.len(), warning, last_error);
-    (admitted, feedback)
+    let outcome = finish_capture(admitted.len(), warning, last_error);
+    (
+        admitted,
+        AdmissionFeedback {
+            outcome,
+            original_warning: warning,
+        },
+    )
 }
 
 /// Background entry points notify once, after every result; a later warning cannot replace an error.
 pub fn notify_admissions(
     admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
-    notify: impl FnOnce(&str, bool),
+    notify: impl FnOnce(&str, bool, Option<&str>),
 ) -> Vec<String> {
     let (admitted, feedback) = collect_admissions(admissions);
-    match feedback {
-        Ok(Some(message)) => notify(message, true),
-        Err(error) => notify(&error, false),
-        Ok(None) => {}
-    }
+    feedback.notify(notify);
     admitted
 }
 
@@ -621,15 +639,16 @@ mod tests {
                 admissions.reverse();
             }
             let mut notices = Vec::new();
-            let ids = notify_admissions(admissions, |message, partial| {
-                notices.push((message.to_string(), partial))
+            let ids = notify_admissions(admissions, |message, partial, original| {
+                notices.push((message.to_string(), partial, original.map(str::to_owned)))
             });
             assert_eq!(ids, ["saved-copy"]);
             assert_eq!(
                 notices,
                 [(
                     format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"),
-                    false
+                    false,
+                    Some(warning.into())
                 )]
             );
         }
@@ -646,7 +665,9 @@ mod tests {
                 ),
                 parse_admit_receipt(r#"{"item":{"item_id":"copy-only"}}"#.into()),
             ],
-            |message, partial| notices.push((message.to_string(), partial)),
+            |message, partial, original| {
+                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            },
         );
         assert_eq!(ids, ["registered", "copy-only"]);
         assert!(notices.is_empty());
@@ -659,23 +680,30 @@ mod tests {
                     r#"{"item":{"item_id":"second"},"original_registered":false}"#.into(),
                 ),
             ],
-            |message, partial| notices.push((message.to_string(), partial)),
+            |message, partial, original| {
+                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            },
         );
         assert_eq!(ids, ["first", "second"]);
         assert_eq!(
             notices,
             [(
                 "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into(),
-                true
+                true,
+                Some("副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into())
             )]
         );
         notices.clear();
         assert!(notify_admissions(
             [Err("第一个失败".into()), Err("最后一个失败".into())],
-            |message, partial| notices.push((message.to_string(), partial))
+            |message, partial, original| notices.push((
+                message.to_string(),
+                partial,
+                original.map(str::to_owned)
+            ))
         )
         .is_empty());
-        assert_eq!(notices, [("最后一个失败".into(), false)]);
+        assert_eq!(notices, [("最后一个失败".into(), false, None)]);
     }
 
     // PG-026-S1-S3-1/2: execute the parser and the same consumer used by all native admission paths.

@@ -6,12 +6,13 @@ import {
   agentQuestionHtml, assistantCardHtml, assistantOutcomeSteps, assistantStepRow, drawAssistantReply, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
 import { cardInputValues, instantIn, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { pageText } from "./fixtures/page-text.js";
 
 // The Assistant's questions, action cards and next steps are drawn on the Host with the design system's shared parts
-// (specs/ai-interaction-experience A1, H2); the page only binds them. `say` stands in for the request's translation.
+// (specs/ai-interaction-experience A1, H2); the page only binds them.
 /** The opening tag of the option with this value inside the field with this id, whatever order its attributes are written in. */
 const optionTag = (html: string, field: string, value: string) => html.slice(html.indexOf(`data-ix-field="${field}"`)).match(new RegExp(`<button[^>]*data-ix-option="${value}"[^>]*>`))?.[0] ?? "";
-const say = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+const say = pageText("zh");
 
 const questionnaire: AgentPendingQuestion = {
   pending_id: "pending-1", pending_revision: 2, kind: "questionnaire", prompt: "怎么安排<复盘>？", options: [], allows_free_text: false,
@@ -67,6 +68,10 @@ test("ASC-08 ASC-36: a completed operation exposes its protected result as navig
   assert.match(html, /知识库 &lt;工作&gt;/);
   assert.match(html, /<a href="\/capabilities\/connections\?setup=request-1&amp;from=assistant"[^>]*class="mw-btn mw-btn--primary mw-btn--sm"/);
   assert.doesNotMatch(html, /data-ix-action="result"|data-ix-action="run"/);
+  const frozen = assistantCardHtml({ ...card("done"), presentation: { summary: "提供方结果 <raw>", link: { ...presentation.link, label: "workbench.assistant-card-view.dismiss" } } }, pageText("en"));
+  assert.match(frozen, /提供方结果 &lt;raw&gt;/);
+  assert.match(frozen, /<a[^>]*><span data-slot="button-label">workbench\.assistant-card-view\.dismiss<\/span><\/a>/, "even a provider label that matches a known key is original text");
+  assert.match(frozen, /data-ix-status[^>]*>Done<\/p>/);
   for (const status of ["failed", "unknown", "running", "stale"] as const) {
     assert.doesNotMatch(assistantCardHtml({ ...card(status), presentation }, say), /<a\b[^>]*href=|继续接入/);
   }
@@ -135,6 +140,24 @@ const view = (phase: string, extra: Partial<AssistantWorkView> = {}): AssistantW
   work: { work_id: "w1", executor: { kind: "assistant" } }, reviews: [], cards: [], objects: [],
   rounds: [{ run_id: "run-1", text: "整理周报", phase, awaiting_input: [], turns: [], activity: [], materials: [], context: null, started_at: "", ended_at: null }],
   ...extra } as AssistantWorkView);
+
+test("FSS-36: Assistant next steps carry fixed words separately from original titles and options", () => {
+  const raw = "From an action card", option = "原选项 <raw>", pending: AgentPendingQuestion = { ...questionnaire, pending_id: "one", prompt: raw,
+    questions: [{ index: 0, prompt: raw, type: "choice", required: true, multiple: false, allow_other: false, options: [{ index: 0, label: option, recommended: true }] }] };
+  const shown = view("running", { cards: [{ ...card("ready"), title: raw }, { ...card("unknown"), card_id: "needs-check", title: option }],
+    delegated: [{ work_id: "child", title: raw, state: "waiting-input", follow_ups: 0 }] });
+  shown.rounds[0]!.awaiting_input = [pending];
+  const { next_all_html } = assistantStepRow(shown, pageText("en"));
+  const encoded = /<template data-assistant-next-words="([^"]+)"><\/template>/.exec(next_all_html)?.[1];
+  assert.ok(encoded);
+  const words = new Map(JSON.parse(encoded.replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">")));
+  assert.deepEqual(words.get("question:one:q0:0"), { label: { key: "workbench.agent-next-steps.label-recommended", args: { label: option } } });
+  assert.deepEqual(words.get("card:card-1:run"), { title: { key: "workbench.agent-next-steps.from-an-action-card" }, waiting: { key: "workbench.agent-next-steps.waiting-on-you" } });
+  assert.deepEqual(words.get("card:needs-check"), { label: { key: "workbench.agent-next-steps.open-title-detail", args: { title: option } },
+    title: { key: "workbench.agent-next-steps.from-an-action-card" }, waiting: { key: "workbench.agent-next-steps.waiting-on-you" } });
+  assert.deepEqual(words.get("work:child"), { label: { key: "workbench.assistant-view-html.open-sub-task-waiting" }, waiting: { key: "workbench.assistant-view-html.waiting" } });
+  assert.match(next_all_html, /data-ix-step-id="card:card-1:run" title="From an action card"[^>]*>[\s\S]+?<span data-ix-step-label>From an action card<\/span>/);
+});
 
 test("AC-23, SLOT-01: the outcome slot under the latest round derives from the work: open what it made, at most two, or send the same words again", () => {
   assert.deepEqual(assistantOutcomeSteps(view("failed"), say), [{ id: "retry", label: "用同样的话再试一次", source: "整理周报" }]);

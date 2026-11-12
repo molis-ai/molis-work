@@ -1,5 +1,6 @@
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
+import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH } from "@molis-ai/molis-work-service-appearance";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginProjectTablesVersion } from "@molis-ai/molis-work-plugin-runtime";
 import {
@@ -111,6 +112,7 @@ function computerRecords(home: string): readonly string[] {
 
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
+  { owner: "horizontal/appearance", pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
   { owner: "apps/local-host", pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
   { owner: "apps/local-host", pattern: join("config", "project-arrival.json"), file: PROJECT_ARRIVAL_FILE },

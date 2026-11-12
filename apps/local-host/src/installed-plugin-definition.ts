@@ -7,9 +7,12 @@ import type { InstalledRelease } from './installed-release.js';
 import { covered } from './installed-plugin-lifecycle.js';
 import { rememberInstalledActionSource } from './installed-action-registration.js';
 import { projectInstalledPermissions } from './installed-permission-projection.js';
+import { lastUsedLocale } from './ui-locale-memory.js';
 
 /** What a project's installed plugins and the Home's both build their sandboxed definitions from (BL-628). */
 export interface InstalledDefinitionPorts {
+  /** The already selected Home, not a value supplied by the package. */
+  readonly home: string;
   catalog(): Promise<CatalogCapability[]>;
   callCatalog?(context: SandboxServiceContext): Promise<CatalogCapability[]>;
   capabilityFor(live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']>;
@@ -40,6 +43,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       if (release.packaged?.manifest.kind === 'integration') {
         if (!ports.integration) throw new Error('集成包只装进 Home');
         const value = ports.integration(release, release.permissions, ports.assertInstalled);
+        rememberInstalledActionSource(value, release);
         definitions.set(keyOf(release), { pluginId: release.pluginId, value });
         return value;
       }
@@ -49,6 +53,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       } });
       const sandbox = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
         capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled,
+        backgroundLocale: () => lastUsedLocale(ports.home),
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
       }, release.packaged?.manifest);

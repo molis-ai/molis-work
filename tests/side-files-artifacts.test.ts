@@ -9,6 +9,7 @@ import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work
 import { FILE_PREVIEW_CLIENT_SCRIPT, renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { pageText } from "./fixtures/page-text.js";
 
 // specs/artifact-positioning A4b: the side panel previews a 成果 version through its owner, the same as the 成果库.
 test("the side panel previews a pinned document through its owner, as the 成果库 does", { timeout: 60_000 }, async () => {
@@ -55,12 +56,15 @@ test("the side panel previews a pinned document through its owner, as the 成果
 
 test("the page's preview renderer is the design system's own, producing the same markup", () => {
   const renderFilePreview = new Function(`${FILE_PREVIEW_CLIENT_SCRIPT}; return renderFilePreview;`)() as typeof renderFilePreviewHtml;
-  const primitives = { escape: (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"), text: (value: string) => value };
+  const primitives = { escape: (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"), text: pageText("en") };
   const files = [
     { title: "a.md", media_type: "text/markdown", encoding: "utf8" as const, data: "# 标题\n\n- 一\n- **二**\n\n> 引用\n\n```\ncode <b>\n```\n[链接](https://example.com)", truncated: false },
     { title: "b.csv", media_type: "text/csv", encoding: "utf8" as const, data: 'a,b\n"1,2",<x>\n', truncated: false },
     { title: "c.txt", media_type: "text/plain", encoding: "utf8" as const, data: "plain <script>", truncated: true },
+    { title: "d.pdf", media_type: "application/pdf", encoding: "base64" as const, data: "YXNkZg==", truncated: false },
   ];
   for (const file of files) assert.equal(renderFilePreview(file, primitives), renderFilePreviewHtml(file, primitives), file.title);
   assert.doesNotMatch(renderFilePreview(files[0]!, primitives), /<b>|<script>/);
+  assert.match(renderFilePreview(files[2]!, primitives), /Only the beginning is shown\./u);
+  assert.match(renderFilePreview(files[3]!, primitives), /This kind of file can’t be previewed here; download it to open it\./u);
 });

@@ -23,6 +23,11 @@ test("RAC-445 RAC-446 on a real Home the Assistant offers Coding by its protocol
   assert.equal(coding.problem, undefined);
   assert.deepEqual(coding.modes.map(mode => mode.id), ["discuss", "plan", "edit", "execute", "review"]);
   assert.equal(coding.default_mode, "execute");
+  assert.deepEqual(coding.modes.map(mode => mode.title), ["讨论", "规划", "修改", "执行", "评审"]);
+  const english = await f.call<{ executors: AssistantExecutorOffer[] }>(project, "/api/assistant/executors", undefined, "en");
+  assert.equal(english.status, 200, JSON.stringify(english.body));
+  assert.deepEqual(english.body.executors.find(offer => offer.plugin_id === CODING)?.modes.map(mode => mode.title),
+    ["Discuss", "Plan", "Edit", "Execute", "Review"]);
   assert.deepEqual(Object.keys(coding.capability_ids).sort(), ["run.start", "session.update"]);
 
   // RAC-446: a new work naming Coding by its plugin id opens a Coding session in the chosen way; Coding's page reads the same session and round.

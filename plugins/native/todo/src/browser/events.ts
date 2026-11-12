@@ -3,6 +3,8 @@ import { targetElement } from "./dom.js";
 import { choiceFor } from "./review-choices.js";
 import type { TodoPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 const fieldAttribute = (name: string) => (name.startsWith("waiting.") ? "waiting" : name);
 
 /** The page's listeners: search, field edits, button clicks, and what other parts of the workbench tell it. */
@@ -88,7 +90,7 @@ export function listen(page: TodoPage): void {
     if (typeof capability !== "string" || !capability.startsWith("todo.")) return;
     void page.load().then(async () => {
       if (!state.selected) return;
-      if (state.dirtyKeys.size || state.saving) { page.detailHint(page.L("todo.note.assistant-changed"), true); return; }
+      if (state.dirtyKeys.size || state.saving) { page.detailHint(uiText.text("todo.note.assistant-changed"), true); return; }
       await page.openDetail(state.selected.id).catch(() => page.closeDetail());
     }).catch(() => undefined);
   });

@@ -1,0 +1,1 @@
+Choose from the legal components using the overall layout and adjacent parts. Preserve the interface design preferences when possible; keep its hierarchy and interactions and do not change properties or the contract.

@@ -51,6 +51,7 @@
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
+- [feed-bounded-reads](feed-bounded-reads/spec.md)：Feed完整快照改为分页与按需读取；2026-11-11实现及本地定向验收完成，待CI Full与合入。
 - [daily-quality-low-a1](daily-quality-low-a1/spec.md)：2026-11-08 日评低优先级A-1的50项修复；2026-11-09获批，D0328暂缓，其余实施中。
 - [daily-quality-d0039](daily-quality-d0039/spec.md)：项目关闭与删除等待激活作业真实收尾；2026-11-08 获批，实施中。
 - [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-302、BL-306～308；A5 已按 main 重核（2026-11-11，[A5 重核](prologue-adoption/a5-recheck-2026-11.md)）。
@@ -69,8 +70,8 @@
 - [plugin-tab-groups](plugin-tab-groups/spec.md)：既有插件组已合入，PTG-10 待本人看实物；现行标签合同保留，统一分屏、右栏与底栏按产品治理在 03／07 接续。
 - [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件 AI 交互；I0 预览已在工作台框架里按实物重做并走查，待用户看实物；共享组件与产品接入未开始。
 - [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（等真机验收，BL-325）。能力切片已合入，门禁与全量由 CI 证明；二十步、带截图的 Shelf、五类拒绝和同进程 sheet 等真机验收。
-- [capability-pack](capability-pack/spec.md)：能力包——技能、提示词、角色、工具、MCP 的声明与元数据进同一份聚合目录，执行仍走原机制；在技能包之上扩展；2026-11-08 新立，排第 09 批，尚未实现。
-- [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；第 08 批基础能力由 Codex 接续完成并随 #1984 合入，消费方与真实工作验收归第 09 批，本人验收另行跟踪。
+- [capability-pack](capability-pack/spec.md)：能力包——技能、提示词、角色、工具、MCP 的声明与元数据进同一份聚合目录，执行仍走原机制；在技能包之上扩展；2026-11-08 新立，第 09 批已实现（#2015 + 收尾 #2019，2026-11-11）；余项自组包（[BL-kit-user-packs](backlog/BL-kit-user-packs.md)）等见 BACKLOG；能力包页用户 11-10 以「视作我通过了」免走验收（未实际走查，11-11 追认含 SKP-12 真实项目/卸载/业务事实的范围）。
+- [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；第 08 批基础能力由 Codex 接续完成并随 #1984 合入，消费方随第 09 批（#2015 + 收尾 #2019，2026-11-11）接入同一目录、按精确版本冻结；SKP-10 的 Coding「自动」档 2026-11-11 审计整改补做（BL-coding-skill-auto 已补做并删除），SKP-09 脚本沙箱记 [BL-skill-scripts-sandbox](backlog/BL-skill-scripts-sandbox.md)；SKP-12 的真实项目/卸载/业务事实与本人验收 2026-11-10 以「视作我通过了」免走验收（未实际走查，11-11 追认范围），本人验收另行跟踪（[BL-skill-packs-acceptance](backlog/BL-skill-packs-acceptance.md)）。
 - [agent-approval](agent-approval/spec.md)：Agent 变更的授权复用与显式人审；有效委托内持续执行，明确启用的人审按人员与版本校验，Coding 可选 AI 代批不计真人票数；2026-10-28 对齐，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。

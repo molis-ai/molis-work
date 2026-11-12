@@ -319,6 +319,9 @@ test("the entry run from a copy of the repository layout fails when biome.jsonc 
     // layout is the script's own, not the documents', so they stay out of the copy.
     rmSync(path.join(own, "scripts/workspace-packages.mjs")); rmSync(path.join(own, "scripts/gates/README.md"));
     symlinkSync(path.join(repoRoot, "node_modules"), path.join(own, "node_modules"), "dir");
+    // The translation gate's source bundle stays beside the real SDK. Only the health entry needs to belong to the fixture.
+    rmSync(path.join(own, "scripts/gates/translations.mjs"));
+    symlinkSync(path.join(repoRoot, "scripts/gates/translations.mjs"), path.join(own, "scripts/gates/translations.mjs"));
     writeFileSync(path.join(own, ".gitignore"), "node_modules\n");
     mkdirSync(path.join(own, "tooling/gates"), { recursive: true });
     writeFileSync(path.join(own, "tooling/gates/limits.json"), JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
@@ -329,7 +332,8 @@ test("the entry run from a copy of the repository layout fails when biome.jsonc 
     gitAt(own, "add", "-A"); gitAt(own, "commit", "-q", "-m", "the layout without a Biome configuration");
     const entry = path.join(own, "scripts/check-health-gates.mjs");
     const run = (...args: string[]) => { const done = spawnSync(process.execPath, [entry, ...args], { cwd: own, encoding: "utf8" }); return { code: done.status, out: `${done.stdout}${done.stderr}` }; };
-    assert.equal(run("--update").code, 0, "writing a baseline does not judge");
+    const baseline = run("--update");
+    assert.equal(baseline.code, 0, baseline.out);
     const missing = run();
     assert.equal(missing.code, 1, missing.out);
     assert.match(missing.out, /biome\.jsonc is missing/);

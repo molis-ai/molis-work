@@ -18,6 +18,7 @@ import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
 export interface ProjectRequestContext extends WebRequestContext {
@@ -48,6 +49,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly pluginServices: ProjectPluginServices;
   readonly pluginPorts: ProjectPluginSurfacePorts;
   readonly readWebView: () => Promise<GoalsWebView>;
+  readonly readArtifactDisplay: ReadArtifactDisplay;
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home, its plugins and settled reviews. */

@@ -16,6 +16,7 @@ import {
   CODING_REPORT_TYPE,
 } from "./artifacts.js";
 import { CODING_RUN_UPDATED_EVENT, CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_EVENT, CODING_WORKSPACE_INVALIDATED_EVENT } from "./events.js";
+import { CODING_PUBLISHER_BINDING } from "./identity.js";
 import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
@@ -27,8 +28,6 @@ import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
-import { CODING_MESSAGES } from "./messages.js";
-import { CODING_EN } from "./en.js";
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const CODING_PROJECT_PLUGIN_ID = "coding";
@@ -54,9 +53,9 @@ export const codingManifest: PluginManifest = {
   version: /* @version product.release */ "0.1.0",
   name: "Coding",
   sync: codingSync,
-  summary: "和 Agent 一起写代码，留每轮记录。",
+  summary: "和 Agent 一起写代码，留每轮记录。", summary_text: { key: "coding.directory.summary" },
   kind: "app",
-  publisher: { publisher_id: "molis", signature: "official-coding-binding" },
+  publisher: { publisher_id: "molis", signature: CODING_PUBLISHER_BINDING },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
@@ -107,7 +106,7 @@ export const codingManifest: PluginManifest = {
   },
   // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", title_text: { key: "coding.artifacts.type-title" }, preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
     consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CHARACTER_ARTIFACT_TYPE ? /* @version type.character.definition */ 1 : CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   process_items: {
@@ -215,9 +214,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-run", method: "POST", path: "/sessions/:sessionId/cards/:cardId/run" },
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
-  ui: {
-    messages: CODING_MESSAGES,
-    translations: CODING_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

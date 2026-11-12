@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.huggingface",
+  "locale": "en",
+  "messages": {
+    "huggingface.connection.auth-help": "Use a Hugging Face access token. The integration checks the account with whoami, then reads its models.",
+    "huggingface.connection.inbound": "Feed reads the models in the account",
+    "huggingface.connection.summary": "Models, datasets and Spaces.",
+    "huggingface.connection.token-label": "Hugging Face Access Token",
+    "huggingface.guide.cli-link": "View Hugging Face CLI",
+    "huggingface.guide.mcp-link": "View the official Hugging Face MCP",
+    "huggingface.guide.oauth-link": "View Hugging Face OAuth",
+    "huggingface.setup.create-hugging-face-access-token": "Create Hugging Face Access Token"
+  }
+}

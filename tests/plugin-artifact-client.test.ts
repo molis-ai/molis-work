@@ -10,7 +10,6 @@ import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule, createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { assertPluginActionCurrent, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
@@ -22,6 +21,25 @@ import { boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 /** A bare kernel has no action gateway; the client still runs under the caller its Host would issue the session. */
 const sessionCaller = (manifest: PluginManifest, context: PluginStartContext, actor: string): HostPluginCaller =>
   ({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: actor, project_id: DEMO_PROJECT_ID, declaration: { manifest }, assertActive: () => {} });
+
+function artifactAuthor(name: string, schemaVersion = 1) {
+  const pluginId = `io.molis.work.example.${name}`;
+  const preview = artifactPreview(pluginId);
+  const manifest: PluginManifest = {
+    schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
+    publisher: { publisher_id: "fixture", signature: "artifact-author" },
+    entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [
+      { permission: "artifact:write", required: false, reason: "Publish notes" },
+      { permission: "artifact:read", required: false, reason: "Read notes" },
+    ],
+    capabilities: { provides: [], consumes: [] },
+    actions: [preview.definition],
+    artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: "example.note", schema_version: schemaVersion }] },
+    ui: { contributions: [] },
+  };
+  return { manifest, handler: preview.handler };
+}
 
 test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
@@ -37,31 +55,19 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
     for (const entry of [processItems, processItems.service, processItems.query, processItems.commands]) {
       assert.equal("repository" in entry, false);
     }
-    const base = createGithubIntegrationPlugin({ providerFor: () => ({
-      type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
-      async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-    }) });
     async function author(name: string, options: { read?: boolean; schema?: number; actor?: string } = {}) {
       let client!: PluginArtifactClient;
       let dispose = () => {};
       // A produced 成果 type is named and has a preview of its own (specs/artifact-positioning A1/A7).
-      const preview = artifactPreview(`io.molis.work.example.${name}`);
-      const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
-        permissions: [...base.manifest.permissions,
-          { permission: "artifact:write", required: false, reason: "Publish notes" },
-          { permission: "artifact:read", required: false, reason: "Read notes" }],
-        actions: [...(base.manifest.actions ?? []), preview.definition],
-        artifacts: { produces: [preview.type],
-          consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
+      const { manifest, handler } = artifactAuthor(name, options.schema);
       const definition: PluginDefinition = { manifest, async start(context) {
         const hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
           actor_id: options.actor ?? "author", plugin_caller: sessionCaller(manifest, context, options.actor ?? "author"), assertCallerCurrent: () => assertPluginActionCurrent(context) });
         client = hosted.client; dispose = hosted.dispose;
-        const contribution = await base.start(context);
-        return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
+        return { kind: "app", actions: [handler] };
       }, stop() { dispose(); } };
       const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [
-        "network:github.com", "secret:github", "artifact:write", ...(options.read === false ? [] : ["artifact:read"]),
+        "artifact:write", ...(options.read === false ? [] : ["artifact:read"]),
       ] });
       await runtime.start(installed.install.install_id);
       return { get client() { return client; }, installId: installed.install.install_id };
@@ -148,27 +154,17 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
   // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
-    const base = createGithubIntegrationPlugin({ providerFor: () => ({
-      type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
-      async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-    }) });
     async function install(name: string, actor: string, read = true) {
       let hosted!: ReturnType<typeof createPluginArtifactClient>;
-      const preview = artifactPreview(`io.molis.work.example.${name}`);
-      const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
-        permissions: [...base.manifest.permissions,
-          { permission: "artifact:write", required: false, reason: "Publish notes" },
-          { permission: "artifact:read", required: false, reason: "Read notes" }],
-        actions: [...(base.manifest.actions ?? []), preview.definition],
-        artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
+      const author = artifactAuthor(name);
+      const manifest: PluginManifest = { ...author.manifest,
         process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 1 }], consumes: [{ artifact_type_id: "example.item", schema_version: 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
         hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor,
           plugin_caller: sessionCaller(manifest, context, actor), assertCallerCurrent: () => assertPluginActionCurrent(context) });
-        const contribution = await base.start(context);
-        return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
+        return { kind: "app", actions: [author.handler] };
       }, stop() { hosted.dispose(); } };
-      const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", ...(read ? ["artifact:read"] : [])] });
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["artifact:write", ...(read ? ["artifact:read"] : [])] });
       await runtime.start(installed.install.install_id);
       return { ...hosted, installId: installed.install.install_id };
     }

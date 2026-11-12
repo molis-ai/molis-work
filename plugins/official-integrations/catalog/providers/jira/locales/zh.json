@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.jira",
+  "locale": "zh",
+  "messages": {
+    "jira.connection.auth-help": "Atlassian API token，格式 站点|邮箱|token。Cloud 站点不要带 https://。",
+    "jira.connection.inbound": "Feed 拉 Issue 与项目",
+    "jira.connection.summary": "Issue 与项目。",
+    "jira.connection.token-label": "Jira 站点、邮箱与 API token",
+    "jira.guide.cli-link": "Jira ACLI",
+    "jira.guide.mcp-link": "查看 Atlassian Rovo MCP",
+    "jira.guide.oauth-link": "查看 Atlassian OAuth 2.0",
+    "jira.oauth.site-url": "Atlassian 站点",
+    "jira.setup.create-atlassian-api-token": "创建 Atlassian API Token",
+    "jira.setup.view-jira-cloud-authentication-guide": "查看 Jira Cloud 认证说明"
+  }
+}

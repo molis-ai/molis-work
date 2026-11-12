@@ -1,12 +1,12 @@
 // The catalog board's composed patterns: button groups, tag input, drop zone, stat tiles, item and settings rows, and the data
-// table. They live on the board first: the styles below are the board's own (not in the served sheets), read the skins' `--sk-*`
+// table. They live on the board first: the styles below are the board's own (not in the served sheets), read the interface's semantic
 // tokens with Soft Workbench's values as fallbacks, and move into the page sheets with the first product page that uses them.
 import { icon, renderButton, renderCheckbox, renderInput, renderInputGroup, renderProgress, renderSelect, renderStatusMark, renderSwitch, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 
-const SURFACE = "border: 1px solid var(--sk-card-edge, var(--line)); border-radius: var(--sk-r-card, 12px); background: var(--sk-raised, var(--paper)); box-shadow: var(--sk-card-shadow, none)";
-const RADIUS = "var(--sk-r, var(--radius-control, 8px))";
+const SURFACE = "border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper)";
+const RADIUS = "var(--r-control)";
 /**
  * A button in a group, directly or inside its menu anchor, optionally only at one end. The skin layer restates every button's
  * corner at (0,4,1); one id-weight `:not` lets a joined button keep its flat side.
@@ -19,7 +19,7 @@ const joined = (end = "") => `:root body .mw-btn-group > .mw-btn${end}:not(#mw-j
  */
 export const ITEM_ROW_STYLES = `
   .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
-  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--r-row); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
   /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
   .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
@@ -29,7 +29,7 @@ export const ITEM_ROW_STYLES = `
 
 /** The glyph square at an item row's start (`mw-mark`): in the composer's patterns and, alone, in the design kit. */
 export const MARK_STYLES = `
-  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, var(--r-control)); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
   .mw-mark svg { width: 16px; height: 16px; }`;
 
 /**
@@ -43,13 +43,13 @@ export const COMPOSER_PATTERN_STYLES = `${MARK_STYLES}
   ${joined(":last-child")} { border-start-end-radius: ${RADIUS}; border-end-end-radius: ${RADIUS}; }
   .mw-btn-group > :focus-visible, .mw-btn-group > * > :focus-visible { position: relative; z-index: 1; }
   .mw-btn-group .mw-compose__menu { left: auto; right: 0; }
-  .mw-tag { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 3px 0 8px; border: 0; border-radius: var(--sk-r-slot, 6px); background: var(--sk-raised, var(--paper)); box-shadow: 0 0 0 1px var(--line), var(--lift-1); color: var(--ink); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500); white-space: nowrap; }
-  .mw-tag button { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--sk-r-slot, 4px); background: none; color: var(--muted); cursor: pointer; }
+  .mw-tag { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 3px 0 8px; border: 0; border-radius: var(--r-tag); background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-1); color: var(--ink); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500); white-space: nowrap; }
+  .mw-tag button { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--r-tag); background: none; color: var(--muted); cursor: pointer; }
   .mw-tag button:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
-  .mw-tag button:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 0; }
+  .mw-tag button:focus-visible { outline: var(--focus-stroke); outline-offset: 0; }
   .mw-tag svg { width: 12px; height: 12px; }
   .mw-uploads { display: grid; gap: 2px; width: min(440px, 100%); margin: 0; padding: 0; list-style: none; }
-  .mw-upload { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 8px; border-radius: var(--sk-r-item, 8px); }
+  .mw-upload { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 8px; border-radius: var(--r-row); }
   .mw-upload > span:nth-child(2) { display: grid; gap: 6px; flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
   .mw-upload small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .mw-upload small.is-failed { color: var(--red); }`;
@@ -71,7 +71,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-tags .mw-input { flex: 1 0 96px; width: auto; min-height: 24px; }
   .mw-tags__suggest { display: flex; flex-wrap: wrap; gap: 8px; }
 
-  .mw-drop { display: grid; justify-items: center; gap: 4px; width: min(440px, 100%); padding: 28px 20px; border: 1px dashed var(--line-strong); border-radius: var(--sk-r-card, 12px); background: color-mix(in srgb, var(--ink) 2%, transparent); text-align: center; transition: border-color var(--dur-hover, 130ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-drop { display: grid; justify-items: center; gap: 4px; width: min(440px, 100%); padding: 28px 20px; border: 1px dashed var(--line-strong); border-radius: var(--r-card); background: color-mix(in srgb, var(--ink) 2%, transparent); text-align: center; transition: border-color var(--dur-hover, 130ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-drop .mw-mark { margin-bottom: 8px; transition: transform var(--dur-move, 250ms) var(--ease-quint), color var(--dur-hover, 130ms); }
   .mw-drop p { margin: 0; font-size: 13px; color: var(--ink); }
   .mw-drop p + p { font-size: 12px; color: var(--muted); }
@@ -99,7 +99,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat__trend :is(polyline, line) { fill: none; stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   .mw-stat__trend polyline + polyline { stroke: var(--accent); }
   /* The latest point: a zero-length stroke stays round however the line is stretched; the first draws the surface ring. */
-  .mw-stat__trend line { stroke: var(--sk-raised, var(--paper)); stroke-width: 10; }
+  .mw-stat__trend line { stroke: var(--paper); stroke-width: 10; }
   .mw-stat__trend line + line { stroke: var(--accent); stroke-width: 6; }
   .mw-stat .mw-progress { margin-top: 16px; }
 
@@ -193,11 +193,11 @@ export function dropZoneSection(): string {
   const upload = (mark: PluginIconName, name: string, body: string, end: string, sample = false) =>
     `<li class="mw-upload"${sample ? " data-drop-sample" : ""}><span class="mw-mark">${icon(mark)}</span><span>${name}${body}</span>${end}</li>`;
   return section("drop-zone", "Drop Zone", `<div class="mw-catalog__specimens">${specimen("放下文件", zone(" data-drop-live", "upload", pick, "PDF、图片、表格 · 单个不超过 50 MB"))}${
-    specimen("紧凑", compact)}${
+    specimen("workbench.context-onboarding.compact", compact)}${
     specimen("上传", `<ul class="mw-uploads" data-drop-list>${
       upload("note", "访谈记录.docx", renderProgress({ value: 62, label: "访谈记录.docx 已上传 62%" }), `<small>62%</small>${ghostIcon("取消上传 访谈记录.docx", "x")}`)
       + upload("image", "首页草图.png", "<small>820 KB</small>", renderStatusMark({ label: "已上传", state: "done", tone: "done" }), true)
-      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: "重试", variant: "ghost", size: "sm" }))
+      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: "common.control.retry", variant: "ghost", size: "sm" }))
     }</ul>`)}</div>`);
 }
 
@@ -223,7 +223,7 @@ export function statSection(): string {
   }</div></div>`)}</div>`);
 }
 
-export function rowsSection(): string {
+export function rowsSection(say: (key: string) => string): string {
   const item = (mark: PluginIconName, title: string, meta: string, end: string) =>
     `<li class="mw-item"><span class="mw-mark">${icon(mark)}</span><span><strong>${title}</strong><small>${meta}</small></span><span class="mw-item__end">${end}</span></li>`;
   const more = (name: string) => ghostIcon(`${name} 的更多操作`, "more");
@@ -232,11 +232,11 @@ export function rowsSection(): string {
   const items = `<ul class="mw-items">${
     item("file", "季度复盘.pdf", "成果库 · 2.4 MB", `10 分钟前${more("季度复盘.pdf")}`)
     + item("image", "首页草图.png", "设计 · 820 KB", renderStatusMark({ label: "同步中", state: "syncing", tone: "progress" }) + more("首页草图.png"))
-    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: "失败", state: "failed", tone: "blocked" }) + renderButton({ label: "重试", variant: "ghost", size: "sm" }))
+    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: say("workbench.assistant-delivery.failed"), state: "failed", tone: "blocked" }) + renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
   }</ul>`;
   const settings = `<div class="mw-settings">${
     setting("catalog-set-boot", "登录时启动", "在后台开着常驻宿主，助理随叫随到", renderSwitch({ checked: true, attrs: { "aria-labelledby": "catalog-set-boot" } }))
-    + setting("catalog-set-lang", "界面语言", "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
+    + setting("catalog-set-lang", say("workbench.context-onboarding.language-2"), "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
     + setting("catalog-set-notify", "只在要你确认时提醒", "", renderSwitch({ attrs: { "aria-labelledby": "catalog-set-notify" } }))
     + setting("catalog-set-cache", "清空本机缓存", "不影响项目里的内容", renderButton({ label: "清空…", variant: "secondary", attrs: { "aria-describedby": "catalog-set-cache" } }))
   }</div>`;
@@ -247,7 +247,7 @@ type FileRow = { name: string; mark: PluginIconName; where: string; status: Para
 const FILES: FileRow[] = [
   { name: "季度复盘.pdf", mark: "file", where: "成果库", status: { label: "已同步", state: "done", tone: "done" }, updated: "10 分钟前", minutes: 10, size: "2.4 MB", bytes: 2_400_000 },
   { name: "首页草图.png", mark: "image", where: "设计", status: { label: "同步中", state: "syncing", tone: "progress" }, updated: "1 小时前", minutes: 60, size: "820 KB", bytes: 820_000 },
-  { name: "客户名单.csv", mark: "database", where: "导入", status: { label: "失败", state: "failed", tone: "blocked" }, updated: "昨天", minutes: 1_440, size: "96 KB", bytes: 96_000 },
+  { name: "客户名单.csv", mark: "database", where: "导入", status: { label: "workbench.assistant-delivery.failed", state: "failed", tone: "blocked" }, updated: "昨天", minutes: 1_440, size: "96 KB", bytes: 96_000 },
   { name: "访谈记录.docx", mark: "note", where: "调研", status: { label: "已同步", state: "done", tone: "done" }, updated: "3 天前", minutes: 4_320, size: "1.1 MB", bytes: 1_100_000 },
   { name: "发布清单.md", mark: "text", where: "Pages", status: { label: "草稿", state: "draft", tone: "idle" }, updated: "上周", minutes: 10_080, size: "12 KB", bytes: 12_000 },
 ];

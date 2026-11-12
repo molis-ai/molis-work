@@ -1,19 +1,17 @@
 import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
-import { createStudioBrowserServer, framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { framedStudioPage, studioHarnessRequests, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
-import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
-import { createWorkbenchLocale } from '@molis-ai/molis-work-app-workbench';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Server } from 'node:http';
+import { createServer, type IncomingMessage } from 'node:http';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
 import dns from 'node:dns';
 import { syncBuiltinESMExports } from 'node:module';
-import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
+import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,studioBuildDiagnostic,type AgentBuild,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
-import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 import { verifySyncPluginDistribution, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
@@ -30,22 +28,38 @@ import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-stor
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {proveAuthoringSync} from './fixtures/authoring-sync-proof.js';
+import { literalStudioExcerpt } from './fixtures/studio-bilingual.js';
+import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
+import { readSandboxPackage } from '@molis-ai/molis-work-app-local-host';
+
+function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string }, token: string, mutations: Map<string, LocalMutationState>, setup?: {
+  observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean; languageControls?: true;
+}) {
+  const harness = studioHarnessRequests(options.homeDirectory, options.projectId, token, setup?.languageControls ? mutations : undefined);
+  const server = createServer((request, response) => {
+    setup?.observe?.(request, response);
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    harness.handle(request, response, url, options.routePrefix ?? '', (local, proof, locale, preview) => {
+      if (setup?.page && url.pathname === STUDIO_HARNESS_PATH) {
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        response.end(isolatedStudioHarness(options.homeDirectory, options.projectId, proof, setup.languageControls ? locale : setup.locale, preview)); return;
+      }
+      if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+      return pluginPagesFor(options.homeDirectory).bind(request, url).then(release => {
+        if (release) response.once('close', release);
+        return runWithLocale(setup?.languageControls ? locale : setup?.locale ?? "zh", () => handleAgentStudioHttp(request, response, local, options, proof));
+      }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
+    });
+  });
+  server.once('close', harness.close);
+  return server;
+}
 
 /** Received code remains paused until the user chooses this device's model and explicitly requests all local gates. */
 async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:string,projectId:string,itemId:string){
   const token=randomUUID()+randomUUID(),mutations=new Map<string,LocalMutationState>();
   const options={store,homeDirectory,projectId,routePrefix:'/projects/'+projectId,...agentStudioFixture(0)};
-  const server=createStudioBrowserServer(homeDirectory,token,(request,response,pageProof)=>{
-    const url=new URL(request.url??'/','http://localhost');
-    if(studioFrameAsset(response,url.pathname))return;
-    if(url.pathname==='/assets/molis-work-settings.css'){response.writeHead(200,{'content-type':'text/css'});response.end(VISUAL_FOUNDATION_STYLES);return;}
-    if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-    void pluginPagesFor(homeDirectory).bind(request,url).then(release=>{
-      if(release)response.once('close',release);
-      const local=new URL(url);if(local.pathname.startsWith(options.routePrefix+'/'))local.pathname=local.pathname.slice(options.routePrefix.length);
-      return handleAgentStudioHttp(request,response,local,options,pageProof);
-    }).then(handled=>{if(!handled)sendLocalWebJson(response,404,{error:'not found'});}).catch(error=>sendLocalWebJson(response,403,{error:String(error.message)}));
-  });
+  const server=studioServer(options,token,mutations);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+(server.address() as {port:number}).port;
   const get=async()=>await(await fetch(origin+'/api/plugin-builder/studio/builds/'+itemId)).json() as {build:{phase:string;revision:number;active:unknown;error:string|null;history:unknown[]}};
   const post=async(route:string,body:unknown)=>{const response=await fetch(origin+'/api/plugin-builder/studio'+route,{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify(body)});assert.equal(response.status,200,await response.clone().text());return await response.json();};
@@ -61,11 +75,91 @@ async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:strin
   }finally{await releaseAgentStudio(store,projectId);await releaseInstalledPlugins(store,projectId);server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 }
 
+test('FSS-74 a frozen English design reaches G7 in its own frame and publishes the same two language files', { timeout: 110_000, skip: process.platform !== 'darwin' }, async t => {
+  const browserExecutable = dedicatedBuilderBrowser();
+  assert.ok(browserExecutable, 'use the separate Studio test browser');
+  const home = await mkdtemp(join(tmpdir(), 'molis-studio-locale-g7-')), databasePath = join(home, 'project.db');
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID();
+  const projectId = DEMO_PROJECT_ID, routePrefix = '/projects/' + projectId;
+  const fixture = agentStudioFixture(0);
+  const options = { store, homeDirectory: home, projectId, routePrefix, browserExecutable, ...fixture, async agents(build: Parameters<typeof fixture.agents>[0]) {
+    const runtime = await fixture.agents(build);
+    return { ...runtime, async run(request: Parameters<typeof runtime.run>[0]) {
+      const answer = await runtime.run(request);
+      if (request.role !== 'designer' || JSON.parse(request.task).mode !== 'detail') return answer;
+      const wire = JSON.parse(answer.output), { design } = wire, page = design.pages[0];
+      page.title = { literal: literalStudioExcerpt };
+      page.parts.find((part: { id: string }) => part.id === 'title').props.description = { literal: literalStudioExcerpt };
+      page.parts.find((part: { id: string }) => part.id === 'notes').props.columns[0].label = { literal: '  原文栏目 <ref>  ' };
+      for (const pack of Object.values(design.uiText.locales)) for (const key of ['page/home/title', 'region/home/main/title', 'part/title/description', 'column/notes/expansion/label'])
+        Reflect.deleteProperty(pack as object, key);
+      design.acceptance[1].steps.push({ action: 'expectWord', componentId: 'title', word: 'description' });
+      return { ...answer, output: JSON.stringify(wire) };
+    } };
+  } };
+  const previewLanguages = new Set<string>(), childDesignReads: string[] = [];
+  const server = studioServer(options, token, new Map(), { locale: 'en', observe(request) {
+    if (request.url?.includes('/studio/preview/') && request.url.includes('acceptance=')) previewLanguages.add(request.headers['accept-language'] ?? '');
+    if (request.method === 'GET' && request.headers['x-molis-plugin-page'] && request.url?.includes('/studio/builds/')) childDesignReads.push(request.url);
+  } });
+  t.after(async () => {
+    await releaseAgentStudio(store, projectId); await releaseInstalledPlugins(store, projectId);
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); store.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
+  const base = origin + routePrefix + '/api/plugin-builder/studio';
+  const send = async <T>(path: string, body?: unknown): Promise<T> => {
+    const response = await fetch(base + path, { headers: { origin, 'accept-language': 'en', 'x-molis-work-control-token': token,
+      ...(body ? { 'content-type': 'application/json', 'x-molis-work-idempotency-key': randomUUID() } : {}) },
+    ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
+    assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json();
+  };
+  type Build = import('@molis-ai/molis-work-plugin-builder').AgentBuild;
+  const model = (await options.models())[0]!;
+  await send('/settings', { provider_id: model.provider_id, model_id: model.model_id });
+  const { build: created } = await send<{ build: Build }>('/builds', { brief: 'Build an excerpt notebook; save notes and find them later.' });
+  const load = () => send<{ build: Build }>('/builds/' + created.id).then(value => value.build);
+  const act = (action: string, build: Build, extra = {}) => send<unknown>('/builds/' + build.id + '/action', { action, revision: build.revision, ...extra });
+  const stopped = async () => {
+    let current = await load();
+    for (let i = 0; i < 450 && current.active; i++) { await new Promise(resolve => setTimeout(resolve, 100)); current = await load(); }
+    assert.equal(current.active, null, studioBuildDiagnostic(current.error) ?? 'Studio did not stop'); return current;
+  };
+  const proposals = await stopped(); assert.equal(proposals.phase, 'choosing', studioBuildDiagnostic(proposals.error) ?? '');
+  await act('choose', proposals, { candidateId: 'quick' });
+  const ready = await stopped();
+  assert.equal(ready.phase, 'ready', studioBuildDiagnostic(ready.error) ?? JSON.stringify(ready.browserResult));
+  assert.equal(ready.design?.contract.ui?.locales.default, 'en');
+  assert.deepEqual(ready.design?.contract.pages[0]?.title, { literal: literalStudioExcerpt });
+  assert.deepEqual(ready.design?.parts.find(part => part.id === 'notes')?.props.columns?.[0]?.label, { literal: '  原文栏目 <ref>  ' });
+  assert.ok(ready.browserResult?.passed); assert.ok(ready.browserResult.cases.some(item => item.id === 'empty' && item.passed));
+  assert.deepEqual([...previewLanguages], ['en']);
+  assert.deepEqual(childDesignReads, [], 'the granted preview receives only its view and current words');
+  await act('publish', ready);
+  const bundle = await send<import('@molis-ai/molis-work-contracts/platform/plugin').PluginPackageBundle>('/builds/' + ready.id + '/download?version=1');
+  assert.deepEqual(bundle.payload.manifest.ui.locales, { default: 'en', available: ['zh', 'en'] });
+  assert.deepEqual(bundle.payload.files.filter(file => file.path.startsWith('locales/')).map(file => file.path).sort(), ['locales/en.json', 'locales/zh.json']);
+  const kept = readSandboxPackage(bundle.payload);
+  assert.deepEqual(kept.contract.pages[0]?.regions[0]?.title, { literal: literalStudioExcerpt });
+  const field = pluginTextSlotKey(kept.contract.pluginId, pluginTextSlot('field', 'notes.add', 'text', 'label'));
+  assert.equal(kept.localePacks?.pack('en')?.messages[field], 'Note');
+  const missing = structuredClone(bundle.payload);
+  for (const file of missing.files.filter(file => file.path.startsWith('locales/'))) {
+    const words = JSON.parse(Buffer.from(file.content_base64, 'base64').toString('utf8'));
+    Reflect.deleteProperty(words.messages, field);
+    Object.assign(file, { content_base64: Buffer.from(JSON.stringify(words)).toString('base64') });
+  }
+  assert.throws(() => readSandboxPackage(missing), /界面引用缺少主人默认词/);
+});
+
 /**
  * The whole studio journey in a real browser: only the models are labelled stand-ins. Build gates, the Seatbelt
  * sandbox, preview storage, the push channel and the headless acceptance run are the production ones.
  */
-test('studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
+test('FSS-74 studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'molis-studio-e2e-'));
   const home = join(root, 'home');
   const browser = await openStudioChrome(join(root, 'chrome'));
@@ -80,16 +174,9 @@ test('studio: a request becomes a working, published plugin that the person can 
   const options = { store, projectId, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: "/projects/" + projectId, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => {if(modelHold){modelStarted();await modelHold;} await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
-  const server: Server = createStudioBrowserServer(home, token, (request, response, pageProof) => {
+  const server = studioServer(options, token, mutations, { page: true, observe(request, response) {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
-    const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, projectId, pageProof)); return; }
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, pageProof); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
-  });
+  } });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
   try {
@@ -222,7 +309,10 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The workbench lists it beside the built-in plugins: one stage framing its installed page.
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
-    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench"'));
+    assert.ok(stages[0]!.stage.includes('data-work-surface="' + stages[0]!.surface + '"'));
+    assert.ok(stages[0]!.stage.includes('data-plugin-page-source="' + pluginHref + '?frame=workbench"'));
+    assert.match(stages[0]!.stage, /data-deferred-surface hidden><script type="application\/json" data-plugin-document>/u);
+    assert.doesNotMatch(stages[0]!.stage, /<iframe/u, 'the real workbench owns the opaque frame when this stage opens');
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
@@ -398,43 +488,51 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
-  const locale = createWorkbenchLocale(() => 'en');
-  const server: Server = createStudioBrowserServer(home, token, (request, response, pageProof) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    if (url.pathname === STUDIO_HARNESS_PATH) {
-      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, pageProof, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
-    }
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, pageProof); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
-  });
+  let rawModelError: string | undefined;
+  let revisionMode: 'valid' | 'acceptance' | 'designer' = 'valid', preferenceWrites = 0, buildWrites = 0;
+  const diagnostic = 'rework 引用了不存在的操作：原诊断 <tag> 保留';
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
+    models: async () => { if (rawModelError !== undefined) throw new Error(rawModelError); return fixture.models(); },
+    async agents(build: AgentBuild) {
+      const agent = await fixture.agents(build);
+      return { ...agent, async run(request: Parameters<typeof agent.run>[0]) {
+        const answer = await agent.run(request);
+        if (revisionMode === 'valid' || request.role !== 'designer' || JSON.parse(request.task).mode !== 'revise') return answer;
+        const output = JSON.parse(answer.output);
+        if (revisionMode === 'designer') output.rework = [{ op: '原诊断 <tag> 保留', why: 'preserve the raw operation name' }];
+        else output.design.acceptance[0].steps.push({ action: 'expectValue', componentId: 'editor', field: 'text', value: 'Unexpected value <raw>' });
+        return { ...answer, output: JSON.stringify(output) };
+      } };
+    } };
+  const server = studioServer(options, token, mutations, { page: true, languageControls: true, observe(request) {
+    if (request.method !== 'POST') return;
+    if (request.url === '/api/ui/locale') preferenceWrites += 1;
+    if (request.url?.includes('/api/plugin-builder/studio/builds')) buildWrites += 1;
+  } });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
-  // Every visible word of the studio's own controls: the text outside what is data (the brief, the proposals, the capability
-  // directory's titles, the model list, the step labels the host wrote that a pointer repeats), and the attributes that are read aloud.
-  const DATA = 'select,[class*="mw-select-picker"],.as-plugin,[data-as-title],[data-as-model-note],.as-pointer em,.as-frame span,.as-brief p,.as-candidates,.as-card,.as-agents,.as-steps,.as-recent,.as-cap,.as-cap-row';
+  // The labels that interpolate original names have exact assertions below. Other Studio words are checked together.
+  const DATA = 'select,[class*="mw-select-picker"],.as-plugin,[data-as-title],[data-as-model-note],.as-pointer em,.as-frame span,.as-brief p,.as-candidates,.as-card,.as-recent,.as-cap,.as-cap-row,[data-as-step-copy],.as-steps [translate="no"]:not([data-as-collaboration-copy])';
   const chrome = `(()=>{const HAN=/\\p{Script=Han}/u,shell=document.querySelector('.as-shell'),found=[];
-    for(const el of shell.querySelectorAll('*')){if(el.closest('${DATA},[hidden]'))continue;for(const a of ['aria-label','title','placeholder'])if(HAN.test(el.getAttribute(a)||''))found.push(a+'='+el.getAttribute(a));}
+    for(const el of shell.querySelectorAll('*')){if(el.closest('${DATA},[hidden]'))continue;for(const a of ['aria-label','title','placeholder'])if(!(a==='title'&&el.closest('.as-gates'))&&HAN.test(el.getAttribute(a)||''))found.push(a+'='+el.getAttribute(a));}
     const walker=document.createTreeWalker(shell,NodeFilter.SHOW_TEXT);for(let n;n=walker.nextNode();){if(n.parentElement.closest('${DATA},[hidden]'))continue;if(HAN.test(n.textContent))found.push('text:'+n.textContent.trim()+' <'+n.parentElement.tagName+'.'+n.parentElement.className+'>');}
     return found;})()`;
   try {
-    const page = await framedStudioPage(t, browser, await browser.page());
+    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer);
     await page.viewport(1440, 900);
     await page.command('Page.enable');
+    await page.command('Network.setCookie', { url: origin, name: 'molis_work_locale', value: 'en' });
     await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     await page.wait(`/Your plugin will appear here/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
     assert.equal(await page.evaluate<string>(`document.documentElement.lang`), 'en');
     assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'nothing the studio writes on its first screen is Chinese');
-    assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Let's build your idea together[\s\S]*Reading notes[\s\S]*Daily review[\s\S]*Group sign-up sheet/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Let’s build your idea together[\s\S]*Reading notes[\s\S]*Daily review[\s\S]*Group sign-up sheet/u);
     assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-builds] option').textContent`), 'No plugins yet');
     assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-title]').textContent`), 'New plugin');
     assert.equal(await page.evaluate<string>(`document.querySelector('.as-send').getAttribute('aria-label')`), 'Send');
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-input]').placeholder`), /^Describe the plugin you want/u);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not configured \(the UI Agent's design is used first\))$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not configured \(the UI Agent’s design is used first\))$/u);
 
     // The brief goes to the stand-in designer as the person typed it.
     await page.evaluate(`(()=>{const s=document.querySelector('[data-as-model]');s.value=[...s.options].find(o=>o.value.startsWith('fixture')).value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -449,23 +547,25 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Proposals: 2 · pick one to preview on the right/u);
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-choose]').textContent`), /^Use this proposal and start building$/u);
     assert.match(await page.evaluate<string>(`document.querySelector('.as-candidate .as-meta').innerText`), /Features: \d+[\s\S]*UI parts: \d+[\s\S]*Pages: \d+/u);
+    await page.wait(`document.querySelector('.as-agents [data-agent="design"] [data-as-step-copy]')?.textContent === 'Presented 2 proposals'`);
+    await page.evaluate(`document.querySelector('[data-as-steps] > summary').click()`);
+    assert.equal(await page.evaluate(`document.querySelector('[data-as-steps]').open`), true);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-steps li').innerText`), /Lead designer.*Presented 2 proposals.*随手记 · 笔记墙/su);
     assert.match(await page.evaluate<string>(`getComputedStyle(document.querySelector('[data-component-id="notes"]'),'::before').content`), /Not connected yet/, 'a part still to be wired says so in English');
 
-    // A request that fails shows the server's message in English when the dictionary has it: as a whole, or its opening sentence
-    // followed by the detail as the host wrote it; any other message is shown as written. (The fetch is answered here; the
-    // messages themselves are the ones the routes throw, checked against the source in tests/studio-english.test.ts.)
-    await page.evaluate(`(()=>{const real=window.fetch;window.__fail=null;window.fetch=(input,init)=>window.__fail&&init?.method==='POST'&&/\\/action$/.test(String(input))?Promise.resolve(new Response(JSON.stringify({error:window.__fail}),{status:400,headers:{'content-type':'application/json'}})):real(input,init);})()`);
-    for (const [error, shown] of [
-      ['草稿已改变，请刷新', 'The draft has changed. Refresh and try again.'],
-      ['目标范围的功能检查和浏览器验收全部通过后才能发布', 'You can publish only after the feature checks and browser acceptance pass for the target scope'],
-      ['发布前请先修好调用模型的写法：src/plugin.ts:12 model.generate names no prompt', 'Fix how the plugin calls the model before publishing: src/plugin.ts:12 model.generate names no prompt'],
-      ['一句宿主还没有英文的话：细节', '一句宿主还没有英文的话：细节'],
-    ] as const) {
-      await page.evaluate(`window.__fail=${JSON.stringify(error)}`);
-      await page.click('[data-as-choose]');
-      await page.wait(`document.querySelector('.as-error p')?.textContent===${JSON.stringify(shown)}`);
-    }
-    await page.evaluate(`window.__fail=null`);
+    // FSS-36: refuse a real request from this frame. The normal selection is untouched, and the same production route
+    // supplies both the English words and their owner-bound reference. The authorized page is still able to choose a real proposal.
+    const refused = await page.evaluate<{ error: string; text: { key: string } }>(`(async()=>{const root=document.querySelector('[data-as-builds]'),id=root.value;
+      const response=await fetch(${JSON.stringify(options.routePrefix + "/api/plugin-builder/studio/builds/")}+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),
+        body:JSON.stringify({action:'choose',candidateId:'missing'})});if(response.status!==400)throw Error('Unexpected status '+response.status);return response.json();})()`);
+    assert.deepEqual(refused, { error: "This proposal is no longer valid", text: { key: "plugin-builder.request.proposal-expired" } });
+    const original = '原错误 <b>不是标签</b>\n' + '底层细节'.repeat(600);
+    rawModelError = original;
+    await page.evaluate(`document.querySelector('[data-as-model]').dispatchEvent(new Event('change',{bubbles:true}))`);
+    await page.wait(`document.querySelector('.as-error p')?.textContent===${JSON.stringify(original)}`);
+    assert.equal(await page.evaluate(`document.querySelector('.as-error p').getAttribute('translate')`), 'no');
+    assert.equal(await page.evaluate(`Boolean(document.querySelector('.as-error p b'))`), false);
+    rawModelError = undefined;
 
     // Once a proposal is chosen the design arrives and the spec board and the capability board open.
     await page.click('[data-as-choose]');
@@ -475,9 +575,9 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.match(await page.evaluate<string>(`document.querySelector('.as-board-label').innerText`), /^Spec board\s+Placed \d+\/\d+ · in use \d+\/\d+$/u);
     assert.match(await page.evaluate<string>(`document.querySelector('.as-board-cap').innerText`), /^Capability board\s+Connected \d+\/\d+ · catalog \d+$/u);
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('.as-board .as-part:not(.as-cap)')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'the spec board names its components in English');
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-board] [data-kind]').getAttribute('aria-label')`), /^[A-Z][\w ]+ [A-Z][\w ]+: [A-Z]/u, 'name, catalog name: description');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-board] [data-kind]').getAttribute('aria-label')`), /^[A-Z][\w ]+ · [A-Z]/u, 'name, catalog name: description');
     assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'and so is the rest of the stage');
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Lead designer and Code Agent: .+ · Jev (configured|not configured \(the UI Agent's design is used first\))$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Lead designer and Code Agent: .+ · Jev (configured|not configured \(the UI Agent’s design is used first\))$/u);
     assert.deepEqual(await page.evaluate<string[]>(`[...new Set([...document.querySelectorAll('.as-plugin .pc-inspect')].map(b=>b.textContent))]`), ['Inspect part'], 'the button that points the studio at a part of the plugin');
 
     // The catalog panel and a tip carry the catalog's words in English.
@@ -486,6 +586,59 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] h4 span:first-child, [data-as-catalog-panel] .as-catalog-note')].map(x=>x.textContent).filter(x=>/\\p{Script=Han}/u.test(x))`), []);
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] .as-part')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'every catalog component, used or not');
     assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
+
+    // The real browser and package gates can still be running after the frame's default wait.
+    await page.wait(`document.querySelector('[data-as-phase]').textContent === 'Ready to try'`, { timeoutMs: 75_000 });
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-visual-result]')?.textContent || ''`), /Layout check passed on wide and narrow screens.*Features verified; visuals not reviewed/u);
+    revisionMode = 'acceptance';
+    await page.fill('[data-as-input]', '用验收检查验证保留的内容'); await page.click('.as-send');
+    const failureTitle = `document.querySelector('[data-as-failure-title]')`, failureGuidance = `document.querySelector('[data-as-failure-guidance]')`;
+    await page.wait(`${failureTitle}?.textContent.endsWith('did not work as expected in the trial')`, { timeoutMs: 75_000 });
+    revisionMode = 'designer';
+    await page.evaluate(`document.querySelector('[data-as-edit-mode]').value='message'`);
+    await page.fill('[data-as-input]', '保留原话并修订方案'); await page.click('.as-send');
+    await page.wait(`${failureTitle}?.textContent === 'The design step did not finish'`);
+    assert.match(await page.evaluate<string>(`${failureGuidance}.textContent`), /^Choose Continue to let the AI design it again/u);
+    const fixed = `Array.from(document.querySelectorAll('.as-steps li[data-status="failed"] [data-as-step-copy^="revise:"]')).at(-1)`,
+      log = `document.querySelector('[data-as-steps]')`, technical = `document.querySelector('.as-error details')`;
+    const gate = `document.querySelector('.as-steps .as-gates [title^="G1 "] [data-as-collaboration-copy]')`;
+    const step = `document.querySelector('.as-steps [data-as-collaboration-copy*="plugin-builder.agent-studio.step-n"]')`;
+    const screen = `document.querySelector('.as-steps [data-as-collaboration-copy*="plugin-builder.agent-studio.screen-text"]')`;
+    await page.wait(`${fixed}?.textContent === 'Revising the main design from your feedback'`);
+    await page.wait(`${gate}?.textContent === 'Contract' && ${step}?.textContent === 'Step 4' && ${screen}?.textContent.startsWith(' (on screen: ')`);
+    const observedScreen = await page.evaluate<string>(`JSON.parse(${screen}.dataset.asCollaborationCopy)[1].text`);
+    assert.ok(observedScreen.includes('Save'));
+    await page.evaluate(`(()=>{const draft=document.querySelector('[data-as-input]'); draft.value='Unsent 草稿'; draft.focus(); draft.setSelectionRange(1,6,'backward');
+      if(!${log}.open)${log}.querySelector('summary').click(); ${technical}.open=true;
+      window.collaboration={draft, log:${log}, technical:${technical}, fixed:${fixed}, title:${failureTitle}, raw:${technical}.querySelector('p'),
+        gate:${gate}, step:${step}, screen:${screen}, caseRaw:${step}.nextElementSibling};})()`);
+    const switched = `[collaboration.draft===document.activeElement,collaboration.draft.value,collaboration.draft.selectionStart,collaboration.draft.selectionEnd,
+      collaboration.draft.selectionDirection,collaboration.log===${log},${log}.open,collaboration.technical===${technical},${technical}.open,
+      collaboration.fixed===${fixed},collaboration.title===${failureTitle},collaboration.raw===${technical}.querySelector('p'),collaboration.raw.textContent,
+      Boolean(collaboration.raw.querySelector('tag')),document.querySelector('.as-brief p').textContent,
+      collaboration.gate===${gate},collaboration.step===${step},collaboration.screen===${screen},collaboration.caseRaw===${step}.nextElementSibling,collaboration.caseRaw.textContent]`;
+    const preserved = [true, 'Unsent 草稿', 1, 6, 'backward', true, true, true, true, true, true, true, diagnostic, false, '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面',
+      true, true, true, true, '字段值不符合预期：text'];
+    const writes = buildWrites;
+    for (const [lang, title, stepLabel, guidance, gateLabel, caseLabel, screenLabel] of [
+      ['zh', '设计这一步没能完成', '按你的意见修订主线', '点「继续」让 AI 重新设计一次', '合同', '第 4 步', '（界面显示：' + observedScreen + '）'],
+      ['en', 'The design step did not finish', 'Revising the main design from your feedback', 'Choose Continue to let the AI design it again', 'Contract', 'Step 4', ' (on screen: ' + observedScreen + ')'],
+    ]) {
+      await outer.evaluate(`(()=>{const link=document.createElement('a');link.href='#';link.dataset.uiLanguage=${JSON.stringify(lang)};document.body.append(link);link.click();link.remove();})()`);
+      await page.wait(`${failureTitle}?.textContent === ${JSON.stringify(title)} && ${fixed}?.textContent === ${JSON.stringify(stepLabel)}
+        && ${gate}?.textContent===${JSON.stringify(gateLabel)} && ${step}?.textContent===${JSON.stringify(caseLabel)} && ${screen}?.textContent===${JSON.stringify(screenLabel)}`);
+      assert.ok((await page.evaluate<string>(`${failureGuidance}.textContent`)).startsWith(guidance!));
+      assert.deepEqual(await page.evaluate(switched), preserved);
+      // A same-state read still reaches the normal render path after the in-place language update.
+      await page.evaluate(`(async()=>{const fetch=window.fetch;try{await new Promise(resolve=>{
+        window.fetch=async(...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith('/api/plugin-builder/studio/state'))await response.clone().json().then(resolve);return response;};
+        document.dispatchEvent(new CustomEvent('molis-work:model-ready'));});
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      }finally{window.fetch=fetch;}})()`);
+      assert.deepEqual(await page.evaluate(switched), preserved);
+    }
+    assert.equal(preferenceWrites, 2);
+    assert.equal(buildWrites, writes, 'switching only retitles the collaboration and leaves the build idle');
   } finally {
     await browser.close();
     await releaseAgentStudio(store, DEMO_PROJECT_ID);
@@ -544,14 +697,7 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   const nextBundle = join(home, 'v2.mjs'); await writeFile(nextBundle, 'export const operations={fetch:async(_,sdk)=>(await sdk.network.request({url:"https://api.weather.example/today",secretRefs:["weather"]})).body};');
   const next: AgentRelease = { ...first, version: 2, bundlePath: nextBundle, permissions, manifest: { version: 1, pluginId, revision: 'two', effects: permissions }, design: { ...first.design, contract: nextContract } };
   publishCheckedStudioFixture(installed.storage, next);
-  const server = createStudioBrowserServer(home, token, (request, response, pageProof) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, pageProof)); return; }
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, pageProof); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
-  });
+  const server = studioServer(options, token, mutations, { page: true });
   cleanups.push(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
   const page = await framedStudioPage(t, browser, await browser.page()); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });

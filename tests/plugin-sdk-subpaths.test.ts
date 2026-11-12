@@ -158,7 +158,12 @@ test("PG062-10: there is one drawing of a comparison and one comparison: the SDK
   assert.deepEqual(sources.sort(), ["packages/plugin-sdk/src/diff-view.ts", "packages/plugin-sdk/src/text-diff.ts", "packages/plugin-sdk/src/unified-diff.ts"]);
   for (const gone of ["plugins/native/diff/src/unified.ts", "plugins/native/diff/src/patch.ts", "plugins/native/diff/src/sentences.ts"]) assert.equal(existsSync(join(root, gone)), false, gone);
   // Diff and Coding draw with it: neither carries a renderer of its own.
-  for (const user of ["plugins/native/diff/src/ui.ts", "plugins/native/diff/src/actions.ts", "plugins/native/coding/src/change-html.ts"]) {
+  for (const user of ["plugins/native/diff/src/ui.ts", "plugins/native/coding/src/change-html.ts"]) {
     assert.match(readFileSync(join(root, user), "utf8"), /from "@molis-ai\/molis-work-plugin-sdk\/diff-view"/u, user);
   }
+  const diffUi = readFileSync(join(root, "plugins/native/diff/src/ui.ts"), "utf8");
+  assert.match(diffUi, /function renderDiffComparison\([^\n]+\n\s*return renderDiff\(/u);
+  const actions = readFileSync(join(root, "plugins/native/diff/src/actions.ts"), "utf8");
+  assert.match(actions, /import \{ renderDiffComparison \} from "\.\/ui\.js"/u);
+  assert.match(actions, /html: renderDiffComparison\(/u);
 });

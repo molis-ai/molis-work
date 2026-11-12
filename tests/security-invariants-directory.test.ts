@@ -1,3 +1,4 @@
+import type { AssistantNotice } from "@molis-ai/molis-work-contracts/services/assistant";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { syncBuiltinESMExports } from "node:module";
@@ -131,7 +132,7 @@ const notices = (home: string) => {
   const path = join(home, "assistant", "assistant.db");
   if (!existsSync(path)) return [];
   const db = new DatabaseSync(path, { readOnly: true });
-  try { return db.prepare("SELECT body FROM assistant_notices WHERE kind = 'directory-read'").all().map(row => JSON.parse(String(row.body)) as { text: string; text_params: { plugin: string; folder: string; origin: string } }); }
+  try { return db.prepare("SELECT body FROM assistant_notices WHERE kind = 'directory-read'").all().map(row => JSON.parse(String(row.body)) as AssistantNotice); }
   finally { db.close(); }
 };
 
@@ -263,10 +264,13 @@ test("S-83 RAC-663 a background caller reads with the grant; every read is recor
   const told = notices(f.home);
   assert.equal(told.length, 3, "one notice for each call that read");
   // PG049-N01: the saved template reflects the real result; values remain separate for current-language rendering.
-  assert.match(told.map(notice => notice.text_params.origin).join("\n"), /外部客户端（MCP）/);
-  assert.equal(told.filter(notice => notice.text.includes("但被拒绝")).length, 1);
-  assert.equal(told.filter(notice => notice.text.includes("读取了你授权")).length, 2);
-  assert.ok(told.every(notice => notice.text_params.plugin === "directorya" && notice.text_params.folder === "vault"));
+  assert.deepEqual(told.map(notice => notice.directory_origin).sort(), ["mcp", "person", "person"]);
+  assert.equal(told.filter(notice => "key" in notice.text && notice.text.key === "workbench.assistant-directory.denied").length, 1);
+  assert.equal(told.filter(notice => "key" in notice.text && notice.text.key === "workbench.assistant-directory.read").length, 2);
+  for (const notice of told) {
+    assert.ok("key" in notice.text);
+    assert.deepEqual(notice.text.args, [{ name: "plugin", kind: "text", text: "directorya" }, { name: "folder", kind: "text", text: "vault" }]);
+  }
   assert.doesNotMatch(JSON.stringify([listed, told]), /inside\.md|secret/, "no file names or content in the record or the notice");
 });
 
@@ -307,7 +311,7 @@ test("S-83 RAC-666 a kept background job reads with the grant, and the person is
   const told = notices(f.home);
   assert.equal(told.length, 3, "the job's first hour once, its own action's call once, and the job again an hour later");
   // PG049-N04: the original four reads / three notices and hour window remain asserted above.
-  assert.equal(told[0]!.text_params.origin, "由后台任务或定时发起");
+  assert.equal(told[0]!.directory_origin, "background");
 });
 
 test("S-83 RAC-665 a folder moved, swapped or replaced by a link is no longer the granted one", async t => {

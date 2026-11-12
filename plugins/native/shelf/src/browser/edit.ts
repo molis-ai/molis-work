@@ -5,6 +5,8 @@ import { post } from "./request.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 export function focusEditor(page: ShelfPage): void {
   const editor = page.preview.querySelector<HTMLTextAreaElement>("[data-shelf-editor]");
   if (!editor) return;
@@ -40,7 +42,7 @@ export async function saveCopy(page: ShelfPage, id: string | undefined, text: st
     if (page.selected?.item_id === id && status) {
       status.hidden = false;
       status.dataset.mwState = "failed";
-      status.textContent = page.L("shelf.edit.the-copy-was-not-saved") + " " + messageOf(error);
+      status.textContent = uiText.text("shelf.edit.the-copy-was-not-saved") + " " + messageOf(error);
     }
     throw error;
   }

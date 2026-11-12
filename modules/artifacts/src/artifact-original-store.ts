@@ -24,7 +24,7 @@ export const ARTIFACTS_HOME_STORE: NonNullable<PluginRegistration["home_store"]>
  * process on the Home can run it, and it is idempotent.
  */
 export const artifactsProjectData: ProjectDataDeclaration = {
-  label: "成果库保存的大文件原件",
+  label: { key: "workbench.project-deletion.artifact-originals" },
   purge: (home, projectId) => rm(projectDirectory(home, projectId), { recursive: true, force: true }),
 };
 

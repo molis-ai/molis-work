@@ -32,9 +32,19 @@ const PROPOSALS = [
 ];
 const DESIGN = JSON.stringify({ summary: '两个方向：录入最快的列表，和便于回看的卡片墙。', candidates: PROPOSALS });
 /** Stage two: the chosen proposal in full. */
-function detail(chosen: string, title?: string) {
+function detail(chosen: string, title?: string, defaultLocale = "zh") {
   const base = PROPOSALS.find(item => item.id === chosen) ?? PROPOSALS[0]!, name = title ?? base.title;
   return JSON.stringify({ summary: '细化「' + name + '」：四项功能、五个组件、四条验收。', design: { title: name, description: base.description, journey: base.journey,
+    uiText: { default: defaultLocale, locales: {
+      zh: { 'plugin/name': name, 'page/home/title': name, 'region/home/main/title': name,
+        'part/title/title': name, 'part/title/description': base.description, 'part/editor/submitLabel': '保存', 'part/notes/title': '全部笔记',
+        'part/notes/emptyText': '还没有笔记，写下第一条吧。', 'column/notes/expansion/label': '展开', 'part/expand/submitLabel': '展开',
+        'part/remove/submitLabel': '删除', 'field/notes.add/text/label': '笔记' },
+      en: { 'plugin/name': chosen === 'board' ? 'Note board' : 'Quick notes', 'page/home/title': 'Notes', 'region/home/main/title': 'Notes workspace',
+        'part/title/title': 'Quick notes', 'part/title/description': 'Write a note and return to it later.', 'part/editor/submitLabel': 'Save',
+        'part/notes/title': 'All notes', 'part/notes/emptyText': 'No notes yet. Write your first one.', 'column/notes/expansion/label': 'Expansion',
+        'part/expand/submitLabel': 'Expand', 'part/remove/submitLabel': 'Delete', 'field/notes.add/text/label': 'Note' },
+    } },
     operations: [
       { id: 'notes.list', kind: 'query', description: '列出笔记（最新在前）', input: {}, output: [{ id: 'string', text: 'string', 'expansion?': 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
       { id: 'notes.add', kind: 'command', description: '保存一条笔记', input: { text: 'string(1..500) 笔记' }, output: { id: 'string' }, effects: { storage: ['read', 'write'] }, examples: [{ input: { text: '第一条笔记' }, includes: {} }] },
@@ -50,7 +60,7 @@ function detail(chosen: string, title?: string) {
     ] }],
     acceptance: [{ id: 'write-and-see', description: '写下一条笔记后立刻能看到', steps: ['fill editor.text = 今天学到了间隔复习', 'submit editor', 'expect notes 今天学到了间隔复习'] },
       // Runs after a case that wrote data: passes only because every case starts from an empty preview.
-      { id: 'empty', description: '没有笔记时给出提示', steps: ['page home', 'reload', 'expect notes 还没有笔记，写下第一条吧。'] },
+      { id: 'empty', description: '没有笔记时给出提示', steps: ['page home', 'reload', { action: 'expectWord', componentId: 'notes', word: 'emptyText' }] },
       { id: 'expand', description: '模型把一条笔记展开（验收时由替身代答）', steps: ['fill editor.text = 间隔复习', 'submit editor', 'select notes 间隔复习', 'submit expand', 'expect notes ［模型替身］间隔复习'] },
       { id: 'remove', description: '删掉写错的一条', steps: ['fill editor.text = 留着这条', 'submit editor', 'fill editor.text = 写错了', 'submit editor', 'select notes 写错了', 'submit remove', 'expect-not notes 写错了', 'expect notes 留着这条'] }] } });
 }
@@ -146,7 +156,7 @@ async function fixtureAgent(build: AgentBuild) {
   return {
     async run(request: BuilderAgentRequest): Promise<BuilderAgentRecord> {
       if (request.role === 'designer') {
-        const task = JSON.parse(request.task) as { mode: string; proposal?: { id: string; journey: string[]; pages: unknown[] }; current?: { title?: string }; request?: string };
+        const task = JSON.parse(request.task) as { mode: string; proposal?: { id: string; journey: string[]; pages: unknown[] }; current?: { title?: string }; request?: string; uiText?: { default: string } };
         await pause(task.mode === 'propose' ? 1400 : 1800, request.signal);
         if (task.mode === 'propose') return record(request, DESIGN);
         if (task.mode === 'experience') return record(request, JSON.stringify({ summary: '体验替身：先浏览、随手写入，再按需要展开', journey: task.proposal!.journey, pages: task.proposal!.pages,
@@ -157,10 +167,10 @@ async function fixtureAgent(build: AgentBuild) {
             pages: [...new Set(input.parts.map(part => part.pageId))].map(pageId => ({ pageId, layout: { layout: 'stack', children: input.parts.filter(part => part.pageId === pageId).map(part => ({ part: part.id })) } })),
             parts: Object.fromEntries(input.parts.map(part => [part.id, part.intent === 'input' ? { kind: 'sheet', emphasis: 'primary' } : part.intent === 'collection' ? { kind: 'directory', density: 'compact' } : {}])) } }));
         }
-        if (task.mode === 'detail') return record(request, detail(task.proposal?.id ?? 'quick'));
+        if (task.mode === 'detail') return record(request, detail(task.proposal?.id ?? 'quick', undefined, task.uiText?.default));
         // A labelled stand-in revision: only the name changes, so working code and parts are kept.
         const named = /改成[「“"]?([^」”"，。]+)/.exec(task.request ?? '')?.[1];
-        return record(request, detail(PROPOSALS.find(item => item.title === task.current?.title)?.id ?? 'quick', named ?? task.current?.title));
+        return record(request, detail(PROPOSALS.find(item => item.title === task.current?.title)?.id ?? 'quick', named ?? task.current?.title, task.uiText?.default));
       }
       const task = JSON.parse(request.task) as { implementation: string; tests: string };
       for (const id of request.operationIds ?? []) {

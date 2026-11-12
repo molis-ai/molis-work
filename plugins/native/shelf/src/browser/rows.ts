@@ -2,6 +2,8 @@ import { escText, escapeAttr } from "./dom.js";
 import { batch, clockLabel, hasFile, isFailed, tone } from "./model.js";
 import type { Child, Clip, Item, ShelfPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 const CLIP_PREVIEW = 3;
 
 const GLYPHS: Record<string, string> = {
@@ -27,17 +29,16 @@ export function yieldName(name: string): string {
   return '<span class="shelf-name"><span class="shelf-name__stem">' + escText(match[1]) + '</span><span class="shelf-name__ext">' + escText(match[2]) + "</span></span>";
 }
 
-function itemHtml(page: ShelfPage, item: Item, on: boolean, locked: boolean): string {
-  const { L } = page;
+function itemHtml(_page: ShelfPage, item: Item, on: boolean, locked: boolean): string {
   const lock = locked ? ' aria-disabled="true"' : "";
   const failed = isFailed(item);
-  const copyOp = hasFile(item) ? op("copy", L("shelf.rows.copy"), "copy") : "";
+  const copyOp = hasFile(item) ? op("copy", uiText.text("shelf.rows.copy"), "copy") : "";
   return '<li class="shelf-row' + (on ? " is-on" : "") + (failed ? " is-failed" : "") + '" data-shelf-item="' + escapeAttr(item.item_id) + '" data-shelf-kind="' + escapeAttr(item.kind) + '" data-shelf-group="' + escapeAttr(item.group) + '" data-shelf-name="' + escapeAttr(item.name) + '" role="option" aria-label="' + escapeAttr(item.name) + '" aria-selected="' + String(on) + '" draggable="' + String(hasFile(item)) + '">'
     + '<span class="shelf-glyph tone-' + tone(item.kind, item.group) + '">' + glyphSvg(item.kind) + "</span>"
     + yieldName(item.name)
     + (item.group === "result" && !failed ? '<span class="shelf-when">' + escText(clockLabel(item.created_at)) + "</span>" : "")
-    + (failed ? '<span class="shelf-status" role="img" data-mw-state="failed" title="' + L("shelf.rows.failed") + '" aria-label="' + L("shelf.rows.failed") + '"></span>' : "")
-    + '<span class="shelf-ops">' + copyOp + op("hide", L("shelf.rows.hide-from-list-keep-the"), "hide", lock) + op("delete", L("shelf.rows.delete-copy"), "trash", lock, true) + "</span></li>";
+    + (failed ? '<span class="shelf-status" role="img" data-mw-state="failed" title="' + uiText.text("shelf.rows.failed") + '" aria-label="' + uiText.text("shelf.rows.failed") + '"></span>' : "")
+    + '<span class="shelf-ops">' + copyOp + op("hide", uiText.text("shelf.rows.hide-from-list-keep-the"), "hide", lock) + op("delete", uiText.text("shelf.rows.delete-copy"), "trash", lock, true) + "</span></li>";
 }
 
 function childHtml(page: ShelfPage, folder: Item, child: Child): string {
@@ -47,27 +48,26 @@ function childHtml(page: ShelfPage, folder: Item, child: Child): string {
 }
 
 function clipHtml(page: ShelfPage, clip: Clip): string {
-  const { L } = page;
   const kind = clip.kind === "url" ? "url" : "text";
   const on = page.clipSelection.has(clip.clip_id);
   const current = page.snapshot.current_clip_id === clip.clip_id;
   return '<li class="shelf-row' + (on ? " is-on" : "") + '" data-shelf-clip="' + escapeAttr(clip.clip_id) + '" data-shelf-kind="' + kind + '" data-shelf-group="clipboard" data-shelf-name="' + escapeAttr(clip.title) + '" role="option" aria-label="' + escapeAttr(clip.title) + '" aria-selected="' + String(on) + '">'
     + '<span class="shelf-glyph tone-' + tone(kind, "clipboard") + '">' + glyphSvg(kind) + "</span>" + yieldName(clip.title)
-    + (current ? '<span class="shelf-now" data-shelf-current>' + escText(L("shelf.rows.current")) + "</span>" : "")
-    + '<span class="shelf-ops">' + op("copy", L("shelf.rows.copy"), "copy") + op("join", L("shelf.bar.add-to-materials"), "down") + op("delete", L("shelf.rows.delete-entry"), "trash", "", true) + "</span></li>";
+    + (current ? '<span class="shelf-now" data-shelf-current>' + escText(uiText.text("shelf.rows.current")) + "</span>" : "")
+    + '<span class="shelf-ops">' + op("copy", uiText.text("shelf.rows.copy"), "copy") + op("join", uiText.text("shelf.bar.add-to-materials"), "down") + op("delete", uiText.text("shelf.rows.delete-entry"), "trash", "", true) + "</span></li>";
 }
 
 type Row = { row: Item; child: Child | null };
 
 /** Fills one group's list from its entries; `total` is what the count shows when the list shows only some. */
 function fill(page: ShelfPage, group: "materials" | "results" | "clipboard", entries: readonly (Item | Clip)[], total: number): void {
-  const { L, directory } = page;
+  const { directory } = page;
   const list = directory.querySelector('[data-shelf-list="' + group + '"]');
   if (!list) return;
   const query = (page.search?.value || "").trim().toLowerCase();
   const visible = entries.filter((entry) => !query || String("name" in entry ? entry.name : entry.title || "").toLowerCase().includes(query));
   if (!visible.length) {
-    const empty = group === "clipboard" ? L("shelf.rows.clipboard-is-empty") : group === "results" ? L("shelf.rows.no-results-yet") : L("shelf.rows.no-materials-yet");
+    const empty = group === "clipboard" ? uiText.text("shelf.rows.clipboard-is-empty") : group === "results" ? uiText.text("shelf.rows.no-results-yet") : uiText.text("shelf.rows.no-materials-yet");
     list.innerHTML = '<li class="shelf-empty-line" data-shelf-empty>' + escText(empty) + "</li>";
   } else {
     const busyId = page.selected && !page.selClip && ["is-confirm", "is-run", "is-fail"].some((name) => page.stage.classList.contains(name)) ? page.selected.item_id : "";
@@ -97,7 +97,7 @@ function withChildren(page: ShelfPage, visible: Item[]): Row[] {
 }
 
 export function paintLists(page: ShelfPage): void {
-  const { L, directory, snapshot } = page;
+  const { directory, snapshot } = page;
   const clips = snapshot.clipboard || [];
   const shown = page.clipExpanded || clips.length <= CLIP_PREVIEW ? clips : clips.slice(0, CLIP_PREVIEW);
   fill(page, "materials", snapshot.materials || [], (snapshot.materials || []).length);
@@ -106,14 +106,14 @@ export function paintLists(page: ShelfPage): void {
   const more = directory.querySelector<HTMLElement>("[data-shelf-clip-more]");
   if (more) {
     more.hidden = clips.length <= CLIP_PREVIEW;
-    more.textContent = page.clipExpanded ? L("shelf.rows.show-last-3") : L("shelf.rows.show-all");
+    more.textContent = page.clipExpanded ? uiText.text("shelf.rows.show-last-3") : uiText.text("shelf.rows.show-all");
   }
   const hint = directory.querySelector<HTMLElement>("[data-shelf-clip-hint]");
   if (hint) hint.hidden = clips.length === 0;
   const foot = directory.querySelector("[data-shelf-foot-left]");
   if (foot) {
     const picked = batch(page).length;
-    foot.textContent = picked > 1 ? L("shelf.rows.count-selected", { count: picked }) : L("shelf.rows.working-copies");
+    foot.textContent = picked > 1 ? uiText.text("shelf.rows.count-selected", { count: picked }) : uiText.text("shelf.rows.working-copies");
   }
 }
 
@@ -122,6 +122,6 @@ export function setMultiMode(page: ShelfPage, on: boolean): void {
   page.multiMode = on;
   const entry = page.directory.querySelector("[data-shelf-multi]");
   if (!entry) return;
-  entry.textContent = on ? page.L("shelf.rows.finish-selecting") : page.L("shelf.rows.select-multiple-files");
+  entry.textContent = on ? uiText.text("shelf.rows.finish-selecting") : uiText.text("shelf.rows.select-multiple-files");
   entry.setAttribute("aria-pressed", String(on));
 }

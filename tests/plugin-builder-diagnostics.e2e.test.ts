@@ -5,14 +5,25 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
+import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-packs.js';
 import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { installHostUiText, runBackgroundWork } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
-import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
+import { runBuilderBrowserAcceptance } from '../apps/local-host/dist/plugin-builder/browser.js';
 import { builderBrowserExecutable, openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
 import { detail, memoryStorage, PROPOSALS, until } from './fixtures/builder-workflow-design.js';
+
+function previewHtml(view: unknown, { components = '(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')', prelude = '', acceptance = false } = {}) {
+  const suppliedView = JSON.stringify(view ?? null).replaceAll('<', '\\u003c');
+  return '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>'
+    + pageTextScriptForPacks('zh', chinesePagePacks('plugin-builder')) + prelude
+    + '\n(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT
+    + ')(),mode:"preview",build:"probe",view:' + suppliedView + (acceptance ? ',acceptance:"owned-test-trial"' : '')
+    + ',api:path=>path,components:' + components + '})</script>';
+}
 
 test('Builder diagnoses accepted reads with current selection, without another call or a stale response', { timeout: 60_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'molis-builder-diagnostics-')), browser = await openStudioChrome(directory);
@@ -26,7 +37,7 @@ test('Builder diagnoses accepted reads with current selection, without another c
   const view = { contract, nodes: [notes, reader], connected: contract.operations.map(op => op.id) };
   const draft = { design: { contract }, nodes: view.nodes, connected: view.connected };
   let reads = 0, fail = false, hold = false, release: (() => void) | undefined, entered: (() => void) | undefined;
-  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>' + compiled.outputFiles[0]!.text + '\n(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",api:path=>path,components:options=>{globalThis.app=PluginUi.createPluginComponentClient(options);return app;}})</script>';
+  const html = previewHtml(view, { prelude: compiled.outputFiles[0]!.text, components: 'options=>{globalThis.app=PluginUi.createPluginComponentClient(options);return app;}' });
   const server = createServer(async (request, response) => {
     if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
     response.setHeader('content-type', 'application/json');
@@ -92,7 +103,7 @@ test('RAC-2934 RAC-2935 G7 collects independent actual failures and stops on fai
     { id: 'disabled', description: '禁用按钮不能冒充原生拒绝', steps: [{ action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' }] },
   ];
   const draft = { design: { contract, acceptance }, nodes, connected: ['read'] };
-  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  const html = previewHtml({ contract, nodes, connected: ['read'] }, { acceptance: true });
   let reads = 0, submits = 0;
   const server = createServer(async (request, response) => {
     if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
@@ -140,9 +151,14 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
   const answers = [PROPOSALS, JSON.stringify(full)];
   const requests: Array<{ role: string; task: string }> = [];
   let current: AgentBuild | undefined, captures = 0, empty = false;
-  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
   const server = createServer((request, response) => {
-    if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
+    if (request.url === '/preview') {
+      response.setHeader('content-type', 'text/html');
+      const design = current?.design;
+      const view = design && current && { contract: design.contract, nodes: current.nodes, connected: current.connected,
+        presentation: design.presentation, deriveFieldWords: design.localePacks !== undefined };
+      response.end(previewHtml(view, { acceptance: true })); return;
+    }
     response.setHeader('content-type', 'application/json');
     if (request.url === '/builds/probe') response.end(JSON.stringify({ build: current }));
     else if (request.url === '/builds/probe/call') { request.resume(); response.end(JSON.stringify({ value: empty ? [] : [{ id: 'one', text: 'TRANSPORT_VISIBLE' }] })); }
@@ -151,6 +167,7 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/preview';
   const ports: AgentBuilderPorts = {
+    runInLanguage: run => runBackgroundWork('zh', run),
     projectId: 'project', catalog: async () => [], models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
     agent: async () => ({ async run(request) {
       requests.push(request);
@@ -172,14 +189,16 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
     },
     publish: async () => { throw new Error('Unexpected publish'); }, installations: async () => [], lifecycle: async () => {},
   };
-  try { for (const finalCapture of [false, true]) {
+  try {
+    installHostUiText();
+    for (const finalCapture of [false, true]) {
     empty = finalCapture; captures = 0; requests.length = 0; answers.splice(0, answers.length, PROPOSALS, JSON.stringify(full));
     const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
     try {
     const created = workflow.create('连接中断'); let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 45_000);
-    assert.equal(captures, 1, 'the last case reached the real renderer and closed its actual CDP browser');
+    assert.equal(captures, 1, 'the last case reached the real renderer and closed its actual CDP browser: ' + JSON.stringify(build.error));
     assert.equal(build.phase, 'failed'); assert.equal(build.browserResult!.passed, false);
     assert.match(build.browserResult!.blocked!, /验收浏览器连接不可用/);
     assert.equal(build.browserResult!.cases.length, 1); assert.equal(build.browserResult!.cases[0]!.passed, finalCapture, 'a completed case stays passed if only the final screenshot loses transport');

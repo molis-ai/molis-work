@@ -210,7 +210,7 @@ export interface AssistantFollowUp {
         due_at: string;
         at: string;
         outcome: "started" | "missed" | "skipped" | "failed";
-        detail?: string;
+        detail?: AssistantSavedText;
     };
 }
 
@@ -349,12 +349,9 @@ export interface AssistantNotice {
     kind: AssistantNoticeKind;
     work_id: string;
     work_title: string;
-    text: string;
-    text_params?: {
-        plugin: string;
-        folder: string;
-        origin: string;
-    };
+    text: AssistantSavedText;
+    directory_origin?: DirectoryReadOrigin;
+    additional_count?: number;
     created_at: string;
     settings_path?: string;
     open?: {
@@ -622,6 +619,11 @@ export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "exce
     enabled?: boolean;
 };
 
+export type AssistantSavedText = AssistantTextKey | {
+    readonly original: string;
+    readonly label?: AssistantTextKey;
+};
+
 export type AssistantScope = {
     kind: "personal";
 } | {
@@ -866,3 +868,9 @@ export declare const servicesAssistantContract: {
     readonly maturity: "partial";
     readonly ssot: "specs/archive/system-assistant/spec.md";
 };
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type AssistantTextKey = Extract<OwnedTextRef, {
+    readonly key: string;
+}>;

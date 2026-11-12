@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { assertPluginLocales, assertPluginPackagePath, parsePluginPackage, pluginLocaleFilePaths } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { UI_FILE_LIMITS } from "@molis-ai/molis-work-contracts/platform/ui";
 
 const MAX_BUNDLE_BYTES = 64 * 1024 * 1024;
 
@@ -53,11 +54,25 @@ export async function packageFileReader(directory: string): Promise<(name: strin
 /** A declared language's file, or `null` when it is not there: the rules in `locale-packs.ts` say what that means. A link or anything else that is no plain file is still refused. */
 export async function readLocaleFileOrNull(read: Awaited<ReturnType<typeof packageFileReader>>, name: string): Promise<Buffer | null> {
   try {
-    return await read(name);
+    return await read(name, UI_FILE_LIMITS.locale);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+/** A packer reads precisely the locale files the parsed Manifest names. The sandbox and direct developer paths use the same rules. */
+export async function packDeclaredLocales(manifest: PluginPackageBundle["payload"]["manifest"], files: PluginPackageBundle["payload"]["files"], read: Awaited<ReturnType<typeof packageFileReader>>): Promise<void> {
+  const source = new Map<string, string>();
+  for (const file of pluginLocaleFilePaths(manifest)) {
+    const present = files.find(({ path }) => path === file);
+    const bytes = present ? Buffer.from(present.content_base64, "base64") : await readLocaleFileOrNull(read, file);
+    if (bytes === null) continue;
+    try { source.set(file, new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+    catch { throw pluginErrors.package_invalid(file + " 不是有效的 UTF-8"); }
+    if (!present) files.push({ path: file, content_base64: bytes.toString("base64") });
+  }
+  assertPluginLocales(manifest, file => source.get(file) ?? null);
 }
 
 export async function packPluginProject(directory: string, output: string): Promise<PluginPackageBundle> {
@@ -72,17 +87,9 @@ export async function packPluginProject(directory: string, output: string): Prom
     files.push({ path: file, content_base64: (await read(file)).toString("base64") });
   }
   const manifest = JSON.parse(Buffer.from(files.find(file => file.path === "manifest.json")!.content_base64, "base64").toString("utf8")) as unknown;
-  // The Manifest already says which language files ship, so `files` does not have to say it again; one that is missing is `parsePluginPackage`'s to refuse.
-  for (const file of pluginLocaleFilePaths(parsePluginPackageManifest(manifest))) {
-    const bytes = files.some(({ path }) => path === file) ? null : await readLocaleFileOrNull(read, file);
-    if (bytes !== null) files.push({ path: file, content_base64: bytes.toString("base64") });
-  }
+  // The Manifest already says which language files ship; package.json does not have to repeat them.
+  await packDeclaredLocales(parsePluginPackageManifest(manifest), files, read);
   const bundle = parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest, files }, signature: null, publisher_key: null });
-  const packed = new Map(bundle.payload.files.map(({ path, content_base64 }) => [path, content_base64]));
-  assertPluginLocales(bundle.payload.manifest, (path) => {
-    const content = packed.get(path);
-    return content === undefined ? null : Buffer.from(content, "base64").toString("utf8");
-  });
   await writePluginPackageFile(output, bundle);
   return bundle;
 }

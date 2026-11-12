@@ -1,4 +1,5 @@
 import xtermCss from "@xterm/xterm/css/xterm.css";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createPageToast, errorText, paintTerminalStatus, queryTerminalPane, type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import { listenGoalEvents } from "./client-goal-events.js";
 import { createTerminalGuard } from "./client-guard.js";
@@ -23,14 +24,14 @@ export function startWorkTerminalClient() {
 
 function mountGoalTerminal(pane: HTMLElement) {
   const els = queryTerminalPane(pane);
-  const L: TerminalTranslate = (window as Window & { L?: TerminalTranslate }).L ?? ((zh: string) => zh);
+  const readText: TerminalTranslate = uiText.text;
   const routePrefix = document.body.dataset.routePrefix || "";
   const route = (pathname: string) => routePrefix + pathname;
   const request: TerminalRequest = (url, init) => molisWorkRequest(url, init);
   const goalId = () => pane.dataset.goalId || "";
   const setStatus: TerminalStatus = (text, tone = "idle", state) => paintTerminalStatus(els.statusEl, text, tone, state);
   const showPageToast = createPageToast(setStatus);
-  const guard = createTerminalGuard({ els, text: L, route, goalId, setStatus, closeMenu: () => menu.setMenuOpen(false) });
+  const guard = createTerminalGuard({ els, text: readText, route, goalId, setStatus, closeMenu: () => menu.setMenuOpen(false) });
   const { canControlPanel } = guard;
 
   const screens = createTerminalScreens({
@@ -46,16 +47,16 @@ function mountGoalTerminal(pane: HTMLElement) {
     parentReadOnly: guard.readOnly,
     parentReadOnlyMessage: guard.parentReadOnlyMessage,
     canControlPanel,
-    text: L, errorText, route, request, terminalsRoute: () => pane.dataset.tuiTerminalsRoute || "",
+    text: readText, errorText, route, request, terminalsRoute: () => pane.dataset.tuiTerminalsRoute || "",
     controlToken: () => document.querySelector('meta[name="molis-work-page-session"]')?.getAttribute("content") || "",
     setStatus, setMenuOpen: (open) => menu.setMenuOpen(open),
     renderTabs: () => view.renderTabs(),
     showTerminal: (panelId) => view.showTerminal(panelId),
   });
-  const menu = createTerminalMenu({ els, text: L, route, request, guard, setStatus, openPanel: panelController.openPanel });
-  const view = createTerminalView({ els, text: L, screens, guard, goalId, setStatus, panels: () => panelController });
+  const menu = createTerminalMenu({ els, text: readText, route, request, guard, setStatus, openPanel: panelController.openPanel });
+  const view = createTerminalView({ els, text: readText, screens, guard, goalId, setStatus, panels: () => panelController });
   const prompt = createAdvancePrompt({
-    text: L, route, request, goalId, promptRoute: () => pane.dataset.tuiPromptRoute || "", guard, current: panelController.current,
+    text: readText, route, request, goalId, promptRoute: () => pane.dataset.tuiPromptRoute || "", guard, current: panelController.current,
     sendPty: panelController.send, copyBtn: els.copyBtn, showToast: showPageToast,
   });
   menu.listen();
@@ -100,14 +101,16 @@ function listenPaneButtons(
 
 /** Keep the active screen sized to the pane and focused on a click; close the channel with the page. */
 function followTerminalHost(host: HTMLElement, screens: TerminalScreens, panelController: ReturnType<typeof createTerminalPanels>) {
-  new ResizeObserver(() => {
+  const fit = () => {
     const panelId = panelController.activeId;
     const session = panelId ? screens.get(panelId) : undefined;
     if (!panelId || !session) return;
     session.fit.fit();
     const size = session.fit.proposeDimensions();
     if (size) void panelController.send({ type: "resize", panelId, cols: size.cols, rows: size.rows }).catch(() => undefined);
-  }).observe(host);
+  };
+  new ResizeObserver(fit).observe(host);
+  window.addEventListener("molis-work:ui-environment-changed", () => { screens.remeasure(); fit(); });
 
   host.addEventListener("pointerdown", () => {
     const panelId = panelController.activeId;

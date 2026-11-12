@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionExecutionContext, type ActionView, type BoundActionClient, type ExactActionReference,
   type WorkExecutorCalls, type WorkExecutorRole, type WorkExecutorRunControl, type WorkExecutorSession, type WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -5,7 +6,6 @@ import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-con
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
-import { L } from "../web-locale.js";
 
 /** The person's own action client in a project, as far as the Assistant's reads of other plugins need it. */
 export interface PersonActions {
@@ -58,7 +58,7 @@ export function unavailableReason(provider: ExecutorProvider): string | null {
   return null;
 }
 
-const unavailable = (reason?: string) => assistantErrors.executor_unavailable(reason || L("这个执行方现在不能用"), { action: L("在插件管理里检查它") });
+const unavailable = (reason?: string) => assistantErrors.executor_unavailable(reason || uiText.text("workbench.assistant-executor.executor-cannot-be-used-right-now"), { action: uiText.text("workbench.assistant-executor.check-plugin-management") });
 
 /**
  * A plugin as the executor of a work, driven only through the six actions of the work-executor protocol it publishes. The session is the
@@ -70,7 +70,7 @@ export class WorkExecutor {
   /** The provider a work is kept with, found again in the current directory: stopped, uninstalled, without a grant or short of a role, it is refused and no other one is used. */
   static async bind(actions: BoundActionClient, pluginId: string, dispatch?: ExecutorControl): Promise<WorkExecutor> {
     const provider = executorProviders(await actions.discover()).find(row => row.plugin_id === pluginId);
-    if (!provider) throw unavailable(L("这项工作的执行方现在找不到：它可能被停用、卸载或没有全套执行方动作"));
+    if (!provider) throw unavailable(uiText.text("workbench.assistant-executor.work-s-executor-cannot-be-found-now-may"));
     const reason = unavailableReason(provider);
     if (reason !== null) throw unavailable(reason);
     return new WorkExecutor(actions, provider, dispatch);

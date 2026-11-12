@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { allGoalViews } from "./proposal-ui-model.js";
 import type { GoalsDecisionItem, GoalsDecisionView, GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDecisionPresentationPrimitives } from "./decision-common-ui.js";
@@ -14,7 +15,7 @@ export interface RecentDecisionResult {
   reasonLabel?: string;
 }
 
-export function createGoalsDecisionResults(L: GoalsDecisionPresentationPrimitives["translate"]) {
+export function createGoalsDecisionResults(_L: GoalsDecisionPresentationPrimitives["translate"]) {
 
 function eventPayload(event: GoalsDecisionEvent): Record<string, unknown> {
   return event.payload != null && typeof event.payload === "object" && !Array.isArray(event.payload)
@@ -56,28 +57,28 @@ function recentDecisionResults(view: GoalsDecisionView): RecentDecisionResult[] 
       const revised = stringList(payload.revised_item_ids).length;
       const conflicts = stringList(payload.conflict_item_ids).length;
       const effects = [
-        ...(applied ? [L("已采用 {count} 项变化。", { count: applied })] : []),
-        ...(rejected ? [L("已退回 {count} 项变化。", { count: rejected })] : []),
-        ...(revised ? [L("有 {count} 项需要重新整理。", { count: revised })] : []),
-        ...(conflicts ? [L("有 {count} 项因当前内容已变化而未写入。", { count: conflicts })] : []),
+        ...(applied ? [uiText.text("goals.decision-results.applied-count-change-s", { count: applied })] : []),
+        ...(rejected ? [uiText.text("goals.decision-results.sent-back-count-change-s", { count: rejected })] : []),
+        ...(revised ? [uiText.text("goals.decision-results.count-item-s-need-be-revised", { count: revised })] : []),
+        ...(conflicts ? [uiText.text("goals.decision-results.count-item-s-were-not-applied-because-current", { count: conflicts })] : []),
       ];
       const stateLabels: Record<string, string> = {
-        approved: L("已采用"),
-        partially_applied: L("部分已处理"),
-        rejected: L("已退回"),
-        closed: L("已处理"),
-        pending: L("部分已处理"),
+        approved: uiText.text("goals.decision-results.applied"),
+        partially_applied: uiText.text("goals.decision-results.partially-handled"),
+        rejected: uiText.text("goals.decision-results.sent-back"),
+        closed: uiText.text("goals.decision-results.handled"),
+        pending: uiText.text("goals.decision-results.partially-handled"),
       };
       const root = goalById.get(proposal.root_goal_id ?? "");
       const reasons = [...new Set(proposal.decisions.filter((decision) => decision.created_at === event.at).map((decision) => decision.reason).filter(Boolean))];
       results.push({
         event,
         kind: "goalTree",
-        kindLabel: L("Goal 方案"),
-        state: stateLabels[proposal.state] ?? L("已处理"),
+        kindLabel: uiText.text("goals.decision-results.goal-proposal"),
+        state: stateLabels[proposal.state] ?? uiText.text("goals.decision-results.handled"),
         title: proposal.summary,
-        effects: effects.length ? effects : [L("决定已经记录，当前 Goal Tree 没有产生新的变化。")],
-        links: root ? [{ href: goalResultHref(root, `goal-description-${root.goal.goal_id}`), label: L("查看「{title}」", { title: root.goal.title }) }] : [],
+        effects: effects.length ? effects : [uiText.text("goals.decision-results.decision-was-saved-did-not-produce-new-goal")],
+        links: root ? [{ href: goalResultHref(root, `goal-description-${root.goal.goal_id}`), label: uiText.text("goals.decision-results.view-title", { title: root.goal.title }) }] : [],
         reason: reasons.join("；") || event.reason,
       });
     }

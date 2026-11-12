@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID, goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchLocale, inWordsOf } from "@molis-ai/molis-work-app-workbench";
+import { withGoalLocale } from "./goals-page-mount.js";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -346,14 +347,14 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
     assert.ok(!second!.html.includes("你的"), "the person did not write it");
 
     // English: every phrase the card adds has an English form; only the person's and the session's own words stay as written.
-    // The card is Goals' own text, so it is translated with Goals' words (its Manifest's ui.translations), not the Host's table alone (PG-071).
-    const english = inWordsOf(GOALS_PLUGIN_ID, createWorkbenchLocale(() => "en").L);
+    // The card reads from the exact registered Goals package.
+    const english = (key: string) => withGoalLocale("en", () => t.text(key));
     const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-    const html = renderWorkEventBody(record, english, escape, {}, "user");
+    const html = withGoalLocale("en", () => renderWorkEventBody(record, t.text, escape, {}, "user"));
     assert.ok(html.includes(`read your note “${reference.title}” at cursor ${note.observed_event_cursor}`), html);
     assert.ok(/Claude Code session ack-sess read/.test(html), html);
-    assert.ok(html.includes("How it will be handled:") && html.includes("Locate the record it answers") && html.includes(english("AI 自己说的，Molis 没有核对")), html);
-    assert.notEqual(english("AI 自己说的，Molis 没有核对"), "AI 自己说的，Molis 没有核对");
+    assert.ok(html.includes("How it will be handled:") && html.includes("Locate the record it answers") && html.includes(english("goals.event-acknowledgement-body.what-ai-says-itself-molis-has-not-checked")), html);
+    assert.notEqual(english("goals.event-acknowledgement-body.what-ai-says-itself-molis-has-not-checked"), "AI 自己说的，Molis 没有核对");
     // The meta line's type word comes from SYSTEM_TYPE_LABELS, which every system record shows in Chinese; this slice keeps that, so it is left out here.
     const body = html.replace(/<p class="event-meta">.*?<\/p>/, "").replaceAll(reference.title, "").replaceAll(SAID, "");
     assert.doesNotMatch(body, /\p{Script=Han}/u, "no Chinese is left around the person's words");

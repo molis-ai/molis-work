@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -14,6 +15,9 @@ import { getCatalogSpec } from "./catalog.js";
 import { catalogOAuthMethod } from "./oauth-methods.js";
 import { catalogMcpMethod } from "./mcp-methods.js";
 import { catalogAccountPresentation } from "./provider.js";
+import { officialMethodsFor, type OfficialConnectorMethod } from "./methods.js";
+
+const languages = { default: "zh", available: ["zh", "en"] } as const;
 
 /** The version of the two types every catalog connector provides. The catalog's own manifest.json moves with the same two entries. */
 const CONNECTOR_DRIVER_VERSION = /* @version type.connector.driver.catalog */ 1;
@@ -38,8 +42,7 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
   const mcp = catalogMcpMethod(connectorId);
   return {
     service_id: connectorId,
-    // WeChat is Work WeChat here.
-    title: connectorId === "wechat" ? "企业微信" : spec.title,
+    title: connectorId === "wechat" || connectorId === "feishu" ? { key: connectorId + ".connection.title" } : spec.title,
     group_id: spec.group_id,
     summary: spec.summary,
     auth_kind: connectorId === "loom" ? "none" : connectorId === "notion" ? "oauth" : connectorId === "feishu" ? "feishu" : "token",
@@ -49,9 +52,9 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
     auth_help: spec.auth_help,
     capabilities: [
       { label: spec.inbound, fulfillment: feed ? "live" : "unfulfilled" },
-      { label: "在连接设置中检查当前账号", fulfillment: "live" },
+      { label: { key: "common.connector.check-current-account" }, fulfillment: "live" },
     ],
-    outbound_note: "连接设置可检查当前账号。Agent 可用能力以能力库为准。",
+    outbound_note: { key: "common.connector.account-available-actions" },
     setup_links: spec.setup_links,
   };
 }
@@ -79,6 +82,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     // 1.3.0: a service that connects by OAuth declares its flow as data (W5-11).
     version: /* @version plugin.integration-catalog.connectors */ "1.4.0",
     name: spec.title,
+    ...(connectorId === "feishu" ? { name_text: { key: "feishu.connection.title" } } : connectorId === "wechat" ? { name_text: { key: "wechat.directory.name" } } : {}),
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
     host_api_version: /* @version host.api */ 1,
@@ -92,7 +96,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
       consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
     },
     artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [`settings.integration.${connectorId}`] },
+    ui: { contributions: [`settings.integration.${connectorId}`], locales: languages },
     connection_services: [catalogConnectionService(connectorId)],
     ...(integrations.length > 0 ? { integrations } : {}),
   };
@@ -103,9 +107,9 @@ export function createCatalogIntegrationPlugin(input: {
   /** The provider for one source's binding; the Host decides where the credential comes from. */
   providerFor(binding: IntegrationBinding): IntegrationProviderPort;
   now?: () => Date;
-}): PluginDefinition {
+}): PluginDefinition & { connectionText: { readLocale(path: string): string | null; guides: Readonly<Record<string, readonly OfficialConnectorMethod[]>> } } {
   const spec = getCatalogSpec(input.connectorId);
-  return definePollingIntegrationPlugin({
+  const definition: PluginDefinition = definePollingIntegrationPlugin({
     manifest: catalogIntegrationManifest(input.connectorId),
     createProvider(context, binding) {
       for (const host of [spec.permission_host, ...(spec.additional_permission_hosts ?? [])]) context.requireGrant(`network:${host}`);
@@ -115,6 +119,11 @@ export function createCatalogIntegrationPlugin(input: {
     presentAccount: (cursor, label) => catalogAccountPresentation(cursor, label),
     now: input.now,
   });
+  const connectionText = { readLocale(path: string) {
+    const url = new URL(`../providers/${spec.id}/${path}`, import.meta.url);
+    return existsSync(url) ? readFileSync(url, "utf8") : null;
+  }, guides: { [spec.id]: officialMethodsFor(spec.id) } };
+  return { ...definition, connectionText };
 }
 
 export { CATALOG_CONNECTORS, catalogConnectorIds, getCatalogSpec, isCatalogConnectorId } from "./catalog.js";

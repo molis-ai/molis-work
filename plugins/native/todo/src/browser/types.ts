@@ -4,7 +4,7 @@ export type { UiClientTranslate as Translate } from "@molis-ai/molis-work-contra
 import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type TodoClientHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
-  "translate" | "route" | "pluginRoute" | "pluginId" | "projectId" | "projectTitle" | "readRefusal" | "confirmBox" | "surfaceFor" | "invokeAction">;
+  "route" | "pluginRoute" | "pluginId" | "projectId" | "projectTitle" | "readRefusal" | "confirmBox" | "surfaceFor" | "invokeAction">;
 
 /** One request to the Todo routes; `path` is relative to the current plugin, or is a full `/api/…` path. */
 export type TodoRequest = <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => Promise<T>;
@@ -135,7 +135,7 @@ export interface TodoState {
  */
 export interface TodoPage {
   readonly host: TodoClientHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly el: TodoElements;
   readonly state: TodoState;
   readonly request: TodoRequest;

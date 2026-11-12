@@ -1,6 +1,6 @@
 ---
 method_id: industry-investing-wealth
-version: 1
+version: 2
 kind: industry
 name: "投资与财富管理"
 summary: "围绕客户目标、适配边界、市场数据、交易生命周期和风险披露组织投资服务。"

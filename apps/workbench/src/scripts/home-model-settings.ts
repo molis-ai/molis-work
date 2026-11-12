@@ -4,7 +4,7 @@ import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 /** The project-free Home shell hosts the existing settings document without unloading plugin drafts. */
 export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
-  const L = globalThis.L || (text => text);
+  const readText = globalThis.t.text;
   // The pages' own address declarations (settings-address-params.ts): this dialog keeps only what the page it opens reads.
   const DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.global)};
   const HOME_QUERY_EXTRAS = ${JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)};
@@ -27,19 +27,19 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
   const load = async (href = address) => {
     pending?.abort(); const controller = pending = new AbortController(); address = href;
     const models = new URL(href, location.origin).pathname === '/settings/models', key = models ? 'models' : 'connections';
-    dialog.querySelector('h2').textContent = L(models ? '模型设置' : '账号连接'); back.hidden = models;
+    dialog.querySelector('h2').textContent = globalThis.t.text(models ? "workbench.home-model-settings.models" : "workbench.home-model-settings.account-connection"); back.hidden = models;
     content.replaceChildren();
     retry.hidden = true; status.hidden = true; content.removeAttribute('aria-busy');
     const cached = pages.get(key);
     if (cached) { content.append(cached); if (!models) return; }
-    status.hidden = false; status.textContent = L('正在加载…'); content.setAttribute('aria-busy', 'true');
+    status.hidden = false; status.textContent = globalThis.t.text("workbench.home-model-settings.loading"); content.setAttribute('aria-busy', 'true');
     try {
       const url = new URL(href, location.origin); url.searchParams.set('embed', '1');
       if (cached && models) url.searchParams.set('new', '1');
-      const html = await molisWorkRequest(url.href, {as:'text', signal:controller.signal, fallback:L('无法读取模型设置')});
+      const html = await molisWorkRequest(url.href, {as:'text', signal:controller.signal, fallback:globalThis.t.text("workbench.home-model-settings.cannot-load-model-settings")});
       const page = new DOMParser().parseFromString(html, 'text/html');
       const document = page.querySelector(models ? '[data-model-settings]' : '[data-connectors-settings]');
-      if (!document) throw new Error(L('模型设置页面不完整'));
+      if (!document) throw new Error(globalThis.t.text("workbench.home-model-settings.model-settings-page-incomplete"));
       if (controller.signal.aborted) return;
       if (cached) {
         // Refresh connection choices after managing accounts without replacing unsaved model inputs.
@@ -48,7 +48,7 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
           const selected = current.value, retained = current.selectedOptions[0]?.cloneNode(true);
           current.replaceChildren(...(fresh ? fresh.childNodes : [current.options[0].cloneNode(true)]));
           if (retained && ![...current.options].some(option => option.value === selected)) {
-            retained.disabled = true; retained.textContent = L('原连接已不可用，请重新选择'); current.append(retained);
+            retained.disabled = true; retained.textContent = globalThis.t.text("workbench.home-model-settings.previous-connection-unavailable-choose-another"); current.append(retained);
           }
           current.value = selected;
         }
@@ -66,7 +66,7 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
     } catch (error) {
       if (!controller.signal.aborted) {
         molisWorkRequest.show(status, error);
-        status.prepend(L('设置加载失败，当前输入已保留。'), ' ');
+        status.prepend(globalThis.t.text("workbench.home-model-settings.settings-could-not-load-input-preserved"), ' ');
         retry.hidden = false;
         // Let the cached form and the retry row lay out before correcting the dialog's scroll anchor.
         requestAnimationFrame(() => {

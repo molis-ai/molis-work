@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childFrameAssets } from "./frame-assets.js";
@@ -27,8 +28,11 @@ import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
+import { frameAppearance } from "./appearance.js";
+import { frameLanguage } from "./language-child.js";
+import type { FrameStageWords } from "./language.js";
+import type { FrameConfig, FrameDown, FrameUp } from "./types.js";
 import { childComposer } from "./composer-child.js";
-import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
@@ -48,14 +52,15 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
 /** The opaque child receives public presentation data and one capability port, never owner credentials. */
 export async function startChild(port: MessagePort, config: FrameConfig): Promise<void> {
   const send = (message: FrameUp) => port.postMessage(message), fetchThroughPort = createFrameFetch(port, config.origin);
-  globalThis.fetch = fetchThroughPort;
-  globalThis.MOLIS_WORK_MESSAGES = config.messages; globalThis.MOLIS_WORK_PLUGIN_TITLES = config.titles;
-  const L: Translate = globalThis.L = (key, values) => {
-    return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
+  if (config.text.owner !== config.pluginId) throw new Error("View text owner does not match");
+  const showStageWords = ({ title, description }: FrameStageWords) => {
+    root.style.setProperty("--stage-title", title); root.style.setProperty("--stage-desc", description);
   };
+  const updateLanguage = frameLanguage(config.text, showStageWords);
+  globalThis.fetch = fetchThroughPort;
   bindStorage(port, config);
-  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L }, UI_HOST_CLIENT_CODES);
-  const view = createUiFailureView({ createElement: tag => document.createElement(tag), translate: L,
+  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), readText: uiText.text }, UI_HOST_CLIENT_CODES);
+  const view = createUiFailureView({ createElement: tag => document.createElement(tag), readText: uiText.text,
     copy: text => copyText(text), setTimeout, clearTimeout: id => clearTimeout(id as ReturnType<typeof setTimeout>) });
   view.install(document);
   globalThis.molisWorkRequest = Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
@@ -63,14 +68,15 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const ownRoots = config.mount ? [...document.querySelectorAll<HTMLElement>("[data-ui-client-root]")] : [];
   if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
   const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
-  root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
+  showStageWords(config.stage);
   root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.pluginId = config.pluginId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
-  const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
+  const ui = globalThis.molisFrameUi(), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
+  const updateAppearance = frameAppearance(config.origin, config.appearance, scope);
   childComposer(port, scope, config.bar);
   childIntake(port, scope);
-  childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
+  childContext(port, scope, root); ui.surfaceFocus({ surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);
   const copyText = childCopy(port, scope);
   Object.defineProperty(navigator, "clipboard", { value: { writeText: copyText } });
@@ -79,11 +85,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
-  const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
+  const host = { root, scope, mountPluginClient: ui.mountPluginClient, side: config.side,
     mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
-    ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
+    ...pageDialogs(scope, uiText.text), confirmBox: pageConfirmBox(scope, uiText.text), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
     taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
@@ -96,8 +102,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     pluginId: config.pluginId, pluginRoute: (path: string) => route("/api/plugins/" + config.pluginId + path),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
     // What a page says when the Host's router refused its read for who-may-read reasons (403 `actions.*`); empty for any other failure.
-    readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? L(code === "actions.plugin_disabled" ? "这个项目停用了这个插件，所以显示不了。到插件市场重新添加后就能打开。" : "没有权限读取这里的内容，所以显示不了。授权在设置里管理。") : "",
-    api: (path: string, method: "GET" | "POST", body: unknown, fallback = L("来源操作失败")) => call(route(path), { method, body, fallback }),
+    readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? uiText.text(code === "actions.plugin_disabled" ? "common.child.project-has-turned-plugin-off-so-can-t" : "common.child.don-t-have-permission-read-so-can-t") : "",
+    api: (path: string, method: "GET" | "POST", body: unknown, fallback = uiText.text("common.child.source-operation-failed")) => call(route(path), { method, body, fallback }),
     openItem: (...args: unknown[]) => intent("openItem", args), openBeside: (...args: unknown[]) => intent("openBeside", args), openPlugin: (...args: unknown[]) => intent("openPlugin", args),
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
@@ -117,7 +123,9 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       const prior = document.documentElement.dataset.resolvedTerminalTheme;
       document.body.hidden = !message.visible; Object.assign(document.documentElement.dataset, message.theme);
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
+      if (!message.visible) updateAppearance(undefined);
     }
+    else if (message.type === "environment") "language" in message ? updateLanguage(message, event.ports[0]) : updateAppearance({ snapshot: message.snapshot, stylesheet: message.skin_href });
     else if (message.type === "focus") scope.frame(() => { if (scope.visible) dispatchEvent(new Event("focus")); });
     else if (message.type === "select") { itemTab = message.itemTab; select(message.detail); }
     else if (message.type === "collapse") collapsePage(root);
@@ -134,11 +142,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
     const script = document.createElement("script"); script.src = new URL(url, config.origin).href;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(L("插件界面的程序没有从本机服务取到。"))); document.head.append(script);
+    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched"))); document.head.append(script);
   });
   for (const asset of config.assets) await load(asset);
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
-  if (!factory) throw new Error(L("插件界面的程序里缺少入口，重新安装或更新这个插件后再试。"));
+  if (!factory) throw new Error(uiText.text("common.child.view-entry-missing"));
   childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
 }

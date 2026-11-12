@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { renderWorkflowsWorkbench, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_MESSAGES } from "@molis-ai/molis-work-plugin-workflows";
+import { renderWorkflowsWorkbench, WORKFLOWS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-workflows";
 
 const SRC = "plugins/native/workflows/src";
 const BROWSER = join(SRC, "browser");
@@ -22,24 +23,13 @@ test("RAC-156 every word the Workflows page says has a stable key with both lang
   // They reach the translator in one place, so a new site that forwards something else cannot hide among them.
   const forwarding = browserFiles().flatMap(file => readFileSync(file, "utf8").split("\n").map((text, index) => ({ file, line: index + 1, text })))
     .filter(({ text }) => /\bL\((?!["'`])/u.test(text));
-  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [`${join(BROWSER, "dom.ts")}: export const said = (L: Translate, text: string) => L(text);`], "one place hands words the Host wrote to the translator");
+  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [], "raw Host words do not enter a translator");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in WORKFLOWS_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(WORKFLOWS_MESSAGES).filter(key => !used.has(key) && !named(key)), [], "every defined key is asked for or named as a reason");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(WORKFLOWS_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderWorkflowsWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /«workflows\.ui\.new-flow»/u, "the server-drawn page speaks through the translator");
+  assertPageWords("workflows", used);
+  const html = withPageText("en", ["workflows"], () => renderWorkflowsWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "workflows")("workflows.ui.new-flow")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
-
-// A key the code carries as a reason (or a label) and a later `said(...)` translates: it is named as a literal, not called.
-function named(key: string): boolean {
-  return browserFiles().some(file => readFileSync(file, "utf8").includes(`"${key}"`));
-}
 
 test("RAC-157 the Workflows page's client is typed browser code bundled by esbuild, asks the Host only through the shared request helper and names no plugin", () => {
   for (const file of browserFiles()) {

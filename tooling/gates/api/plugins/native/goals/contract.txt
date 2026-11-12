@@ -1651,7 +1651,7 @@ export interface GoalsPlanningApi {
     validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
     proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
     wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean;
-    effectiveMethods(projectId: string): PlanningMethodPack[];
+    effectiveMethods(projectId: string, locale?: string): PlanningMethodPack[];
     projectComposition(projectId: string): PlanningMethodComposition;
     saveProjectMethod(input: SaveProjectPlanningMethodInput): {
         method: PlanningMethodPack;

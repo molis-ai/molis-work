@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf, FILE_ENTRIES_PAGE_LIMIT, LOCAL_PERSON_ACTOR_ID,
   type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type FileEntry, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { computerErrors } from "./computer-errors.js";
 import { ComputerRecords, type ComputerRecord } from "./computer-records.js";
@@ -31,35 +32,43 @@ const computerRecordActions = {
   content: defineFileContentAction("computer.records.content", /* @version action.computer.records.content */ 1, kinds, "电脑操作记录", [], "home"),
 } as const;
 
-const STEP_LABEL: Record<string, string> = { look: "看", act: "做", asked: "问", allowed: "已允许", declined: "被拒绝", refused: "拒绝", failed: "失败", note: "记" };
+const STEP_LABEL: Record<string, string> = { look: "workbench.computer-record.look", act: "workbench.computer-record.act", asked: "workbench.computer-record.ask", allowed: "workbench.computer-record.allowed", declined: "workbench.computer-record.declined", refused: "workbench.computer-record.refused", failed: "workbench.computer-record.failed", note: "workbench.computer-record.note" };
 
-function dateLabel(iso: string): string {
-  try { return new Date(iso).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return iso; }
-}
+const OUTCOME: Record<string, string> = { completed: "workbench.computer-record.completed", failed: "workbench.computer-record.failed", stopped: "workbench.computer-record.stopped" };
+
+const date = (iso: string) => dateArg(iso, "datetime");
 
 function titleOf(record: ComputerRecord): string {
   const goal = record.goal.trim().replace(/\s+/gu, " ");
-  return `${goal ? goal.slice(0, 40) : "电脑操作"}（${dateLabel(record.started_at)}）`;
+  return goal ? uiText.text("workbench.computer-record.titled-record", { goal: goal.slice(0, 40), date: date(record.started_at) })
+    : uiText.text("workbench.computer-record.untitled-record", { date: date(record.started_at) });
+}
+
+function receiptOf(receipt: NonNullable<ComputerRecord["steps"][number]["receipt"]>): string {
+  const args = { state: receipt.state, count: receipt.actions };
+  return receipt.refusal ? uiText.text("workbench.computer-record.receipt-refused", { ...args, reason: receipt.refusal })
+    : uiText.text("workbench.computer-record.receipt", args);
 }
 
 function renderMarkdown(record: ComputerRecord): string {
-  const outcome = record.outcome === "completed" ? "完成" : record.outcome === "failed" ? "失败" : record.outcome === "stopped" ? "已停止" : "进行中";
+  const outcome = uiText.text(OUTCOME[record.outcome ?? ""] ?? "workbench.computer-record.in-progress");
   const lines = [
-    `# 电脑操作记录`,
-    record.goal ? `**目标**：${record.goal}` : "",
-    `**开始**：${dateLabel(record.started_at)}　**结束**：${record.ended_at ? dateLabel(record.ended_at) : "（未结束）"}　**结果**：${outcome}`,
+    "# " + uiText.text("workbench.computer-record.title"),
+    record.goal ? uiText.text("workbench.computer-record.goal", { goal: record.goal }) : "",
+    uiText.text("workbench.computer-record.timing", { start: date(record.started_at), end: record.ended_at ? date(record.ended_at) : uiText.text("workbench.computer-record.not-ended"), outcome }),
     record.conclusion ? `\n${record.conclusion}` : "",
-    record.unfinished.length ? `\n**没做完的部分**：\n${record.unfinished.map(one => `- ${one}`).join("\n")}` : "",
-    `\n## 步骤`,
+    record.unfinished.length ? "\n" + uiText.text("workbench.computer-record.unfinished") + "\n" + record.unfinished.map(one => "- " + one).join("\n") : "",
+    "\n## " + uiText.text("workbench.computer-record.steps"),
   ];
   for (const [index, step] of record.steps.entries()) {
     const app = step.app ? `［${step.app.name}］` : "";
-    const receipt = step.receipt ? `（${step.receipt.state}，动作 ${step.receipt.actions} 次${step.receipt.refusal ? `，拒绝：${step.receipt.refusal}` : ""}）` : "";
-    const shot = step.shot ? `　截图：${step.shot}` : "";
-    lines.push(`${index + 1}. [${dateLabel(step.at)}] ${STEP_LABEL[step.kind] ?? step.kind}　${app}${step.summary}${receipt}${shot}`);
+    const receipt = step.receipt ? " " + receiptOf(step.receipt) : "";
+    const shot = step.shot ? " " + uiText.text("workbench.computer-record.screenshot", { shot: step.shot }) : "";
+    const label = STEP_LABEL[step.kind] ? uiText.text(STEP_LABEL[step.kind]!) : step.kind;
+    lines.push(`${index + 1}. ${uiText.text("workbench.computer-record.step", { at: date(step.at), label, app, summary: step.summary, receipt, shot })}`);
   }
-  if (!record.steps.length) lines.push("（没有记录到步骤）");
-  if (record.shots_removed_at) lines.push(`\n（截图已按保留期清理，${dateLabel(record.shots_removed_at)}）`);
+  if (!record.steps.length) lines.push(uiText.text("workbench.computer-record.no-steps"));
+  if (record.shots_removed_at) lines.push("\n" + uiText.text("workbench.computer-record.screenshots-expired", { date: date(record.shots_removed_at) }));
   return lines.filter(line => line !== "").join("\n");
 }
 
@@ -85,7 +94,7 @@ export function computerRecordFileSource(homeDirectory: string): { definitions: 
     { capability_id: computerRecordActions.content.capability_id, version: computerRecordActions.content.version, handle: async (caller, input) => {
       const subject = (input as FileContentInput).subject;
       const record = records.get(subject.id);
-      if (!record || record.project_id !== caller.project_id) throw computerErrors.not_found("这份电脑操作记录不在了");
+      if (!record || record.project_id !== caller.project_id) throw computerErrors.not_found(uiText.text("workbench.computer-record.not-found"));
       return fileContentOf({ subject, revision: record.ended_at ?? record.started_at, title: titleOf(record), media_type: "text/markdown", text: renderMarkdown(record) });
     } },
   ];
@@ -97,13 +106,13 @@ export async function handleUnscopedComputerFiles(request: IncomingMessage, resp
   const route = /^\/api\/side\/files\/(sources|entries|content)$/u.exec(url.pathname)?.[1];
   if (!route) return false;
   const json = (status: number, body: unknown) => writeNativePluginJsonResponse(response, { status, body });
-  if (request.method !== "GET") { json(405, { error: "不支持这个请求" }); return true; }
+  if (request.method !== "GET") { json(405, { error: uiText.text("workbench.computer-record.method") }); return true; }
   const source = computerRecordFileSource(homeDirectory);
   const caller: ActionExecutionContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [], beforeEffect: async () => {} };
-  const described = { id: COMPUTER_RECORD_SOURCE_ID, plugin_id: "io.molis.work.assistant.rules", title: "电脑操作记录", kinds };
+  const described = { id: COMPUTER_RECORD_SOURCE_ID, plugin_id: "io.molis.work.assistant.rules", title: uiText.text("workbench.computer-record.title"), kinds: [{ ...kinds[0], title: uiText.text("workbench.computer-record.title") }] };
   try {
     if (route === "sources") { json(200, { sources: [described] }); return true; }
-    if (url.searchParams.get("source") !== COMPUTER_RECORD_SOURCE_ID) { json(404, { error: "这个文件来源已经不在了（插件可能已停用）" }); return true; }
+    if (url.searchParams.get("source") !== COMPUTER_RECORD_SOURCE_ID) { json(404, { error: uiText.text("workbench.computer-record.source-missing") }); return true; }
     const entries = source.handlers.find(handler => handler.capability_id === computerRecordActions.entries.capability_id);
     const read = source.handlers.find(handler => handler.capability_id === computerRecordActions.content.capability_id);
     if (route === "entries") {
@@ -112,7 +121,7 @@ export async function handleUnscopedComputerFiles(request: IncomingMessage, resp
       return true;
     }
     const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
-    if (kind !== COMPUTER_RECORD_KIND || !id) { json(400, { error: "没有说明要预览哪个文件" }); return true; }
+    if (kind !== COMPUTER_RECORD_KIND || !id) { json(400, { error: uiText.text("workbench.computer-record.file-required") }); return true; }
     const content = await read!.handle(caller, { subject: { kind, id } });
     json(200, { content, via: "content" });
     return true;

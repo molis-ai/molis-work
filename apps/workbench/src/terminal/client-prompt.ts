@@ -1,4 +1,5 @@
 import { SUBJECT_CONTEXT_PATH, type SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
 import type { PanelRecord, TerminalRequest } from "./types.js";
@@ -23,27 +24,27 @@ export interface AdvancePromptOptions {
  * as untrusted data; without that text the prompt is the Goal's own. Each read names the one Goal, so another Goal's text never comes.
  */
 export function createAdvancePrompt(options: AdvancePromptOptions) {
-  const { text: L, route, goalId, promptRoute, guard } = options;
+  const { route, goalId, promptRoute, guard } = options;
   let promptCache: { goalId: string; text: string } | null = null;
 
   const sourceContexts = (id: string) => options.request<SubjectContextAnswer | null>(
-    route(`${SUBJECT_CONTEXT_PATH}?kind=goal&id=${encodeURIComponent(id)}`), { fallback: L("打开失败") },
+    route(`${SUBJECT_CONTEXT_PATH}?kind=goal&id=${encodeURIComponent(id)}`), { fallback: uiText.text("workbench.client-prompt.could-not-open") },
   ).then(answer => answer?.contexts ?? [], () => []);
 
   const loadAdvancePrompt = async (requestedGoalId?: string) => {
     const id = requestedGoalId || goalId(), path = promptRoute();
-    if (!id || !path) throw new Error(L("打开失败"));
+    if (!id || !path) throw new Error(uiText.text("workbench.client-prompt.could-not-open"));
     if (guard.readOnly()) throw new Error(guard.parentReadOnlyMessage());
     if (requestedGoalId && requestedGoalId !== goalId()) {
-      throw new Error(L("当前页面已经切到另一条 Goal，请回到终端所属的 Goal 再操作。"));
+      throw new Error(uiText.text("workbench.client-prompt.page-has-switched-another-goal-return-goal-that"));
     }
     const contexts = await sourceContexts(id);
     const payload = await options.request<{ prompt?: string } | null>(
       route(path.replace(":goalId", encodeURIComponent(id))),
-      { method: "POST", body: contexts.length ? { source_contexts: contexts } : {}, fallback: L("打开失败") },
+      { method: "POST", body: contexts.length ? { source_contexts: contexts } : {}, fallback: uiText.text("workbench.client-prompt.could-not-open") },
     );
     const text = payload?.prompt || (promptCache?.goalId === id ? promptCache.text : "");
-    if (!text) throw new Error(L("打开失败"));
+    if (!text) throw new Error(uiText.text("workbench.client-prompt.could-not-open"));
     promptCache = { goalId: id, text };
     return text;
   };
@@ -61,9 +62,9 @@ export function createAdvancePrompt(options: AdvancePromptOptions) {
   const copyAdvancePrompt = async () => {
     const text = await loadAdvancePrompt();
     const { copyBtn } = options;
-    const copied = copyBtn && window.molisCopy ? await window.molisCopy(copyBtn, text, { done: L("已复制"), failed: L("复制失败") })
+    const copied = copyBtn && window.molisCopy ? await window.molisCopy(copyBtn, text, { done: uiText.text("workbench.client-prompt.copied"), failed: uiText.text("workbench.client-prompt.could-not-copy") })
       : await navigator.clipboard.writeText(text).then(() => true, () => false);
-    if (!copied) options.showToast(L("无法访问剪贴板，请手动复制"), true);
+    if (!copied) options.showToast(uiText.text("workbench.client-prompt.clipboard-unavailable-copy-manually"), true);
   };
 
   return { writePrompt, copyAdvancePrompt, resetCache: () => { promptCache = null; } };

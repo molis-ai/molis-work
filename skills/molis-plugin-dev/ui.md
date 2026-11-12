@@ -2,6 +2,7 @@
 
 产品气质：Soft Workbench——珍珠灰桌面上一张连续的白色工作面，石墨主操作，安静的层次。不要默认 Dashboard、表格、卡片墙、后台式布局。先找这个插件里「人盯着的那一块」，效率场景再保证信息密度。规范总表：仓库 `DESIGN.md`。
 
+<!-- studio-quality-bar -->
 ## 质量线（所有插件）
 
 官方插件和插件创作台生成的插件用同一条线；生成插件由平台渲染器保证其中大部分，设计时仍要按它取舍。
@@ -40,7 +41,7 @@
 
 - `icon`：图标名，限平台图标集（SDK `/ui` 的 `PLUGIN_ICON_NAMES`，设计系统逐个画）；写了集合外的名字、不是字符串或是空白，`parsePluginManifest` 当场拒绝，不回退。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写就用 `settings`。
 - `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
-- `title_en`（只用于 `navigator`、`island`）和 Manifest 顶层的 `name_en`：英文界面里这个入口的名字（BL-636）。一行英文，至多 80 个字符（按 Unicode 码点数），不能是空白、首尾不能有空白、不含控制字符和汉字；写在别的槽的视图上被拒。外壳按入口自己的来源取：导航或岛视图取它的 `title_en`，只有舞台的插件（外壳画的是 Manifest 的 `name`）取 `name_en`，两者不互相兜底；没写就在英文界面里显示原名，中文界面始终显示原名。内置和装进来的插件走同一条路，外壳没有按插件 id 写的英文名表。
+- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`，以及 `creates.title_text`、`start.title_text`、`start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
 - `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
 - `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
 - `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
@@ -112,7 +113,7 @@ renderPluginStageShell({
 
 打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版。
 
-构建与检查（样板 `plugins/native/form`）：浏览器代码在 `src/browser/*.ts`，入口 `factory.ts`；页面状态放在一个页面对象里，各部件是拿它当第一个参数的函数。包里的 `tsconfig.browser.json` 只含 `src/browser/**/*.ts`、`noEmit`、带 DOM 库；`package.json` 的 `build` 先 `tsc -p tsconfig.browser.json`，再用包内直接声明的 `esbuild`（命令直接写 `esbuild`，不写根目录二进制的相对路径）打成 `dist/<插件>-client.js`（`--bundle --format=iife --minify`，banner 与 footer 把它包成 `(host) => {…}`），`typecheck` 同样含这一步；`src/client.ts` 只读这份包。升级 esbuild 会改变压缩后的字节，页面资源预算照 `AGENTS.md` 的规则办，不能借工具升级绕过。页面每句话用 `<插件>.<区域>.<名称>` 的稳定键，中英文并排放 `src/messages.ts`，在 Manifest 的 `ui.messages` 声明，写法与迁移步骤见 [工作台「界面文字」](../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)；迁移时英文保持页面原来实际显示的那句（以宿主合并后的 `EN` 为准，不是只看自己的词典）。包自己的钉住测试（样板 `tests/form-client-bundle.test.ts`）：翻译用 `scripts/gates/translations.mjs` 的 `scanTree` 核对真实调用，不另写只认某种引号的正则；浏览器代码不直接 `fetch`，没有 `any`、`as unknown as`、空 `catch`、浏览器弹窗，不写自己的插件 id 与 `/api/plugins/` 前缀；打包内容用解析器独有的标识确认。
+构建与检查（样板 `plugins/native/form`）：浏览器代码在 `src/browser/*.ts`，入口 `factory.ts`；页面状态放在一个页面对象里，各部件是拿它当第一个参数的函数。包里的 `tsconfig.browser.json` 只含 `src/browser/**/*.ts`、`noEmit`、带 DOM 库；`package.json` 的 `build` 先 `tsc -p tsconfig.browser.json`，再用包内直接声明的 `esbuild`（命令直接写 `esbuild`，不写根目录二进制的相对路径）打成 `dist/<插件>-client.js`（`--bundle --format=iife --minify`，banner 与 footer 把它包成 `(host) => {…}`），`typecheck` 同样含这一步；`src/client.ts` 只读这份包。升级 esbuild 会改变压缩后的字节，页面资源预算照 `AGENTS.md` 的规则办，不能借工具升级绕过。页面每句话用自己的稳定键和 `ui.locales` 声明的语言文件，详见 [文字与外观](text-and-appearance.md)
 
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
@@ -164,13 +165,9 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 ## 文案与 i18n
 
-这一节是内置插件第 16 批之前的写法，新写的外部插件用 `t` 和语言文件，见 [text-and-appearance.md](text-and-appearance.md)。
-
-- UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
-- 带数的句子整句当一个 key，数用 `{name}` 填（`L("已选 {count} 项", { count })`），不要把数和半句拼起来。英文里跟着数变的词写成 `{count|one|other}`：`"{count} {count|file|files} selected"`，数是 1 时取前一个；同一个名字还要照常写一次 `{count}` 让数本身出现。填值只有一份写法，插件 SDK 的 `fillMessage`（Host 的 `L`、页面的 `L` 和 Coding 的 `codingText` 都用它），自己填值的地方也调它，不另写替换。`tests/fill-message.test.ts` 查英文里没有「{count} 名词s」这种不论单复数都用复数的写法。
-- 路由与动作送回页面显示的字（错误、说明、状态名）跟页面语言走（用户 2026-10-20 定）：宿主按请求（页面的语言 cookie，没有就看 Accept-Language）把语言放在调用上下文的 `locale`（`"zh" | "en"`），处理器用自己的词典按它写出要显示的字。`locale` 只选字、不授予任何东西，也从不从输入里读；没有页面的调用（模型的工具调用、定时器、后台工作）没有它，用插件自己的默认语言。存进库里的记录照原样，不按读取者的语言改写。写给模型的话不跟页面语言走。Coding 的写法见 `plugins/native/coding/src/words.ts`：深处抛出的错误用 `codingError`/`codingFailure` 从稳定键写成中文，离开路由时 `codingErrorIn` 按调用方的语言重写，类、码、kind 与 details 不变。
-- 按钮说人做的事，不说机制（不要「提交 Attention Command」）。
-- 空态说明下一步能做什么，不要空讲架构。
+- 一句话一个稳定键，词包按主人和语言独立放；代码用 SDK 的 `t` 和 `say`，参数含人名、链接和数字时写完整句。HTML 用转义后的结果，DOM 文本和会转义的控件用 `.text`。文件和参数写法见 [文字与外观](text-and-appearance.md)。
+- 需要稍后显示的状态、通知存键和参数。外部错误与用户内容保留原文。不要按译好的字找按钮或决定状态。
+- 按钮说用户要做的事；空态说明下一步。
 
 ## 验收
 

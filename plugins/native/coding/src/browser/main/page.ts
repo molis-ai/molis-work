@@ -1,4 +1,5 @@
 import type { ComposerHandle, ComposerMention, ScrollFollower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { codingComposerLabels } from "../../composer-labels.js";
 import { createCodingTimeline } from "../../timeline.js";
 import { createCodingTurnChanges } from "../../turn-changes-client.js";
 import { createCodingCodePaint } from "../../code-paint-client.js";
@@ -149,6 +150,7 @@ export interface Refs {
   commandsUi: CommandsClient;
   /** The platform's composer (unified-input-voice K4), mounted again for each session on show with that session's draft. */
   composer: ComposerHandle;
+  composerLabels?: ReturnType<typeof codingComposerLabels>;
   composerModels: ComposerModels;
   cooperationUi: CooperationClient;
   draft: CodingDraft;
@@ -181,7 +183,7 @@ export interface Refs {
 /** What every function of the page is given: the Host's side, the page's markup, its memory and its pieces. */
 export interface Page {
   readonly host: CodingHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly root: HTMLElement;
   readonly directory: HTMLElement;
   readonly lifetime: Lifetime;

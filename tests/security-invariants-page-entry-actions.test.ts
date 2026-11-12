@@ -51,7 +51,7 @@ test("S-page-entry-actions 2: without the page's own credential every write is r
 
 test("S-page-entry-actions 3: a door's credential is good for its own actions, during its own request", async () => {
   const service = new ActionService(), ran: Array<{ door: string; entry: string; user_action: ActionUserAction | undefined }> = [];
-  const doorA = webEntryDoor<string>("test:a", "A only"), doorB = webEntryDoor<string>("test:b", "B only");
+  const doorA = webEntryDoor<string>("test:a", () => "A only"), doorB = webEntryDoor<string>("test:b", () => "B only");
   const schema = { type: "object", properties: {}, additionalProperties: false } as const;
   const a = doorA.define({ capability_id: "test.door.a", version: 1, title: "A", description: "A", scope: "home", input_schema: schema },
     (entry, _input, caller) => { ran.push({ door: "a", entry, user_action: caller.user_action }); return {}; });

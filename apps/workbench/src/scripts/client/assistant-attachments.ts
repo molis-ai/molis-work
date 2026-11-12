@@ -10,7 +10,7 @@
  * read for it; a source's pick is an object reference its owner checks again (`source` shown only, as `capability`). Past five
  * files, or four pictures, the ones over say so on their own rows instead of a toast that would be gone before it is read.
  */
-export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
+export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ readText, api }) => {
   const held = new Map();
   const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
   const isImage = (file) => /^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(file.name);
@@ -18,17 +18,17 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
   const isText = (file) => /^text\//.test(file.type) || /\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name);
   const refused = (file) => {
     if (isImage(file)) {
-      if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) return L("只能带 PNG、JPEG、GIF 或 WebP 图片");
-      if (file.size > 5 * 1024 * 1024) return L("图片超过 5 MB，请压缩或截取需要的部分");
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) return readText("workbench.assistant-attachments.only-png-jpeg-gif-web-p-images-can");
+      if (file.size > 5 * 1024 * 1024) return readText("workbench.assistant-attachments.image-over-5-mb-compress-crop-part-need");
       return "";
     }
-    if (isPdf(file)) return file.size > 8 * 1024 * 1024 ? L("文件超过 8 MB，请只带需要的部分") : "";
-    if (!isText(file)) return L("暂时只能读取文本文件、PDF 和图片");
-    return file.size > 400000 ? L("文件太大，请只带需要的部分") : "";
+    if (isPdf(file)) return file.size > 8 * 1024 * 1024 ? readText("workbench.assistant-attachments.file-over-8-mb-bring-only-part-need") : "";
+    if (!isText(file)) return readText("workbench.assistant-attachments.only-text-files-pdfs-images-can-be-read");
+    return file.size > 400000 ? readText("workbench.assistant-attachments.file-too-large-bring-only-part-need") : "";
   };
   // A pasted picture comes without a name of its own.
   const named = (file) => file.name && file.name !== "image.png" ? file
-    : new File([file], L("粘贴的图片") + "." + ((file.type.split("/")[1] || "png").replace("jpeg", "jpg")), { type: file.type });
+    : new File([file], readText("workbench.assistant-composer.pasted-image") + "." + ((file.type.split("/")[1] || "png").replace("jpeg", "jpg")), { type: file.type });
   const read = async (file) => {
     if (isImage(file)) {
       const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
@@ -39,7 +39,7 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
       return { material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true };
     }
     try { return { material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }; }
-    catch { throw new Error(L("读不了这个文件")); }
+    catch { throw new Error(readText("workbench.assistant-attachments.can-t-read-file")); }
   };
   return {
     accept: ".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*,image/png,image/jpeg,image/gif,image/webp",
@@ -65,10 +65,10 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
           return;
         }
         const material = held.get(item.ref);
-        if (!material) { over.push({ index, reason: L("读不了这个文件") }); return; }
+        if (!material) { over.push({ index, reason: readText("workbench.assistant-attachments.can-t-read-file") }); return; }
         count += 1; if (material.kind === "image") pictures += 1;
-        if (count > 5) over.push({ index, reason: L("一次最多带 5 个文件") });
-        else if (material.kind === "image" && pictures > 4) over.push({ index, reason: L("一次最多带 4 张图片") });
+        if (count > 5) over.push({ index, reason: readText("workbench.assistant-attachments.most-5-files-time") });
+        else if (material.kind === "image" && pictures > 4) over.push({ index, reason: readText("workbench.assistant-attachments.most-4-images-time") });
         else { materials.push(material); positions.set(material.material_id, index); }
       });
       return { materials, over, positions };

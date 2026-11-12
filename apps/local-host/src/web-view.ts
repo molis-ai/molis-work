@@ -3,7 +3,7 @@ import { ActionError, type ActionDefinition, type BoundActionClient } from "@mol
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { currentLocale } from "./web-locale.js";
+import { inLanguagePreview, currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 
@@ -96,7 +96,7 @@ export async function cachedMolisWorkWebView(
   const cached = cache.get(options.databasePath);
   const base = cached?.cursor === cursor && cached.optionsFingerprint === optionsFingerprint
     ? cached.view : buildMolisWorkWebView(store, collection, options);
-  cache.set(options.databasePath, { cursor, optionsFingerprint, view: base });
+  if (!inLanguagePreview()) cache.set(options.databasePath, { cursor, optionsFingerprint, view: base });
   return { ...base, developer_mode: developerMode() };
 }
 

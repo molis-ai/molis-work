@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
 import { renderAgentDiagnostics } from "./settings-agent-diagnostics.js";
 import { renderCallRow, type CallRowView } from "./call-row.js";
@@ -5,19 +6,19 @@ import { settingRow } from "./settings-row.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import type { MolisWorkSettingsView, WebPeriodicTask } from "./settings-view.js";
 
-type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery" | "htmlLang">;
+type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "withDesktopQuery">;
 
 /** Where a row's project is, and the way to the call history of that project; a project deleted since has none to open. */
 function callPlace(row: CallRowView, view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): { label: string; href?: string } {
   const href = (path: string) => desktopShell ? p.withDesktopQuery(path) : path;
-  if (row.project_id === null) return { label: p.L("不属于任何项目"), href: href("/capabilities/history") };
+  if (row.project_id === null) return { label: uiText.text("workbench.settings-call-diagnostics.not-any-project"), href: href("/capabilities/history") };
   const project = view.projects.find(item => item.project_id === row.project_id);
-  return project ? { label: project.display_name, href: href(`/capabilities/history?project=${encodeURIComponent(project.project_id)}`) } : { label: p.L("已不存在的项目") };
+  return project ? { label: project.display_name, href: href(`/capabilities/history?project=${encodeURIComponent(project.project_id)}`) } : { label: uiText.text("workbench.settings-call-diagnostics.project-that-no-longer-exists") };
 }
 
 /** Look a call up by its 诊断编号, as the error that showed it gave it; or, with none asked for, the newest calls that failed or were turned away. A view the Host gave no call rows has no such section. */
 function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): string {
-  const { L, escapeHtml: e } = p;
+  const { escapeHtml: e } = p;
   const query = view.call_query;
   if (!query) return "";
   const context = view.context_project ?? null;
@@ -26,21 +27,21 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
   let result: string;
   if (query.text === "") {
     const recent = view.recent_calls ?? [];
-    result = `<h3>${L("最近失败或未执行的调用")}</h3>${recent.length ? rows(recent)
-      : note(L("最近没有失败或未执行的调用"), L("失败的调用和被拒绝的调用会出现在这里；成功的读取不记录。"))}`;
+    result = `<h3>${uiText("workbench.settings-call-diagnostics.recent-calls-that-failed-did-not-run")}</h3>${recent.length ? rows(recent)
+      : note(uiText.text("workbench.settings-call-diagnostics.no-recent-calls-failed-did-not-run"), uiText.text("workbench.settings-call-diagnostics.calls-that-failed-calls-that-were-turned-away"))}`;
   } else if (query.matches === undefined) {
-    result = note(L("诊断编号至少要 {count} 位", { count: query.min_length }), L("再多输入几位，才能准确找到这次操作。"));
+    result = note(uiText.text("workbench.settings-call-diagnostics.diagnostic-id-needs-least-count-count", { count: query.min_length }), uiText.text("workbench.settings-call-diagnostics.enter-few-more-so-operation-can-be-found"));
   } else if (query.matches.length === 0) {
-    result = note(L("没有找到以 {id} 开头的诊断编号", { id: e(query.text) }), L("调用记录只保留最近的调用，更早的会被整理掉；有些操作也不留记录。"));
+    result = note(uiText.text("workbench.settings-call-diagnostics.no-diagnostic-id-starts-id", { id: e(query.text) }), uiText.text("workbench.settings-call-diagnostics.call-history-keeps-only-recent-calls-tidies-older"));
   } else {
-    result = rows(query.matches, `<p role="status">${L("找到 {count} 条记录", { count: query.matches.length })}</p>`);
+    result = rows(query.matches, `<p role="status">${uiText("workbench.settings-call-diagnostics.count-count-found", { count: query.matches.length })}</p>`);
   }
   return `<section class="settings-section" aria-labelledby="call-lookup-title" data-call-lookup-section>
-      <h2 id="call-lookup-title">${L("按诊断编号查找")}</h2>
-      <p>${L("在报错详情里复制诊断编号，粘贴到这里（至少 {count} 位），可以找到这次操作经过的每一步：谁调用了什么、结果如何。不含输入和返回内容。", { count: query.min_length })}</p>
+      <h2 id="call-lookup-title">${uiText("workbench.settings-call-diagnostics.find-diagnostic-id")}</h2>
+      <p>${uiText("workbench.settings-call-diagnostics.copy-diagnostic-id-error-s-details-paste-here", { count: query.min_length })}</p>
       <form class="capability-filters" data-call-lookup action="/settings/diagnostics" method="get">${context ? `<input type="hidden" name="project" value="${e(context.project_id)}">` : ""}${desktopShell ? '<input type="hidden" name="desktop" value="1">' : ""}
-        <label class="capability-search">${L("诊断编号")}<input type="search" name="call" value="${e(query.text)}" maxlength="64" autocomplete="off" spellcheck="false" placeholder="${L("例如 a1b2c3d4")}"></label>
-        <button class="mw-btn mw-btn--secondary" type="submit">${L("查找")}</button>
+        <label class="capability-search">${uiText("workbench.settings-call-diagnostics.diagnostic-id")}<input type="search" name="call" value="${e(query.text)}" maxlength="64" autocomplete="off" spellcheck="false" placeholder="${uiText("workbench.settings-call-diagnostics.e-g-a1b2c3d4")}"></label>
+        <button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.settings-call-diagnostics.find")}</button>
       </form>
       ${result}
     </section>`;
@@ -49,68 +50,68 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
 /** What the server does on a timer: how often, when it last finished, and the error of a run that failed. */
 function renderPeriodicTasks(tasks: readonly WebPeriodicTask[] | undefined, p: DiagnosticsPrimitives): string {
   if (!tasks?.length) return "";
-  const { L, escapeHtml } = p;
-  const every = (ms: number) => ms === 3_600_000 ? L("每小时") : ms % 3_600_000 === 0 ? L("每 {count} 小时", { count: ms / 3_600_000 })
-    : ms === 60_000 ? L("每分钟") : ms % 60_000 === 0 ? L("每 {count} 分钟", { count: ms / 60_000 }) : L("每 {count} 秒", { count: Math.round(ms / 1000) });
+  const { escapeHtml } = p;
+  const every = (ms: number) => ms === 3_600_000 ? uiText.text("workbench.settings-call-diagnostics.hourly") : ms % 3_600_000 === 0 ? uiText.text("workbench.settings-call-diagnostics.every-count-count", { count: ms / 3_600_000 })
+    : ms === 60_000 ? uiText.text("workbench.settings-call-diagnostics.every-minute") : ms % 60_000 === 0 ? uiText.text("workbench.settings-call-diagnostics.every-count-count-2", { count: ms / 60_000 }) : uiText.text("workbench.settings-call-diagnostics.every-count-count-3", { count: Math.round(ms / 1000) });
   const rows = tasks.map(task => {
-    const last = task.running ? L("正在运行") : task.last_finished_at ? L("上次 {time}", { time: new Date(task.last_finished_at).toTimeString().slice(0, 5) }) : L("还没到第一次");
-    const state = task.last_error ? { tone: "danger", label: L("上次出错") } : task.runs ? { tone: "success", label: L("正常") } : { tone: "neutral", label: L("等待中") };
+    const last = task.running ? uiText.text("workbench.settings-call-diagnostics.running-now") : task.last_finished_at ? uiText.text("workbench.settings-call-diagnostics.last-time", { time: new Date(task.last_finished_at).toTimeString().slice(0, 5) }) : uiText.text("workbench.settings-call-diagnostics.not-run-yet");
+    const state = task.last_error ? { tone: "danger", label: uiText.text("workbench.settings-call-diagnostics.last-run-failed") } : task.runs ? { tone: "success", label: uiText.text("workbench.settings-call-diagnostics.ok") } : { tone: "neutral", label: uiText.text("workbench.settings-call-diagnostics.waiting") };
     const description = [every(task.interval_ms), last].join(" · ") + (task.last_error ? `<br>${escapeHtml(task.last_error)}` : "");
-    return settingRow(escapeHtml(L(task.title)), description, `<span class="settings-state settings-state--${state.tone}">${state.label}</span>`);
+    return settingRow(escapeHtml(task.title), description, `<span class="settings-state settings-state--${state.tone}">${state.label}</span>`);
   }).join("");
-  return `<section class="settings-section" aria-labelledby="periodic-tasks-title" data-periodic-tasks><h2 id="periodic-tasks-title">${L("后台任务")}</h2><p>${L("这个服务按时做的事。上一次还没做完时，到点的那一次跳过。")}</p>${rows}</section>`;
+  return `<section class="settings-section" aria-labelledby="periodic-tasks-title" data-periodic-tasks><h2 id="periodic-tasks-title">${uiText("workbench.settings-call-diagnostics.background-job")}</h2><p>${uiText("workbench.settings-call-diagnostics.what-service-does-timer-when-last-run-still")}</p>${rows}</section>`;
 }
 
 /** The diagnostics page: how to find a call by its 诊断编号, then the installation, the registries, the launchers and the resident service. */
 export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): string {
-  const { L, escapeHtml, icon } = p;
+  const { readText, escapeHtml, icon } = p;
   const diagnostics = view.diagnostics;
   const service = view.web_service;
   const installation = diagnostics.installation_state === "ready"
-    ? { label: L("安装完整"), tone: "success" }
+    ? { label: uiText.text("workbench.settings-call-diagnostics.install-complete"), tone: "success" }
     : diagnostics.installation_state === "missing"
-      ? { label: L("尚未安装本体"), tone: "warning" }
-      : { label: L("安装清单无效"), tone: "danger" };
-  const launchers = diagnostics.launchers.map((launcher) => settingRow(escapeHtml(launcher.name), escapeHtml(launcher.path), `<span class="settings-state settings-state--${launcher.state === "ready" ? "success" : "danger"}">${launcher.state === "ready" ? L("可用") : L("缺失")}</span>`)).join("");
+      ? { label: uiText.text("workbench.settings-call-diagnostics.install-missing"), tone: "warning" }
+      : { label: uiText.text("workbench.settings-call-diagnostics.install-manifest-invalid"), tone: "danger" };
+  const launchers = diagnostics.launchers.map((launcher) => settingRow(escapeHtml(launcher.name), escapeHtml(launcher.path), `<span class="settings-state settings-state--${launcher.state === "ready" ? "success" : "danger"}">${launcher.state === "ready" ? uiText("workbench.settings-call-diagnostics.available") : uiText("workbench.settings-call-diagnostics.missing")}</span>`)).join("");
   const serviceTone = service.state === "running" ? "success" : service.state === "stopped" || service.state === "absent" || service.state === "unhealthy" ? "warning" : "danger";
-  const serviceLabel = service.state === "running" ? L("运行中") : service.state === "stopped" ? L("已安装，未运行") : service.state === "unhealthy" ? L("进程运行中，页面不可用") : service.state === "absent" ? L("未启用") : service.state === "unsupported" ? L("当前系统不支持") : service.state === "conflict" ? L("配置冲突") : L("需要修复");
+  const serviceLabel = service.state === "running" ? uiText.text("workbench.settings-call-diagnostics.running") : service.state === "stopped" ? uiText.text("workbench.settings-call-diagnostics.installed-not-running") : service.state === "unhealthy" ? uiText.text("workbench.settings-call-diagnostics.process-up-page-not-healthy") : service.state === "absent" ? uiText.text("workbench.settings-call-diagnostics.not-enabled") : service.state === "unsupported" ? uiText.text("workbench.settings-call-diagnostics.not-supported-system") : service.state === "conflict" ? uiText.text("workbench.settings-call-diagnostics.config-conflict") : uiText.text("workbench.settings-call-diagnostics.needs-repair");
   const serviceActions = service.state === "running"
-    ? [["restart", L("重启")], ["stop", L("停止")], ["remove", L("移除")]]
+    ? [["restart", uiText.text("workbench.settings-call-diagnostics.restart")], ["stop", uiText.text("workbench.settings-call-diagnostics.stop")], ["remove", uiText.text("workbench.settings-call-diagnostics.remove")]]
     : service.state === "stopped"
-      ? [["start", L("启动")], ["remove", L("移除")]]
+      ? [["start", uiText.text("workbench.settings-call-diagnostics.start")], ["remove", uiText.text("workbench.settings-call-diagnostics.remove")]]
       : service.state === "unhealthy"
-        ? [["restart", L("重启并检查")], ["remove", L("移除")]]
+        ? [["restart", uiText.text("workbench.settings-call-diagnostics.restart-check")], ["remove", uiText.text("workbench.settings-call-diagnostics.remove")]]
       : service.state === "absent"
-        ? [["install", L("启用常驻服务")]]
+        ? [["install", uiText.text("workbench.settings-call-diagnostics.enable-persistent-service")]]
         : service.state === "needs_repair"
-          ? [["install", L("修复常驻服务")]]
+          ? [["install", uiText.text("workbench.settings-call-diagnostics.repair-persistent-service")]]
         : [];
   const serviceButtons = serviceActions.map(([action, label]) => `<button class="mw-btn mw-btn--secondary" type="button" data-web-service-action="${action}">${label}</button>`).join("");
-  const serviceMessage = service.message ? escapeHtml(L(service.message)) : "";
+  const serviceMessage = service.message ? escapeHtml(service.message) : "";
   return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("诊断")}</h1>${renderHint({ id: "settings-hint-diagnostics", label: L("如何生效"), html: `${escapeHtml(L("如果本体不完整，请在终端重新运行 "))}<code>molis-work install</code>${escapeHtml(L("。常驻服务操作会先展示预览并要求确认；不会在后台使用 nohup。"))}` })}</div><p>${L("这里只读取 Molis Work 自己的安装状态和调用记录，不扫描项目内容，也不会自动修复或修改 Runtime。")}</p></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-call-diagnostics.diagnostics")}</h1>${renderHint({ id: "settings-hint-diagnostics", label: uiText.text("workbench.settings-call-diagnostics.how-applies"), html: `${escapeHtml(uiText.text("workbench.settings-call-diagnostics.if-install-incomplete-run-again-terminal"))}<code>molis-work install</code>${escapeHtml(uiText.text("workbench.settings-call-diagnostics.persistent-service-actions-show-preview-ask-confirmation-they"))}` })}</div><p>${uiText("workbench.settings-call-diagnostics.only-reads-molis-work-s-own-installation-state")}</p></header>
     ${renderCallLookup(view, p, desktopShell)}
-    <section class="settings-section" aria-label="${L("Molis Work 本体")}">
-      ${settingRow(L("安装状态"), L("只检查本机安装清单，不扫描项目内容。"), `<span class="settings-state settings-state--${installation.tone}">${installation.label}</span>`)}
-      ${settingRow(L("版本"), L("当前安装的产品版本。"), `<span class="setting-number">${escapeHtml(diagnostics.version ?? L("未识别"))}</span>`)}
-      ${settingRow(L("项目数"), L("本机已经创建的项目数量。"), `<span class="setting-number">${diagnostics.project_count}</span>`)}
-      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本机路径")}</strong><span>${L("查看安装目录与发布位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div></dl></details>
+    <section class="settings-section" aria-label="${uiText("workbench.settings-call-diagnostics.molis-work-install")}">
+      ${settingRow(uiText.text("workbench.settings-call-diagnostics.install-state"), uiText.text("workbench.settings-call-diagnostics.only-checks-local-install-manifest-does-not-scan"), `<span class="settings-state settings-state--${installation.tone}">${installation.label}</span>`)}
+      ${settingRow(uiText.text("workbench.settings-call-diagnostics.version"), uiText.text("workbench.settings-call-diagnostics.installed-product-version"), `<span class="setting-number">${escapeHtml(diagnostics.version ?? uiText.text("workbench.settings-call-diagnostics.unrecognized"))}</span>`)}
+      ${settingRow(uiText.text("workbench.settings-call-diagnostics.projects"), uiText.text("workbench.settings-call-diagnostics.how-many-projects-exist-device"), `<span class="setting-number">${diagnostics.project_count}</span>`)}
+      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.settings-call-diagnostics.local-paths")}</strong><span>${uiText("workbench.settings-call-diagnostics.view-install-release-directories")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? uiText.text("workbench.settings-call-diagnostics.not-found"))}</dd></div></dl></details>
     </section>
-    <section class="settings-section" aria-label="${L("提示词与角色登记")}">
-      ${settingRow(L("提示词与角色登记"), L("查看每个来源登记了什么、哪些没有生效。"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${L("开发者诊断")}</a>`)}
+    <section class="settings-section" aria-label="${uiText("workbench.settings-call-diagnostics.prompt-character-registry")}">
+      ${settingRow(uiText.text("workbench.settings-call-diagnostics.prompt-character-registry"), uiText.text("workbench.settings-call-diagnostics.see-what-each-source-registered-what-not-effect"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${uiText("workbench.settings-call-diagnostics.developer-diagnostics")}</a>`)}
     </section>
-    ${renderAgentDiagnostics({ L })}
+    ${renderAgentDiagnostics({ readText })}
     ${renderPeriodicTasks(view.periodic_tasks, p)}
-    <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2>${launchers}</section>
+    <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${uiText("workbench.settings-call-diagnostics.launchers")}</h2>${launchers}</section>
     <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
-      <h2 id="web-service-title">${L("Web 常驻服务")}</h2>
+      <h2 id="web-service-title">${uiText("workbench.settings-call-diagnostics.persistent-web-service")}</h2>
       <section class="project-manager-danger" aria-labelledby="web-service-state">
         <h3 id="web-service-state"><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></h3>
         ${serviceMessage ? `<p>${serviceMessage}</p>` : ""}
         ${serviceButtons ? `<div class="project-manager-danger-actions">${serviceButtons}</div>` : ""}
         <p class="settings-form-error" data-web-service-error role="alert" hidden></p>
       </section>
-      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("服务配置与日志")}</strong><span>${L("查看方式、命令、配置和日志路径。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${L("方式")}</dt><dd>${service.provider === "macos-launchagent" ? L("macOS 用户级 LaunchAgent") : L("尚未提供")}</dd></div><div><dt>${L("命令")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${L("日志")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details>
+      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.settings-call-diagnostics.service-configuration-logs")}</strong><span>${uiText("workbench.settings-call-diagnostics.view-provider-command-config-log-paths")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${uiText("workbench.settings-call-diagnostics.mode")}</dt><dd>${service.provider === "macos-launchagent" ? uiText("workbench.settings-call-diagnostics.mac-os-user-launch-agent") : uiText("workbench.settings-call-diagnostics.not-provided-yet")}</dd></div><div><dt>${uiText("workbench.settings-call-diagnostics.command")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${uiText("workbench.settings-call-diagnostics.config")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${uiText("workbench.settings-call-diagnostics.logs")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details>
     </section>
   </section>`;
 }

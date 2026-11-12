@@ -7,9 +7,10 @@ import { fileURLToPath } from "node:url";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { renderInboxWorkbench, type InboxUiEntry } from "@molis-ai/molis-work-plugin-inbox";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_MESSAGES, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores, type TodoCreateInput } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { pageText, withPageText } from "./fixtures/page-text.js";
 
 const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 const entry = (status: InboxUiEntry["status"]): InboxUiEntry => ({
@@ -20,8 +21,8 @@ const entry = (status: InboxUiEntry["status"]): InboxUiEntry => ({
 
 test("RAC-135 an Inbox entry offers 转为待办 whether or not it is handled, naming the creation entry and the entry itself; nothing names Todo's own input", () => {
   for (const status of ["open", "done"] as const) {
-    const html = renderInboxWorkbench({ route_prefix: "", entries: [entry(status)], filter: "active" as never,
-      primitives: { escape, icon: () => "", text: value => value, formatDate: value => value } });
+    const html = withPageText("zh", ["inbox"], () => renderInboxWorkbench({ route_prefix: "", entries: [entry(status)], filter: "active" as never,
+      primitives: { escape, icon: () => "", text: pageText("zh", "inbox"), formatDate: value => value } }));
     const button = /<button[^>]*data-context-intake="todo"[^>]*>/u.exec(html)?.[0] ?? "";
     assert.ok(button, status);
     assert.match(button, /data-context-id="entry-1"/u);
@@ -31,7 +32,7 @@ test("RAC-135 an Inbox entry offers 转为待办 whether or not it is handled, n
 });
 
 test("RAC-135 灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
-  const html = renderLingguangWorkbench({ primitives: { escape, text: key => LINGGUANG_MESSAGES[key as keyof typeof LINGGUANG_MESSAGES].zh } });
+  const html = withPageText("zh", ["lingguang"], () => renderLingguangWorkbench({ primitives: { escape, text: pageText("zh", "lingguang") } }));
   assert.match(html, /<button[^>]*data-lingguang-todo data-context-intake="todo">转为待办<\/button>/u);
   assert.doesNotMatch(html, /data-make-todo/u);
   assert.doesNotThrow(() => new Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT});`));

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { characterActionClient } from "../apps/workbench/src/browser/characters/action-client.ts";
+import { installTextForTest, parseLocalePack, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 type ActionHost = Parameters<typeof characterActionClient>[0];
 
@@ -8,14 +10,22 @@ class ElementStub {
   checked = false;
   disabled = false;
   hidden = false;
-  textContent = "";
   children: ElementStub[] = [];
   readonly dataset: Record<string, string> = {};
+  #text = "";
 
   constructor(readonly tag: string) {}
 
-  append(...children: ElementStub[]): void { this.children.push(...children); }
-  replaceChildren(): void { this.children = []; this.textContent = ""; }
+  get textContent(): string { return this.children.length ? this.children.map(child => child.textContent).join("") : this.#text; }
+  set textContent(value: string) { this.#text = value; this.children = []; }
+  append(...children: Array<ElementStub | string>): void { this.children.push(...children.map(ElementStub.node)); }
+  replaceChildren(...children: Array<ElementStub | string>): void { this.#text = ""; this.children = children.map(ElementStub.node); }
+  static node(child: ElementStub | string): ElementStub {
+    if (typeof child !== "string") return child;
+    const text = new ElementStub("#text");
+    text.textContent = child;
+    return text;
+  }
   querySelectorAll(tag: string): ElementStub[] {
     return this.children.flatMap(child => child.tag === tag ? [child] : child.querySelectorAll(tag));
   }
@@ -67,6 +77,12 @@ test("BCRC-02 current action controls keep the exact draft choice when the catal
     if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument);
     else Reflect.deleteProperty(globalThis, "document");
   });
+  const file = new URL("../apps/workbench/resources/locales/zh.json", import.meta.url);
+  const pack = parseLocalePack(readFileSync(file, "utf8"), { file: file.pathname });
+  assert.ok(pack.ok);
+  const restore = installTextForTest({ locale: "zh", packs: [pack.value] });
+  Object.assign(globalThis, { t: uiText });
+  t.after(() => { restore(); Reflect.deleteProperty(globalThis, "t"); });
 
   const { q, inherit, field, list, status, refresh } = actionParts();
   const chosen = { capability_id: "generated.82933d7e.notes.add", version: 1, provider_id: "plugin:x" };
@@ -121,7 +137,7 @@ test("BCRC-02 current action controls keep the exact draft choice when the catal
   await view.refresh();
   assert.deepEqual(view.value(), [chosen], "a failed directory read keeps the exact saved choice");
   assert.equal(list.querySelectorAll("input").at(-1)?.checked, true);
-  assert.equal(status.textContent, "目录暂时不可用；已有选择保持。");
+  assert.deepEqual(status.children.map(child => child.textContent), ["读取动作失败，已有选择保持。", "目录暂时不可用"], "the failure says the choice is kept, then the original reason");
   assert.equal(refresh.disabled, false);
   assert.deepEqual(requests, [["GET", "/actions"], ["GET", "/actions"], ["GET", "/actions"]]);
 });

@@ -3,13 +3,14 @@ import test from "node:test";
 
 import { agentQuestionHtml } from "@molis-ai/molis-work-app-local-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import { pageText } from "./fixtures/page-text.js";
 
 /**
  * 设计 §6：单选/自由输入都支持，**不代填答案**，离开不等于取消。Coding 的待答问题与助理用同一张问卷卡，由宿主画
  * （specs/ai-interaction-experience A2）；这些规则原来钉在 Coding 自己的卡上，现在钉在这张共享的卡上。
  */
 
-const say = (text: string) => text;
+const say = pageText("zh");
 
 const choice: AgentPendingQuestion = {
   pending_id: "q1",
@@ -79,8 +80,7 @@ test("问题与选项里的标记被转义", () => {
 });
 
 test("AC-10-9: 可以不选的单选题，选了能清掉；必答的只能换，不能清空", () => {
-  const words = new Map([["清除选择", "Clear choice"]]);
-  const html = agentQuestionHtml(choice, text => words.get(text) ?? text);
+  const html = agentQuestionHtml(choice, pageText("en"));
   assert.equal(html.match(/data-ix-clear/g)?.length, 1, "能自由作答，选项就是选填的，选了可以反悔");
   assert.match(html, /data-ix-clear aria-describedby="q-q1-pick-label"><span data-slot="button-label">Clear choice</, "按钮的字走宿主的翻译");
   assert.doesNotMatch(agentQuestionHtml({ ...choice, allows_free_text: false }, say), /data-ix-clear/, "必答的单选题没有清空按钮");

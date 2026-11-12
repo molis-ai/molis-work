@@ -1,5 +1,7 @@
 import type { PptPage, Slide } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** A color chosen from the swatches: the deck is changed, saved later, and shown again. */
 export function pickColor(page: PptPage, swatch: HTMLElement): void {
   page.setColor(swatch.closest("[role=radiogroup]"), swatch.dataset.pptSwatch || "");
@@ -18,8 +20,8 @@ function showSlides(page: PptPage, slides: Slide[], key: string): void {
 }
 
 export function addSlide(page: PptPage): void {
-  const { L, el, s } = page;
-  const slides: Slide[] = [...page.slidesFromEditor(), { id: "s-" + crypto.randomUUID(), title: L("ppt.slide.untitled"), bullets: [], notes: "", order: page.open().slides.length + 1 }];
+  const { el, s } = page;
+  const slides: Slide[] = [...page.slidesFromEditor(), { id: "s-" + crypto.randomUUID(), title: uiText.text("ppt.slide.untitled"), bullets: [], notes: "", order: page.open().slides.length + 1 }];
   s.selected = { ...page.open(), slides };
   s.slideKey = slides.at(-1)!.id;
   page.fillSlideFields(slides.at(-1));
@@ -56,10 +58,9 @@ export function moveSlide(page: PptPage, button: HTMLElement): void {
 }
 
 export function removeSlide(page: PptPage, button: HTMLElement): void {
-  const { L } = page;
   const id = button.closest<HTMLElement>("[data-slide-id]")?.dataset.slideId;
   const slides = page.slidesFromEditor().filter((slide) => slide.id !== id);
-  if (!slides.length) { page.showNote(L("ppt.slide.keep-one"), true); return; }
+  if (!slides.length) { page.showNote(uiText.text("ppt.slide.keep-one"), true); return; }
   showSlides(page, slides, slides[0]?.id || "");
   page.paintStatus(page.open());
   page.queueSave();

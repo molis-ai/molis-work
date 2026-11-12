@@ -1,3 +1,4 @@
+import { studioProblem, studioScopeCapabilityUnavailable } from "../plugin-builder-surface.js";
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
@@ -7,7 +8,11 @@ import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
-import { builderSkill } from './skill.js';
+import { builderSkills } from './skill.js';
+import { modelRoundLocale } from '../reply-language.js';
+import { runBackgroundWork } from '../web-locale.js';
+import { lastUsedLocale } from '../ui-locale-memory.js';
+import { builderAgentInLanguage, studioDesignLanguages } from './studio-language.js';
 import { buildManifest, createBuildProject, copyBuildRevision } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
@@ -48,16 +53,19 @@ export function builderPorts(inputs: {
     ...(options.parallel ? { parallel: options.parallel } : {}),
     mockups: images,
     models: options.models,
-    agent: options.agents ?? (async (build, purpose) => {
+    agent: async (build, purpose) => {
+      if (options.agents) return builderAgentInLanguage(await options.agents(build, purpose), modelRoundLocale(home));
       const selection = selected();
-      if (!selection) throw new Error('请先在右上角选择构建使用的模型');
+      if (!selection) throw studioProblem("plugin-builder.request.choose-model-first", '请先在右上角选择构建使用的模型');
       const buildRoot = purpose === 'code' && build.directory ? build.directory : join(studio.root, 'design', build.id);
       await mkdir(buildRoot, { recursive: true, mode: 0o700 });
       const create = await resolvePrologueBuilder(home);
-      return create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) });
-    }),
+      return builderAgentInLanguage(await create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) }), modelRoundLocale(home));
+    },
     validateContract: contract => assertContract(contract),
-    skill: stage => builderSkill(stage),
+    designLanguages: () => studioDesignLanguages(modelRoundLocale(home)),
+    runInLanguage: (run, recovered) => runBackgroundWork(recovered ? lastUsedLocale(home) : modelRoundLocale(home), run),
+    skills: stage => builderSkills(stage, undefined, modelRoundLocale(home)),
     prompt: inputs.prompt, instruction: inputs.instruction,
     async prepareBuild(previous, design, manifest) {
       const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
@@ -78,7 +86,7 @@ export function builderPorts(inputs: {
     check: async (build, operationIds, signal) => {
       const scope = build.runtimeScope, catalog = await studio.catalog(scope), effects = buildEffects(build);
       signal.throwIfAborted();
-      for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw new Error('目标范围没有开放给插件的能力：' + capability);
+      for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw studioScopeCapabilityUnavailable(capability);
       if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: "0.0.0",
         publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, contract: build.design!.contract, runtime: { scope: 'home' } }));
       return runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),

@@ -1,6 +1,6 @@
 ---
 method_id: domain-security-privacy
-version: 1
+version: 2
 kind: domain
 name: "安全与隐私"
 summary: "从资产、信任边界和威胁建立预防、检测、响应与数据治理闭环。"

@@ -1,3 +1,4 @@
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { shortCallId } from "@molis-ai/molis-work-ui-host";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 
@@ -28,13 +29,13 @@ export interface CallRowView {
   last_at?: string;
 }
 
-type CallText = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "htmlLang">;
+type CallText = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml">;
 
-const CALLER: Record<string, string> = { user: "你", agent: "内置 Agent", workflow: "工作流程", mcp: "MCP 客户端", plugin: "插件" };
+const CALLER: Record<string, string> = { user: "workbench.call-row.label", agent: "workbench.call-row.built-agent", workflow: "workbench.call-row.workflows", mcp: "workbench.call-row.mcp-client", plugin: "workbench.call-row.plugin" };
 
 /** Who asked. A call the Host made for itself carries its own name and the user audience; it is not the person's. */
-function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, L: CallText["L"]): string {
-  return row.audience === "user" && row.actor_id === "local-host" ? "Molis Work" : L(CALLER[row.audience] ?? row.audience);
+function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, _L: CallText["readText"]): string {
+  return row.audience === "user" && row.actor_id === "local-host" ? "Molis Work" : (CALLER[row.audience] ? uiText.text(CALLER[row.audience]) : row.audience);
 }
 
 /**
@@ -42,25 +43,25 @@ function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, L: CallTex
  * handler. Every page has the helper: a page opened on its own embeds it, and the Workbench's program starts with it, which is what works when
  * the page is mounted in the Workbench's settings (the scripts of a mounted page do not run there). No second hook, so one click copies once.
  */
-function renderCallIdButton(id: string, { L, escapeHtml: e }: CallText): string {
-  const short = e(shortCallId(id));
-  return `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-molis-call-id="${e(id)}" aria-label="${L("复制诊断编号 {id}", { id: short })}">${L("诊断编号 {id}", { id: short })}</button>`;
+function renderCallIdButton(id: string, { escapeHtml: e }: CallText): string {
+  const short = shortCallId(id);
+  return `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-molis-call-id="${e(id)}" aria-label="${uiText("workbench.call-row.copy-diagnostic-id-id", { id: short })}">${uiText("workbench.call-row.diagnostic-id-id", { id: short })}</button>`;
 }
 
 /** One call: what was called, for whom, how it ended and its 诊断编号; `where` adds the project it was made in and the way to its call history. */
 export function renderCallRow(row: CallRowView, p: CallText, where?: { label: string; href?: string }): string {
-  const { L, escapeHtml: e } = p;
+  const { readText, escapeHtml: e } = p;
   const at = row.last_at ?? row.at;
-  const localTime = (value: string) => e(new Date(value).toLocaleString(p.htmlLang()));
-  const title = row.operation === "unknown" ? L("未识别的操作") : L(row.title);
-  const source = row.provider_title ? e(L(row.provider_title)) + " · " : "";
+  const localTime = (value: string) => Number.isNaN(Date.parse(value)) ? value : format.date(value, "datetime");
+  const title = row.operation === "unknown" ? uiText.text("workbench.call-row.unknown-operation") : row.title;
+  const source = row.provider_title ? e(row.provider_title) + " · " : "";
   const actor = row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : "";
-  return `<article data-call-row><header><strong>${e(title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.refused ? "未执行" : row.ok ? "成功" : "失败")}</span></header>`
-    + `<p>${source}${e(callerLabel(row, L))} · <time datetime="${e(at)}">${localTime(at)}</time></p>`
-    + (row.count && row.count > 1 ? `<p>${L("连续 {count} 次相同结果，最早 {at}", { count: row.count, at: localTime(row.at) })}</p>` : "")
-    + (!row.ok && !row.refused && row.message ? `<p>${L("失败原因")}：${e(row.message)}</p>` : "")
+  return `<article data-call-row><header><strong>${e(title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${uiText(row.refused ? "workbench.call-row.not-run" : row.ok ? "workbench.call-row.succeeded" : "workbench.call-row.failed")}</span></header>`
+    + `<p>${source}${e(callerLabel(row, readText))} · <time datetime="${e(at)}">${e(localTime(at))}</time></p>`
+    + (row.count && row.count > 1 ? `<p>${uiText("workbench.call-row.same-result-count-count-row-first", { count: row.count, at: localTime(row.at) })}</p>` : "")
+    + (!row.ok && !row.refused && row.message ? `<p>${uiText("workbench.call-row.reason-failure")}：${e(row.message)}</p>` : "")
     + `<p>${renderCallIdButton(row.matched_call_id ?? row.call_id, p)}</p>`
-    + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${L("查看调用记录")}</a>` : ""}</p>` : "")
-    + `<details class="capability-contract"><summary>${L("技术详情")}</summary><p><code>${e(row.capability_id)}@${row.version}</code>${actor}</p>`
-    + (!row.ok && row.code ? `<p>${L("错误码")}：${e(row.code)}</p>` : "") + "</details></article>";
+    + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${uiText("workbench.call-row.view-call-history")}</a>` : ""}</p>` : "")
+    + `<details class="capability-contract"><summary>${uiText("workbench.call-row.technical-details")}</summary><p><code>${e(row.capability_id)}@${row.version}</code>${actor}</p>`
+    + (!row.ok && row.code ? `<p>${uiText("workbench.call-row.error-code")}：${e(row.code)}</p>` : "") + "</details></article>";
 }

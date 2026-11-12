@@ -13,6 +13,7 @@ import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { actionKey, assistantAuthority } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { roundParts } from "./fixtures/round-parts.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
+import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -196,7 +197,7 @@ test("W2-18-JOB-03: a round that could not start has told the next one nothing: 
 
     // The send fails before any round exists (no model): nothing was told.
     f.flags.model = false;
-    await assert.rejects(f.service.send({ text: "继续", request_id: "undo-told-2", work_id: workId }, {}), /模型/);
+    await assert.rejects(inAssistantPage("zh", () => f.service.send({ text: "继续", request_id: "undo-told-2", work_id: workId }, {})), /模型/);
     assert.deepEqual(untold(), { undos: 1, unsettled: 1 }, "a round that never started told nobody");
     assert.equal((await f.service.read(workId)).rounds.length, 1);
 

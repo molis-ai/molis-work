@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.bitbucket",
+  "locale": "zh",
+  "messages": {
+    "bitbucket.connection.auth-help": "Bitbucket App Password 已停用。API Token 用 Atlassian 邮箱:api-token；OAuth 用户访问令牌可直接粘贴。",
+    "bitbucket.connection.inbound": "Feed 拉仓库与 PR",
+    "bitbucket.connection.summary": "仓库与 PR。",
+    "bitbucket.connection.token-label": "Bitbucket 令牌",
+    "bitbucket.guide.mcp-connected-note": "Bitbucket 工作区需关联 Atlassian 组织。",
+    "bitbucket.guide.mcp-link": "查看 Atlassian Rovo MCP",
+    "bitbucket.guide.mcp-note": "Bitbucket 工作区需关联 Atlassian 组织；Molis Work 尚未接入。",
+    "bitbucket.guide.oauth-link": "查看 Bitbucket OAuth 2.0",
+    "bitbucket.guide.token-note": "Bitbucket App Password 已停用；请用 API Token 或 OAuth 用户访问令牌。",
+    "bitbucket.oauth.note": "Consumer 中配置 account、repository、pullrequest 读取权限。",
+    "bitbucket.setup.create-atlassian-api-token": "创建 Atlassian API Token"
+  }
+}

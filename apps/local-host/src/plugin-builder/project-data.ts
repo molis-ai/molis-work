@@ -12,7 +12,7 @@ import type { ProjectDeletedOwner } from "../project-deleted-hooks.js";
 export function pluginBuilderProjectOwner(home: string): ProjectDeletedOwner {
   return {
     id: "plugin-builder",
-    label: "插件创作台的构建、发布包和已保存的密钥",
+    label: { key: "workbench.project-deletion.studio" },
     async clear(projectId) {
       // A project id names one directory; anything that could name another is not an id this Home ever made.
       if (!projectId || projectId === "." || projectId === ".." || basename(projectId) !== projectId) return;

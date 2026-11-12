@@ -30,7 +30,7 @@ const DATASET_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its datasets go with their
  * saved versions and the receipts of datasets made into it.
  */
-const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Dataset 数据表", order: 30, tables: [
+const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "dataset.project-deletion.data" }, order: 30, tables: [
   { table: "dataset_versions", column: "dataset_id", parent: "datasets" },
   { table: "datasets", column: "project_id" },
   { table: "dataset_receipts", column: "project_id" },

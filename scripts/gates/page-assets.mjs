@@ -6,8 +6,8 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ALLOWANCES, assetProblems, sizeMap } from "./page-assets-policy.mjs";
-import { git, measurementKey, cachedMeasurement, buildBaseline, measure } from "./page-assets-baseline.mjs";
+import { assetProblems, sizeMap } from "./page-assets-policy.mjs";
+import { allowanceFiles, git, measurementKey, cachedMeasurement, buildBaseline, measure } from "./page-assets-baseline.mjs";
 
 const options = {}, flags = new Set();
 const abort = new AbortController();
@@ -30,13 +30,7 @@ try {
   let base, sha, key, current = {}, previous = {}, source = "fixture";
   if (!flags.has("--report")) {
     sha = git(root, "merge-base", "HEAD", options.base ?? "origin/main");
-    const files = git(root, "ls-files", "-z", "--", ALLOWANCES).split("\0").filter(file => file && file !== `${ALLOWANCES}README.md`);
-    for (const file of files) {
-      if (!/^tooling\/gates\/page-asset-allowances\/[a-z0-9][a-z0-9-]*\.json$/.test(file)) throw new Error(`invalid allowance filename ${file}`);
-      current[file] = readFileSync(path.join(root, file), "utf8").trim();
-    }
-    const oldFiles = git(root, "ls-tree", "-r", "--name-only", sha, "--", ALLOWANCES).split("\n").filter(file => file && file !== `${ALLOWANCES}README.md`);
-    previous = Object.fromEntries(oldFiles.map(file => [file, git(root, "show", `${sha}:${file}`)]));
+    ({ current, previous } = allowanceFiles(root, sha));
     if (options["base-sizes"]) base = fixture(options["base-sizes"]);
     else {
       key = measurementKey();

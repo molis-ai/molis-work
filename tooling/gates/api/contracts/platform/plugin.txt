@@ -515,7 +515,7 @@ export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;
@@ -864,7 +864,7 @@ export interface AgentPromptDeclaration {
 
 export type AgentPromptLayer = "base" | "role" | "project" | "task";
 
-export interface AgentPromptText {
+export interface AgentPromptText extends LocalizedAgentBody {
     prompt_id: string;
     version: number;
     body: string;
@@ -903,7 +903,7 @@ export interface AgentSkillDeclaration {
     connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body">, LocalizedAgentBody {
     body: string;
 }
 
@@ -3496,7 +3496,7 @@ export interface PluginManifest {
     plugin_id: string;
     version: string;
     name: string;
-    name_en?: string;
+    name_text?: TextRef;
     kind: PluginKind;
     publisher: {
         publisher_id: string;
@@ -3505,6 +3505,7 @@ export interface PluginManifest {
     host_api_version: 1;
     always_on?: boolean;
     summary?: string;
+    summary_text?: TextRef;
     developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
@@ -3517,6 +3518,9 @@ export interface PluginManifest {
             artifact_type_id: string;
             schema_version: number;
             title?: string;
+            title_text?: {
+                key: string;
+            };
             preview?: {
                 capability_id: string;
                 version: number;
@@ -3561,8 +3565,6 @@ export interface PluginManifest {
         views?: UiViewDeclaration[];
         page_routes?: UiPageRouteDeclaration[];
         subject_context?: UiSubjectContextDeclaration[];
-        messages?: PluginMessagesDeclaration;
-        translations?: PluginTranslationsDeclaration;
         locales?: PluginLocalesDeclaration;
     };
     ports?: PluginPortsDeclaration;
@@ -3625,17 +3627,12 @@ export interface PluginMaterialsClient {
     releaseOriginal?(record_key: string): Promise<void>;
 }
 
-export type PluginMessagesDeclaration = Readonly<Record<string, {
-    readonly zh: string;
-    readonly en: string;
-}>>;
-
 export interface PluginMethodDeclaration extends AgentSkillDeclaration {
     description: string;
     applies_to: SkillAppliesTo;
 }
 
-export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body"> {
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body">, LocalizedAgentBody {
     body: string;
 }
 
@@ -4010,7 +4007,7 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 export type PluginProjectRow = Record<string, null | number | string>;
 
 export interface PluginProjectRowsDeclaration {
-    readonly label: string;
+    readonly label: string | TextRef;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
     readonly files?: readonly PluginProjectRowsFiles[];
@@ -4394,8 +4391,6 @@ export type PluginTerminalProgram = {
     readonly command: string;
     readonly args?: readonly string[];
 };
-
-export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;
@@ -5569,6 +5564,14 @@ export declare function actionFieldLabel(key: string, declared?: {
     title?: string;
     description?: string;
 }): string;
+
+export declare function actionFieldLabelSource(key: string, declared?: {
+    title?: string;
+    description?: string;
+}): {
+    label: string;
+    defaultKey?: string;
+};
 
 export declare function actionFieldOptions(declared?: unknown): Array<{
     value: string;

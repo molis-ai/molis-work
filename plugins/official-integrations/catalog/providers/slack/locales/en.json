@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.slack",
+  "locale": "en",
+  "messages": {
+    "slack.connection.auth-help": "Use a Slack Bot User OAuth Token with channels:read or groups:read.",
+    "slack.connection.inbound": "Feed reads the channel list",
+    "slack.connection.summary": "Channels, messages and canvases.",
+    "slack.connection.token-label": "Slack Bot Token",
+    "slack.guide.mcp-connected-note": "The Slack app and workspace must meet the requirements.",
+    "slack.guide.mcp-link": "View the official Slack MCP",
+    "slack.guide.mcp-note": "The Slack app and workspace must meet the requirements. Molis Work has not integrated this service.",
+    "slack.guide.oauth-link": "Create a Slack app and install it in the workspace",
+    "slack.guide.token-note": "Install the app in the workspace to get the corresponding bot or user token.",
+    "slack.oauth.note": "Use the bot authorization of an installed app. Reading chats still depends on workspace and channel membership.",
+    "slack.setup.open-slack-app-dashboard": "Open Slack app dashboard"
+  }
+}

@@ -3,7 +3,7 @@ import test from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { COSS_CONTROL_STYLES, INTERACTION_QUESTION_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
+import { COSS_CONTROL_STYLES, INTERACTION_QUESTION_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES } from "@molis-ai/molis-work-design-system";
 import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
   renderMolisWorkArrivalStylesheet,
@@ -90,11 +90,12 @@ test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
 
 // Soft Workbench (DESIGN.md → Shapes): 10px control corners, 14px surfaces, 32px controls from the shared helpers.
 test("shared tokens describe control radius, height, and translucent borders", () => {
-  assert.match(COSS_CONTROL_STYLES, /--radius-control: 10px;/);
-  assert.match(COSS_CONTROL_STYLES, /--radius-item: 8px;/);
-  assert.match(COSS_CONTROL_STYLES, /--radius-surface: 14px;/);
-  assert.match(COSS_CONTROL_STYLES, /--control-h: 32px;/);
-  assert.match(COSS_CONTROL_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-control: 10px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-item: 8px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--control-h: 32px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
+  assert.match(COSS_CONTROL_STYLES, /border-radius: var\(--radius-control\);/);
 });
 
 test("workbench, settings, and the way in keep the Coss control layer after later surface CSS", () => {

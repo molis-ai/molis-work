@@ -10,8 +10,6 @@ export const TOAST_STYLES = `
     background: var(--tip-bg, var(--action)); color: var(--tip-ink, var(--action-ink)); box-shadow: var(--shadow);
     font-size: 13px; line-height: 18px; animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both;
   }
-  /* A non-default skin (DESIGN「皮肤」) gives the toast its own corner, ground and lift through the skin's --sk-* tokens. */
-  :root:is([data-skin="tray"], [data-skin="pill"]) body .mw-toast { border-radius: var(--sk-r-toast); background: var(--sk-toast-bg); color: var(--sk-toast-ink); box-shadow: var(--sk-toast-shadow); }
   .mw-toast[hidden] { display: none; }
   .mw-toast[data-ring-mounted] { padding-left: 38px; }
   .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 14px; top: 16.5px; }

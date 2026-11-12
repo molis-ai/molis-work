@@ -10,13 +10,14 @@ import { BASELINE_FONT, BASELINE_SKIN, BASELINE_SPEC } from "../baseline.js";
 export type LookTheme = "light" | "dark";
 const THEMES: readonly LookTheme[] = ["light", "dark"];
 
-/** A look as the board draws it. `name` and `by` are the board's words (a look's name is content), as the sample text on a specimen is. */
+/** A board sample can use a localized label; the actual product passes the look name as text. */
 export interface BoardLook {
   readonly id: string;
   readonly skin: UiResolvedSkin;
   readonly font: UiResolvedFont;
   readonly name: string;
-  readonly by: string;
+  readonly nameKey?: string;
+  readonly editable?: boolean;
 }
 
 /** What a sample look re-points: the paint (colours, written for both themes) and the corners (shared). Each value is another baseline role. */
@@ -71,13 +72,13 @@ function sampleSkin({ id, paint, corners }: SampleRecipe): UiResolvedSkin {
 
 const sample = (id: string): UiResolvedSkin => sampleSkin(SAMPLES.find((recipe) => recipe.id === id)!);
 
-export const SOFT_LOOK: BoardLook = { id: "soft", skin: BASELINE_SKIN, font: BASELINE_FONT, name: "Soft Workbench", by: "内置" };
-export const TEAL_LOOK: BoardLook = { id: "teal", skin: sample("teal"), font: BASELINE_FONT, name: "蓝绿工作台", by: "我的方案" };
-export const WARM_LOOK: BoardLook = { id: "warm", skin: sample("warm"), font: BASELINE_FONT, name: "暖色草稿", by: "我的方案" };
+export const SOFT_LOOK: BoardLook = { id: "soft", skin: BASELINE_SKIN, font: BASELINE_FONT, name: "Soft Workbench" };
+export const TEAL_LOOK: BoardLook = { id: "teal", skin: sample("teal"), font: BASELINE_FONT, name: "Blue-green Workbench", nameKey: "workbench.catalog-appearance-looks.blue-green-desk", editable: true };
+export const WARM_LOOK: BoardLook = { id: "warm", skin: sample("warm"), font: BASELINE_FONT, name: "Warm draft", nameKey: "workbench.catalog-appearance-looks.warm-draft", editable: true };
 export const BOARD_LOOKS: readonly BoardLook[] = [SOFT_LOOK, TEAL_LOOK, WARM_LOOK];
 
 /** The recommended font's name as the board says it: the baseline font is the system sans. */
-export const BASELINE_FONT_NAME = "系统无衬线";
+export const BASELINE_FONT_NAME = "workbench.font.system-sans";
 
 /**
  * The selectors that give an element a look's tokens in a theme. An element with no `data-look-theme` wears the page's theme and the page itself may wear

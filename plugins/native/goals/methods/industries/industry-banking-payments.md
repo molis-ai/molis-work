@@ -1,6 +1,6 @@
 ---
 method_id: industry-banking-payments
-version: 1
+version: 2
 kind: industry
 name: "银行与支付"
 summary: "围绕资金流、账本、授权、清结算、争议和持续可用性建立可信交易闭环。"

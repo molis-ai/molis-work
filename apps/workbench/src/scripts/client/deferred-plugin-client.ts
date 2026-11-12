@@ -5,10 +5,10 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  * the owner loads the shared frame bridge and never executes a plugin bundle.
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L } = host;
+  const { translate: readText } = host;
   // Each failure says what went wrong (F-21); the toast carries it, and the button on the surface only offers to load it again.
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
-  const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
+  const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap(), invalidations = new WeakMap();
   const scope = host.scope;
   const load = url => {
     if (scope.signal.aborted) return Promise.reject(scope.signal.reason);
@@ -22,10 +22,10 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (error) { script.remove(); scripts.delete(url); reject(error); } else resolve();
       };
       const abort = () => finish(scope.signal.reason);
-      const timer = scope.timeout(() => finish(new Error(L('插件界面 10 秒内没有就绪。'))), 10_000);
+      const timer = scope.timeout(() => finish(new Error(globalThis.t.text('common.parent.view-not-ready'))), 10_000);
       scope.signal.addEventListener('abort', abort, { once: true });
       script.onload = () => finish();
-      script.onerror = () => finish(new Error(L('插件界面的程序没有从本机服务取到。')));
+      script.onerror = () => finish(new Error(globalThis.t.text('common.child.view-code-not-fetched')));
       document.head.append(script);
     });
     scripts.set(url, waiting); return waiting;
@@ -35,7 +35,9 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (intent === "restore" && root?.dataset.uiClientState === "failed") return Promise.resolve();
     if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden], [data-surface-pool]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
-    const pack = packs.find(pack => pack.id === (root.dataset.pluginClient || root.dataset.workSurface));
+    const source = root.dataset.pluginPageSource;
+    const pack = source ? { id: root.dataset.workSurface, plugin_id: root.dataset.installedPlugin, bundle: 'plugin-builder', assets: [], projection: source }
+      : packs.find(pack => pack.id === (root.dataset.pluginClient || root.dataset.workSurface));
     if (!pack) return Promise.resolve();
     // A real reopen replaces this surface's previous failure, just as its retry button does.
     for (const retry of root.querySelectorAll(':scope > div > [data-ui-client-retry]')) retry.parentElement.remove();
@@ -55,18 +57,20 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
           await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
           if (!root.isConnected || scope.signal.aborted) return;
           const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
-          if (!factory) throw new Error(L('插件界面的程序里缺少入口，重新安装或更新这个插件后再试。'));
+          if (!factory) throw new Error(globalThis.t.text('common.child.view-entry-missing'));
           factory({ ...host, root });
         }
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
         const selection = selections.get(root);
         if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }
+        const invalidation = invalidations.get(root);
+        if (invalidation) { invalidations.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: invalidation })); }
       } catch (error) {
         if (!root.isConnected || scope.signal.aborted) return;
         settle(root, 'failed'); mounting.delete(root);
         const notice = document.createElement('div'); notice.style.cssText = 'position:absolute;right:12px;top:12px;z-index:30';
         const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--ghost';
-        retry.textContent = L('重新加载'); retry.title = error?.message || ''; retry.dataset.uiClientRetry = 'true';
+        retry.textContent = globalThis.t.text('workbench.deferred-plugin-client.reload'); retry.title = error?.message || ''; retry.dataset.uiClientRetry = 'true';
         retry.onclick = () => { notice.remove(); void prepare(root); }; notice.append(retry); root.prepend(notice);
         host.showToast?.(error.message, true);
       }
@@ -75,7 +79,10 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Preserve the most recent open/close intent until the actual client is listening.
   document.addEventListener('molis-work:select-item', event => {
     const root = event.target.closest?.('[data-deferred-surface]');
-    if (!root) return; selections.set(root, event.detail); event.stopImmediatePropagation(); void prepare(root, event.detail?.intent === "restore" || event.detail?.invalidate ? "restore" : "open");
+    if (!root) return;
+    const detail = event.detail;
+    (detail?.invalidate && detail.itemId === undefined ? invalidations : selections).set(root, detail);
+    event.stopImmediatePropagation(); void prepare(root, detail?.intent === "restore" || detail?.invalidate ? "restore" : "open");
   }, true);
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);

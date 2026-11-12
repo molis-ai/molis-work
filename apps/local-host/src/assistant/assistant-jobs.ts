@@ -1,3 +1,4 @@
+import { assistantWords } from "./assistant-saved-text.js";
 import { createHash } from "node:crypto";
 import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -136,8 +137,7 @@ export class AssistantJobs {
     if (!work || this.ports.store.noticeRaised(this.ports.actorId, told) && !this.ports.store.cards(work.work_id).some(card => card.status === "running" && card.job_step?.node_id === at.node_id)) return;
     const step = (await this.#steps(at.graph_id)).find(node => node.node_id === at.node_id);
     if (!step?.job.ended) return;
-    const text = { done: `「${step.title}」在后台完成了`, failed: `「${step.title}」在后台没有完成`,
-      expired: `「${step.title}」过了 6 小时仍没有结束，不再跟进；请到原处查看`, unchecked: `「${step.title}」不能再查看它的状态，不再跟进；请到原处查看` }[step.job.ended];
+    const text = assistantWords(`workbench.assistant-job.${step.job.ended}`, { title: step.title });
     this.ports.store.raiseNotice(this.ports.actorId, { kind: step.job.ended === "done" ? "result" : "failed", work_id: work.work_id, work_title: work.title, text }, told);
     this.#settleCards(work.work_id, step);
   }

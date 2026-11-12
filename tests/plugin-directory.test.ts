@@ -5,11 +5,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import nodeTest from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard, seedDemoGoals, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS,
+  DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, registeredBuiltinText,
+  releaseProjectPlugins, runningPluginDirectory, runWithLocale, runWithRegisteredText, seedDemoBoard, seedDemoGoals, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS,
 } from "@molis-ai/molis-work-app-local-host";
 import {
   BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
@@ -22,6 +23,8 @@ import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+
+const test = (name: string, check: () => void | Promise<void>) => nodeTest(name, () => runWithLocale("zh", check));
 
 const HOSTILE = "</script><img src=x onerror=alert(1)>&\u2028tail";
 const EVERYTHING = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
@@ -58,7 +61,12 @@ async function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (ren
   try {
     await seedDemoGoals(databasePath);
     store = new LocalProjectDatabase(databasePath);
-    const base = buildMolisWorkWebView(store, new GoalProjectApplication(store), { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
+    const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals");
+    assert.ok(goals);
+    const words = registeredBuiltinText(goals.manifest);
+    assert.ok(words);
+    const db = store;
+    const base = runWithRegisteredText(words, () => buildMolisWorkWebView(db, new GoalProjectApplication(db), { databasePath, projectId: DEMO_PROJECT_ID, demo: true }));
     const shown = { ...base, enabled_plugins: [...EVERYTHING], hidden_plugins: [], plugin_directory: directory } as MolisWorkWebView;
     return await run(() => renderMolisWorkWeb(shown, base.goals[0]!.goal.goal_id));
   } finally { store?.close(); rmSync(folder, { recursive: true, force: true }); }
@@ -66,7 +74,7 @@ async function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (ren
 
 const unescape = (value: string) => value.replaceAll("&quot;", '"').replace(/&#0?39;/gu, "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 const directoryData = (html: string) => /<script type="application\/json" data-plugin-directory>([^]*?)<\/script>/u.exec(html)![1]!;
-const homeStartList = (html: string) => JSON.parse(unescape(/data-work-surface="home" data-home-starts="([^"]*)"/u.exec(html)![1]!)) as Array<{ id: string; title: string; hint: string; glyph: string }>;
+const homeStartList = (html: string) => JSON.parse(unescape(/data-work-surface="home" data-home-starts="([^"]*)"/u.exec(html)![1]!)) as ReturnType<typeof homeStarts>;
 const createButtons = (html: string) => [...html.matchAll(/data-placement-create="([^"]*)" data-placement-create-title="([^"]*)"/gu)].map(([, station, title]) => ({ station, title: unescape(title!) }));
 
 /** The rail's headings, top to bottom, each with the plugin tiles under it. */
@@ -125,6 +133,15 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
 });
 
+test("FSS-06 PAS-08 the runtime directory keeps the declared focused-object binding for a side view", () => {
+  const entries = sanitizePluginDirectory([
+    installed("focused-side", { slot: "side", context_binding: "focused-object" }),
+    installed("wrong-slot", { slot: "stage", context_binding: "focused-object" }),
+    installed("unknown-binding", { slot: "side", context_binding: "foreign-object" as never }),
+  ]);
+  assert.deepEqual(entries.map(entry => entry.ui.views[0]!.context_binding), ["focused-object", undefined, undefined]);
+});
+
 test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refused to start (S-75) and its place keeps its own shell key and views and leaves the market entry intact", async () => {
   const folder = mkdtempSync(join(tmpdir(), "directory-publisher-")), database = join(folder, "project.db");
   seedDemoBoard(database); const store = new LocalProjectDatabase(database);
@@ -158,15 +175,14 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
     const rail = railEntries(["pages"], directory);
     assert.deepEqual(rail.filter(entry => entry.label === "Other publisher").map(entry => [entry.id, entry.surface, entry.chosen]), [[pluginId, pluginId, false]]);
-    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, plugin_id: pluginId, station: "publisher-notes", title: "Other note" }]);
+    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, plugin_id: pluginId, station: "publisher-notes", title: "Other note", label: "Other note" }]);
     const start = { id: pluginId, plugin_id: pluginId, title: "Start other publisher", hint: "Keep this publisher's surface", glyph: "note" };
     assert.deepEqual(homeStarts(["pages"], directory).find(entry => entry.title === start.title), start);
     const html = renderMolisWorkWeb({ ...view(running), enabled_plugins: ["pages"] });
     assert.ok(html.includes(`data-plugin-tile="${pluginId}"`), "the actual rail points to this publisher's shell surface");
     assert.equal(html.includes(`data-plugin-toggle="${pluginId}"`), false, "sharing a Manifest id does not turn it into a built-in project choice");
     assert.equal(headingOf(html, pluginId), "写与做");
-    const { plugin_id: _drawnIn, ...pageStart } = start; // the page's start data carries the words already applied, not the plugin that supplied them
-    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), pageStart, "the real page's start data keeps the same owner key");
+    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), start, "the real page's start data keeps the same owner key");
   } finally {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);

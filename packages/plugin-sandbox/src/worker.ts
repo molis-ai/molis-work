@@ -1,5 +1,7 @@
-// This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
+// This entry is bundled alone into a .mjs file with the public text tools. No host modules or credentials enter the sandbox.
 import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxImageConnection, SandboxImageDescriptor, SandboxImagePart, SandboxImageResult, SandboxImageState, SandboxModelChoice, SandboxModelResult, SandboxModelSettingsView, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { format, say, t } from '@molis-ai/molis-work-plugin-sdk/ui';
+import { sandboxWorkerText } from './worker-text.js';
 
 const write = process.stdout.write.bind(process.stdout);
 /** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
@@ -17,6 +19,7 @@ const answer = <T>(call: Promise<SandboxJson>) => call as Promise<T>;
 let active: string | undefined;
 let buffer = '';
 const bundleUrl = process.argv[2]!;
+const text = sandboxWorkerText(process.argv[3]!, () => active);
 const operations = (await import(bundleUrl)).operations as SandboxOperations;
 if (!operations || typeof operations !== 'object' || Object.values(operations).some(value => typeof value !== 'function')) throw new Error('Plugin must export operations');
 const rpc = (callId: string, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> => {
@@ -49,6 +52,7 @@ async function readImages(held: SandboxImageDescriptor, read: (range: { result_i
 function sdk(callId: string): SandboxSdk {
   const invoke = (method: SandboxSdkMethod, args: SandboxJson[]) => rpc(callId, method, args);
   return {
+    t, say, format,
     storage: {
       get: key => invoke('storage.get', [key]),
       set: async (key, value) => { await invoke('storage.set', [key, value]); },
@@ -140,6 +144,7 @@ function sdk(callId: string): SandboxSdk {
   };
 }
 async function receive(message: SandboxHostMessage): Promise<void> {
+  if (message.type === 'locale-pack') { text.part(message.part); return; }
   if (message.type === 'sdk-result' || message.type === 'sdk-error') {
     const call = pending.get(message.id);
     if (!call) return;
@@ -151,7 +156,7 @@ async function receive(message: SandboxHostMessage): Promise<void> {
   if (active || !Object.hasOwn(operations, message.operationId)) process.exit(70);
   active = message.id;
   try {
-    const value = await operations[message.operationId]!(message.input, sdk(message.id));
+    const value = await text.run(message.id, message.locale, () => operations[message.operationId]!(message.input, sdk(message.id)));
     if (pending.size) throw Object.assign(new Error('Operation returned before awaiting all SDK calls'), { code: 'sandbox.unawaited_sdk' });
     send({ type: 'result', id: message.id, value });
   } catch (error) {

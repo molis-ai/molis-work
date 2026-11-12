@@ -1,5 +1,7 @@
 import type { Ppt, PptPage, Slide } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** One slide drawn at presenting or printing size, in the deck's colors. */
 function slideNode(record: Ppt, slide: Slide, index: number): HTMLElement {
   const card = document.createElement("article");
@@ -26,7 +28,7 @@ const PRINT_PAGE = "<!doctype html><html><head><meta charset='utf-8'><title></ti
 
 /** Full-screen presenting on this computer, and every slide on its own landscape page for the browser's print dialog. */
 export function installPresent(page: PptPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   /** Arrows or click to move, N for speaker notes, Esc to leave. */
   page.present = (record, start) => {
@@ -38,7 +40,7 @@ export function installPresent(page: PptPage): void {
     stage.className = "ppt-present";
     stage.tabIndex = -1;
     stage.setAttribute("role", "dialog");
-    stage.setAttribute("aria-label", L("ppt.present.action") + " · " + record.title);
+    stage.setAttribute("aria-label", uiText.text("ppt.present.action") + " · " + record.title);
     const frame = document.createElement("div");
     frame.className = "ppt-present-frame";
     const notesEl = document.createElement("aside");
@@ -56,7 +58,7 @@ export function installPresent(page: PptPage): void {
       const text = slide.notes || "";
       notesEl.hidden = !notes || !text;
       notesEl.textContent = text;
-      bar.textContent = (index + 1) + " / " + slides.length + " · " + L("ppt.present.bar");
+      bar.textContent = (index + 1) + " / " + slides.length + " · " + uiText.text("ppt.present.bar");
     };
     let watch: ReturnType<typeof setInterval> | undefined;
     const leave = () => {

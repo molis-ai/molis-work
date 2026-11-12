@@ -2,6 +2,8 @@ import type { FormOption, FormQuestion, FormQuestionInput } from "../contract.js
 import { icon, make } from "./dom.js";
 import type { FormPage } from "./page.js";
 
+const uiText = globalThis.t;
+
 /** The editor's question rows: read back from the page, and drawn from a form's questions. */
 export const usesOptions = (type: string | undefined) => type === "singleChoice" || type === "multiChoice" || type === "dropdown";
 
@@ -10,7 +12,7 @@ export const questionsFromDom = (page: FormPage) => [...page.questionsEl.querySe
   const options = usesOptions(type)
     ? [...row.querySelectorAll<HTMLInputElement>("[data-option-label]")].map((input, optionIndex) => ({
       id: input.dataset.optionId || "",
-      label: input.value.trim() || page.L("form.option.word") + " " + (optionIndex + 1),
+      label: input.value.trim() || uiText.text("form.option.word") + " " + (optionIndex + 1),
     }))
     : undefined;
   return {
@@ -23,18 +25,17 @@ export const questionsFromDom = (page: FormPage) => [...page.questionsEl.querySe
   };
 });
 
-export const addOptionRow = (page: FormPage, container: Element, option?: Partial<FormOption>) => {
-  const { L } = page;
+export const addOptionRow = (_page: FormPage, container: Element, option?: Partial<FormOption>) => {
   const row = make("div", "form-option-row");
   const input = make("input", "mw-input");
   input.dataset.optionLabel = "true";
   input.dataset.optionId = option?.id || crypto.randomUUID();
   input.value = option?.label || "";
-  input.placeholder = L("form.option.word");
+  input.placeholder = uiText.text("form.option.word");
   const remove = make("button", "mw-btn mw-btn--ghost mw-btn--icon-only");
   remove.type = "button";
   remove.dataset.optionRemove = "true";
-  remove.setAttribute("aria-label", L("form.option.remove"));
+  remove.setAttribute("aria-label", uiText.text("form.option.remove"));
   remove.innerHTML = icon("icon-x");
   row.append(input, remove);
   container.append(row);
@@ -47,35 +48,34 @@ export const fillOptions = (page: FormPage, row: Element, type: string | undefin
   const box = make("div", "form-option-list");
   const source = options && options.length ? options : [{ label: "" }, { label: "" }];
   source.forEach((option) => addOptionRow(page, box, option));
-  const add = make("button", "mw-btn mw-btn--ghost", page.L("form.option.add"));
+  const add = make("button", "mw-btn mw-btn--ghost", uiText.text("form.option.add"));
   add.type = "button";
   add.dataset.optionAdd = "true";
   optionsEl.append(box, add);
 };
 
 export const renderQuestion = (page: FormPage, question: FormQuestionInput) => {
-  const { L } = page;
   const row = make("div", "form-question");
   row.dataset.formQuestion = "true";
   row.dataset.questionId = question.id;
   row.innerHTML = '<input class="mw-input" data-question-title autocomplete="off">'
     + '<select class="mw-select" data-question-type>'
-    + '<option value="text">' + L("form.type.text") + '</option>'
-    + '<option value="singleChoice">' + L("form.type.single") + '</option>'
-    + '<option value="multiChoice">' + L("form.type.multi") + '</option>'
-    + '<option value="dropdown">' + L("form.type.dropdown") + '</option>'
-    + '<option value="rating">' + L("form.type.rating") + '</option>'
-    + '<option value="date">' + L("form.type.date") + '</option>'
+    + '<option value="text">' + uiText.text("form.type.text") + '</option>'
+    + '<option value="singleChoice">' + uiText.text("form.type.single") + '</option>'
+    + '<option value="multiChoice">' + uiText.text("form.type.multi") + '</option>'
+    + '<option value="dropdown">' + uiText.text("form.type.dropdown") + '</option>'
+    + '<option value="rating">' + uiText.text("form.type.rating") + '</option>'
+    + '<option value="date">' + uiText.text("form.type.date") + '</option>'
     + '</select>'
-    + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + L("form.question.required") + '</span></label>'
+    + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + uiText.text("form.question.required") + '</span></label>'
     + '<span class="form-question-move">'
-    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("form.question.up") + '">' + icon("icon-chevron-up") + '</button>'
-    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("form.question.down") + '">' + icon("icon-chevron-down") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + uiText.text("form.question.up") + '">' + icon("icon-chevron-up") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + uiText.text("form.question.down") + '">' + icon("icon-chevron-down") + '</button>'
     + '</span>'
-    + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + L("form.question.remove") + '">' + icon("icon-x") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + uiText.text("form.question.remove") + '">' + icon("icon-x") + '</button>'
     + '<div class="form-question-options" data-question-options></div>';
   const title = row.querySelector<HTMLInputElement>("[data-question-title]")!;
-  title.placeholder = L("form.question.title-placeholder");
+  title.placeholder = uiText.text("form.question.title-placeholder");
   title.value = question.title || "";
   row.querySelector<HTMLSelectElement>("[data-question-type]")!.value = question.type || "text";
   row.querySelector<HTMLInputElement>("[data-question-required]")!.checked = Boolean(question.required);

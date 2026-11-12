@@ -9,6 +9,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome, type ChromePage } from "@molis-ai/molis-work-test-kit/browser";
 import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, type MolisWorkSettingsView } from "./workbench-renderer-fixture.js";
+import { workbenchLanguageResource } from "@molis-ai/molis-work-app-workbench";
 
 const OLD = "11111111-1111-4111-8111-111111111111", NEW = "22222222-2222-4222-8222-222222222222";
 const GITHUB = "33333333-3333-4333-8333-333333333333", NOTION_OAUTH = "44444444-4444-4444-8444-444444444444";
@@ -52,6 +53,7 @@ async function openConnections(t: TestContext, oldName = "旧 Notion") {
   let stage: Stage = "before", receive: ((request: Held) => void) | undefined, harness: ChromeHarness | undefined;
   const server = createServer((request, response) => {
     const url = request.url ?? "/";
+    const language = workbenchLanguageResource(url);
     const read = request.method === "GET" ? /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/usages$/.exec(url) : null;
     if (read) {
       reads.push(read[1]!);
@@ -66,6 +68,8 @@ async function openConnections(t: TestContext, oldName = "旧 Notion") {
       });
     } else if (url.startsWith("/settings/connectors") || url.startsWith("/capabilities/connections")) {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(renderMolisWorkSettings(settings(stage, oldName), "replacement-control-0123456789"));
+    } else if (language) {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" }); response.end(language.body);
     } else if (url === "/assets/molis-work-settings.css") {
       response.writeHead(200, { "content-type": "text/css; charset=utf-8" }); response.end(css);
     } else if (url === "/official-login") { response.writeHead(200, { "content-type": "text/html" }); response.end("<p>login</p>"); }

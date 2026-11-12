@@ -10,12 +10,16 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export { createPluginUiClient } from "./plugin-client.js";
+export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, registerPlatformText, registerPluginText, type PluginTextReader } from "./text-sources.js";
+export { projectDirectoryWords, type DirectoryView, type DirectoryWordSource, type DirectoryWordResolver, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory-words.js";
+export type { AssistantReviewDisplay, AssistantReviewField, AssistantReviewWords, FormattedReviewField } from "./assistant-review-words.js";
+export type { WorkbenchAppearance, WorkbenchAppearanceChoices, WorkbenchAppearancePorts } from "./appearance-view.js";
 export type { UiDeclaredMountHost } from "./declared-mount-host.js";
 export { UiViewRegistry } from "./view-registry.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
 export { createUiFailureView, createUiRequest, UI_REQUEST_CLIENT_SCRIPT } from "./request-client.js";
-export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiTranslate, UiViewDocument, UiViewElement } from "./request-client.js";
+export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiReadText, UiViewDocument, UiViewElement } from "./request-client.js";
 export type { UiPlacedView, UiViewRegistryInput, UiViewRegistryManifest } from "./view-registry.js";
 
 

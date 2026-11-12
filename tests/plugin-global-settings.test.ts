@@ -15,11 +15,12 @@ import {
   defaultShelfHotKeys,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, registeredBuiltinText, runWithLocale, runWithRegisteredText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  renderShelfSettings,
+  renderShelfSettings as renderShelfSettingsDocument,
+  shelfManifest,
   shelfSettingsUiDescriptor,
 } from "@molis-ai/molis-work-plugin-shelf";
 import { feedUiContribution } from "@molis-ai/molis-work-plugin-feed";
@@ -41,6 +42,12 @@ import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
+import { pageText } from "./fixtures/page-text.js";
+
+const shelfWords = registeredBuiltinText(shelfManifest);
+assert.ok(shelfWords);
+const renderShelfSettings = (model: Parameters<typeof renderShelfSettingsDocument>[0]) =>
+  runWithLocale("zh", () => runWithRegisteredText(shelfWords, () => renderShelfSettingsDocument(model)));
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
@@ -273,13 +280,14 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {
+  const shelfPrimitives = { ...primitives, text: pageText("zh", "shelf") };
   const on = renderShelfSettings({
     settings: shelfSettings(),
-    primitives,
+    primitives: shelfPrimitives,
   });
   const off = renderShelfSettings({
     settings: shelfSettings({ drop_wheel_enabled: false }),
-    primitives,
+    primitives: shelfPrimitives,
   });
   assert.match(on, /data-shelf-settings/);
   assert.match(on, /data-settings-panel="shelf"/);
@@ -297,7 +305,7 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   assert.match(machine, /data-shelf-agent-line/);
   const withAgents = renderShelfSettings({
     settings: shelfSettings(),
-    primitives,
+    primitives: shelfPrimitives,
     runtime: {
       runtime_key: "grok",
       title: "Grok",
@@ -376,6 +384,8 @@ for (const declared of [true, false]) {
       else delete view.settings_address;
       const parsed = parsePluginManifest(manifest);
       registration.manifest = parsed;
+      const { installHostUiText } = await import("@molis-ai/molis-work-app-local-host");
+      installHostUiText();
       const { BUILTIN_PLUGIN_CATALOG, listPluginSettingsNavItems } = await import("@molis-ai/molis-work-app-workbench");
       const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "shelf");
       assert.equal(entry, registration, "the catalog consumes the original registration object");
@@ -606,8 +616,8 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
   const remappedPage = await (await fetch(`${origin}/settings/shelf`)).text();
-  assert.match(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset>/);
-  assert.doesNotMatch(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset hidden/);
+  assert.match(remappedPage, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset>/);
+  assert.doesNotMatch(remappedPage, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset hidden/);
 });
 
 test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare global chords", () => {
@@ -663,8 +673,8 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
     primitives,
   });
   assert.match(remapped, /⌃⌥E/);
-  assert.match(remapped, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset>/);
-  assert.doesNotMatch(remapped, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset hidden/);
+  assert.match(remapped, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset>/);
+  assert.doesNotMatch(remapped, /data-key-code="14"[^>]*>[^<]*<\/span>\s*<span[^>]*data-shelf-hotkey-reset hidden/);
 });
 
 test("Shelf store keeps the wheel when only a hotkey is patched and repairs a bare chord", async () => {

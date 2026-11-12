@@ -29,20 +29,20 @@ function listCommand(id: "bullet_list" | "ordered_list" | "task_list"): Command 
 
 export function editorToolDefinitions(translate: Translate | undefined): Array<{ id: string; group: "marks" | "blocks" | "insert"; label: string; glyph?: string; icon?: string; run?: (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean; panel?: "tone" | "link" | "comment" }> {
   return [
-    { id: "strong", group: "marks", label: t(translate, "加粗"), glyph: "B", run: commandToggle("strong") },
-    { id: "em", group: "marks", label: t(translate, "斜体"), glyph: "I", run: commandToggle("em") },
-    { id: "underline", group: "marks", label: t(translate, "下划线"), glyph: "U", run: commandToggle("underline") },
-    { id: "strike", group: "marks", label: t(translate, "删除线"), glyph: "S", run: commandToggle("strike") },
-    { id: "code", group: "marks", label: t(translate, "代码"), icon: "code", run: commandToggle("code") },
-    { id: "h1", group: "blocks", label: t(translate, "标题 1"), glyph: "H1", run: headingCommand(1) },
-    { id: "h2", group: "blocks", label: t(translate, "标题 2"), glyph: "H2", run: headingCommand(2) },
-    { id: "h3", group: "blocks", label: t(translate, "标题 3"), glyph: "H3", run: headingCommand(3) },
-    { id: "ul", group: "blocks", label: t(translate, "无序列表"), icon: "rows", run: listCommand("bullet_list") },
-    { id: "ol", group: "blocks", label: t(translate, "有序列表"), icon: "list-ordered", run: listCommand("ordered_list") },
-    { id: "task", group: "blocks", label: t(translate, "清单"), icon: "check", run: listCommand("task_list") },
-    { id: "tone", group: "insert", label: t(translate, "颜色"), glyph: "A", panel: "tone" },
-    { id: "link", group: "insert", label: t(translate, "链接"), icon: "link", panel: "link" },
-    { id: "comment", group: "insert", label: t(translate, "评论"), icon: "message", panel: "comment" },
+    { id: "strong", group: "marks", label: t(translate, "pages.editor.bold"), glyph: "B", run: commandToggle("strong") },
+    { id: "em", group: "marks", label: t(translate, "pages.editor.italic"), glyph: "I", run: commandToggle("em") },
+    { id: "underline", group: "marks", label: t(translate, "pages.editor.underline"), glyph: "U", run: commandToggle("underline") },
+    { id: "strike", group: "marks", label: t(translate, "pages.editor.strikethrough"), glyph: "S", run: commandToggle("strike") },
+    { id: "code", group: "marks", label: t(translate, "pages.editor.code-2"), icon: "code", run: commandToggle("code") },
+    { id: "h1", group: "blocks", label: t(translate, "pages.editor.heading-1"), glyph: "H1", run: headingCommand(1) },
+    { id: "h2", group: "blocks", label: t(translate, "pages.editor.heading-2"), glyph: "H2", run: headingCommand(2) },
+    { id: "h3", group: "blocks", label: t(translate, "pages.editor.heading-3"), glyph: "H3", run: headingCommand(3) },
+    { id: "ul", group: "blocks", label: t(translate, "pages.editor.bulleted-list"), icon: "rows", run: listCommand("bullet_list") },
+    { id: "ol", group: "blocks", label: t(translate, "pages.editor.numbered-list"), icon: "list-ordered", run: listCommand("ordered_list") },
+    { id: "task", group: "blocks", label: t(translate, "pages.editor.checklist"), icon: "check", run: listCommand("task_list") },
+    { id: "tone", group: "insert", label: t(translate, "pages.editor.color"), glyph: "A", panel: "tone" },
+    { id: "link", group: "insert", label: t(translate, "pages.editor.link"), icon: "link", panel: "link" },
+    { id: "comment", group: "insert", label: t(translate, "pages.comments.comments"), icon: "message", panel: "comment" },
   ];
 }
 

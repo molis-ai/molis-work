@@ -4,6 +4,8 @@ import { loadJobs, ensureContext, rememberJob, schedulePoll } from "./jobs.js";
 import { loadConnections } from "./connections.js";
 import type { ImageConnection, ImageJob, ImagesPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 // A submission with no answer may still have reached the Host: the person is told so, and the same words reuse the same key.
 const unconfirmed = (error: unknown): boolean => statusOf(error) === 0 || ["ui_host.outcome_unknown", "ui_host.invalid_response"].includes((error as { code?: string } | null)?.code || "");
 
@@ -23,17 +25,17 @@ async function needKey(page: ImagesPage, connection: ImageConnection): Promise<v
   try {
     const outcome = await page.host.connectionNeed(place, { kind: "image", slot_id: connection.id, base_url: connection.base_url }, { signal: page.s.viewSignal });
     if (!page.life.alive) return;
-    if (outcome.status !== "connected") { page.say(page.L("images.compose.key-cancelled")); return; }
+    if (outcome.status !== "connected") { page.say(uiText.text("images.compose.key-cancelled")); return; }
     await loadConnections(page);
     // Still the same service: generated once more (should it still have no key, submit finds this card's place taken and stops).
     if (page.s.cid === connection.id) await submit(page);
   } catch (error) {
-    if ((error as Error).name !== "AbortError") page.say(messageOf(error) || page.L("images.error.request"), true);
+    if ((error as Error).name !== "AbortError") page.say(messageOf(error) || uiText.text("images.error.request"), true);
   } finally { generate.classList.replace("mw-btn--secondary", "mw-btn--primary"); if (page.life.alive) place.hidden = true; }
 }
 
 async function submit(page: ImagesPage): Promise<void> {
-  const { s, el, L } = page;
+  const { s, el } = page;
   ensureContext(page);
   const connection = page.pickedConn();
   if (s.submitting || !s.context || !connection || !el.compose.reportValidity()) return;
@@ -62,7 +64,7 @@ async function submit(page: ImagesPage): Promise<void> {
     if (currentContext !== page.projectId()) return;
     // The key went away between reading the services and starting (another page removed it): asked for in place, as above.
     if ((error as { code?: string }).code === "images.key_required") { void needKey(page, connection); return; }
-    page.say(unconfirmed(error) ? L("images.compose.unconfirmed") : messageOf(error), true);
+    page.say(unconfirmed(error) ? uiText.text("images.compose.unconfirmed") : messageOf(error), true);
     void loadJobs(page).catch(() => undefined);
   } finally {
     if (page.life.alive && currentContext === page.projectId()) {

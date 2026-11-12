@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingUsageSummary } from "../../usage.js";
 import { errorMessage } from "../dom.js";
 import { planProgress } from "../plan-progress.js";
@@ -17,11 +18,11 @@ interface AmendResult { readonly board?: { readonly terminal?: boolean }; readon
 
 /** Sends the person's change of a plan graph, then reads the session so the board shows what the Host kept. */
 async function amend(page: Page, runId: string, version: number, amendment: Amendment, live: boolean) {
-  const { L, s } = page, id = s.current;
+  const { s } = page, id = s.current;
   try {
     const result = await api<AmendResult>(page, sessionPath(id, runId) + "/plan-amendments", "POST", { amendment, expected_version: version });
-    if (!live) status(page, result.board?.terminal ? L("coding.board.saved-done") : L("coding.board.saved-continue"));
-    else status(page, result.steered ? L("coding.board.steered") : L("coding.board.steer-failed", { reason: result.steer_error || L("coding.common.unknown-reason") }), !result.steered);
+    if (!live) status(page, result.board?.terminal ? uiText.text("coding.board.saved-done") : uiText.text("coding.board.saved-continue"));
+    else status(page, result.steered ? uiText.text("coding.board.steered") : uiText.text("coding.board.steer-failed", { reason: result.steer_error || uiText.text("coding.common.unknown-reason") }), !result.steered);
   } catch (error) {
     status(page, errorMessage(error), true);
   }
@@ -43,8 +44,8 @@ function boardNode(page: Page, target: BoardTarget): HTMLElement | undefined {
 
 /** Opens what a board row stands for: a step's reports, or the place of the plan, the recovery, the reviews, a subtask or a round. */
 async function navigate(page: Page, id: string, target: BoardTarget) {
-  const { L, host, refs, root, s, turns } = page, record = s.state.sessions.find(item => item.session_id === id);
-  if (!record) throw new Error(L("coding.error.session-unreadable"));
+  const { host, refs, root, s, turns } = page, record = s.state.sessions.find(item => item.session_id === id);
+  if (!record) throw new Error(uiText.text("coding.error.session-unreadable"));
   host.openItem("coding", id, record.title);
   await openCodingItem(page, id);
   if (s.current !== id) return;
@@ -54,7 +55,7 @@ async function navigate(page: Page, id: string, target: BoardTarget) {
   showBoard(page, false);
   if (["plan", "child", "recovery", "reviews"].includes(target.kind)) root.dataset.codingResults = "true";
   const node = boardNode(page, target);
-  if (!node || node.hidden) throw new Error(L("coding.error.content-unreadable"));
+  if (!node || node.hidden) throw new Error(uiText.text("coding.error.content-unreadable"));
   if (target.kind === "child" && node instanceof HTMLDetailsElement) node.open = true;
   if (turns.contains(node)) s.follow.release();
   node.scrollIntoView({ block: "nearest" });
@@ -64,7 +65,7 @@ async function navigate(page: Page, id: string, target: BoardTarget) {
 
 /** The board of the session's rounds, and the cards that draw one round's plan and subtasks. */
 export function mountBoard(page: Page) {
-  const { L, directory, host, lifetime, q, refs, s } = page;
+  const { readText, directory, host, lifetime, q, refs, s } = page;
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
   s.boardAll = { key: "", id: "", value: null };
@@ -72,7 +73,7 @@ export function mountBoard(page: Page) {
   // directory on a narrow screen does not end it: the faces there describe the session the person just left.
   s.sessionOnShow = false;
   refs.taskboard = taskboard({
-    lifetime, translate: L, board: q("[data-coding-board]"), outline: directory.querySelector<HTMLElement>("[data-coding-board-outline]"), current: () => s.current,
+    lifetime, translate: readText, board: q("[data-coding-board]"), outline: directory.querySelector<HTMLElement>("[data-coding-board-outline]"), current: () => s.current,
     onShow: () => onShow(page), status: s.ports.status, ownTask, from: node => refs.inputReceipts.from(node, () => showBoard(page, false)),
     roleName: id => (id && s.ROLE_NAMES[id]) || id || "Agent",
     progress: text => {
@@ -85,11 +86,11 @@ export function mountBoard(page: Page) {
   });
   refs.planProgress = planProgress({ ...s.ports, roleLabel: id => s.ROLE_NAMES[id], openStep: (runId, stepId) => refs.stepReports.open(s.current, runId, stepId), from: node => refs.inputReceipts.from(node), word: state => host.receipts.step(state) });
   refs.subagents = subagentGroups({
-    ...s.ports, roleName: id => s.ROLE_NAMES[id] || id || "Agent", openIntegration: refs.integrations.open, usageSummary: usage => codingUsageSummary(usage, L),
+    ...s.ports, roleName: id => s.ROLE_NAMES[id] || id || "Agent", openIntegration: refs.integrations.open, usageSummary: usage => codingUsageSummary(usage, readText),
     prepareRework: async (id, runId, child, notes) => {
       if (s.current !== id) return;
-      const instruction = L("coding.rework.instruction", { subagent: child.subagent_id, run: runId, path: child.workspace_path ?? "", task: child.task, notes });
-      await refs.draft.append(id, text => text.trim() ? text + "\n\n" + instruction : instruction, L("coding.rework.saved-not-added"));
+      const instruction = uiText.text("coding.rework.instruction", { subagent: child.subagent_id, run: runId, path: child.workspace_path ?? "", task: child.task, notes });
+      await refs.draft.append(id, text => text.trim() ? text + "\n\n" + instruction : instruction, uiText.text("coding.rework.saved-not-added"));
     },
   });
 }

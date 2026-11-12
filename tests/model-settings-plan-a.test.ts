@@ -10,6 +10,10 @@ import { providerHealth, type ModelProviderHealth, type ModelProviderRecord } fr
 import { renderModelSettingsDocument, type ModelSettingsModel, type ModelSettingsPrimitives } from "@molis-ai/molis-work-app-workbench";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
+import { installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { pageText } from "./fixtures/page-text.js";
+
+installHostUiText();
 
 /**
  * The model settings page as the service-connection decision's plan A (specs/assistant-service-connections §13.1, batch 13 ④b):
@@ -18,7 +22,7 @@ import { startModelStandIn } from "./fixtures/model-stand-in.js";
  */
 
 const p: ModelSettingsPrimitives = {
-  L: (text, values) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values?.[key] ?? "")),
+  readText: pageText("zh"),
   escape: (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
 };
@@ -35,7 +39,7 @@ function provider(overrides: Partial<ModelProviderRecord> = {}): ModelProviderRe
 }
 
 const render = (model: Omit<ModelSettingsModel, "primitives" | "templates"> & { templates?: ModelSettingsModel["templates"] }) =>
-  renderModelSettingsDocument({ templates, ...model, primitives: p });
+  runWithLocale("zh", () => renderModelSettingsDocument({ templates, ...model, primitives: p }));
 /** Whatever sits inside the folded 高级, and whatever comes before it. */
 const advanced = (html: string) => html.slice(html.indexOf('class="mw-collapsible model-advanced"'));
 const before = (html: string) => html.slice(0, html.indexOf('class="mw-collapsible model-advanced"'));

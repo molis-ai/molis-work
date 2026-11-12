@@ -16,11 +16,11 @@ export const ASSISTANT_BROWSER_HANDBACK_PART = String.raw`  // The side panel's 
       try {
         const seen = view && view.work.work_id === holder.work_id ? view : await api("/works/" + encodeURIComponent(holder.work_id));
         latest = seen.rounds[seen.rounds.length - 1] || null;
-      } catch { host.showToast?.(L("浏览器已交还；告诉助理接着做时，它会重新观察页面")); return; }
-      if (latest && (latest.phase === "awaiting-input" || (latest.awaiting_input && latest.awaiting_input.length))) { host.showToast?.(L("浏览器已交还；助理还在等你回答上面的问题")); return; }
-      if (holder.state === "needs-check" || (latest && latest.phase === "reconcile-required")) { host.showToast?.(L("浏览器已交还；先核对上一步的结果，助理再接着做")); return; }
+      } catch { host.showToast?.(globalThis.t.text("workbench.assistant-browser-handback.browser-back-assistant-when-ask-continue-will-look")); return; }
+      if (latest && (latest.phase === "awaiting-input" || (latest.awaiting_input && latest.awaiting_input.length))) { host.showToast?.(globalThis.t.text("workbench.assistant-browser-handback.browser-back-assistant-still-waiting-answer-question-above")); return; }
+      if (holder.state === "needs-check" || (latest && latest.phase === "reconcile-required")) { host.showToast?.(globalThis.t.text("workbench.assistant-browser-handback.browser-back-assistant-check-result-last-step-first")); return; }
       try {
-        await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), written_by: "page", text: L("我把浏览器交还给你了，先重新观察页面再继续") });
+        await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), written_by: "page", text: globalThis.t.text("workbench.assistant-browser-handback.i-ve-handed-browser-back-look-page-again") });
         await reload(); poll();
       } catch (error) { host.showToast?.(error); }
     })();

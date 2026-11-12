@@ -6,13 +6,15 @@ import { renderMarkdown, renderReferences } from "./markdown.js";
 import { fail, q, tx, type CogniaPage } from "./page.js";
 import type { Draft, Flow, ImportEntry } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Opens the dialog on a step. `title` and `label` are keys; `html` is drawn by the caller. */
 export function show(page: CogniaPage, title: string, kind: Flow, html: string, label: string): void {
   if (!page.dialog.open) page.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   page.flow = kind;
   page.content.innerHTML = html;
-  q(page, "#cognia-dialog-title").textContent = page.L(title);
-  page.submit.textContent = page.L(label);
+  q(page, "#cognia-dialog-title").textContent = uiText.text(title);
+  page.submit.textContent = uiText.text(label);
   page.submit.hidden = false;
   q(page, "[data-cognia-step]").textContent = "";
   fail(page, "");
@@ -34,13 +36,13 @@ export async function closeDialog(page: CogniaPage): Promise<void> {
 }
 
 export function setStep(page: CogniaPage, key: string): void {
-  q(page, "[data-cognia-step]").textContent = key ? page.L(key) : "";
+  q(page, "[data-cognia-step]").textContent = key ? uiText.text(key) : "";
 }
 
 /** The preview or receipt as a table: each file, its kind, and what happens to it or why it is left out. */
 export function entryTable(page: CogniaPage, entries: readonly ImportEntry[]): string {
   const rows = entries.map((entry) =>
-    `<tr><td>${esc(entry.path)}</td><td>${entry.role ? tx(page, ROLE_KEY[entry.role]) : "—"}</td><td>${tx(page, STATUS_KEY[entry.status])}${entry.reason ? " · " + esc(page.L(entry.reason)) : ""}</td></tr>`);
+    `<tr><td>${esc(entry.path)}</td><td>${entry.role ? tx(page, ROLE_KEY[entry.role]) : "—"}</td><td>${tx(page, STATUS_KEY[entry.status])}${entry.reason ? " · " + esc(entry.reason) : ""}</td></tr>`);
   return `<table class="cognia-preview"><thead><tr><th>${tx(page, "cognia.import.path")}</th><th>${tx(page, "cognia.import.kind")}</th><th>${tx(page, "cognia.import.status")}</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
 }
 
@@ -80,15 +82,15 @@ export function showEdit(page: CogniaPage): void {
 /** The draft the model wrote, to read before it is saved: its text, the sources it cites, and a way to drop it. */
 export function showDraft(page: CogniaPage, draft: Draft): void {
   page.draft = draft;
-  show(page, "cognia.draft.title", "review", `<h3>${esc(draft.title)}</h3><p class="cognia-hint">${tx(page, "cognia.draft.review-hint")}</p><article class="cognia-body">${renderMarkdown(draft.body, page.L, [], draft.references)}</article>`
-    + renderReferences(draft.references, page.L) + button(page.L("cognia.draft.remove"), "delete-draft", `data-id="${esc(draft.id)}"`),
+  show(page, "cognia.draft.title", "review", `<h3>${esc(draft.title)}</h3><p class="cognia-hint">${tx(page, "cognia.draft.review-hint")}</p><article class="cognia-body">${renderMarkdown(draft.body, uiText.text, [], draft.references)}</article>`
+    + renderReferences(draft.references, uiText.text) + button(uiText.text("cognia.draft.remove"), "delete-draft", `data-id="${esc(draft.id)}"`),
   draft.saved_id ? "cognia.draft.open-saved" : "cognia.draft.save");
 }
 
 export function showDrafts(page: CogniaPage): void {
   const drafts = page.state.drafts;
   show(page, "cognia.action.drafts", "drafts", drafts.length
-    ? drafts.map((d) => button(`${d.title} · ${page.L(d.saved_id ? "cognia.draft.saved" : "cognia.draft.pending")}`, "draft", `data-id="${esc(d.id)}"`)).join("")
+    ? drafts.map((d) => button(`${d.title} · ${uiText.text(d.saved_id ? "cognia.draft.saved" : "cognia.draft.pending")}`, "draft", `data-id="${esc(d.id)}"`)).join("")
     : `<p>${tx(page, "cognia.draft.none")}</p>`, "cognia.dialog.close");
   page.submit.hidden = true;
 }

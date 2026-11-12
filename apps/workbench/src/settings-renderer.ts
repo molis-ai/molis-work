@@ -1,14 +1,18 @@
 import { renderKitSettings } from "./settings-kit.js";
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
-import { icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
+import { t as uiText, icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
-import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { renderAppearanceRecovery, renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
-import { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_WORKBENCH, pluginSettingsStyleLinks } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import type { ProjectSettingsPagePorts } from "./project-settings-pages.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
@@ -29,75 +33,89 @@ const NETWORK_DOC_HREF = {
 } as const;
 export interface SettingsRenderPrimitives {
   accountRegistration?: boolean;
-  L(text: string, values?: Record<string, string | number>): string;
+  catalogTextPacks: ProjectSettingsPagePorts["catalogTextPacks"];
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield" | "link" | "mail" | "back", className?: string): string;
   currentLocale(): string;
-  localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
+  localeSwitchHref(locale: import("./i18n.js").WebLocalePreference, nextPath: string): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
-  clientI18nScript(): string;
   renderIconSprite(): string;
   withDesktopQuery(path: string): string;
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
   settingsContextHref: ReturnType<typeof createWorkbenchSettingsNavigation>["settingsContextHref"];
   renderSettingsNavigation: ReturnType<typeof createWorkbenchSettingsNavigation>["renderSettingsNavigation"];
-}
-export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
-  const { L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
-    withDesktopQuery, settingsContextHref, renderSettingsNavigation,
-    themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
-function renderAppearanceSettings(nextPath: string): string {
-  return renderAppearanceSettingsDocument({ L, currentLocale, localeSwitchHref }, nextPath);
+  appearance?: WorkbenchAppearancePorts;
+  projectDeletionLabels?(): readonly string[];
 }
 
+/** Settings clients use stable keys carried as literals in the registered bundle. */
+function settingsText(page: ReturnType<typeof findPluginSettingsNavItem>, packsFor: SettingsRenderPrimitives["catalogTextPacks"]): string {
+  if (!page) return "";
+  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === page.plugin_id)?.manifest;
+  const client = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.contributions.some(contribution =>
+    contribution.descriptor.contribution_id === page.contribution_id))?.settingsClient;
+  if (!manifest || !client) return "";
+  const packs = packsFor(manifest).map(pack => ({ ...pack, messages: Object.fromEntries(
+    Object.entries(pack.messages).filter(([key]) => client.includes(JSON.stringify(key))),
+  ) })).filter(pack => Object.keys(pack.messages).length);
+  return packs.length ? renderInlinePageText([{ slot: `settings:${page.section_id}`, producer: manifest.plugin_id, packs }]) : "";
+}
+
+export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
+  const { readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,
+    withDesktopQuery, settingsContextHref, renderSettingsNavigation,
+    themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
+  const appearance = primitives.appearance?.current();
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
-  const title = view.section === "sync" ? L("同步") : capabilities ? L("能力") : view.section === "appearance"
-    ? L("界面与语言")
-    : view.section === "models" ? L("模型设置")
+  const title = view.section === "sync" ? uiText.text("workbench.settings-renderer.sync") : capabilities ? uiText.text("workbench.settings-renderer.capabilities") : view.section === "appearance"
+    ? uiText.text("workbench.settings-renderer.interface-language")
+    : view.section === "models" ? uiText.text("workbench.settings-renderer.models")
     : view.section === "runtimes"
-      ? L("AI 与执行工具")
+      ? uiText.text("workbench.settings-renderer.ai-execution-tools")
     : view.section === "assistant"
-      ? L("助理")
+      ? uiText.text("workbench.settings-renderer.assistant")
     : view.section === "prompts"
-      ? L("提示词")
+      ? uiText.text("workbench.settings-renderer.prompts")
     : view.section === "memory"
-      ? L("记忆")
+      ? uiText.text("workbench.settings-renderer.memory")
     : view.section === "mcp"
-      ? L("MCP")
+      ? "MCP"
       : view.section === "connectors"
-        ? L("Connectors")
+        ? "Connectors"
         : view.section === "projects"
-        ? L("项目设置")
+        ? uiText.text("workbench.settings-renderer.project-settings")
         : view.section === "diagnostics"
-          ? L("诊断")
-          : L(pluginPage?.label ?? groupedGlobalSettingsSections().flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
+          ? uiText.text("workbench.settings-renderer.diagnostics")
+          : (pluginPage?.label ?? groupedGlobalSettingsSections().flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
-  const content = (view.capabilities?.rules ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: L } }) : view.capabilities?.section === "library" ? capabilities!.library() : view.capabilities?.section === "history" ? capabilities!.history() : undefined) || (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
-    ...view.model_settings, primitives: { L, escape: escapeHtml, icon: modelIcon },
+  const content = (view.capabilities?.rules ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: readText } }) : view.capabilities?.section === "library" ? capabilities!.library() : view.capabilities?.section === "history" ? capabilities!.history() : undefined) || (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
+    ...view.model_settings, primitives: { readText, escape: escapeHtml, icon: modelIcon },
   }) : view.plugin_settings_html)
-    || (view.section === "sync" ? renderSyncSettings(L) : view.section === "appearance"
-      ? renderAppearanceSettings(settingsPath)
+    || (view.section === "sync" ? renderSyncSettings(readText) : view.section === "appearance"
+      ? renderAppearanceSettingsDocument({ readText, currentLocale, localeSwitchHref }, settingsPath,
+        appearance && primitives.appearance ? { current: appearance, choices: primitives.appearance.choices() } : undefined)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view, primitives)
         : view.section === "assistant"
-          ? renderAssistantSettings({ L, projectId: contextProject?.project_id ?? null })
-        : view.section === "kit" ? renderKitSettings({ L, lang: htmlLang(), projectId: null })
-        : view.section === "prompts" ? renderPromptSettings({ L })
+          ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
+        : view.section === "kit" ? renderKitSettings({ projectId: null })
+        : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
-          ? renderMemorySettings({ L, scope: "personal", projectId: null })
-        : view.section === "directories" ? renderLocalDirectorySettings({ L })
+          ? renderMemorySettings({ readText, scope: "personal", projectId: null })
+        : view.section === "directories" ? renderLocalDirectorySettings({ readText })
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell, primitives)
           : view.section === "connectors"
-            ? renderConnectorsSettings(view, { L, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "en" ? "en" : "zh"] })
+            ? renderConnectorsSettings(view, { readText, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "en" ? "en" : "zh"] })
           : view.section === "projects"
           ? renderProjectSettings(view, desktopShell, primitives)
           : view.section === "diagnostics"
@@ -105,17 +123,17 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${uiText("workbench.settings-renderer.molis-work-settings")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
 <body${primitives.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? L("能力") : projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L(capabilities ? "关闭能力服务" : "关闭全局设置")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins))}
     <div class="settings-content">${content}</div>
   </main>
-  ${renderRuntimePlanDialog({ L, icon })}
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  ${renderRuntimePlanDialog({ readText, icon })}
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
+  ${settingsText(pluginPage, primitives.catalogTextPacks)}${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
 </body></html>`;
 }
 

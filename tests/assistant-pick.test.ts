@@ -11,6 +11,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
+import { pageText } from "./fixtures/page-text.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 
 class Node extends EventTarget {
@@ -36,7 +37,7 @@ function page() {
   const document = new EventTarget(), state = { selection: { isCollapsed: true, anchorNode: null as Node | null } };
   // The page the cards sit in: a click that the card did not stop still gets here.
   const list = new Node();
-  const context = vm.createContext({ document, CustomEvent, Element: Node, crypto, getSelection: () => state.selection });
+  const context = vm.createContext({ document, CustomEvent, Element: Node, crypto, t: { text: pageText("zh") }, getSelection: () => state.selection });
   const parts = vm.runInContext(`(${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api: () => Promise.resolve({}), joined: new Set(), open: () => true, current: () => null,
     repaint: () => {}, L: (text) => text })`, context) as { pickable(node: Node, object: unknown, title: string): Node };
   const card = (state: string, title = "发布计划") => {

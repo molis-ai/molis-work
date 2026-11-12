@@ -4,7 +4,8 @@ import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-con
 import { isTerminalAgentPhase, type AgentDelegatedWork, type AgentDelegation, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial, AssistantWork, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial, AssistantSavedText, AssistantWork, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
 
@@ -40,7 +41,7 @@ interface DelegationPorts {
   dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], writtenBy: "assistant" | "host", request?: string, stillCurrent?: () => boolean): Promise<unknown>;
   read(workId: string): Promise<AssistantWorkView>;
   /** Tell the person, once per key. */
-  notify(work: StoredWork, text: string, key: string): void;
+  notify(work: StoredWork, text: AssistantSavedText, key: string): void;
 }
 
 /**
@@ -308,7 +309,7 @@ export class AssistantDelegations {
         await this.ports.dispatch(parent, `（子任务都已交回）请核对${back.map(item => `「${item.child.title}」`).join("")}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
       } catch (error) {
         this.#refused.add(ready.request_key);
-        this.ports.notify(parent, `「${parent.title}」的子任务都已交回，但没有自动接着做：${error instanceof Error ? error.message : String(error)}`, key);
+        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: error instanceof Error ? error.message : String(error) }, key);
       }
     } finally { this.#continuing.delete(parent.work_id); }
   }

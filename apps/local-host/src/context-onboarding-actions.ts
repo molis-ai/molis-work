@@ -2,6 +2,7 @@ import type { Readable } from "node:stream";
 import { withContextJourneys } from "./context-onboarding-store.js";
 import { adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, updateContextDraft,
   type ContextOnboardingPorts } from "./context-onboarding-service.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
 
 /** What the onboarding page's route hands its actions for one request: the Home, the journey's ports and, for a file, the request body itself. */
@@ -12,7 +13,7 @@ export interface ContextOnboardingEntry {
   readonly body?: Readable;
 }
 
-export const contextOnboardingDoor = webEntryDoor<ContextOnboardingEntry>("onboarding:context", "整理旅程只接受本人在首次引导页里的操作");
+export const contextOnboardingDoor = webEntryDoor<ContextOnboardingEntry>("onboarding:context", () => uiText.text("workbench.context-onboarding.entry-refused"));
 
 const journey = { type: "string", minLength: 1, maxLength: 200, pattern: "^[a-z0-9-]+$" } as const;
 // A body's fields and the messages about them stay the journey's own checks (selectContextSources, updateContextDraft, adoptContextJourney).

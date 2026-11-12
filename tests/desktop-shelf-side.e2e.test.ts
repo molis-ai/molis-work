@@ -75,7 +75,7 @@ for (const locale of ["zh", "en"] as const) test(`PG-026-S1-S3-5 PG-026-S1-S3-7 
     // Focus on a control in the bar, outside Shelf (the switcher; the bar's side button is gone since 07-1 S4b).
     await evaluate("document.querySelector('[data-plugin-picker-toggle]').focus()");
     const before = await evaluate(state);
-    await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(message)},true)`);
+    await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(message)},true,${JSON.stringify(message)})`);
     await waitFor(`${toast}?.classList.contains('is-visible') && ${toast}.textContent === ${JSON.stringify(translated)}`);
     assert.equal(await evaluate(`${toast}.ownerDocument === document && ${toast}.getBoundingClientRect().height > 0`), true, "the visible notice belongs to the top page, even when Shelf is an opaque iframe");
     assert.equal(await evaluate(`${toast}.dataset.mwState`), "partial");
@@ -93,10 +93,12 @@ for (const locale of ["zh", "en"] as const) test(`PG-026-S1-S3-5 PG-026-S1-S3-7 
   assert.deepEqual(await evaluate(state), beforeError);
   const failure = "已收下 1 项，另有文件未收下：读取失败";
   const mixed = failure + "\n" + message;
-  await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(mixed)},false)`);
+  await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(mixed)},false,${JSON.stringify(message)})`);
   assert.equal(await evaluate(`${toast}.textContent`), failure + "\n" + translated, "the fixed warning is translated even after a dynamic native failure line");
   assert.equal(await evaluate(`${toast}.dataset.mwState`), "failed");
   assert.equal(await evaluate(`${toast}.classList.contains('is-error')`), true);
   assert.equal(await evaluate("window.__shelfNotices.at(-1)"), mixed, "the existing event retains its original payload");
+  await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(message)},false)`);
+  assert.equal(await evaluate(`${toast}.textContent`), message, "an unmarked diagnostic is displayed as given");
   assert.deepEqual(await evaluate(state), beforeError);
 });

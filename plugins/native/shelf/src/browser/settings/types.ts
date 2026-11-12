@@ -1,5 +1,4 @@
 import type { ShelfDeviceSettings, ShelfHotKeyChord, ShelfHotKeys } from "@molis-ai/molis-work-module-shelf/contract";
-import type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** What the server-side wrapper (src/settings-client.ts) puts in front of the bundle: the chord tables and the plugin's route. */
 export interface HotkeyTables {
@@ -18,7 +17,6 @@ declare global {
   var molisWorkBindShelfSettings: ((root?: ParentNode) => void) | undefined;
 }
 
-export type Translate = UiClientTranslate;
 export type Settings = ShelfDeviceSettings;
 export type Chord = ShelfHotKeyChord;
 
@@ -29,7 +27,6 @@ export interface Recording { readonly row: HTMLElement; readonly root: ParentNod
 export interface SettingsPage {
   readonly api: string;
   readonly tables: HotkeyTables;
-  readonly L: Translate;
   settings: Settings | null;
   recording: Recording | null;
 }

@@ -9,7 +9,7 @@ import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, ty
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -41,7 +41,7 @@ import { homeAggregatePorts } from "./home-aggregate.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
-import { htmlLang, L } from "./web-locale.js";
+import { htmlLang } from "./web-locale.js";
 import { assistantPortsFor } from "./web-catalog-index-routes.js";
 import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { WebRoute } from "./web-route-table.js";
@@ -68,7 +68,7 @@ export const sideViewRoute: WebRoute<ProjectRequestContext> = { id: "side-view",
   if (!html) {
     // Shown inside the panel's frame: a sentence in the panel's colours, not a JSON body.
     response.writeHead(404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
-    response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(L("这个侧栏内容已经不在了（插件可能已停用）"))}</body></html>`);
+    response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(uiText.text("workbench.project-platform-routes.side-panel-content-gone-plugin-may-have-been"))}</body></html>`);
     return true;
   }
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
@@ -294,6 +294,6 @@ export const projectNotFoundRoute: WebRoute<ProjectRuntimeContext> = { id: "not-
     response.end();
     return true;
   }
-  sendJson(response, 404, { error: L("页面或接口不存在") });
+  sendJson(response, 404, { error: uiText.text("workbench.project-platform-routes.page-api-not-found") });
   return true;
 } };

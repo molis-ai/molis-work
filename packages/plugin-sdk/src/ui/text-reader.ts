@@ -7,6 +7,7 @@ export interface TextReaderInput {
   readonly packs: readonly UiLocalePack[];
   /** `null` reads each owner's default language. */
   readonly locale: string | null;
+  readonly intlLocale?: UiTextProvider["intlLocale"];
   readonly problem?: UiTextProvider["problem"];
 }
 

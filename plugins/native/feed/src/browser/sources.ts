@@ -3,6 +3,8 @@ import type { FeedSourceRunRecord } from "../projection.js";
 import { feedRunFailure, feedRunHttpStatus } from "../source-presentation.js";
 import type { FeedPage } from "./factory.js";
 
+const uiText = globalThis.t;
+
 /**
  * After these the schedule may have been saved: the page lost the answer (`ui_host.*`), or the platform could not confirm
  * the call's outcome (the same `actions.*` codes the SDK's action cards treat as unknown, W2-18-CARD-UNKNOWN-01).
@@ -14,10 +16,9 @@ interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: FeedSourceRunRecord }
 
 function showSyncResult(host: FeedPage["host"], { created, deduped, run }: SyncAnswer): void {
-  const L = host.translate;
-  const reason = run && feedRunFailure({ ...run, http_status: feedRunHttpStatus(run.receipt) }, L);
-  if (reason) host.showToast(L("拉取失败。{reason}", { reason }), true);
-  else host.showToast(L("拉取完成：新增 {created}，去重 {deduped}", { created: created || 0, deduped: deduped || 0 }));
+  const reason = run && feedRunFailure({ ...run, http_status: feedRunHttpStatus(run.receipt) });
+  if (reason) host.showToast(uiText.text("feed.sources.pull-failed-reason", { reason }), true);
+  else host.showToast(uiText.text("feed.sources.pull-complete-created-new-deduped-deduplicated", { created: created || 0, deduped: deduped || 0 }));
 }
 
 const OPEN_CONFIG = "[data-feed-task-config]:not([hidden])", ADD_FORM = "[data-feed-add-form]", REGISTER = "[data-feed-source-register]", SOURCE_ROW = "[data-source-entry-id]";
@@ -57,17 +58,17 @@ function beginSourceOperation(page: FeedPage, button: HTMLButtonElement) {
  * same card when there is no account at all).
  */
 function sourceAccounts(page: FeedPage, status: (area: ParentNode | null, message: unknown) => void, changed: () => Promise<void>) {
-  const { host, q } = page, L = host.translate, added = new Set<string>();
+  const { host, q } = page, added = new Set<string>();
   const reflectChoice = (region: HTMLElement, choice: UiConnectionSlotChoice | null) => {
     const select = q<HTMLSelectElement>("[data-plugin-record-slot-account]", region);
-    if (select) { select.replaceChildren(new Option(choice?.label || L("请选择账号连接"), choice?.connection_id || "")); select.disabled = Boolean(choice); }
+    if (select) { select.replaceChildren(new Option(choice?.label || uiText.text("feed.sources.choose-account-connection"), choice?.connection_id || "")); select.disabled = Boolean(choice); }
     let button = q<HTMLButtonElement>("[data-feed-account-picker]", region);
     if (!button) { button = document.createElement("button"); button.type = "button"; button.className = "mw-btn mw-btn--secondary"; button.dataset.feedAccountPicker = "true"; select?.after(button); }
-    button.textContent = choice?.label || L("请选择账号连接"); button.disabled = Boolean(choice);
+    button.textContent = choice?.label || uiText.text("feed.sources.choose-account-connection"); button.disabled = Boolean(choice);
     // The native select is a server-rendered label only. Its directory is never sent to the plugin frame.
     if (select) select.hidden = true;
     region.dataset.feedChoiceLoaded = "true";
-    status(region, L(choice ? "这个来源已经选好账号。要换账号，先断开来源。" : "为这个来源选一个账号，选好就保存。"));
+    status(region, uiText.text(choice ? "feed.sources.source-has-account-use-another-disconnect-source-first" : "feed.sources.choose-account-source-saves-once"));
   };
   const loadChoice = async (region: HTMLElement) => {
     if (region.dataset.loading || region.dataset.feedChoiceLoaded) return; region.dataset.loading = "true";
@@ -90,7 +91,7 @@ function sourceAccounts(page: FeedPage, status: (area: ParentNode | null, messag
     status(region, "");
     try {
       const outcome = await host.connectionNeed(place, { kind: "slot", slot_id: slot.slot_id, record_key: slot.record_key }, { signal: page.signal() }); check();
-      if (outcome.status !== "connected") { if (picker) picker.hidden = false; status(region, L("为这个来源选一个账号，选好就保存。")); return; }
+      if (outcome.status !== "connected") { if (picker) picker.hidden = false; status(region, uiText.text("feed.sources.choose-account-source-saves-once")); return; }
       const result = await page.api<SyncAnswer>("/sources/" + encodeURIComponent(slot.record_key) + "/sync", "POST", { idempotency_key: pull }); check();
       await changed();
       showSyncResult(host, result);
@@ -104,7 +105,7 @@ function sourceAccounts(page: FeedPage, status: (area: ParentNode | null, messag
 }
 
 function showSourcePanel(page: FeedPage, view: string, kind: string): HTMLElement | undefined {
-  const { host, q, all } = page, L = host.translate;
+  const { host, q, all } = page;
   page.panel = view;
   const dialog = q("[data-feed-sources-dialog]"), workbench = q("[data-feed-workbench]") || host.root;
   if (!dialog) return;
@@ -116,9 +117,9 @@ function showSourcePanel(page: FeedPage, view: string, kind: string): HTMLElemen
   }
   dialog.hidden = view === "messages"; workbench.dataset.feedView = view === "choose" || setup ? "add" : view;
   if (view === "messages") return;
-  const titles: Record<string, string> = { research_library: "共享研究库", custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
-  const title = q("h2", dialog); if (title) title.textContent = L(config ? view === "rules" ? "捕捉规则" : "来源设置" : setup ? titles[kind] || "添加来源" : "添加来源");
-  const description = q("[data-feed-setup-description]", dialog); if (description) description.textContent = L(config ? view === "rules" ? "在这里写规则、预览，再决定哪些消息进入 Inbox。" : "管理来源内容、拉取频率和连接状态。" : setup ? "添加后可设置拉取计划与捕捉规则。" : "选择你想关注的内容来源。");
+  const titles: Record<string, string> = { research_library: "feed.sources.research-library", custom_rss: "RSS / Atom", rss: "feed.sources.directory-feeds", web_query: "feed.sources.web-search", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
+  const title = q("h2", dialog); if (title) title.textContent = uiText.text(config ? view === "rules" ? "feed.sources.capture-rules" : "feed.sources.source-settings" : setup ? titles[kind] || "feed.sources.add-source" : "feed.sources.add-source");
+  const description = q("[data-feed-setup-description]", dialog); if (description) description.textContent = uiText.text(config ? view === "rules" ? "feed.sources.write-preview-rules-here-then-choose-which-messages" : "feed.sources.manage-source-details-pull-frequency-connection-status" : setup ? "feed.sources.after-adding-source-set-its-pull-schedule-capture" : "feed.sources.choose-source-follow");
   for (const [selector, visible] of [["[data-feed-source-choices]", !config && !setup], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", config]] as const) { const node = q(selector, dialog); if (node) node.hidden = !visible; }
   all("[data-feed-task-config]", dialog).forEach(node => node.hidden = node.dataset.feedTaskConfig !== page.selection);
   all("[data-feed-config-section]", dialog).forEach(node => node.hidden = node.dataset.feedConfigSection !== view);
@@ -130,7 +131,7 @@ function showSourcePanel(page: FeedPage, view: string, kind: string): HTMLElemen
   if (create) {
     create.hidden = Boolean(draft?.hidden);
     create.dataset.feedSourceRegister = kind;
-    create.textContent = L(draft?.dataset.createdSourceId ? "保存拉取计划" : "添加来源");
+    create.textContent = uiText.text(draft?.dataset.createdSourceId ? "feed.ui.save-pull-schedule" : "feed.sources.add-source");
   }
   const save = q<HTMLButtonElement>("[data-feed-config-submit]", dialog); if (save) { save.hidden = !config || view === "rules"; save.dataset.sourceId = page.selection; }
   reflectSourceBusy(page, dialog);
@@ -141,7 +142,7 @@ function showSourcePanel(page: FeedPage, view: string, kind: string): HTMLElemen
 
 /** Source selection/configuration belongs to this mount; account choice belongs to the trusted Host. */
 export function feedSources(page: FeedPage) {
-  const { host, q, all } = page, L = host.translate;
+  const { host, q, all } = page;
   let filter = "all", previous = "all";
   const field = (area: ParentNode, selector: string) => q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector, area)?.value || "";
   const status = (area: ParentNode | null, message: unknown) => {
@@ -170,8 +171,8 @@ export function feedSources(page: FeedPage) {
     if (host.mount?.surface === "source-workbench") { const region = q('[data-source-detail="' + CSS.escape(id) + '"] [data-plugin-record-slot]'); if (region) void loadChoice(region).catch(error => page.error(error, q("[data-feed-connection-status]", region))); }
     const chosen = all("[data-feed-task]").find(node => node.dataset.feedTask === id);
     const title = q("[data-feed-task-title]"), summary = q("[data-feed-task-summary]");
-    if (title) title.textContent = chosen?.querySelector("strong")?.textContent || L("全部消息");
-    if (summary) summary.textContent = chosen?.dataset.feedSourceSummary || L("所有来源的最新内容");
+    if (title) title.textContent = chosen?.querySelector("strong")?.textContent || uiText.text("feed.sources.all-messages");
+    if (summary) summary.textContent = chosen?.dataset.feedSourceSummary || uiText.text("feed.sources.latest-updates-all-sources");
     all('button[data-feed-view]:not([data-feed-view="messages"]),.feed-source-tabs').forEach(node => node.hidden = id === "all" || id === "other");
     const sync = q<HTMLButtonElement>("[data-feed-current-sync]"); if (sync) { sync.hidden = id === "all" || id === "other"; sync.dataset.feedSourceSync = id; sync.disabled = chosen?.dataset.feedSourceCanSync !== "true" || chosen.dataset.feedSourceState === "syncing"; }
     const workbench = q("[data-feed-workbench]") || host.root;
@@ -183,7 +184,7 @@ export function feedSources(page: FeedPage) {
   const filterSources = () => {
     const rows = all(SOURCE_ROW); let count = 0;
     rows.forEach(row => { const kind = row.dataset.sourceKind; row.hidden = !(filter === "all" || filter === "account" && ["github", "gmail", "connector"].includes(kind || "") || filter === "public" && kind === "rss" || filter === "attention" && row.dataset.sourceStatus === "attention"); if (!row.hidden) count++; });
-    const countNode = q("[data-source-result-count]"); if (countNode) countNode.textContent = L("{count} 个来源", { count });
+    const countNode = q("[data-source-result-count]"); if (countNode) countNode.textContent = uiText.text("feed.sources.count-count", { count });
     const empty = q("[data-source-empty]"); if (empty) empty.hidden = count > 0;
   };
   const run = async (button: HTMLButtonElement, work: () => Promise<void>) => {
@@ -233,7 +234,7 @@ export function feedSources(page: FeedPage) {
         check();
         const code = String(error && typeof error === "object" && "code" in error ? error.code : "");
         const uncertain = SCHEDULE_MAY_HAVE_LANDED.has(code);
-        status(form, error)?.prepend(L(uncertain ? "来源已添加。" : "来源已添加，拉取计划未保存。"), " ");
+        status(form, error)?.prepend(uiText.text(uncertain ? "feed.sources.source-added" : "feed.sources.source-added-pull-schedule-wasn-t-saved"), " ");
         return;
       }
       host.invalidateView(); await page.refresh(); page.select(id, "open", account ? "settings" : "messages");
@@ -243,7 +244,7 @@ export function feedSources(page: FeedPage) {
   });
   const click = async (target: Element, event: MouseEvent): Promise<boolean> => {
     const pick = target.closest<HTMLButtonElement>("[data-feed-account-picker]");
-    if (pick) { const region = pick.closest<HTMLElement>("[data-plugin-record-slot]"); if (!region) return true; await run(pick, async () => { const check = page.guard(), id = page.selection; const slot = JSON.parse(region.dataset.pluginRecordSlot!) as { slot_id: string; record_key: string }; const choice = await host.connectionSlot({ ...slot, mode: "choose", anchor: pick, signal: page.signal() }); check(); if (id !== page.selection || !choice) return; await changed(); page.select(id, "restore", "settings"); host.showToast(L(region.hasAttribute("data-feed-source-disconnected") ? "账号已保存。这个来源已断开，请点「恢复来源」再拉取。" : "账号已保存。")); }); return true; }
+    if (pick) { const region = pick.closest<HTMLElement>("[data-plugin-record-slot]"); if (!region) return true; await run(pick, async () => { const check = page.guard(), id = page.selection; const slot = JSON.parse(region.dataset.pluginRecordSlot!) as { slot_id: string; record_key: string }; const choice = await host.connectionSlot({ ...slot, mode: "choose", anchor: pick, signal: page.signal() }); check(); if (id !== page.selection || !choice) return; await changed(); page.select(id, "restore", "settings"); host.showToast(uiText.text(region.hasAttribute("data-feed-source-disconnected") ? "feed.sources.account-saved-source-disconnected-choose-resume-source-before" : "feed.sources.account-saved")); }); return true; }
     const task = target.closest<HTMLElement>("[data-feed-task],[data-feed-task-toggle],[data-open-source-record]");
     if (task) { const id = task.dataset.feedTask || task.dataset.feedTaskToggle || task.dataset.openSourceRecord || "all"; page.select(id, "open"); host.openView({ surface: "workbench", id, intent: "open" }); return true; }
     const source = target.closest<HTMLElement>(SOURCE_ROW); if (source) { openSource(source); return true; }
@@ -259,7 +260,7 @@ export function feedSources(page: FeedPage) {
     const reset = target.closest("[data-source-schedule-reset]");
     if (reset) { const area = reset.closest("[data-feed-plan-region]"); if (area) resetSourceControls(area); return true; }
     const configSave = target.closest<HTMLButtonElement>("[data-source-config-save]");
-    if (configSave) { await run(configSave, async () => { const area = configSave.closest("[data-source-detail]") || q(OPEN_CONFIG); if (!area) return; const read = (name: string) => field(area, '[data-source-config-field="' + name + '"]'); if (all<HTMLInputElement>("[data-source-config-field]", area).some(input => !input.reportValidity())) return; await page.api("/sources/" + encodeURIComponent(configSave.dataset.sourceId!), "PATCH", { name: read("name") === q<HTMLInputElement>('[data-source-config-field="name"]', area)?.defaultValue ? undefined : read("name"), description: read("description"), scope: read("scope") || undefined, feed_url: read("feed_url") || undefined }); await changed(); host.showToast(L("来源资料已保存。")); }); return true; }
+    if (configSave) { await run(configSave, async () => { const area = configSave.closest("[data-source-detail]") || q(OPEN_CONFIG); if (!area) return; const read = (name: string) => field(area, '[data-source-config-field="' + name + '"]'); if (all<HTMLInputElement>("[data-source-config-field]", area).some(input => !input.reportValidity())) return; await page.api("/sources/" + encodeURIComponent(configSave.dataset.sourceId!), "PATCH", { name: read("name") === q<HTMLInputElement>('[data-source-config-field="name"]', area)?.defaultValue ? undefined : read("name"), description: read("description"), scope: read("scope") || undefined, feed_url: read("feed_url") || undefined }); await changed(); host.showToast(uiText.text("feed.sources.source-details-saved")); }); return true; }
     const schedule = target.closest<HTMLButtonElement>("[data-source-schedule-save]");
     if (schedule) { await run(schedule, async () => { const area = schedule.closest("[data-source-detail]") || q(OPEN_CONFIG); if (!area) return; const mode = field(area, "[data-source-schedule-mode]") || "manual"; await page.api("/sources/" + encodeURIComponent(schedule.dataset.sourceId!) + "/schedule", "PUT", mode === "manual" ? { mode } : { mode, enabled: Boolean(q<HTMLInputElement>("[data-source-schedule-enabled]", area)?.checked), interval_minutes: Number(field(area, "[data-source-schedule-interval]")) || 60 }); await changed(); }); return true; }
     const runtime = target.closest<HTMLButtonElement>("[data-source-runtime-action],[data-feed-source-toggle],[data-feed-source-sync]");
@@ -270,11 +271,11 @@ export function feedSources(page: FeedPage) {
         const result = await page.api<SyncAnswer>("/sources/" + encodeURIComponent(id) + "/" + action, "POST", action === "sync" ? { idempotency_key: crypto.randomUUID() } : {});
         await changed();
         if (action === "sync") showSyncResult(host, result);
-        else host.showToast(L(action === "pause" ? "来源已暂停；消息与历史仍保留。" : action === "resume" ? "来源已恢复。" : "账号已断开，后续不会再拉取。"));
+        else host.showToast(uiText.text(action === "pause" ? "feed.sources.source-paused-messages-history-retained" : action === "resume" ? "feed.sources.source-resumed" : "feed.sources.account-disconnected-no-further-pulls-will-run"));
       });
       return true;
     }
-    const remove = target.closest<HTMLButtonElement>("[data-source-delete]"); if (remove) { await run(remove, async () => { const check = page.guard(); const yes = await host.confirm(L(remove.dataset.sourceDelete === "delete_local_history" ? "确认删除这个来源及其本地消息、资料、Inbox 引用和运行记录？此操作无法从 Molis Work 恢复。" : "确认删除这个来源并停止拉取？已有消息和运行历史会保留。 ")); check(); if (!yes) return; await page.api("/sources/" + encodeURIComponent(remove.dataset.sourceId!), "DELETE", { history_decision: remove.dataset.sourceDelete }); await changed(); show("messages"); }); return true; }
+    const remove = target.closest<HTMLButtonElement>("[data-source-delete]"); if (remove) { await run(remove, async () => { const check = page.guard(); const yes = await host.confirm(uiText.text(remove.dataset.sourceDelete === "delete_local_history" ? "feed.sources.delete-source-together-its-local-messages-materials-inbox" : "feed.sources.delete-source-stop-pulling-existing-messages-run-history")); check(); if (!yes) return; await page.api("/sources/" + encodeURIComponent(remove.dataset.sourceId!), "DELETE", { history_decision: remove.dataset.sourceDelete }); await changed(); show("messages"); }); return true; }
     return false;
   };
   return { click, select, show };

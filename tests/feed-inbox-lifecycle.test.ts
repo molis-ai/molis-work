@@ -322,7 +322,7 @@ esac
       const owner: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS] };
       const client = host.actionClient(molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID }));
       const sync = (key: string) => client.invoke(owner, feedSourceActions.sync, { source_id: source.source_id, idempotency_key: key });
-      const items = () => service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id);
+      const items = () => [...service.feed.reads.items(DEMO_PROJECT_ID, source.source_id)].map(item => service.feed.getFeedItem(DEMO_PROJECT_ID, item.item_id));
       publish("第一版结论");
       assert.equal((await sync("research-sync-one")).created, 1);
       assert.equal(items()[0]!.title, "第一版结论");

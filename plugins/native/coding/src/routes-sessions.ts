@@ -318,7 +318,7 @@ const ROUTES: RouteMaker[] = [
       if (control.kind !== "answer") return { accepted: true };
       // The answer's receipt, in the words the page shows. A round parked at a restart ended with the answer; the next round
       // takes it from the session's queue, or, refused, it waits there for 「从断点继续」.
-      const say = codingText(execution.locale);
+      const say = codingText;
       if (!question?.parked) return { accepted: true, message: say("coding.server.answered") };
       const next = busy.has(record.session_id) ? { started: false as const, reason: say("coding.server.submitting") } : await (async () => {
         busy.add(record.session_id);

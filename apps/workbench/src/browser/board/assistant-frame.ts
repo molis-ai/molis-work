@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * The component board's Assistant frame (apps/workbench/src/assistant-board-frame.ts, specs/visual-ui-experience VUX-39): a
  * stand-in for the Host that answers the shipped island from fixed works, and the frame's two simulated actions.
@@ -18,16 +19,16 @@
  *   and a picture the stand-in Host refuses, so the strip shows the parts that failed beside the one that went in.
  */
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 type Json = Record<string, unknown>;
 type View = { work: Json & { work_id: string }; [key: string]: unknown };
-type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>; executors: Json[];
+type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>; executors: AssistantExecutorOffer[];
   next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }>;
   /** The lines beside each field for a questionnaire answer the Runtime refuses, by question, as the Host drew them. */
   refused: Record<string, Record<string, string>> };
-type Page = Window & { L?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
+type Page = Window & { readText?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
 
 const page = window as Page;
-const L = (text: string, values?: Record<string, string | number>) => page.L ? page.L(text, values) : text;
 const one = <T extends Element = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const data = JSON.parse(one("#mw-asst-data").textContent ?? "{}") as { samples: Samples; current: string | null; answer: "ok" | "refused" };
 const S = data.samples;
@@ -54,7 +55,7 @@ HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOption
 const versions = new Map<string, number>(S.works.map((work) => [work.work_id, 1]));
 const waiting = new Map<string, Array<() => void>>();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const refuse = () => json({ error: L("样例不执行这一步（模拟）"), code: "workbench.board_sample" }, 409);
+const refuse = () => json({ error: uiText.text("workbench.assistant-frame.sample-does-not-carry-out-simulated"), code: "workbench.board_sample" }, 409);
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const answerWait = (id: string, since: string | null, signal?: AbortSignal | null) => new Promise<Response>((resolve, reject) => {
   const done = () => { clearTimeout(timer); resolve(json({ version: String(versions.get(id)), view: copy(S.views[id]) })); };
@@ -81,13 +82,16 @@ const moveOn = (id: string, next: View) => {
 const ANSWER_MS = 900;
 const answerQuestion = (id: string, body: string | null) => new Promise<Response>((resolve) => setTimeout(() => {
   const pending = String((JSON.parse(body ?? "{}") as { pending_id?: unknown }).pending_id ?? ""), errors = S.refused[pending];
-  if (data.answer === "refused" && errors) resolve(json({ error: L("回答没有交回（模拟）"), code: "assistant.invalid", details: { errors } }, 400));
+  if (data.answer === "refused" && errors) resolve(json({ error: uiText.text("workbench.assistant-frame.answer-was-not-taken-simulated"), code: "assistant.invalid", details: { errors } }, 400));
   else resolve(S.answered[id] ? moveOn(id, S.answered[id]!) : refuse());
 }, ANSWER_MS));
 
 const READS: Record<string, () => unknown> = {
   works: () => ({ works: copy(S.works) }), notices: () => ({ notices: copy(S.notices) }), characters: () => ({ characters: [] }),
-  executors: () => ({ executors: copy(S.executors) }), capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
+  executors: () => ({ executors: S.executors.map(offer => ({ ...offer, modes: offer.modes.map(mode => ({
+    ...mode, title: document.querySelector(`[data-asst-mode-word="${CSS.escape(offer.plugin_id + "/" + mode.id)}"]`)?.textContent ?? mode.title,
+  })) })) }),
+  capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
 };
 function answer(url: URL, method: string, body: string | null, signal?: AbortSignal | null): Response | Promise<Response> {
   const parts = url.pathname.slice((PREFIX + "/api/assistant/").length).split("/").map(decodeURIComponent);
@@ -112,9 +116,9 @@ function answer(url: URL, method: string, body: string | null, signal?: AbortSig
   }
   return refuse();
 }
-// The frame reaches nothing real: the stand-in answers the Assistant's reads and drafts and the attention read, and refuses every other request.
-window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = new URL(input instanceof Request ? input.url : String(input), location.href), method = (init?.method ?? "GET").toUpperCase();
+// All requests made by the island use this stand-in. The public specimen document uses the board's own language loader.
+window.molisWorkUiTransport = (input, init) => {
+  const url = new URL(input, location.href), method = (init.method ?? "GET").toUpperCase();
   if (url.origin === location.origin && url.pathname === PREFIX + "/api/attention" && method === "GET") {
     return Promise.resolve(json({ background_tasks: [], notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null }));
   }
@@ -128,9 +132,9 @@ const toast = (message: unknown) => page.molisWorkRequest?.toast(toastNode, type
 // 推进一步: the running work's next view, as the Host would hand it to the island's long wait.
 one("[data-asst-advance]").addEventListener("click", () => {
   const id = Object.keys(S.next).find((key) => S.next[key]!.length);
-  if (!id) { status.textContent = L("样例已经走完了"); return; }
+  if (!id) { status.textContent = uiText.text("workbench.assistant-frame.sample-has-no-more-steps"); return; }
   moveOn(id, S.next[id]!.shift()!);
-  status.textContent = L("已推进一步");
+  status.textContent = uiText.text("workbench.assistant-frame.moved-one-step");
 });
 
 // 带上三个文件: one the island reads, one it will not take, one the stand-in Host refuses to read.
@@ -150,7 +154,7 @@ one("[data-asst-attach]").addEventListener("click", () => {
   project: S.project,
   route: (path: string) => PREFIX + path,
   toast,
-  openItem: (_surface: string, _id: string, title: string) => toast(L("样例里不打开「{title}」（模拟）", { title })),
+  openItem: (_surface: string, _id: string, title: string) => toast(uiText.text("workbench.assistant-frame.sample-does-not-open-title-simulated", { title })),
   /** Opens the panel on the starting work (or a new one) the way a page asks the Assistant to open. */
   start(island: unknown) {
     document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: data.current ? { work_id: data.current } : { new: true } }));

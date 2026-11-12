@@ -14,9 +14,9 @@ export const BUTTON_STYLES = `
     background: var(--control-fill);
     color: var(--ink);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--type-control-size, 13px);
     font-weight: var(--weight-control, 500);
-    line-height: 1;
+    line-height: var(--type-control-line-height, 1);
     letter-spacing: -.01em;
     box-shadow: none;
     cursor: pointer;

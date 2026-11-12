@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
 import type { createTerminalPanels } from "./panels.js";
@@ -16,7 +16,7 @@ export interface TerminalViewOptions {
 
 /** Paint the tabs, the visible screen and the buttons from the panel list; owns no state of its own. */
 export function createTerminalView(options: TerminalViewOptions) {
-  const { els, text: L, screens, guard, setStatus } = options;
+  const { els, screens, guard, setStatus } = options;
   const { tabsEl, emptyEl, ownerTitleEl, advanceBtn, copyBtn, fillBtn, reopenBtn } = els;
 
   const renderTabs = () => {
@@ -25,18 +25,18 @@ export function createTerminalView(options: TerminalViewOptions) {
       const active = panel.panel_id === controller.activeId ? " is-active" : "";
       const exited = panel.status === "exited" ? " is-exited" : "";
       const close = guard.readOnly()
-        ? `<small class="tui-tab-readonly">${escapeHtml(L("只读"))}</small>`
-        : `<span class="tui-tab-close" data-tui-close="${escapeHtml(panel.panel_id)}" aria-label="${escapeHtml(L("关闭终端"))}"><svg aria-hidden="true"><use href="#icon-x"></use></svg></span>`;
-      return `<button class="tui-tab${active}${exited}" type="button" data-tui-select="${escapeHtml(panel.panel_id)}" title="${escapeHtml(`${ownerTitleEl?.textContent || L("当前 Goal")} · ${panel.title}`)}"><span class="tui-tab-title">${escapeHtml(panel.title)}</span>${close}</button>`;
+        ? `<small class="tui-tab-readonly">${escapeHtml(uiText.text("workbench.client-view.read-only"))}</small>`
+        : `<span class="tui-tab-close" data-tui-close="${escapeHtml(panel.panel_id)}" aria-label="${escapeHtml(uiText.text("workbench.client-view.close-terminal"))}"><svg aria-hidden="true"><use href="#icon-x"></use></svg></span>`;
+      return `<button class="tui-tab${active}${exited}" type="button" data-tui-select="${escapeHtml(panel.panel_id)}" title="${escapeHtml(`${ownerTitleEl?.textContent || uiText.text("workbench.client-view.current-goal")} · ${panel.title}`)}"><span class="tui-tab-title">${escapeHtml(panel.title)}</span>${close}</button>`;
     }).join("");
   };
 
   const paintStatus = (live: boolean, hasPanel: boolean, belongsHere: boolean) => {
     if (!hasPanel) setStatus("");
-    else if (guard.readOnly()) setStatus(L("历史终端只读；请到具体的子 Goal 继续。"));
-    else if (!belongsHere) setStatus(L("这个终端属于另一条 Goal，当前不可操作。"), "error");
-    else if (live) setStatus(L("终端已连接"), "live", "connected");
-    else setStatus(L("终端进程已不在，可重新打开"), "idle", "disconnected");
+    else if (guard.readOnly()) setStatus(uiText.text("workbench.client-view.historical-terminal-read-only-continue-specific-child-goal"));
+    else if (!belongsHere) setStatus(uiText.text("workbench.client-view.terminal-belongs-another-goal-cannot-be-controlled-here"), "error");
+    else if (live) setStatus(uiText.text("workbench.client-view.terminal-connected"), "live", "connected");
+    else setStatus(uiText.text("workbench.client-view.terminal-process-gone-can-reopen"), "idle", "disconnected");
   };
 
   const showTerminal = (panelId: string | null) => {

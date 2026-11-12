@@ -4,7 +4,7 @@ import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-con
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { pageLocale } from "./web-locale.js";
+import { activeLocale, inLanguagePreview } from "./web-locale.js";
 import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runningProjectPlatform } from "./project-plugins.js";
@@ -22,7 +22,7 @@ export interface LocalWebStageRead {
 }
 
 /** What the Host's own entry adds to the person's call: the file the person handed it (an import), never any authority. */
-export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction; readonly stage_read?: LocalWebStageRead };
+export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction; readonly stage_read?: LocalWebStageRead; readonly assertCurrent?: () => void };
 
 /** One scene run keeps its actual plugin owner's checks, including while a different provider judges its input. */
 export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view: ActionSceneView, reference?: LocalHostProjectReference): Promise<() => void> {
@@ -36,9 +36,10 @@ export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view
 
 function localPersonCaller(reference: LocalHostProjectReference | undefined, permissions: readonly string[], signal?: AbortSignal,
   originalFile?: ActionCallContext["original_file"]): ActionCallContext {
-  const locale = pageLocale();
+  const locale = activeLocale();
   return { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions, signal,
-    ...(locale ? { locale } : {}), ...(originalFile ? { original_file: originalFile } : {}) };
+    ...(locale ? { locale } : {}), ...(originalFile ? { original_file: originalFile } : {}),
+    ...(inLanguagePreview() ? { read_only_effects: true } : {}) };
 }
 
 /** A Runtime provider's authority always comes from its installation, never from the person's Host grants. */
@@ -55,6 +56,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): Promise<ActionCallContext> {
   const sessionCurrent = captureWebSessionAuthority();
   sessionCurrent();
+  entry.assertCurrent?.();
   signal?.throwIfAborted();
   // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
   const base = localPersonCaller(reference, builtinPermissions, signal, entry.original_file);
@@ -131,6 +133,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const metadata = stage ? catalog.filter(view => accepted.includes(view) || accept(view, LOCAL_OWNER_PERMISSIONS)) : [];
   const assertAuthority = (action?: ActionReference, required: readonly string[] = []) => {
     sessionCurrent();
+    entry.assertCurrent?.();
     signal?.throwIfAborted();
     owner?.assertCurrent();
     if (!required.every(permission => permissions.includes(permission))) throw localAuthorityRefused();

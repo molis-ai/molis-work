@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { buildSync } from "esbuild";
 import type { UiTerminalEvent, UiTerminalCommand, UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
-import { SHELF_MESSAGES } from "@molis-ai/molis-work-plugin-shelf";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 // RAC-717: the terminal well is Shelf's own browser code (src/browser/terminal.ts); the platform's entry no longer carries it.
 const compiled = buildSync({ entryPoints: [fileURLToPath(new URL("../plugins/native/shelf/src/browser/terminal.ts", import.meta.url))],
@@ -16,20 +16,13 @@ const flush = async () => { await new Promise(resolve => setImmediate(resolve));
 
 // Production queue controller; the common terminal API is the boundary being simulated here.
 // Real backend authorization and browser keyboard/replay run in security-invariants-plugin-terminals*.
-/** The page's translator, as the Host gives it: the stable key in the page's language (RAC-1321). */
-const shelfWords = (english: boolean) => (key: string) => {
-  const text = SHELF_MESSAGES[key as keyof typeof SHELF_MESSAGES];
-  assert.ok(text, key);
-  return english ? text.en : text.zh;
-};
-
 function fixture(options: { english?: boolean } = {}) {
   const window = new EventTarget(), recovered: Recovery[] = [], requests: string[] = [], writes: UiTerminalCommand[] = [];
   let mounted: UiTerminalMountOptions | undefined, unavailable = false, failedWrite = false, disposed = 0;
   window.addEventListener("molis-shelf-tui-unsent", event => recovered.push(structuredClone((event as CustomEvent<Recovery>).detail)));
   const screen = { dataset: {} };
   const context = {
-    module: { exports: {} as { installTerminal(page: unknown): void } }, window, CustomEvent,
+    module: { exports: {} as { installTerminal(page: unknown): void } }, window, CustomEvent, document: { documentElement: {} },
     molisWorkShelfTui: undefined as Bridge | undefined,
     async molisWorkRequest(path: string, options: { body: Record<string, unknown> }) {
       requests.push(path); assert.equal(JSON.stringify(options.body), "{}", "the page cannot choose a command or working directory");
@@ -44,8 +37,9 @@ function fixture(options: { english?: boolean } = {}) {
     },
   };
   const page = { bench: { querySelector: () => screen }, api: "/projects/fixture/api/plugins/io.molis.work.shelf",
-    lifetime: { signal: new AbortController().signal }, L: shelfWords(options.english === true) };
-  runInNewContext(compiled, context, { filename: "shelf-terminal.js" }); context.module.exports.installTerminal(page);
+    lifetime: { signal: new AbortController().signal } };
+  runInNewContext(`${pageTextScript(options.english ? "en" : "zh", "shelf")}\n${compiled}`, context, { filename: "shelf-terminal.js" });
+  context.module.exports.installTerminal(page);
   assert.ok(context.molisWorkShelfTui); const bridge = context.molisWorkShelfTui;
   return { bridge, recovered, requests, writes, get disposed() { return disposed; },
     event(event: UiTerminalEvent) { assert.ok(mounted); mounted.onEvent?.(event); },

@@ -1,3 +1,6 @@
+import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
+import { directoryWordResolver } from './ui-text-provider.js';
+import { activeLocale } from './web-locale.js';
 /**
  * Installing a plugin from a signed package (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.1): a sandbox
  * package, or the content package of a plugin with only declarations (specs/skill-packs/contract-design.md §3, §5). One path for every
@@ -25,6 +28,7 @@ import { isPendingUninstall } from './installed-plugin-lifecycle.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
 import { sandboxProjectedPermissions, sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { assertConnectorText, connectorWords } from "./connector-words.js";
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 import { readBundledPackages } from './bundled-packages.js';
 import type { PackageControlOutcome } from './uninstall-retained.js';
@@ -72,7 +76,6 @@ export interface BundledPluginView {
   plugin_id: string;
   version: string;
   name: string;
-  name_en: string | null;
   summary: string | null;
   runtime_scope: 'home' | 'project';
   publisher: { publisher_id: string; key_id: string; pinned_label: string | null; revoked: boolean };
@@ -182,10 +185,12 @@ export class PluginInstallService {
   async bundled(): Promise<BundledPluginList> {
     const { packages, refused } = this.ports.bundledDirectory ? await readBundledPackages(this.ports.bundledDirectory) : { packages: [], refused: [] };
     const pins = this.ports.ledger.publishers();
+    const locale = activeLocale();
     return {
-      plugins: packages.map(({ manifest, key_id }) => {
+      plugins: packages.map(({ manifest, key_id, localePacks }) => {
         const pin = pins.find(item => item.key_id === key_id);
-        return { plugin_id: manifest.plugin_id, version: manifest.version, name: manifest.name, name_en: manifest.name_en ?? null, summary: manifest.summary ?? null,
+        const { name, summary } = projectDirectoryWords(manifest, localePacks && locale ? directoryWordResolver(localePacks, locale) : undefined);
+        return { plugin_id: manifest.plugin_id, version: manifest.version, name, summary: summary ?? null,
           runtime_scope: scopeOf(manifest), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
       }),
       refused: refused.map(({ file, error }) => ({ file, code: error.code, message: error.message })),
@@ -215,6 +220,7 @@ export class PluginInstallService {
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
+    if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
     assertNotHostId(manifest.plugin_id);
     const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
@@ -232,13 +238,16 @@ export class PluginInstallService {
     if (caller) await caller.beforeEffect();
     assertInstallAuthority(caller);
     const pin = this.assertPublisherStanding(key_id);
+    const word = connectorWords(manifest.plugin_id, pkg.localePacks);
     const preview_id = randomUUID();
-    const view: PluginInstallPreviewResult = { preview_id, name: manifest.name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
+    const locale = activeLocale();
+    const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
+    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
         permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
-        ? [{ service_id: service.service_id, title: service.title, origins: [...service.origins] }] : []) } : {} };
+        ? [{ service_id: service.service_id, title: word(service.title), origins: [...service.origins] }] : []) } : {} };
     const now = Date.now();
     for (const [id, entry] of this.held) if (entry.expires <= now) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value!);

@@ -427,7 +427,7 @@ test('HTTP control gate, persisted selection, Google PKCE start, cancellation an
   const callback='/api/feed/connectors/gmail/oauth/callback';
   assert.equal((await fetch(origin+'/api/onboarding/context',{method:'POST',body:'{}'})).status,403);
   await post('/api/onboarding/context',{id});await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'gmail',selected:true,days:7}],auto_start:true});
-  const metadata=await(await fetch(origin+'/api/onboarding/context')).json();assert.equal(metadata.resume.id,id);assert.equal(metadata.resume.title,'未完成的整理');
+  const metadata=await(await fetch(origin+'/api/onboarding/context')).json();assert.equal(metadata.resume.id,id);assert.equal(metadata.resume.title,null);
   const begun=await start('One');
   const consent=new URL(begun.authorization_url);assert.equal(consent.hostname,'accounts.google.com');assert.equal(consent.searchParams.get('code_challenge_method'),'S256');assert.equal(consent.searchParams.get('redirect_uri'),origin+callback);
   const cancelled=await fetch(origin+callback+'?error=access_denied&state='+begun.state,{redirect:'manual'});assert.equal(cancelled.status,302);assert.match(cancelled.headers.get('location')!,new RegExp('journey='+id+'&oauth=cancelled'));assert.equal(readContextJourney(dir,id).auto_start,false);/* A late code for a finished state is refused before any exchange; the browser returns to settings with the reason. */const late=await fetch(origin+callback+'?code=late-code&state='+begun.state,{redirect:'manual'});assert.equal(late.status,302);assert.match(late.headers.get('location')!,/connection_error=failed/);assert.equal(readContextJourney(dir,id).auto_start,false);assert.equal(readContextJourney(dir,id).oauth_status,'cancelled');

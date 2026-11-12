@@ -10,6 +10,7 @@ import { pendingUpgradeUnits, runHomeUpgrade } from "./home-upgrade.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH, sendWebHealth } from "./web-control-token.js";
 import { refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
+import { installHostUiText } from "./ui-text-provider.js";
 
 /** Which Homes a start has to bring up to date before it can serve. The root Home always comes first when it is among them (§5.2: one large account must not hold it back). */
 export interface HomeUpgradePlan {
@@ -96,6 +97,7 @@ export interface UpgradeMaintenanceOptions {
  * Resolves when the listener is closed, whatever became of the upgrade: the ordinary start comes next and says what is wrong, if anything is.
  */
 export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onListening }: UpgradeMaintenanceOptions): Promise<void> {
+  installHostUiText();
   const started_at = Date.now(), token = readExistingControlToken(home);
   let done = 0;
   const answer = (request: IncomingMessage, response: ServerResponse) => {

@@ -206,7 +206,7 @@ export class FeedSourceService {
 
   dueSources(at: Date = this.now()): FeedSourceRecord[] {
     const timestamp = at.getTime();
-    return this.feed.snapshot(this.projectId).sources.filter((source) => {
+    return this.feed.sources.list(this.projectId).filter((source) => {
       const schedule = source.schedule;
       if (!source.enabled || source.status === "paused" || source.status === "disconnected") return false;
       if (schedule.mode !== "interval" || !schedule.enabled || !schedule.next_pull_at) return false;

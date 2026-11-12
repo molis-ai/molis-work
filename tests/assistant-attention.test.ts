@@ -13,6 +13,7 @@ import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_RULE_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { inAssistantPage } from "./fixtures/assistant-saved-text.js";
 
 const rule = (partial: Partial<AssistantRule>): AssistantRule => ({ rule_id: "r", kind: "quiet", surfaces: [], except: [], label: "规则", enabled: true, created_at: "2026-09-28T00:00:00.000Z", ...partial });
 
@@ -100,8 +101,10 @@ test("a new work whose round fails at once, before anything looked, still raises
     const sent = await service.send({ text: "整理一下", request_id: "req-attention-fail" }, { project_ref: project });
     // Nothing reads the list while it runs; the first look finds it already failed.
     // The first look after it started finds it already failed (without a baseline at start, that look would raise nothing).
-    await until(async () => (await service.read(sent.work.work_id)).work.state === "failed", "failure");
-    await service.list();
+    await inAssistantPage("zh", async () => {
+      await until(async () => (await service.read(sent.work.work_id)).work.state === "failed", "failure");
+      await service.list();
+    });
     const onPages = service.notices.notices("pages");
     assert.deepEqual(onPages.map(notice => [notice.kind, notice.held ?? null]), [["failed", null]], "the failure comes through, the rule's exception applies");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }

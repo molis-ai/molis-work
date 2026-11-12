@@ -8,6 +8,7 @@ import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/b
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
+import { pageTextScript, withPageText } from "./fixtures/page-text.js";
 
 // Production client, lifecycle, Kernel, Studio HTTP and SQLite; model replies are controlled, no live accounts.
 // W2-18-ALCHEMIST-UI-01; W2-18-ALCHEMIST-UI-02; W2-18-ALCHEMIST-PARTIAL-01.
@@ -30,9 +31,10 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   let block: { entered: ReturnType<typeof Promise.withResolvers<void>>; release: ReturnType<typeof Promise.withResolvers<void>>;
     cancelled?: ReturnType<typeof Promise.withResolvers<void>>; completed?: ReturnType<typeof Promise.withResolvers<void>> } | undefined;
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>[hidden]{display:none!important}body{margin:0;font-family:system-ui}${ALCHEMIST_STYLES}</style></head><body>
-    ${renderAlchemistWorkbench({ primitives: { escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"), text: value => value } })}
+    ${withPageText("zh", ["alchemist"], () => renderAlchemistWorkbench({ primitives: { escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"), text: value => value } }))}
     <script src="/client.js"></script></body></html>`;
-  const script = `window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.boot=()=>(${ALCHEMIST_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,translate:value=>value,route:()=>'/api/v1',projectId:()=> 'a'});document.querySelector('[data-alchemist=workbench]').hidden=false;boot();`;
+  const script = `${pageTextScript("zh", "alchemist")}
+    window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.boot=()=>(${ALCHEMIST_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,translate:t.text,route:()=>'/api/v1',projectId:()=> 'a'});document.querySelector('[data-alchemist=workbench]').hidden=false;boot();`;
   const server = createServer(async (request, response) => {
     const path = request.url || "/"; requests.push(`${request.method} ${path}`);
     if (path === "/" || path === "/client.js") { response.writeHead(200, { "content-type": path === "/" ? "text/html; charset=utf-8" : "text/javascript" }); response.end(path === "/" ? html : script); return; }

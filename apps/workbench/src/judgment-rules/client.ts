@@ -8,7 +8,7 @@ import { FUNCTIONS_CLIENT_KEEP_PART } from "./client-keep.js";
  * readers, the four sibling files hold the rest as parts joined in place, in order.
  */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, api, root, page } = host;
+  const { translate: readText, api, root, page } = host;
   const bench = root.matches?.("[data-functions=workbench]") ? root : root.querySelector("[data-functions=workbench]");
   if (!bench || bench.dataset.bound === "1") return; bench.dataset.bound = "1";
   const list = bench.querySelector("[data-functions=directory]");
@@ -57,7 +57,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const next = bench.querySelector("[data-functions-next]");
     prev.hidden = step === "look";
     next.hidden = step === "use";
-    next.textContent = step === "look" ? L("下一步：判断规则") : L("下一步：试跑与启用");
+    next.textContent = step === "look" ? globalThis.t.text("workbench.judgment-rules-client.next-judgment-rules") : globalThis.t.text("workbench.judgment-rules-client.next-test-activate");
     bench.querySelector("[data-functions-columns]").scrollTop = 0;
     // What waits on another step is marked there, and a kept row drawn while its step was hidden is measured now.
     paintDots(); fitFolds();
@@ -104,8 +104,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const matches = cat.destinations.filter(row => matchesScene(row, ref));
     return matches.length === 1 ? matches[0] : id ? {
       destination_id: id, scene_version: ref.scene_version, provider_id: ref.scene_provider_id,
-      kind: "event", title: L("原用途不可用"), when: "", subject_kinds: [], option_ids: [],
-      availability: { available: false, reason: L(matches.length > 1 ? "请为原用途选择具体版本。" : "当前范围未注册原用途，请检查插件状态或重新选择。") },
+      kind: "event", title: globalThis.t.text("workbench.judgment-rules-client.original-purpose-unavailable"), when: "", subject_kinds: [], option_ids: [],
+      availability: { available: false, reason: globalThis.t.text(matches.length > 1 ? "workbench.judgment-rules-client.choose-specific-version-original-purpose" : "workbench.judgment-rules-client.original-purpose-isn-t-registered-scope-check-plugin") },
     } : null;
   };
   const optionMatches = (row, dst, rec = sel) => {
@@ -120,13 +120,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     effect: "read",
     source: "system",
     plugin_id: "system",
-    plugin_title: L("系统"),
+    plugin_title: globalThis.t.text("workbench.judgment-rules-client.system"),
     subject_kinds: [],
     clickable: true,
   };
   const optionTitle = (beh) => beh.source === "mcp" && beh.hint
-    ? L(beh.hint).split(/[。\\n]/)[0]
-    : L(beh.title);
+    ? beh.hint.split(/[。\\n]/)[0]
+    : beh.title;
   const outputLabel = (rec, key) => {
     const beh = cat.options.find((row) => row.option_id === key && (!row.destination_id || optionMatches(row, rec.scene_id, rec)));
     if (beh) return optionTitle(beh);
@@ -136,8 +136,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const destTitle = (recOrId) => {
     const id = recOrId && typeof recOrId === "object" ? recOrId.scene_id : recOrId;
     const dest = destOf(id, typeof recOrId === "object" ? recOrId : sel);
-    if (dest?.title) return L(dest.title) + (dest.scene_version ? " · v" + dest.scene_version : "");
-    return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
+    if (dest?.title) return dest.title + (dest.scene_version ? " · v" + dest.scene_version : "");
+    return id === "home.dock" ? globalThis.t.text("workbench.judgment-rules-client.home") : id === "inbox.next" ? "Inbox" : id === "feed.capture" ? "Feed" : id === "agent.mcp" ? "Agent" : globalThis.t.text("workbench.judgment-rules-client.none");
   };
   const optionIds = () => new Set(cat.options.filter(row => !row.destination_id || optionMatches(row, destKey())).map((row) => row.option_id));
   const matchesSubjects = (beh, kinds) => {
@@ -189,13 +189,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const dest = destOf(dst);
     const follow = followContext(readKeys());
     if (dest && dest.kind === "event" && follow && hinted.length >= 2 && readKeys().every((key) => optionIds().has(key))) {
-      critHint.textContent = L("已按用途提供动作。请补充每个动作的选择条件；切换用途会更新默认动作，自定义结果会保留。");
+      critHint.textContent = globalThis.t.text("workbench.judgment-rules-client.actions-suggested-use-describe-when-choose-each-changing");
     } else if (dest && dest.kind === "event" && follow && hinted.length < 2) {
       critHint.textContent = dst === "home.dock" && !api
-        ? L("请先选择项目，再配置这个项目可用的首页动作。")
-        : hinted.length ? L("可以设置多个判断结果，再为每个结果选择对应动作。") : L("当前没有可用的推荐动作，请检查对象类型、插件状态和权限。");
+        ? globalThis.t.text("workbench.judgment-rules-client.choose-project-first-then-configure-home-actions-available")
+        : hinted.length ? globalThis.t.text("workbench.judgment-rules-client.can-set-several-judgment-results-then-choose-action") : globalThis.t.text("workbench.judgment-rules-client.no-recommended-actions-available-check-subject-type-plugin");
     } else {
-      critHint.textContent = L("至少保留两个结果，说明各自在什么情况下被选中。");
+      critHint.textContent = globalThis.t.text("workbench.judgment-rules-client.keep-least-two-results-explain-when-each-should");
     }
   };
   const syncPanel = () => {
@@ -248,17 +248,17 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const line = String(rec.instructions || "").trim().split("\\n")[0].trim();
     if (line) bits.push(line);
     if (rec.primitive === "choice" && Array.isArray(rec.criteria) && rec.criteria.length) {
-      bits.push(rec.criteria.length + " " + L("选项"));
+      bits.push(rec.criteria.length + " " + globalThis.t.text("workbench.judgment-rules-client.options"));
     }
     if (rec.primitive === "score" && Array.isArray(rec.criteria) && rec.criteria.length) {
-      bits.push(rec.criteria.length + " " + L("档位"));
+      bits.push(rec.criteria.length + " " + globalThis.t.text("workbench.judgment-rules-client.levels"));
     }
-    if ((rec.samples || []).length) bits.push((rec.samples || []).length + " " + L("样例"));
-    if (rec.last_preview) bits.push(L("试过"));
-    return bits.join(" · ") || L("还没有说明");
+    if ((rec.samples || []).length) bits.push((rec.samples || []).length + " " + globalThis.t.text("workbench.judgment-rules-client.samples"));
+    if (rec.last_preview) bits.push(globalThis.t.text("workbench.judgment-rules-client.tried"));
+    return bits.join(" · ") || globalThis.t.text("workbench.judgment-rules-client.no-description-yet");
   };
 
-  const req = (method, path, body) => molisWorkRequest(path, {method, body, fallback: L("Functions 请求失败")});
+  const req = (method, path, body) => molisWorkRequest(path, {method, body, fallback: globalThis.t.text("workbench.judgment-rules-client.request-failed")});
   const showNote = (text, isError) => {
     // A refused write the editor already answered in place (client-keep) says nothing more here.
     if (isError && text?.keepEdits) return;
@@ -353,10 +353,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const row = document.createElement("div");
     row.className = "functions-criterion";
     row.innerHTML = '<code data-score-index></code>'
-      + '<input class="mw-input" data-score-level autocomplete="off" placeholder="' + L("档位说明") + '">'
-      + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-score-remove aria-label="' + L("去掉档位") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button>';
+      + '<input class="mw-input" data-score-level autocomplete="off" placeholder="' + globalThis.t.text("workbench.judgment-rules-client.level") + '">'
+      + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-score-remove aria-label="' + globalThis.t.text("workbench.judgment-rules-client.remove-level") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button>';
     row.querySelector("[data-score-level]").value = value || "";
-    row.querySelector("[data-score-level]").setAttribute("aria-label", L("档位说明") + " " + critEl.children.length);
+    row.querySelector("[data-score-level]").setAttribute("aria-label", globalThis.t.text("workbench.judgment-rules-client.level") + " " + critEl.children.length);
     critEl.append(row);
     [...critEl.querySelectorAll("[data-score-index]")].forEach((node, index) => { node.textContent = String(index); });
   };
@@ -375,33 +375,33 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     keyEl.dataset.choiceKey = "true";
     keyEl.spellcheck = false;
     keyEl.autocomplete = "off";
-    keyEl.placeholder = L("选项 key");
+    keyEl.placeholder = globalThis.t.text("workbench.judgment-rules-client.option-key");
     keyEl.value = key || "";
-    keyEl.setAttribute("aria-label", L("结果标识"));
+    keyEl.setAttribute("aria-label", globalThis.t.text("workbench.judgment-rules-client.result-key"));
     const desc = document.createElement("input");
     desc.className = "mw-input";
     desc.dataset.choiceDescription = "true";
     desc.autocomplete = "off";
-    desc.placeholder = L("怎么判断");
+    desc.placeholder = globalThis.t.text("workbench.judgment-rules-client.how-judge");
     desc.value = description || "";
-    desc.setAttribute("aria-label", L("选择此结果的条件"));
-    desc.placeholder = L("什么情况下选择这个结果？");
+    desc.setAttribute("aria-label", globalThis.t.text("workbench.judgment-rules-client.when-choose-result"));
+    desc.placeholder = globalThis.t.text("workbench.judgment-rules-client.when-should-result-be-chosen");
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "mw-btn mw-btn--ghost mw-btn--icon-only";
     remove.dataset.choiceRemove = "true";
-    remove.setAttribute("aria-label", L("去掉选项"));
+    remove.setAttribute("aria-label", globalThis.t.text("workbench.judgment-rules-client.remove-option"));
     remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     const label = document.createElement("label");
     label.className = "functions-field functions-option-condition";
     const beh = cat.options.find((item) => item.option_id === key && (!item.destination_id || optionMatches(item, destKey())));
     const caption = document.createElement("span");
-    caption.textContent = beh ? optionTitle(beh) : L("结果") + " · " + (key || "");
+    caption.textContent = beh ? optionTitle(beh) : globalThis.t.text("workbench.judgment-rules-client.result") + " · " + (key || "");
     label.append(caption, desc);
     const advanced = document.createElement("details");
     advanced.className = "functions-option-key";
     const summary = document.createElement("summary");
-    summary.textContent = L("标识");
+    summary.textContent = globalThis.t.text("workbench.judgment-rules-client.key");
     advanced.append(summary, keyEl);
     row.append(label, advanced, remove);
     critEl.append(row);

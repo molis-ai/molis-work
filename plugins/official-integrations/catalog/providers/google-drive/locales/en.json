@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.google-drive",
+  "locale": "en",
+  "messages": {
+    "google-drive.connection.auth-help": "Use drive.metadata.readonly to list files. Importing Google Docs content requires drive.readonly or drive.file.",
+    "google-drive.connection.inbound": "Project sources can read Drive files",
+    "google-drive.connection.summary": "Drive, Docs, Sheets and Slides.",
+    "google-drive.connection.token-label": "Google access token (drive.readonly)",
+    "google-drive.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",
+    "google-drive.guide.mcp-link": "View the official Drive MCP (Developer Preview)",
+    "google-drive.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work has not integrated this service.",
+    "google-drive.guide.oauth-link": "Create Google OAuth client",
+    "google-drive.guide.token-note": "Get a Drive user access token from OAuth Playground and paste it here. Replace it when it expires.",
+    "google-drive.setup.create-oauth-client": "Create OAuth client",
+    "google-drive.setup.enable-drive-api": "Enable Drive API",
+    "google-drive.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+  }
+}

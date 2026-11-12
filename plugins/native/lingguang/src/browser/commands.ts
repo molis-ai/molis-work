@@ -1,14 +1,16 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { LingguangPage, Spark } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Detail = { from?: { kind?: string; id?: string }; to?: { kind?: string }; mode?: string };
 
 /** What a click on the workbench means, in the order the buttons are tried; the first match answers. */
 export function installCommands(page: LingguangPage): void {
-  const { L, el, s, request, api } = page;
+  const { el, s, request, api } = page;
   const discardIds = async (ids: string[]) => {
     if (!ids.length) return;
-    if (!await page.ask(ids.length > 1 ? L("lingguang.discard.many") : L("lingguang.discard.one"), L("lingguang.action.discard"))) return;
+    if (!await page.ask(ids.length > 1 ? uiText.text("lingguang.discard.many") : uiText.text("lingguang.discard.one"), uiText.text("lingguang.action.discard"))) return;
     await request("POST", `${api}/discard`, { ids });
     await page.loadList();
   };
@@ -33,14 +35,14 @@ export function installCommands(page: LingguangPage): void {
     s.fates.delete(open.id);
     window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: open.id },
       ...(goal ? { goal: true } : { station: jelly ? "jelly" : "pages" }),
-      note: goal ? L("lingguang.convert.goal-note") : jelly ? L("lingguang.convert.jelly-note") : L("lingguang.convert.doc-note") } }));
+      note: goal ? uiText.text("lingguang.convert.goal-note") : jelly ? uiText.text("lingguang.convert.jelly-note") : uiText.text("lingguang.convert.doc-note") } }));
   };
   const readLink = async () => {
     await page.save();
     const url = await page.askLink();
     if (!url) return;
     const reading = await page.readMaterial(`${api}/source`, { url });
-    if (reading) await page.keepReading(reading, url, L("lingguang.reading.origin-link", { url }));
+    if (reading) await page.keepReading(reading, url, uiText.text("lingguang.reading.origin-link", { url }));
   };
   const toggleAsk = () => {
     const open = el.askForm.hidden;
@@ -108,7 +110,7 @@ export function installCommands(page: LingguangPage): void {
       const row = target.closest<HTMLElement>("[data-lingguang-id]");
       if (row && el.list.contains(row)) await pick(row, event as MouseEvent);
     } catch (error) {
-      page.showNote(messageOf(error) || L("lingguang.error.request"), true);
+      page.showNote(messageOf(error) || uiText.text("lingguang.error.request"), true);
     }
   });
   el.workspace.addEventListener("input", (event) => {

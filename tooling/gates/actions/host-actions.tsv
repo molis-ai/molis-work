@@ -101,6 +101,9 @@ agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	use
 agent.tools.kit.report	1	system.agent-tools	query	query	home	read	concurrent	user	kit:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 agent.write_checkers.list	1	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save	1	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
+appearance.selection.apply	1	system.appearance	command	operation	home	write	-	user	appearance:write	-	-	-	483da920ab6f	57b94ef149dc	a4dfb41b6e2a
+appearance.selection.get	1	system.appearance	query	query	home	read	-	user	appearance:read	-	-	-	55a7aa1eabe7	8042d28089a6	-
+appearance.selection.undo	1	system.appearance	command	operation	home	write	-	user	appearance:write	-	-	-	689abff4c91b	57b94ef149dc	-
 artifacts.browse	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	0800de271471	424b2c25470d	-
 artifacts.content.list	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	molis.workflow.content.list.input.v1	molis.workflow.content.list.output.v1	d746974fa9af	4f4504a9e9ef	0b7810d4511b
 artifacts.content.read	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	molis.workflow.content.read.input.v1	molis.workflow.content.read.output.v1	340e9001c04b	a92de13478a1	a1666197f459
@@ -282,7 +285,7 @@ placement.move	1	system.placement	command	operation	home	write	-	user	placement:
 placement.related	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	03636e556197	c77ce5a16d74	-
 placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	d746974fa9af	afb3d85a8f08	-
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
-plugins.bundled.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	c1d2b4a1e6c3	-
+plugins.bundled.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	c51213f4b77a	-
 plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-consents:read	-	-	-	0f4df4950e13	8c0cd2b99249	-
 plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	41c687ca9fa6	-
 plugins.home.installed.disable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-

@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.hubspot",
+  "locale": "zh",
+  "messages": {
+    "hubspot.connection.auth-help": "新建连接建议用 HubSpot Service Key，赋予 crm.objects.contacts.read；已有 Private App Token 仍可使用。",
+    "hubspot.connection.inbound": "Feed 读取联系人",
+    "hubspot.connection.summary": "CRM 与营销。",
+    "hubspot.connection.token-label": "HubSpot Service Key / 既有 Private App Token",
+    "hubspot.guide.cli-link": "HubSpot Agent CLI",
+    "hubspot.guide.mcp-link": "查看 HubSpot 官方 MCP",
+    "hubspot.guide.oauth-link": "查看 HubSpot OAuth",
+    "hubspot.guide.token-note": "在 Settings → Integrations → Service Keys 创建只读 Service Key；既有 Private App Token 仍可使用。",
+    "hubspot.setup.view-hubspot-service-key-setup": "查看 HubSpot Service Key 创建方式"
+  }
+}

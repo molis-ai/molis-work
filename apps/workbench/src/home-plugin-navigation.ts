@@ -1,11 +1,13 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import type { SidePanelPluginTab } from "./side-panel.js";
+import { builtinPluginDirectory } from "./plugin-catalog.js";
+import type { PluginDirectory } from "./plugin-directory.js";
 
 /** Home views share their instance; a project side view keeps the project named by its route. */
-export function homePluginSideTabs(routePrefix = ""): SidePanelPluginTab[] {
+export function homePluginSideTabs(routePrefix = "", directory: PluginDirectory = builtinPluginDirectory()): SidePanelPluginTab[] {
   return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").flatMap(entry =>
-    (entry.manifest.ui?.views ?? []).filter(view => view.slot === "side").map((view, index) => ({
+    (directory.find(item => item.id === entry.project_plugin_id)?.ui.views ?? []).filter(view => view.slot === "side").map((view, index) => ({
       key: `${entry.project_plugin_id}/${view.view_id}`, title: view.title,
       ...(view.context_binding ? { contextOwner: entry.manifest.plugin_id, contextSurface: entry.project_plugin_id } : {}),
       icon: (view.icon ?? "package") as PluginIconName, ...(view.order === undefined ? {} : { order: view.order }),

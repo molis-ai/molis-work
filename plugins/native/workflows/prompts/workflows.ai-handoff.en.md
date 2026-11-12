@@ -1,0 +1,1 @@
+Prepare the handoff in a workflow: turn the previous step's result into something the next step can use. Use only the material below and add no facts. Return a title on the first line (no # or quotes), then a blank line and the body, which may be Markdown. Do not add any other commentary.

@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants, promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { parseFilePath, type GitOperation, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath, type GitOperation, type WorkspaceGitResult, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
 
@@ -75,12 +75,13 @@ export async function readGitSummary(workspace: ProjectWorkspaceRef): Promise<Wo
 }
 
 /** Whether a PR can be opened from here: GitHub CLI installed and signed in for the remote's host. Reads only. */
-export async function readPullRequestSupport(workspace: ProjectWorkspaceRef): Promise<{ outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string }> {
+export async function readPullRequestSupport(workspace: ProjectWorkspaceRef): Promise<Extract<WorkspaceGitResult, { outcome: "pr-support" }>> {
   const summary = await readGitSummary(workspace);
   const remote = summary.remotes.find(item => item.name === (summary.upstream?.split("/")[0] ?? "origin")) ?? summary.remotes[0];
   if (!remote) return { outcome: "pr-support", tool: "unsupported", host: null, message: "这个仓库还没有远端" };
   const host = /^(?:https?:\/\/|ssh:\/\/)?(?:[^@/]+@)?([^/:]+)[:/]/.exec(remote.url)?.[1] ?? null;
-  if (!host) return { outcome: "pr-support", tool: "unsupported", host: null, message: `远端「${remote.name}」是本机路径（${remote.url}），不在 GitHub 上；目前只支持经 GitHub CLI 建 PR` };
+  if (!host) return { outcome: "pr-support", tool: "unsupported", host: null, message: `远端「${remote.name}」是本机路径（${remote.url}），不在 GitHub 上；目前只支持经 GitHub CLI 建 PR`,
+    local_remote: { name: remote.name, url: remote.url } };
   if (!/github/i.test(host)) return { outcome: "pr-support", tool: "unsupported", host, message: `远端在 ${host}，目前只支持经 GitHub CLI 建 PR` };
   try { await operationRun("gh", workspace.canonical_path, ["--version"]); }
   catch { return { outcome: "pr-support", tool: "missing", host, message: "这台电脑没有安装 GitHub CLI（gh），装好并登录后即可建 PR" }; }

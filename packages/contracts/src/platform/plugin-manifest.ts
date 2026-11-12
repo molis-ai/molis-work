@@ -2,6 +2,8 @@ import type { UiPageRouteDeclaration, UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
+import type { PluginLocalesDeclaration, TextRef } from "./ui-text.js";
+export type { PluginLocalesDeclaration } from "./ui-text.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -108,18 +110,6 @@ export interface ArtifactLinkDeclaration {
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
 }
-/** A Plugin's words by stable key, each in both page languages. */
-export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-
-/** A Plugin's English for words still keyed by their Chinese source text. */
-export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
-
-/** The languages a Plugin has words in; the words of each are the package's `locales/<language>.json`. */
-export interface PluginLocalesDeclaration {
-  readonly default: string;
-  readonly available: readonly string[];
-}
-
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
@@ -162,12 +152,8 @@ export interface PluginManifest {
   plugin_id: string;
   version: string;
   name: string;
-  /**
-   * the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
-   * draws the Manifest `name` itself (a plugin that has a stage and no navigator or island view); a navigator or island view's name is
-   * its own `title_en`, so one is never read for the other. Left out, the English interface shows `name`.
-   */
-  name_en?: string;
+  /** The displayed Manifest name. Each view's own title is independent. Without usable words, show `name`. */
+  name_text?: TextRef;
   kind: PluginKind;
   publisher: {
     publisher_id: string;
@@ -183,6 +169,8 @@ export interface PluginManifest {
   always_on?: boolean;
   /** One sentence for the plugin market and the page heading, at most 120 characters once trimmed. Without one the market lists the plugin by its name. */
   summary?: string;
+  /** The displayed summary, independent of the Manifest name and view title. */
+  summary_text?: TextRef;
   /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable, and shown where already added. Only `true`. */
   developer?: true;
   entrypoints: PluginEntrypointManifest[];
@@ -196,6 +184,7 @@ export interface PluginManifest {
    * type names itself (`title`, e.g. 「文档」) and its preview action (A4): one of this Plugin's actions defined with
    * `defineArtifactPreviewAction`. A type whose work objects can be pinned on the spot (a Goal handing one in, A5) also
    * names its pin action, defined with `defineArtifactPinAction`.
+   * `title_text` may select a fixed line in this Plugin's language files for display. `title` stays the declaration's original.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
    * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
@@ -204,7 +193,7 @@ export interface PluginManifest {
    * continue from and no others (ac-artifacts A3, PG-079).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];
@@ -224,22 +213,7 @@ export interface PluginManifest {
     page_routes?: UiPageRouteDeclaration[];
     /** text this Plugin gives about another owner's objects, read by the person's own page (GAS-01). */
     subject_context?: UiSubjectContextDeclaration[];
-    /**
-     * the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
-     * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
-     * them from the Manifests of the Plugins that are installed, never from a list of its own. A key one Plugin has
-     * declared is refused to another.
-     */
-    messages?: PluginMessagesDeclaration;
-    /**
-     * English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
-     * stable keys (specs/archive/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
-     * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
-     * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
-     * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
-     */
-    translations?: PluginTranslationsDeclaration;
-    /** The Plugin's languages. A Manifest that declares them writes neither `messages` nor `translations`: no Plugin takes both roads. */
+    /** The Plugin's languages, provided as one file per declared language. */
     locales?: PluginLocalesDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */

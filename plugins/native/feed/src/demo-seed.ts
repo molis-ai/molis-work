@@ -185,7 +185,7 @@ function upsertConnectorSource(
   },
   projectId: string,
 ): FeedSourceRecord {
-  const existing = feed.snapshot(projectId).sources.find((source) => source.source_id === input.source_id);
+  const existing = feed.sources.list(projectId).find((source) => source.source_id === input.source_id);
   if (existing) return existing;
   return feed.sources.upsert({
     project_id: projectId,

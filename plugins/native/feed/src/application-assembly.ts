@@ -1,3 +1,4 @@
+import { historyReads } from "./store/history-reads.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FeedApplication } from "./application.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
@@ -60,6 +61,7 @@ export function assembleFeedApplication(ports: FeedAssemblyPorts): FeedApplicati
     eventSink: event => appendEvent(event.project_id, "feed_item", event.item_id, event.type, event.reason, event.payload, event.at),
   });
   return new FeedApplication({
+    historyReads: historyReads(sql),
     sources, feed, attention, appendEvent, signals: new SignalsModule(sql).commands,
     subscribeInboxCreated: ports.subscribeInboxCreated,
     outRules: ports.outRules,
@@ -70,7 +72,7 @@ export function assembleFeedApplication(ports: FeedAssemblyPorts): FeedApplicati
     homeJudgment: ports.homeJudgment,
     transaction: <T>(operation: () => T) => sql.transaction(operation),
     listener: {
-      listRuns: projectId => listListenerRuns(sql, projectId),
+      listRuns: (projectId, page) => listListenerRuns(sql, projectId, page),
       getRunByOperationId: (projectId, operationId) => getListenerRunByOperationId(sql, projectId, operationId),
       saveRun: run => saveListenerRun(sql, run),
       recoverInterruptedRuns: projectId => recoverInterruptedListenerRuns(sql, projectId),

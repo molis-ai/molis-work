@@ -6,6 +6,8 @@ import { clearResults } from "./results.js";
 import { loadSource } from "./source.js";
 import type { ListItem, StateAnswer, View } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** One row of the list: a button for a changed file, made once and kept while the file stays in the list. */
 function rowButton(page: GitPage, item: ListItem, side: string, key: string): HTMLElement {
   const button = document.createElement("button"), copy = document.createElement("span"), headline = document.createElement("span");
@@ -23,11 +25,11 @@ function rowButton(page: GitPage, item: ListItem, side: string, key: string): HT
 
 /** Puts the three groups of changes in the list, keeping the rows and groups that are still there (and their focus). */
 function paint(page: GitPage, view: View): void {
-  const { L, list, result } = page;
+  const { list, result } = page;
   const entries: [string, readonly ListItem[], string, string][] = [
-    [L("git.group.conflicts"), view.conflicts, "worktree", "conflict"],
-    [L("git.group.staged"), view.staged, "index", "staged"],
-    [L("git.group.unstaged"), view.changes, "worktree", "unstaged"],
+    [uiText.text("git.group.conflicts"), view.conflicts, "worktree", "conflict"],
+    [uiText.text("git.group.staged"), view.staged, "index", "staged"],
+    [uiText.text("git.group.unstaged"), view.changes, "worktree", "unstaged"],
   ];
   const groups = new Map([...list.children].map((group): [string, HTMLElement] => [(group as HTMLElement).dataset.gitGroup ?? "", group as HTMLElement]));
   const rows = new Map([...list.querySelectorAll<HTMLElement>("[data-git-path]")].map((row): [string, HTMLElement] => [row.dataset.gitPath ?? "", row]));
@@ -50,7 +52,7 @@ function paint(page: GitPage, view: View): void {
       const name = button.querySelector("strong");
       if (name) name.textContent = item.label;
       button.title = `${label} · ${item.label}`;
-      button.setAttribute("aria-label", L("git.group.row-label", { group: label, name: item.label }));
+      button.setAttribute("aria-label", uiText.text("git.group.row-label", { group: label, name: item.label }));
       const shown = page.displayed && page.displayed.workspace_id === page.workspace && page.displayed.side === side && JSON.stringify(page.displayed.path) === JSON.stringify(item.path);
       button.classList.toggle("is-selected", Boolean(shown || (page.opener === button && result.getAttribute("aria-busy") === "true")));
       if (previous.nextElementSibling !== button) group.insertBefore(button, previous.nextElementSibling);
@@ -63,13 +65,13 @@ function paint(page: GitPage, view: View): void {
 
 /** Reads the workspace's changes and paints them, then the source-control block. */
 export async function refresh(page: GitPage): Promise<void> {
-  const { L, S, list, notice, reopen, history, result } = page;
+  const { list, notice, reopen, history, result } = page;
   if (!page.lifetime.visible) return;
   const epoch = ++page.generation;
   page.ticket++;
   result.setAttribute("aria-busy", "false");
   reading(page, true);
-  notice.textContent = L("git.list.reading");
+  notice.textContent = uiText.text("git.list.reading");
   reopen.hidden = true;
   history.disabled = true;
   try {
@@ -90,7 +92,9 @@ export async function refresh(page: GitPage): Promise<void> {
     await loadSource(page);
     if (!active(page, epoch)) return;
     const view = value.view;
-    notice.textContent = view.phase === "ready" ? [S(view.head), page.U(view.upstream), view.message && S(view.message)].filter(Boolean).join(" · ") : S(view.message);
+    notice.textContent = view.phase === "ready" ? [view.head, page.U(view.upstream), view.message].filter(Boolean).join(" · ")
+      : view.phase === "not-a-repository" ? uiText.text(view.reason === "directory_not_created" ? "git.projection.directory-not-created" : "git.projection.not-repository")
+      : view.message;
     paint(page, view);
     history.disabled = false;
   } catch (error) {
@@ -100,8 +104,8 @@ export async function refresh(page: GitPage): Promise<void> {
       page.selected = null;
       clearResults(page);
       history.disabled = true;
-      notice.textContent = S(messageOf(error));
-      if (!result.hidden) { page.q("[data-git-diff]").replaceChildren(); page.diffNotice.textContent = S(messageOf(error)); }
+      notice.textContent = (messageOf(error));
+      if (!result.hidden) { page.q("[data-git-diff]").replaceChildren(); page.diffNotice.textContent = (messageOf(error)); }
     }
   } finally {
     if (active(page, epoch)) reading(page, false);

@@ -10,8 +10,12 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createDiffPlugin, DIFF_PLUGIN_ID, diffActions, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { chinesePagePacks } from "./fixtures/page-text-packs.js";
+
+test.beforeEach(t => { t.after(installTextForTest({ locale: "zh", packs: chinesePagePacks("diff") })); });
 
 const PROBE = "io.molis.work.fixed-input-probe", PROCESS_ONLY = "io.molis.work.process-input-probe";
 const SOURCE = "io.molis.work.fixed-input-source";
@@ -109,7 +113,7 @@ function assertRows(view: DiffView, after: string) {
   ]);
 }
 
-test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SDK and Diff, stay exact, recover and reopen", async () => {
+test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SDK and Diff, stay exact, recover and reopen", async t => {
   const directory = mkdtempSync(join(tmpdir(), "plugin-fixed-input-sdk-")), databasePath = join(directory, "project.db");
   seedDemoBoard(databasePath);
   let project: ReturnType<typeof openProject> | undefined = openProject(databasePath);

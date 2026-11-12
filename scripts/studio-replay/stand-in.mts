@@ -18,13 +18,20 @@ import { withConnectorConnections } from '../../apps/local-host/src/connector-co
 export type StandInAnswers = Record<'propose' | 'experience' | 'detail', string | string[]>;
 /**
  * The three answers, from the committed corpus (tests/fixtures/studio-replay/corpus.json): the two-proposal first answer,
- * the experience sketch of the first proposal, and the plain notes design. All three are valid for the real checks.
+ * the experience sketch of the first proposal, and the plain notes design with a complete set of current UI words.
  */
 export function standInAnswers(corpusFile: string): StandInAnswers {
   const corpus = JSON.parse(readFileSync(corpusFile, 'utf8')) as { entries: Array<{ id: string; answerJson?: unknown; answer?: string }> };
   const answerOf = (id: string) => { const entry = corpus.entries.find(item => item.id === id); if (!entry) throw new Error(`the stand-in needs corpus entry ${id}`); return entry.answerJson !== undefined ? JSON.stringify(entry.answerJson) : entry.answer!; };
   const proposed = JSON.parse(answerOf('propose-two-candidates')) as { candidates: Array<{ journey: string[]; pages: unknown[] }> }, first = proposed.candidates[0]!;
-  return { propose: answerOf('propose-two-candidates'), detail: answerOf('detail-notes-plain'),
+  const detail = JSON.parse(answerOf('detail-notes-plain'));
+  detail.design.uiText = { default: 'zh', locales: {
+    zh: { 'plugin/name': '笔记板', 'page/home/title': '笔记板', 'region/home/main/title': '笔记板',
+      'part/title/title': '笔记板', 'part/editor/submitLabel': '添加', 'field/notes.add/text/label': '笔记' },
+    en: { 'plugin/name': 'Note board', 'page/home/title': 'Notes', 'region/home/main/title': 'Notes workspace',
+      'part/title/title': 'Note board', 'part/editor/submitLabel': 'Add', 'field/notes.add/text/label': 'Note' },
+  } };
+  return { propose: answerOf('propose-two-candidates'), detail: JSON.stringify(detail),
     experience: JSON.stringify({ summary: '以浏览已有内容为主，随手录入不中断浏览', journey: first.journey, pages: first.pages,
       scenarios: [{ task: '写入后继续浏览', content: '先读《理解媒介》，再记下一个问题。', expected: '保存后能找到记录并继续新建' }] }) };
 }

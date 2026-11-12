@@ -13,7 +13,8 @@ async function fixture() {
   const actions = [jellyServiceActions.modelSettings, jellyServiceActions.saveModelSettings, jellyActions.modelPlan];
   // Only these three of Jelly's actions are here, so its read groups (which name its calendar and note reads) are not: a group may name
   // only the Manifest's own actions.
-  const manifest = { ...jellyManifest, plugin_id: `io.molis.work.example.config${crypto.randomUUID().replaceAll("-", "")}`, ui: { contributions: [] }, routes: [], actions, read_groups: undefined };
+  const { summary_text: _summary, ...jelly } = jellyManifest;
+  const manifest = { ...jelly, plugin_id: `io.molis.work.example.config${crypto.randomUUID().replaceAll("-", "")}`, ui: { contributions: [] }, routes: [], actions, read_groups: undefined };
   const definition = { manifest, async start() { return { kind: "app" as const, actions: actions.map(action => ({ ...action, handle: () => operation() })) }; } };
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: new Set([manifest.plugin_id]), actions: { registry: { registerProvider(value) { registration = value; return () => {}; } } } });
   // This fixture Host ships the Home-level definition (Jelly's manifest): only the Host's own build runs in the Home.

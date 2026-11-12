@@ -8,16 +8,17 @@ Workspace registration: `goal-reorg-f2`。
 
 - `src/page.ts`：嵌入/独立页面的语义 DOM、会话区、搜索和输入控件。
 - `src/styles.ts`：中性明暗主题、标签、消息、响应式及局部动效。
-- `src/views.ts`：消息、引用、来源上下文、成员与标签的安全渲染。`createViews` 为每个根节点持有独立的两份 WeakMap；同文件 `updateViewMarkup` 接收这一实例的 chrome 缓存，处理更新与焦点恢复，由 `client.ts` 为序列化后的视图显式绑定，不依赖外部模块作用域。
+- `src/views.ts`：消息、引用、来源上下文、成员与标签的安全渲染。`createViews` 为每个根节点持有独立的两份 WeakMap；同文件 `updateViewMarkup` 接收这一实例的 chrome 缓存，处理更新与焦点恢复，消息节点在语言切换后的正常 SSE 更新中继续复用。
 - `src/message-format.ts`：先转义再处理基础 Markdown，不接受原始 HTML。
-- `src/client.ts`：组装已编译、有类型的浏览器函数；不再维护不可检查的 JavaScript 字符串。
-- `src/browser/controller.ts`：只做装配（页面状态 `ImState`、按顺序调用各层）；具体工作分在 `controller-shell.ts`（路径、状态行、输入框可用性）、`controller-composer.ts`（草稿、引用、绘制、阅读位置、已读）、`controller-sync.ts`（事件流、刷新、历史分页）、`controller-rooms.ts`（选群、选话题）、`controller-topics.ts`（话题面板与新话题）、`controller-navigate.ts`（发送、来源与搜索结果定位）、`controller-dialogs.ts`（各弹窗）、`controller-startup.ts`（连接与取名）、`controller-page.ts`（页面级监听）、`controller-clicks.ts`（`data-action` 点击分发）。构造方法工厂时只给已就绪的 `ImBaseCtx`（元素、状态、基础服务）；返回的处理函数被调用时才取得完整 `ImCtx` 以跨层调用。完整上下文在装齐方法和邀请控制器后由类型检查确认，再交给页面监听与启动；不把初始对象断言成完整上下文。每层仍是自包含工厂，由 `client.ts` 序列化进页面。
+- `src/browser/entry.ts`：装配同一个浏览器入口。构建产出的 `/im/client.js` 由本地宿主和独立 Server 共用。
+- `resources/locales/`：讨论界面自有的语言包。两种装配使用同一套 SDK 读词；工作台原位切换时从讨论的静态页面准备词包，保留打开的会话、消息和草稿。
+- `src/browser/controller.ts`：只做装配（页面状态 `ImState`、按顺序调用各层）；具体工作分在 `controller-shell.ts`（路径、状态行、输入框可用性）、`controller-composer.ts`（草稿、引用、绘制、阅读位置、已读）、`controller-sync.ts`（事件流、刷新、历史分页）、`controller-rooms.ts`（选群、选话题）、`controller-topics.ts`（话题面板与新话题）、`controller-navigate.ts`（发送、来源与搜索结果定位）、`controller-dialogs.ts`（各弹窗）、`controller-startup.ts`（连接与取名）、`controller-page.ts`（页面级监听）、`controller-clicks.ts`（`data-action` 点击分发）。构造方法工厂时只给已就绪的 `ImBaseCtx`（元素、状态、基础服务）；返回的处理函数被调用时才取得完整 `ImCtx` 以跨层调用。完整上下文在装齐方法和邀请控制器后由类型检查确认，再交给页面监听与启动；不把初始对象断言成完整上下文。各层由浏览器入口装配。
 - `src/browser/history.ts`：连续历史窗口、缓存追赶与分页游标。
 - `src/browser/drafts.ts`：成员/会话草稿、稳定提交版本及条件清理。
 - `src/browser/transport.ts`：同源 HTTP、SSE 与经过来源/请求标识校验的宿主连接。
 - `src/browser/types.ts`：临时客户端状态类型；领域 DTO 仍来自 contracts。
 
-项目讨论是平台侧栏的一个标签（`apps/workbench/src/side-panel.ts`，specs/archive/side-panel）：侧栏负责布局——工作区真实让出宽度，右侧默认 35%，拖拽/键盘可调整，≤760px 切为上工作、下侧栏。切换标签或收起侧栏仅隐藏 iframe，保留当前会话与草稿。宿主与 iframe 的可见性、主题和项目接入消息核验同源及发送窗口；聊天领域事实不放在宿主。
+项目讨论是平台侧栏的一个标签（`apps/workbench/src/side-panel.ts`，specs/archive/side-panel）：侧栏负责布局——工作区真实让出宽度，右侧默认 35%，拖拽/键盘可调整，≤760px 切为上工作、下侧栏。切换标签或收起侧栏仅隐藏 iframe，保留当前会话与草稿。宿主核验 iframe 的同源窗口与项目。可见性通知触发原有阅读逻辑，外观和语言只投影到当前讨论页面。
 
 `server/src/im` 负责成员权限、消息和话题持久化、搜索、读游标、事务回执与事件。每项目唯一主群，权限来自 `mw_access`；旧群不自动绑定或公开。本地项目首次接入由 local-host 校验既有控制凭证并读取真实项目目录，普通浏览器不能自行取得项目权限。
 
@@ -41,13 +42,13 @@ pnpm --filter @molis-ai/molis-work-im-ui typecheck
 node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-browser-state.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts
 ```
 
-初始化类型验收：`RAC-IMCTX-01`——方法工厂的构造输入不能读取尚未安装的方法或邀请控制器，缺少基础服务时编译失败；`RAC-IMCTX-02`——生产装配表达式保留结构类型，直接移去启动方法或邀请控制器时编译失败，完整装配后才能注册页面和点击监听。工厂求值、事件注册、46 个返回方法的行为与 `toString` 拼装顺序保持不变。
+初始化类型验收：`RAC-IMCTX-01`——方法工厂的构造输入不能读取尚未安装的方法或邀请控制器，缺少基础服务时编译失败；`RAC-IMCTX-02`——生产装配表达式保留结构类型，直接移去启动方法或邀请控制器时编译失败，完整装配后才能注册页面和点击监听。用例也核对工厂求值、事件注册及各返回方法。
 
 复查发现的 5 项缺陷及模块边界调整已修复；14 项定向状态/领域/HTTP 回归通过。真实源码工作台复跑跨页缓存、延迟发布、搜索锚点、清除 Cookie 后恢复和实际发送、390×400 短屏与桌面/常规窄屏。范围仍仅为功能可用切片；修复证据见 spec 和 `review/e2e-audit/fixes.md`。
 
 文件上传、持久化表情/提及通知、消息修改/删除、结论流程、工作资源引用和 AI 总结尚未实现。插入成员名字只写入正文。实体设备软键盘、中文输入法组合事件、跨设备完整流程与超长历史性能未验收，不能据此宣称完整通信产品或可发布。
 
-正常工作台由 local-host 挂载 `/im`，Workbench 的平台侧栏把它作为“讨论”标签装载（`apps/workbench/src/side-panel.ts`，specs/archive/side-panel）。旧群服务的隔离调试入口仍可使用 `node --import tsx scripts/preview-im.mts`；它不替代真实项目工作台的分屏验收。生产空项目不预置示例成员、消息或话题。
+正常工作台由 local-host 挂载 `/im`，Workbench 的平台侧栏把它作为“讨论”标签装载（`apps/workbench/src/side-panel.ts`，specs/archive/side-panel）。构建后，旧群服务的隔离调试入口仍可使用 `node --import tsx scripts/preview-im.mts`；它不替代真实项目工作台的分屏验收。生产空项目不预置示例成员、消息或话题。
 
 ## 开发要求
 

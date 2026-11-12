@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 
@@ -28,24 +29,24 @@ export function globalSettingsSectionPath(id: string): string {
 }
 
 const HOST_SECTIONS: readonly HostSection[] = [
-  { id: "appearance", label: "界面与语言", icon: "sun", group: "本机", order: 10 },
-  { id: "directories", label: "本机目录", icon: "folder", group: "本机", order: 12 },
-  { id: "memory", label: "记忆", icon: "bookmark", group: "个人", order: 15 },
-  { id: "sync", label: "同步", icon: "network", group: "个人", order: 16 },
-  { id: "models", label: "模型设置", icon: "key", group: "AI", order: 20 },
-  { id: "assistant", label: "助理", icon: "message", group: "AI", order: 30 },
-  { id: "characters", label: "角色", icon: "user", group: "AI", order: 35 },
-  { id: "kit", label: "能力包", icon: "sparkles", group: "AI", order: 45 },
-  { id: "runtimes", label: "AI 与执行工具", icon: "terminal", group: "工具与接入", order: 50 },
-  { id: "library", label: "能力库", icon: "book", group: "工具与接入", order: 60 },
-  { id: "connections", label: "服务连接", icon: "link", group: "工具与接入", order: 61 },
-  { id: "access", label: "对外接入", icon: "shield", group: "工具与接入", order: 62 },
-  { id: "history", label: "调用记录", icon: "workflow", group: "工具与接入", order: 63 },
-  { id: "diagnostics", label: "诊断", icon: "bug", group: "系统", order: 90 },
+  { id: "appearance", label: "workbench.settings-sections.appearance-and-language", icon: "sun", group: "workbench.settings-sections.this-device", order: 10 },
+  { id: "directories", label: "workbench.settings-sections.local-directories", icon: "folder", group: "workbench.settings-sections.this-device", order: 12 },
+  { id: "memory", label: "workbench.settings-sections.memory", icon: "bookmark", group: "workbench.settings-sections.personal", order: 15 },
+  { id: "sync", label: "workbench.settings-sections.sync", icon: "network", group: "workbench.settings-sections.personal", order: 16 },
+  { id: "models", label: "workbench.settings-sections.models", icon: "key", group: "workbench.settings-sections.ai", order: 20 },
+  { id: "assistant", label: "workbench.settings-sections.assistant", icon: "message", group: "workbench.settings-sections.ai", order: 30 },
+  { id: "characters", label: "workbench.settings-sections.characters", icon: "user", group: "workbench.settings-sections.ai", order: 35 },
+  { id: "kit", label: "workbench.kit.title", icon: "sparkles", group: "workbench.settings-sections.ai", order: 45 },
+  { id: "runtimes", label: "workbench.settings-sections.ai-and-runtimes", icon: "terminal", group: "workbench.settings-sections.tools-and-access", order: 50 },
+  { id: "library", label: "workbench.settings-sections.capability-library", icon: "book", group: "workbench.settings-sections.tools-and-access", order: 60 },
+  { id: "connections", label: "workbench.settings-sections.service-connections", icon: "link", group: "workbench.settings-sections.tools-and-access", order: 61 },
+  { id: "access", label: "workbench.settings-sections.external-access", icon: "shield", group: "workbench.settings-sections.tools-and-access", order: 62 },
+  { id: "history", label: "workbench.settings-sections.call-history", icon: "workflow", group: "workbench.settings-sections.tools-and-access", order: 63 },
+  { id: "diagnostics", label: "workbench.settings-sections.diagnostics", icon: "bug", group: "workbench.settings-sections.system", order: 90 },
 ];
 
 /** Plugin pages past every host page share one group. */
-const PLUGIN_GROUP = "插件";
+const PLUGIN_GROUP = "workbench.settings-sections.plugins";
 const HOST_ORDER_END = 100;
 
 function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSection[] {
@@ -66,7 +67,7 @@ function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSectio
   return placed.map((section) => {
     if (section.kind !== "plugin") group = section.group;
     const own = section.kind === "plugin" ? (section.order < HOST_ORDER_END ? group : PLUGIN_GROUP) : section.group;
-    return { id: section.id, label: section.label, icon: section.icon, group: own, kind: section.kind, addressQuery: section.addressQuery, addressHash: section.addressHash };
+    return { id: section.id, label: section.kind === "host" ? uiText.text(section.label) : section.label, icon: section.icon, group: uiText.text(own), kind: section.kind, addressQuery: section.addressQuery, addressHash: section.addressHash };
   });
 }
 

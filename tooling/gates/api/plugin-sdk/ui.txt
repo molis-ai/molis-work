@@ -210,12 +210,8 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
-export interface PluginLocaleManifest {
-    readonly plugin_id: string;
+export interface PluginLocaleManifest extends DirectoryWordManifest {
     readonly kind: string;
-    readonly ui?: {
-        readonly locales?: PluginLocalesDeclaration;
-    };
 }
 
 export type PluginLocaleRead = (path: string) => string | null;
@@ -280,6 +276,7 @@ export interface TextForTest {
 export interface TextReaderInput {
     readonly packs: readonly UiLocalePack[];
     readonly locale: string | null;
+    readonly intlLocale?: UiTextProvider["intlLocale"];
     readonly problem?: UiTextProvider["problem"];
 }
 
@@ -339,13 +336,17 @@ export interface UiResolvedSkin {
     readonly terminal: Readonly<Record<TerminalAxis, UiTokenMap>>;
 }
 
+export declare function assertPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
+
 export declare function calendarTitle(year: number, month: number): string;
 
 export declare function createTextReader(input: TextReaderInput): UiSayTool;
 
 export declare function cx(...parts: Array<string | false | null | undefined>): string;
 
-export declare const dateArg: (at: string, style: TextDateStyle) => TextArgValue;
+export declare const dateArg: (at: string, style: TextDateStyle, options?: TextDateOptions) => TextArgValue;
+
+export declare function directoryPackProblems(manifest: DirectoryWordManifest, pack: UiLocalePack, file: string, sharedDefault?: string): readonly LocaleSetProblem[];
 
 export declare const disclosureHeight: (details: string, body: string) => string;
 
@@ -357,11 +358,13 @@ export declare function fontTokenDeclarations(font: UiResolvedFont, names?: read
 
 export declare const format: UiFormatTool;
 
-export declare function formatDate(at: string, style: TextDateStyle, locale: Locale, options?: MessageFormatOptions): string;
+export declare function formatDate(at: string, style: TextDateStyle, locale: Locale, options?: MessageFormatOptions & TextDateOptions): string;
 
 export declare function formatMessage(message: UiMessage, args?: readonly TextArg[], locale?: string, options?: MessageFormatOptions): string;
 
 export declare function formatNumber(value: number, locale: Locale, style?: TextNumberStyle): string;
+
+export declare function frameUiLanguage({ tag, html_lang, intl, direction }: UiLanguageDescriptor): UiFrameLanguage;
 
 export declare function icon(name: PluginIconName, className?: string): string;
 
@@ -372,6 +375,10 @@ export declare function inspectPluginLocales(manifest: PluginLocaleManifest, rea
 export declare function installTextForTest(input: TextForTest): () => void;
 
 export declare function installUiText(provider: UiTextProvider): () => void;
+
+export declare function isFrameUiLanguage(value: unknown): value is UiFrameLanguage;
+
+export declare function localeMessageArguments(message: UiMessage): readonly string[];
 
 export declare function matchLocale(requested: string | null, available: readonly string[], fallback: string): string;
 
@@ -389,11 +396,17 @@ export declare function parseSkinFile(source: string, spec: UiSpecFile, options?
 
 export declare function parseStrictJson(source: string, options?: StrictJsonOptions): UiFileResult<unknown>;
 
+export declare function parseUiLanguageCatalog(source: string, file?: string): UiFileResult<UiLanguageCatalog>;
+
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
+
+export declare const pluginLocaleFilePath: (locale: string) => string;
 
 export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
 
 export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
+
+export declare function preferredUiLanguage(catalog: UiLanguageCatalog, requested: readonly string[]): UiLanguageDescriptor | undefined;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
@@ -401,6 +414,8 @@ export declare const processFold: (scope: string, { group, groupBody, step, step
     step: string;
     stepBody: string;
 }) => string;
+
+export declare function refuseLocaleProblems(problems: readonly LocaleSetProblem[]): void;
 
 export declare function refuseSharedTextPrefix(taken: string | null | undefined, owner: string): void;
 
@@ -790,6 +805,11 @@ export declare function withDevicePreferences(snapshot: UiEnvironmentSnapshot, d
 
 // Declarations the exports above refer to, which no entry exports itself:
 
+type DirectoryWordManifest = NameFields & {
+    readonly ui?: Pick<PluginManifest["ui"], "locales" | "views">;
+    readonly artifacts?: Pick<PluginManifest["artifacts"], "produces">;
+};
+
 type Locale = string | undefined;
 
 type MwControlSize = "sm" | "md" | "lg";
@@ -808,6 +828,8 @@ interface MwInputOptions {
     className?: string;
     attrs?: Record<string, AttrValue>;
 }
+
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
 
 interface RingSegment {
     points: number[][];

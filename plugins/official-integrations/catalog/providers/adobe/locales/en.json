@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.adobe",
+  "locale": "en",
+  "messages": {
+    "adobe.connection.auth-help": "The official Adobe IMS UserInfo call requires client_id. Enter api-key|access-token. A token alone may work, but usually returns 401.",
+    "adobe.connection.inbound": "API checks Adobe IMS identity",
+    "adobe.connection.summary": "Creative tools.",
+    "adobe.connection.token-label": "Adobe IMS access token",
+    "adobe.guide.oauth-link": "View Adobe user authorization",
+    "adobe.guide.token-note": "Use an Adobe IMS user access token. In most cases you also need a Client ID.",
+    "adobe.oauth.note": "Enable User Authentication in Adobe Console. Product API permissions depend on the approved scope of the app.",
+    "adobe.setup.open-adobe-developer-console": "Open Adobe Developer Console"
+  }
+}

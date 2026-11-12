@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
@@ -6,8 +7,8 @@ import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/ag
 import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
-import { L } from "../web-locale.js";
 import { replyLanguage } from "../reply-language.js";
+import { runBackgroundWork } from "../web-locale.js";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { agentActions } from "./assistant-directory.js";
 import { openSession } from "./assistant-executor-session.js";
@@ -155,7 +156,7 @@ export class AssistantDispatch {
     const sessionId = (work.executor as { session_id: string }).session_id;
     const read = await executor.read(sessionId, 2);
     assertSendCurrent(stillCurrent);
-    if (read.recovery) throw assistantErrors.needs_check(read.recovery.message, { action: L("到执行方的页面核对") });
+    if (read.recovery) throw assistantErrors.needs_check(read.recovery.message, { action: uiText.text("workbench.assistant-dispatch.check-executor-s-page") });
     const latest = read.runs.at(-1);
     assertRoundToAddress(Boolean(latest), intent?.delivery);
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
@@ -177,13 +178,16 @@ export class AssistantDispatch {
   async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, intent?: SendIntent, sourceHandoff?: MethodHandoff): Promise<AssistantSendResult> {
     let accepted = false;
     const handoff: MethodHandoff = { assertCurrent: () => { if (!accepted) sourceHandoff?.assertCurrent(); }, accepted: () => { if (!accepted) { accepted = true; sourceHandoff?.accepted(); } } };
-    if (work.executor.kind === "plugin") return this.executorDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent, beforeStart, assertBeforeStart, handoff);
+    const replyLocale = intent?.reply_locale ?? this.ports.lastLocale?.();
+    if (work.executor.kind === "plugin") {
+      const execute = () => this.executorDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent, beforeStart, assertBeforeStart, handoff);
+      return replyLocale ? runBackgroundWork(replyLocale, execute) : execute();
+    }
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    let base = await this.ports.authority(work);
+    let base = await this.ports.authority(work, undefined, replyLocale);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
-    // A round no page gave a language to reads the last used one here, whichever entry started it, and never the language of the page its async chain began in.
-    const replyLocale = intent?.reply_locale ?? this.ports.lastLocale?.();
+
     const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart || sourceHandoff ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); handoff.assertCurrent();
     }, assertBeforeStart: () => {
@@ -197,7 +201,7 @@ export class AssistantDispatch {
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
       // Action ownership includes the newly created session, also on the very first round.
-      base = await this.ports.authority(work); authority = startAuthority();
+      base = await this.ports.authority(work, undefined, replyLocale); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));

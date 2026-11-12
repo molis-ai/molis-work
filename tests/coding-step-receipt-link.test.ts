@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
-import { pageText } from "./fixtures/page-text.js";
+import { pageText, pageTextScript } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §4.5, stage 3d-2: a step report that names a supplement offers to open its receipt in the
 // conversation, only when the page drew that receipt. The shipped step dialog runs here on a small DOM port.
@@ -25,9 +25,10 @@ test("RCPT-347, 3d-2: the step dialog links a report to the receipts this page d
   const data = { runs: [{ ref: { run_id: "r1" }, phase: "completed" }], taskboard_plans: [{ run_id: "r1", revision: 2, plan: { content: { steps: [{ title: "改登录", acceptance: "测试通过" }] } },
     board: { project_id: "p", version: 4, nodes: [{ id: "step-1", state: "succeeded", reports: [
       { note: "已改用新 fixture", inputs: [{ session_id: "sdk", input_id: "s1" }, { session_id: "sdk", input_id: "earlier" }] }, { note: "跑了测试" }] }] } }] };
-  const steps = vm.runInNewContext(`(${CODING_STEPS_CLIENT_FACTORY_SCRIPT})`, {
-    document: { createElement: (tag: string) => new Element(tag) }, location: { pathname: "/" }, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  })({ lifetime: { alive: true, listen() {} }, translate: pageText("zh"), q, api: async () => data, current: () => "app", status() {}, refresh: async () => {}, prepareRework() {}, receipts }) as { open(id: string, run: string, step: string): Promise<void> };
+  const steps = vm.runInNewContext(`${pageTextScript("zh", "coding")}
+(${CODING_STEPS_CLIENT_FACTORY_SCRIPT})`, {
+    document: { documentElement: {}, createElement: (tag: string) => new Element(tag) }, location: { pathname: "/" }, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+  })({ lifetime: { alive: true, listen() {} }, translate: pageText("zh", "coding"), q, api: async () => data, current: () => "app", status() {}, refresh: async () => {}, prepareRework() {}, receipts }) as { open(id: string, run: string, step: string): Promise<void> };
   await steps.open("app", "r1", "step-1");
   const [named, plain] = nodes.get("[data-coding-step-detail]")!.all("ol")[0]!.children as Element[];
   assert.deepEqual(named!.all("button").map(button => button.textContent), ["关于补充「改用新 fixture」"], "RCPT-347 one button, for the receipt Coding's conversation drew; none for the earlier one it did not");

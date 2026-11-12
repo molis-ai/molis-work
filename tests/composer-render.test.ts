@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 import { renderComposer, type MwComposerAiLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
@@ -112,7 +113,7 @@ test("UIC-13: every word, the text and the root's attributes are escaped", () =>
 });
 
 test("UIC-13: the board's #composer specimens are renderComposer's structure, plus what K2's client puts in", () => {
-  const board = renderPrimitiveCatalog();
+  const board = withPageText("zh", [], renderPrimitiveCatalog);
   const section = board.slice(board.indexOf('<section class="mw-catalog__section" id="composer"'), board.indexOf("</section>", board.indexOf('id="composer"')));
   const starts = [...section.matchAll(/<div class="mw-composer" data-slot="composer"/g)].map((match) => match.index!);
   // Ten states plus the two at rest in one row (user 11-08): a phone's and a short window's.

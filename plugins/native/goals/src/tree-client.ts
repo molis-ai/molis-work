@@ -8,10 +8,10 @@ const GOALS_TREE_FILTER_SCRIPT = `    function setSelectedStatuses(values) {
       const selectedCount = selectedStatuses.size;
       const summary = treeFilter?.querySelector("[data-tree-filter-summary]");
       const clear = treeFilter?.querySelector("[data-clear-status-filter]");
-      if (summary) summary.textContent = selectedCount ? L("已选择 {count} 种状态", { count: selectedCount }) : L("显示全部状态");
+      if (summary) summary.textContent = selectedCount ? globalThis.t.text("goals.tree-client.count-count-selected", { count: selectedCount }) : globalThis.t.text("goals.tree-client.showing-every-status");
       if (clear) clear.disabled = selectedCount === 0;
       treeFilterTrigger?.classList.toggle("is-active", selectedCount > 0);
-      treeFilterTrigger?.setAttribute("aria-label", selectedCount ? L("筛选目标，已选择 {count} 种状态", { count: selectedCount }) : L("筛选目标"));
+      treeFilterTrigger?.setAttribute("aria-label", selectedCount ? globalThis.t.text("goals.tree-client.filter-goals-count-count-selected", { count: selectedCount }) : globalThis.t.text("goals.tree-client.filter-goals"));
     }
 
     function setTreeFilterOpen(open, focusFirst = false) {
@@ -52,8 +52,8 @@ const GOALS_TREE_FILTER_SCRIPT = `    function setSelectedStatuses(values) {
       if (count) {
         const suffixText = suffix ? suffix + " " : "";
         count.textContent = !query && selectedStatuses.size === 0
-          ? L("共 {count} 个{suffix}目标", { count: items.length, suffix: suffixText })
-          : L("显示 {shown} / {total} 个{suffix}目标", { shown: matched.length, total: items.length, suffix: suffixText });
+          ? globalThis.t.text("goals.tree-client.count-suffix-goals", { count: items.length, suffix: suffixText })
+          : globalThis.t.text("goals.tree-client.showing-shown-total-suffix-goals", { shown: matched.length, total: items.length, suffix: suffixText });
       }
       if (empty) empty.hidden = matched.length > 0 || items.length === 0;
       updateGraphVisibility();
@@ -135,7 +135,7 @@ const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && treeFilt
 /** Goal Tree state and handlers; shared refresh scheduling remains a Host service. */
 export const GOALS_TREE_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { treeFilter, treeFilterTrigger, treeScroll, globalSearch,
-      translate: L, updateGraphVisibility, queueSave, saveUiState } = host;
+      translate: readText, updateGraphVisibility, queueSave, saveUiState } = host;
     let selectedStatuses = new Set();
 ${GOALS_TREE_FILTER_SCRIPT}
     const expandAncestors = (node) => {

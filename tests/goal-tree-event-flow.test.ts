@@ -8,6 +8,7 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { buildDecisionGroups, hostEventDecisionAuthority, pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { chinesePagePacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-tree-"));
@@ -17,7 +18,7 @@ function fixture() {
   return { directory, store, app };
 }
 
-test("tree submit does not need a Run and approved goals can be recorded immediately", () => {
+test("tree submit does not need a Run and approved goals can be recorded immediately", () => withPagePacks("zh", chinesePagePacks("goals"), () => {
   const data = fixture();
   try {
     const submitted = data.app.goalTreeSubmission.submitGoalTreeProposal({
@@ -130,5 +131,5 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });
   }
-});
+}));
 

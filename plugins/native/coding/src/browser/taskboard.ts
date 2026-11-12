@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage, el, part } from "./dom.js";
 import { svg } from "./taskboard-format.js";
 import { drawOutlineRow } from "./taskboard-outline.js";
@@ -47,19 +48,19 @@ function fingerprint(state: State, data: BoardData): string {
 }
 
 /** The latest graph in one line: revision, steps done, and who the open steps wait on. */
-function summary(state: State, data: BoardData) {
-  const L = state.ports.translate, latest = (data.taskboard_plans || []).filter(entry => entry.board).at(-1)?.board;
+function summary(_state: State, data: BoardData) {
+  const latest = (data.taskboard_plans || []).filter(entry => entry.board).at(-1)?.board;
   const unfinished = latest ? latest.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
   const count = (kind: string) => unfinished.filter(node => node.owner?.kind === kind).length;
   const done = latest ? latest.nodes.filter(node => settled(node) && !skipped(node)).length : 0, total = latest ? latest.nodes.filter(node => !skipped(node)).length : 0;
-  const plan = data.plan ? L("coding.board.plan-revision", { revision: data.plan.revision }) + " · " + (data.plan.confirmed ? L("coding.board.plan.confirmed") : L("coding.board.plan.unconfirmed")) : "";
-  const steps = latest ? L("coding.board.steps-done", { done, total }) + (latest.nodes.some(skipped) ? " · " + L("coding.board.steps-skipped", { count: latest.nodes.filter(skipped).length }) : "") : "";
-  const text = [plan, steps, count("subtask") ? L("coding.board.steps-subtask", { count: count("subtask") }) : "", count("person") ? L("coding.board.steps-person", { count: count("person") }) : "", count("none") ? L("coding.board.steps-none", { count: count("none") }) : ""].filter(Boolean).join(" · ");
+  const plan = data.plan ? uiText.text("coding.board.plan-revision", { revision: data.plan.revision }) + " · " + (data.plan.confirmed ? uiText.text("coding.board.plan.confirmed") : uiText.text("coding.board.plan.unconfirmed")) : "";
+  const steps = latest ? uiText.text("coding.board.steps-done", { done, total }) + (latest.nodes.some(skipped) ? " · " + uiText.text("coding.board.steps-skipped", { count: latest.nodes.filter(skipped).length }) : "") : "";
+  const text = [plan, steps, count("subtask") ? uiText.text("coding.board.steps-subtask", { count: count("subtask") }) : "", count("person") ? uiText.text("coding.board.steps-person", { count: count("person") }) : "", count("none") ? uiText.text("coding.board.steps-none", { count: count("none") }) : ""].filter(Boolean).join(" · ");
   return { latest, done, total, text };
 }
 
 function drawOutline(state: State) {
-  const { outline, ports, data } = state, L = ports.translate;
+  const { outline, ports, data } = state, readText = ports.translate;
   if (!outline || outline.hidden) return;
   const rows = part(outline, "[data-coding-outline-list]"), note = part(outline, "[data-coding-outline-status]"), brief = part(outline, "[data-coding-outline-meta]");
   const expand = outline.querySelector<HTMLButtonElement>("[data-coding-board-expand]"), onShow = ports.onShow || (() => true);
@@ -70,7 +71,7 @@ function drawOutline(state: State) {
     brief.hidden = true;
     if (expand) expand.disabled = true;
     state.outlineKey = "";
-    note.textContent = state.loadError || (state.owner && onShow() ? L("coding.board.reading") : L("coding.board.outline-empty"));
+    note.textContent = state.loadError || (state.owner && onShow() ? uiText.text("coding.board.reading") : uiText.text("coding.board.outline-empty"));
     return;
   }
   const next = fingerprint(state, data);
@@ -80,7 +81,7 @@ function drawOutline(state: State) {
   brief.textContent = line.text;
   brief.hidden = !line.text;
   if (expand) expand.disabled = false;
-  note.textContent = state.loadError || data.error || (groups.length ? L("coding.board.outline-note") : state.empty);
+  note.textContent = state.loadError || data.error || (groups.length ? uiText.text("coding.board.outline-note") : state.empty);
   rows.replaceChildren();
   state.outlineTargets.clear();
   for (const group of groups) {
@@ -88,7 +89,7 @@ function drawOutline(state: State) {
     heading.append(el("small", group.count || String(group.items.length)));
     rows.append(heading);
     const tree = el("ul", "", "coding-outline-tree");
-    for (const row of group.items) tree.append(drawOutlineRow(L, state.outlineTargets, row, 0));
+    for (const row of group.items) tree.append(drawOutlineRow(readText, state.outlineTargets, row, 0));
     rows.append(tree);
   }
 }
@@ -112,13 +113,13 @@ function drawGroup(state: State, group: BoardGroup): HTMLElement {
 }
 
 function drawBoard(state: State) {
-  const { ports, data, view } = state, L = ports.translate, { board } = view;
+  const { data, view } = state, { board } = view;
   if (board.hidden) return;
   if (!data) {
     state.list.replaceChildren();
     state.title.textContent = "TaskBoard";
     state.meta.textContent = "";
-    state.notice.textContent = state.loadError || (state.owner ? L("coding.board.reading") : L("coding.board.pick-session"));
+    state.notice.textContent = state.loadError || (state.owner ? uiText.text("coding.board.reading") : uiText.text("coding.board.pick-session"));
     return;
   }
   if (board.dataset.editing === "true" || board.dataset.busy === "true") return;
@@ -128,7 +129,7 @@ function drawBoard(state: State) {
   const scroll = board.scrollTop, groups = buildTree(state.input(data));
   state.title.textContent = "TaskBoard";
   state.meta.textContent = summary(state, data).text;
-  state.notice.textContent = state.loadError || data.error || (groups.length ? L("coding.board.notice") : state.empty);
+  state.notice.textContent = state.loadError || data.error || (groups.length ? uiText.text("coding.board.notice") : state.empty);
   state.list.replaceChildren(...groups.map(group => drawGroup(state, group)));
   board.scrollTop = scroll;
 }
@@ -162,12 +163,12 @@ function forget(state: State) {
  * for the main area's view switch.
  */
 export function taskboard(ports: TaskboardPorts): Taskboard {
-  const { lifetime, board, translate: L, current, status } = ports, words = boardWords(L), outline = ports.outline || null;
+  const { lifetime, board, translate: readText, current, status } = ports, words = boardWords(readText), outline = ports.outline || null;
   const view: RowView = { ports, words, board, list: part(board, "[data-coding-board-list]"), collapsed: new Set(), redraw: () => { state.key = ""; render(state); } };
   const state: State = {
     ports, view, outline, list: view.list, notice: part(board, "[data-coding-board-status]"), title: part(board, "[data-coding-board-title]"), meta: part(board, "[data-coding-board-meta]"),
-    empty: L("coding.board.empty"), outlineTargets: new Map(), owner: "", data: null, key: "", outlineKey: "", loadError: "",
-    input: data => ({ data, translate: L, words, ports }),
+    empty: uiText.text("coding.board.empty"), outlineTargets: new Map(), owner: "", data: null, key: "", outlineKey: "", loadError: "",
+    input: data => ({ data, translate: readText, words, ports }),
   };
   if (outline) {
     lifetime.listen(outline, "click", event => {
@@ -195,7 +196,7 @@ export function taskboard(ports: TaskboardPorts): Taskboard {
     },
     fail(id, message) {
       if (id !== state.owner) return;
-      state.loadError = L("coding.board.unreadable", { reason: message });
+      state.loadError = uiText.text("coding.board.unreadable", { reason: message });
       state.key = "";
       state.outlineKey = "";
       render(state);

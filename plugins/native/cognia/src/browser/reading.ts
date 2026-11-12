@@ -6,6 +6,8 @@ import { q, tx, type CogniaPage } from "./page.js";
 import { libraryUrl } from "./request.js";
 import type { Detail, Link } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Tells the resident Assistant what the page shows: this page, and the material open in the reader if there is one. */
 export function publishContext(page: CogniaPage): void {
   const { cur } = page;
@@ -42,12 +44,12 @@ function outgoingLinks(page: CogniaPage, outgoing: readonly Link[]): string {
 function readingHtml(page: CogniaPage, data: Detail): string {
   const { material } = data;
   const source = page.state.sources.find((s) => s.id === material.source_id)?.name || "";
-  const body = material.role === "attachment" ? `<p>${tx(page, "cognia.reading.attachment-note")}</p>` : renderMarkdown(material.body.replace(material.frontmatter, ""), page.L, data.outgoing, data.references);
+  const body = material.role === "attachment" ? `<p>${tx(page, "cognia.reading.attachment-note")}</p>` : renderMarkdown(material.body.replace(material.frontmatter, ""), uiText.text, data.outgoing, data.references);
   const none = `<p>${tx(page, "cognia.reading.no-links")}</p>`;
   const incoming = data.incoming.map((m) => button(m.title, "link", `data-id="${esc(m.id)}"`)).join("");
   return `<div class="cognia-provenance"><p>${esc(source)} / ${esc(material.path)}</p><p>${tx(page, ROLE_KEY[material.role])} · v${material.revision} · ${esc(material.tags.map((tag) => "#" + tag).join(" "))}</p></div>`
     + `<article class="cognia-body">${body}</article><details><summary>${tx(page, "cognia.reading.view-raw")}</summary><pre class="cognia-raw">${esc(material.body)}</pre></details>`
-    + renderReferences(data.references, page.L)
+    + renderReferences(data.references, uiText.text)
     + `<section class="cognia-relations"><h3>${tx(page, "cognia.reading.outgoing")}</h3>${outgoingLinks(page, data.outgoing) || none}<h3>${tx(page, "cognia.reading.backlinks")}</h3>${incoming || none}</section>`;
 }
 

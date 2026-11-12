@@ -20,6 +20,7 @@ const pieces = [
   { out: "changeset-bundle.js", module: "changeset", create: "changesetClient" },
   { out: "cooperation-bundle.js", module: "cooperation", create: "cooperationClient" },
   { out: "composer-model-bundle.js", module: "composer-model", create: "composerModels" },
+  { out: "transcript-bundle.js", module: "transcript", create: "codingTranscript" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

@@ -1,6 +1,8 @@
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedPage } from "./factory.js";
 
+const uiText = globalThis.t;
+
 type Field = "name" | "instructions";
 type Outcome = "retry" | "handled" | null;
 interface Kept { value: string; swapped: boolean }
@@ -23,8 +25,8 @@ const codeOf = (error: unknown): string => error && typeof error === "object" &&
 export const contentOf = (rule: { name: string; instructions: string }): string => JSON.stringify({ name: rule.name.trim(), instructions: rule.instructions.trim() });
 const definitionOf = (fn: JudgmentRuleRecord): string => JSON.stringify([fn.name, fn.function_key, fn.instructions, fn.criteria, fn.scene_id, fn.scene_version, fn.scene_provider_id, fn.subject_kinds, fn.scene_map, fn.action_map]);
 
-type Translate = FeedPage["host"]["translate"];
-const labelOf = (id: Field, L: Translate) => id === "name" ? L("规则名称") : L("描述");
+type Translate = typeof uiText.text;
+const labelOf = (id: Field, _L: Translate) => id === "name" ? uiText.text("feed.rule-keep.rule-name") : uiText.text("feed.rule-keep.description");
 const withVersion = (rec: JudgmentRuleRecord) => (alert: HTMLElement) => {
   const walk = document.createTreeWalker(alert, NodeFilter.SHOW_TEXT);
   for (let node = walk.nextNode(); node; node = walk.nextNode()) node.nodeValue = node.nodeValue!.replace("{version}", "v" + (rec.version || 1));
@@ -37,26 +39,26 @@ const fitFolds = (section: HTMLElement) => section.querySelectorAll<HTMLElement>
   if (!more || !text || !text.getClientRects().length) return;
   more.hidden = !text.classList.contains("is-open") && text.scrollHeight <= text.clientHeight + 1;
 });
-const fold = (section: HTMLElement, node: HTMLElement, control: HTMLElement, L: Translate) => {
+const fold = (section: HTMLElement, node: HTMLElement, control: HTMLElement, _L: Translate) => {
   const open = node.querySelector(".mw-kept__text")!.classList.toggle("is-open");
   control.setAttribute("aria-expanded", String(open));
-  control.querySelector("[data-slot=button-label]")!.textContent = open ? L("feed.rule.show-less") : L("看全部");
+  control.querySelector("[data-slot=button-label]")!.textContent = open ? uiText.text("feed.rule.show-less") : uiText.text("feed.rule-keep.show-all");
   fitFolds(section);
   // Folding a text that fits takes this way away, and the focus was on it: it moves to the row's own button.
   if (control.hidden) node.querySelector<HTMLElement>("[data-feed-kept-swap]")?.focus();
 };
-const fillKept = (node: HTMLElement, id: Field, row: Kept, latest: string, L: Translate) => {
+const fillKept = (node: HTMLElement, id: Field, row: Kept, latest: string, readText: Translate) => {
   const text = row.swapped ? latest : row.value, swap = node.querySelector<HTMLElement>("[data-feed-kept-swap]")!, body = node.querySelector<HTMLElement>(".mw-kept__text")!;
   node.classList.toggle("is-swapped", row.swapped);
-  node.querySelector(".mw-kept__who")!.textContent = row.swapped ? L("最新版") : L("你写的");
-  swap.querySelector("[data-slot=button-label]")!.textContent = row.swapped ? L("换回") : L("放回");
-  swap.setAttribute("aria-label", row.swapped ? L("换回最新版：{field}", { field: labelOf(id, L) }) : L("放回你写的：{field}", { field: labelOf(id, L) }));
-  body.textContent = text || L("你清空了这一栏"); body.classList.toggle("is-blank", !text);
+  node.querySelector(".mw-kept__who")!.textContent = row.swapped ? uiText.text("feed.rule-keep.latest-version") : uiText.text("feed.rule-keep.wrote");
+  swap.querySelector("[data-slot=button-label]")!.textContent = row.swapped ? uiText.text("feed.rule-keep.swap-back") : uiText.text("feed.rule-keep.put-back");
+  swap.setAttribute("aria-label", row.swapped ? uiText.text("feed.rule-keep.swap-back-latest-field", { field: labelOf(id, readText) }) : uiText.text("feed.rule-keep.put-back-what-wrote-field", { field: labelOf(id, readText) }));
+  body.textContent = text || uiText.text("feed.rule-keep.cleared-field"); body.classList.toggle("is-blank", !text);
 };
-const lines = (L: Translate, kept: Field[], yours: Field[], theirs: Field[]) => {
-  const join = (ids: Field[]) => ids.map(id => labelOf(id, L)).join(L("、"));
-  return [kept.length ? L("{fields}两边都改了，你写的就在它下面。", { fields: join(kept) }) : "", theirs.length ? L("别处还改了{fields}。", { fields: join(theirs) }) : "",
-    yours.length ? L("你改的{fields}留着。", { fields: join(yours) }) : "", L("再预览一次才能启用。")].filter(Boolean).join("\n");
+const lines = (readText: Translate, kept: Field[], yours: Field[], theirs: Field[]) => {
+  const join = (ids: Field[]) => ids.map(id => labelOf(id, readText)).join(uiText.text("common.list.separator"));
+  return [kept.length ? uiText.text("feed.rule-keep.fields-changed-both-sides-yours-right-under", { fields: join(kept) }) : "", theirs.length ? uiText.text("feed.rule-keep.also-changed-elsewhere-fields", { fields: join(theirs) }) : "",
+    yours.length ? uiText.text("feed.rule-keep.edit-fields-stays", { fields: join(yours) }) : "", uiText.text("feed.rule-keep.preview-again-before-enabling")].filter(Boolean).join("\n");
 };
 
 /**
@@ -66,7 +68,7 @@ const lines = (L: Translate, kept: Field[], yours: Field[], theirs: Field[]) => 
  * the latest keeps what only you changed and puts yours under each field both sides changed, to put back.
  */
 export function feedRuleKeep(page: FeedPage, ports: KeepPorts) {
-  const { q, host } = page, L = host.translate, keeps = new WeakMap<HTMLElement, Keep>();
+  const { q } = page, readText = uiText.text, keeps = new WeakMap<HTMLElement, Keep>();
   const keepOf = (section: HTMLElement): Keep => { let keep = keeps.get(section); if (!keep) keeps.set(section, keep = { phase: "", kept: {} }); return keep; };
   const field = (section: HTMLElement, id: Field) => q<HTMLInputElement | HTMLTextAreaElement>("[" + FIELDS.find(([name]) => name === id)![1] + "]", section);
   const mine = (section: HTMLElement) => {
@@ -156,13 +158,13 @@ export function feedRuleKeep(page: FeedPage, ports: KeepPorts) {
     }
     draft.function = latest; draft.functionContent = contentOf(latest); delete draft.previewContent; ports.save(section); unpreview(section);
     Object.assign(keep, { kept, latest, loaded: true });
-    band(section, "loaded", alert => { const body = alert.querySelector("p"); if (body) body.textContent = lines(L, Object.keys(keep.kept) as Field[], yours, theirs); });
+    band(section, "loaded", alert => { const body = alert.querySelector("p"); if (body) body.textContent = lines(readText, Object.keys(keep.kept) as Field[], yours, theirs); });
     section.querySelectorAll("[data-feed-kept]").forEach(node => node.remove());
     (Object.entries(kept) as Array<[Field, Kept]>).forEach(([id, row], index) => {
       const node = cloneOf(section, "kept"), box = field(section, id)?.closest("label");
       if (!node || !box) return;
       node.dataset.feedKept = id; node.style.setProperty("--i", String(index));
-      fillKept(node, id, row, latest[id], L); box.after(node);
+      fillKept(node, id, row, latest[id], readText); box.after(node);
     });
     fitFolds(section);
     const swap = section.querySelector<HTMLElement>("[data-feed-kept-swap]");
@@ -207,10 +209,10 @@ export function feedRuleKeep(page: FeedPage, ports: KeepPorts) {
       const control = target.closest<HTMLElement>("[data-feed-kept-swap],[data-feed-kept-more]"), node = control?.closest<HTMLElement>("[data-feed-kept]");
       const id = node?.dataset.feedKept as Field | undefined, keep = keepOf(section), row = id && keep.kept[id];
       if (!control || !node || !id || !row || !keep.latest) return false;
-      if (control.hasAttribute("data-feed-kept-more")) { fold(section, node, control, L); return true; }
+      if (control.hasAttribute("data-feed-kept-more")) { fold(section, node, control, readText); return true; }
       row.swapped = !row.swapped;
       const input = field(section, id); if (input) input.value = row.swapped ? row.value : keep.latest[id];
-      fillKept(node, id, row, keep.latest[id], L); fitFolds(section); land(section, id); unpreview(section); ports.save(section);
+      fillKept(node, id, row, keep.latest[id], readText); fitFolds(section); land(section, id); unpreview(section); ports.save(section);
       return true;
     },
   };

@@ -5,6 +5,7 @@ import type {
   PluginConnectionServiceDeclaration,
   PluginIntegrationDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { connectorWords, platformConnectorWords, type ConnectorGuide, type ConnectorTextSource, type ConnectorWordReader } from "./connector-words.js";
 
 /** Who holds a service or an integration when the platform itself declared it. */
 export const PLATFORM_OWNER = "platform";
@@ -13,6 +14,8 @@ export interface RegisteredConnectionService {
   readonly declaration: PluginConnectionServiceDeclaration;
   /** A plugin id, or `platform`. */
   readonly owner: string;
+  readonly word: ConnectorWordReader;
+  readonly guides: readonly ConnectorGuide[];
 }
 
 export interface RegisteredIntegration {
@@ -31,12 +34,12 @@ export class IntegrationDeclarations {
   private readonly presentations = new Map<string, { readonly plugin_id: string }>();
   private readonly declared = new Map<string, { services: readonly string[]; integrations: readonly string[]; presentations: readonly string[] }>();
   /** The display name each declaring plugin's Manifest gives it, for the cards that say where a service comes from. */
-  private readonly names = new Map<string, string>();
+  private readonly names = new Map<string, () => string>();
 
   constructor(platform: readonly PluginConnectionServiceDeclaration[] = []) {
     for (const declaration of platform) {
       if (this.services.has(declaration.service_id)) throw pluginErrors.integration_declaration_conflict(`平台声明了重复的连接服务 ${declaration.service_id}`);
-      this.services.set(declaration.service_id, { declaration, owner: PLATFORM_OWNER });
+      this.services.set(declaration.service_id, { declaration, owner: PLATFORM_OWNER, word: platformConnectorWords, guides: [] });
     }
   }
 
@@ -68,17 +71,23 @@ export class IntegrationDeclarations {
     }
   }
 
-  declare(manifest: PluginManifest): void {
+  declare(manifest: PluginManifest, source?: ConnectorTextSource): void {
     if (this.declared.has(manifest.plugin_id)) return;
     this.assertFree(manifest);
-    this.names.set(manifest.plugin_id, manifest.name);
     const services = manifest.connection_services ?? [];
     const integrations = manifest.integrations ?? [];
-    for (const declaration of services) this.services.set(declaration.service_id, { declaration, owner: manifest.plugin_id });
-    for (const declaration of integrations) this.integrations.set(declaration.integration_id, { declaration, plugin_id: manifest.plugin_id });
     const presentations = manifest.source_presentations ?? [];
+    const held = { services: services.map(item => item.service_id), integrations: integrations.map(item => item.integration_id), presentations };
+    const current = () => this.declared.get(manifest.plugin_id) === held && source?.current?.() !== false;
+    const word = connectorWords(manifest.plugin_id, source?.reader ?? null, current);
+    this.names.set(manifest.plugin_id, () => manifest.name_text === undefined || !current() ? manifest.name : word(manifest.name_text));
+    for (const declaration of services) {
+      const guides = source?.guides?.[declaration.service_id] ?? [];
+      this.services.set(declaration.service_id, { declaration, owner: manifest.plugin_id, word, guides });
+    }
+    for (const declaration of integrations) this.integrations.set(declaration.integration_id, { declaration, plugin_id: manifest.plugin_id });
     for (const id of presentations) this.presentations.set(id, { plugin_id: manifest.plugin_id });
-    this.declared.set(manifest.plugin_id, { services: services.map(item => item.service_id), integrations: integrations.map(item => item.integration_id), presentations });
+    this.declared.set(manifest.plugin_id, held);
   }
 
   /** The ids this plugin held are free again. */
@@ -98,7 +107,7 @@ export class IntegrationDeclarations {
 
   /** The name a Manifest gives a declaring plugin, or undefined when it declares nothing here. */
   pluginName(pluginId: string): string | undefined {
-    return this.names.get(pluginId);
+    return this.names.get(pluginId)?.();
   }
 
   /** Every registered service: the platform's first, then each plugin's in the order they were declared. */

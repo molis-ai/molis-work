@@ -4,7 +4,7 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createGoalsPage } from "./page/index.js";
 import { goalsPagePorts } from "./page/workbench-stage.js";
 import { createProjectGuidanceDocumentRenderer } from "./page/guidance-document.js";
@@ -23,11 +23,11 @@ interface GoalsSettingsData {
 
 function planningRenderer(model: StagePageModel<GoalsSettingsData>, ports: ReturnType<typeof goalsPagePorts>) {
   const desktop = model.request?.desktop === "true", document = model.drawing?.document;
-  const primitives: GoalsPlanningPrimitives = { translate: ports.L, escapeHtml, icon, listJoin: ports.listJoin,
+  const primitives: GoalsPlanningPrimitives = { translate: ports.readText, escapeHtml, icon, listJoin: ports.listJoin,
     settingsContextHref: model.drawing!.settingsContextHref, withDesktopQuery: model.drawing!.withDesktopQuery,
     renderPage: page => document ? document.render({ lang: document.lang, title: `${page.title} · Molis Work`,
       preamble_html: page.documentComment,
-      body_html: `<header class="project-preferences-chrome"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span>${document.navigation_html.includes("project-settings-navigation") ? ports.L("项目设置") : ports.L("全局设置")}</span><a href="${page.returnHref}" aria-label="${ports.L("返回工作台")}">${icon("x")}</a></header><main class="settings-shell">${document.navigation_html}<div class="settings-content">${page.body}</div></main><script>${document.client_i18n}${page.requiresControl ? document.request_client : ""}${page.clientScript}${document.foundation_client}</script>`,
+      body_html: `<header class="project-preferences-chrome"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span>${document.navigation_html.includes("project-settings-navigation") ? uiText("goals.settings-ui.project-settings") : uiText("goals.settings-ui.global-settings")}</span><a href="${page.returnHref}" aria-label="${uiText("goals.settings-ui.back-workbench")}">${icon("x")}</a></header><main class="settings-shell">${document.navigation_html}<div class="settings-content">${page.body}</div></main><script>${page.requiresControl ? document.request_client : ""}${page.clientScript}${document.foundation_client}</script>`,
     }) : page.body,
   };
   return createGoalsRendererFactories(ports.mount).planning(primitives);
@@ -37,7 +37,7 @@ function renderSettingsContent(surface: string, model: StagePageModel<GoalsSetti
   const ports = goalsPagePorts(model), data = model.data ?? {}, project = model.context?.project ?? null;
   if (surface === "guidance") {
     if (!data.guidance) throw new Error("Goals guidance data is missing");
-    return createProjectGuidanceDocumentRenderer({ L: ports.L, escapeHtml, icon, formatDate: ports.formatDate, renderHint: ports.renderHint })(data.guidance);
+    return createProjectGuidanceDocumentRenderer({ readText: ports.readText, escapeHtml, icon, formatDate: ports.formatDate, renderHint: ports.renderHint })(data.guidance);
   }
   if (surface === "rules") return createGoalsPage(ports).goals.renderProjectPolicyDocument({ project, policy_bindings: data.policy_bindings ?? [] });
   const planning = planningRenderer(model, ports), desktop = model.request?.desktop === "true", methods = data.methods ?? [];

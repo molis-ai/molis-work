@@ -47,12 +47,12 @@ export interface WebEntryCall<Entry> {
 }
 
 /** `scope` names the door in the call's audit locator (`web:<scope>`); it grants nothing. */
-export function webEntryDoor<Entry>(scope: string, refusal: string): WebEntryDoor<Entry> {
+export function webEntryDoor<Entry>(scope: string, refusal: () => string): WebEntryDoor<Entry> {
   const issued = new WeakMap<ActionUserAction, { readonly entry: Entry; readonly project_id: string | null }>();
   const entryOf = (caller: ActionCallContext): Entry => {
     const held = caller.user_action ? issued.get(caller.user_action) : undefined;
     if (!held || caller.audience !== "user" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.host_plugin || caller.delegated_by
-      || caller.project_id !== held.project_id) throw new ActionError("actions.forbidden", refusal);
+      || caller.project_id !== held.project_id) throw new ActionError("actions.forbidden", refusal());
     return held.entry;
   };
   function define<const S extends ActionSchema, Output>(spec: WebEntryActionSpec<S>,
@@ -75,7 +75,7 @@ export function webEntryDoor<Entry>(scope: string, refusal: string): WebEntryDoo
       const assertAuthority = (target?: ActionReference) => {
         sessionCurrent();
         call.signal?.throwIfAborted();
-        if (target && (target.capability_id !== definition.capability_id || target.version !== definition.version)) throw new ActionError("actions.forbidden", refusal);
+        if (target && (target.capability_id !== definition.capability_id || target.version !== definition.version)) throw new ActionError("actions.forbidden", refusal());
       };
       assertAuthority();
       const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: call.reference?.project_id ?? null, audience: "user",

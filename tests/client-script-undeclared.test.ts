@@ -16,7 +16,6 @@ import { BUILTIN_PLUGIN_WORKBENCH, pluginWorkbenchClientAsset } from "../apps/wo
 // Globals other scripts on the same page define before this program runs.
 const PAGE_GLOBALS = new Set([
   "L", // client i18n script
-  "LF", "LFor", // client i18n script: a Plugin's own words after the page's (PG-071)
   "molisWorkControlHeaders", // control client script
   "molisWorkRequest", // the request helper's page program (ui-host UI_REQUEST_CLIENT_SCRIPT), installed before any Workbench program runs
   "molisWorkSettingsReturn", // the return trips' owner (src/browser/settings-return-entry.ts, bundled to dist/settings-return-client.js), first in the program

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { pageTextScript, withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -256,7 +257,8 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     assert.deepEqual(await log(browser), []);
   });
   await t.test("the component board's own sample runs its script: adopt rewrites the field, submit shows the remaining error", async () => {
-    const board = `<!doctype html><html><head><meta charset="utf-8"><style>:root{${renderShellTokens("light")}${renderShapeTokens()}${renderControlMetrics()}}${TYPEFACE_STYLES}${PRIMITIVE_STYLES}</style></head><body>${renderIconSprite()}${renderPrimitiveCatalog()}</body></html>`;
+    const board = `<!doctype html><html><head><meta charset="utf-8"><style>:root{${renderShellTokens("light")}${renderShapeTokens()}${renderControlMetrics()}}${TYPEFACE_STYLES}${PRIMITIVE_STYLES}</style>
+      <script>${pageTextScript("zh")}</script></head><body>${renderIconSprite()}${withPageText("zh", [], renderPrimitiveCatalog)}</body></html>`;
     await browser.command("Page.navigate", { url: "about:blank" });
     await browser.command("Page.setDocumentContent", { frameId: (await browser.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id, html: board });
     await browser.wait(`!!document.querySelector('[data-ix-question="ix-q-open"]')`);

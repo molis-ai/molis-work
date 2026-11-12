@@ -1,3 +1,4 @@
+import { assertPageWords } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -5,31 +6,26 @@ import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 import * as coding from "@molis-ai/molis-work-plugin-coding";
-import { CODING_MESSAGES, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 const DIR = "plugins/native/coding";
 const SRC = join(DIR, "src");
 const BROWSER = join(SRC, "browser");
 const MAIN = join(BROWSER, "main");
 const files = (dir: string) => readdirSync(dir, { recursive: true, encoding: "utf8" }).filter(file => file.endsWith(".ts")).map(file => join(dir, file));
-const messages = CODING_MESSAGES as Record<string, { zh: string; en: string }>;
 
 test("RAC-543 every word the Coding page says has a stable key with both languages", () => {
   const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
   const calls = scan.calls.filter(call => call.file.startsWith(BROWSER + "/"));
   assert.ok(calls.some(call => call.file.startsWith(MAIN + "/")), "the actual scanner sees the main page's words");
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "no Chinese key: every word the page says is a stable key");
-  // The only dynamic choices are words the Host's own table carries as data (a session's state label; a Skill's name and summary come from the catalog as data, 09).
-  const dynamic = new Set(scan.dynamicCalls.filter(call => call.file.startsWith(BROWSER + "/")).map(call => call.file));
-  assert.deepEqual([...dynamic].sort(), [join(MAIN, "mount-core.ts"), join(MAIN, "run-facts.ts")], "no other dynamic key choice hides in the page");
-  assert.deepEqual([...new Set(calls.map(call => call.key))].filter(key => !(key in messages)), [], "every key the page asks for is defined");
+  const dynamic = scan.dynamicCalls.filter(call => call.file.startsWith(BROWSER + "/"));
+  assert.deepEqual(dynamic, [], "Coding's phase and fact words now use literal stable keys");
+  assert.ok(calls.some(call => call.file === join(MAIN, "mount-core.ts") && call.key === "coding.phase.starting"));
+  assert.ok(calls.some(call => call.file === join(MAIN, "run-facts.ts") && call.key === "coding.facts.configuration"));
+  assertPageWords("coding", calls.map(call => call.key));
   for (const role of ["planner", "reader", "reviewer", "coordinator", "writers", "builder", "writer", "coding-reader", "coding-reviewer", "coding-builder"]) {
-    assert.ok(messages[`coding.role.${role}`], `the role ${role} is named by a stable key`);
-  }
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(messages)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
+    assertPageWords("coding", [`coding.role.${role}`]);
   }
 });
 
@@ -55,11 +51,12 @@ test("RAC-545 the build type-checks the whole Coding page and bundles it with es
   const pkg = JSON.parse(readFileSync(join(DIR, "package.json"), "utf8")) as { scripts: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/u, "the build type-checks the browser code");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/workbench-factory\.ts [^&]*'--banner:js=\(host\) => \{'[^&]*--outfile=dist\/workbench-bundle\.js/u, "and bundles the page as one function of the host");
+  assert.match(pkg.scripts.build, /--outfile=dist\/workbench-bundle\.js && node \.\.\/\.\.\/\.\.\/scripts\/client-literals\.mjs --factory dist\/workbench-bundle\.js/u, "the existing bundle is compacted after esbuild");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/settings\/index\.ts [^&]*--outfile=dist\/settings-bundle\.js/u, "and the settings page as another");
   for (const part of ["steps", "taskboard", "plan-progress", "input-receipts"]) {
     assert.match(pkg.scripts.build, new RegExp(`esbuild src/browser/pieces/${part}\\.ts [^&]*--outfile=dist/${part}-bundle\\.js`, "u"), `and the ${part} part the package exports, so the page-program gate reads its source`);
   }
-  assert.match(pkg.scripts.build, /node scripts\/build-test-pieces\.mjs$/u, "and the parts only the tests read");
+  assert.match(pkg.scripts.build, /(?:^| && )node scripts\/build-test-pieces\.mjs(?: && |$)/u, "and the parts only the tests read");
   assert.match(pkg.scripts.typecheck, /tsc -p tsconfig\.browser\.json/u, "and so does the type check");
   const config = JSON.parse(readFileSync(join(DIR, "tsconfig.browser.json"), "utf8")) as { include: string[]; exclude: string[] };
   assert.deepEqual(config.include, ["src/browser/**/*.ts"]);

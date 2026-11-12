@@ -6,6 +6,7 @@ import { GoalsModule } from "./fixtures/goals-modules.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
+import { chinesePagePacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 test("public Query preserves complete rule history and Runtime dependency/replacement facts", () => {
   const store = new LocalProjectDatabase(":memory:");
@@ -58,7 +59,7 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     assert.equal(goals.query.activeReplacement("query-other", "subject"), null);
 
     const before = boardSnapshot(store, "query-main");
-    const view = buildMolisWorkWebView(store, coordinator, { projectId: "query-main" });
+    const view = withPagePacks("zh", chinesePagePacks("goals"), () => buildMolisWorkWebView(store, coordinator, { projectId: "query-main" }));
     assert.deepEqual(view.policy_bindings, expectedHistory, "The real Web view must carry inactive rules and original ordering");
     const after = boardSnapshot(store, "query-main");
     assert.deepEqual(after.goals, before.goals);

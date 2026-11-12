@@ -8,6 +8,7 @@ import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
+import { parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { parseContentPackage } from "@molis-ai/molis-work-plugin-sdk";
 import { BUNDLED_PACK_OPTIONS_FILE, packBundledContent } from "@molis-ai/molis-work-plugin-cli";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -34,8 +35,8 @@ test("08-10 BL-165 SKP-01 the design and accessibility pack builds with a test p
     const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(await readFile(file, "utf8")));
     assert.equal(key_id, publisher.identity, "signed by the key the step was given, and named in the Manifest");
     const { manifest, skills } = parseContentPackage(bundle.payload);
-    assert.deepEqual([manifest.kind, manifest.runtime?.scope, manifest.publisher.publisher_id, manifest.name, manifest.name_en],
-      ["content", "home", "molis-work", "设计与无障碍", "Design and accessibility"]);
+    assert.deepEqual([manifest.kind, manifest.runtime?.scope, manifest.publisher.publisher_id, manifest.name, manifest.name_text],
+      ["content", "home", "molis-work", "设计与无障碍", { key: "design-accessibility.directory.name" }]);
     assert.deepEqual([manifest.entrypoints, manifest.permissions, manifest.capabilities, manifest.ui.contributions],
       [[], [], { provides: [], consumes: [] }, []], "nothing to start, grant, provide or place");
     const methods = manifest.methods ?? [];
@@ -62,17 +63,28 @@ test("08-10 BL-165 SKP-01 the design and accessibility pack builds with a test p
   } finally { await rm(out, { recursive: true, force: true }); }
 });
 
-test("08-10 BL-165 every word of the pack the person reads has its English in the Manifest's ui.translations, and nothing else is there", async () => {
+test("08-10 BL-165 the signed pack carries only its own matching Chinese and English display words", async () => {
   const out = await temporary();
   try {
     const { bundle } = await packBundledContent(PACK, out, newPublisher().signer);
-    const { manifest } = bundle.payload;
-    const translations = manifest.ui.translations ?? {};
-    // A Skill's name is its id, the package's name has its own English (`name_en`); everything else written in Chinese is keyed here.
-    const words = [manifest.summary!, ...(manifest.methods ?? []).flatMap(method => [method.description!, method.when_to_use!, method.when_not_to_use!, method.argument_hint!])];
-    assert.deepEqual(words.filter(word => !translations[word]), [], "each has its English");
-    assert.deepEqual(Object.keys(translations).filter(key => !words.includes(key)), [], "no stale entry");
-    for (const [chinese, english] of Object.entries(translations)) assert.doesNotMatch(english, /[一-鿿]/u, `the English of ${chinese.slice(0, 20)} is English`);
+    const { manifest, locale_files: files } = parseContentPackage(bundle.payload);
+    assert.deepEqual(Object.keys(files ?? {}).sort(), ["locales/en.json", "locales/zh.json"]);
+    const expected = new Map([["design-accessibility.directory.name", manifest.name], ["design-accessibility.directory.summary", manifest.summary]]);
+    for (const method of manifest.methods ?? []) for (const field of ["description", "when_to_use", "when_not_to_use"] as const) {
+      expected.set(`design-accessibility.skill.${method.skill_id}.${field.replaceAll("_", "-")}`, method[field]);
+    }
+    for (const locale of ["zh", "en"]) {
+      const result = parseLocalePack(files![`locales/${locale}.json`]!, { contentPack: true });
+      assert.ok(result.ok, locale);
+      assert.equal(result.value.owner, PLUGIN_ID);
+      assert.deepEqual(Object.keys(result.value.messages).sort(), [...expected.keys()].sort());
+      for (const [key, original] of expected) {
+        const text: unknown = result.value.messages[key];
+        assert.equal(typeof text, "string", key);
+        if (locale === "zh") assert.equal(text, original, key);
+        else assert.doesNotMatch(String(text), /\p{Script=Han}/u, key);
+      }
+    }
   } finally { await rm(out, { recursive: true, force: true }); }
 });
 

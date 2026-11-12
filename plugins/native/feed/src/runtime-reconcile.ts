@@ -2,9 +2,8 @@ import { setTimeout } from "node:timers/promises";
 import type { PluginBackgroundClient, PluginJobControl, PluginJobDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConnectionsClient } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import type { FeedApplication } from "./application.js";
-import { FEED_CONTENT_LEDGER_BATCH, isFeedBodyRef } from "./content-ledger.js";
 import { connectorSlotOf } from "./runtime-connector.js";
-import { holdingsOfSnapshot } from "./source-history.js";
+import { keptBodyPages } from "./history-pages.js";
 
 // What a Runtime Feed sets right on its own, without a caller (FI-4 step 4e-2f, RAC-493 and RAC-518 of
 // specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md): the stored state of its account sources follows the account the
@@ -51,8 +50,8 @@ export async function refreshAccountSourceStates(ports: FeedReconcilePorts, cont
   const { feed, projectId, connections } = ports;
   if (!connections) return 0;
   let changed = 0;
-  // The snapshot is the application's one way to list sources as records; this runs once at start and once per change of a connection.
-  for (const source of feed.snapshot(projectId).sources) {
+  // Source state reads never load the project's messages or materials.
+  for (const source of feed.sources.list(projectId)) {
     const lifecycle = source.config._molis_work_lifecycle as { deleted_at?: string } | undefined;
     const slot = connectorSlotOf(source);
     if (slot === null || !source.enabled || lifecycle?.deleted_at) continue;
@@ -80,10 +79,8 @@ export async function refreshAccountSourceStates(ports: FeedReconcilePorts, cont
 export async function holdKeptBodies(ports: FeedReconcilePorts): Promise<void> {
   const { feed, projectId, hold } = ports;
   if (!hold) return;
-  const snapshot = feed.snapshot(projectId);
-  for (const source of snapshot.sources) {
-    const kept = holdingsOfSnapshot(snapshot, source.source_id).content_refs.filter(isFeedBodyRef);
-    for (let start = 0; start < kept.length; start += FEED_CONTENT_LEDGER_BATCH) await hold(source.source_id, kept.slice(start, start + FEED_CONTENT_LEDGER_BATCH));
+  for (const source of feed.sources.list(projectId)) {
+    for (const batch of keptBodyPages(feed, projectId, source.source_id)) await hold(source.source_id, batch);
   }
 }
 

@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.discord",
+  "locale": "en",
+  "messages": {
+    "discord.connection.auth-help": "Use a Discord Bot Token. This app sends the Bot prefix. The bot must belong to every server you want to read.",
+    "discord.connection.inbound": "Feed reads the server list",
+    "discord.connection.summary": "Servers and channels.",
+    "discord.connection.token-label": "Discord Bot Token",
+    "discord.guide.oauth-link": "View Discord OAuth2",
+    "discord.guide.oauth-note": "Discord OAuth2 authorizes users. The Molis Work connector for server data uses a Bot Token and does not yet support OAuth.",
+    "discord.guide.token-note": "Create a bot in the Developer Portal, add it to the target server, then paste the Bot Token.",
+    "discord.oauth.note": "User OAuth can read the identity and joined servers. A separate bot grant provides message access.",
+    "discord.setup.open-discord-developer-portal": "Open Discord Developer Portal"
+  }
+}

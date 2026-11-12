@@ -22,6 +22,7 @@ import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly
 import { createActivationContext, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
+import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
 export { holdsInstalledEdition, UNINSTALL_PENDING, type DeclarationOwner, type DeclarationOwners, type UninstallOptions } from "./install-rules.js";
@@ -661,8 +662,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.repository.list();
   }
 
-  contribution(installId: string): PluginContribution | null {
-    return this.contributions.get(installId) ?? null;
+  contribution(installId: string, source?: (source: PluginContributionSource) => void): PluginContribution | null {
+    return this.contributions.get(installId, source) ?? null;
   }
 
   /** A started Plugin must deliver exactly what its Manifest declared (a partial half: nothing beyond it), or it does not run. */
@@ -675,9 +676,9 @@ export class PluginRuntime implements PluginRuntimeApi {
       assertContributionMatchesManifest(definition.manifest, contribution, redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id));
       const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
-        const actions = this.options.actions;
-        if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
-        const registration = pluginActionProvider(manifest, contribution, record,
+        const actions = this.options.actions, activation = this.liveContext(record.install_id);
+        if (!actions || !activation) throw pluginErrors.contribution_unredeemed("当前插件激活或宿主动作注册服务不可用");
+        const registration = pluginActionProvider(manifest, contribution, activation,
           actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
             bounded: Boolean(this.options.permissionBound?.(record, definition)),
             checkGrant: permission => { this.capturePermission(record.install_id, permission); }, capturePermissions: permissions => {

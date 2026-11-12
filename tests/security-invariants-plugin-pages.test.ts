@@ -13,10 +13,12 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 test("ASR-07 page storage scopes isolate identical installations and projects by Home", () => {
   const homes = [mkdtempSync(join(tmpdir(), "page-scope-a-")), mkdtempSync(join(tmpdir(), "page-scope-b-"))];
+  const disconnect: Array<() => void> = [];
   try {
     const manifest = {plugin_id: "io.example.scope", ui: {}, actions: [], routes: []} as PluginManifest;
     const activation = {manifest, install_id: "same-install", project_id: "same-project", actor_id: "web-user", assertCurrent() {}};
-    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user", undefined, activation);
+    for (const home of homes) disconnect.push(pluginPagesFor(home).connect(activation));
+    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user");
     const a = open(homes[0]!), b = open(homes[1]!);
     assert.notEqual(a.storage_scope, b.storage_scope);
     const reopened = open(homes[0]!);
@@ -25,7 +27,10 @@ test("ASR-07 page storage scopes isolate identical installations and projects by
     pluginPagesFor(homes[0]!).close(a.page_id);
     pluginPagesFor(homes[0]!).close(reopened.page_id);
     pluginPagesFor(homes[1]!).close(b.page_id);
-  } finally { homes.forEach(home => rmSync(home, {recursive: true, force: true})); }
+  } finally {
+    disconnect.forEach(close => close());
+    homes.forEach(home => rmSync(home, {recursive: true, force: true}));
+  }
 });
 
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
@@ -571,6 +576,7 @@ type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
 
 import { createSettingsAddressHarness, type SettingsAddressSection } from "./fixtures/settings-address.js";
+import { pageText } from "./fixtures/page-text.js";
 
 /** A single address; lifecycle regressions below retain the harness across requests. */
 function openSettingsAddress(href: string, pluginSections: readonly SettingsAddressSection[] = [], via: "event" | "link" = "event"): string {
@@ -595,7 +601,7 @@ async function homeModelAddress(href: string): Promise<string> {
     dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
   };
   vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
-    document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
+    document, t: { text: pageText("zh") }, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
     DOMParser: class {}, AbortController, setTimeout, clearTimeout, requestAnimationFrame: () => 0,
   });
   const swallowed: unknown[] = [];

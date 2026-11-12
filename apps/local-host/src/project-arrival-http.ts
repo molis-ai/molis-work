@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import os from "node:os";
 import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -11,7 +12,7 @@ import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js"
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { descriptionFromSummary, readProjectArrival } from "./project-arrival.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { currentLocale, L } from "./web-locale.js";
+import { currentLocale } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /**
@@ -104,7 +105,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     if (!found) {
       // The personal space is made the first time it is opened; until then it has nothing to read.
       if (projectId !== PERSONAL_SPACE_PROJECT_ID) return null;
-      const model = composeProjectBrief({ project_id: projectId, name: L("个人空间"), personal: true, demo: false, opened_at: null, description: null, goals: [], events: [], workspace_path: null, now: new Date().toISOString() });
+      const model = composeProjectBrief({ project_id: projectId, name: uiText.text("workbench.project-arrival-http.personal-space"), personal: true, demo: false, opened_at: null, description: null, goals: [], events: [], workspace_path: null, now: new Date().toISOString() });
       return { html: ports.renderBrief(model), summary: summarizeProjectBrief(model, [], []) };
     }
     const { project } = found;
@@ -149,7 +150,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     const match = /^\/api\/projects\/([^/]+)\/brief$/u.exec(url.pathname);
     if (!match || request.method !== "GET") return false;
     let projectId: string;
-    try { projectId = decodeURIComponent(match[1]!); } catch { sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") }); return true; }
+    try { projectId = decodeURIComponent(match[1]!); } catch { sendJson(response, 404, { error: uiText.text("workbench.project-arrival-http.that-molis-work-project-was-not-found") }); return true; }
     // The sheet is worded in the request's language, so a brief read in one is not served in another.
     const key = `${currentLocale()}\n${homeDirectory ?? ""}\n${projectId}`;
     const fresh = cache.get(key);
@@ -161,12 +162,12 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
         inflight.set(key, pending);
       }
       const brief = await pending;
-      if (!brief) { sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") }); return true; }
+      if (!brief) { sendJson(response, 404, { error: uiText.text("workbench.project-arrival-http.that-molis-work-project-was-not-found") }); return true; }
       cache.set(key, { at: Date.now(), value: brief });
       if (cache.size > 64) cache.delete(cache.keys().next().value!);
       sendJson(response, 200, brief);
     } catch {
-      sendJson(response, 500, { error: L("项目简介暂时读不到") });
+      sendJson(response, 500, { error: uiText.text("workbench.project-arrival-http.can-t-read-project-summary-right-now") });
     }
     return true;
   };

@@ -1,9 +1,10 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
-import { ensureInstalledPlugins } from "./installed-plugin-host.js";
+import { ensureInstalledPlugins, runningInstalledPluginPlatform } from "./installed-plugin-host.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import { assertPermissionSwitchTarget, type InstalledPluginEntry, type PermissionSwitchTarget } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
@@ -31,6 +32,15 @@ export interface ProjectPluginHost {
 /** Reuse the complete production composition, without restoring external MCP or executing an Agent. */
 export async function withPreparedProject<Result>(source: ProjectPluginHost, reference: LocalHostProjectReference,
   operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, activatePlugins = false): Promise<Result> {
+  if (inLanguagePreview()) {
+    const result = await source.host.withExistingRuntime(reference, async runtime => {
+      if (!await runningProjectPlatform(runtime.store, runtime.project_id)
+        || source.options.homeDirectory && !await runningInstalledPluginPlatform(runtime.store, runtime.project_id)) throw languagePreviewUnavailable();
+      return { value: await operation(runtime) };
+    });
+    if (!result) throw languagePreviewUnavailable();
+    return result.value;
+  }
   if (activatePlugins) await ensureProjectPluginActions(source, reference);
   return source.host.withRuntime(reference, async runtime => { await prepareInstalledPlugins(source, reference, runtime); return operation(runtime); });
 }
@@ -39,6 +49,17 @@ export async function withPreparedProject<Result>(source: ProjectPluginHost, ref
 export async function prepareInstalledPlugins(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
   if (!source.options.homeDirectory) return;
   await (await installedPluginsOf(source, reference, runtime)).refreshPublicActions();
+}
+
+/** Prepare the actual providers for the action entrance; a preview reads the prepared directory and cannot reconcile it. */
+export async function prepareProjectActionDirectory(source: ProjectPluginHost, reference: LocalHostProjectReference, signal?: AbortSignal): Promise<void> {
+  await ensureProjectPluginActions(source, reference);
+  signal?.throwIfAborted();
+  if (inLanguagePreview()) return;
+  await source.agents()?.restoreExternalMcp(reference);
+  signal?.throwIfAborted();
+  await source.host.withRuntime(reference, runtime => prepareInstalledPlugins(source, reference, runtime));
+  signal?.throwIfAborted();
 }
 
 function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime) {

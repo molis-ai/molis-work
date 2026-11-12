@@ -1,8 +1,8 @@
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideViewBridgeScript } from "./side-view-document.js";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument } from "./document-shell.js";
@@ -12,6 +12,8 @@ import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
 import { PLACEMENT_FACTORY_SCRIPT } from "./scripts/client/placement.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
+import { renderAppearanceRecovery } from "./settings-appearance.js";
 
 /**
  * Where the person is beside this side view, read from the shell around it: the place the work area names and the
@@ -20,15 +22,15 @@ import type { WorkbenchRendererPorts } from "./renderer.js";
 const SIDE_PAGE_SCRIPT = String.raw`() => {
   const top = window.top; if (top === window) return null;
   const doc = top.document, place = doc.querySelector('[data-plugin-picker-current] .is-focused') || doc.querySelector('[data-plugin-picker-current]');
-  const name = doc.body.dataset.arrival ? globalThis.L('首页') : (place?.textContent || doc.title.replace(/ · Molis Work$/, '')).trim();
+  const name = doc.body.dataset.arrival ? globalThis.t.text("workbench.home-plugin-page.home") : (place?.textContent || doc.title.replace(/ · Molis Work$/, '')).trim();
   return { url: (top.location.pathname + top.location.search).slice(0, 500),
     title: [name, doc.querySelector('.navigator-project-selector strong')?.textContent.trim()].filter(Boolean).join(' · ').slice(0, 200) || null };
 }`;
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
 export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_plugin_id"> & { readonly manifest: Pick<PluginManifest, "name" | "plugin_id"> }, html: string | null, message: string | null, controlToken: string,
-  locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript"> & Pick<WorkbenchRendererPorts, "accountRegistration">, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
-  const { L, htmlLang, clientI18nScript } = locale;
+  locale: Pick<WorkbenchRendererPorts["locale"], "readText" | "htmlLang"> & Pick<WorkbenchRendererPorts, "accountRegistration"> & { appearance?: WorkbenchAppearance }, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
+  const { readText, htmlLang, appearance } = locale;
   const name = escapeHtml(entry.manifest.name), id = entry.project_plugin_id;
   // A page drawn by a document of its own (a signed package's) is framed whole; any other is the plugin's HTML in the common opaque frame.
   const live = Boolean(frame || html);
@@ -37,7 +39,7 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
   return renderWorkbenchDocument({ lang: htmlLang(), title: `${entry.manifest.name} · Molis Work`,
     body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-side-view": side ? id : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route, ...(locale.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}">
-    <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>
+    <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(appearance)}<style>
     .home-plugin-page{height:100dvh;display:flex;flex-direction:column;background:var(--desk);color:var(--ink)}
     .home-plugin-page>header{display:flex;align-items:center;gap:16px;padding:12px 24px;flex:none}.home-plugin-page>header>strong{flex:1}
     .home-plugin-main{position:relative;flex:1;min-height:0;display:flex;margin:0 8px 8px;background:var(--surface);border-radius:12px;overflow:hidden}
@@ -50,22 +52,22 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
     .home-model-settings .settings-heading-title{display:none}
     body.home-plugin-page .home-model-settings select{background-repeat:no-repeat;background-position:right 8px center;background-size:14px 14px}
     </style>`, body_html: `${renderIconSprite()}
-    ${side && live ? "" : `<header>${side ? "" : `<a class="mw-btn mw-btn--ghost" href="/">${escapeHtml(L("返回个人空间与项目"))}</a>`}<strong>${name}</strong>
-      ${lifecycle ? `<button class="mw-btn mw-btn--ghost" type="button" data-home-lifecycle="${retry ? "retry" : live ? "disable" : "enable"}">${escapeHtml(L(retry ? "重试启动" : live ? "停用插件" : "启用插件"))}</button>` : ""}</header>`}
-    <main class="home-plugin-main" data-side-view-root>${frame ? `<iframe src="${escapeHtml(frame)}" title="${name}" style="display:block;flex:1;min-width:0;height:100%;border:0;background:var(--paper)"></iframe>` : html ? renderPluginFrameSurface(html, id, entry.manifest.name, false) : `<div class="mw-empty" role="alert"><h1 data-mw-state="${retry ? "unavailable" : "disabled"}">${name} ${escapeHtml(L("暂不可用"))}</h1><p>${escapeHtml(L(message ?? "插件已停用"))}</p></div>`}</main>
+    ${side && live ? "" : `<header>${side ? "" : `<a class="mw-btn mw-btn--ghost" href="/">${escapeHtml(uiText.text("workbench.home-plugin-page.back-personal-space-projects"))}</a>`}<strong>${name}</strong>
+      ${lifecycle ? `<button class="mw-btn mw-btn--ghost" type="button" data-home-lifecycle="${retry ? "retry" : live ? "disable" : "enable"}">${escapeHtml(uiText.text(retry ? "workbench.home-plugin-page.retry-startup" : live ? "workbench.home-plugin-page.disable-plugin" : "workbench.home-plugin-page.enable-plugin"))}</button>` : ""}</header>`}
+    <main class="home-plugin-main" data-side-view-root>${frame ? `<iframe src="${escapeHtml(frame)}" title="${name}" style="display:block;flex:1;min-width:0;height:100%;border:0;background:var(--paper)"></iframe>` : html ? renderPluginFrameSurface(html, id, entry.manifest.name, false) : `<div class="mw-empty" role="alert"><h1 data-mw-state="${retry ? "unavailable" : "disabled"}">${name} ${escapeHtml(uiText.text("workbench.home-plugin-page.unavailable"))}</h1>${message === null ? `<p>${uiText("workbench.home-plugin-page.plugin-disabled")}</p>` : `<p translate="no">${escapeHtml(message)}</p>`}</div>`}</main>
     <p role="status" data-home-status hidden></p>
     <dialog class="mw-dialog home-model-settings" data-home-model-settings aria-labelledby="home-model-title">
-      <div class="mw-dialog__shell mw-form"><header class="mw-form__header"><h2 id="home-model-title">${escapeHtml(L("模型设置"))}</h2><button class="mw-btn mw-btn--ghost" type="button" data-home-model-back hidden>${escapeHtml(L("返回模型设置"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-home-model-close autofocus>${escapeHtml(L("关闭"))}</button></header>
-        <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>${escapeHtml(L("重试"))}</button><div data-home-model-content></div></div>
+      <div class="mw-dialog__shell mw-form"><header class="mw-form__header"><h2 id="home-model-title">${escapeHtml(uiText.text("workbench.home-plugin-page.models"))}</h2><button class="mw-btn mw-btn--ghost" type="button" data-home-model-back hidden>${escapeHtml(uiText.text("workbench.home-plugin-page.back-model-settings"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-home-model-close autofocus>${escapeHtml(uiText.text("common.control.close"))}</button></header>
+        <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>${escapeHtml(uiText.text("common.control.retry"))}</button><div data-home-model-content></div></div>
       </div>
-    </dialog>
-    <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}</script><script src="/assets/molis-work-plugin-frame.js"></script><script>
-    ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:L,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id)),openPluginRecord:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id))});`}
+    </dialog>${renderAppearanceRecovery(readText, appearance)}
+    <script>${UI_REQUEST_CLIENT_SCRIPT}${appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(appearance)}<script src="/assets/molis-work-plugin-frame.js"></script><script>
+    ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:globalThis.t.text,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id)),openPluginRecord:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id))});`}
     const root = document.querySelector('[data-deferred-surface]');
-    if(root) void molisPluginFrames.mount(root,{side:${side},translate:globalThis.L,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(),route:path=>${JSON.stringify(route)}+path,projectId:()=>${JSON.stringify(project?.project_id ?? "")},projectTitle:()=>${JSON.stringify(project?.display_name ?? "")}${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}},{id:${JSON.stringify(id)},plugin_id:${JSON.stringify(entry.manifest.plugin_id)},bundle:${JSON.stringify(client?.bundle ?? id)},assets:${JSON.stringify(client?.assets ?? [])},searchRow:${JSON.stringify(client?.searchRow)}}).catch(error=>{const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;});
+    if(root) void molisPluginFrames.mount(root,{side:${side},mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(),route:path=>${JSON.stringify(route)}+path,projectId:()=>${JSON.stringify(project?.project_id ?? "")},projectTitle:()=>${JSON.stringify(project?.display_name ?? "")}${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}},{id:${JSON.stringify(id)},plugin_id:${JSON.stringify(entry.manifest.plugin_id)},bundle:${JSON.stringify(client?.bundle ?? id)},assets:${JSON.stringify(client?.assets ?? [])},searchRow:${JSON.stringify(client?.searchRow)}}).catch(error=>{const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;});
     document.querySelector('[data-home-lifecycle]')?.addEventListener('click',async(event)=>{
       const button=event.currentTarget;button.disabled=true;
-      try{await molisWorkRequest('/api/plugins/${encodeURIComponent(entry.manifest.plugin_id)}/'+button.dataset.homeLifecycle,{body:{},fallback:L('插件状态未能更改')});location.reload();
+      try{await molisWorkRequest('/api/plugins/${encodeURIComponent(entry.manifest.plugin_id)}/'+button.dataset.homeLifecycle,{body:{},fallback:globalThis.t.text("workbench.home-plugin-page.couldn-t-change-plugin-state")});location.reload();
       }catch(error){const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;button.disabled=false;}
     });${STATE_RING_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}${MEDIA_ZOOM_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${OVERFLOW_FADE_CLIENT_SCRIPT}${FIELD_FIT_CLIENT_SCRIPT}${ROVING_FOCUS_CLIENT_SCRIPT}${FLOATING_DETAILS_CLIENT_SCRIPT}${TIP_CLIENT_SCRIPT}${HOME_MODEL_SETTINGS_CLIENT_SCRIPT}
     ${side ? sideViewBridgeScript(route) : ""}${homeToolKeysScript()}${side ? `addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&!document.querySelector('dialog[open],:popover-open'))parent.postMessage({type:'molis:side-close'},location.origin);});` : ""}</script>` });

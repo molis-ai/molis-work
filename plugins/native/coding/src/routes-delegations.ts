@@ -85,7 +85,7 @@ const ROUTES: RouteMaker[] = [
       // The page refreshes this while a session is open: the project's outputs are listed only when there is a related session to show them under.
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
       for (const output of relatedIds.length ? sessionOutputs(context) : []) (outputsBySession.get(output.session_id) ?? outputsBySession.set(output.session_id, []).get(output.session_id)!).push({ reference: output.reference, kind: output.reference.artifact_id.split(":")[0]!.replace("coding-", "") });
-      const say = codingText(execution.locale);
+      const say = codingText;
       const related = relatedIds.map(id => {
         let session: { title: string; state: string; updated_at: string } | null = null;
         try { session = execution.sessions.get(projectId, id); } catch { session = null; }

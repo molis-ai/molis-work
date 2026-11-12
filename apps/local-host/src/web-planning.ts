@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-plugin-goals/contract";
@@ -9,7 +10,7 @@ import { renderPlanningRequest } from "@molis-ai/molis-work-plugin-goals/page";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { readText } from "./web-locale.js";
 
 /** Older HTTP editors may submit a returned pack; provenance remains owned by Catalog. */
 function personalMethodInput(method: PlanningMethodPackInput): PlanningMethodPackInput {
@@ -52,7 +53,7 @@ export function createLocalPlanningHttp(ports: {
         method: (method, mode) => renderMolisWorkPlanningMethodPage(
           method, mode, "personal", contextProject, controlToken, isDesktopShellRequest(request, url), projects, enabledPlugins),
       };
-    }, L);
+    }, readText);
     if (globalPlanningPage) {
       if ("error" in globalPlanningPage) { sendJson(response, globalPlanningPage.status, { error: globalPlanningPage.error }); return true; }
       response.writeHead(200, {
@@ -74,7 +75,7 @@ export function createLocalPlanningHttp(ports: {
         ? body.method as PlanningMethodPackInput
         : null;
       if (body.scope !== "personal" || !method) {
-        sendJson(response, 400, { error: L("个人方法内容无效") });
+        sendJson(response, 400, { error: uiText.text("workbench.planning.personal-method-content-invalid") });
         return true;
       }
       try {
@@ -102,7 +103,7 @@ export function createLocalPlanningHttp(ports: {
         method: (method, mode) => renderMolisWorkPlanningMethodPage(
           method, mode, "project", view.project, controlToken, isDesktopShellRequest(request, url), view.projects),
       };
-    }, L);
+    }, readText);
     if (projectPlanningPage) {
       if ("error" in projectPlanningPage) { sendJson(response, projectPlanningPage.status, { error: projectPlanningPage.error }); return true; }
       response.writeHead(200, {
@@ -139,7 +140,7 @@ export function createLocalPlanningHttp(ports: {
         ? body.method as PlanningMethodPackInput
         : null;
       if (!scope || !method) {
-        sendJson(response, 400, { error: L("保存范围或方法内容无效") });
+        sendJson(response, 400, { error: uiText.text("workbench.planning.save-scope-method-content-invalid") });
         return true;
       }
       try {

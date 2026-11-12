@@ -10,8 +10,6 @@ import { DATASET_UI_CONTRIBUTION_ID } from "./ui.js";
 import { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS } from "./actions.js";
 import { DATASET_DATABASE } from "./database.js";
 
-import { DATASET_MESSAGES } from "./messages.js";
-import { DATASET_EN } from "./en.js";
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 
 /** The Host's current HTTP body bound for Dataset's project routes; the import action's 2,000,000 characters are another layer. */
@@ -24,7 +22,7 @@ export const datasetManifest: PluginManifest = {
   sync: datasetSync,
   version: /* @version product.release */ "0.1.0",
   name: "Dataset",
-  summary: "做表格，导入 CSV，可回到旧版。",
+  summary: "做表格，导入 CSV，可回到旧版。", summary_text: { key: "dataset.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-dataset-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -54,18 +52,16 @@ export const datasetManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   artifacts: {
-    produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION, title: "数据表",
+    produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION, title: "数据表", title_text: { key: "dataset.artifacts.type-title" },
       preview: { capability_id: "dataset.artifacts.preview", version: /* @version action.dataset.artifacts.preview */ 1 }, pin: { capability_id: "dataset.artifacts.pin", version: /* @version action.dataset.artifacts.pin */ 1 },
       compare: { capability_id: "dataset.artifacts.compare", version: /* @version action.dataset.artifacts.compare */ 1 }, continue: { capability_id: "dataset.artifacts.continue", version: /* @version action.dataset.artifacts.continue */ 1 } }],
     consumes: [],
   },
-  ui: {
-    messages: DATASET_MESSAGES,
-    translations: DATASET_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [DATASET_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", hue: "green", order: 58, group: "make",
-        creates: { station: "dataset", title: "数据表" } },
+        creates: { station: "dataset", title: "数据表", title_text: { key: "dataset.create.kind-title" } } },
     ],
   },
 };

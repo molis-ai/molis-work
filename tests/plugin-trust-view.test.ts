@@ -4,7 +4,7 @@ import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-brows
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { EN } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -124,5 +124,5 @@ test("RAC-2619-VIEW service rows preserve multiple exact origins as text and omi
     await page.click("[data-plugin-trust-preview] .mw-btn--secondary");
     await page.wait("document.querySelector('[data-plugin-trust-preview]').hidden");
   }
-  assert.equal(EN["可访问的服务地址"], "Service addresses it may access");
+  assert.equal(pageText("en")("workbench.settings-plugins.service-addresses-may-access"), "Service addresses it may access");
 });

@@ -96,9 +96,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     capability_id: exposedActionId(release, operation.id), version: release.version,
     handle: async (context, input) => {
       await context.beforeEffect();
-      const result = await call(release.pluginId, operation.id, input as SandboxJson, context), body = result.body as { value?: unknown; error?: unknown; outcome?: string; code?: string } | undefined;
-      // Refused before its code ran (BL-701): nothing happened, so the refusal is the answer, not an unknown outcome.
-      if (result.status !== 200 && body?.code === 'actions.forbidden') throw new ActionError('actions.forbidden', String(body.error));
+      const result = await call(release.pluginId, operation.id, input as SandboxJson, context), body = result.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
       try { await context.beforeEffect(); }
       catch (error) {
         // A command that ran has committed, whoever's authority ended meanwhile; a plain failure would invite a retry that repeats it

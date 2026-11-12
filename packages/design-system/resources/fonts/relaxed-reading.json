@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "id": "relaxed-reading",
+  "revision": 1,
+  "name": {"key": "workbench.font.relaxed-reading"},
+  "roles": {
+    "body": {},
+    "control": {},
+    "title": {},
+    "display": {},
+    "reading": {
+      "families": [{"system": "Georgia"}, {"system": "Songti SC"}, {"system": "Noto Serif CJK SC"}, {"system": "serif"}],
+      "line_height": 1.8
+    },
+    "note": {},
+    "code": {}
+  },
+  "faces": []
+}

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
-import test from "node:test";
-import { createLocalWebAssets } from "@molis-ai/molis-work-app-local-host";
+import nodeTest from "node:test";
+import { createLocalWebAssets, htmlLang, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
   parseConditionFrame, pluginOnDemandStylesheet, pluginSettingsStyleLinks, pluginSurfaceClients,
   renderCharacters, renderCharactersSettingsEntry, renderPluginSettingsContribution,
@@ -18,6 +18,7 @@ import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolis
 
 const root = new URL("..", import.meta.url).pathname;
 const normal = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+const test = (name: string, run: () => void | Promise<void>) => nodeTest(name, () => runWithLocale("zh", run));
 
 test("RAC-756 a rule moves out only when every selector names the plugin's own class or data attribute", () => {
   const css = "/* the plugin's note */.git-a{color:red}.mw-btn{color:blue}.git-a .mw-btn,.git-b{margin:0}.mw-btn:not(.git-x){top:0}"
@@ -209,10 +210,10 @@ test("RAC-761 the plugin sheets come after the workbench sheet the frame links i
 
 test("RAC-762 the component board's plugin rows link the sheets of the plugins whose rows they draw", () => {
   const options = parseConditionFrame(new URLSearchParams("part=rows"));
-  const page = renderMolisWorkConditionsSpecimen(options, { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" });
+  const page = renderMolisWorkConditionsSpecimen(options, { readText, htmlLang });
   assert.match(page, /<link rel="stylesheet" href="\/assets\/molis-work-plugins\/coding\.css">/, "Coding's rows are drawn with Coding's sheet");
   assert.ok(page.indexOf("molis-work-workbench.css") < page.indexOf("molis-work-plugins/coding.css"), "after the workbench sheet");
-  assert.doesNotMatch(renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" }),
+  assert.doesNotMatch(renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { readText, htmlLang }),
     /molis-work-plugins\//, "the reply part draws no plugin row");
 });
 
@@ -251,6 +252,7 @@ test("RAC-764 the studio declares its own class prefixes, and only rules that na
   const own = pluginOnDemandStylesheet("plugin-builder", packs)!;
   assert.match(own, /\.as-shell\{/u);
   assert.match(own, /\.as-canvas/u);
+  assert.match(own, /\.pb-surface/u, "the Studio stage carries its own surface rules");
   assert.doesNotMatch(own, /as-preview-page/u, "the host draws the preview page, so its rules stay shared");
   const shared = pluginWorkbenchStyles(packs);
   assert.match(shared, /as-preview-page/u);

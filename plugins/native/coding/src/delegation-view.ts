@@ -6,7 +6,7 @@
  */
 import type { AgentMessageAttachment, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { DELEGATION_STATE_KEY, type DelegationState } from "./cooperation.js";
-import { type CodingText, codingZh } from "./words.js";
+import { type CodingText, codingText } from "./words.js";
 
 export const isDelegation = (letter: AgentSessionMessage) => letter.audience === "people" && letter.kind === "request";
 export const letterBody = (letter: AgentSessionMessage): Record<string, unknown> => {
@@ -33,7 +33,7 @@ export interface DelegationSides<Side> {
 }
 
 /** What the page shows about one delegation letter and the replies to it; `say` words the state in the page's language. */
-export function delegationViewOf<Side>(letter: AgentSessionMessage, letters: readonly AgentSessionMessage[], sides: DelegationSides<Side>, say: CodingText = codingZh) {
+export function delegationViewOf<Side>(letter: AgentSessionMessage, letters: readonly AgentSessionMessage[], sides: DelegationSides<Side>, say: CodingText = codingText) {
   const said = letterBody(letter), history = letter.history ?? [];
   const replies = letters.filter(one => one.audience === "people" && one.kind === "reply" && one.in_reply_to === letter.message_id);
   const deliveries = replies.map(reply => {

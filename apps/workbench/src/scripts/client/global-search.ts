@@ -28,7 +28,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS } = host;
+  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS } = host;
   // \`home\`: the Home's project list (BL-041). No project is open there, so the person's own content is the one scope, every hit
   // opens in its own space (a Home-level record in the personal space), and there are no tools or quick actions to switch to.
   const home = Boolean(host.home);
@@ -77,19 +77,19 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const groups = [];
     const items = [...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id], [data-dock] [data-plugin-id]')]
       .filter((el) => !['home', 'market', 'settings'].includes(el.dataset.pluginId))
-      .map((el) => ({ kind: 'plugin', id: el.dataset.pluginId, title: el.querySelector('span')?.textContent?.trim() || el.title, plugin: L('插件'), search: (el.textContent + ' ' + el.dataset.pluginId).toLowerCase() }));
+      .map((el) => ({ kind: 'plugin', id: el.dataset.pluginId, title: el.querySelector('span')?.textContent?.trim() || el.title, plugin: globalThis.t.text("workbench.global-search.plugin"), search: (el.textContent + ' ' + el.dataset.pluginId).toLowerCase() }));
     const limit = q ? 12 : 8;
     const tools = takeSearchHits(items, q, limit);
-    if (tools.length) groups.push({ label: L('插件'), items: tools });
+    if (tools.length) groups.push({ label: globalThis.t.text("workbench.global-search.plugin"), items: tools });
     const actions = [
-      ["create", "新建目标", "create goal", "[data-open-create]"],
-      ["home", "项目首页", "home", '[data-plugin-id="home"]'],
-      ["settings", "设置", "settings", '[data-plugin-id="settings"]'],
-      ["market", "插件市场", "market", '[data-plugin-id="market"]'],
-    ].filter(([, title, keyword, selector]) => (title + " " + keyword).includes(q) && document.querySelector(selector))
-      .map(([id, title, , selector]) => ({ kind: "action", id, title: L(title), plugin: L("快捷操作"), selector }));
+      ["create", globalThis.t.text("workbench.global-search.new-goal"), "新建目标 create goal", "[data-open-create]"],
+      ["home", globalThis.t.text("workbench.global-search.project-home"), "项目首页 home", '[data-plugin-id="home"]'],
+      ["settings", globalThis.t.text("workbench.global-search.settings"), "设置 settings", '[data-plugin-id="settings"]'],
+      ["market", globalThis.t.text("workbench.global-search.plugin-market"), "插件市场 market", '[data-plugin-id="market"]'],
+    ].filter(([, title, keyword, selector]) => (title + " " + keyword).toLowerCase().includes(q) && document.querySelector(selector))
+      .map(([id, title, , selector]) => ({ kind: "action", id, title, plugin: globalThis.t.text("workbench.global-search.quick-actions"), selector }));
     if (actions.length) {
-      const group = { label: L("快捷操作"), items: actions };
+      const group = { label: globalThis.t.text("workbench.global-search.quick-actions"), items: actions };
       if (q) groups.push(group);
       else groups.unshift(group);
     }
@@ -98,7 +98,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const remoteGroups = () => {
     const byPlugin = new Map();
     for (const hit of remote.hits) {
-      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) && !home ? " · " + L("个人空间") : "");
+      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) && !home ? " · " + globalThis.t.text("workbench.global-search.personal-space") : "");
       if (!byPlugin.has(label)) byPlugin.set(label, []);
       byPlugin.get(label).push({ kind: "hit", id: hit.subject.id, title: hit.title, plugin: label, hit });
     }
@@ -106,13 +106,13 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   };
   const statusMessage = (query) => {
     if (notice) return ["", notice];
-    if (remote.status === "error") return ["failed", remote.error || L("搜索暂时不可用，请稍后重试")];
-    if (!query) return ["", hasProject ? L("搜索本项目与个人的全部内容，或按名称切换工具") : home ? L("搜索个人内容") : L("搜索个人内容，或按名称切换工具")];
-    if (remote.status === "loading" && !remote.hits.length) return ["running", L("正在搜索…")];
+    if (remote.status === "error") return ["failed", remote.error || globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly")];
+    if (!query) return ["", hasProject ? globalThis.t.text("workbench.global-search.search-everything-project-personal-space-jump-tool-name") : home ? globalThis.t.text("workbench.global-search.search-personal") : globalThis.t.text("workbench.global-search.search-personal-content-jump-tool-name")];
+    if (remote.status === "loading" && !remote.hits.length) return ["running", globalThis.t.text("workbench.global-search.searching")];
     const indexing = remote.sources.filter((source) => source.state === "indexing").map((source) => source.title);
-    if (indexing.length) return ["indexing", L("正在建立搜索索引：") + indexing.join("、")];
+    if (indexing.length) return ["indexing", globalThis.t.text("workbench.global-search.building-search-index") + indexing.join("、")];
     const failing = remote.sources.filter((source) => ["failed", "stale", "unavailable"].includes(source.state));
-    if (failing.length) return ["partial", L("部分内容暂时搜不到：") + failing.map((source) => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、")];
+    if (failing.length) return ["partial", globalThis.t.text("workbench.global-search.some-content-can-t-be-searched-right-now") + failing.map((source) => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、")];
     return ["", ""];
   };
   const paintSelection = () => {
@@ -156,7 +156,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const noContent = query && !content.length && remote.status === "done";
     // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
     const ask = noContent && typeof askAssistant === "function"
-      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query + "”") + "</button>" : "";
+      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(globalThis.t.text("workbench.global-search.ask-assistant") + "“" + query + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
     if (previous) selected = hits.findIndex(item => item.kind === previous.kind && (item.kind === "hit" ? item.hit.hit_id === previous.hit.hit_id : item.id === previous.id));
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
@@ -171,7 +171,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     paintScopes();
     if (!ordered.length) {
       const waiting = query && remote.status === "loading";
-      results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>" + ask;
+      results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-matching-items")) + "</p>" + ask;
       input.removeAttribute("aria-activedescendant");
       return;
     }
@@ -188,9 +188,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         return html;
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
-    }).join("") + (remote.next ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(L("显示更多结果")) + "</button>" : "")
+    }).join("") + (remote.next ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(globalThis.t.text("workbench.global-search.show-more-results")) + "</button>" : "")
       // Tools matched but content did not: say so about content only, not as if nothing matched.
-      + (ask ? '<p class="global-search-empty">' + escapeHtml(L("内容里没有找到")) + "</p>" + ask : "");
+      + (ask ? '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-content-matches")) + "</p>" + ask : "");
     paintSelection();
   };
   const releasePointer = (keepSelection = false) => {
@@ -199,7 +199,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!keepSelection) { selected = 0; explicit = false; }
     render();
   };
-  const request=(path,body)=>molisWorkRequest(route(path),{body,fallback:L("搜索暂时不可用，请稍后重试")});
+  const request=(path,body)=>molisWorkRequest(route(path),{body,fallback:globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly")});
   const search = async (append = false) => {
     const { query } = remote;
     clearTimeout(retry);
@@ -314,7 +314,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       // The owner confirms the object still exists and this person may read it before anything opens.
       const opened = await request("/api/search/open", { hit_id: hit.hit_id });
       if (opened.state !== "ok") {
-        notice = opened.state === "missing" ? L("这条内容已被删除或归档，已从结果中移除") : (L("暂时打不开：") + opened.reason);
+        notice = opened.state === "missing" ? globalThis.t.text("workbench.global-search.item-was-deleted-archived-has-been-removed-results") : (globalThis.t.text("workbench.global-search.can-t-open-right-now") + opened.reason);
         if (opened.state === "missing") remote = { ...remote, hits: remote.hits.filter((known) => known.hit_id !== hit.hit_id) };
         render();
         return;

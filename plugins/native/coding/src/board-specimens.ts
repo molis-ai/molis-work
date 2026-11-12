@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimen, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { groupByGoal, type CodingSessionEntry, type CodingSessionState } from "./projection.js";
 import { renderCodingSessionGroup } from "./ui.js";
@@ -25,6 +26,6 @@ export function codingBoardSpecimens(p: PluginBoardSpecimenPorts): readonly Plug
     session_id: "board-" + state, title: say(title), state, updated_at: new Date(Date.UTC(2026, 9, 23, 9, 40 - index * 7)).toISOString(),
     ...(goal ? { goal_id: "board-goal", goal_title: say(GOAL) } : {}),
   }));
-  const groups = groupByGoal(entries).map((group) => renderCodingSessionGroup(group.goal_id, group.goal_id === null ? p.text("coding.directory.no-goal") : group.title, group.entries, p));
-  return [{ id: "coding-sessions", place: "column", title: p.text("coding.board.sessions"), html: `<div class="coding-session-list">${groups.join("")}</div>` }];
+  const groups = groupByGoal(entries).map((group) => renderCodingSessionGroup(group.goal_id, group.goal_id === null ? uiText.text("coding.directory.no-goal") : group.title, group.entries, p));
+  return [{ id: "coding-sessions", place: "column", title: uiText.text("coding.board.sessions"), html: `<div class="coding-session-list">${groups.join("")}</div>` }];
 }

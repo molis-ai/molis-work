@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ledgerDatabase } from "./context-ledger-database.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -8,7 +9,6 @@ import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
-import { L } from "./web-locale.js";
 import { placementCallPorts } from "./placement-call.js";
 
 
@@ -54,14 +54,14 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const record = async (projectId: string): Promise<PlacementProjectRecord> => {
     if (projectId === PERSONAL_SPACE_PROJECT_ID) return ports.ensurePersonalSpace();
     const found = (await ports.projects())?.find(project => project.project_id === projectId);
-    if (!found) throw new ActionError("placement.project_missing", L("找不到这个项目"));
+    if (!found) throw new ActionError("placement.project_missing", uiText.text("workbench.placement-actions.project-not-found"));
     return found;
   };
   const servicePorts: PlacementPorts = {
     ledger,
     spaces: async () => {
       const projects = await ports.projects() ?? [];
-      const spaces: PlacementSpaceView[] = [{ project_id: PERSONAL_SPACE_PROJECT_ID, title: L("个人空间"), kind: "personal" }];
+      const spaces: PlacementSpaceView[] = [{ project_id: PERSONAL_SPACE_PROJECT_ID, title: uiText.text("workbench.placement-actions.personal-space"), kind: "personal" }];
       for (const project of projects) if (!isPersonalSpace(project)) spaces.push({ project_id: project.project_id, title: project.display_name, kind: "project" });
       return spaces;
     },
@@ -75,7 +75,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
       set: (kind, id, title) => { db.prepare("INSERT INTO placement_titles (kind, id, title, seen_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET title = excluded.title, seen_at = excluded.seen_at")
         .run(kind, id, title.slice(0, 200), new Date().toISOString()); },
     },
-    text: (zh, vars) => L(zh, vars),
+    text: (zh, vars) => uiText.text(zh, vars),
   };
   let closed = false;
   const service = new PlacementService(servicePorts);

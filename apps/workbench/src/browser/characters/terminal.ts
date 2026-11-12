@@ -1,5 +1,7 @@
 import type { UiTerminalEvent, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 
+const uiText = globalThis.t;
+
 /** Runs `start` once `selector` is in the page: the Characters surface is filled in when it first opens (#150). */
 function whenPresent(selector: string, start: () => void): void {
   const observer = new MutationObserver(() => {
@@ -28,16 +30,16 @@ export function startCharacterTerminal(): void {
   const note = (message: string) => { status.textContent = message; };
   const release = () => { opening++; view?.dispose(); view = undefined; };
   const onEvent = (event: UiTerminalEvent) => {
-    if (event.type === "spawned") note(event.started || event.attached ? "原生 Agent · 授权、提问和操作状态显示在终端中" : "进程未运行：可能启动失败、已退出或宿主已重启。终端内容不保存；可从“发布并使用”明确发起新任务。");
-    else if (event.type === "exit") note(`进程已结束 · 退出码 ${event.exitCode}。终端内容不保存。`);
-    else if (event.type === "disconnected") note("终端连接中断，正在尝试重连；不会重新派发任务。");
-    else if (event.type === "error") note(event.message || "终端启动失败");
+    if (event.type === "spawned") note(event.started || event.attached ? uiText.text("workbench.characters.terminal-native") : uiText.text("workbench.characters.terminal-inactive"));
+    else if (event.type === "exit") note(uiText.text("workbench.characters.terminal-exit", { code: event.exitCode }));
+    else if (event.type === "disconnected") note(uiText.text("workbench.characters.terminal-reconnect"));
+    else if (event.type === "error") note(event.message || uiText.text("workbench.characters.terminal-failed"));
   };
   const attach = async (panelId: string) => {
     release();
     const ticket = opening;
     active = panelId;
-    note("正在连接原生 Agent…");
+    note(uiText.text("workbench.characters.terminal-connecting"));
     try {
       const next = await globalThis.molisPageTerminal.mount(host, { panelId, onEvent });
       if (ticket !== opening) { next.dispose(); return; }
@@ -47,13 +49,13 @@ export function startCharacterTerminal(): void {
   };
   window.addEventListener("molis-work:character-terminal-reset", () => {
     release(); active = null;
-    note("选择一条执行记录，在终端里看。");
+    note(uiText.text("workbench.characters.terminal-select-run"));
   });
   window.addEventListener("molis-work:character-terminal", event => {
     const panelId = (event as CustomEvent<{ panelId?: string }>).detail?.panelId;
     if (panelId?.startsWith("character-")) void attach(panelId);
   });
   root.querySelector("[data-character-terminal-stop]")?.addEventListener("click", () => {
-    if (active) void globalThis.molisPageTerminal.send({ type: "kill", panelId: active }).then(() => note("已请求停止进程。")).catch(error => note(error.message));
+    if (active) void globalThis.molisPageTerminal.send({ type: "kill", panelId: active }).then(() => note(uiText.text("workbench.characters.terminal-stop-requested"))).catch(error => note(error.message));
   });
 }

@@ -7,6 +7,7 @@ import { pluginActionView } from "./plugin-action-provider.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
+import { activeLocale } from "./web-locale.js";
 
 export interface PageActionRequest {
   reference: ActionReference;
@@ -34,7 +35,7 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
       for (const permission of permissions) context.requireGrant(permission);
     };
     const caller: ActionCallContext = { actor_id: options.caller.actor_id, project_id: request.project_id, permissions: context.grants,
-      audience: own ? "user" : "plugin", signal: request.signal,
+      audience: own ? "user" : "plugin", signal: request.signal, locale: activeLocale() ?? undefined,
       ...(!own ? { host_plugin: routedPluginCaller(options.caller, request.project_id), plugin_install_id: context.install_id } : {}),
       ...(own ? { allowed_actions: [{ ...reference, provider_id: options.provider }, ...(own.action.required_actions ?? [])] }
         : { allowed_capability_ids: manifest.capabilities.consumes }),

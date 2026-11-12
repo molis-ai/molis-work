@@ -139,7 +139,9 @@ test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running
     try {
       assert.deepEqual((await pages.platform.start([{ definition: own.definition, trust: { level: "host" } }])).running, ["io.molis.work.pages"]);
       assert.equal(own.started(), 1);
-      assert.match(registeredBody(home, "io.molis.work.pages", pages.installId("io.molis.work.pages"), "meeting-notes", 1) ?? "", /待定问题/, "the body its definition ships");
+      const meetingNotes = pagesManifest.methods?.find(method => method.skill_id === "meeting-notes");
+      assert.ok(meetingNotes);
+      assert.match(registeredBody(home, "io.molis.work.pages", pages.installId("io.molis.work.pages"), "meeting-notes", meetingNotes.version) ?? "", /待定问题/, "the current body its definition ships");
     } finally { pages.store.close(); }
     // Plugin Builder's Agents and instructions are the platform's own (PG-051 Q2): a definition naming that owner does not start.
     const project = platformIn(home), shadow = probe({ pluginId: "io.molis.work.plugin-builder" });

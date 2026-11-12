@@ -57,7 +57,7 @@ export function codingPageHtml<T>(body: T, request: { route_id: string; query: R
   if (page?.report) {
     const report = page.report;
     Object.assign(page, { html: renderCodingReport({ title: report.title, run_id: report.run_id, body_html: richHtml(report.body_markdown),
-      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]), text: codingText(locale), formatDate: value => value } }) });
+      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]), text: codingText, formatDate: value => value } }) });
   }
   return body;
 }

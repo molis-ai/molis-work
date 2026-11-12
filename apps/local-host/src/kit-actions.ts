@@ -4,14 +4,17 @@ import { bindActionHandler, type ActionCallContext, type ActionClient, type Acti
 import { defineKitReportAction, type KitReport, type KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import { KIT_AGENT_TOOLS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION, kitCatalogActions } from "@molis-ai/molis-work-contracts/services/kit";
 import type { AgentMcpLibrary } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { agentDefinitionsActionProvider } from "./agent-definitions/kit-report.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { agentMcpKitProvider, mcpAccessKitProvider } from "./kit-mcp-reports.js";
 import { localPublisherKeyId } from "./plugin-builder/publisher-identity.js";
 import { PLUGIN_INSTALL_READ } from "./plugin-install-actions.js";
 import { PRODUCT_VERSION } from "./product-version.js";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
-import { keptUninstalled, kitPluginSource, scopeInstallations } from "./scope-installations.js";
+import { keptUninstalled, kitPluginSource, kitPluginWords, scopeInstallations } from "./scope-installations.js";
+import { workbenchDisplayReader, workbenchPlatformText } from "./ui-text-provider.js";
 
 // The AI kit in the Host (specs/capability-pack/contract-design.md §4.6–§4.8): the one query, gathered by `horizontal/kit` through the
 // caller's own client, and the Host's own reporters that are not another owner's — the Agent tools and the plugin pack headers.
@@ -25,7 +28,15 @@ export function kitProviders(ports: { clientFor: (caller: ActionCallContext) => 
 /** `kit.catalog.list@1`, registered once at Home as `system.kit`: the person's own, gathered on every call through their own client. */
 export function kitProvider(clientFor: (caller: ActionCallContext) => ActionClient): ActionProviderRegistration {
   return { provider: { provider_id: KIT_PROVIDER_ID, title: "能力包", kind: "system" }, definitions: [kitCatalogActions.list],
-    handlers: [bindActionHandler(kitCatalogActions.list, (_input, caller) => gatherKit(caller, clientFor(caller)))] };
+    handlers: [bindActionHandler(kitCatalogActions.list, (_input, caller) => gatherKit(caller, clientFor(caller), systemPackWords(caller.locale)))] };
+}
+
+function systemPackWords(locale?: string) {
+  const { owner } = workbenchPlatformText, { text } = workbenchDisplayReader(locale);
+  return {
+    "system:builtin": { name: text({ owner, key: "workbench.kit.builtin" }), description: text({ owner, key: "workbench.kit.builtin-description" }) },
+    "system:characters": { name: text({ owner, key: "workbench.kit.authored-role-pack" }), description: text({ owner, key: "workbench.kit.authored-role-description" }) },
+  };
 }
 
 export const agentToolsKitReport = defineKitReportAction("agent.tools.kit.report", /* @version action.agent.tools.kit.report */ 1, "Agent 工具的能力包条目", [KIT_READ_PERMISSION]);
@@ -35,12 +46,13 @@ export const agentToolsKitReport = defineKitReportAction("agent.tools.kit.report
  * A runtime tool's source is the runtime package; the others are the platform's.
  */
 export function agentToolsKitEntries(caller: ActionCallContext): KitReport {
-  const english = caller.locale === "en";
-  return { entries: AGENT_TOOLS.map((tool): KitReportedEntry => ({ kind: "tool", entry_id: tool.name, name: tool.name, description: tool.description,
+  const { owner } = workbenchPlatformText, { text } = workbenchDisplayReader(caller.locale);
+  return { entries: AGENT_TOOLS.map((tool): KitReportedEntry => ({ kind: "tool", entry_id: tool.name, name: tool.name,
+    description: text({ owner, key: `workbench.kit.tool-description.${tool.name}`, fallback: tool.description }),
     version: { label: tool.runtime_name ? `${AGENT_RUNTIME.package} ${AGENT_RUNTIME.version}` : PRODUCT_VERSION },
     declares: { tools: [], permissions: [], connector_categories: [] }, scope: "home", where: [], availability: { available: true }, usage: { kind: "not_counted" },
     export: "reference", ref: { tool: tool.name }, tool: { origin: tool.origin, writes: tool.writes },
-    source: tool.runtime_name ? { kind: "runtime", package: AGENT_RUNTIME.package, version: AGENT_RUNTIME.version } : { kind: "system", module: "agent-host", title: english ? "Agent Host" : "Agent 运行" },
+    source: tool.runtime_name ? { kind: "runtime", package: AGENT_RUNTIME.package, version: AGENT_RUNTIME.version } : { kind: "system", module: "agent-host", title: text({ owner, key: "workbench.kit.agent-host" }) },
     pack: "system:builtin" })) };
 }
 
@@ -59,10 +71,32 @@ export const pluginsKitReport = defineKitReportAction("plugins.kit.report", /* @
 export async function pluginKitHeaders(home: string, source: ProjectPluginHost, caller: ActionCallContext): Promise<KitReport> {
   const { reference, installations } = await scopeInstallations(source, caller);
   const context = { localKey: localPublisherKeyId(home), pins: new Map(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin])), locale: caller.locale };
-  const words = (manifest: (typeof installations)[number]["manifest"], text: string | undefined) => (caller.locale === "en" ? manifest?.ui?.translations?.[text ?? ""] : undefined) ?? text ?? "";
-  const live = installations.map(({ record, manifest }) => ({ source: kitPluginSource(record, manifest, context), description: words(manifest, manifest?.summary).slice(0, 2000),
-    status: record.state === "running" ? "enabled" as const : "disabled" as const,
-    ...(record.execution === "sandbox" && manifest?.kind === "content" && record.publisher_trust !== "host" ? { exportable: true as const } : {}) }));
+  // A sandbox package's earlier releases are still kept as they were signed, so a header can say which version it last upgraded from
+  // (§4.2, 9-10); the install record keeps only the current version. One directory read per plugin and publisher, not per installation.
+  const store = new SandboxPackageStore(home), retained = new Map<string, ReturnType<SandboxPackageStore["retainedVersions"]>>();
+  const keptVersions = (pluginId: string, signature: string) => {
+    const key = `${pluginId}\u0000${signature}`, versions = retained.get(key) ?? store.retainedVersions(pluginId, signature);
+    retained.set(key, versions);
+    return versions;
+  };
+  const lastUpgrade = (record: (typeof installations)[number]["record"]): { from: string; to: string; at: string } | undefined => {
+    // A Host-built plugin comes with the build; only a package kept as it was signed can name an earlier release.
+    if (record.execution !== "sandbox" || record.publisher_trust === "host") return undefined;
+    const versions = keptVersions(record.plugin_id, record.publisher_signature);
+    const earlier = versions.filter(entry => comparePluginVersions(entry.version, record.version) < 0)
+      .reduce<{ version: string; saved_at: string } | undefined>((highest, entry) => !highest || comparePluginVersions(entry.version, highest.version) > 0 ? entry : highest, undefined);
+    if (!earlier) return undefined;
+    // 「at」 is when the current release was kept; the record's own time is the fallback when that release is not there any more.
+    return { from: earlier.version, to: record.version, at: versions.find(entry => entry.version === record.version)?.saved_at ?? record.updated_at };
+  };
+  const live = installations.map(row => {
+    const { record, manifest } = row, { name, summary } = kitPluginWords(row, caller.locale);
+    const upgraded = lastUpgrade(record);
+    return { source: kitPluginSource(record, manifest, context, name), description: (summary ?? "").slice(0, 2000),
+      status: record.state === "running" ? "enabled" as const : "disabled" as const,
+      ...(record.execution === "sandbox" && manifest?.kind === "content" && record.publisher_trust !== "host" ? { exportable: true as const } : {}),
+      ...(upgraded ? { upgraded } : {}) };
+  });
   const gone = (await keptUninstalled(source, reference)).filter(record => !live.some(pack => pack.source.install_id === record.install_id))
     .map(record => ({ source: kitPluginSource(record, undefined, context), description: "", status: "uninstalled" as const }));
   return { entries: [], packs: [...live, ...gone] };

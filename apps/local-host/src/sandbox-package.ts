@@ -13,10 +13,11 @@ import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/servi
 import { parseContentPackage, type ContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
+import { sandboxUiTextRefs, usesPluginFieldWords, validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
 import { packagedMethodBodies, readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
-import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
+import { assertPluginHomeSchema, assertPluginLocales, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
+import { UI_FILE_LIMITS } from '@molis-ai/molis-work-contracts/platform/ui';
 
 
 /** The longest plugin code the Host takes, as the studio's own publish does. */
@@ -28,6 +29,7 @@ const MAX_PROMPT_BODY = 8000;
 
 export interface SandboxPackage {
   readonly manifest: PluginManifest;
+  readonly localePacks: PluginLocaleReader | null;
   readonly contract: SandboxPluginContract;
   readonly parts: PluginComponentPlan[];
   readonly nodes: PluginComponentNode[];
@@ -50,13 +52,6 @@ function refuseManifestShape(permissions: PluginManifest['permissions'], detail:
   return refuse(detail);
 }
 
-/**
- * Before the file and shape checks, whose own refusals would tell an author nothing about why (FSS-53). The way in comes with batch 16
- * (specs/font-and-skin-system/a-section-contract.md §6.3), which reads a package's languages through `inspectPluginLocales`: strict, as this is not a content pack.
- */
-function refuseLocales(manifest: PluginPackagePayload['manifest']): void {
-  if (manifest?.ui?.locales !== undefined) refuse('ui.locales 第 16 批才支持沙箱包。要试语言文件，用 molis-work plugin dev 跑；要安装，先去掉 ui.locales 和 locales/ 下的文件');
-}
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function jsonFile(files: ReadonlyMap<string, Uint8Array>, name: string): unknown {
@@ -71,6 +66,20 @@ function validated<T>(what: string, check: () => T): T {
     if ((error as { code?: unknown } | null)?.code === 'plugin.declaration_invalid') throw error;
     return refuse(what + '：' + (error instanceof Error ? error.message : String(error)));
   }
+}
+
+/** Words come from the signed payload, never the extracted code directory or a caller. The running reader parses a language on first use. */
+function signedLocalePacks(manifest: PluginLocaleManifest, files: ReadonlyMap<string, Uint8Array>): PluginLocaleReader | null {
+  const sources = new Map<string, string>();
+  for (const path of pluginLocaleFilePaths(manifest)) {
+    const bytes = files.get(path);
+    if (bytes === undefined) continue;
+    if (bytes.length > UI_FILE_LIMITS.locale) refuse(path + ' 太大');
+    sources.set(path, validated(path, () => new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
+  }
+  const read = (path: string) => sources.get(path) ?? null;
+  validated('语言文件', () => assertPluginLocales(manifest, read));
+  return pluginLocaleReader(manifest, read);
 }
 
 function promptsOf(value: unknown): SandboxPackagePrompt[] {
@@ -90,9 +99,8 @@ function promptsOf(value: unknown): SandboxPackagePrompt[] {
 export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackage {
   const wire = validated('manifest', () => parsePluginPackageManifest(payload.manifest));
   if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
-  refuseLocales(wire);
   const manifest = wire as SandboxPackageManifest;
-  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...sandboxAgentBodyPaths(manifest)];
+  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...sandboxAgentBodyPaths(manifest), ...pluginLocaleFilePaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   if (files.size !== payload.files.length) refuse('包内文件路径重复');
   // A path is the publisher's text: each one is named, quoted and cut short, as every package refusal names a file.
@@ -127,12 +135,15 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   // and the icon of its page, a name of the platform's set. This reads the Manifest itself (the install path has, but this is exported and takes any payload),
   // so a name outside the set is refused here and `icon` below is one of the set.
   const agentBodies = readSandboxAgentBodies(manifest, files);
+  const localePacks = signedLocalePacks(manifest, files), fallback = localePacks?.pack(localePacks.default);
+  for (const ref of sandboxUiTextRefs(contract, parts, usesPluginFieldWords(contract, fallback))) if (typeof ref !== 'string' && 'key' in ref && ref.key && !ref.key.startsWith('common.') && !Object.hasOwn(fallback?.messages ?? {}, ref.key))
+    refuse('界面引用缺少主人默认词：' + ref.key);
   const named = manifest.ui.views?.[0]?.icon;
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime, effects: permissions, contract,
     homeDatabase: manifest.databases?.home, connections: manifest.connections, ownerFiles: manifest.owner_files?.entries,
-    ...(icon ? { icon } : {}), textDeclarations: manifest });
+    ...(icon ? { icon } : {}), textDeclarations: manifest, stageTitleText: manifest.ui.views?.[0]?.title_text });
   const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;
   const { agent: projectedAgent, methods: projectedMethods, ...expectedFixed } = expected;
   void wireAgent; void wireMethods; void projectedAgent; void projectedMethods;
@@ -141,7 +152,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   }
   validated('清单', () => parsePluginManifest(expected));
   if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
-  return { manifest: expected, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
+  return { manifest: expected, localePacks, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }
 
 /** A package the Host keeps and runs: an app's (`readSandboxPackage`) or an integration's (`readSandboxIntegrationPackage`), by its Manifest's kind. */
@@ -158,6 +169,7 @@ export function readKeptSandboxPackage(payload: PluginPackagePayload): KeptSandb
 export interface ContentKeptPackage {
   readonly manifest: PluginManifest;
   readonly blueprint?: ContentPackage["blueprint"];
+  readonly localePacks: PluginLocaleReader | null;
   readonly agentBodies: SandboxAgentBody[];
   readonly permissions: SandboxEffects;
 }
@@ -173,13 +185,15 @@ export const isContentPackage = (pkg: KeptPackage): pkg is ContentKeptPackage =>
  */
 export function readKeptPackage(payload: PluginPackagePayload): KeptPackage {
   if (payload.manifest?.kind !== 'content') return readKeptSandboxPackage(payload);
-  const { manifest, skills, blueprint } = parseContentPackage(payload);
-  return { manifest, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {}, ...(blueprint ? { blueprint } : {}) };
+  const { manifest, skills, blueprint, locale_files } = parseContentPackage(payload);
+  const localePacks = pluginLocaleReader(manifest, path => locale_files?.[path] ?? null);
+  return { manifest, localePacks, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {}, ...(blueprint ? { blueprint } : {}) };
 }
 
 /** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */
 export interface SandboxIntegrationPackage {
   readonly manifest: PluginManifest;
+  readonly localePacks: PluginLocaleReader | null;
   readonly contract: SandboxPluginContract;
   readonly entrypoint: Uint8Array;
   /** What the operations ask for in all (the source's account, S-95): the person approves exactly this at install. */
@@ -194,14 +208,14 @@ export interface SandboxIntegrationPackage {
  * origins; any other declares its own (S-95), checked by the SDK's Manifest rules. Nothing here is written anywhere.
  */
 export function readSandboxIntegrationPackage(payload: PluginPackagePayload): SandboxIntegrationPackage {
-  refuseLocales(payload.manifest);
-  const wanted = [SANDBOX_PACKAGE_FILES.manifest, SANDBOX_PACKAGE_FILES.contract, SANDBOX_PACKAGE_FILES.entrypoint] as string[];
+  const manifest = validated('清单', () => parsePluginManifest(payload.manifest));
+  const wanted = [SANDBOX_PACKAGE_FILES.manifest, SANDBOX_PACKAGE_FILES.contract, SANDBOX_PACKAGE_FILES.entrypoint, ...pluginLocaleFilePaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
-  for (const path of files.keys()) if (!wanted.includes(path)) refuse('集成包只有清单、合同和代码，不能带 ' + path);
+  if (files.size !== payload.files.length) refuse('包内文件路径重复');
+  for (const path of files.keys()) if (!wanted.includes(path)) refuse('集成包有未声明的文件：' + path);
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 
-  const manifest = validated('清单', () => parsePluginManifest(payload.manifest));
   if (!isDeepStrictEqual(jsonFile(files, SANDBOX_PACKAGE_FILES.manifest), JSON.parse(JSON.stringify(manifest)))) refuse('manifest.json 与包的清单不一致');
   const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
   if (!integrations.length) refuse('集成包要在清单里声明 integrations');
@@ -214,14 +228,14 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
     if (platform && service.origins) refuse('服务 ' + service.service_id + ' 在平台的请求表里，它的来源只由平台定，包里不能写 origins');
     if (!platform && !service.origins) refuse('服务 ' + service.service_id + ' 不在平台的请求表里，要写它的 origins');
   }
-  const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
+  const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
+  if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
+  const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, contract, textDeclarations: manifest,
     upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations, source_presentations: manifest.source_presentations });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) {
     refuseManifestShape(manifest.permissions, '清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
   }
 
-  const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
-  if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
   if (contract.pages.length || contract.entities.length) refuse('集成包的合同没有页面和实体');
   const ids = Object.entries(SANDBOX_INTEGRATION_OPERATIONS);
   for (const operation of contract.operations) {
@@ -234,5 +248,5 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!contract.operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
   if (Boolean(manifest.source_presentations?.length) !== contract.operations.some(item => item.id === SANDBOX_INTEGRATION_OPERATIONS.presentation)) refuse('来源展示声明与 integration.presentation 操作必须一同兑现');
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
-  return { manifest, contract, entrypoint, permissions };
+  return { manifest, localePacks: signedLocalePacks(manifest, files), contract, entrypoint, permissions };
 }

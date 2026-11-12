@@ -10,6 +10,8 @@ import { authenticateMcpClientProof } from "./mcp-client-credentials.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { lastUsedLocale } from "./ui-locale-memory.js";
+import { runBackgroundWork } from "./web-locale.js";
 
 /** Must be mounted after the existing local origin, control-token and one-time-key gate. */
 export async function handleActionGatewayHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -46,26 +48,30 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
         const projectId = body.project_id as string | null;
         const project = projectId ? await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId)) : null;
         const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : undefined;
-        const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [], signal: abort.signal,
-          ...(body.operation === "invoke" ? { call_id: body.call_id as string } : {}),
-          ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${clientId}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
         const checkTransport = () => {
           abort.signal.throwIfAborted();
           identity.assertCurrent();
           if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
         };
-        const { context, service } = await authorizeMcpActions(host, caller, home, reference, checkTransport, checkTransport, () => {
-          if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
+        checkTransport();
+        const locale = lastUsedLocale(home);
+        const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [], signal: abort.signal, locale,
+          ...(body.operation === "invoke" ? { call_id: body.call_id as string } : {}),
+          ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${clientId}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
+        await runBackgroundWork(locale, async () => {
+          const { context, service } = await authorizeMcpActions(host, caller, home, reference, checkTransport, checkTransport, () => {
+            if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
+          });
+          if (body.operation === "discover") { sendJson(response, 200, { instance_id: instance, actions: await service.discover(context) }); return; }
+          const capability = body.capability as ActionReference | undefined;
+          if (!capability || typeof capability !== "object" || Array.isArray(capability)
+            || Object.keys(capability).some(key => !["capability_id", "version", "provider_id"].includes(key))
+            || typeof capability.capability_id !== "string" || !Number.isSafeInteger(capability.version) || capability.version < 1
+            || (capability.provider_id !== undefined && typeof capability.provider_id !== "string")) throw new ActionError("actions.input_invalid", "能力引用无效");
+          const result = await service.invoke(context, capability, body.input);
+          // The forwarding process reads no response header (`postToResidentHost`): the number joins the body when a row was written for it.
+          sendJson(response, 200, { instance_id: instance, result, ...recordedCallIdField() });
         });
-        if (body.operation === "discover") { sendJson(response, 200, { instance_id: instance, actions: await service.discover(context) }); return; }
-        const capability = body.capability as ActionReference | undefined;
-        if (!capability || typeof capability !== "object" || Array.isArray(capability)
-          || Object.keys(capability).some(key => !["capability_id", "version", "provider_id"].includes(key))
-          || typeof capability.capability_id !== "string" || !Number.isSafeInteger(capability.version) || capability.version < 1
-          || (capability.provider_id !== undefined && typeof capability.provider_id !== "string")) throw new ActionError("actions.input_invalid", "能力引用无效");
-        const result = await service.invoke(context, capability, body.input);
-        // The forwarding process reads no response header (`postToResidentHost`): the number joins the body when a row was written for it.
-        sendJson(response, 200, { instance_id: instance, result, ...recordedCallIdField() });
       } catch (error) { fail(error); }
     };
     // An invocation runs under the number its process made, so the rows it writes and the answer (success or failure) name that number.

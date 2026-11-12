@@ -26,7 +26,7 @@ export interface FeedCommands {
     restore(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord;
     markRead(projectId: string, itemId: string): FeedItemRecord;
     linkGoal(projectId: string, itemId: string, goalId: string, disposition: "promoted"): FeedItemRecord;
-    deleteBySource(projectId: string, sourceId: string): string[];
+    deleteBySource(projectId: string, sourceId: string): number;
 }
 
 export interface FeedEvent {
@@ -99,11 +99,18 @@ export interface FeedModuleDependencies {
 }
 
 export interface FeedQuery {
-    list(projectId: string, page?: {
-        limit: number;
+    list(projectId: string, page: FeedItemPage): FeedItemRecord[];
+    get(projectId: string, itemId: string, materials?: {
         offset: number;
-    }): FeedItemRecord[];
-    get(projectId: string, itemId: string): FeedItemRecord;
+        limit: number;
+    }): FeedItemRecord;
+    materials(projectId: string, itemId: string, offset: number, limit: number): FeedMaterialRecord[];
+    hasPackage(projectId: string, sourceId: string, externalId: string, hash: string): boolean;
+    facets(projectId: string): {
+        source_id: string;
+        label: string;
+        count: number;
+    }[];
     exists(projectId: string, itemId: string): boolean;
     countBySource(projectId: string, sourceId: string): number;
     findByLinkedGoal(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null;
@@ -364,3 +371,20 @@ export declare const feedErrors: import("@molis-ai/molis-work-contracts/platform
 export declare function isAccountConnectorSyncKind(kind: string): kind is Extract<SourceSyncKind, "github" | "gmail" | "connector">;
 
 export declare function sourceDeletedAt(source: Pick<SourceRecord, "config">): string | null;
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+interface FeedItemPage {
+    limit: number;
+    offset: number;
+    source_id?: string;
+    item_id?: string;
+    after_id?: string;
+    search?: string;
+    status?: FeedItemDisposition | "active" | "all";
+    unread?: boolean;
+    since?: string;
+    provider?: string;
+    source_label?: string;
+    sort?: "newest" | "oldest" | "title" | "source" | "id";
+}

@@ -83,29 +83,29 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const pane = paneById(paneId), tab = pane?.tabs.find(candidate => candidate.id === tabId);
     if (!tab) return;
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
-    tabMenu.setAttribute("aria-label", L("标签操作"));
+    tabMenu.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-menus.tab-actions"));
     const add = menuItem(paneId, true);
     const heading = document.createElement("strong"); heading.textContent = tabLabel(tab); heading.title = tabLabel(tab); tabMenu.append(heading);
     pluginGroups.menu(paneId, tab, add);
-    add(L(tab.pinned ? "取消固定标签" : "固定标签"), "lock", "pin", () => ops.togglePinned(state, paneId, tab.id));
+    add(globalThis.t.text(tab.pinned ? "workbench.tab-workspace-menus.unpin-tab" : "workbench.tab-workspace-menus.pin-tab"), "lock", "pin", () => ops.togglePinned(state, paneId, tab.id));
     if (!tab.pinned) {
-      add(L("添加到新分组"), "frame", "new-group", () => ops.addTabToNewGroup(state, paneId, tab.id));
+      add(globalThis.t.text("workbench.tab-workspace-menus.add-new-group"), "frame", "new-group", () => ops.addTabToNewGroup(state, paneId, tab.id));
       (pane.groups || []).filter((group) => group.id !== tab.groupId).forEach((group) => {
-        add(L("添加到分组") + (group.title ? " · " + group.title : ""), "frame", "join-" + group.id, () => ops.addTabToGroup(state, paneId, tab.id, group.id));
+        add(globalThis.t.text("workbench.tab-workspace-menus.add-group") + (group.title ? " · " + group.title : ""), "frame", "join-" + group.id, () => ops.addTabToGroup(state, paneId, tab.id, group.id));
       });
-      if (tab.groupId) add(L("从分组移除"), "x", "ungroup-tab", () => ops.removeTabFromGroup(state, paneId, tab.id));
+      if (tab.groupId) add(globalThis.t.text("workbench.tab-workspace-menus.remove-group"), "x", "ungroup-tab", () => ops.removeTabFromGroup(state, paneId, tab.id));
     }
     // The tab's own moves (§4.6.2 S2): to the right side, or its view again in a pane beside this one.
-    add(L("移到右侧"), "arrow", "to-side", () => { moveToSide(paneId, tab.id); return false; }, !ops.movable(state, paneId, tab.id));
-    add(L("在旁边并排看"), "columns", "beside", () => ops.splitPane(state, paneId, "right", "copy", paneId, tab.id), narrow() || tab.kind === "system");
-    add(L(tab.kind === "plugin" ? "关闭标签组" : "关闭标签"), "x", "close", () => closeTabBack(paneId, tab.id));
+    add(globalThis.t.text("workbench.tab-workspace-menus.move-right"), "arrow", "to-side", () => { moveToSide(paneId, tab.id); return false; }, !ops.movable(state, paneId, tab.id));
+    add(globalThis.t.text("workbench.tab-workspace-menus.open-side-side"), "columns", "beside", () => ops.splitPane(state, paneId, "right", "copy", paneId, tab.id), narrow() || tab.kind === "system");
+    add(globalThis.t.text(tab.kind === "plugin" ? "workbench.tab-workspace-menus.close-tab-group" : "workbench.tab-workspace-menus.close-tab"), "x", "close", () => closeTabBack(paneId, tab.id));
     onlyMenu(tabMenu); placeMenu(tabMenu, anchor, true);
     tabMenu.querySelector("button")?.focus();
   };
   // The right side's tabs open this same menu (07-S2); the side gives the rows (side-panel.ts), each named data-side-menu.
   const openSideTabMenu = (anchor, entries) => {
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
-    tabMenu.setAttribute("aria-label", L("标签操作"));
+    tabMenu.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-menus.tab-actions"));
     const heading = document.createElement("strong"); heading.textContent = heading.title = anchor.querySelector(".tab-item-name")?.textContent || ""; tabMenu.append(heading);
     entries.forEach(({ key, icon, label, run }) => tabMenu.append(menuRow(label, icon, () => { tabMenu.hidePopover(); run(); }, { data: { sideMenu: key } })));
     onlyMenu(tabMenu); placeMenu(tabMenu, anchor, false);
@@ -115,17 +115,17 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const pane = paneById(paneId); if (!pane) return;
     const group = pane.groups.find((candidate) => candidate.id === groupId); if (!group) return;
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
-    tabMenu.setAttribute("aria-label", L("分组操作"));
-    const heading = document.createElement("strong"); heading.textContent = group.title || L("分组"); tabMenu.append(heading);
+    tabMenu.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-menus.group-actions"));
+    const heading = document.createElement("strong"); heading.textContent = group.title || globalThis.t.text("workbench.tab-workspace-menus.group"); tabMenu.append(heading);
     const name = document.createElement("input");
-    name.type = "text"; name.value = group.title || ""; name.placeholder = L("分组名称");
+    name.type = "text"; name.value = group.title || ""; name.placeholder = globalThis.t.text("workbench.tab-workspace-menus.group-name");
     name.addEventListener("change", () => { ops.setGroupTitle(state, paneId, groupId, name.value.trim()); persist(); });
     name.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); tabMenu.hidePopover(); apply(); persist(); } });
     tabMenu.append(name);
     const colors = document.createElement("div"); colors.className = "workspace-tab-menu-colors";
     ops.GROUP_COLORS.forEach((color) => {
       const swatch = document.createElement("button"); swatch.type = "button"; swatch.setAttribute("role", "menuitem");
-      swatch.dataset.tabMenuAction = "color-" + color; swatch.title = L({grey:"灰色",blue:"蓝色",red:"红色",yellow:"黄色",green:"绿色",pink:"粉色",purple:"紫色",cyan:"青色"}[color]);
+      swatch.dataset.tabMenuAction = "color-" + color; swatch.title = readText({grey:"workbench.tab-workspace-menus.gray",blue:"workbench.tab-workspace-menus.blue",red:"workbench.tab-workspace-menus.red",yellow:"workbench.tab-workspace-menus.yellow",green:"workbench.tab-workspace-menus.green",pink:"workbench.tab-workspace-menus.pink",purple:"workbench.tab-workspace-menus.purple",cyan:"workbench.tab-workspace-menus.cyan"}[color]);
       swatch.style.setProperty("--group-color", GROUP_COLOR[color]);
       if (group.color === color) swatch.setAttribute("aria-current", "true");
       swatch.addEventListener("click", () => { tabMenu.hidePopover(); ops.setGroupColor(state, paneId, groupId, color); apply(); persist(); });
@@ -133,8 +133,8 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     });
     tabMenu.append(colors);
     const add = menuItem(paneId, false);
-    add(L("取消分组"), "x", "ungroup", () => ops.ungroup(state, paneId, groupId));
-    add(L("关闭分组"), "x", "close-group", () => ops.closeGroup(state, paneId, groupId));
+    add(globalThis.t.text("workbench.tab-workspace-menus.ungroup"), "x", "ungroup", () => ops.ungroup(state, paneId, groupId));
+    add(globalThis.t.text("workbench.tab-workspace-menus.close-group"), "x", "close-group", () => ops.closeGroup(state, paneId, groupId));
     onlyMenu(tabMenu); placeMenu(tabMenu, anchor, true);
     name.focus();
   };
@@ -157,33 +157,33 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const go = (run) => () => { closePlus(false); state.focusedPaneId = paneId; column = "main"; run(); };
     const where = (plugin) => {
       const at = Object.hasOwn(SIDE_OPENED, plugin) ? state.side.tabs.some((tab) => tab.itemId === SIDE_OPENED[plugin]) && { side: true } : ops.locate(state, plugin);
-      return !at ? "" : at.side ? L("在右侧") : at.paneId === paneId ? L("在这一栏") : L("在第 {n} 栏", { n: ops.paneNumber(state, at.paneId) });
+      return !at ? "" : at.side ? globalThis.t.text("workbench.tab-workspace-menus.right") : at.paneId === paneId ? globalThis.t.text("workbench.tab-workspace-menus.pane") : globalThis.t.text("workbench.tab-workspace-menus.pane-n", { n: ops.paneNumber(state, at.paneId) });
     };
     const row = ({ id }) => {
-      const name = L(ops.pluginTitle(id)), place = where(id), wrap = document.createElement("div"), beside = document.createElement("button");
+      const name = ops.pluginTitle(id), place = where(id), wrap = document.createElement("div"), beside = document.createElement("button");
       const item = menuRow(name, tabIcon(id), go(() => openPlugin(id)), { key: "open-" + id, data: { plusOpen: id } });
       item.style.setProperty("--group-color", "var(--hue-" + pluginGroups.hueOf(id) + ")");
       item.setAttribute("aria-keyshortcuts", "Alt+Enter");
       // A plugin that did not start keeps its row, with the amber point it carries wherever it is named (07-1 S4b).
-      if (failedPlugin(id)) { const dot = document.createElement("span"); dot.className = "nav-warn-dot"; dot.setAttribute("role", "img"); dot.setAttribute("aria-label", L("没能启动")); item.querySelector("[data-slot]").after(dot); }
+      if (failedPlugin(id)) { const dot = document.createElement("span"); dot.className = "nav-warn-dot"; dot.setAttribute("role", "img"); dot.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-menus.didn-t-start")); item.querySelector("[data-slot]").after(dot); }
       if (place) { const mark = document.createElement("span"); mark.className = "tab-menu-where"; mark.textContent = place; item.append(mark); }
       // The pointer's way to "beside"; the keyboard's is ⌥↵ on the row, so this button is out of the tab order and the tree.
       beside.type = "button"; beside.className = "mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm tab-menu-beside"; beside.tabIndex = -1;
-      beside.setAttribute("aria-hidden", "true"); beside.title = L("在旁边打开") + " · " + name + " (" + keyName("⌥↵", "Alt+Enter") + ")"; beside.innerHTML = svg("columns");
+      beside.setAttribute("aria-hidden", "true"); beside.title = globalThis.t.text("workbench.tab-workspace-menus.open-beside") + " · " + name + " (" + keyName("⌥↵", "Alt+Enter") + ")"; beside.innerHTML = svg("columns");
       beside.addEventListener("click", go(() => openBeside(id)));
       wrap.className = "tab-menu-row"; wrap.append(item, beside);
       return wrap;
     };
     const offered = directory.filter((entry) => Number.isInteger(entry.order)).sort((a, b) => a.order - b.order);
-    const recent = pluginGroups.recent().map((entry, index) => menuRow(entry.record.tab ? entry.record.title : L(ops.pluginTitle(entry.record.plugin)), tabIcon(entry.record.plugin),
+    const recent = pluginGroups.recent().map((entry, index) => menuRow(entry.record.tab ? entry.record.title : ops.pluginTitle(entry.record.plugin), tabIcon(entry.record.plugin),
       go(() => pluginGroups.reopen(entry)), { key: "reopen", keys: index ? "" : keyName("⌘⇧T", "Ctrl+Shift+T") }));
     const find = document.createElement("label"), list = document.createElement("div"), foot = document.createElement("p");
     find.className = "mw-input-group tab-menu-find"; find.innerHTML = svg("search") + '<input class="mw-input" type="search" autocomplete="off">';
     const input = find.lastChild;
-    input.placeholder = L("找插件，或刚关掉的标签"); input.setAttribute("aria-label", input.placeholder);
-    list.setAttribute("role", "menu"); list.setAttribute("aria-label", L("打开"));
-    list.append(menuGroup(L("这个项目的插件"), offered.filter((entry) => !entry.personal).map(row)), menuGroup(L("个人 · 所有项目共用"), offered.filter((entry) => entry.personal).map(row)), menuGroup(L("刚关掉的"), recent));
-    foot.className = "tab-menu-foot"; foot.setAttribute("aria-hidden", "true"); foot.textContent = L("↵ 在这一栏打开　⌥↵ 在旁边打开").replace("⌥", keyName("⌥", "Alt+"));
+    input.placeholder = globalThis.t.text("workbench.tab-workspace-menus.find-plugin-tab-just-closed"); input.setAttribute("aria-label", input.placeholder);
+    list.setAttribute("role", "menu"); list.setAttribute("aria-label", globalThis.t.text("common.control.open"));
+    list.append(menuGroup(globalThis.t.text("workbench.tab-workspace-menus.project"), offered.filter((entry) => !entry.personal).map(row)), menuGroup(globalThis.t.text("workbench.tab-workspace-menus.personal-every-project"), offered.filter((entry) => entry.personal).map(row)), menuGroup(globalThis.t.text("workbench.tab-workspace-menus.recently-closed"), recent));
+    foot.className = "tab-menu-foot"; foot.setAttribute("aria-hidden", "true"); foot.textContent = globalThis.t.text("workbench.tab-workspace-menus.opens-here-opens-beside").replace("⌥", keyName("⌥", "Alt+"));
     const filter = () => {
       const words = input.value.trim().toLowerCase();
       list.querySelectorAll("[role^=menuitem]").forEach((item) => { (item.closest(".tab-menu-row") || item).hidden = Boolean(words) && !item.querySelector("[data-slot]").textContent.toLowerCase().includes(words); });
@@ -250,7 +250,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       if (section?.key !== key) {
         const group = !tab.pinned && tab.groupId ? (pane.groups || []).find((candidate) => candidate.id === tab.groupId) : null;
         section = { key, rows: [],
-          name: tab.pinned ? L("已固定") : group ? group.title || L("分组") : tab.kind === "system" ? "" : L(ops.pluginTitle(tab.plugin)),
+          name: tab.pinned ? globalThis.t.text("workbench.tab-workspace-menus.pinned") : group ? group.title || globalThis.t.text("workbench.tab-workspace-menus.group") : tab.kind === "system" ? "" : ops.pluginTitle(tab.plugin),
           color: tab.pinned || tab.kind === "system" ? "" : group ? GROUP_COLOR[group.color] || GROUP_COLOR.grey : "var(--hue-" + pluginGroups.hueOf(tab.plugin) + ")" };
         sections.push(section);
       }
@@ -262,7 +262,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       const notStarted = tab.kind !== "system" && failedPlugin(tab.plugin), recordGone = goneRecord(tab);
       if (recordGone) row.dataset.tabState = "gone";
       if (notStarted) row.insertAdjacentHTML("beforeend", '<span class="nav-warn-dot" aria-hidden="true"></span>');
-      if (recordGone || notStarted) row.setAttribute("aria-label", tabLabel(tab) + " · " + (recordGone ? L("这一条已经不在了") : L("没能启动")));
+      if (recordGone || notStarted) row.setAttribute("aria-label", tabLabel(tab) + " · " + (recordGone ? globalThis.t.text("workbench.tab-workspace-menus.one-no-longer-here") : globalThis.t.text("workbench.tab-workspace-menus.didn-t-start")));
       section.rows.push(row);
       section.lone = section.rows.length === 1 && tab.kind === "plugin";
     });
@@ -274,10 +274,10 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const find = document.createElement("label"), list = document.createElement("div");
     find.className = "mw-input-group tab-menu-find"; find.innerHTML = svg("search") + '<input class="mw-input" type="search" autocomplete="off">';
     const input = find.lastChild;
-    input.placeholder = L("找标签"); input.setAttribute("aria-label", input.placeholder);
-    list.setAttribute("role", "menu"); list.setAttribute("aria-label", L("全部标签"));
+    input.placeholder = globalThis.t.text("workbench.tab-workspace-menus.find-tab"); input.setAttribute("aria-label", input.placeholder);
+    list.setAttribute("role", "menu"); list.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-menus.all-tabs"));
     list.append(...sections.map(({ name, color, rows }) => {
-      const count = rows.length === 1 ? L("1 张") : L("{n} 张", { n: rows.length });
+      const count = rows.length === 1 ? globalThis.t.text("workbench.tab-workspace-menus.value-1-tab") : globalThis.t.text("workbench.tab-workspace-menus.n-n", { n: rows.length });
       const group = menuGroup(name ? name + " · " + count : "", rows), head = group.querySelector(".mw-menu__label");
       if (color && head) { const dot = document.createElement("span"); dot.className = "tab-menu-dot"; dot.setAttribute("aria-hidden", "true"); head.prepend(dot); group.style.setProperty("--group-color", color); }
       return group;
@@ -307,7 +307,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     layoutAnchor = anchor;
     const pane = ops.focused(state), split = state.panes.length > 1, solo = Boolean(state.solo);
     const sideOpen = Boolean(sidePane?.isOpen()), inSide = column === "side" && sideOpen, sideTab = ops.sideActive(state);
-    const title = inSide ? L("布局 · 右侧") : split ? L("布局 · 第 {n} 栏", { n: ops.paneNumber(state, pane.id) }) : L("布局 · 主区");
+    const title = inSide ? globalThis.t.text("workbench.tab-workspace-menus.layout-right") : split ? globalThis.t.text("workbench.tab-workspace-menus.layout-pane-n", { n: ops.paneNumber(state, pane.id) }) : globalThis.t.text("workbench.tab-workspace-menus.layout-main");
     const act = (run) => () => {
       layoutMenu.hidePopover(); run(); apply(); persist();
       if (column === "side") document.querySelector("[data-side-tabs] [data-side-tab][aria-selected=true]")?.focus({ preventScroll: true }); else focusActiveTab();
@@ -315,23 +315,23 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const head = document.createElement("p");
     head.className = "tab-menu-head"; head.setAttribute("aria-hidden", "true"); head.textContent = title;
     layoutMenu.setAttribute("aria-label", title);
-    const soloRow = menuRow(L(solo ? "独看中 · 显示全部" : "独看这一栏"), "maximize", act(toggleSolo), { keys: keyName("⌘⇧↵", "Ctrl+Shift+Enter"), disabled: !solo && !inSide && !split && !sideOpen, data: { layoutAction: "solo" } });
-    const goTo = [...state.panes].sort((a, b) => ops.paneNumber(state, a.id) - ops.paneNumber(state, b.id)).map((candidate) => menuRow(split ? L("第 {n} 栏", { n: ops.paneNumber(state, candidate.id) }) : L("主区"), "", act(() => { state.focusedPaneId = candidate.id; column = "main"; }), { checked: !inSide && candidate === pane, data: { focusPane: candidate.id } }));
-    if (state.side.tabs.length) goTo.push(menuRow(L("右侧"), "", act(() => { column = "side"; if (!sideOpen) sidePane?.toggle(); }), { checked: inSide, data: { focusPane: "side" } }));
+    const soloRow = menuRow(globalThis.t.text(solo ? "workbench.tab-workspace-menus.one-pane-show-all" : "workbench.tab-workspace-menus.show-only-pane"), "maximize", act(toggleSolo), { keys: keyName("⌘⇧↵", "Ctrl+Shift+Enter"), disabled: !solo && !inSide && !split && !sideOpen, data: { layoutAction: "solo" } });
+    const goTo = [...state.panes].sort((a, b) => ops.paneNumber(state, a.id) - ops.paneNumber(state, b.id)).map((candidate) => menuRow(split ? globalThis.t.text("workbench.tab-workspace-menus.pane-n-2", { n: ops.paneNumber(state, candidate.id) }) : globalThis.t.text("workbench.tab-workspace-menus.main"), "", act(() => { state.focusedPaneId = candidate.id; column = "main"; }), { checked: !inSide && candidate === pane, data: { focusPane: candidate.id } }));
+    if (state.side.tabs.length) goTo.push(menuRow(globalThis.t.text("workbench.tab-workspace-menus.right-2"), "", act(() => { column = "side"; if (!sideOpen) sidePane?.toggle(); }), { checked: inSide, data: { focusPane: "side" } }));
     layoutMenu.replaceChildren(head, menuGroup("", inSide ? [
-      menuRow(L("把这张标签移到主区"), "arrow", act(() => moveToMain(sideTab.id)), { disabled: sideTab?.kind !== "pane", data: { layoutAction: "to-main" } }),
+      menuRow(globalThis.t.text("workbench.tab-workspace-menus.move-tab-main-area"), "arrow", act(() => moveToMain(sideTab.id)), { disabled: sideTab?.kind !== "pane", data: { layoutAction: "to-main" } }),
       soloRow,
     ] : [
-      menuRow(L("向右分屏"), "columns", act(() => ops.splitPane(state, pane.id, "right", "copy")), { disabled: narrow(), data: { layoutSplit: "right" } }),
-      menuRow(L("向下分屏"), "frame", act(() => ops.splitPane(state, pane.id, "bottom", "copy")), { disabled: narrow(), data: { layoutSplit: "bottom" } }),
-      menuRow(L("把这张标签移到右侧"), "arrow", act(() => moveToSide(pane.id)), { disabled: !ops.movable(state, pane.id), data: { layoutAction: "to-side" } }),
+      menuRow(globalThis.t.text("workbench.tab-workspace-menus.split-right"), "columns", act(() => ops.splitPane(state, pane.id, "right", "copy")), { disabled: narrow(), data: { layoutSplit: "right" } }),
+      menuRow(globalThis.t.text("workbench.tab-workspace-menus.split-down"), "frame", act(() => ops.splitPane(state, pane.id, "bottom", "copy")), { disabled: narrow(), data: { layoutSplit: "bottom" } }),
+      menuRow(globalThis.t.text("workbench.tab-workspace-menus.move-tab-right"), "arrow", act(() => moveToSide(pane.id)), { disabled: !ops.movable(state, pane.id), data: { layoutAction: "to-side" } }),
       soloRow,
     ]), menuGroup("", [
-      !inSide && menuRow(L("合并成一栏"), "minus", act(() => ops.mergePanes(state)), { disabled: !split, data: { layoutAction: "merge" } }),
-      menuRow(L(sideOpen ? "收起右侧" : "打开右侧"), "panel", act(() => sidePane?.toggle()), { keys: keyName("⌘\\\\", "Ctrl+\\\\"), disabled: !state.side.tabs.length, data: { layoutAction: "side" } }),
-      !inSide && menuRow(L("均分宽度"), "columns", act(() => equalWidths(state.layout.tree)), { disabled: !split, data: { layoutAction: "equal" } }),
-      !inSide && menuRow(L("关闭这一栏"), "x", act(() => ops.closePane(state, pane.id)), { disabled: !split, data: { layoutAction: "close" } }),
-    ]), menuGroup(L("切到"), goTo));
+      !inSide && menuRow(globalThis.t.text("workbench.tab-workspace-menus.merge-into-one-pane"), "minus", act(() => ops.mergePanes(state)), { disabled: !split, data: { layoutAction: "merge" } }),
+      menuRow(globalThis.t.text(sideOpen ? "workbench.tab-workspace-menus.hide-right-side" : "workbench.tab-workspace-menus.show-right-side"), "panel", act(() => sidePane?.toggle()), { keys: keyName("⌘\\\\", "Ctrl+\\\\"), disabled: !state.side.tabs.length, data: { layoutAction: "side" } }),
+      !inSide && menuRow(globalThis.t.text("workbench.tab-workspace-menus.equal-widths"), "columns", act(() => equalWidths(state.layout.tree)), { disabled: !split, data: { layoutAction: "equal" } }),
+      !inSide && menuRow(globalThis.t.text("workbench.tab-workspace-menus.close-pane"), "x", act(() => ops.closePane(state, pane.id)), { disabled: !split, data: { layoutAction: "close" } }),
+    ]), menuGroup(globalThis.t.text("workbench.tab-workspace-menus.go"), goTo));
     onlyMenu(layoutMenu); placeMenu(layoutMenu, anchor, false);
     layoutMenu.querySelector("[role^=menuitem]:not(:disabled)")?.focus();
   };`;

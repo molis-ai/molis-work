@@ -258,6 +258,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `apps/workbench` | 应用 | 423 | 60,908 | `i18n/en.ts` 3,243 | 2 | 29 | 1 | 在用 | 深 | 已审 |
 | `horizontal/account` | 横向 | 14 | 1,225 | `session-manager.ts` 262 | 1 | 1 | 1 | 在用 | 中 | 待审 |
 | `horizontal/agent-host` | 横向 | 99 | 13,928 | `adapters/prologue-stream.ts` 723 | 1 | 3 | 1 | 在用 | 深 | 已审 |
+| `horizontal/appearance` | 横向 | 6 | 536 | `selection.ts` 164 | 1 | 4 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/connector-host` | 横向 | 6 | 897 | `connection-store.ts` 452 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/kit` | 横向 | 1 | 224 | `index.ts` 224 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,388 | `index.ts` 426 | 1 | 2 | 1 | 在用 | 浅 | 待审 |

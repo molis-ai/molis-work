@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.salesforce",
+  "locale": "zh",
+  "messages": {
+    "salesforce.connection.auth-help": "格式 instanceUrl|accessToken。instance 用 https://yourorg.my.salesforce.com；漏写 https:// 也会补上。",
+    "salesforce.connection.inbound": "Feed 拉 CRM 记录",
+    "salesforce.connection.summary": "CRM 对象与记录。",
+    "salesforce.connection.token-label": "Salesforce 实例与访问令牌",
+    "salesforce.guide.cli-link": "查看 Salesforce CLI 登录",
+    "salesforce.guide.cli-note": "Salesforce CLI 可登录 org 并查询数据；Molis Work 不读取本机 org 授权。",
+    "salesforce.guide.mcp-connected-note": "Hosted MCP 可能要求企业配置并消耗 Flex Credits。",
+    "salesforce.guide.mcp-link": "查看 Salesforce Hosted MCP",
+    "salesforce.guide.mcp-note": "Hosted MCP 可能要求企业配置并消耗 Flex Credits；Molis Work 尚未接入。",
+    "salesforce.guide.oauth-link": "查看 Salesforce OAuth",
+    "salesforce.guide.token-note": "填写 Salesforce 实例地址与访问令牌。",
+    "salesforce.oauth.login-origin": "Salesforce 登录地址",
+    "salesforce.setup.view-salesforce-connected-app-guide": "查看 Salesforce Connected App 说明"
+  }
+}

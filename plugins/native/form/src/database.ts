@@ -4,7 +4,7 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its forms go with every
  * answer people gave them, and the receipts of copies made into it.
  */
-const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Forms 问卷及收到的全部回答", order: 20, tables: [
+const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "form.project-deletion.data" }, order: 20, tables: [
   { table: "submissions", column: "form_id", parent: "forms" },
   { table: "forms", column: "project_id" },
   { table: "form_copies", column: "project_id" },

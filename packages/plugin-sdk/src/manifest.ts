@@ -1,3 +1,4 @@
+import { directoryWordProblems } from "./ui/directory-words.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -27,11 +28,10 @@ import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { localeDeclarationProblems } from "./locale-declarations.js";
-import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { pageRouteProblems } from "./page-routes.js";
 import { subjectContextProblems } from "./subject-context.js";
-import { createStations, englishNameProblem, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
+import { createStations, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -123,11 +123,17 @@ export function parsePluginManifest(input: unknown): PluginManifest {
           || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
           invalid("类型必须声明 type ID 与正整数 schema_version");
         }
+        if ((field !== "artifacts" || key !== "produces") && Object.hasOwn(type, "title_text")) {
+          invalid("title_text 只用于 artifacts.produces");
+        }
       }
     }
   }
   const ui = record(manifest.ui, "ui");
   strings(ui.contributions, "ui.contributions");
+  if (Object.hasOwn(ui, "messages") || Object.hasOwn(ui, "translations")) {
+    throw pluginErrors.declaration_invalid("界面文字请放在 locales/<语言>.json 并声明 ui.locales；Manifest 不再接收 messages 或 translations");
+  }
   if (ui.commands !== undefined) throw pluginErrors.declaration_invalid("ui.commands 已取消：没有界面调用插件的命令，请删掉这一项（BL-363）");
   if (ui.embedded_plugins !== undefined) {
     strings(ui.embedded_plugins, "ui.embedded_plugins");
@@ -139,6 +145,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
 
   const parsed = input as PluginManifest;
   assertDeclarations(parsed, ui);
+  const directory = directoryWordProblems(parsed);
+  if (directory.length) throw pluginErrors.declaration_invalid(directory.join("；"));
   return parsed;
 }
 
@@ -155,8 +163,7 @@ function inspectPresentation(manifest: Record<string, unknown>): void {
   const summary = typeof manifest.summary === "string" ? manifest.summary.trim() : null;
   if (manifest.summary !== undefined && (!summary || [...summary].length > SUMMARY_LIMIT)) invalid(`summary 必须是不超过 ${SUMMARY_LIMIT} 字的非空文字`);
   if (manifest.developer !== undefined && manifest.developer !== true) invalid("developer 只能写 true，不是开发者插件就不写");
-  const english = manifest.name_en === undefined ? null : englishNameProblem(manifest.name_en, "name_en");
-  if (english) invalid(english);
+  if (Object.hasOwn(manifest, "name_en")) invalid("Manifest 不接收 name_en：请声明 name_text 并在语言文件中写词");
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
@@ -257,7 +264,6 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...pageRouteProblems(parsed));
   problems.push(...subjectContextProblems(parsed));
-  problems.push(...messageDeclarationProblems(parsed));
   problems.push(...localeDeclarationProblems(parsed));
   problems.push(...validateSettingsDeclaration(parsed), ...blueprintDeclarationProblems(parsed, ui), ...validateAdoptsDeclaration(parsed));
   problems.push(...inspectRouteDeclarations(parsed));

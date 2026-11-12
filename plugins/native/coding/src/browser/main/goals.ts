@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingGoalVersionLabel } from "../../goal-versions.js";
 import { el, errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
@@ -9,28 +10,27 @@ import { renderArtifacts } from "./artifacts.js";
 type Choice = NonNullable<GoalChoice>;
 
 /** The goal's fields the preview shows, labelled; an empty one is named at the end instead. */
-function goalSections(page: Page, goal: Choice["snapshot"]["goal"]): [string, string][] {
-  const { L } = page;
+function goalSections(_page: Page, goal: Choice["snapshot"]["goal"]): [string, string][] {
   return [
-    [L("coding.goal.why"), goal.why], [L("coding.goal.logic"), goal.business_logic], [L("coding.goal.scope"), goal.in_scope.join("\n")],
-    [L("coding.goal.out-of-scope"), goal.out_of_scope.join("\n")], [L("coding.goal.constraints"), goal.constraints.join("\n")],
-    [L("coding.goal.inputs"), goal.required_inputs.join("\n")], [L("coding.goal.outputs"), goal.promised_outputs.join("\n")],
+    [uiText.text("coding.goal.why"), goal.why], [uiText.text("coding.goal.logic"), goal.business_logic], [uiText.text("coding.goal.scope"), goal.in_scope.join("\n")],
+    [uiText.text("coding.goal.out-of-scope"), goal.out_of_scope.join("\n")], [uiText.text("coding.goal.constraints"), goal.constraints.join("\n")],
+    [uiText.text("coding.goal.inputs"), goal.required_inputs.join("\n")], [uiText.text("coding.goal.outputs"), goal.promised_outputs.join("\n")],
   ];
 }
 
 /** The goal version a session's next round is fixed to, as the dialog previews it. */
 export function renderGoalPreview(page: Page) {
-  const { L, q } = page, { s } = page;
+  const { readText, q } = page, { s } = page;
   const region = q("[data-coding-goal-preview]");
   region.replaceChildren();
   const choice = s.goalChoice;
   if (!choice) {
-    region.textContent = L("coding.goal.none-next");
+    region.textContent = uiText.text("coding.goal.none-next");
     return;
   }
   const goal = choice.snapshot.goal;
   region.append(el("h3", goal.title), el("p", choice.snapshot.state.agreement.outcome || goal.outcome),
-    el("p", codingGoalVersionLabel({ agreement_version: choice.snapshot.state.agreement.version }, L)));
+    el("p", codingGoalVersionLabel({ agreement_version: choice.snapshot.state.agreement.version }, readText)));
   const sections = goalSections(page, goal);
   for (const [title, value] of sections.filter(item => item[1])) {
     const content = el("p", value);
@@ -40,19 +40,18 @@ export function renderGoalPreview(page: Page) {
   const requirements = choice.snapshot.state.requirements;
   if (requirements.length) {
     const list = el("ul");
-    for (const item of requirements) list.append(el("li", item.human_decision_required ? L("coding.goal.needs-person", { statement: item.statement }) : item.statement));
-    region.append(el("strong", L("coding.goal.requirements")), list);
+    for (const item of requirements) list.append(el("li", item.human_decision_required ? uiText.text("coding.goal.needs-person", { statement: item.statement }) : item.statement));
+    region.append(el("strong", uiText.text("coding.goal.requirements")), list);
   }
   const missing = sections.filter(item => !item[1]).map(item => item[0]);
-  if (missing.length) region.append(el("p", L("coding.goal.missing-fields", { fields: missing.join(L("coding.list.joiner")) })));
+  if (missing.length) region.append(el("p", uiText.text("coding.goal.missing-fields", { fields: missing.join(uiText.text("coding.list.joiner")) })));
   const details = el("details");
-  details.append(el("summary", L("coding.goal.fixed-context", { cursor: choice.snapshot.state.goal_event_cursor })), el("pre", choice.material.text));
+  details.append(el("summary", uiText.text("coding.goal.fixed-context", { cursor: choice.snapshot.state.goal_event_cursor })), el("pre", choice.material.text));
   region.append(details);
 }
 
 /** One goal of the picker's list. */
-function goalRow(page: Page, row: GoalSummary, selected: boolean): HTMLElement {
-  const { L } = page;
+function goalRow(_page: Page, row: GoalSummary, selected: boolean): HTMLElement {
   const button = el("button", "", "mw-dir-row mw-dir-row--compact directory-list-row");
   button.type = "button";
   button.dataset.codingGoalId = row.goal_id;
@@ -64,7 +63,7 @@ function goalRow(page: Page, row: GoalSummary, selected: boolean): HTMLElement {
   const copy = el("span", "", "mw-dir-row__copy"), headline = el("span", "", "mw-dir-row__headline");
   headline.append(el("strong", row.title));
   if (row.work_status === "completed" || row.work_status === "cancelled") {
-    headline.append(el("span", row.work_status === "completed" ? L("coding.goal.completed") : L("coding.state.cancelled"), "mw-dir-row__status"));
+    headline.append(el("span", row.work_status === "completed" ? uiText.text("coding.goal.completed") : uiText.text("coding.state.cancelled"), "mw-dir-row__status"));
   }
   copy.append(headline);
   button.append(mark, copy);
@@ -72,12 +71,12 @@ function goalRow(page: Page, row: GoalSummary, selected: boolean): HTMLElement {
 }
 
 export function renderGoalRows(page: Page) {
-  const { L, q } = page, { s } = page;
+  const { q } = page, { s } = page;
   const list = q("[data-coding-goal-list]"), search = q<HTMLInputElement>("[data-coding-goal-search]").value.trim().toLowerCase();
   const selectedId = s.goalChoice?.snapshot?.goal?.goal_id || "";
   list.replaceChildren();
   for (const row of s.goalRows.filter(item => item.title.toLowerCase().includes(search))) list.append(goalRow(page, row, row.goal_id === selectedId));
-  if (!list.children.length) list.textContent = s.goalRows.length ? L("coding.goal.no-match") : L("coding.goal.none-yet");
+  if (!list.children.length) list.textContent = s.goalRows.length ? uiText.text("coding.goal.no-match") : uiText.text("coding.goal.none-yet");
   q("[data-coding-goal-more]").hidden = !s.goalCursor;
 }
 
@@ -93,9 +92,9 @@ export async function loadGoals(page: Page, ticket: number) {
 
 /** Opens the goal dialog: the session's saved goal first, then the list to choose another from. */
 export async function openGoals(page: Page) {
-  const { L, lifetime, q } = page, { s } = page;
+  const { lifetime, q } = page, { s } = page;
   if (!s.current) {
-    status(page, L("coding.session.choose-first"));
+    status(page, uiText.text("coding.session.choose-first"));
     return;
   }
   const id = s.current, ticket = ++s.goalTicket;
@@ -107,14 +106,14 @@ export async function openGoals(page: Page) {
   q<HTMLButtonElement>("[data-coding-goal-save]").disabled = true;
   q("[data-coding-goal-error]").textContent = "";
   q<HTMLInputElement>("[data-coding-goal-search]").value = "";
-  q("[data-coding-goal-list]").textContent = L("coding.goal.loading");
-  q("[data-coding-goal-preview]").textContent = L("coding.goal.loading-version");
+  q("[data-coding-goal-list]").textContent = uiText.text("coding.goal.loading");
+  q("[data-coding-goal-preview]").textContent = uiText.text("coding.goal.loading-version");
   try {
     const saved = await api<{ selected: GoalChoice | null; goal_id?: string; error?: string }>(page, sessionPath(id) + "/goal");
     if (ticket !== s.goalTicket || s.current !== id) return;
     s.goalChoice = saved.selected;
     renderGoalPreview(page);
-    if (saved.error || saved.goal_id && !saved.selected) q("[data-coding-goal-error]").textContent = saved.error || L("coding.goal.not-fixed");
+    if (saved.error || saved.goal_id && !saved.selected) q("[data-coding-goal-error]").textContent = saved.error || uiText.text("coding.goal.not-fixed");
     q<HTMLButtonElement>("[data-coding-goal-save]").disabled = Boolean(saved.goal_id && !saved.selected);
     await loadGoals(page, ticket);
   } catch (error) {
@@ -133,7 +132,7 @@ export function returnFromChange(page: Page) {
 
 /** The Goal face: the open session's Goal for the next round, with the way to change it and the way to it. */
 export function renderGoalFace(page: Page) {
-  const { L, directory } = page, { s } = page;
+  const { directory } = page, { s } = page;
   const box = directory.querySelector<HTMLElement>("[data-coding-goal-face-current]"), open = directory.querySelector<HTMLButtonElement>("[data-coding-goal-face-open]");
   const visit = directory.querySelector<HTMLElement>("[data-coding-goal-face-visit]");
   if (!box || !open || !visit) return;
@@ -143,23 +142,23 @@ export function renderGoalFace(page: Page) {
   const line = (tag: "strong" | "span", text: string) => box.append(el(tag, text));
   const label = open.querySelector("[data-slot=button-label]");
   if (!session) {
-    line("span", L("coding.goal-face.open-session-first"));
+    line("span", uiText.text("coding.goal-face.open-session-first"));
     open.disabled = true;
     visit.hidden = true;
     return;
   }
   open.disabled = false;
   if (session.goal_id) {
-    line("strong", session.goal_title || L("coding.goal-face.unavailable"));
-    line("span", L("coding.goal-face.next", { session: session.title }));
-    if (label) label.textContent = L("coding.goal-face.change");
+    line("strong", session.goal_title || uiText.text("coding.goal-face.unavailable"));
+    line("span", uiText.text("coding.goal-face.next", { session: session.title }));
+    if (label) label.textContent = uiText.text("coding.goal-face.change");
     visit.hidden = false;
     visit.dataset.goalId = session.goal_id;
     visit.dataset.goalTitle = session.goal_title || "";
   } else {
-    line("strong", L("coding.goal-face.none"));
-    line("span", L("coding.goal-face.session", { session: session.title }));
-    if (label) label.textContent = L("coding.goal.link");
+    line("strong", uiText.text("coding.goal-face.none"));
+    line("span", uiText.text("coding.goal-face.session", { session: session.title }));
+    if (label) label.textContent = uiText.text("coding.goal.link");
     visit.hidden = true;
   }
 }

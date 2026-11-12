@@ -1,17 +1,16 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test } from "./goals-page-mount.js";
 import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextItem, type GoalsContextView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
-import { L, currentLocale } from "@molis-ai/molis-work-app-local-host";
+import { currentLocale } from "@molis-ai/molis-work-app-local-host";
 import { createGoalStateExplainer } from "@molis-ai/molis-work-plugin-goals";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(t.text);
 
 const escapeHtml = (v: unknown) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.context({ translate: L, escapeHtml, icon, currentLocale, explainWorkState, explainParentCompletion,
-  subsectionHeading: (_icon, title, description = "") => "<header>" + escapeHtml(L(title)) + escapeHtml(L(description)) + "</header>" });
+const renderer = goalsRenderers.context({ translate: t.text, escapeHtml, icon, currentLocale, explainWorkState, explainParentCompletion,
+  subsectionHeading: (_icon, title, description = "") => "<header>" + escapeHtml(t.text(title)) + escapeHtml(t.text(description)) + "</header>" });
 const item = (id: string): GoalsContextItem => ({
   goal: { goal_id: id, title: '用户 "<title>', priority: 1, created_at: "2026-09-05", fulfillment_state: "unmet",
     definition_state: "draft", decomposition_state: "abstract", decomposition_review: null,

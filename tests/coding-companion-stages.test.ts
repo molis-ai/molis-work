@@ -95,11 +95,12 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
 test("RAC-434 each companion's own stage keeps the markup the Coding client fills, built from stable keys of the plugin's own words", async () => {
   await withProject(async (store, state) => {
     const { html } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
-    for (const surface of ["files", "git", "diff", "text-stats"]) {
+    for (const [surface, label] of Object.entries({ files: "打开文件，开始阅读", git: "查看工作区的改动", diff: "打开 Files", "text-stats": "打开 Files" })) {
       const stage = stageOf(html, surface);
       assert.match(stage, new RegExp(`data-coding-companion="workbench"[^>]*data-companion="${surface}"`), `${surface} keeps its companion hooks`);
       assert.match(stage, /hidden/, `${surface} starts hidden until the client shows it`);
-      assert.match(stage, new RegExp(`${surface}\\.stage\\.`), `${surface} words its stage with its own keys`);
+      assert.ok(stage.includes(label), `${surface} draws its own stage words: ${label}`);
+      assert.doesNotMatch(stage, new RegExp(`>${surface}\\.stage\\.`));
     }
     const files = stageOf(html, "files");
     assert.match(files, /href="\/p\/settings\/workspaces"/);
@@ -205,7 +206,9 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   const host = hostSources(dir);
   assert.deepEqual(companionEdges(host), [], "no Host file reaches a companion except the registry's ./registration");
   for (const name of COMPANIONS) assert.ok(host.some(([file, text]) => file === REGISTRY && text.includes(`"@molis-ai/molis-work-plugin-${name}/registration"`)), `the registry reaches ${name}`);
-  assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*create\(\)/s, "the supervisor starts the companions from their registrations' project_runtime");
+  assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*registeredNativePlugin\(entry\)/s,
+    "the supervisor starts the companions from their registrations' project_runtime");
+  assert.match(readFileSync(join(dir, "native-plugin-release-artifact.ts"), "utf8"), /function registeredNativePlugin[\s\S]+const definition = entry\.create\(\)/u);
   // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
   // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).
   assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-(?!runtime"|sdk["/])|["'`](coding|files|git|diff|text-stats)["'`]/);

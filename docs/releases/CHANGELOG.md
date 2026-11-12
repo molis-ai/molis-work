@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Feed 有界读取（2026-11-11，待 CI 验收）
+
+- `feed.snapshot@1`、`feed.stage.read@1` 改为每页最多 200 条元数据，输入为字符串 `offset` 和 JSON 字符串 `filter`，返回 `offset`、`next_offset`、来源汇总 `facets`；移除 `include_contents`。列表不含正文与材料，调用方使用 `feed.items.get@1` 读取一项完整内容，页面通过阅读器按页读取材料。固定引用须按 `next_offset` 继续读取，不能将第一页当完整集合。
+- 工作区内 `FeedQuery.list` 必须显式传分页，且只返回元数据；移除原无分页聚合入口。单项完整读取语义不变。
+- `feed.items.reader@1` 接受 `material_offset`，返回材料页位置与下一页。后台引用与检索操作按稳定键遍历，由 Feed 库去重；来源计数与筛选选项独立于当前消息页。
+- `UiPageView.readDocument` 可传 Manifest 已声明的字符串 `input`，通用舞台端口拒绝未声明参数和身份覆盖。权限、MCP 名称与动作版本沿阶段一现行合同更新；不含库结构变更或历史读取回退。
+
 ### 日评 A-1 合同说明（2026-11-09）
 
 - 已有Home库的只读查询保留完整空间归属核对；外来或缺失归属以 `storage.space_ownership_mismatch`（forbidden）拒绝，不创建描述符、表或业务记录。
@@ -17,6 +24,8 @@
 - 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
 
 ### 升级须知（需要动手）
+
+- **第 09 批：助理和 Coding 改用同一份技能目录，第三方工作执行方要接住 `run.start` 的 `skills`**（#2015 + 收尾 #2019，2026-11-11；阶段一不留兼容）：`run.start` 在同一版本上多一个 `skills`（`SkillRef` 数组，至多 20 项），把这一轮要用的技能交给执行方；第三方工作执行方要按引用读正文并按精确引用冻结，读不到就整轮拒绝、不悄悄换版本。读共同目录用插件自己的身份、要 `skills:read`：第三方执行方要在 Manifest 里声明并获授予，才能用目录给它的技能（本人在助理里点名、由宿主按调用绑定到冻结名单的那几项例外）；缺这项权限时目录读取被拒、这一轮不开。Manifest 角色的 `skills` 字段与 `AgentRoleSkillsDeclaration` 已删，写了旧字段的声明检查直接拒绝；角色不再自带技能表，技能写进 Manifest 的 `methods`（给别的 Agent 用）或 `agent.skills`（自己的 Agent 用）。SDK 新增 `/skill-ref` 子路径（`skillRefKey`，页面也能引）；`ActionCallContext` 多 `named_skills`、`skill_round`，冻结记录里的 `skills` 改成带 `ref`、`origin`、`name`、`tools`、`named` 并多 `reply_locale`。旧写法、旧版本引用都要改成现行形状，没有读取兼容。
 
 - **技能包方法声明与 SDK 出口（第 08 批）**：含 Manifest `methods` 的插件作者须为每项方法补齐 `description` 与 `applies_to`，再重新打包签名。旧三键方法声明的签名包会被明确拒绝，不做自动迁移。使用 SDK 的作者将 `ContentPackageSkill` 改为 `PackagedSkillBody`；原 `sandboxAgentBodyIdentity` 的角色用途改为 `sandboxRoleIdentity`，方法身份使用声明中的 `skill_id` 与 `version`，正文使用声明中的 `body` 路径。固定调用 `plugins.install.preview@1` 的调用方须接受新增的技能、需求及升级差异字段；输入现在支持 `bundle` 或 `bundled` 二选一。安装或导入技能后仍为关闭，需本人另行启用。
 

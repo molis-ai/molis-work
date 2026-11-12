@@ -52,7 +52,7 @@ test("RAC-255 BL-385: the Host lists Characters among a project's data owners an
   seed(directory);
   const hooks = projectDeletedHooksFor(directory);
   const owner = hooks.owners().find(item => item.id === "characters");
-  assert.equal(owner?.label, "角色在这个项目里的执行记录");
+  assert.deepEqual(owner?.label, { key: "workbench.project-deletion.character-runs" });
   assert.equal(await hooks.clear("characters", "doomed"), true);
   assert.deepEqual(rows(directory, "SELECT panel_id FROM character_runs"), [{ panel_id: "panel-3" }]);
 });

@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.intercom",
+  "locale": "en",
+  "messages": {
+    "intercom.connection.auth-help": "Use an Intercom access token. The integration only reads me and conversations.",
+    "intercom.connection.inbound": "Feed retrieves customer conversations",
+    "intercom.connection.summary": "Customer conversations.",
+    "intercom.connection.token-label": "Intercom Access Token",
+    "intercom.guide.mcp-connected-note": "The official MCP service currently supports US-hosted workspaces only.",
+    "intercom.guide.mcp-link": "View the official Intercom MCP",
+    "intercom.guide.mcp-note": "The official MCP service currently supports US-hosted workspaces only. Molis Work has not integrated it.",
+    "intercom.guide.oauth-link": "View Intercom OAuth",
+    "intercom.guide.token-note": "Connect only your own private app. For a public app, follow the official OAuth requirements.",
+    "intercom.oauth.note": "The Intercom app requires a registered HTTPS callback. Enter it below and paste the authorization return address.",
+    "intercom.setup.open-intercom-developer-hub": "Open Intercom Developer Hub"
+  }
+}

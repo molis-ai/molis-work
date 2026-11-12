@@ -5,8 +5,9 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,builderManifest} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,builderManifest,expandDesign} from '@molis-ai/molis-work-plugin-builder';
 import type {PluginPrivateStorage} from '@molis-ai/molis-work-contracts/platform/plugin';
+import {detail} from './fixtures/builder-workflow-design.js';
 
 const KEY='plugin-builder:agent-built:v1';
 const context={install_id:'builder-state-test',plugin_id:builderManifest.plugin_id,version:builderManifest.version,deployment:'local' as const,project_id:'project',grants:['storage:private'],requireGrant(){}};
@@ -39,6 +40,21 @@ test('Builder refuses another owner format and malformed editing floors without 
   storage.set(KEY,invalid);assert.throws(()=>owner.list(),/格式版本无效/);assert.throws(()=>owner.create('must not reset'),/格式版本无效/);assert.equal(storage.get(KEY),invalid);
  }
  storage.set(KEY,good);assert.equal(owner.require(build.id).brief,'保留的需求');
+});
+
+test('FSS-36 a Studio v1 draft with word references needs its language files before saving', async t => {
+ const {storage,owner}=await fixture(t),build=owner.create('保留原文');
+ const design=expandDesign(JSON.parse(detail('原文笔记')),{id:'draft',title:'原文笔记',description:'文字保留',rationale:'笔记',journey:['Write']},'io.molis.work.generated.notes','draft-r1',[]);
+ const saved=owner.update(build.id,build.revision,row=>{row.design=design;row.candidates=[{
+  id:'original',title:'原文',description:'保留原文',rationale:'笔记',journey:['Write'],effects:{},
+  preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)},
+ }];});
+ const original=storage.get(KEY);
+ assert.ok(saved.design && !saved.design.contract.ui && !saved.design.localePacks);
+ assert.throws(()=>owner.update(saved.id,saved.revision,row=>{row.design!.contract.pages[0]!.title={key:'notes.ui.page.main.title'};}),{code:'plugin_builder.store_invalid'});
+ assert.throws(()=>owner.update(saved.id,saved.revision,row=>{row.candidates[0]!.preview.contract.pages[0]!.title={key:'notes.ui.page.main.title'};}),{code:'plugin_builder.store_invalid'});
+ assert.equal(storage.get(KEY),original);
+ assert.deepEqual(owner.require(saved.id).design,saved.design);
 });
 
 // PCS-S6: an independent connection wins between read and the one actual CAS. No get+set overwrite or retry.

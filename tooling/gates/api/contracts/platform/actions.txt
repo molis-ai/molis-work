@@ -513,7 +513,7 @@ export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;
@@ -3256,6 +3256,14 @@ export declare function actionFieldLabel(key: string, declared?: {
     title?: string;
     description?: string;
 }): string;
+
+export declare function actionFieldLabelSource(key: string, declared?: {
+    title?: string;
+    description?: string;
+}): {
+    label: string;
+    defaultKey?: string;
+};
 
 export declare function actionFieldOptions(declared?: unknown): Array<{
     value: string;

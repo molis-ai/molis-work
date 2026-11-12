@@ -8,6 +8,8 @@ export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js"
 import type { AssistantActivity } from "./assistant-activity.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
+import type { OwnedTextRef } from "../platform/ui-text.js";
 import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput, AgentSteerMode } from "./agent-inputs.js";
@@ -616,20 +618,25 @@ export type AssistantMethod =
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.
  * `reminder`: a reminder the person set in a Plugin came due (a time on a to-do); it belongs to no work.
- * `directory-read`: a Plugin read a local directory the person authorized (PG-049; every read is told, whoever started it); its text is a host translation template with required text_params, drawn in the current UI language.
+ * `directory-read`: a Plugin read a local directory the person authorized (PG-049); the source is kept as a fact and named when shown.
  * `connection`: one of the person's service connections needs them (ASC-53, ASC-58): it must be logged in again, its key or permission was
  * refused more than once, or it kept failing; raised once for one problem of one connection version, never for a connection the person
  * disconnected, disabled or removed, and settled once the problem is gone. It belongs to no work; `settings_path` opens the connection settings of its service (the settings have no
- * address for one account of a service). Its text is a host translation template whose `{name}` is the connection's name, given as `work_title`. */
+ * address for one account of a service). The connection's own name remains as given. */
 export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read" | "connection";
+type AssistantTextKey = Extract<OwnedTextRef, { readonly key: string }>;
+/** Host words stay a bound key; an original refusal, receipt or other text is kept without a display length limit. */
+export type AssistantSavedText = AssistantTextKey | { readonly original: string; readonly label?: AssistantTextKey };
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
   /** The work it is about; empty for a reminder. */ work_id: string;
   /** The work's title, or for a reminder the Plugin that holds it. */
   work_title: string;
-  text: string;
-  text_params?: { plugin: string; folder: string; origin: string };
+  text: AssistantSavedText;
+  directory_origin?: DirectoryReadOrigin;
+  /** Other new items of the same work, projected with the newest material notice. */
+  additional_count?: number;
   created_at: string;
   /**
    * For a `connection` notice: the settings address that opens the connection settings of its service, a same-origin path that starts with
@@ -708,7 +715,7 @@ export interface AssistantFollowUp {
   time_zone: string;
   enabled: boolean;
   created_at: string;
-  last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: string };
+  last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: AssistantSavedText };
 }
 
 /**

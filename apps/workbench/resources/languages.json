@@ -1,0 +1,8 @@
+{
+  "format_version": 1,
+  "default": "zh",
+  "languages": [
+    { "tag": "zh", "html_lang": "zh-CN", "intl": "zh-CN", "direction": "ltr", "name": "简体中文" },
+    { "tag": "en", "html_lang": "en", "intl": "en-US", "direction": "ltr", "name": "English" }
+  ]
+}

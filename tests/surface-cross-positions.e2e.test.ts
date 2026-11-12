@@ -316,7 +316,7 @@ test("IUI-02 IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and
   await b.waitFor(`[...document.querySelectorAll('[data-tab-id]')].some(tab => tab.dataset.itemId === ${quoted(document.id)})`);
 });
 
-test("IUI-21: changing an actual owner's displayed values replaces the Home row and preserves its logical focus", { timeout: 70_000 }, async t => {
+test("IUI-21: changing an actual owner's displayed values replaces the Home row and preserves its logical focus", { timeout: 150_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null);
   if (!b) return;
   const { projectId, store } = b;
@@ -336,11 +336,12 @@ test("IUI-21: changing an actual owner's displayed values replaces the Home row 
   await b.evaluate(`window.__originalHomeRow = ${dom(item(0))}; ${dom(title(0))}.focus()`);
   assert.equal(await b.evaluate(`document.activeElement === ${dom(title(0))}`), true);
   await read(0);
-  await b.waitFor(`${dom(item(0))} !== window.__originalHomeRow && ${dom(item(0))}?.checkVisibility()`, 15_000);
+  // Off the Goal stage the change reaches the page with the next attention beat (15 s, W4-10), then the Home reads again: allow two beats.
+  await b.waitFor(`${dom(item(0))} !== window.__originalHomeRow && ${dom(item(0))}?.checkVisibility()`, 40_000);
   assert.equal(await b.evaluate(`document.activeElement === ${dom(title(0))}`), true);
   await b.evaluate(`window.__originalHomeRow = ${dom(item(1))}; ${dom(title(1))}.focus(); ${dom(title(0))}.focus()`);
   await read(1);
-  await b.waitFor(`${dom(item(1))} !== window.__originalHomeRow && ${dom(item(1))}?.checkVisibility()`, 15_000);
+  await b.waitFor(`${dom(item(1))} !== window.__originalHomeRow && ${dom(item(1))}?.checkVisibility()`, 40_000);
   assert.equal(await b.evaluate(`document.activeElement === ${dom(title(0))}`), true, "a late change cannot steal focus back from a different object");
 });
 

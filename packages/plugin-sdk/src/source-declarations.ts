@@ -41,7 +41,7 @@ export function searchSourceDeclarationProblems(key: string, action: Record<stri
 }
 
 const COMPOSER_LAYERS: readonly unknown[] = ["ai", "plain"];
-const COMPOSER_SOURCE_FIELDS: readonly string[] = ["title", "layers"];
+const COMPOSER_SOURCE_FIELDS: readonly string[] = ["title", "title_text", "layers"];
 const distinctList = (value: unknown, valid: (entry: unknown) => boolean): value is unknown[] =>
   Array.isArray(value) && value.length > 0 && value.every(valid) && new Set(value).size === value.length;
 
@@ -58,6 +58,7 @@ export function composerSourceDeclarationProblems(key: string, action: Record<st
   const picksKinds = Array.isArray(action.subject_kinds) && action.subject_kinds.length > 0;
   const shaped = isRecord(declared) && Object.keys(declared).every(field => COMPOSER_SOURCE_FIELDS.includes(field))
     && typeof declared.title === "string" && declared.title.trim().length > 0 && picksKinds
+    && (declared.title_text === undefined || isRecord(declared.title_text) && Object.keys(declared.title_text).length === 1 && typeof declared.title_text.key === "string")
     && distinctList(declared.layers, layer => COMPOSER_LAYERS.includes(layer));
   // The composer lists sources as the person, and a source only reads.
   const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");

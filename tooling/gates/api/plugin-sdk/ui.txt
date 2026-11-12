@@ -895,7 +895,9 @@ interface MwInputOptions {
     attrs?: Record<string, AttrValue>;
 }
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
+    readonly actions?: PluginManifest["actions"];
+};
 
 interface PresentationControl {
     readonly key: string;

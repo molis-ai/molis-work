@@ -13,7 +13,7 @@ const composerPick: ActionDefinition<ComposerPickInput, ComposerPickOutput> = {
   capability_id: "todo.composer.pick", version: /* @version action.todo.composer.pick */ 1, operation: "query",
   action: { title: "选待办", description: "按标题找还没做完的待办，交给输入框作为资料", kind: "query", scope: "home", audiences: ["user"], permissions: ["todo:read"],
     subject_kinds: [TODO_SUBJECT_KIND], input_type: COMPOSER_PICK_INPUT_TYPE, output_type: COMPOSER_PICK_OUTPUT_TYPE,
-    input_schema: COMPOSER_PICK_INPUT_SCHEMA, output_schema: COMPOSER_PICK_OUTPUT_SCHEMA, composer_source: { title: "待办", layers: ["ai", "plain"] } },
+    input_schema: COMPOSER_PICK_INPUT_SCHEMA, output_schema: COMPOSER_PICK_OUTPUT_SCHEMA, composer_source: { title: "待办", title_text: { key: "todo.directory.name" }, layers: ["ai", "plain"] } },
 };
 
 /** Todo's part in the system search and in object reading (the Assistant's "this todo"). */

@@ -49,6 +49,7 @@ export interface ComposerPickOutput {
 
 export interface ComposerSourceDeclaration {
     readonly title: string;
+    readonly title_text?: TextRef;
     readonly layers: readonly ("ai" | "plain")[];
 }
 

@@ -4,6 +4,7 @@ import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js"
 import type { ActionSchema } from "./actions.js";
 import { closedObjectSchema as closed } from "./closed-object-schema.js";
 import { MATERIAL_REF_SCHEMA, type MaterialRef } from "./project-materials.js";
+import type { TextRef } from "./ui.js";
 
 /**
  * A plugin's source for the unified input's `+` menu (specs/unified-input-voice/implementation-plan.md §3.3, slice K0): the one
@@ -19,6 +20,8 @@ import { MATERIAL_REF_SCHEMA, type MaterialRef } from "./project-materials.js";
 export interface ComposerSourceDeclaration {
   /** The group's name in the menu, translated as `SearchSourceKind.title` is. */
   readonly title: string;
+  /** The same name as a line in this plugin's language files (`{ key }`), shown in the page's language; `title` stays the original. */
+  readonly title_text?: TextRef;
   /** Which layer's composers list it. */
   readonly layers: readonly ("ai" | "plain")[];
 }

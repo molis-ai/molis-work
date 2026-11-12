@@ -125,7 +125,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v2；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
+### 4.1 `projects/catalog.db`（v3；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
 
 | owner | 表 |
 | --- | --- |
@@ -133,7 +133,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列记这个文件夹对项目是输入、输出或两者）、`workspace_source_links`（另一台设备的目录对应到本机哪个文件夹，只在本机、不同步）（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`），`project_recycle` 与 `project_recycle_receipts`（`src/recycle.ts`，原项目事实保留，观察时刻不是服务端到期时刻） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
 | `modules/context-ledger` | `context_edges` |
-| `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`）：T-148 起只建表、没有读写；何时删随 #1633 定 |
+| `apps/local-host`（退役表升级） | `goal_desktop_panels`、`goal_desktop_panel_aliases`：已不再建表；`src/project-catalog-contract.ts` 的目录库 2→3 升级删除空表，有记录时拒绝升级并保留原库，等待明确的恢复决定 |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref`；`plugin_terminal_panels`、`plugin_terminal_panel_aliases`（`src/plugin-terminal-panels.ts`）：插件经 `services.terminal` 起的终端记录与运行时会话别名（S-103） |
 
 ### 4.2 `projects/<id>/molis-work.db`

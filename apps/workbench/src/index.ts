@@ -106,9 +106,8 @@ export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugi
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderOwnerUnavailablePage } from "./owner-unavailable.js";
 export { renderOwnerUnavailableCard, type OwnerUnavailableCard, type OwnerUnavailableReason } from "./owner-unavailable-card.js";
-export { renderRunningSettings } from "./settings-running.js";
 // 设置 › 更新 goes out with the renderer that draws it (the execution-adapter check reads this file for SQL words, and a module name is not one).
-export { renderUpdateSettings, type SettingsRollbackPoint, type SettingsUpdateView } from "./settings-renderer.js";
+export { renderUpdateSettings } from "./settings-renderer.js";
 export { hostSettingsSectionLabel } from "./settings-sections.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";

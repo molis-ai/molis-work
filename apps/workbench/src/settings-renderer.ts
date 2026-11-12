@@ -20,7 +20,7 @@ import { renderMemorySettings } from "./settings-memory.js";
 import { renderLocalDirectorySettings } from "./settings-local-directories.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
 import { renderUpdateSettings } from "./settings-update.js";
-export { renderUpdateSettings, type SettingsRollbackPoint, type SettingsUpdateView } from "./settings-update.js";
+export { renderUpdateSettings } from "./settings-update.js";
 import { renderRunningSettings } from "./settings-running.js";
 import { renderSyncSettings } from './settings-sync.js';
 import { createCapabilitiesRenderer } from "./capabilities.js";

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { homeAggregatePorts } from "./home-aggregate.js";
-import { hostCompleteText } from "./host-complete-text.js";
+import { hostHasTextModel } from "./host-complete-text.js";
 import { currentHostPresence } from "./host-presence.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
@@ -26,7 +26,7 @@ export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: st
       return reference ? host.withProject(reference, () => work(personRuns(host, reference))) : undefined;
     },
     now: () => new Date(), online: hasNetwork,
-    model: () => hostCompleteText({ homeDirectory }) !== undefined,
+    model: () => hostHasTextModel({ homeDirectory }),
     gaps: () => currentHostPresence()?.gaps() ?? [],
   };
 }

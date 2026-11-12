@@ -62,3 +62,10 @@ export {
   type NowMenu,
   type PickRow,
 } from "./capability-pack.js";
+export {
+  SESSION_SOURCE_STYLES,
+  renderPermitNote,
+  renderPermitRow,
+  type MwPermitNote,
+  type MwPermitRowOptions,
+} from "./session-sources.js";

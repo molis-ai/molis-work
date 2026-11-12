@@ -46,6 +46,9 @@ export const platformPluginContract = {
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;
 
+/** The provider id the Host registers its plugin install service under (installing, and importing Skills as a package): one name, shared by the Host and the AI kit's reporter table (`services/kit`). */
+export const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
+
 export type PluginLifecycleState =
   | "installed"
   | "running"
@@ -292,6 +295,24 @@ export type IntegrationProviderFailure =
   | "provider"
   | "rate_limited"
   | "stale_history";
+
+/** The failed live sync result an integration provider answers with (catalog, GitHub): `ok:false`, `mode:"live"` and its
+ * typed failure, built in one place so the two providers cannot answer with different fields. */
+export function integrationLiveFailure(
+  failure: IntegrationProviderFailure,
+  message: string,
+  options: { readonly action?: string; readonly httpStatus?: number; readonly retryAfterAt?: string } = {},
+): Extract<IntegrationProviderSyncResult, { ok: false }> {
+  return {
+    ok: false,
+    mode: "live",
+    failure,
+    message,
+    action: options.action,
+    httpStatus: options.httpStatus,
+    retryAfterAt: options.retryAfterAt,
+  };
+}
 
 export type IntegrationProviderSyncResult =
   | {

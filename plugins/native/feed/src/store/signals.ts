@@ -1,5 +1,6 @@
 import type { FeedSql } from "./sql.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import {assertSignalDraft as assertDraft,signalContentHash,signalDigest as sha256} from './content.js';
 export {signalContentReplicationDefinition} from './signals-replication.js';
@@ -218,14 +219,14 @@ function mapSignal(row: Row): SignalRecord {
     kind: text(row.kind),
     occurred_at: text(row.occurred_at),
     observed_at: text(row.observed_at),
-    payload: json<Record<string, unknown>>(row.payload_json, {}),
-    content_refs: json<string[]>(row.content_refs_json, []),
+    payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
+    content_refs: parseJson<string[]>(row.content_refs_json, []),
     raw_event_id: text(row.raw_event_id),
     adapter: {
       plugin_id: text(row.adapter_plugin_id),
       version: text(row.adapter_version),
     },
-    provenance: json<Record<string, unknown>>(row.provenance_json, {}),
+    provenance: parseJson<Record<string, unknown>>(row.provenance_json, {}),
     revision: Number(row.revision),
     content_hash: text(row.content_hash),
     validation: "accepted",
@@ -243,13 +244,4 @@ function text(value: unknown): string {
 function optionalText(value: unknown): string | null {
   const result = text(value);
   return result || null;
-}
-
-function json<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }

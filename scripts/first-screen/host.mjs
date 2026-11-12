@@ -110,6 +110,10 @@ export async function withFirstScreenHost(root, { signal, port = 0 }, operation)
     const chosenPort = await availablePort(port, signal);
     return await useHost(root, home, chosenPort, signal, host => operation({ ...host, home, pages }));
   } finally {
+    // The text context is process-wide (`Symbol.for`, packages/plugin-sdk/src/ui/text.ts): a measured seed of the merge-base leaves
+    // its copy installed, and the candidate is a separate module copy, so installing its own would refuse. This measurement only
+    // needs it while the seed runs; the HTTP pages were sampled in their own child process.
+    Reflect.deleteProperty(globalThis, Symbol.for("molis.work.ui-text.v1"));
     rmSync(home, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }

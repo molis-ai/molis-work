@@ -1,4 +1,4 @@
-import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_PROVIDER_ID, type ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorAccountControl } from "./connector-oauth-targets.js";
 import type { ActionClient, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -27,7 +27,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
 import { refreshRefused } from "./connector-refresh-refusals.js";
 
-export const CONNECTOR_PROVIDER_ID = "system.connectors";
+export { CONNECTOR_PROVIDER_ID };
 
 interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
 const text = { type: "string" };

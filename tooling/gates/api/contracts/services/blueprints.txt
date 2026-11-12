@@ -217,6 +217,21 @@ export declare const blueprintActions: {
     packSave: ActionDefinition<BlueprintPackSaveInput, BlueprintPackSaveResult>;
 };
 
+export declare const blueprintsErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly part_unsupported: "invalid";
+    readonly step_conflict: "conflict";
+    readonly dependency_unmet: "unavailable";
+    readonly preview_expired: "not_found";
+}>;
+
+export declare const servicesBlueprintsContract: {
+    readonly contractId: "io.molis.work.service.blueprints.v1";
+    readonly kind: "service";
+    readonly schemaVersion: 1;
+    readonly maturity: "contract-only";
+    readonly ssot: "specs/scene-and-page-contract/spec.md";
+};
+
 // Declarations the exports above refer to, which no entry exports itself:
 
 interface BlueprintAdoptionIdentity {

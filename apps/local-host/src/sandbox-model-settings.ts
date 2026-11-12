@@ -7,7 +7,9 @@ import { sandboxProviderId } from "./sandbox-home-names.js";
 // A Home package's own model settings (`sdk.model.settings`, PG-017 BL-491, S-60). The Manifest has no `model_configuration` block for a sandboxed package: the
 // package asks with `effects.modelSettings` and the Host derives the rest. The choice is kept where the installation's own files are, next to (not inside) the
 // folder the package's declared files live in, so the package cannot write it as a file: <Home>/plugin-files/<installation>/.model-settings/preference.json,
-// which an uninstall that keeps no data removes with the installation's folder (`removeSandboxOwnerFiles`). A package may only choose among the providers and
+// which an uninstall that keeps no data removes with the installation's folder (`removeSandboxOwnerFiles`). The upgrade process does not
+// enumerate these files yet: raising `format.model.preference` needs that first (platform-upgrade-stores.ts, BL-plugin-files-model-preference-upgrade).
+// A package may only choose among the providers and
 // models the person enabled: it names no address, account or format, and the provider id the Host reserves for a consumer's own provider is never created.
 
 const MODEL_READ = "model:read", MODEL_INVOKE = "model:invoke";

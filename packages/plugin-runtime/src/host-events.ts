@@ -14,6 +14,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
+import { eventDeliveryFailure } from "./events.js";
 import { outsidePluginAction } from "./action-scope.js";
 
 /** The installation a host event is addressed to: the one that asked for what the event reports. */
@@ -247,17 +248,9 @@ export class PluginHostEvents {
   }
 
   #fail(code: PluginEventDeliveryFailure["code"], pluginId: string, record: PluginEventRecord, message: string): void {
-    const failure: PluginEventDeliveryFailure = {
-      code,
-      project_id: this.#projectId,
-      subscriber_plugin_id: pluginId,
-      source_plugin_id: record.source_plugin_id,
-      event_id: record.event_id,
-      event_type_id: record.event_type_id,
-      type_version: record.type_version,
-      message,
-      occurred_at: this.#now().toISOString(),
-    };
+    const failure = eventDeliveryFailure({
+      code, projectId: this.#projectId, pluginId, record, message, occurredAt: this.#now().toISOString(),
+    });
     for (const listener of this.#failureListeners) listener({ ...failure });
   }
 }

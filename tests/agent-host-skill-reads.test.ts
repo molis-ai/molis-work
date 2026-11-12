@@ -53,6 +53,7 @@ function recordingAdapter() {
       seen.push(request);
       return { ref: { run_id: "run-1", session_id: request.session.session_id }, frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m",
         prompts: [], skills: (request.role?.skills ?? []).map(({ body: _body, ...skill }) => skill), mcp_tools: [], host_tools: [...(request.role?.host_tools ?? [])],
+        ...(request.action_tools?.length ? { action_tools: request.action_tools } : {}),
         text_materials: [], budget: null, directory: { canonical_path: DIRECTORY, realpath_verified: true }, ...(request.role?.reply_locale ? { reply_locale: request.role.reply_locale } : {}) } };
     },
   };
@@ -154,4 +155,23 @@ test("SKC-13: the Prologue registration of a catalog Skill names only the role's
   assert.ok(!offered[0]!.some(name => name.includes("change-capability")), "the Skill's other tool is not");
   assert.match(systems.join(""), /Use the review template\./, "the Skill's body reaches the round");
   assert.deepEqual(handle.frozen.host_tools, ["ask-user"]);
+});
+
+// SKP-10 (round-2 review, fixed): who a round's Skill reads are for was decided while freezing and then lost for the round's own
+// tool calls — a `coding` round could not read an `auto`, `applies_to: coding` Skill while it ran. The Host's action port now gets the
+// round's consumer and named list, so every tool call carries them.
+test("SKP-10: a coding round's tool calls carry its Skill consumer and the named list", async () => {
+  const seen: unknown[][] = [];
+  const { adapter } = recordingAdapter();
+  adapter.descriptor.supports_action_tools = true;
+  const host = new AgentHost(); host.register(adapter);
+  const view: never = { capability_id: "demo.read", version: 1, provider: { provider_id: "demo", title: "示例", kind: "plugin" },
+    operation: "query", availability: { available: true },
+    action: { title: "读", description: "", kind: "query", audiences: ["agent"], effect: "read", subject_kinds: [], permissions: [],
+      input_schema: { type: "object" }, output_schema: { type: "object" } } } as never;
+  const authority = { manifest: { ...manifest, roles: [{ ...manifest.roles[0]!, workspace: "required" as const }] }, authorizedDirectories: [DIRECTORY],
+    skillCatalog: countingCatalog().catalog,
+    actions: async (...args: unknown[]) => { seen.push(args); return { discover: async () => [view], invoke: async () => ({}) } as never; } };
+  await host.start("probe", { ...startRequest([]), action_tools: [{ capability_id: "demo.read", version: 1, provider_id: "demo" }] }, authority);
+  assert.deepEqual(seen[0]?.[3], { consumer: "coding", named: [] }, "the round's tool calls read the catalog as that round");
 });

@@ -1,10 +1,8 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { t, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   compareChange,
-  diffViewText,
   emptyDiffView,
   renderDiff,
   unifiedPatch,
@@ -14,10 +12,8 @@ import {
   type DiffViewLabels,
   type DiffViewPrimitives,
 } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { CODING_CHANGE_MESSAGES } from "./change-messages.js";
 import { codingNetChange } from "./changeset.js";
 import { CODING_PLUGIN_ID } from "./manifest.js";
-import { codingText } from "./words.js";
 
 /**
  * Coding's change reader and a child's integration preview, drawn by Coding with the SDK's comparison (PG-062): one write of a
@@ -47,24 +43,14 @@ const LABELS: DiffViewLabels = {
   reveal: "coding.change.reader.reveal",
 };
 
-/** The keys whose sentences come written in Chinese with values in them. */
-const TEMPLATES = ["coding.change.reader.no-change-in"];
-
-/** What the reader is drawn with: Coding's words in the page's language, a sentence with a value in it said again with that value. */
-const texts = new Map<ActionLocale, DiffViewPrimitives["text"]>();
-function primitives(locale: ActionLocale = "zh"): DiffViewPrimitives {
-  let text = texts.get(locale);
-  if (!text) texts.set(locale, text = diffViewText(CODING_CHANGE_MESSAGES, locale, TEMPLATES, codingText(locale)));
-  return { escape: value => escapeHtml(String(value)), text, icon: name => icon(name as Parameters<typeof icon>[0]) };
-}
+const primitives = (): DiffViewPrimitives => ({ escape: escapeHtml, text: t.text, icon: name => icon(name as Parameters<typeof icon>[0]) });
 
 /** One file of a round's change set as the reader shows it: both ends of a reviewed write. */
 function changeView(change: CodingChangeSet, index: number, version: number): DiffView {
   const files: DiffFileEntry[] = change.files.map(file => ({ path: file.path, kind: file.kind, added_lines: file.added_lines, removed_lines: file.removed_lines }));
-  if (files.length === 0) return emptyDiffView(GROUP, "coding.change.reader.no-text-review", "ready", "coding.change.reader.run-again");
+  if (files.length === 0) return emptyDiffView(GROUP, t.text("coding.change.reader.no-text-review"), "ready", t.text("coding.change.reader.run-again"));
   const chosen = change.files[index];
-  // The reader asks by index, so no path is known here: the sentence reads as the Host's did.
-  if (chosen === undefined) return { ...emptyDiffView(GROUP, fillMessage(CODING_CHANGE_MESSAGES["coding.change.reader.no-change-in"].zh, { path: String(undefined) }), "unavailable", "coding.change.reader.run-again"), files };
+  if (chosen === undefined) return { ...emptyDiffView(GROUP, t.text("coding.change.reader.no-such-change"), "unavailable", t.text("coding.change.reader.run-again")), files };
   const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
     path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
   return { ...compareChange(GROUP, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
@@ -76,7 +62,7 @@ function changeView(change: CodingChangeSet, index: number, version: number): Di
  * offered only when it is exactly what happened), unified or side by side (`layout`), and the patch 复制补丁 copies (VUX-33),
  * written from the same rows.
  */
-function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Readonly<Record<string, string>>, locale: ActionLocale | undefined): void {
+function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Readonly<Record<string, string>>, _locale: ActionLocale | undefined): void {
   const change = body.change, changeIndex = Number(query.change_index ?? 0);
   const index = Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1, chosen = change.files[index];
   // A file written several times reads best as one net change, but only when that is exactly what happened.
@@ -91,17 +77,17 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
     net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
   // The reader picks unified or side by side; anything else reads as unified.
   body.html = renderDiff({ view: { ...view, mode: query.layout === "split" ? "split" : "unified" }, line_feedback: Boolean(body.reference), fold_context: 3, sides: false,
-    labels: LABELS, primitives: primitives(locale) });
+    labels: LABELS, primitives: primitives() });
   Object.assign(body, { patch: chosen && view.phase === "ready" ? unifiedPatch(view.rows, { path: chosen.path, created: (netFiles?.[0] ?? chosen).kind === "added", removed: (netFiles?.[0] ?? chosen).kind === "deleted" }) : "" });
 }
 
 /** A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies. */
-function drawIntegration(body: IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }, locale: ActionLocale | undefined): void {
+function drawIntegration(body: IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }, _locale: ActionLocale | undefined): void {
   for (const file of body.files) {
     if (file.before_text === undefined || file.after_text === undefined) continue;
     const side: DiffSide = { workspace_id: "integration", workspace_name: "integration", path: file.path.join("/"), source_plugin_id: CODING_PLUGIN_ID, content_version: 1 };
     const view = compareChange(GROUP, { before: side, after: { ...side } }, { before: file.before_text ?? "", after: file.after_text ?? "", created: file.before_text === null });
-    file.diff_html = renderDiff({ view, fold_context: 3, sides: false, labels: LABELS, primitives: primitives(locale) });
+    file.diff_html = renderDiff({ view, fold_context: 3, sides: false, labels: LABELS, primitives: primitives() });
   }
 }
 

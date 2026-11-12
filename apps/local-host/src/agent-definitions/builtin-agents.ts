@@ -4,6 +4,8 @@ import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/ass
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "../assistant/assistant-agent.js";
 import { agentRegistration, assertInstructionRoles, withInstructions, type BuiltinAgent } from "./agent-definitions.js";
 import { BUILTIN_INLINE_AGENT_PROMPTS, BUILTIN_INLINE_AGENT_ROLES, BUILTIN_INSTRUCTIONS, SYSTEM_INSTRUCTION_SOURCES } from "./builtin-instructions.js";
+import { registeredBuiltinText, workbenchPlatformText } from "../ui-text-provider.js";
+import { bindAgentDisplayWords } from "./display-words.js";
 
 /**
  * The system's own Agents, as the Host starts them. A plugin's Agent block is registered by its running definition, with the Home's
@@ -31,5 +33,12 @@ export function builtinRegistrations(): AgentDefinitionRegistration[] {
   }
   for (const inline of BUILTIN_INLINE_AGENT_ROLES) registrations.find(row => row.owner_id === inline.owner_id)?.roles.push(structuredClone(inline.role));
   registrations.forEach(assertInstructionRoles);
-  return registrations;
+  return registrations.map(registration => {
+    const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === registration.owner_id)?.manifest;
+    const reader = manifest && registeredBuiltinText(manifest);
+    if (reader) return bindAgentDisplayWords(registration, reader);
+    // These are the Host's explicit instruction registrations even when their existing source descriptor says plugin.
+    return bindAgentDisplayWords(registration, workbenchPlatformText,
+      registration.source.kind === "system" ? registration.source.module : registration.owner_id.replace(/^system:/u, ""));
+  });
 }

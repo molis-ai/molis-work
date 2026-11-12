@@ -16,7 +16,7 @@ import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, ProjectDeletionService, createWebCatalogAccess, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, ProjectDeletionService, createWebCatalogAccess, createMolisWorkLocalHost, installHostUiText, molisWorkHostProjectReference, runWithLocale, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
@@ -65,7 +65,8 @@ test("the service stops while a terminal of the project is alive, and changes no
   const ports = recordingPorts(panelId => panelId === panel.panel_id);
   const service = new ProjectDeletionService(withCatalog, ports);
 
-  await assert.rejects(service.deleteProject(home, deletion(project.project_id)), { code: "catalog.project_terminal_live", message: /关闭.*终端/ });
+  installHostUiText();
+  await assert.rejects(runWithLocale("zh", () => service.deleteProject(home, deletion(project.project_id))), { code: "catalog.project_terminal_live", message: /关闭.*终端/ });
   assert.deepEqual(ports.released, [], "the runtime is not let go of for a deletion that does not happen");
   assert.equal(existsSync(project.database_path), true);
   assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjectDeletions())).length, 0, "no receipt is written");
@@ -88,7 +89,8 @@ test("PCSYNC-20: a terminal started while runtime release waits prevents project
         launch_command: '/bin/cat', launch_args: [], title: 'late'}, directory))).panel_id;
     },
   });
-  await assert.rejects(service.deleteProject(home, deletion(project.project_id)), { code: "catalog.project_terminal_live" });
+  installHostUiText();
+  await assert.rejects(runWithLocale("zh", () => service.deleteProject(home, deletion(project.project_id))), { code: "catalog.project_terminal_live" });
   assert.equal(existsSync(project.database_path), true);
   assert.ok(catalog.listProjects().some(p => p.project_id === project.project_id));
   assert.equal(catalog.listProjectDeletions().length, 0);

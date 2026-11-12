@@ -38,7 +38,7 @@ function fillCalloutStyle(pop: HTMLElement, view: EditorView, at: () => ReturnTy
   };
   const iconHead = document.createElement("p");
   iconHead.className = "pages-menu-label";
-  iconHead.textContent = t(translate, "图标");
+  iconHead.textContent = t(translate, "pages.editor.icon");
   const grid = document.createElement("div");
   grid.className = "pages-icon-grid";
   const currentIcon = calloutIconFor(node.attrs.icon, node.attrs.tone);
@@ -50,7 +50,7 @@ function fillCalloutStyle(pop: HTMLElement, view: EditorView, at: () => ReturnTy
 
   const toneHead = document.createElement("p");
   toneHead.className = "pages-menu-label";
-  toneHead.textContent = t(translate, "颜色");
+  toneHead.textContent = t(translate, "pages.editor.color");
   const strip = document.createElement("div");
   strip.className = "pages-tone-strip";
   const currentTone = safePagesCalloutTone(node.attrs.tone);
@@ -77,7 +77,7 @@ export function createBlockForms(popup: EditorPopup, options: PagesEditorMountOp
     const area = document.createElement("textarea");
     area.className = "mw-input";
     area.rows = 4;
-    area.placeholder = t(options.translate, "块备注");
+    area.placeholder = t(options.translate, "pages.comments.notes");
     area.value = String(node.attrs.note || "");
     pop.append(area);
     pop.append(actions(options.translate, () => {
@@ -92,8 +92,8 @@ export function createBlockForms(popup: EditorPopup, options: PagesEditorMountOp
   const openTone = (view: EditorView) => {
     showPop();
     const rows: Array<{ kind: "font_color" | "highlight"; label: string }> = [
-      { kind: "font_color", label: t(options.translate, "文字颜色") },
-      { kind: "highlight", label: t(options.translate, "背景色") },
+      { kind: "font_color", label: t(options.translate, "pages.editor.text-color") },
+      { kind: "highlight", label: t(options.translate, "pages.editor.background") },
     ];
     rows.forEach(({ kind, label }) => {
       const current = toneAt(view.state, kind);
@@ -112,7 +112,7 @@ export function createBlockForms(popup: EditorPopup, options: PagesEditorMountOp
         button.title = name;
         strip.append(button);
       };
-      swatch("", t(options.translate, "默认"));
+      swatch("", t(options.translate, "pages.editor.default"));
       PAGES_TONES.forEach((tone) => swatch(tone.id, t(options.translate, tone.label)));
       strip.addEventListener("mousedown", keepFocus);
       strip.addEventListener("click", (event) => {
@@ -125,7 +125,7 @@ export function createBlockForms(popup: EditorPopup, options: PagesEditorMountOp
       });
       pop.append(head, strip);
     });
-    placePop(view.coordsAtPos(view.state.selection.from), "below", t(options.translate, "颜色"));
+    placePop(view.coordsAtPos(view.state.selection.from), "below", t(options.translate, "pages.editor.color"));
   };
 
   const openCalloutStyle = (view: EditorView, pos: number, anchor: HTMLElement) => {
@@ -154,7 +154,7 @@ export function createTextForms(popup: EditorPopup, options: PagesEditorMountOpt
     const field = document.createElement("input");
     field.className = "mw-input";
     field.type = "url";
-    field.setAttribute("aria-label", t(options.translate, "链接"));
+    field.setAttribute("aria-label", t(options.translate, "pages.editor.link"));
     field.placeholder = "https://";
     field.value = found.href;
     const error = document.createElement("p");
@@ -164,7 +164,7 @@ export function createTextForms(popup: EditorPopup, options: PagesEditorMountOpt
     const commit = () => {
       const at = anchor(); if (!at?.intact) return;
       if (field.value.trim() && !safePagesHref(field.value)) {
-        error.textContent = t(options.translate, "请输入有效链接，例如 https://example.com");
+        error.textContent = t(options.translate, "pages.editor.enter-a-valid-link-such-as-https-example-com");
         error.hidden = false;
         field.setAttribute("aria-invalid", "true");
         field.focus();
@@ -184,7 +184,7 @@ export function createTextForms(popup: EditorPopup, options: PagesEditorMountOpt
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "mw-btn mw-btn--ghost";
-      remove.textContent = t(options.translate, "移除链接");
+      remove.textContent = t(options.translate, "pages.editor.remove-link");
       remove.addEventListener("click", () => {
         const at = anchor(); if (!at?.intact) return;
         runBlockCommand(view, setLink(at.from, at.to, ""));
@@ -193,7 +193,7 @@ export function createTextForms(popup: EditorPopup, options: PagesEditorMountOpt
       row.prepend(remove);
     }
     pop.append(row);
-    placePop(view.coordsAtPos(found.from), "below", t(options.translate, "链接"));
+    placePop(view.coordsAtPos(found.from), "below", t(options.translate, "pages.editor.link"));
     field.focus();
     field.select();
   };

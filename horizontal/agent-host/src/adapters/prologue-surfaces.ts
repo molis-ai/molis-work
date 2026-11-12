@@ -3,6 +3,8 @@ import { APP_MODE_SURFACE_TOOLS, createSurfaceRefusal } from "@prologue/sdk";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { isHostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { deliverDesktopAct } from "./desktop-act-delivery.js";
+import { presentToolReview, reviewField, reviewText } from "../review-presentation.js";
+import { describeBrowserAction, describeDesktopAction, surfaceActionWords, type SurfaceReviewDetail } from "./prologue-surface-review-words.js";
 
 /**
  * The side panel's browser, as Prologue's interface control (specs/archive/side-panel D05–D10). The local Host implements
@@ -100,10 +102,10 @@ export interface PrologueSurfaces {
    * getting nothing. The desktop is one per computer; whether another work holds it is decided by its own readiness.
    */
   attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string, options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean; readonly goal?: string; readonly projectId?: string | null }): Promise<SurfaceAttachment>;
-  /** Chinese detail for a browser approval card: what exactly, with the element's own name where the page still shows it. */
-  describe(sessionRefId: string, action: string, summary: string, typed?: string): Promise<string>;
-  /** Chinese detail for a desktop approval card: what exactly, with the control's own name where the app still shows it. */
-  describeDesktop(sessionRefId: string, action: string, summary: string, typed?: string): Promise<string>;
+  /** Original and display words for the exact browser action, including the element's own name when available. */
+  describe(sessionRefId: string, action: string, summary: string, typed?: string): Promise<SurfaceReviewDetail>;
+  /** Original and display words for the exact desktop action, including the control's own name when available. */
+  describeDesktop(sessionRefId: string, action: string, summary: string, typed?: string): Promise<SurfaceReviewDetail>;
   /** The display name of a desktop app the Assistant is about to act in, for the card; the bundle id when unknown. */
   describeApp(sessionRefId: string, bundleId: string): Promise<string>;
   /** The redactor Prologue calls before a screenshot may leave: only the driver's own covered screenshots pass. */
@@ -122,68 +124,6 @@ export interface PrologueSurfaces {
   /** The round's run started (after attach): name it on the desktop driver so the record names the run. */
   noteRun(sessionRefId: string, runId: string): void;
   close(): Promise<void>;
-}
-
-type DescribeDriver = Pick<HostSurfaceDriver, "describePoint" | "describeNode" | "focusedField"> | undefined;
-
-async function typedText(driver: DescribeDriver, typed: string | undefined, where: (label: string) => string): Promise<string> {
-  const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
-  const at = field.label ? where(`「${field.label}」`) : where("当前输入框");
-  if (typed === undefined) return `${at}文字（内容读不到，请拒绝后让助理重新说明）`;
-  if (field.sensitive) return `${at} ${[...typed].length} 个字。这是密码类输入框，内容已遮住。`;
-  const chars = [...typed];
-  return chars.length > 2000 ? `${at}：\n${chars.slice(0, 2000).join("")}\n……（共 ${chars.length} 字，只显示前 2000 字）` : `${at}：\n${typed}`;
-}
-
-async function pointerDetail(driver: DescribeDriver, summary: string, where: string): Promise<string> {
-  const point = /at (\d+),(\d+)/u.exec(summary);
-  const clicks = /\((\d+)×(\w+)\)/u.exec(summary);
-  const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
-  const verb = clicks?.[2] === "right" ? "右键点击" : Number(clicks?.[1] ?? 1) > 1 ? "双击" : "点击";
-  return label ? `${verb}「${label}」` : point ? `${verb}${where}（${point[1]}, ${point[2]}）` : verb;
-}
-
-/** Chinese detail for a browser approval card. */
-async function describeBrowserAction(driver: DescribeDriver, action: string, summary: string, typed?: string): Promise<string> {
-  switch (action) {
-    case "pointer": {
-      // This is the SDK's labelOf, already bound to this pending effect. The token only requests the owner's label;
-      // execution resolves the original typed action.node again, never a point inferred from these display words.
-      const node = /^click node (\S+) \(([1-3])×(left|right|middle)\); the point is read from the tree at injection$/u.exec(summary);
-      if (node) {
-        const verb = node[3] === "right" ? "右键点击" : Number(node[2]) > 1 ? "双击" : "点击";
-        const label = await driver?.describeNode?.(node[1]!).catch(() => "");
-        return label ? `${verb}「${label}」` : `${verb}的页面目标已不可用，请拒绝后重新观察页面。`;
-      }
-      if (summary.startsWith("click node ")) return "页面目标已不可用，请拒绝后重新观察页面。";
-      return pointerDetail(driver, summary, "页面上的位置");
-    }
-    case "key": return `按下 ${summary.replace(/^press /u, "")}`;
-    case "text": return typedText(driver, typed, label => `在${label}里输入`);
-    case "navigate": return `打开 ${summary.replace(/^navigate to /u, "")}`;
-    case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
-    case "upload": return `上传本机文件 /${summary.replace(/^upload /u, "")}`;
-    case "download": return `下载到 /${summary.replace(/^download to /u, "")}`;
-    default: return summary;
-  }
-}
-
-/** Chinese detail for a desktop approval card. */
-async function describeDesktopAction(driver: DescribeDriver, action: string, summary: string, typed?: string): Promise<string> {
-  switch (action) {
-    case "pointer": return pointerDetail(driver, summary, "窗口里的位置");
-    case "key": return `按下 ${summary.replace(/^press /u, "")}`;
-    case "text": return typedText(driver, typed, label => `在${label}里输入`);
-    case "scroll": return summary.replace(/^scroll by \(([-\d]+), ([-\d]+)\) points at.*$/u, (_m, dx: string, dy: string) => `滚动（横 ${dx}、纵 ${dy} 点；正数表示往右、往下看更多）`);
-    case "drag": return summary.replace(/^drag from (\d+),(\d+) to (\d+),(\d+)$/u, "从（$1, $2）拖到（$3, $4）");
-    case "hover": return summary.replace(/^move the pointer to (\d+),(\d+)$/u, "把鼠标移到（$1, $2）");
-    case "menu": return `选择菜单 ${summary.replace(/^choose menu /u, "").replace(/ > /gu, " › ")}`;
-    case "app": return `打开或切换到应用 ${summary.replace(/^switch to application /u, "").replace(/ \(launching it if needed\)$/u, "")}`;
-    case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
-    case "upload": return `把本机文件交给应用：/${summary.replace(/^upload /u, "")}`;
-    case "download": return `从应用取出文件，存到 /${summary.replace(/^download to /u, "")}`;
-    default: return summary;
-  }
 }
 
 export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSurfacePorts,
@@ -342,14 +282,17 @@ const DESKTOP_VERBS: Record<string, string> = {
 export async function desktopActionCard(
   surfaces: Pick<PrologueSurfaces, "describeDesktop" | "describeApp"> | undefined,
   sessionId: string, action: string, scope: string, label: string, typed: string | undefined, proposalKind: string,
-): Promise<{ kind: "tool-operation"; tool: "surface-act"; summary: string; fields: Array<{ label: string; value: string }>; round_allow?: { app: string; label: string } }> {
-  const detail = surfaces ? await surfaces.describeDesktop(sessionId, action, label, typed) : label;
+) {
+  const detail = surfaces ? await surfaces.describeDesktop(sessionId, action, label, typed) : { raw: label, words: [label] };
   const appName = surfaces ? await surfaces.describeApp(sessionId, scope).catch(() => scope) : scope;
-  const reversible = proposalKind !== "mutate-external" && action !== "app";
-  return { kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${DESKTOP_VERBS[action] ?? action}`,
-    fields: [{ label: "应用", value: appName }, { label: "动作", value: DESKTOP_VERBS[action] ?? action }, { label: "详情", value: detail },
-      ...(action === "upload" || action === "download" ? [{ label: "注意", value: "这会在这台电脑和应用之间传文件，确认前请核对是哪个文件" }] : [])],
-    ...(reversible ? { round_allow: { app: scope, label: appName } } : {}) };
+  const reversible = proposalKind !== "mutate-external" && action !== "app", actionWords = surfaceActionWords(DESKTOP_VERBS, action, "desktop");
+  return presentToolReview({ kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${DESKTOP_VERBS[action] ?? action}`,
+    ...(reversible ? { round_allow: { app: scope, label: appName } } : {}) }, [
+    reviewField("应用", appName, "app"), reviewField("动作", DESKTOP_VERBS[action] ?? action, "action", { value: actionWords }),
+    reviewField("详情", detail.raw, "detail", { value: detail.words }),
+    ...(action === "upload" || action === "download" ? [reviewField("注意", "这会在这台电脑和应用之间传文件，确认前请核对是哪个文件", "warning",
+      { value: [reviewText("surface.app-transfer-warning")] })] : []),
+  ], [reviewText("surface.in-app"), " ", appName, " · ", ...actionWords]);
 }
 
 /** Binds "allow in this app for the rest of the round" to the run of one live desktop approval. */

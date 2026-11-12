@@ -1,6 +1,8 @@
 import { button, dateLabel, text } from "./dom.js";
 import type { ImageJob, ImagesPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** The URL of one generated image, or its download form. */
 export const imageUrl = (page: ImagesPage, job: ImageJob, imageId: string, download = false): string =>
   page.host.pluginRoute(`/jobs/${encodeURIComponent(job.id)}/images/${encodeURIComponent(imageId)}`) + (download ? "?download=1" : "");
@@ -56,7 +58,7 @@ export function showCompose(page: ImagesPage, focus = false): void {
   el.result.hidden = true;
   el.compose.hidden = false;
   page.publishContext(null);
-  page.field("title").textContent = page.L("images.compose.new");
+  page.field("title").textContent = uiText.text("images.compose.new");
   page.expand();
   paintList(page);
   page.saveDraft();

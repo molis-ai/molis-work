@@ -2,6 +2,8 @@ import type { FormRecord, FormStatus } from "../contract.js";
 import { type FormPage, hasUnsaved } from "./page.js";
 import type { Translate } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** The editor's one note line; `scope` says which later success may clear it (save, publication, required, draft). */
 export const showNote = (page: FormPage, text: string, isError: boolean, scope = "") => {
   page.noteScope = text ? scope : "";
@@ -30,14 +32,14 @@ export const publishContext = (page: FormPage) => {
   page.bench.setAttribute("data-assistant-context", JSON.stringify(context));
 };
 
-const collectWord = (L: Translate, status: FormStatus) => status === "published" ? L("form.collect.on") : status === "closed" ? L("form.collect.stopped") : L("form.collect.off");
+const collectWord = (_L: Translate, status: FormStatus) => status === "published" ? uiText.text("form.collect.on") : status === "closed" ? uiText.text("form.collect.stopped") : uiText.text("form.collect.off");
 const paintCollect = (page: FormPage, record: FormRecord) => {
-  const { L, one } = page;
+  const { readText, one } = page;
   const collecting = record.status === "published";
   const state = one("[data-form-collect-state]");
-  if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = collectWord(L, record.status); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
+  if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = collectWord(readText, record.status); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
   const start = one("[data-form-publish]");
-  if (start) { start.hidden = collecting; start.textContent = record.status === "closed" ? L("form.collect.restart") : L("form.collect.start"); }
+  if (start) { start.hidden = collecting; start.textContent = record.status === "closed" ? uiText.text("form.collect.restart") : uiText.text("form.collect.start"); }
   const fill = one("[data-form-fill]");
   if (fill) fill.hidden = !collecting;
   const close = one("[data-form-close]");
@@ -45,15 +47,15 @@ const paintCollect = (page: FormPage, record: FormRecord) => {
 };
 
 export const paintStatus = (page: FormPage, record: FormRecord) => {
-  const { L, statusEl, saveError, savePromise, busy } = page;
+  const { statusEl, saveError, savePromise, busy } = page;
   const unsaved = page.editRev > page.savedRevision;
   statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : "quiet"); statusEl.dataset.mwState = saveError ? "failed" : savePromise ? "saving" : unsaved ? "unsaved" : busy ? "running" : "saved";
-  statusEl.textContent = saveError ? L("form.save.failed") : savePromise ? L("form.save.saving") : unsaved ? L("form.save.unsaved") : busy ? L("form.save.busy") : L("form.save.saved");
+  statusEl.textContent = saveError ? uiText.text("form.save.failed") : savePromise ? uiText.text("form.save.saving") : unsaved ? uiText.text("form.save.unsaved") : busy ? uiText.text("form.save.busy") : uiText.text("form.save.saved");
   paintCollect(page, record);
   if (page.sel && page.sel.id === record.id) publishContext(page);
   const pending = page.one("[data-form-publication-note]")!;
   pending.hidden = !record.publication_pending;
-  pending.textContent = record.publication_pending ? L("form.fixed.pending-note") : "";
+  pending.textContent = record.publication_pending ? uiText.text("form.fixed.pending-note") : "";
 };
 
 export const setBusy = (page: FormPage, value: boolean) => {

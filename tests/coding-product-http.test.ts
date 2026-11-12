@@ -154,6 +154,8 @@ test("Coding formal routes preserve drafts and isolate projects across server re
       ['coding-review-change','coding-diagnose-fix','coding-implement-change','coding-git-delivery']);
     assert.match(skills[0].excerpt,/^先确认用户要求评审的文件/);
     assert.equal((await request(a+'/methods/coding-review-change/1')).status,404);
+    assert.equal((await request(a+'/methods/coding-review-change/2')).status,404);
+    assert.equal(ownSkill.version,2);
     assert.equal((await request(a+'/sessions/'+session,'PATCH',{title:'继续检查'})).status,200);
     assert.equal((await request(a+'/state')).body.sessions.find((item:any)=>item.session_id===session).title,'继续检查');
   } finally {

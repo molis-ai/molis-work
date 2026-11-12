@@ -51,9 +51,9 @@ export interface ComposerModels {
  * the composer says what the round on show is really using.
  */
 export function composerModels(ports: ComposerModelPorts): ComposerModels {
-  const { q, lifetime, switchModel, status, changed, redraw, translate: L } = ports;
+  const { q, lifetime, switchModel, status, changed, redraw, translate: readText } = ports;
   const note = q("[data-coding-model-note]");
-  const EFFORT: Readonly<Record<string, string>> = { low: L("coding.effort.low"), medium: L("coding.effort.medium"), high: L("coding.effort.high") };
+  const effortKeys: Readonly<Record<string, string>> = { low: "coding.effort.low", medium: "coding.effort.medium", high: "coding.effort.high" };
   let list: readonly ModelChoice[] = [], live: ComposerRun | null = null, busy = false, switching = false, round: ComposerRun | null = null;
   let value = "", effort = "";
   const key = (item: Pick<ModelChoice, "provider_id" | "model_id">) => JSON.stringify([item.provider_id, item.model_id]);
@@ -62,10 +62,10 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
   const settle = () => { if (!value && list.length) value = key(list[0]!); };
   /** What the round on show really uses: its start model, a switch taken or asked for, its effort and thinking. */
   const noteOf = (on: ComposerRun) => [
-    L("coding.model.round", { model: on.model_switch?.now ? L("coding.model.switched", { now: on.model_switch.now, start: on.frozen?.model_id ?? "" }) : on.frozen?.model_id || "" }),
-    ...(on.frozen?.reasoning_effort ? [L("coding.model.effort", { effort: EFFORT[on.frozen.reasoning_effort] ?? on.frozen.reasoning_effort })] : []),
-    ...(on.frozen?.thinking ? [L("coding.model.thinking")] : []),
-    ...(on.model_switch?.requested ? [L("coding.model.requested", { model: on.model_switch.requested })] : []),
+    readText("coding.model.round", { model: on.model_switch?.now ? readText("coding.model.switched", { now: on.model_switch.now, start: on.frozen?.model_id ?? "" }) : on.frozen?.model_id || "" }),
+    ...(on.frozen?.reasoning_effort ? [readText("coding.model.effort", { effort: effortKeys[on.frozen.reasoning_effort] ? readText(effortKeys[on.frozen.reasoning_effort]!) : on.frozen.reasoning_effort })] : []),
+    ...(on.frozen?.thinking ? [readText("coding.model.thinking")] : []),
+    ...(on.model_switch?.requested ? [readText("coding.model.requested", { model: on.model_switch.requested })] : []),
   ];
   const paint = () => {
     const parts = round ? noteOf(round) : [];
@@ -85,9 +85,9 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     paint();
     try {
       await switchModel(live, { provider_id: model.provider_id, model_id: model.model_id });
-      status(L("coding.model.switch-asked", { model: model.label }));
+      status(readText("coding.model.switch-asked", { model: model.label }));
     } catch (error) {
-      if (lifetime.alive) status(L("coding.model.switch-failed", { reason: errorMessage(error) }), true);
+      if (lifetime.alive) status(readText("coding.model.switch-failed", { reason: errorMessage(error) }), true);
     } finally {
       switching = false;
       paint();
@@ -113,16 +113,16 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     scene() {
       const options = list.map((item) => ({ value: key(item), label: item.label }));
       // A session started on a model the catalog no longer lists keeps it, said to be unavailable, until another is chosen.
-      if (value && !options.some((option) => option.value === value)) options.push({ value, label: L("coding.model.unavailable") });
-      if (!options.length) options.push({ value: "", label: L("coding.model.none") });
-      const controls: ComposerControl[] = [{ kind: "select", id: "model", label: L("coding.model.label"), options, value, disabled: busy,
+      if (value && !options.some((option) => option.value === value)) options.push({ value, label: readText("coding.model.unavailable") });
+      if (!options.length) options.push({ value: "", label: readText("coding.model.none") });
+      const controls: ComposerControl[] = [{ kind: "select", id: "model", label: readText("coding.model.label"), options, value, disabled: busy,
         change: (next) => { value = next; changed(); paint(); } }];
       // The effort is fixed for a running round (the note says which); the choice is for the next one.
-      if (chosen()?.reasoning_effort && !live) controls.push({ kind: "select", id: "effort", label: L("coding.effort.label"), value: effort, disabled: busy,
-        options: [{ value: "", label: L("coding.effort.default") }, ...(["low", "medium", "high"] as const).map((level) => ({ value: level, label: EFFORT[level]! }))],
+      if (chosen()?.reasoning_effort && !live) controls.push({ kind: "select", id: "effort", label: readText("coding.effort.label"), value: effort, disabled: busy,
+        options: [{ value: "", label: readText("coding.effort.default") }, ...(["low", "medium", "high"] as const).map((level) => ({ value: level, label: readText(effortKeys[level]!) }))],
         change: (next) => { effort = next; changed(); paint(); } });
       const target = switchable();
-      if (target) controls.push({ kind: "button", id: "model-switch", label: L("coding.model.switch"), title: L("coding.model.switch-title", { model: target.label }),
+      if (target) controls.push({ kind: "button", id: "model-switch", label: readText("coding.model.switch"), title: readText("coding.model.switch-title", { model: target.label }),
         disabled: busy || switching, run: () => void switchTo() });
       return controls;
     },

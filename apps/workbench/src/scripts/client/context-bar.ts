@@ -1,7 +1,7 @@
 /**
  * What draws the ranked actions: the context toolbar (the design system's page program) in this document, or, when what is in
  * hand sits in a split pane, the same toolbar in that pane's own document, driven by a message. It reads the plan the bus hands it and
- * never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share its closure (host, L, bus,
+ * never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share its closure (host, readText, bus,
  * choose, makeToolbar, ...) and are joined there.
  *
  * The bus meets only `bar`: `render` / `idle` / `pending` / `error` / `judgeFailed`, and the state it reads (`plan`, `shown`,
@@ -10,7 +10,7 @@
  * not shown by itself: ⌘. summons it.
  */
 export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
-    translate: L, inset: { top: 54, bottom: 100 }, width: () => (host.width ? host.width() : innerWidth),
+    translate: readText, inset: { top: 54, bottom: 100 }, width: () => (host.width ? host.width() : innerWidth),
     choose: (key) => choose(key), assistant: () => bringToAssistant(),
     dismiss: () => bar.dismissAll(), hold: () => { bar.leave(); landing.hint(toolbar.pointed(), bar.plan); }, settled: () => bar.leave(),
   });
@@ -20,21 +20,21 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
   const basisOf = (out, rulesOnly) => {
     const judgment = out.judgment, fallback = out.receipt.fallback;
     return { state: rulesOnly ? "running" : fallback === "unconfigured" ? "unavailable" : fallback === "timeout" ? "interrupted" : fallback === "failed" ? "failed" : "ready",
-      text: rulesOnly ? L("按规则 · 判断中") : fallback === "timeout" ? L("判断超时 · 按规则") : fallback === "failed" ? L("判断失败 · 按规则")
-        : judgment && judgment.basis === "jev" ? "Jev" : L("按规则"),
+      text: rulesOnly ? globalThis.t.text("workbench.context-bar.rules-judging") : fallback === "timeout" ? globalThis.t.text("workbench.context-bar.judgment-timed-out-rules") : fallback === "failed" ? globalThis.t.text("workbench.context-bar.judgment-failed-rules")
+        : judgment && judgment.basis === "jev" ? "Jev" : globalThis.t.text("workbench.context-bar.rule"),
       title: judgment ? (judgment.model || "Jev") + " · " + Math.round(judgment.latency_ms) + "ms"
-        : fallback === "unconfigured" ? L("未接判断模型：只按选区形状排序") : L("规则排序：只看选区形状，不看含义") };
+        : fallback === "unconfigured" ? globalThis.t.text("workbench.context-bar.no-judgment-model-ordered-shape-selection-only") : globalThis.t.text("workbench.context-bar.rule-order-shape-selection-not-its-meaning") };
   };
   // The plan as plain data for the toolbar: no function in it, so it crosses to a pane as it is.
   const viewOf = (out, rulesOnly, mine) => {
     const plan = out.plan, byKey = new Map(plan.candidates.map((item) => [item.key, item]));
     // Another plugin's action says whose it is.
     const other = (item) => (item.source.provider_id !== mine ? item.provider_title : "");
-    const entry = (item) => ({ key: item.key, label: item.title, disabled: !item.available, note: item.available ? other(item) : item.reason || L("不可用") });
+    const entry = (item) => ({ key: item.key, label: item.title, disabled: !item.available, note: item.available ? other(item) : item.reason || globalThis.t.text("workbench.context-bar.unavailable") });
     return { context_id: plan.context_id, assistant: true, basis: basisOf(out, rulesOnly),
       actions: plan.primary.map((key) => { const item = byKey.get(key); return { key, label: item.title, hint: item.hint, emphasis: plan.emphasis === key, badge: other(item) }; }),
-      more: [...plan.more.map((group) => ({ title: L(group.title), items: group.keys.map((key) => entry(byKey.get(key))) })),
-        { title: L("全部操作（不依赖推荐）"), items: plan.candidates.map(entry) }] };
+      more: [...plan.more.map((group) => ({ title: group.title, items: group.keys.map((key) => entry(byKey.get(key))) })),
+        { title: globalThis.t.text("workbench.context-bar.all-actions-independent-suggestions"), items: plan.candidates.map(entry) }] };
   };
   const bar = {
     shown: null,
@@ -66,11 +66,11 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
     },
     // A new context: what was shown belongs to the one before.
     pending(focus) { if (this.shown && this.shown.context_id !== focus.context_id) this.idle(); },
-    error(error) { host.showToast(error.message || L("暂时处理不了，请稍后重试"), true); },
+    error(error) { host.showToast(error.message || globalThis.t.text("workbench.context-bar.can-t-do-that-right-now-try-again"), true); },
     // The owner moved what it reported (a scroll): the toolbar follows without asking anything again.
     reanchor() { if (!this.frame) toolbar.place(); },
     // The judgment did not come: the basis note says so (the rules' actions stay).
-    judgeFailed() { if (this.view) { this.view.basis = { state: "failed", text: L("判断失败 · 按规则"), title: "" }; this.push(); } },
+    judgeFailed() { if (this.view) { this.view.basis = { state: "failed", text: globalThis.t.text("workbench.context-bar.judgment-failed-rules"), title: "" }; this.push(); } },
     push(summon) {
       if (!this.view) return;
       const frame = bus.source && bus.source.frame;
@@ -91,7 +91,7 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
       this.plan = plan; this.published = plan; this.shown = { context_id: plan.context_id, primary: [...plan.primary] };
       this.view = viewOf(out, rulesOnly, focus.plugin_id);
       const words = plan.primary.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean).join("、");
-      if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = L("可以做：") + words; }
+      if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = globalThis.t.text("workbench.context-bar.can") + words; }
       clearTimeout(this.timer);
       // Writing shows nothing by itself; a selection shows once it has been steady for a moment.
       if (focus.activity === "editing" && this.summoned !== plan.context_id) return;

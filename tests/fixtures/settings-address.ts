@@ -1,5 +1,6 @@
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import vm from "node:vm";
+import { pageText } from "./page-text.js";
 
 type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
@@ -11,6 +12,7 @@ export function createSettingsAddressHarness(pluginSections: readonly SettingsAd
   const listeners = new Map<string, Listener[]>();
   const opened: string[] = [];
   const document = {
+    documentElement: { dataset: { uiLanguageTag: "zh" } },
     querySelector: (selector: string) => selector.includes("data-directory-panel") || selector.includes("data-work-surface") ? panel() : null,
     querySelectorAll: (selector: string) => selector.includes("[data-settings-section]")
       ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...rows].map((entry) => typeof entry === "string"
@@ -32,7 +34,7 @@ export function createSettingsAddressHarness(pluginSections: readonly SettingsAd
     closeCover: () => false, openCover: () => {}, registerCover: () => {}, showToast: () => {},
     noteCover: (kind: string, place: string) => { opened.push(`${kind} ${place}`); } };
   vm.runInNewContext(`(${SETTINGS_DIRECTORY_FACTORY_SCRIPT})(host)`, {
-    host, document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/projects/p1/" }, URL, URLSearchParams,
+    host, document, t: { text: pageText("zh") }, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/projects/p1/" }, URL, URLSearchParams,
     molisWorkRequest: () => new Promise(() => {}), requestAnimationFrame: () => {}, CSS: { escape: (text: string) => text },
   });
   return {

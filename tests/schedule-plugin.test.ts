@@ -3,13 +3,13 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { fillMessage, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_MESSAGES,
+  SCHEDULE_CLIENT_FACTORY_SCRIPT,
   SCHEDULE_UI_CONTRIBUTION_ID,
   createScheduleActionHandlers,
   createScheduleRouteHandlers,
@@ -23,6 +23,8 @@ import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 import { zh } from "./fixtures/schedule-host.js";
+import { pageText } from "./fixtures/page-text.js";
+import { registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 
 test("SYS-15-S1: the zero-port Schedule factory declares valid public services and background actions", () => {
   const plugin = createSchedulePlugin();
@@ -113,14 +115,17 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
     () => host.register(scheduleUiContribution),
     (error) => error instanceof ActionError && error.code === "ui_host.contribution_conflict",
   );
-  const directory = host.render({
+  const words = registeredBuiltinText(scheduleManifest);
+  assert.ok(words);
+  const render: typeof host.render = request => runWithLocale("zh", () => runWithRegisteredText(words, () => host.render(request)));
+  const directory = render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
     surface: "directory",
     model: model(),
   });
   assert.equal(directory, "");
   assert.doesNotMatch(directory, /data-directory-panel="schedule"/);
-  const empty = host.render({
+  const empty = render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model(),
@@ -133,7 +138,7 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   assert.doesNotMatch(empty, /data-schedule-create-dialog/);
   assert.doesNotMatch(empty, /这里只负责闹钟/);
   assert.doesNotMatch(empty, /data-directory-panel="schedule"/);
-  const populated = host.render({
+  const populated = render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({ jobs: [job()] }),
@@ -142,11 +147,11 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   assert.match(populated, /叫醒成功/);
   assert.match(populated, /其他插件的闹钟/);
   assert.match(populated, /data-work-surface="schedule"/);
-  const failed = host.render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: 'workbench',
+  const failed = render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: 'workbench',
     model: model({ jobs: [job({ last_wakeup: { ...job().last_wakeup!, status: 'failed', detail: '原安装身份需要确认 <legacy>' } })] }) });
   assert.match(failed, /叫醒失败/);
   assert.match(failed, /原安装身份需要确认 &lt;legacy&gt;/, 'the person sees the actual failure reason as escaped text');
-  const conversation = host.render({
+  const conversation = render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({ tasks: [task()] }),
@@ -271,9 +276,11 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
 
 test("N0705 rendered permission-read warning distinguishes retrying the read from the due task run in both languages", () => {
   const host = new UiHost(); host.register({ ...scheduleUiContribution, descriptor: { ...scheduleUiContribution.descriptor, plugin_id: scheduleManifest.plugin_id } });
+  const words = registeredBuiltinText(scheduleManifest);
+  assert.ok(words);
   for (const locale of ["zh", "en"] as const) {
-    const text: typeof primitives.text = (key, values) => fillMessage(SCHEDULE_MESSAGES[key as keyof typeof SCHEDULE_MESSAGES]?.[locale] ?? key, values);
-    const html = host.render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: "workbench", model: { ...model({ tasks: [task()] }), primitives: { ...primitives, text } } });
+    const text = pageText(locale, "schedule");
+    const html = runWithLocale(locale, () => runWithRegisteredText(words, () => host.render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: "workbench", model: { ...model({ tasks: [task()] }), primitives: { ...primitives, text } } })));
     const warning = html.match(/<div[^>]*data-schedule-reads-failed[\s\S]*?<\/div>/u)?.[0] ?? "";
     assert.match(warning, locale === "zh" ? /可重试读取/u : /retry reading them/u);
     assert.match(warning, locale === "zh" ? /届时仍读不到则本轮失败/u : /that run fails/u);

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, type MolisWorkSettingsView } from "./workbench-renderer-fixture.js";
+import { workbenchLanguageResource } from "@molis-ai/molis-work-app-workbench";
 
 const binding = { install_id: "slots-install", plugin_id: "slots-probe", slot_id: "api", service_id: "github" };
 const projectId = '项目 /&?" +#%';
@@ -45,6 +46,7 @@ async function openSlots(t: TestContext, project: boolean) {
   const held: HeldRequest[] = [], seen: HeldRequest[] = [];
   let receive: ((request: HeldRequest) => void) | undefined, harness: ChromeHarness | undefined;
   const server = createServer((request, response) => {
+    const language = workbenchLanguageResource(request.url ?? "/");
     if (request.url?.startsWith("/api/settings/connectors/")) {
       const chunks: Buffer[] = [];
       request.on("data", chunk => chunks.push(Buffer.from(chunk)));
@@ -55,6 +57,8 @@ async function openSlots(t: TestContext, project: boolean) {
       });
     } else if (request.url?.startsWith("/settings/connectors")) {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(html);
+    } else if (language) {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" }); response.end(language.body);
     } else if (request.url === "/assets/molis-work-settings.css") {
       response.writeHead(200, { "content-type": "text/css; charset=utf-8" }); response.end(css);
     } else { response.writeHead(404); response.end(); }

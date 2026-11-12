@@ -1,6 +1,6 @@
 ---
 method_id: overlay-sensitive-data-privacy
-version: 1
+version: 2
 kind: overlay
 name: "敏感数据与隐私"
 summary: "为涉及个人、健康、财务或机密数据的工作叠加最小化、授权和生命周期约束。"

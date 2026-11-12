@@ -6,7 +6,7 @@
  */
 export const CHOOSER_CLIENT_SCRIPT = String.raw`
 (() => {
-  const L = globalThis.L || ((text) => text);
+  const readText = globalThis.t.text;
   const arrival = window.molisArrival;
   const root = document.querySelector('.arrival[data-screen="chooser"]');
   const dataNode = document.getElementById('arrival-data');
@@ -35,12 +35,12 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const at = iso ? new Date(iso) : null, now = new Date();
     if (!at || !Number.isFinite(at.getTime())) return '';
     const minutes = Math.max(0, Math.round((now.getTime() - at.getTime()) / 60000));
-    if (minutes < 1) return L('刚刚');
-    if (minutes < 60) return L('{n} 分钟前', { n: minutes });
-    if (minutes < 1440 && dayKey(at) === dayKey(now)) return L('{n} 小时前', { n: Math.round(minutes / 60) });
+    if (minutes < 1) return globalThis.t.text("workbench.chooser-client.just-now");
+    if (minutes < 60) return globalThis.t.text("workbench.chooser-client.n-min-ago", { n: minutes });
+    if (minutes < 1440 && dayKey(at) === dayKey(now)) return globalThis.t.text("workbench.chooser-client.n-h-ago", { n: Math.round(minutes / 60) });
     const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-    if (dayKey(at) === dayKey(yesterday)) return L('昨天');
-    if (minutes < 10080) return L('{n} 天前', { n: Math.round(minutes / 1440) });
+    if (dayKey(at) === dayKey(yesterday)) return globalThis.t.text("workbench.chooser-client.yesterday");
+    if (minutes < 10080) return globalThis.t.text("workbench.chooser-client.n-n-ago", { n: Math.round(minutes / 1440) });
     return new Intl.DateTimeFormat(locale(), { month: 'numeric', day: 'numeric' }).format(at);
   };
   const refreshTimes = () => {
@@ -48,7 +48,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     $$('.mw-dir-row', list).forEach((row) => {
       const caption = $('small', row), opened = row.dataset.openedAt;
       if (!caption || !opened || row.dataset.id === PERSONAL) return;
-      const goal = row.dataset.current ? row.dataset.current + ' · ' : row.dataset.demo !== undefined ? L('演示数据') + ' · ' : '';
+      const goal = row.dataset.current ? row.dataset.current + ' · ' : row.dataset.demo !== undefined ? globalThis.t.text("workbench.chooser-client.demo-data") + ' · ' : '';
       caption.textContent = goal + ago(opened);
     });
   };
@@ -76,18 +76,18 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const enter = $('[data-act="enter"]', bar);
     if (!id || !row) {
       context.innerHTML = '<div class="mw-bar-context" data-slot="bar-context"><span class="mw-bar-context__mark"><svg aria-hidden="true"><use href="#icon-search"></use></svg></span><span class="mw-bar-context__text"><strong></strong><small></small></span></div>';
-      $('strong', context).textContent = L('没有匹配的项目');
-      $('small', context).textContent = L('助理在个人空间里工作');
+      $('strong', context).textContent = globalThis.t.text("workbench.chooser-client.no-matching-projects");
+      $('small', context).textContent = globalThis.t.text("workbench.chooser-client.assistant-works-personal-space");
       enter.setAttribute('aria-disabled', 'true'); enter.removeAttribute('href');
       return;
     }
     context.innerHTML = '<div class="mw-bar-context" data-slot="bar-context"><span class="mw-bar-context__mark"></span><span class="mw-bar-context__text"><strong></strong><small></small></span></div>';
     $('.mw-bar-context__mark', context).innerHTML = row.dataset.mark || '';
     $('strong', context).textContent = nameOf(id);
-    $('small', context).textContent = L('预览中 · 回车进入');
+    $('small', context).textContent = globalThis.t.text("workbench.chooser-client.previewing-enter-open");
     enter.removeAttribute('aria-disabled');
     enter.setAttribute('href', route(row.dataset.href));
-    $('[data-slot="button-label"]', enter).textContent = id === PERSONAL ? L('进入个人空间') : L('进入项目');
+    $('[data-slot="button-label"]', enter).textContent = id === PERSONAL ? globalThis.t.text("workbench.chooser-client.open-personal-space") : globalThis.t.text("workbench.chooser-client.open-project");
     arrival.arrive(context.firstElementChild, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 250 });
   };
 
@@ -127,12 +127,12 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const headline = $('.mw-dir-row__headline', row);
     $('.mw-dir-row__count', headline)?.remove();
     $('.mw-dir-row__status', headline)?.remove();
-    if (summary.goals_total) { const count = document.createElement('span'); count.className = 'mw-dir-row__count'; count.textContent = summary.goals_done + '/' + summary.goals_total; count.title = L('{done} / {total} 个目标完成', { done: summary.goals_done, total: summary.goals_total }); headline.append(count); }
+    if (summary.goals_total) { const count = document.createElement('span'); count.className = 'mw-dir-row__count'; count.textContent = summary.goals_done + '/' + summary.goals_total; count.title = globalThis.t.text("workbench.chooser-client.done-total-total-done", { done: summary.goals_done, total: summary.goals_total }); headline.append(count); }
     if (summary.waiting) {
       const status = document.createElement('span');
       status.className = 'mw-status mw-status--attention mw-status--plain mw-dir-row__status'; status.dataset.slot = 'status';
       status.innerHTML = '<svg aria-hidden="true"><use href="#icon-status-needs-you"></use></svg><span></span>';
-      $('span', status).textContent = L('{n} 项等你', { n: summary.waiting });
+      $('span', status).textContent = globalThis.t.text("workbench.chooser-client.n-waiting", { n: summary.waiting });
       headline.append(status);
     }
     row.dataset.current = summary.current && summary.goals_done !== summary.goals_total ? summary.current : '';
@@ -153,7 +153,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
       if (controller.signal.aborted || state.selected !== id) return;
     }
     try {
-      const result = await molisWorkRequest('/api/projects/' + encodeURIComponent(id) + '/brief', {signal:controller.signal, fallback:L('请求失败，请重试')});
+      const result = await molisWorkRequest('/api/projects/' + encodeURIComponent(id) + '/brief', {signal:controller.signal, fallback:globalThis.t.text("workbench.chooser-client.request-failed-try-again")});
       if (controller.signal.aborted || state.selected !== id) return;
       paintRow(result.summary);
       writeCache(id, { html: result.html, summary: result.summary, at: Date.now() });
@@ -163,7 +163,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
       if (controller.signal.aborted || state.selected !== id) return;
       if (cached && cached.html) return;
       const node = fill('error', { name: nameOf(id), id });
-      molisWorkRequest.show($('.mw-empty p',node),error,L('这个项目没有及时响应。仍然可以直接进入它。'));
+      molisWorkRequest.show($('.mw-empty p',node),error,globalThis.t.text("workbench.chooser-client.project-didn-t-answer-time-can-still-open"));
       show(node, { animate: false });
     }
   };

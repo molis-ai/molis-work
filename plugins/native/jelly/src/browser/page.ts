@@ -4,14 +4,15 @@ import { makeRequest, makeStream } from "./request.js";
 import type { JellyHost, JellyPage, JellyWorkspace } from "./types.js";
 import { required } from "./dom.js";
 
+const uiText = globalThis.t;
+
 const noticeAfter = 4500;
 
 /** The browser owns the open view; the workspace itself belongs to the local host and is read through its commands. */
 export function createPage(host: JellyHost, root: HTMLElement): JellyPage {
-  const L = host.translate ?? ((s: string) => s);
   const $ = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = root): T => required<T>(scope, selector);
   const page: JellyPage = {
-    host, root, L, request: makeRequest(host, L), stream: makeStream(L),
+    host, root, request: makeRequest(host), stream: makeStream(),
     list: $("[data-jelly=\"directory\"]"), content: $("[data-jelly-content]"), workspace: $("[data-jelly-stage-workspace]"), documentEl: $("[data-jelly-document]"),
     state: null, view: "calendar", mode: "month", anchor: civil(), query: "", filterCategory: "", archived: false, hideCompleted: false,
     occurrences: [], calendarSeq: 0, selected: null, dirty: false, saveTimer: 0, savePending: Promise.resolve(), mutationQueue: Promise.resolve(),
@@ -21,15 +22,16 @@ export function createPage(host: JellyHost, root: HTMLElement): JellyPage {
     itemContextBefore: null, editorRevision: 0, editorVersion: 0, composing: false, focusedBlock: "", lastRange: null, draftBlocks: [], savingEditor: false,
     currentPlan: null, currentPlanSource: null, planUi: new Map(), leftForSettings: false,
     ws(): JellyWorkspace {
-      if (!page.state) throw new Error(L("jelly.error.not-loaded"));
+      if (!page.state) throw new Error(uiText.text("jelly.error.not-loaded"));
       return page.state;
     },
     $,
     $$: <T extends Element = HTMLElement>(selector: string, scope: ParentNode = root): T[] => [...scope.querySelectorAll<T>(selector)],
-    tx: (key) => esc(L(key)),
+    tx: uiText,
     btn(label, attrs = "", glyphName = "", primary = false) {
+      const words = typeof label === "string" ? uiText(label) : esc(label.original);
       const extra = /\bclass="([^"]*)"/.exec(attrs);
-      return `<button type="button" aria-label="${page.tx(label)}" class="mw-btn mw-btn--${primary ? "primary" : "ghost"}${extra ? ` ${extra[1]}` : ""}" ${attrs.replace(/\bclass="[^"]*"/g, "")}>${glyphName ? glyph(glyphName) : ""}<span>${page.tx(label)}</span></button>`;
+      return `<button type="button" aria-label="${words}" class="mw-btn mw-btn--${primary ? "primary" : "ghost"}${extra ? ` ${extra[1]}` : ""}" ${attrs.replace(/\bclass="[^"]*"/g, "")}>${glyphName ? glyph(glyphName) : ""}<span>${words}</span></button>`;
     },
     categoryDot(id) {
       const category = page.state?.categories.find((entry) => entry.id === id);
@@ -53,7 +55,7 @@ export function showNote(page: JellyPage, message: string, error = false): void 
 
 /** Runs one page action; a failure is said in the notice instead of escaping. */
 export const run = (page: JellyPage, fn: () => unknown): Promise<void> =>
-  Promise.resolve().then(fn).then(() => undefined, (error: unknown) => showNote(page, (error instanceof Error && error.message) || page.L("jelly.error.action-failed"), true));
+  Promise.resolve().then(fn).then(() => undefined, (error: unknown) => showNote(page, (error instanceof Error && error.message) || uiText.text("jelly.error.action-failed"), true));
 
 export const keepListScroll = (page: JellyPage, paint: () => void): void => {
   const top = page.list.scrollTop;
@@ -68,7 +70,7 @@ export const empty = (page: JellyPage, title: string, message: string, label = "
 const STATUS: Record<string, string> = { "jelly.save.saved": "saved", "jelly.save.editing": "unsaved", "jelly.save.saving": "saving", "jelly.save.failed": "failed" };
 export function setStatus(page: JellyPage, value: string): void {
   const status = page.$("[data-jelly-save-status]");
-  status.textContent = page.L(value);
+  status.textContent = uiText.text(value);
   status.dataset.mwState = STATUS[value] || "verify";
 }
 

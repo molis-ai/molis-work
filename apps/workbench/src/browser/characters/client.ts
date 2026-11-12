@@ -1,7 +1,7 @@
 import { characterActionClient, type ActionClient } from "./action-client.js";
 import { renderBuiltinRoles } from "./builtin.js";
 import {
-  latestActive, messageOf, pageRequest, partsOf, readableContent,
+  el, latestActive, messageOf, pageRequest, partsOf, readableContent,
   type CharacterContent, type CharacterPublication, type CharacterRecord, type FindPart, type Method, type Part, type StoredDraft,
 } from "./common.js";
 import { readStoredDrafts, writeStoredDrafts } from "./drafts.js";
@@ -9,21 +9,23 @@ import { characterImportClient, type ImportClient } from "./import-client.js";
 import { renderList, renderVersions } from "./list.js";
 import { startCharacterTerminal } from "./terminal.js";
 
+const uiText = globalThis.t;
+
 const EDIT_FIELDS = "[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools]";
 const IMPORT_DIALOGS = "[data-character-import-dialog], [data-character-run-dialog]";
 type Control = HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement;
 
 /** Where the Character stands: its state, what is published, and whether the draft moved on since. */
 function statusOf(record: CharacterRecord, published: CharacterPublication | undefined): string {
-  if (record.state === "disabled") return "已停用";
-  if (record.state === "tombstoned") return "已删除";
-  if (!published) return "草稿 · 未发布";
-  return "已发布 v" + published.version + (published.payload.source?.draft_revision === record.revision ? "" : " · 草稿有新修改");
+  if (record.state === "disabled") return uiText.text("workbench.characters.disabled");
+  if (record.state === "tombstoned") return uiText.text("workbench.characters.deleted");
+  if (!published) return uiText.text("workbench.characters.draft");
+  return uiText.text(published.payload.source?.draft_revision === record.revision ? "workbench.characters.published" : "workbench.characters.published-newer-draft", { version: published.version });
 }
 
 function draftNoteOf(record: CharacterRecord, local: StoredDraft | undefined): string {
-  if (!local) return "已保存。发布会固定这份内容，已有执行保持原版本。";
-  return record.revision !== local.expected_revision ? "其他窗口已更新；你的修改仍保留。请核对后重新读取，不能直接覆盖新修订。" : "已恢复此窗口未保存的修改。";
+  if (!local) return uiText.text("workbench.characters.saved-publish-hint");
+  return record.revision !== local.expected_revision ? uiText.text("workbench.characters.updated-elsewhere") : uiText.text("workbench.characters.draft-restored");
 }
 
 /** Personal editing and exact project publication. No polling replaces an active editor. */
@@ -68,7 +70,7 @@ class CharactersPage {
 
   private request = <T>(method: Method, path: string, body?: unknown): Promise<T> => {
     const send = pageRequest();
-    return send<T>(this.api + path, { method, body, fallback: "角色请求失败" });
+    return send<T>(this.api + path, { method, body, fallback: uiText.text("workbench.characters.request-failed") });
   };
 
   private note(text: string): void { this.q("notice").textContent = text; }
@@ -84,14 +86,14 @@ class CharactersPage {
 
   // Session storage that cannot be written leaves the person to save before leaving.
   private persist(): void {
-    if (!writeStoredDrafts(this.storageKey, this.drafts)) this.note("浏览器无法保存临时草稿，请在离开前保存。");
+    if (!writeStoredDrafts(this.storageKey, this.drafts)) this.note(uiText.text("workbench.characters.draft-cache-unavailable"));
   }
 
   private remember(): void {
     const { q } = this;
     if (!this.selected || this.busy) return;
     this.drafts[this.selected] = { ...this.values(), expected_revision: this.revision };
-    this.persist(); q("draft-note").textContent = "有未保存的修改，已暂存在此窗口；发布前会先保存。";
+    this.persist(); q("draft-note").textContent = uiText.text("workbench.characters.unsaved-local");
     q("tools-field").hidden = q<HTMLInputElement>("inherit").checked;
   }
 
@@ -113,7 +115,7 @@ class CharactersPage {
     this.actions.render(value.action_tools);
     q("heading").textContent = record.title;
     q("status").textContent = statusOf(record, latestActive(this.publications, record.character_id));
-    q("toggle").textContent = record.state === "disabled" ? "启用" : "停用";
+    q("toggle").textContent = record.state === "disabled" ? uiText.text("workbench.characters.enable") : uiText.text("workbench.characters.disable");
     q("draft-note").textContent = draftNoteOf(record, local);
     renderVersions(q("publications"), this.publications, this.selected, tools => this.actions.describe(tools), (publication, details) => this.imports.renderPublication(publication, details));
     this.imports.render(record); this.controls();
@@ -150,7 +152,7 @@ class CharactersPage {
     try {
       await action();
     } catch (error) {
-      this.note(messageOf(error) || "操作失败，未保存的修改仍保留。");
+      this.note(messageOf(error) || uiText.text("workbench.characters.failure-kept"));
     } finally {
       this.busy = false; this.controls();
     }
@@ -158,17 +160,19 @@ class CharactersPage {
 
   private async save(): Promise<CharacterRecord> {
     const id = this.selected;
-    if (id === null) throw new Error("角色请求失败");
+    if (id === null) throw new Error(uiText.text("workbench.characters.request-failed"));
     const result = await this.request<{ draft: CharacterRecord }>("PUT", "/drafts/" + encodeURIComponent(id), { ...this.values(), expected_revision: this.revision });
     delete this.drafts[id]; this.persist(); this.records = this.records.map(record => record.character_id === id ? result.draft : record); this.revision = result.draft.revision;
-    this.renderList(); this.renderEditor(); this.note("草稿已保存。");
+    this.renderList(); this.renderEditor(); this.note(uiText.text("workbench.characters.draft-saved"));
     return result.draft;
   }
 
-  private confirm(title: string, description: string, content: string, label: string, action: () => Promise<void>): void {
+  private confirm(title: string, description: string, content: string | Node[], label: string, action: () => Promise<void>): void {
     const { q } = this;
     this.confirmation = action; q("dialog-title").textContent = title; q("dialog-description").textContent = description;
-    q("dialog-content").textContent = content; q("confirm").textContent = label; this.dialog.showModal();
+    const literal = typeof content === "string" ? el("span", content) : null;
+    if (literal) literal.translate = false;
+    q("dialog-content").replaceChildren(...(literal ? [literal] : typeof content === "string" ? [] : content)); q("confirm").textContent = label; this.dialog.showModal();
   }
 
   private bind(): void {
@@ -195,13 +199,13 @@ class CharactersPage {
 
   private async confirmPublish(): Promise<void> {
     const record = this.dirty() ? await this.save() : this.current();
-    if (!record?.instructions.trim()) throw new Error("先填写角色的做事方式，再发布。");
+    if (!record?.instructions.trim()) throw new Error(uiText.text("workbench.characters.need-instructions"));
     const frozenId = record.character_id, frozenRevision = record.revision;
-    this.confirm("发布「" + record.title + "」", "将草稿修订 " + frozenRevision + " 的以下内容发布到当前项目。Coding 仍需明确选择此版本。",
-      readableContent(record, tools => this.actions.describe(tools)), "发布到当前项目", async () => {
+    this.confirm(uiText.text("workbench.characters.publish-named", { name: record.title }), uiText.text("workbench.characters.publish-revision", { revision: frozenRevision }),
+      readableContent(record, tools => this.actions.describe(tools)), uiText.text("workbench.characters.publish-project"), async () => {
         const result = await this.request<{ replayed?: boolean; reference: { version: number } }>("POST", "/drafts/" + encodeURIComponent(frozenId) + "/publish", { expected_revision: frozenRevision });
         this.dialog.close(); await this.load();
-        this.note((result.replayed ? "当前草稿已发布，复用" : "已发布") + " v" + result.reference.version + "，内容已固定。");
+        this.note(uiText.text(result.replayed ? "workbench.characters.reused-published" : "workbench.characters.published-frozen", { version: result.reference.version }));
       });
   }
 
@@ -209,12 +213,12 @@ class CharactersPage {
     const record = this.current();
     if (!record) return;
     const id = record.character_id, expected = this.revision, enable = record.state === "disabled", state = enable ? "active" : "disabled";
-    this.confirm(enable ? "启用角色" : "停用角色", enable ? "启用后，可在新执行中明确选择已发布版本。" : "新的执行不能再选择此角色；内置引擎后续动作调用也会停止。已完成的操作和历史版本保持。",
-      record.title, enable ? "启用" : "停用", async () => {
+    this.confirm(enable ? uiText.text("workbench.characters.enable-role") : uiText.text("workbench.characters.disable-role"), enable ? uiText.text("workbench.characters.enable-explained") : uiText.text("workbench.characters.disable-explained"),
+      record.title, enable ? uiText.text("workbench.characters.enable") : uiText.text("workbench.characters.disable"), async () => {
         await this.request("POST", "/drafts/" + encodeURIComponent(id) + "/state", { expected_revision: expected, state });
         // Keep unsubmitted text; state transitions advance the revision without changing that text.
         if (this.drafts[id]) { this.drafts[id].expected_revision = expected + 1; this.persist(); }
-        this.dialog.close(); await this.load(); this.note(enable ? "已启用。" : "已停用。");
+        this.dialog.close(); await this.load(); this.note(enable ? uiText.text("workbench.characters.role-enabled") : uiText.text("workbench.characters.role-disabled"));
       });
   }
 
@@ -222,17 +226,17 @@ class CharactersPage {
     const record = this.current();
     if (!record) return;
     const id = record.character_id, expected = this.revision;
-    this.confirm("删除角色", "删除后不能恢复这个角色；所有项目的新执行都不能再选择它。历史执行及其固定内容保留。", record.title, "删除角色", async () => {
+    this.confirm(uiText.text("workbench.characters.delete"), uiText.text("workbench.characters.delete-explained"), record.title, uiText.text("workbench.characters.delete"), async () => {
       await this.request("POST", "/drafts/" + encodeURIComponent(id) + "/state", { expected_revision: expected, state: "tombstoned" });
-      delete this.drafts[id]; this.persist(); this.selected = null; this.dialog.close(); await this.load(); this.note("角色已删除，历史执行保留。");
+      delete this.drafts[id]; this.persist(); this.selected = null; this.dialog.close(); await this.load(); this.note(uiText.text("workbench.characters.deleted-history"));
     });
   }
 
   private confirmReload(): void {
     const id = this.selected;
     if (id === null) return;
-    this.confirm("重新读取草稿", "放弃此窗口尚未保存的修改，读取最新保存版本。", "", "重新读取", async () => {
-      delete this.drafts[id]; this.persist(); this.dialog.close(); await this.load(); this.note("已读取最新草稿。");
+    this.confirm(uiText.text("workbench.characters.reload-draft"), uiText.text("workbench.characters.reload-explained"), "", uiText.text("workbench.characters.reload"), async () => {
+      delete this.drafts[id]; this.persist(); this.dialog.close(); await this.load(); this.note(uiText.text("workbench.characters.draft-reloaded"));
     });
   }
 }

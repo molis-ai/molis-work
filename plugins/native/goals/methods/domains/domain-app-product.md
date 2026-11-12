@@ -1,6 +1,6 @@
 ---
 method_id: domain-app-product
-version: 1
+version: 2
 kind: domain
 name: "通用 App"
 summary: "兼容历史 app task context 的产品完整性检查。"

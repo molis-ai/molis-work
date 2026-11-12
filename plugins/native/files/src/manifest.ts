@@ -18,8 +18,6 @@ import {
 import { FILES_PLUGIN_ID } from "./plugin-id.js";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
-import { FILES_MESSAGES } from "./messages.js";
-import { FILES_EN } from "./en.js";
 export { FILES_PLUGIN_ID };
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
@@ -49,7 +47,7 @@ export const filesManifest: PluginManifest = {
   plugin_id: FILES_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Files",
-  summary: "查看工作区文件与保留的内容。",
+  summary: "查看工作区文件与保留的内容。", summary_text: { key: "files.directory.summary" },
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -130,9 +128,7 @@ export const filesManifest: PluginManifest = {
     { route_id: "files.open", method: "POST", path: "/open" },
     { route_id: "files.capture", method: "POST", path: "/capture" },
   ],
-  ui: {
-    messages: FILES_MESSAGES,
-    translations: FILES_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     embedded_plugins: ["io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [FILES_UI_CONTRIBUTION_ID],
     views: [

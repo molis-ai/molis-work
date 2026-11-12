@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createImDomain } from '../server/src/im/index.ts';
-import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from '../packages/im-ui/src/index.ts';
+import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from '@molis-ai/molis-work-im-ui';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceFlag = process.argv.indexOf('--server-source');

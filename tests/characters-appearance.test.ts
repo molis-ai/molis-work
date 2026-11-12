@@ -4,6 +4,10 @@ import { renderPaletteTokens, renderPluginTintBindings } from "../packages/desig
 import { railEntries, pluginTabGlyphs, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 import { groupedGlobalSettingsSections } from "../apps/workbench/src/settings-sections.ts";
 import { renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
+import { chinesePagePacks, pageTextForPacks, shippedPagePack, withPagePacks } from "./fixtures/page-text-packs.js";
+
+const packs = chinesePagePacks("goals", "alchemist", "pages", "plugin-builder", "inbox");
+const inChinese = <T>(draw: () => T): T => withPagePacks("zh", packs, draw);
 
 // Soft Workbench (DESIGN.md → Plugin identity): plugins carry no identity colour on screen. Characters is a surface of the
 // workbench, not a plugin: its purple is the tab strip's hue for it (the Host's own list, pinned by RAC-706 in
@@ -26,10 +30,12 @@ test("Characters navigation and work surface receive the one neutral tint every 
 // Characters is how AI is asked to work, so its page is Settings › 角色, not a navigation entry (specs/archive/page-interaction-flow).
 // RAC-73: since CHR-1 that page is the Host's own section (D3), between 助理 and 能力包, and a project cannot hide it.
 /** Settings' sections in navigation order for the plugins a page shows (the Host's list, W5-02 B1): the grouped list the page draws, read as one list. */
-const settingsSections = (shown?: readonly string[]) => groupedGlobalSettingsSections(shown).flatMap((group) => group.sections);
+const settingsSections = (shown?: readonly string[]) => inChinese(() => groupedGlobalSettingsSections(shown).flatMap((group) => group.sections));
 
 test("Characters' page is the Host's Settings › 角色 with the user glyph, not in navigation", () => {
-  assert.deepEqual(railEntries(["characters"]), [{ id: "artifacts", surface: "artifacts", label: "成果", label_en: "Artifacts", glyph: "package", group: "make", rail: null, pinned_default: false, chosen: false }]);
+  const artifacts = { id: "artifacts", surface: "artifacts", glyph: "package", group: "make", rail: null, pinned_default: false, chosen: false };
+  assert.deepEqual(inChinese(() => railEntries(["characters"])), [{ ...artifacts, label: "成果" }]);
+  assert.deepEqual(withPagePacks("en", [...packs, shippedPagePack("workbench", "en")], () => railEntries(["characters"])), [{ ...artifacts, label: "Artifacts" }]);
   assert.equal(pluginTabGlyphs().characters, undefined);
   const sections = settingsSections(["characters"]);
   const pages = sections.filter((item) => item.id === "characters");
@@ -38,16 +44,16 @@ test("Characters' page is the Host's Settings › 角色 with the user glyph, no
   assert.deepEqual(ids.slice(ids.indexOf("characters") - 1, ids.indexOf("characters") + 2), ["assistant", "characters", "kit"]);
   assert.ok(settingsSections([]).some((item) => item.id === "characters"), "a page that shows no plugin still has the Host's page");
   // Settings › 角色 is the one place for it: the market neither lists it nor lets a project add or remove it.
-  assert.equal(pluginMarketCards().find((item) => item.id === "characters"), undefined);
+  assert.equal(inChinese(() => pluginMarketCards().find((item) => item.id === "characters")), undefined);
 });
 
 test("Characters is not among the plugins", () => {
   const primitives = {
-    L: (value: string) => value,
+    readText: pageTextForPacks("zh", packs),
     escapeHtml: (value: unknown) => String(value),
     icon: (name: string) => `<svg data-icon="${name}"></svg>`,
   };
-  const html = renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"]);
+  const html = inChinese(() => renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"]));
   const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("</nav>"));
   // Backbone first, then this project's plugins in groups, and the toggle that opens them all.
   // Groups read as purposes (plugin-e2e-review §3.1): 推进 holds the backbone, 写与做 the things one makes, 研究 the research tools.
@@ -60,7 +66,7 @@ test("Characters is not among the plugins", () => {
   assert.doesNotMatch(html, /assistant-island/, "the rail writes no island slot");
   assert.doesNotMatch(html, /plugin-rail-rule|navigation-labels-toggle/);
 
-  const without = renderPluginRail(primitives, ["goals"]);
+  const without = inChinese(() => renderPluginRail(primitives, ["goals"]));
   assert.doesNotMatch(without, /data-plugin-id="characters"|data-plugin-tile="characters"|>创作</);
   // 更多 now lists what the project could add: grey entries that open nothing, never a Character.
   const more = without.slice(without.indexOf(">更多<"), without.indexOf("data-rail-tools-toggle"));

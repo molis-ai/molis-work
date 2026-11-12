@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT, PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 
 const ORIGIN = "http://127.0.0.1:4173";
 interface Panes {
@@ -306,6 +307,7 @@ function contextPage() {
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
     CustomEvent: class { constructor(readonly type: string, readonly init: unknown) {} }, crypto: { randomUUID: () => "id" }, AbortController,
     HTMLIFrameElement: class {}, Element: PageElement,
+    t: { text: pageText("zh") },
     molisWorkRequest: (path: string, options: { body?: Record<string, unknown> } = {}) => {
       requests.push({ path, body: options.body ?? {} });
       return Promise.resolve(path.endsWith("/candidates") || path.endsWith("/judge") ? { plan, receipt: {} } : {});

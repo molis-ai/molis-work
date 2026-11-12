@@ -1,4 +1,5 @@
-import type { ConnectorDirectoryGroupId, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { PluginConnectionLink, PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export type CatalogFetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -29,13 +30,12 @@ export interface CatalogConnectorSpec {
   readonly id: string;
   readonly title: string;
   readonly group_id: ConnectorDirectoryGroupId;
-  readonly summary: string;
-  readonly inbound: string;
-  readonly outbound: string;
-  readonly token_label: string;
+  readonly summary: PluginConnectionWord;
+  readonly inbound: PluginConnectionWord;
+  readonly token_label: PluginConnectionWord;
   readonly token_placeholder: string;
-  readonly auth_help: string;
-  readonly setup_links: readonly ConnectorSetupLink[];
+  readonly auth_help: PluginConnectionWord;
+  readonly setup_links: readonly PluginConnectionLink[];
   readonly permission_host: string;
   readonly additional_permission_hosts?: readonly string[];
   readonly feed_available?: boolean;

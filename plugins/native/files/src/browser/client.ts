@@ -1,10 +1,11 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { said } from "./dom.js";
 import { active, createPage, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import { capture, clearReader, companions, controls, copyAll, openFile } from "./reader.js";
 import { list } from "./tree.js";
 import type { FilesBrowser, FilesHost, StateAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 const open = (page: FilesPage) => (path: string[]) => openFile(page, path);
 
@@ -16,11 +17,11 @@ const stateOf = (page: FilesPage, id: string) => request<StateAnswer>(page, "/st
  * pointed at one here, the page browses that folder first (where it looks is the page's own state).
  */
 function openWanted(page: FilesPage): void {
-  const { wanted, workspace, L } = page;
+  const { wanted, workspace } = page;
   if (!wanted || !workspace) return;
   const [id = "", ...rest] = wanted.split(":"), path = rest.join(":").split("/").filter(Boolean);
   page.wanted = null;
-  if (!path.length) { page.notice(L("files.directory.outside")); return; }
+  if (!path.length) { page.notice(uiText.text("files.directory.outside")); return; }
   if (id !== workspace) { void browseFor(page, id, path); return; }
   page.host.openResult(); page.result.hidden = false; void openFile(page, path);
 }
@@ -30,19 +31,19 @@ async function browseFor(page: FilesPage, id: string, path: string[]): Promise<v
   try {
     const state = await stateOf(page, id);
     if (ticket !== page.generation) return;
-    if (!state.resolved) { page.notice(page.L("files.directory.outside")); return; }
+    if (!state.resolved) { page.notice(uiText.text("files.directory.outside")); return; }
     page.wanted = state.resolved + ":" + path.join("/");
     if (state.resolved === page.workspace) openWanted(page);
     else await choose(page, state.resolved);
   } catch (error) {
-    if (ticket === page.generation) page.notice(said(page.L, messageOf(error)));
+    if (ticket === page.generation) page.notice(messageOf(error));
   }
 }
 
 /** Browses one workspace: its top folder, then the file the person left open (or the one asked for), then the companions. */
 async function choose(page: FilesPage, id: string): Promise<void> {
-  const { L, tree } = page, ticket = ++page.generation;
-  page.workspace = id; clearReader(page); tree.replaceChildren(); page.notice(id ? L("files.directory.reading") : L("files.directory.choose-workspace"));
+  const { tree } = page, ticket = ++page.generation;
+  page.workspace = id; clearReader(page); tree.replaceChildren(); page.notice(id ? uiText.text("files.directory.reading") : uiText.text("files.directory.choose-workspace"));
   try {
     if (!id || !active(page, ticket)) return;
     page.host.onWorkspaceSelected?.(id);
@@ -56,7 +57,7 @@ async function choose(page: FilesPage, id: string): Promise<void> {
     if (!active(page, ticket)) return;
     await companions(page, ticket);
   } catch (error) {
-    if (active(page, ticket)) { clearReader(page); tree.replaceChildren(); page.notice(said(L, messageOf(error))); }
+    if (active(page, ticket)) { clearReader(page); tree.replaceChildren(); page.notice(messageOf(error)); }
   }
 }
 
@@ -68,16 +69,16 @@ const loading = (page: FilesPage, on: boolean) => {
 
 /** Reads the folder the page browses (the project's output until it browses another) and shows it again. */
 async function load(page: FilesPage): Promise<void> {
-  const { L, lifetime } = page;
+  const { lifetime } = page;
   if (!lifetime.visible || page.refresh.disabled) return;
   const serial = ++page.loadingTicket;
-  loading(page, true); page.notice(L("files.directory.reading-workspace"));
+  loading(page, true); page.notice(uiText.text("files.directory.reading-workspace"));
   try {
     const state = await stateOf(page, page.workspace);
     if (serial !== page.loadingTicket) return;
     await choose(page, state.workspace?.workspace_id ?? "");
   } catch (error) {
-    if (lifetime.visible && serial === page.loadingTicket) { page.workspace = ""; clearReader(page); page.tree.replaceChildren(); page.notice(said(L, messageOf(error))); }
+    if (lifetime.visible && serial === page.loadingTicket) { page.workspace = ""; clearReader(page); page.tree.replaceChildren(); page.notice(messageOf(error)); }
   } finally {
     if (lifetime.alive && serial === page.loadingTicket) loading(page, false);
   }
@@ -118,8 +119,8 @@ export function filesClient(host: FilesHost): FilesBrowser | null {
   listen(page);
   lifetime.whenVisible(signal => {
     page.viewSignal = signal; page.initialRead = true;
-    page.q("[data-files-copy]").textContent = page.L("files.reader.copy");
-    loading(page, true); page.notice(page.L("files.directory.reading-workspace"));
+    page.q("[data-files-copy]").textContent = uiText.text("files.reader.copy");
+    loading(page, true); page.notice(uiText.text("files.directory.reading-workspace"));
     return () => { page.generation++; page.readTicket++; page.loadingTicket++; result.setAttribute("aria-busy", "false"); loading(page, false); };
   });
   lifetime.watchRevision(signal => host.request("/view-revision", "GET", undefined, signal), async () => {

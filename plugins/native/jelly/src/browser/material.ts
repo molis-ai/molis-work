@@ -4,9 +4,10 @@ import { API } from "./request.js";
 import { isAbort, sleep0 } from "./util.js";
 import type { JellyPage, JellyPlan } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Streaming model work (break into tasks) shows real progress and stops when the dialog is dismissed. */
 export async function extractMaterial(page: JellyPage, payload: Record<string, unknown>): Promise<{ plan: JellyPlan } | null> {
-  const { L } = page;
   const controller = new AbortController();
   let finished = false;
   let result: { plan: JellyPlan } | null = null;
@@ -17,16 +18,16 @@ export async function extractMaterial(page: JellyPage, payload: Record<string, u
     result = await page.stream<{ plan: JellyPlan } | null>(`${API}/ai`, payload, { signal: controller.signal, onProgress: (progress) => {
       const stage = page.root.querySelector("[data-jelly-extract-stage]");
       const bar = page.root.querySelector<HTMLProgressElement>("[data-jelly-extract-progress]");
-      if (stage) stage.textContent = L("jelly.plan.extracting");
+      if (stage) stage.textContent = uiText.text("jelly.plan.extracting");
       if (bar) bar.value = progress;
     } });
-    if (!result) throw new Error(L("jelly.plan.no-result"));
+    if (!result) throw new Error(uiText.text("jelly.plan.no-result"));
   } catch (error) { failure = error; } finally {
     finished = true;
     if (page.dialog.version === dialogVersion) page.$<HTMLDialogElement>("[data-jelly-dialog]").close();
     await sleep0();
   }
   if (!failure) return result;
-  if (isAbort(failure)) { showNote(page, L("jelly.plan.cancelled")); return null; }
+  if (isAbort(failure)) { showNote(page, uiText.text("jelly.plan.cancelled")); return null; }
   throw failure;
 }

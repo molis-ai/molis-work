@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pageText } from "./fixtures/page-text.js";
+import { pageText, withPageText } from "./fixtures/page-text.js";
 
 import {
-  renderCodingDirectory,
-  renderCodingWorkbench,
+  renderCodingDirectory as drawCodingDirectory,
+  renderCodingWorkbench as drawCodingWorkbench,
   toolAvailability,
   type CodingSessionEntry,
   type CodingUiModel,
@@ -12,11 +12,14 @@ import {
 } from "@molis-ai/molis-work-plugin-coding";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 
+const renderCodingDirectory: typeof drawCodingDirectory = (...args) => withPageText("zh", ["coding"], () => drawCodingDirectory(...args));
+const renderCodingWorkbench: typeof drawCodingWorkbench = (...args) => withPageText("zh", ["coding"], () => drawCodingWorkbench(...args));
+
 const primitives: CodingUiPrimitives = {
   escape: (value) => String(value)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
-  text: pageText("zh"),
+  text: pageText("zh", "coding"),
   formatDate: (value) => value.slice(0, 10),
 };
 
@@ -39,7 +42,9 @@ test("目录栏顶部有五个导航面，当前面被标记", () => {
     assert.match(html, new RegExp(`data-coding-face="${face}"`));
   }
   assert.match(html, /data-coding-face="taskboard" aria-pressed="true"/);
-  assert.match(html, /class="mw-dir__label">TaskBoard<\/span>/);
+  assert.match(html, /class="mw-dir__label">任务板<\/span>/);
+  const english = withPageText("en", ["coding"], () => drawCodingDirectory(model({ face: "taskboard", primitives: { ...primitives, text: pageText("en", "coding") } })));
+  assert.match(english, /class="mw-dir__label">TaskBoard<\/span>/);
 });
 
 // Every face draws in the directory column: the task outline, the Goal and the saved results each have a panel there,

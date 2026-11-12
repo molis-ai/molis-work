@@ -1,0 +1,87 @@
+{
+  "format_version": 1,
+  "id": "folio",
+  "revision": 1,
+  "spec": {
+    "id": "molis-interface",
+    "revision": 1
+  },
+  "name": {
+    "key": "workbench.skin.folio"
+  },
+  "recommended_font": {
+    "id": "folio-rounded",
+    "revision": 1
+  },
+  "light": {
+    "page": "#f4ede2",
+    "paper": "#fffdf8",
+    "surface-soft": "#faf5eb",
+    "rail": "#eee6d8",
+    "ink": "#263d35",
+    "ink-soft": "#4b5d52",
+    "muted": "#697267",
+    "faint": "#697267",
+    "line": "#e4dfd0",
+    "line-strong": "#c7ccbc",
+    "action": "#245b45",
+    "action-hover": "#33745a",
+    "action-ink": "#ffffff",
+    "accent": "#227c7a",
+    "accent-strong": "#227c7a",
+    "accent-soft": "#e2f2ec",
+    "popover": "#fffdf8",
+    "green": "#367454",
+    "green-soft": "#e8f2df",
+    "amber": "#926612",
+    "amber-soft": "#fbefce",
+    "red": "#b83f46",
+    "red-soft": "#fce9e5"
+  },
+  "dark": {
+    "page": "#171f1b",
+    "paper": "#202a24",
+    "surface-soft": "#26322b",
+    "rail": "#303d33",
+    "ink": "#edf1df",
+    "ink-soft": "#c0ccba",
+    "muted": "#a2b29e",
+    "faint": "#a2b29e",
+    "line": "#37463a",
+    "line-strong": "#536850",
+    "action": "#b9d9aa",
+    "action-hover": "#d1eac5",
+    "action-ink": "#1d392a",
+    "accent": "#85cebf",
+    "accent-strong": "#85cebf",
+    "accent-soft": "#273f38",
+    "popover": "#202a24",
+    "green": "#a5d292",
+    "green-soft": "#293e2b",
+    "amber": "#e6bf74",
+    "amber-soft": "#403724",
+    "red": "#ff9e98",
+    "red-soft": "#492d2b"
+  },
+  "shared": {
+    "r-control": {
+      "px": 12
+    },
+    "r-row": {
+      "px": 14
+    },
+    "r-card": {
+      "px": 18
+    },
+    "r-sheet": {
+      "px": 20
+    },
+    "r-dialog": {
+      "px": 24
+    },
+    "r-composer": {
+      "px": 20
+    }
+  },
+  "terminal": {}
+}

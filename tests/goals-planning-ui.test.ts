@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { renderPlanningRequest } from "@molis-ai/molis-work-plugin-goals/page";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import { goalsManifest, goalsPlanningRouteOf } from "@molis-ai/molis-work-plugin-goals";
 import { matchDeclaredPageRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-plugin-goals/contract";
-import { L, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { listJoin } from "@molis-ai/molis-work-app-local-host";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { withDesktopQuery } from "@molis-ai/molis-work-app-desktop";
 
 /** The Host's match of a request, as the Host makes it: one matcher over the plugins' declared page routes (T-116). */
@@ -14,7 +13,7 @@ const matchOf = (path: string) => { const url = new URL(path, "http://fixture.te
 
 const escapeHtml = (v: string) => v.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = goalsRenderers.planning({
-  translate: L, escapeHtml, icon, listJoin, withDesktopQuery,
+  translate: t.text, escapeHtml, icon, listJoin, withDesktopQuery,
   settingsContextHref: (path, project, desktop) => {
     const href = project ? path + "?project=" + encodeURIComponent(project.project_id) : path;
     return desktop ? withDesktopQuery(href) : href;
@@ -120,7 +119,7 @@ test("Planning details and editors preserve scope, instructions, blank rows and 
   assert.match(blank, /data-coverage-row/);
   assert.match(blank, /data-dependency-row/);
   assert.match(blank, /name="instructions" rows="10" required/);
-  assert.match(runWithLocale("en", () => renderer.renderMethod(null, "new", "personal", null)), /Save to my method library/);
+  assert.match(withGoalLocale("en", () => renderer.renderMethod(null, "new", "personal", null)), /Save to my method library/);
 });
 
 test("project Planning presents the supplied composition and separates inactive and adoptable methods", () => {

@@ -1,4 +1,4 @@
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { buildGoalCollectionModel } from "../collection-model.js";
 import { renderGoalDetailsAside, renderImmersiveGoalHeader, renderImmersiveWorkTabs } from "./chrome.js";
 import { renderGoalFrameStage } from "./frame-stage.js";
@@ -13,8 +13,8 @@ export const GOALS_STAGE_CONTRIBUTION_ID = "io.molis.work.goals.stage";
 export function goalsPagePorts(model: Pick<StagePageModel, "drawing" | "primitives">): GoalsPagePorts<GoalsPageView> {
   const { drawing } = model;
   if (!drawing) throw new Error("Goals page drawing services are missing");
-  const L = model.primitives.text;
-  return { ...drawing, L, goalsL: L, formatDate: drawing.formatDocumentDate, creatableKinds: () => drawing.creatableKinds };
+  const readText = model.primitives.text;
+  return { ...drawing, readText, goalsL: readText, formatDate: drawing.formatDocumentDate, creatableKinds: () => drawing.creatableKinds };
 }
 
 /** The actual Runtime and catalog register this same owner; shell publication exists only on the matched page render. */
@@ -53,9 +53,9 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
 /** Goals owns its canvas, collection and refresh content; the shell places it in the Host's document. */
 export function createGoalsWorkbenchStage<TView extends GoalsPageView>(
   page: ReturnType<typeof createGoalsPage<TView>>,
-  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "prefixLocalLinks">,
+  ports: Pick<GoalsPagePorts<TView>, "readText" | "goalsL" | "prefixLocalLinks">,
 ) {
-  const { L, goalsL, prefixLocalLinks } = ports;
+  const { readText, goalsL, prefixLocalLinks } = ports;
   const { goalsTreeRenderer, renderMomentumPlaceholder, renderGoalKanban } = page.goals;
   const { dataJson, renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, renderCreateDialog, renderTuiPane } = page.documents;
   const renderGoalProposals = (view: TView) => page.goals.renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view);
@@ -87,7 +87,7 @@ function renderMolisWorkRefreshFragment(
     cliAvailability: Record<string, boolean>) {
     const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, goalsL);
     const { selected, title, collectionTitle } = collection;
-    const primitives = { L, escapeHtml, icon };
+    const primitives = { readText, escapeHtml, icon };
   const showTui = !archiveView && !trashView;
   const renderedDocumentContent = selected
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
@@ -98,19 +98,19 @@ function renderMolisWorkRefreshFragment(
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection, renderGoalProposals(view));
   const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
     ${stageList}
-    <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${L("工作规划")}"></section>
-    <section class="goal-work-rules-pane settings-stage" data-goal-work-rules aria-label="${L("工作规则")}"></section>
+    <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${uiText("goals.workbench-stage.work-planning")}"></section>
+    <section class="goal-work-rules-pane settings-stage" data-goal-work-rules aria-label="${uiText("goals.workbench-stage.work-rules")}"></section>
     ${renderMomentumPlaceholder()}
     ${renderGoalKanban(view, selected?.goal.goal_id || "", view.goals)}
     <div class="goal-stage-chrome" data-goal-stage-chrome>${goalsTreeRenderer.renderTreeChrome(view)}
-    <div class="mw-toggle-group goal-board-switch" data-slot="toggle-group" data-board-switch role="group" aria-label="${L("列表")} / ${L("画布")} / ${L("看板")}">
-      <button class="mw-toggle is-current" type="button" data-board-view-tab="list" aria-pressed="true" aria-current="page" aria-label="${L("列表")}" title="${L("列表")}">${icon("rows")}<span class="goal-board-switch-label">${L("列表")}</span></button>
-      <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${L("画布")}" title="${L("画布")}">${icon("network")}<span class="goal-board-switch-label">${L("画布")}</span></button>
-      <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${L("看板")}" title="${L("看板")}">${icon("columns")}<span class="goal-board-switch-label">${L("看板")}</span></button>
+    <div class="mw-toggle-group goal-board-switch" data-slot="toggle-group" data-board-switch role="group" aria-label="${uiText("goals.workbench-stage.list")} / ${uiText("goals.workbench-stage.canvas")} / ${uiText("goals.workbench-stage.board")}">
+      <button class="mw-toggle is-current" type="button" data-board-view-tab="list" aria-pressed="true" aria-current="page" aria-label="${uiText("goals.workbench-stage.list")}" title="${uiText("goals.workbench-stage.list")}">${icon("rows")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.list")}</span></button>
+      <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${uiText("goals.workbench-stage.canvas")}" title="${uiText("goals.workbench-stage.canvas")}">${icon("network")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.canvas")}</span></button>
+      <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${uiText("goals.workbench-stage.board")}" title="${uiText("goals.workbench-stage.board")}">${icon("columns")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.board")}</span></button>
     </div>
-    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-planning aria-pressed="false" data-craft-tip="${L("工作规划")}">${icon("workflow")}<span>${L("工作规划")}</span></button>
-    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-rules aria-pressed="false" data-craft-tip="${L("工作规则")}">${icon("shield")}<span>${L("工作规则")}</span></button></div>
-    <section class="goal-node-workspace" data-goal-node-workspace aria-label="${L("Goal 工作区")}" hidden>
+    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-planning aria-pressed="false" data-craft-tip="${uiText("goals.workbench-stage.work-planning")}">${icon("workflow")}<span>${uiText("goals.workbench-stage.work-planning")}</span></button>
+    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-rules aria-pressed="false" data-craft-tip="${uiText("goals.workbench-stage.work-rules")}">${icon("shield")}<span>${uiText("goals.workbench-stage.work-rules")}</span></button></div>
+    <section class="goal-node-workspace" data-goal-node-workspace aria-label="${uiText("goals.workbench-stage.goal-workspace")}" hidden>
       ${renderImmersiveGoalHeader(selected?.goal.title || "", primitives)}
       <div class="goal-node-workbench" data-goal-node-workbench>
         <section class="goal-work-main" data-goal-work-main>
@@ -121,7 +121,7 @@ function renderMolisWorkRefreshFragment(
       </div>
     </section>
   </div>` : `${stageList}${goalDocument}`;
-  const frameStage = showTui ? renderGoalFrameStage({ L, icon }) : "";
+  const frameStage = showTui ? renderGoalFrameStage({ readText, icon }) : "";
     return { title, showTui, stage: goalStage, frame: frameStage };
   }
   return { render, renderMolisWorkRefreshFragment };

@@ -1,6 +1,8 @@
 import { WORKSPACE_SKIPPED_FOLDERS } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { DropMark } from "@molis-ai/molis-work-plugin-sdk/page-globals";
-import { el, L, request } from "./common.js";
+import { el, request } from "./common.js";
+
+const uiText = globalThis.t;
 
 const MAX_FILES = 200;
 /** What one request carries inline; a bigger file that is not text goes as its raw body (`/import/original`), any size. */
@@ -40,7 +42,7 @@ async function bodyOf(file: File): Promise<Record<string, unknown>> {
   const bytes = await file.arrayBuffer();
   if (TEXT_FILE.test(file.name)) {
     try { return { source: "file", filename: file.name, content: new TextDecoder("utf-8", { fatal: true }).decode(bytes) }; }
-    catch { throw new Error(L("无法读取文件。请将文本文件保存为 UTF-8 编码后重试。")); }
+    catch { throw new Error(uiText.text("workbench.import.file-cannot-be-read-save-text-files-utf")); }
   }
   const view = new Uint8Array(bytes);
   let binary = "";
@@ -55,7 +57,7 @@ const originalHeaders = (file: File, accept?: string): Record<string, string> =>
 
 /** A row's note, cut to one line; the whole of it on hover. */
 const note = (mark: HTMLElement | null | undefined, text: string) => { if (mark) { mark.textContent = text; mark.title = text; } };
-const FAILED = () => L("导入失败。请检查文件、链接、文档权限和连接器配置后重试。");
+const FAILED = () => uiText.text("workbench.import.import-failed-check-file-link-document-permissions-connector");
 type Untranscribed = { item: Picked; row: HTMLElement | undefined };
 
 /**
@@ -74,37 +76,37 @@ function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (r
     let done = 0;
     for (const { item, row } of queue) {
       const mark = row?.querySelector("small");
-      text.textContent = L("正在转写：{name}", { name: item.path });
+      text.textContent = uiText.text("workbench.import.transcribing-name", { name: item.path });
       try {
         const saved = await request().stream<Imported>(rawOriginal(item.file) ? originalRoute(base, true) : base + "/import", {
           ...rawOriginal(item.file) ? { file: item.file, headers: originalHeaders(item.file, "application/x-ndjson") }
             : { body: { ...await bodyOf(item.file), allow_model_download: true }, headers: { accept: "application/x-ndjson" } }, fallback: FAILED(), onProgress: event => {
-            text.textContent = event.stage === "downloading" || event.stage === "model_download" ? L("正在下载转写模型（只下载这一次）")
-              : event.stage === "loading" ? L("正在加载模型") : L("正在转写：{name}", { name: item.path });
+            text.textContent = event.stage === "downloading" || event.stage === "model_download" ? uiText.text("workbench.import.downloading-transcription-model-only-once")
+              : event.stage === "loading" ? uiText.text("workbench.import.loading-model") : uiText.text("workbench.import.transcribing-name", { name: item.path });
             bar.value = Math.max(0, Math.min(1, event.progress));
           } });
         if (!saved.model_required) { done += 1; row?.classList.add("is-done"); }
-        note(mark, saved.warnings?.[0] ?? L("已导入"));
+        note(mark, saved.warnings?.[0] ?? uiText.text("workbench.import.imported"));
       } catch (error) {
         row?.classList.add("is-failed");
         note(mark, request().text(error));
       }
     }
     model.hidden = true;
-    status.textContent = done === queue.length ? L("转写好了 {done} 个，正在整理。", { done }) : L("转写好了 {done} 个，{failed} 个没有转成（原因见上面）。", { done, failed: queue.length - done });
+    status.textContent = done === queue.length ? uiText.text("workbench.import.transcribed-done-organizing", { done }) : uiText.text("workbench.import.transcribed-done-failed-not-transcribed-reasons-above", { done, failed: queue.length - done });
   }
   $("[data-knowledge-import-model-yes]").addEventListener("click", () => void exclusive(transcribe));
   $("[data-knowledge-import-model-no]").addEventListener("click", () => {
     reset();
-    status.textContent = L("音视频只保存了原件。以后要转写，重新导入它时同意下载就行。");
+    status.textContent = uiText.text("workbench.import.only-original-audio-video-kept-transcribe-later-import");
   });
   return {
     reset,
     ask(files: Untranscribed[], bytes: number | null) {
       waiting = files;
       const size = bytes ? Math.round(bytes / 1024 / 1024) : 0;
-      text.textContent = (files.length > 1 ? L("{count} 个音视频还没有转成文字。", { count: files.length }) : "")
-        + (size ? L("转写需要下载本机语音模型（{size} MB），只在这台机器上用。现在下载并继续？", { size }) : L("转写需要下载本机语音模型，只在这台机器上用。现在下载并继续？"));
+      text.textContent = (files.length > 1 ? uiText.text("workbench.import.count-audio-video-files-have-no-text-yet", { count: files.length }) : "")
+        + (size ? uiText.text("workbench.import.transcription-needs-local-speech-model-size-mb-used", { size }) : uiText.text("workbench.import.transcription-needs-local-speech-model-used-only-machine"));
       bar.hidden = true; choices.hidden = false; model.hidden = false;
     },
   };
@@ -139,12 +141,12 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const drawPicked = () => {
     pickedList.replaceChildren(...picked.slice(0, MAX_FILES).map(item => {
       const row = el("li");
-      row.append(el("span", "", item.path), el("small", "", item.file.size > MAX_BYTES && TEXT_FILE.test(item.path) ? L("超过 6 MB") : ""));
+      row.append(el("span", "", item.path), el("small", "", item.file.size > MAX_BYTES && TEXT_FILE.test(item.path) ? uiText.text("workbench.import.over-6-mb") : ""));
       return row;
     }));
     if (kind() !== "online") submit.disabled = busy || !picked.length;
-    status.textContent = picked.length > MAX_FILES ? L("选了 {count} 个，一次只导入前 {max} 个。", { count: picked.length, max: MAX_FILES })
-      : picked.length ? L("选了 {count} 个文件。", { count: picked.length }) : "";
+    status.textContent = picked.length > MAX_FILES ? uiText.text("workbench.import.count-chosen-only-first-max-imported-time", { count: picked.length, max: MAX_FILES })
+      : picked.length ? uiText.text("workbench.import.count-count-chosen", { count: picked.length }) : "";
   };
   const take = (items: Picked[]) => {
     const seen = new Set(picked.map(item => item.path));
@@ -161,13 +163,13 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   async function connections() {
     const note = $("[data-knowledge-import-connection-note]");
     try { sources ??= await request()<ImportSources>(base + "/import/sources"); }
-    catch (error) { note.textContent = request().text(error, L("连接状态读不到")); return; }
+    catch (error) { note.textContent = request().text(error, uiText.text("workbench.import.connection-state-cannot-be-loaded")); return; }
     const source = $<HTMLSelectElement>("[data-knowledge-import-source]").value;
     const service = source === "google-docs" ? "google-drive" : source;
     const rows = sources.connections.filter(row => row.service_id === service && row.state === "connected");
     const select = $<HTMLSelectElement>("[data-knowledge-import-connection]");
     select.replaceChildren(...rows.map(row => new Option(row.display_name, row.connection_id)));
-    note.textContent = rows.length ? L("用这个账号读取文档；它要有这份文档的读取权限。") : L("还没有连接这个文档工具。先在 能力 → 连接 里连接，再回来导入。");
+    note.textContent = rows.length ? uiText.text("workbench.import.document-read-account-needs-read-access") : uiText.text("workbench.import.document-tool-not-connected-yet-connect-capabilities-connections");
     connected = rows.length > 0;
     if (kind() === "online") submit.disabled = busy || !connected;
   }
@@ -181,35 +183,35 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     consent.reset();
     for (const [index, item] of queue.entries()) {
       const mark = rows[index]?.querySelector("small");
-      status.textContent = SLOW_FILE.test(item.path) ? L("正在导入 {at} / {count}：{name}（识别文字或转写要一会儿）", { at: index + 1, count: queue.length, name: item.path })
-        : L("正在导入 {at} / {count}：{name}", { at: index + 1, count: queue.length, name: item.path });
+      status.textContent = SLOW_FILE.test(item.path) ? uiText.text("workbench.import.importing-count-name-recognizing-text-transcribing-takes-moment", { at: index + 1, count: queue.length, name: item.path })
+        : uiText.text("workbench.import.importing-count-name", { at: index + 1, count: queue.length, name: item.path });
       try {
-        if (item.file.size > MAX_BYTES && !rawOriginal(item.file)) throw new Error(L("超过 6 MB"));
+        if (item.file.size > MAX_BYTES && !rawOriginal(item.file)) throw new Error(uiText.text("workbench.import.over-6-mb"));
         const saved = rawOriginal(item.file) ? await request()<Imported>(originalRoute(base, false), { file: item.file, headers: originalHeaders(item.file), fallback: FAILED() })
           : await one(await bodyOf(item.file));
         done += 1;
         if (saved.model_required) { untranscribed.push({ item, row: rows[index] }); bytes ??= saved.model_required.approximate_bytes; }
         // A file still waiting on the speech model is not done yet: its note stays neutral until it is transcribed.
         if (!saved.model_required) rows[index]?.classList.add("is-done");
-        note(mark, saved.model_required ? L("还没转成文字") : saved.reused ? L("没有变化") : saved.warnings?.length ? saved.warnings[0]! : L("已导入"));
+        note(mark, saved.model_required ? uiText.text("workbench.import.no-text-yet") : saved.reused ? uiText.text("workbench.import.unchanged") : saved.warnings?.length ? saved.warnings[0]! : uiText.text("workbench.import.imported"));
       } catch (error) {
         failed += 1;
         rows[index]?.classList.add("is-failed");
         note(mark, request().text(error));
       }
     }
-    status.textContent = failed ? L("导入了 {done} 个，{failed} 个没有导入（原因见上面）。", { done, failed }) : L("导入了 {done} 个，正在整理。", { done });
+    status.textContent = failed ? uiText.text("workbench.import.done-imported-failed-not-imported-reasons-above", { done, failed }) : uiText.text("workbench.import.done-imported-organizing-now", { done });
     picked = queue.filter((_, index) => rows[index]?.classList.contains("is-failed"));
     if (untranscribed.length) consent.ask(untranscribed, bytes);
   }
 
   async function importOnline() {
     const url = $<HTMLInputElement>("[data-knowledge-import-url]").value.trim();
-    if (!/^https:\/\//u.test(url)) { status.textContent = L("请输入文档的 HTTPS 链接。"); return; }
-    status.textContent = L("正在读取并保存…");
+    if (!/^https:\/\//u.test(url)) { status.textContent = uiText.text("workbench.import.enter-document-s-https-url"); return; }
+    status.textContent = uiText.text("workbench.import.reading-saving");
     try {
       const saved = await one({ source: $<HTMLSelectElement>("[data-knowledge-import-source]").value, url, connection_id: $<HTMLSelectElement>("[data-knowledge-import-connection]").value });
-      status.textContent = L("已导入「{title}」，正在整理。", { title: saved.title });
+      status.textContent = uiText.text("workbench.import.imported-title-organizing-now", { title: saved.title });
     } catch (error) { status.textContent = request().text(error); }
   }
 
@@ -235,7 +237,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const accept = (target: HTMLElement, opens: boolean) => {
     target.addEventListener("dragover", event => { if (event.dataTransfer?.types.includes("Files")) event.preventDefault(); });
     const mark: DropMark = on => drop.classList.toggle("is-over", on);
-    window.molisDropZone?.(target, mark, undefined, L("不支持拖入这种内容"));
+    window.molisDropZone?.(target, mark, undefined, uiText.text("workbench.import.kind-content-can-t-be-dropped-here"));
     target.addEventListener("drop", event => {
       if (!event.dataTransfer?.items.length || !event.dataTransfer.types.includes("Files")) return;
       event.preventDefault();

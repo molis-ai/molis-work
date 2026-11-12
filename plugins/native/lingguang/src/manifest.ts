@@ -6,8 +6,6 @@ import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
 import { lingguangSync } from './replication.js';
 import { LINGGUANG_DATABASE } from "./database.js";
 
-import { LINGGUANG_MESSAGES } from "./messages.js";
-import { LINGGUANG_EN } from "./en.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID };
 
 const MATERIAL_BYTES = 36_000_000;
@@ -20,8 +18,8 @@ export const lingguangManifest: PluginManifest = {
   sync: lingguangSync,
   version: /* @version product.release */ "0.1.0",
   name: "灵光",
-  name_en: "Lingguang",
-  summary: "先记下想法，再决定留下或丢掉。",
+  name_text: { key: "lingguang.directory.name" },
+  summary: "先记下想法，再决定留下或丢掉。", summary_text: { key: "lingguang.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-lingguang-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -45,15 +43,13 @@ export const lingguangManifest: PluginManifest = {
     { route_id: "lingguang.discard", method: "POST", path: "/sparks/:id/discard", max_body_bytes: BODY_BYTES },
   ],
   artifacts: { produces: [], consumes: [] },
-  ui: {
-    messages: LINGGUANG_MESSAGES,
-    translations: LINGGUANG_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "workbench", slot: "stage", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, accepts_objects: true },
-      { view_id: "island", slot: "island", title: "灵光", title_en: "Lingguang", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", hue: "yellow", order: 10, group: "personal",
-        start: { title: "记下一点灵感", hint: "还没想清楚，也可以先留下。" } },
-      { view_id: "side", slot: "side", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
+      { view_id: "workbench", slot: "stage", title: "灵光", title_text: { key: "lingguang.directory.view-workbench" }, contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, accepts_objects: true },
+      { view_id: "island", slot: "island", title: "灵光", title_text: { key: "lingguang.directory.view-island" }, contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", hue: "yellow", order: 10, group: "personal",
+        start: { title: "记下一点灵感", hint: "还没想清楚，也可以先留下。" , title_text: { key: "lingguang.directory.start-title" }, hint_text: { key: "lingguang.directory.start-hint" } } },
+      { view_id: "side", slot: "side", title: "灵光", title_text: { key: "lingguang.directory.view-side" }, contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
     ],
   },
 };

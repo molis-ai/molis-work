@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsMomentumItem, GoalsMomentumBoardView, GoalsMomentumUiPrimitives } from "./momentum-ui-model.js";
 import { createKanbanRenderer } from "./kanban-ui.js";
@@ -25,7 +26,7 @@ export function goalMomentumInput(item: GoalsMomentumItem): GoalMomentumGoalInpu
 }
 
 function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
-  const { translate: L, escapeHtml, icon, renderVisibleGoalStatus } = primitives;
+  const { escapeHtml, icon, renderVisibleGoalStatus } = primitives;
   function renderGoalMomentum(view: GoalsMomentumBoardView, selectedGoalId: string, items: readonly GoalsMomentumItem[]): string {
     const byId = new Map(items.map((item) => [item.goal.goal_id, item]));
     const momentum = buildGoalMomentumView(items.map(goalMomentumInput), view.snapshot.relations, selectedGoalId);
@@ -36,25 +37,25 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
       const item = byId.get(node.goal_id)!;
       const parent = view.snapshot.relations.find((relation) => relation.state === "active" && relation.type === "part_of" && relation.from_goal_id === node.goal_id);
       const parentTitle = parent ? byId.get(parent.to_goal_id)?.goal.title : "";
-      return `<article tabindex="0" role="group" class="goal-canvas-node${node.completed ? " is-complete" : ""}" data-graph-node data-momentum-node data-goal-id="${escapeHtml(node.goal_id)}" data-node-x="${node.level * 340 + 40}" data-node-y="${node.row * 232 + 70}" aria-label="${escapeHtml(L("选择 Goal：{title}", { title: node.title }))}">
-        ${renderVisibleGoalStatus(item)}<button class="goal-canvas-frame" type="button" data-graph-frame aria-label="${escapeHtml(L("打开 Frame：{title}", { title: node.title }))}" title="${L("打开 Frame")}">${icon("frame")}</button><button class="goal-canvas-open" type="button" data-graph-open aria-label="${escapeHtml(L("展开 Goal：{title}", { title: node.title }))}" title="${L("打开 Goal")}">${icon("maximize")}</button><strong>${escapeHtml(node.title)}</strong>
-        <span class="goal-canvas-node-outcome">${escapeHtml(item.goal.outcome || L("还没有写清预期结果"))}</span>
-        ${parentTitle ? `<small>${escapeHtml(L("属于：{title}", { title: parentTitle }))}</small>` : ""}
+      return `<article tabindex="0" role="group" class="goal-canvas-node${node.completed ? " is-complete" : ""}" data-graph-node data-momentum-node data-goal-id="${escapeHtml(node.goal_id)}" data-node-x="${node.level * 340 + 40}" data-node-y="${node.row * 232 + 70}" aria-label="${escapeHtml(uiText.text("goals.momentum-ui.select-goal-title", { title: node.title }))}">
+        ${renderVisibleGoalStatus(item)}<button class="goal-canvas-frame" type="button" data-graph-frame aria-label="${escapeHtml(uiText.text("goals.momentum-ui.open-frame-title", { title: node.title }))}" title="${uiText("goals.momentum-ui.open-frame")}">${icon("frame")}</button><button class="goal-canvas-open" type="button" data-graph-open aria-label="${escapeHtml(uiText.text("goals.momentum-ui.open-goal-title", { title: node.title }))}" title="${uiText("goals.momentum-ui.open-goal")}">${icon("maximize")}</button><strong>${escapeHtml(node.title)}</strong>
+        <span class="goal-canvas-node-outcome">${escapeHtml(item.goal.outcome || uiText.text("goals.momentum-ui.expected-result-has-not-been-defined"))}</span>
+        ${parentTitle ? `<small>${escapeHtml(uiText.text("goals.momentum-ui.part-title", { title: parentTitle }))}</small>` : ""}
       </article>`;
     }).join("");
     const integrityCount = Object.values(momentum.integrity).reduce((count, values) => count + values.length, 0);
-    return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="true" data-default-goal="${escapeHtml(preferred?.goal.goal_id || "")}" aria-label="${L("Goal 关系画布")}">
-      ${integrityCount ? `<p class="goal-canvas-integrity" role="status">${L("部分关系不完整，已保留可读取的目标。")}</p>` : ""}
-      <div class="goal-canvas-viewport" data-graph-viewport tabindex="0" aria-label="${L("拖动空白处移动画布，方向键平移，加减键缩放")}">
+    return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="true" data-default-goal="${escapeHtml(preferred?.goal.goal_id || "")}" aria-label="${uiText("goals.momentum-ui.goal-relationship-canvas")}">
+      ${integrityCount ? `<p class="goal-canvas-integrity" role="status">${uiText("goals.momentum-ui.some-relationships-incomplete-available-goals-still-shown")}</p>` : ""}
+      <div class="goal-canvas-viewport" data-graph-viewport tabindex="0" aria-label="${uiText("goals.momentum-ui.drag-background-use-arrow-keys-pan-use-plus")}">
         <div class="goal-canvas-world" data-graph-stage data-graph-scale="1"><svg class="goal-canvas-edges" data-graph-edges aria-hidden="true"><defs><marker id="momentum-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>${edges}</svg>${nodes}</div>
       </div>
-      ${nodes ? "" : `<div class="goal-canvas-empty mw-empty" role="status"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-target"></use></svg></span><strong>${L("还没有 Goal")}</strong><p>${L("目标和依赖会作为节点出现在这里")}</p></div>`}
-      <footer class="goal-canvas-tools"><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-graph-zoom="out" aria-label="${L("缩小")}">−</button><output data-graph-zoom-value>100%</output><button type="button" data-graph-zoom="in" aria-label="${L("放大")}">+</button><button type="button" data-graph-zoom="fit" aria-label="${L("适应全部目标")}">${icon("maximize")}</button></div></footer>
-      <p data-goal-momentum-status role="status" hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-goal-momentum hidden>${L("重试")}</button>
+      ${nodes ? "" : `<div class="goal-canvas-empty mw-empty" role="status"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-target"></use></svg></span><strong>${uiText("goals.momentum-ui.no-goals-yet")}</strong><p>${uiText("goals.momentum-ui.goals-dependencies-will-appear-here-nodes")}</p></div>`}
+      <footer class="goal-canvas-tools"><div role="group" aria-label="${uiText("goals.momentum-ui.canvas-zoom")}"><button type="button" data-graph-zoom="out" aria-label="${uiText("goals.momentum-ui.zoom-out")}">−</button><output data-graph-zoom-value>100%</output><button type="button" data-graph-zoom="in" aria-label="${uiText("goals.momentum-ui.zoom")}">+</button><button type="button" data-graph-zoom="fit" aria-label="${uiText("goals.momentum-ui.fit-all-goals")}">${icon("maximize")}</button></div></footer>
+      <p data-goal-momentum-status role="status" hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-goal-momentum hidden>${uiText("goals.momentum-ui.retry")}</button>
     </section>`;
   }
   function renderMomentumPlaceholder(): string {
-    return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="false" aria-label="${L("Goal 关系画布")}"><p class="goal-canvas-loading mw-loading" data-goal-momentum-status role="status">${L("正在读取目标关系…")}</p><button class="mw-btn mw-btn--secondary" type="button" data-retry-goal-momentum hidden>${L("重试")}</button></section>`;
+    return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="false" aria-label="${uiText("goals.momentum-ui.goal-relationship-canvas")}"><p class="goal-canvas-loading mw-loading" data-goal-momentum-status role="status">${uiText("goals.momentum-ui.loading-goal-relationships")}</p><button class="mw-btn mw-btn--secondary" type="button" data-retry-goal-momentum hidden>${uiText("goals.momentum-ui.retry")}</button></section>`;
   }
   const { renderGoalKanban } = createKanbanRenderer(primitives);
   return { renderGoalMomentum, renderMomentumPlaceholder, renderGoalKanban };

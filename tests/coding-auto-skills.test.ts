@@ -137,12 +137,12 @@ test("SKP-10: Coding's round lists the automatic Skills for Coding and offers th
   await setState(codingAuto, "auto"); await setState(bothAuto, "auto");
   await setState(codingManual, "manual"); await setState(refOf("auto-assistant"), "auto"); // off-coding stays off.
 
-  const startRound = async (task: string) => {
+  const startRound = async (task: string, locale?: "en" | "zh") => {
     const session = await f.call<{ session: { session_id: string } }>(projectId, `/api/plugins/${CODING}/sessions`, {});
     assert.equal(session.status, 200, JSON.stringify(session.body));
     const started = await f.call<{ run: { ref: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunRef } }>(projectId,
       `/api/plugins/${CODING}/sessions/${session.body.session.session_id}/runs`,
-      { task, intent: "discuss", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model" });
+      { task, intent: "discuss", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model" }, locale);
     assert.equal(started.status, 200, JSON.stringify(started.body));
     return f.ended(started.body.run.ref);
   };
@@ -165,6 +165,13 @@ test("SKP-10: Coding's round lists the automatic Skills for Coding and offers th
   assert.ok(!firstPack.includes("手动纪要") && !firstPack.includes("助理纪要") && !firstPack.includes("关着的纪要"), "manual, assistant-only and off Skills are not offered");
   assert.ok(firstPack.includes(codingAuto.installation_generation), "each entry carries the complete exact reference");
   assert.match(firstPack, /技能 · 读取 · 读取技能正文/, "and says which round tool reads a body");
+
+  from = mark();
+  await startRound("Summarize the meeting", "en");
+  const english = JSON.stringify(roundRequests(from)[0]?.messages);
+  assert.match(english, /Skills available automatically/u);
+  assert.match(english, /自动纪要/u, "a Skill author’s own name stays as authored");
+  assert.doesNotMatch(english, /可自动使用的技能/u);
 
   // d. With nothing set to 「自动」 there is no material and no Skill tool on the round.
   const revised = (await client.invoke(person, action(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] };

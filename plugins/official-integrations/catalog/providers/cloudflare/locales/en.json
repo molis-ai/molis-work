@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.cloudflare",
+  "locale": "en",
+  "messages": {
+    "cloudflare.connection.auth-help": "Use a Cloudflare API Token. The identity check calls /user/tokens/verify. Do not use the Global API Key email header. Listing domains also requires Zone.Read.",
+    "cloudflare.connection.inbound": "Feed reads the domain list",
+    "cloudflare.connection.summary": "Workers, Pages and DNS.",
+    "cloudflare.connection.token-label": "Cloudflare API Token",
+    "cloudflare.guide.cli-link": "View Wrangler CLI",
+    "cloudflare.guide.mcp-link": "View the official Cloudflare MCP",
+    "cloudflare.guide.oauth-link": "View Cloudflare OAuth",
+    "cloudflare.oauth.api-scopes": "Approved read-only API scopes (space-separated, dot syntax)",
+    "cloudflare.oauth.client-auth": "Client authentication (basic / post / none)",
+    "cloudflare.oauth.note": "Choose the required read-only permissions from the official OAuth Scopes API. Do not use the colon syntax for Wrangler scopes.",
+    "cloudflare.setup.create-cloudflare-api-token": "Create Cloudflare API Token"
+  }
+}

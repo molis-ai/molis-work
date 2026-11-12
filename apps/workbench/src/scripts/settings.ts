@@ -53,44 +53,44 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
       const action = button.dataset.runtimeAction;
       activePlan = null;
       reloadOnClose = false;
-      title.textContent = L("正在准备接入预览");
-      message.textContent = L("Molis Work 正在只读检查当前 Runtime 配置。");
+      title.textContent = globalThis.t.text("workbench.settings.preparing-connection-preview");
+      message.textContent = globalThis.t.text("workbench.settings.molis-work-checking-current-runtime-config-read-only");
       changes.innerHTML = "";
-      backup.textContent = L("检查中");
-      restart.textContent = L("检查中");
+      backup.textContent = globalThis.t.text("workbench.settings.checking");
+      restart.textContent = globalThis.t.text("workbench.settings.checking");
       confirmRow.hidden = true;
       confirmInput.checked = false;
       applyButton.disabled = true;
       applyButton.hidden = false;
-      applyButton.textContent = L("确认应用");
+      applyButton.textContent = globalThis.t.text("workbench.settings.apply");
       errorBox.hidden = true;
       dialog.showModal();
       try {
-        const plan = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", { body: { action }, fallback: L("无法生成 Runtime 接入预览") });
+        const plan = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", { body: { action }, fallback: globalThis.t.text("workbench.settings.could-not-build-runtime-connection-preview") });
         activePlan = plan;
-        title.textContent = plan.display_name + (plan.action === "remove" ? L(" · 移除预览") : L(" · 接入预览"));
+        title.textContent = plan.display_name + (plan.action === "remove" ? globalThis.t.text("workbench.settings.removal-preview") : globalThis.t.text("workbench.settings.connection-preview"));
         message.textContent = plan.message;
-        changes.innerHTML = (plan.changes || []).map((change) => "<li><strong>" + escapeText(change.operation === "remove" ? L("移除") : change.operation === "replace" ? L("替换") : L("新增")) + "</strong><div><p>" + escapeText(change.target_path) + "</p><small>" + escapeText(change.before) + " → " + escapeText(change.after) + "</small></div></li>").join("") || L("<li><strong>无变更</strong><div><p>当前状态无需写入。</p></div></li>");
-        backup.textContent = plan.backup_path || L("当前变更无须备份");
-        restart.textContent = (plan.restart_instructions || []).join(" ") || L("无须重启");
+        changes.innerHTML = (plan.changes || []).map((change) => "<li><strong>" + escapeText(change.operation === "remove" ? globalThis.t.text("workbench.settings.remove") : change.operation === "replace" ? globalThis.t.text("workbench.settings.replace") : globalThis.t.text("workbench.settings.add")) + "</strong><div><p>" + escapeText(change.target_path) + "</p><small>" + escapeText(change.before) + " → " + escapeText(change.after) + "</small></div></li>").join("") || globalThis.t.text("workbench.settings.li-strong-no-change-strong-div-p-nothing");
+        backup.textContent = plan.backup_path || globalThis.t.text("workbench.settings.change-needs-no-backup");
+        restart.textContent = (plan.restart_instructions || []).join(" ") || globalThis.t.text("workbench.settings.no-restart-needed");
         confirmRow.hidden = plan.status !== "ready";
         confirmLabel.textContent = plan.confirmation;
         applyButton.hidden = plan.status !== "ready";
       } catch (error) {
         molisWorkRequest.show(errorBox, error);
         errorBox.hidden = false;
-        message.textContent = L("没有修改任何配置。");
+        message.textContent = globalThis.t.text("workbench.settings.no-configuration-was-changed");
       }
     });
     applyButton?.addEventListener("click", async () => {
       if (!activePlan || !confirmInput.checked) return;
       applyButton.disabled = true;
-      applyButton.textContent = L("正在验证…");
+      applyButton.textContent = globalThis.t.text("workbench.settings.verifying");
       errorBox.hidden = true;
       try {
-        const result = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(activePlan.runtime_id) + "/confirm", { body: { plan_id: activePlan.plan_id, decision: "confirmed" }, fallback: L("Runtime 接入未完成") });
+        const result = await molisWorkRequest("/api/settings/runtimes/" + encodeURIComponent(activePlan.runtime_id) + "/confirm", { body: { plan_id: activePlan.plan_id, decision: "confirmed" }, fallback: globalThis.t.text("workbench.settings.runtime-connection-did-not-finish") });
         message.textContent = result.message;
-        changes.innerHTML = L("<li><strong>完成</strong><div><p>") + escapeText(result.message) + "</p></div></li>";
+        changes.innerHTML = globalThis.t.text("workbench.settings.li-strong-done-strong-div-p") + escapeText(result.message) + "</p></div></li>";
         confirmRow.hidden = true;
         applyButton.hidden = true;
         reloadOnClose = true;
@@ -99,7 +99,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
         if (error.body?.message) errorBox.textContent = error.body.message; else molisWorkRequest.show(errorBox, error);
         errorBox.hidden = false;
         applyButton.disabled = false;
-        applyButton.textContent = L("重新确认");
+        applyButton.textContent = globalThis.t.text("workbench.settings.confirm-again");
       }
     });
     function escapeText(value) {
@@ -148,10 +148,10 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     let saving = false;
     let focusTimer;
     const labels = {
-      add: { title: L("新增项目说明"), description: L("保存后会立即成为这个项目所有工作（助理、插件 Agent 与 Runtime）共享的长期上下文。"), submit: L("保存说明") },
-      edit: { title: L("修改项目说明"), description: L("原版本会保留在下方的版本记录中。"), submit: L("保存新版本") },
-      deactivate: { title: L("停用项目说明"), description: L("停用后 Runtime 不再收到这条说明，历史版本仍会保留。"), submit: L("确认停用") },
-      restore: { title: L("恢复项目说明"), description: L("恢复后这条说明会重新进入 Runtime Prompt。"), submit: L("确认恢复") },
+      add: { title: globalThis.t.text("workbench.settings.add-project-guidance"), description: globalThis.t.text("workbench.settings.after-saving-immediately-becomes-long-term-context-shared"), submit: globalThis.t.text("workbench.settings.save-guidance") },
+      edit: { title: globalThis.t.text("workbench.settings.edit-project-guidance"), description: globalThis.t.text("workbench.settings.previous-revision-remains-history-below"), submit: globalThis.t.text("workbench.settings.save-new-revision") },
+      deactivate: { title: globalThis.t.text("workbench.settings.deactivate-project-guidance"), description: globalThis.t.text("workbench.settings.runtime-will-stop-receiving-entry-while-its-revision"), submit: globalThis.t.text("workbench.settings.confirm-deactivation") },
+      restore: { title: globalThis.t.text("workbench.settings.restore-project-guidance"), description: globalThis.t.text("workbench.settings.entry-will-return-runtime-prompt-after-restoration"), submit: globalThis.t.text("workbench.settings.confirm-restoration") },
     };
     const openEditor = (mode, guidanceId = "", trigger = null) => {
       if (saving) return;
@@ -235,13 +235,13 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       const content = String(contentInput.value || "").trim();
       const reason = String(reasonInput.value || "").trim();
       if ((mode === "add" || mode === "edit") && !content) {
-        errorBox.textContent = L("请填写项目说明原文。");
+        errorBox.textContent = globalThis.t.text("workbench.settings.enter-project-guidance-text");
         errorBox.hidden = false;
         contentInput.focus();
         return;
       }
       if (!reason) {
-        errorBox.textContent = L("请说明为什么要做这次变更。");
+        errorBox.textContent = globalThis.t.text("workbench.settings.explain-why-change-needed");
         errorBox.hidden = false;
         reasonInput.focus();
         return;
@@ -253,7 +253,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       const enabledControls = [...editor.querySelectorAll("button, input, select, textarea")].filter(control => !control.disabled);
       enabledControls.forEach(control => { control.disabled = true; });
       submit.disabled = true;
-      submit.textContent = L("正在保存…");
+      submit.textContent = globalThis.t.text("workbench.settings.saving");
       try {
         const isAdd = mode === "add";
         await molisWorkRequest(routePrefix + goalsPluginApi + "/project-guidance" + (isAdd ? "" : "/" + encodeURIComponent(guidanceId)), {
@@ -265,7 +265,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
             reason,
             user_confirmed: true,
           },
-          fallback: L("项目说明保存失败，请检查输入后重试"),
+          fallback: globalThis.t.text("workbench.settings.could-not-save-project-guidance-check-input-try"),
         });
         sessionStorage.setItem("molis-work-guidance-receipt:" + routePrefix, copyReceipt(mode));
         location.reload();
@@ -297,16 +297,17 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         const data = await molisWorkRequest(routePrefix + "/api/memory/overview?scope=project");
         if (!editor.isConnected) return;
         const memory = data.items.find(item => item.memory_id === id && item.scope === "project" && item.version === version);
-        if (!memory) throw new Error(L("这条记忆已变化或不可用，请返回记忆页重新选择"));
-        openEditor("add"); kindInput.value = "convention"; contentInput.value = memory.text.trim().slice(0, 4000);
-        reasonInput.value = L("由项目记忆升级为项目说明");
+        if (!memory) throw new Error(globalThis.t.text("workbench.settings.this-memory-has-changed-or-is-unavailable-return"));
+        openEditor("add"); kindInput.value = "convention";
+        contentInput.value = memory.text.trim().slice(0, 4000);
+        reasonInput.value = globalThis.t.text("workbench.settings.promoted-project-memory");
       }).catch(failure => { if (receipt?.isConnected) { receipt.hidden = false; receipt.setAttribute("role", "alert"); molisWorkRequest.show(receipt, failure); } });
     }
     function copyReceipt(mode) {
-      if (mode === "edit") return L("项目说明的新版本已生效。");
-      if (mode === "deactivate") return L("项目说明已停用，Runtime 将不再收到它。");
-      if (mode === "restore") return L("项目说明已恢复，并重新进入 Runtime Prompt。");
-      return L("项目说明已新增，这个项目之后的工作都会用到。");
+      if (mode === "edit") return globalThis.t.text("workbench.settings.new-project-guidance-revision-active");
+      if (mode === "deactivate") return globalThis.t.text("workbench.settings.project-guidance-was-deactivated-will-no-longer-be");
+      if (mode === "restore") return globalThis.t.text("workbench.settings.project-guidance-was-restored-back-runtime-prompt");
+      return globalThis.t.text("workbench.settings.project-guidance-was-added-will-be-used-all");
     }
     };
     globalThis.molisWorkBindProjectGuidance = bind;

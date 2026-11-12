@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import type { PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import {
   githubIntegrationManifest,
   githubWhoami,
@@ -16,8 +17,8 @@ import {
   catalogIntegrationManifest,
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
-import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { feedManifest, feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, registeredBuiltinText, runWithLocale, runWithRegisteredText, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
@@ -26,6 +27,7 @@ import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-ho
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+import { pageText } from "./fixtures/page-text.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
 const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home"));
@@ -189,13 +191,13 @@ test("Connectors settings cards distinguish account states and never echo the se
   });
   assert.match(html, /data-connectors-settings/);
   // ASC-73: one column grouped by use; each service is a row that opens in place.
-  assert.match(html, /class="settings-connection-item" data-connection-item data-open="false" data-connector-item="github"/);
+  assert.match(html, /class="settings-connection-item" id="connector-github" data-connection-item data-open="false" data-connector-item="github"/);
   assert.match(html, /data-connector-subgroup="code"><h3>代码与项目<\/h3>/);
   assert.match(html, /data-connector-subgroup="mail"><h3>邮件与日程<\/h3>/);
   assert.match(html, /data-connectors-search/);
   assert.match(html, /octocat/);
   assert.match(html, /me@example.com/);
-  assert.match(html, /settings-state--success[^>]*>已连接 · \{account\}/);
+  assert.match(html, /settings-state--success[^>]*>已连接 · octocat/);
   assert.match(html, /settings-state--warning[^>]*>需重新授权/);
   assert.match(html, /data-connector-item="wechat"/);
   assert.match(html, /data-connector-mark="github"/);
@@ -298,7 +300,8 @@ test("RAC-2441: a card without a declaring package shows no source line, while n
   // The directory's own fallback, exercised through the production function: a package whose Manifest gives it no name shows its owner id,
   // so the source line still says where the card comes from instead of reading as the platform's own.
   const declarations = {
-    connectionServices: () => [{ declaration: { service_id: "unnamed", title: "Unnamed", group_id: "work", summary: "Short.", auth_kind: "token", auth: { methods: [] }, capabilities: [] }, owner: "io.example.unnamed" }],
+    connectionServices: () => [{ declaration: { service_id: "unnamed", title: "Unnamed", group_id: "work", summary: "Short.", auth_kind: "token", auth: { methods: [] }, capabilities: [] }, owner: "io.example.unnamed",
+      word: (value: PluginConnectionWord) => { assert.ok(typeof value === "string"); return value; }, guides: [] }],
     hasSource: () => false,
     integration: () => undefined,
     listIntegrations: () => [],
@@ -392,7 +395,9 @@ test("ASC-20 ASC-23: stopped Home and project connections can resume; external c
 test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
-  const panel = host.render({
+  const words = registeredBuiltinText(feedManifest);
+  assert.ok(words);
+  const panel = runWithLocale("zh", () => runWithRegisteredText(words, () => host.render({
     contribution_id: feedUiContribution.descriptor.contribution_id,
     surface: "workbench",
     model: {
@@ -403,11 +408,11 @@ test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors"
       out_rules: [],
       source_catalog: [],
       connector_auth: { github: { bound: false }, gmail: { bound: true } },
-      primitives: feedPrimitives,
+      primitives: { ...feedPrimitives, text: pageText("zh", "feed") },
       demo: false,
       active: true,
     },
-  });
+  })));
   assert.match(panel, /打开 Connectors/);
   assert.match(panel, /href="\/settings\/connectors\?connector=github&amp;project=project-test"/);
   assert.match(panel, /href="\/settings\/connectors\?connector=gmail&amp;project=project-test"/);
@@ -494,7 +499,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       });
       const disconnectedPage = await (await fetch(`${origin}/settings/connectors`)).text();
       assert.match(disconnectedPage, /data-connectors-settings/);
-      assert.match(disconnectedPage, /class="settings-connection-item" data-connection-item data-open="false" data-connector-item="github"/);
+      assert.match(disconnectedPage, /class="settings-connection-item" id="connector-github" data-connection-item data-open="false" data-connector-item="github"/);
       assert.match(disconnectedPage, /type="password"[^>]*data-connector-token="github"/);
       assert.doesNotMatch(disconnectedPage, new RegExp(TOKEN));
       const mcp = await (await fetch(`${origin}/settings/mcp`)).text();

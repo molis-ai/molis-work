@@ -6,7 +6,6 @@ export interface AccountPreparation {id: string; ownerPageId: string; intent: 's
 export function accountCohort(prepare: (signal: AbortSignal) => Promise<boolean>, revoked: () => void, failure: (error: unknown) => void) {
   const pageId: string = crypto.randomUUID();
   const transition = accountTransition();
-  const L = globalThis.L || (text => text);
   let current: AccountPreparation | null = null, preparing: string | null = null, revision = 0;
   let cancellation: Promise<void> | null = null;
   let preparationAbort: AbortController | null = null;
@@ -14,7 +13,7 @@ export function accountCohort(prepare: (signal: AbortSignal) => Promise<boolean>
   const request = (action: string, id?: string, intent?: string) => molisWorkRequest<AccountPreparation | {preparation: null}>(
     '/api/personal/prepare?' + new URLSearchParams({action,page:pageId,...(id?{id}:{}),...(intent?{intent}:{})}), {method:'POST',body:{}});
   const rejectWaiting = () => {
-    if (waiting) {clearTimeout(waiting.timer); waiting.reject(new Error(L('账号操作已取消，尚未退出或切换账号。'))); waiting = null;}
+    if (waiting) {clearTimeout(waiting.timer); waiting.reject(new Error(globalThis.t.text('workbench.personal-account.cancelled'))); waiting = null;}
   };
   const resume = () => {
     preparationAbort?.abort(); preparationAbort = null;
@@ -62,11 +61,11 @@ export function accountCohort(prepare: (signal: AbortSignal) => Promise<boolean>
       const startedRevision = revision;
       const answer = await request('start',undefined,intent).catch(error => {if (revision === startedRevision) throw error;return null;});
       if (!answer || revision !== startedRevision && (!('id' in answer) || current?.id !== answer.id)) return null;
-      if (!('id' in answer)) throw new Error(L('账号准备尚未完成，请稍后重试。'));
+      if (!('id' in answer)) throw new Error(globalThis.t.text('workbench.personal-account.preparation-incomplete'));
       if (current?.id !== answer.id) observe(answer);
       if (current?.id === answer.id && current.ready) return answer.id;
       return new Promise<string>((resolve,reject) => {
-        const timer = setTimeout(() => {reject(new Error(L('有页面未响应，尚未退出或切换账号。请检查其他窗口后重试。')));void cancel().catch(failure);},30000);
+        const timer = setTimeout(() => {reject(new Error(globalThis.t.text('workbench.personal-account.window-not-responding')));void cancel().catch(failure);},30000);
         waiting = {id:answer.id,resolve,reject,timer};
       });
     },

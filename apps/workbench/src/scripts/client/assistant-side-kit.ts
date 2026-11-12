@@ -1,11 +1,12 @@
 import { ASSISTANT_PROCESS_FACTORY_SCRIPT, ASSISTANT_RETRY_FACTORY_SCRIPT } from "./assistant-process.js";
 
 /** The bar's small common parts: icons, cards, sections, progress, step and retry rows, and the segmented choice. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
-export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the versions behind it are in its title.
-  const objectState = (object) => object.state === "changed" ? L("之后被改过") : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
-    : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里")) : "";
-  const objectDetail = (object) => object.state === "changed" ? L("这项工作记下版本") + " " + object.recorded_revision + " · " + L("现为版本") + " " + object.current_revision
-    : object.current_revision ? L("版本") + " " + object.current_revision : "";
+export const ASSISTANT_SIDE_KIT_PART = String.raw`  const sideText = globalThis.t.text;
+  // Short on the card; the versions behind it are in its title.
+  const objectState = (object) => object.state === "changed" ? sideText("workbench.assistant-side-kit.changed-since") : object.state === "missing" ? sideText("workbench.assistant-side-kit.no-longer-exists") : object.state === "unavailable" ? sideText("workbench.assistant-side-kit.cannot-be-read-now")
+    : object.state === "moved" ? (object.moved_to ? sideText("workbench.assistant-side-kit.moved") + "「" + object.moved_to.title + "」" : sideText("workbench.assistant-side-kit.another-project")) : "";
+  const objectDetail = (object) => object.state === "changed" ? sideText("workbench.assistant-side-kit.work-recorded-version") + " " + object.recorded_revision + " · " + sideText("workbench.assistant-side-kit.now-version") + " " + object.current_revision
+    : object.current_revision ? sideText("workbench.assistant-side-kit.version") + " " + object.current_revision : "";
   /* The side pane speaks in the page's own glyphs, rendered once into a template, so every kind of thing has a face. */
   const glyphs = island.querySelector("[data-assistant-glyphs]");
   const glyph = (name) => {
@@ -15,7 +16,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     return holder;
   };
   const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };
-  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer, glyph, spinner }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ L, root: island, setText });
+  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ readText, el, keyed, setText, placer, glyph, spinner }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ readText, root: island, setText });
   /** What an object is, read from its kind or the surface it opens in. */
   const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
     [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
@@ -23,7 +24,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
   const objectGlyph = (object) => kindGlyph((object.subject ? object.subject.kind : "") + " " + (object.open ? object.open.surface : ""));
   /** The plugin's own name for where an object lives: the catalog's name for it (the host asks the tab workspace, which holds
    *  the catalog and the plugins installed at run time), never what one list in the page happens to show. */
-  const surfaceName = (surf) => surf ? L((host.pluginTitle && host.pluginTitle(surf)) || surf) : "";
+  const surfaceName = (surf) => surf ? ((host.pluginTitle && host.pluginTitle(surf)) || surf) : "";
   /** A glyph on a small tinted square; its tone says waiting on you, done, a suggestion, or not there. */
   const tile = (name, tone) => { const box = el("span", "assistant-glyph" + (tone ? " is-" + tone : "")); box.append(typeof name === "string" ? glyph(name) : name); return box; };
   /** An action. Primary and secondary ones look like buttons; a quiet one (stop, take back, cancel) shows on hover or focus. */
@@ -46,7 +47,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     const text = el("div", "assistant-item-text");
     if (open) {
       const name = el("button", "assistant-item-title", title); name.type = "button";
-      name.setAttribute("aria-label", (openLabel || L("打开")) + "：" + title);
+      name.setAttribute("aria-label", (openLabel || sideText("common.control.open")) + "：" + title);
       name.addEventListener("click", () => { void open(); });
       text.append(name);
     } else text.append(el("span", "assistant-item-title", title));
@@ -58,7 +59,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
   };
   const openObject = (object) => object.open ? async () => showObject(object) : null;
   // A thing that is gone may come back named only by its id: the person never saw that id, so it reads as “this item”.
-  const objectTitle = (object) => object.title && object.title !== object.subject.id ? object.title : L("这项内容");
+  const objectTitle = (object) => object.title && object.title !== object.subject.id ? object.title : sideText("workbench.assistant-side-kit.item");
   const objectCard = (object, tone, openLabel) => {
     const state = objectState(object);
     return card({ icon: objectGlyph(object), tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : object.state !== "current" ? "attention" : tone,
@@ -68,9 +69,11 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
   /** Rebuilding a block under the person's focus would drop it: the same control gets it back. */
   const keepFocus = (node, build) => {
     const active = node.contains(document.activeElement) ? document.activeElement : null;
+    const mode = active?.dataset.assistantMode;
     const key = active ? (active.getAttribute("aria-label") || active.textContent) : null;
     build();
-    if (key) [...node.querySelectorAll("button, select, input, summary")].find((one) => (one.getAttribute("aria-label") || one.textContent) === key)?.focus();
+    if (mode) node.querySelector('[data-assistant-mode="' + CSS.escape(mode) + '"]')?.focus();
+    else if (key) [...node.querySelectorAll("button, select, input, summary")].find((one) => (one.getAttribute("aria-label") || one.textContent) === key)?.focus();
   };
   /** A block: a heading with its glyph and the summary that still says what matters folded (folding is remembered per viewer), then its content; with no content it is not shown. */
   const BLOCKS_KEY = "molis.assistant.blocks";
@@ -95,7 +98,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     node.replaceChildren(fold);
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
-  const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: L("再显示 {n} 项"), keep: ":has(> .is-blocked)" }); return box; };
+  const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: sideText("workbench.assistant-side-kit.show-n-more"), keep: ":has(> .is-blocked)" }); return box; };
   const progress = (done, total, label) => {
     const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(total ? done / total * 100 : 0) + "%"; meter.append(fill);
     meter.setAttribute("role", "img"); meter.setAttribute("aria-label", label + " " + done + "/" + total);
@@ -108,6 +111,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     const group = el("div", "assistant-segmented"); group.setAttribute("role", "group"); group.setAttribute("aria-label", label);
     options.forEach((option) => {
       const btnEl = el("button", "assistant-segment", option.label); btnEl.type = "button";
+      if (option.mode) btnEl.dataset.assistantMode = option.id;
       btnEl.setAttribute("aria-pressed", String(option.id === chosen));
       if (option.hint) btnEl.title = option.hint;
       if (option.disabled) { btnEl.disabled = true; btnEl.title = option.hint || ""; }

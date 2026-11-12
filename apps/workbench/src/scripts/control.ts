@@ -10,7 +10,7 @@ export const CONTROL_CLIENT_SCRIPT = UI_REQUEST_CLIENT_SCRIPT + PERSONAL_ACCOUNT
  */
 export const ONBOARDING_DISMISS_CLIENT_SCRIPT = `
   (() => {
-    const L = globalThis.L || ((text) => text);
+    const readText = globalThis.t.text;
     const globalError = document.querySelector("[data-onboarding-error]");
     const dismissButtons = [...document.querySelectorAll("[data-onboarding-dismiss]")];
     const setGlobalError = (message) => {
@@ -29,7 +29,7 @@ export const ONBOARDING_DISMISS_CLIENT_SCRIPT = `
       dismissButtons.forEach((button) => { button.disabled = true; });
       setGlobalError("");
       try {
-        await molisWorkRequest("/api/onboarding/dismiss", {body:{kind,user_confirmed:true},fallback:L("无法保存引导状态")});
+        await molisWorkRequest("/api/onboarding/dismiss", {body:{kind,user_confirmed:true},fallback:globalThis.t.text("workbench.control.could-not-save-onboarding-progress")});
         location.assign(returnHref);
       } catch (error) {
         setGlobalError(error);

@@ -3,6 +3,7 @@
 // Real production settings HTML, styles and client scripts in Chrome; only the HTTP answers are the test's, so what is checked is what
 // the page asks for and what it shows, not the Host's own checks.
 import assert from "node:assert/strict";
+import { workbenchLanguageResource } from "@molis-ai/molis-work-app-workbench";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
@@ -45,6 +46,7 @@ async function openPage(t: TestContext) {
   });
   const server = createServer((request, response) => {
     const url = request.url ?? "/";
+    const language = workbenchLanguageResource(url);
     const read = request.method === "GET" ? /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/usages$/.exec(url) : null;
     if (read) {
       reads.push(read[1]!);
@@ -59,6 +61,8 @@ async function openPage(t: TestContext) {
     } else if (url.startsWith("/settings/connectors") || url.startsWith("/capabilities/connections")) {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(runWithLocale(locale, () => renderMolisWorkSettings(view(), "connections-page-control-0123456789")));
+    } else if (language) {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" }); response.end(language.body);
     } else if (url === "/assets/molis-work-settings.css") {
       response.writeHead(200, { "content-type": "text/css; charset=utf-8" }); response.end(css);
     } else if (url === "/official-login") { response.writeHead(200, { "content-type": "text/html" }); response.end("<p>login</p>"); }
@@ -365,7 +369,7 @@ test("ASC-81 ASC-82: a new key the service refuses leaves the old one in use, sa
         assert.equal(await text(page, result), "新密钥没有换上，旧密钥照常在用。");
       } else {
         assert.match(await text(page, note), /refused the new key\. The current key keeps working/);
-        assert.equal(await text(page, result), "The new key wasn't put in; the current key keeps working.");
+        assert.equal(await text(page, result), "The new key wasn’t put in; the current key keeps working.");
       }
       assert.equal(await page.evaluate(`${form}.querySelector('input[type=password]').value`), "fixture-only-new-wechat-secret");
       assert.equal(await page.evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `${locale}/${theme}/${width}: no horizontal overflow`);

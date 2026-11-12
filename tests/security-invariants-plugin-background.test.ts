@@ -258,7 +258,7 @@ test("SYS-22 S-18 PG-038 deleting a project stops the background work a Home plu
   for (const project of ["p1", "p2"]) await actions.invoke(person(probe.permissions, project), probe.start, { id: project });
   await entered.promise;
   const hooks = projectDeletedHooksFor(home), owner = `plugin-background:${probe.id}`;
-  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: "{name} 的后台工作（将停止）" }],
+  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: { key: "workbench.project-deletion.background" } }],
     "the confirmation lists the work that stops even without project data");
   const accepted = (projectId: string) => probe.controls.find(control => control.project_id === projectId)!;
   const stopped = assert.rejects(probe.handles[0]!.result, { code: "actions.cancelled" });

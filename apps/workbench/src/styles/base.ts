@@ -1,17 +1,7 @@
-import { renderControlMetrics, renderShapeTokens, renderShellTokens, renderTerminalBase, FONT_STACK } from "@molis-ai/molis-work-design-system";
-
 export const STYLES = `
-  :root {
-    color-scheme: light;
-    ${renderShellTokens("light")}
-    ${renderShapeTokens()}
-    ${renderControlMetrics()}
-    ${renderTerminalBase()}
-    --font: ${FONT_STACK};
-  }
   * { box-sizing: border-box; }
   html { width: 100%; height: 100%; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
-  body { width: 100%; height: 100dvh; min-height: 0; margin: 0; overflow: hidden; overscroll-behavior: none; background: var(--page); color: var(--ink); font: 14px/1.55 var(--font); }
+  body { width: 100%; height: 100dvh; min-height: 0; margin: 0; overflow: hidden; overscroll-behavior: none; }
   button, input, textarea, select { font: inherit; }
   button { color: inherit; }
   button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }

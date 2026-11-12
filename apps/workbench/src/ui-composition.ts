@@ -4,7 +4,6 @@ import { ownedContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "./artifacts/index.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
-import { withPluginWords } from "./i18n.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
@@ -17,7 +16,7 @@ import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
  * surface→slot table and no per-plugin mount adapter lives here.
  */
 export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): UiHost {
-  const host = new UiHost({ slots: Object.values(WORKBENCH_UI_SLOTS), drawingAs: withPluginWords });
+  const host = new UiHost({ slots: Object.values(WORKBENCH_UI_SLOTS) });
   host.register(ownedContribution(artifactReferenceUiContribution, ARTIFACTS_PROVIDER_ID));
   host.register(ownedContribution(artifactBrowserUiContribution, ARTIFACTS_PROVIDER_ID));
   for (const pack of packs) {

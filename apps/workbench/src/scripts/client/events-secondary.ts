@@ -105,7 +105,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
       }
       const copy = target.closest("[data-copy-value]");
       if (copy) {
-        if (!await window.molisCopy?.(copy, copy.dataset.copyValue, { done: L("已复制"), failed: L("复制失败") })) showToast(L("无法访问剪贴板，请手动复制"), true);
+        if (!await window.molisCopy?.(copy, copy.dataset.copyValue, { done: globalThis.t.text("workbench.events-secondary.copied"), failed: globalThis.t.text("workbench.events-secondary.could-not-copy") })) showToast(globalThis.t.text("workbench.events-secondary.clipboard-unavailable-copy-manually"), true);
         return;
       }
       if (handleGoalRelationDisclosureClick(target)) return;

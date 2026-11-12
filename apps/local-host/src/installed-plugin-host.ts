@@ -1,3 +1,4 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
@@ -29,7 +30,7 @@ import { HomeConsentLedger } from './home-plugin-store.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -37,7 +38,6 @@ import { buildSources, generatedRegistration, readPluginPrompts, registerGenerat
 import { APPROVED_KEY, installedLifecycle } from './installed-plugin-lifecycle.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
-import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
@@ -67,13 +67,15 @@ export async function runningInstalledPluginPlatform(store: LocalProjectDatabase
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
-  const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);
+  const boards = hosts.get(options.store) ?? new Map();
   const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };
   const existing = boards.get(options.projectId);
   if (existing) {
     if (existing.home !== identity.home || existing.actor !== identity.actor || existing.project !== identity.project) throw new Error('安装运行入口的 Home、用户或项目身份不一致');
     return existing.ready;
   }
+  if (inLanguagePreview()) throw languagePreviewUnavailable();
+  hosts.set(options.store, boards);
   const ready = openInstalledPlugins(options);
   const entry = { ...identity, ready }; boards.set(options.projectId, entry);
   ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });
@@ -92,27 +94,23 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
   const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
   const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
-  let catalogPending: Promise<CatalogCapability[]> | undefined, exposureRevision = 0;
-  const catalog = (): Promise<CatalogCapability[]> => {
-    if (catalogPending) return catalogPending;
-    catalogPending = (async () => {
-      // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-      let snapshot: CatalogCapability[], revision: number;
-      for (;;) {
-        revision = exposureRevision; snapshot = await readCatalog();
-        if (closed) return [];
-        if (revision !== exposureRevision) continue;
-        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-        let changed = false;
-        for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-        if (!changed) return snapshot;
-      }
-    })().finally(() => { catalogPending = undefined; });
-    return catalogPending;
-  };
+  let exposureRevision = 0;
+  const catalog = installedCapabilityCatalog(homeDirectory, async () => {
+    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
+    let snapshot: CatalogCapability[], revision: number;
+    for (;;) {
+      revision = exposureRevision; snapshot = await readCatalog();
+      if (closed) return [];
+      if (revision !== exposureRevision) continue;
+      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
+      let changed = false;
+      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
+      if (!changed) return snapshot;
+    }
+  });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
-  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost({ drawingAs: withPluginWords }), home: pluginHomeFor(homeDirectory), projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
+  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: pluginHomeFor(homeDirectory), projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
     consents: ledger,
     ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
@@ -170,7 +168,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled,
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),
     earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]), declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimen, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { compareRunChangeSet } from "./comparison.js";
@@ -24,5 +25,5 @@ export function diffBoardSpecimens(p: PluginBoardSpecimenPorts): readonly Plugin
       { path: "docs/auth.md", kind: "added", added_lines: 128, removed_lines: 0, diff: "", review: review("board-2", null, "# Auth\n") },
       { path: "auth/cookie-v1.ts", kind: "deleted", added_lines: 0, removed_lines: 1042, diff: "", review: review("board-3", "export {};\n", "") },
     ] } });
-  return [{ id: "diff-files", place: "page", title: p.text("diff.board.files"), html: renderDiff({ view, primitives: p, labels: DIFF_LABELS }) }];
+  return [{ id: "diff-files", place: "page", title: uiText.text("diff.board.files"), html: renderDiff({ view, primitives: p, labels: DIFF_LABELS }) }];
 }

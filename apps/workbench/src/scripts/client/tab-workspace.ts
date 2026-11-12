@@ -3,6 +3,7 @@ import { sideOpenedTabs } from "./plugin-place.js";
 import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
+import { readClientPluginDirectory, readClientPluginTitles } from "../../plugin-directory.js";
 import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withLayout, withPluginGroups, withSidePane } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { OPENED_PLUGIN_RECORD_SCRIPT } from "./plugin-open-record.js";
@@ -23,7 +24,7 @@ export { placeLayoutMenu } from "./tab-workspace-menus.js";
 
 /** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
-  const { showToast, showGoalFrame, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
+  const { showToast, showGoalFrame, translate: readText, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
     applySelection, loadGoalDocument, getDocumentGoalId, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame } = host;
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
@@ -39,13 +40,29 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (key) sidePane?.open(key, item ? { item, title } : null);
     return Boolean(key);
   };
-  const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
-  // Plugins installed at run time (built in the studio) name their own stage.
-  document.querySelectorAll("[data-work-surface]").forEach((surface) => { const id = surface.dataset.workSurface; if (surface.dataset.workSurfaceLabel) PLUGIN_TAB_TITLES[id] = surface.dataset.workSurfaceLabel; if (!PLUGIN_TAB_ICON[id]) PLUGIN_TAB_ICON[id] = surface.dataset.installedPluginIcon || PLUGIN_TAB_ICON[surface.dataset.pluginClient] || "package"; });
+  const readDirectory = ${readClientPluginDirectory.toString()};
+  const readTitles = ${readClientPluginTitles.toString()};
+  const PLUGIN_TAB_TITLES = Object.create(null);
+  const refreshPluginTitles = () => {
+    for (const id of Object.keys(PLUGIN_TAB_TITLES)) delete PLUGIN_TAB_TITLES[id];
+    PLUGIN_TAB_TITLES.home = globalThis.t.text("workbench.immersive-navigation.project-home");
+    PLUGIN_TAB_TITLES.market = globalThis.t.text("workbench.tab-workspace.plugin-market");
+    document.querySelectorAll("[data-work-surface]").forEach((surface) => {
+      const id = surface.dataset.workSurface;
+      if (surface.dataset.workSurfaceLabel) PLUGIN_TAB_TITLES[id] = surface.dataset.workSurfaceLabel;
+      if (!PLUGIN_TAB_ICON[id]) PLUGIN_TAB_ICON[id] = surface.dataset.installedPluginIcon || PLUGIN_TAB_ICON[surface.dataset.pluginClient] || "package";
+    });
+    Object.assign(PLUGIN_TAB_TITLES, readTitles(document));
+  };
+  refreshPluginTitles();
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
   const ops = (${withLayout.toString()})((${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()})));
 ${TAB_WORKSPACE_PANES_PART}
 ${TAB_WORKSPACE_STRIP_PART}
+  document.addEventListener("molis-work:language-changed", () => {
+    refreshPluginTitles();
+    document.querySelectorAll(".tab-item[data-tab-kind=plugin]").forEach(node => retitlePluginTab(node, ops.pluginTitle(node.dataset.plugin)));
+  });
 ${TAB_WORKSPACE_PLACES_PART}
 ${TAB_WORKSPACE_PLUGINS_PART}
 ${TAB_WORKSPACE_MENUS_PART}
@@ -93,8 +110,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (stage.dataset.tabRemovedStage === plugin) return;
     stage.dataset.tabRemovedStage = plugin;
     const title = document.createElement("h2"), note = document.createElement("p");
-    title.textContent = L("{plugin} 已从这个项目移除", { plugin: L(ops.pluginTitle(plugin)) });
-    note.textContent = L("标签和内容都还在；把它加回这个项目，就能接着用。");
+    title.textContent = globalThis.t.text("workbench.tab-workspace.plugin-was-removed-project", { plugin: ops.pluginTitle(plugin) });
+    note.textContent = globalThis.t.text("workbench.tab-workspace.its-tabs-content-still-here-add-back-project");
     stage.replaceChildren(title, note);
   };
   // A plugin that did not start draws its placeholder stage marked unavailable (plugin-store-unavailable.ts, project-plugin-stages);
@@ -131,12 +148,12 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (stage.dataset.tabGoneStage === tab.id) return;
     stage.dataset.tabGoneStage = tab.id;
     const title = document.createElement("h2"), note = document.createElement("p"), actions = document.createElement("div");
-    title.textContent = L("这一条已经不在了");
-    note.textContent = L("可能已被删除，或移到了别的项目。标签先留着，关掉它不影响别的。");
+    title.textContent = globalThis.t.text("workbench.tab-workspace.one-no-longer-here");
+    note.textContent = globalThis.t.text("workbench.tab-workspace.may-have-been-deleted-moved-another-project-tab");
     const button = (label, variant, run) => { const node = document.createElement("button"); node.type = "button"; node.className = "mw-btn mw-btn--" + variant; node.textContent = label; node.addEventListener("click", run); return node; };
     actions.className = "mw-empty__actions";
-    actions.append(button(L("关闭标签"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
-      button(L("回到 {plugin} 列表", { plugin: L(ops.pluginTitle(tab.plugin)) }), "ghost", () => openPlugin(tab.plugin)));
+    actions.append(button(globalThis.t.text("workbench.tab-workspace.close-tab"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
+      button(globalThis.t.text("workbench.tab-workspace.back-plugin-list", { plugin: ops.pluginTitle(tab.plugin) }), "ghost", () => openPlugin(tab.plugin)));
     stage.replaceChildren(title, note, actions);
   };
   let state = ops.create(), column = "main";
@@ -301,10 +318,9 @@ ${TAB_WORKSPACE_DRAG_PART}
   const SEARCH_ROWS = ${JSON.stringify(searchRows())};
   // The Host's plugin directory on the page: each plugin's group colour (the hue its Manifest declares) and what ＋ lists (口径 8).
   // A plugin added or taken out in place brings the next page, and its directory, with it.
-  const readDirectory = (doc) => JSON.parse(doc?.querySelector("script[data-plugin-directory]")?.textContent || "[]");
   let directory = readDirectory(document);
   const DIRECTORY_HUES = Object.fromEntries(directory.filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, readText, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
   // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.
   // A main tab moved there shows in the workbench's own pane page, as a split pane does (07-S2).
   const paneUrl = (paneId, plugin, item, title, view) => {
@@ -316,7 +332,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     return url.href;
   };
   const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin,
-    gone: (tab) => tab?.kind === "pane" && typeof tab.item === "string" && goneRecords.has(goneKey(tab.plugin, tab.item)), L,
+    gone: (tab) => tab?.kind === "pane" && typeof tab.item === "string" && goneRecords.has(goneKey(tab.plugin, tab.item)), readText,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });
@@ -527,7 +543,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const box = source.getBoundingClientRect();
       // The first preview is the place the drag started from, so nothing moves until the pointer does.
       dragTab = { node: source, paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
-      if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tab.title);
+      if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tabLabel(tab));
       const ghost = document.createElement("nav");
       ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
       ghost.style.cssText = "position:absolute;top:-1000px;left:0;width:auto;height:auto;margin:0;padding:0;border:0;background:transparent;";

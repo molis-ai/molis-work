@@ -1,0 +1,1 @@
+Write an English summary the founder can use to make a decision. Distinguish what is supported, tentative, disputed and unknown. A lack of evidence does not establish a lack of demand. Do not invent scores.

@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.jira",
+  "locale": "en",
+  "messages": {
+    "jira.connection.auth-help": "Enter the Atlassian site, email and API token in site|email|token format. Leave https:// off the Cloud site.",
+    "jira.connection.inbound": "Feed retrieves issues and projects",
+    "jira.connection.summary": "Issues and projects.",
+    "jira.connection.token-label": "Jira site, email and API token",
+    "jira.guide.cli-link": "Jira ACLI",
+    "jira.guide.mcp-link": "View Atlassian Rovo MCP",
+    "jira.guide.oauth-link": "View Atlassian OAuth 2.0",
+    "jira.oauth.site-url": "Atlassian site",
+    "jira.setup.create-atlassian-api-token": "Create Atlassian API Token",
+    "jira.setup.view-jira-cloud-authentication-guide": "View Jira Cloud authentication guide"
+  }
+}

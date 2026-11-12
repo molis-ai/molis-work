@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.linkedin",
+  "locale": "zh",
+  "messages": {
+    "linkedin.connection.auth-help": "LinkedIn OpenID 会员令牌（openid profile）。identity 打官方 /v2/userinfo。帖子列表要 Community Management 权限，多数开发者应用会 403，连接仍以 userinfo 成功为准。",
+    "linkedin.connection.inbound": "API 读取 OpenID 会员资料",
+    "linkedin.connection.summary": "职业社交。",
+    "linkedin.connection.token-label": "LinkedIn 访问令牌",
+    "linkedin.guide.oauth-link": "查看 LinkedIn OAuth 2.0",
+    "linkedin.guide.token-note": "需要 OpenID 会员访问令牌；帖子权限另需审批。",
+    "linkedin.oauth.note": "应用需开通 Sign In with LinkedIn。普通 OIDC 不提供帖子 Feed 权限。",
+    "linkedin.setup.open-linkedin-developer-dashboard": "打开 LinkedIn 开发者后台"
+  }
+}

@@ -6,20 +6,22 @@ import { renderQuestions } from "./questions.js";
 import { paintStatus, publishContext, showNote } from "./status.js";
 import type { Translate } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** The list of forms and which one is open in the editor. */
 // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
-const fixedCell = (L: Translate, record: FormRecord) => {
+const fixedCell = (_L: Translate, record: FormRecord) => {
   const node = make("span", "mw-status mw-status--plain feed-entry-status");
-  if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("form.fixed.unfinished"); }
-  else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("form.fixed.label") + " v" + record.artifact_version; }
+  if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = uiText.text("form.fixed.unfinished"); }
+  else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = uiText.text("form.fixed.label") + " v" + record.artifact_version; }
   else node.setAttribute("aria-hidden", "true");
   return node;
 };
 
-const artifactLabel = (L: Translate, record: FormRecord | null) => record?.publication_pending ? L("form.fixed.resume") : record && record.artifact_version > 0 ? L("form.fixed.again") : L("form.fixed.save");
+const artifactLabel = (_L: Translate, record: FormRecord | null) => record?.publication_pending ? uiText.text("form.fixed.resume") : record && record.artifact_version > 0 ? uiText.text("form.fixed.again") : uiText.text("form.fixed.save");
 
 const listRow = (page: FormPage, record: FormRecord) => {
-  const { L, sel } = page;
+  const { readText, sel } = page;
   const item = make("article", "feed-stage-item creative-artifact-row");
   const row = document.createElement("button");
   row.type = "button";
@@ -33,13 +35,13 @@ const listRow = (page: FormPage, record: FormRecord) => {
   const published = record.status === "published";
   const status = document.createElement("span");
   status.className = "mw-status mw-status--plain mw-status--" + (published ? "progress" : "quiet") + " feed-entry-status";
-  status.dataset.mwState = published ? "doing" : record.status === "closed" ? "stopped" : "idle"; status.textContent = published ? L("form.list.collecting") : record.status === "closed" ? L("form.collect.stopped") : L("form.collect.off");
+  status.dataset.mwState = published ? "doing" : record.status === "closed" ? "stopped" : "idle"; status.textContent = published ? uiText.text("form.list.collecting") : record.status === "closed" ? uiText.text("form.collect.stopped") : uiText.text("form.collect.off");
   row.append(
     leading,
-    textCell("plugin-stage-fact", L("form.list.question-count", { count: (record.questions || []).length })),
+    textCell("plugin-stage-fact", uiText.text("form.list.question-count", { count: (record.questions || []).length })),
     textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
     status,
-    fixedCell(L, record),
+    fixedCell(readText, record),
   );
   item.append(row);
   return item;
@@ -52,7 +54,7 @@ const renderList = (page: FormPage) => {
   page.rowsEl.replaceChildren();
   page.records.forEach((record) => page.rowsEl.append(listRow(page, record)));
   const bar = page.one("[data-form-artifact-bar]");
-  if (bar) bar.textContent = artifactLabel(page.L, page.sel);
+  if (bar) bar.textContent = artifactLabel(page.readText, page.sel);
   if (page.list) page.list.scrollTop = top;
 };
 
@@ -113,7 +115,7 @@ export const remember = (page: FormPage, record: FormRecord, redraw: boolean) =>
 };
 
 export const loadList = async (page: FormPage) => {
-  const { L, one } = page;
+  const { one } = page;
   const seq = ++page.listSeq;
   const payload = await page.request<FormList>("GET", "");
   if (seq !== page.listSeq) return;
@@ -125,9 +127,9 @@ export const loadList = async (page: FormPage) => {
   button.disabled = !page.aiAvailable;
   const reason = one("[data-form-ai-reason]")!;
   reason.hidden = page.aiAvailable;
-  reason.replaceChildren(document.createTextNode(page.aiUnavailableReason || L("form.ai.no-model")));
+  reason.replaceChildren(document.createTextNode(page.aiUnavailableReason || uiText.text("form.ai.no-model")));
   if (!page.aiAvailable) {
-    const link = make("a", "", L("form.ai.open-settings"));
+    const link = make("a", "", uiText.text("form.ai.open-settings"));
     link.href = "/settings/models";
     reason.append(document.createTextNode(" "), link);
   }
@@ -135,16 +137,15 @@ export const loadList = async (page: FormPage) => {
 
 // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
 export const listFailed = (page: FormPage, error: Error | undefined) => {
-  const { L } = page;
   if (page.empty) page.empty.hidden = true;
   const box = make("div", "mw-empty mw-empty--error");
   box.setAttribute("role", "alert");
   box.innerHTML = '<span class="mw-empty__mark">' + icon("icon-circle-alert") + '</span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-  box.querySelector("strong")!.textContent = L("form.list.failed-title");
+  box.querySelector("strong")!.textContent = uiText.text("form.list.failed-title");
   const text = box.querySelector("p")!;
-  text.textContent = error?.message || L("form.list.failed-hint");
+  text.textContent = error?.message || uiText.text("form.list.failed-hint");
   const retry = box.querySelector("button")!;
-  retry.textContent = L("form.list.retry");
-  retry.addEventListener("click", () => { retry.disabled = true; void loadList(page).then(() => box.remove(), (next: Error | undefined) => { retry.disabled = false; text.textContent = next?.message || L("form.list.failed-hint"); }); });
+  retry.textContent = uiText.text("form.list.retry");
+  retry.addEventListener("click", () => { retry.disabled = true; void loadList(page).then(() => box.remove(), (next: Error | undefined) => { retry.disabled = false; text.textContent = next?.message || uiText.text("form.list.failed-hint"); }); });
   page.rowsEl.replaceChildren(box);
 };

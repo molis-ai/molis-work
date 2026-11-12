@@ -6,7 +6,7 @@ import type { createDrafts } from './drafts.js';
 import type { createTransport } from './transport.js';
 import type { createInvitations } from './invitations.js';
 
-/** The page's mutable state. One object, so the controller's layers (each serialized on its own) share it instead of a closure. */
+/** The page's mutable state. One object, so the controller's layers share it instead of a closure. */
 export interface ImState {
   hostVisible: boolean;
   readBusy: boolean;

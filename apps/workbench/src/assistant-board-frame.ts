@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   COMPOSER_LOADER_CLIENT_SCRIPT,
   DROP_ZONE_CLIENT_SCRIPT,
@@ -13,6 +13,9 @@ import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
+import { WEB_LOCALES, type WebLocale } from "./i18n.js";
+import { renderLanguageHead } from "./language-resource.js";
+import type { AssistantBoardSamples } from "./assistant-board-samples.js";
 
 /**
  * The component board's Assistant frame (specs/visual-ui-experience VUX-39; VUX-08/09/10/13/18): the page
@@ -24,7 +27,7 @@ import { renderWorkbenchBar } from "./immersive-shell.js";
  * frame never reaches a real work or changes what the workbench remembers on this computer.
  */
 export interface AssistantFrameOptions {
-  lang: "zh" | "en";
+  lang: WebLocale;
   /** The works' own words (the person's, the model's and what the Host and plugins wrote): Chinese, English or mixed. */
   text: "zh" | "en" | "mixed";
   /** What the stand-in Host does with a questionnaire's answer: takes it, or refuses it as the Runtime would (simulated). */
@@ -33,18 +36,17 @@ export interface AssistantFrameOptions {
   work: "plan" | "coding" | "check" | "limited" | "new";
 }
 export interface AssistantFramePorts {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   htmlLang(): string;
-  clientI18nScript(): string;
-  /** The samples as the Host drew them (`drawAssistantReply`), as JSON. */
-  samples: string;
+  /** The samples as the Host drew them (`drawAssistantReply`). */
+  samples: AssistantBoardSamples & { refused: Record<string, unknown> };
 }
 
 const pick = <T extends string>(value: string | null, allowed: readonly T[]): T => (allowed as readonly string[]).includes(value ?? "") ? value as T : allowed[0]!;
 
 /** Only known values are read; anything else is the first value, so the page never reflects what the query said. */
 export function parseAssistantFrame(query: URLSearchParams): AssistantFrameOptions {
-  return { lang: pick(query.get("lang"), ["zh", "en"] as const), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
+  return { lang: pick(query.get("lang"), WEB_LOCALES), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
     work: pick(query.get("work"), ["plan", "coding", "check", "limited", "new"] as const), answer: pick(query.get("answer"), ["ok", "refused"] as const) };
 }
 
@@ -56,15 +58,19 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
   + `.mw-asst-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.mw-asst-row [role=status]{color:var(--muted);font-size:12px}`;
 
 export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
-  const { L } = ports;
-  const bar = renderWorkbenchBar({ L, escapeHtml, icon, htmlLang: ports.htmlLang }, { rail: "", projectChrome: "", enabled: [] });
-  const data = `{"samples":${ports.samples.replaceAll("<", "\\u003c")},"current":${JSON.stringify(WORK_IDS[options.work])},"answer":"${options.answer}"}`;
+  const { readText } = ports;
+  const bar = renderWorkbenchBar({ readText, escapeHtml, icon }, { rail: "", projectChrome: "", enabled: [] });
+  const data = JSON.stringify({ samples: ports.samples, current: WORK_IDS[options.work], answer: options.answer }).replaceAll("<", "\\u003c");
+  // The language switch updates these words in place before the island reads its mode choices again.
+  const modeWords = ports.samples.executors.flatMap(offer => offer.modes.map(mode =>
+    `<span data-asst-mode-word="${escapeHtml(offer.plugin_id + "/" + mode.id)}">${escapeHtml(mode.title)}</span>`)).join("");
   return `<!doctype html>
 <html lang="${ports.htmlLang()}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(L("助理样例"))} · Molis Work</title>
+  <title>${escapeHtml(uiText.text("workbench.assistant-board-frame.assistant-specimen"))} · Molis Work</title>
+  ${renderLanguageHead(ports.htmlLang())}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
   <style>${FRAME_STYLES}</style>
@@ -72,22 +78,23 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
 <body class="immersive-workbench mw-asst-page">
   ${renderIconSprite()}
   <main class="mw-asst" data-asst-frame-page data-work="${options.work}" data-text="${options.text}" data-answer="${options.answer}">
-    <p data-asst-note>${escapeHtml(L("模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型；回答、核对与提醒只在这一页里生效，别的写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。"))}</p>
+    <p data-asst-note>${escapeHtml(uiText.text("workbench.assistant-board-frame.simulated-works-turns-host-s-answers-fixed-samples"))}</p>
     <div class="mw-asst-row">
-      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-attach>${escapeHtml(L("带上三个文件（模拟）"))}</button>
-      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-advance>${escapeHtml(L("推进一步（模拟）"))}</button>
+      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-attach>${escapeHtml(uiText.text("workbench.assistant-board-frame.bring-three-files-simulated"))}</button>
+      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-advance>${escapeHtml(uiText.text("workbench.assistant-board-frame.move-one-step-simulated"))}</button>
       <span role="status" data-asst-state></span>
     </div>
   </main>
   ${bar}
   <div class="mw-toast toast" data-toast role="status" aria-live="polite"></div>
+  <div hidden>${modeWords}</div>
   <script type="application/json" id="mw-asst-data">${data}</script>
-  <script>${ports.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}</script>
+  <script>${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}</script>
   <script>${ASSISTANT_FRAME_SCRIPT}</script>
-  <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: board.route, headers: () => ({}), project: board.project,
-    showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
+  <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: board.route, headers: () => ({}), project: board.project,
+    showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
     interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);
-  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
+  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
 </body>
 </html>`;
 }

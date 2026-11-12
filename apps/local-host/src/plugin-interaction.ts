@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { AGENT_QUESTION_TYPES, type AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -7,7 +8,8 @@ import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
 import { assistantCardHtml } from "./assistant/assistant-card-view.js";
-import { isWebLocale, L, pageLocale, runWithLocale } from "./web-locale.js";
+import { installHostUiText } from "./ui-text-provider.js";
+import { isWebLocale, readText, pageLocale, runWithLocale } from "./web-locale.js";
 
 const interactionErrors = defineErrorCodes("host", { plugin_interaction_invalid: "invalid" });
 
@@ -79,7 +81,10 @@ function steps(value: unknown): PluginInteractionNextSteps {
  */
 function inCallLanguage<T>(draw: () => T): Promise<T> {
   const scope = currentPluginInvocation(), locale = scope ? scope.caller.locale : pageLocale();
-  return Promise.resolve().then(() => runWithLocale(locale !== undefined && isWebLocale(locale) ? locale : "zh", draw));
+  return Promise.resolve().then(() => {
+    installHostUiText();
+    return runWithLocale(locale !== undefined && isWebLocale(locale) ? locale : "zh", draw);
+  });
 }
 
 /**
@@ -88,13 +93,13 @@ function inCallLanguage<T>(draw: () => T): Promise<T> {
  * passes and writes nothing, so every activation gets it without a permission (S-56). One frozen object, shared by every activation.
  */
 export const pluginInteraction = Object.freeze<PluginInteractionClient>({
-  questionHtml: (value, options) => inCallLanguage(() => agentQuestionHtml(question(value), L, undefined, undefined, options?.reask === true)),
-  cardHtml: (value, options) => inCallLanguage(() => assistantCardHtml(card(value), L, undefined, options?.redo === true)),
+  questionHtml: (value, options) => inCallLanguage(() => agentQuestionHtml(question(value), readText, undefined, undefined, options?.reask === true)),
+  cardHtml: (value, options) => inCallLanguage(() => assistantCardHtml(card(value), readText, undefined, options?.redo === true)),
   nextStepsHtml: value => inCallLanguage(() => {
     const input = steps(value);
     // Once the round is over, the result of its card that ran last, pressed by the selector its page keeps the card under.
-    const ran = input.finished ? cardOutcomeSteps(input.cards, "", L, item => `[data-card=${JSON.stringify(item.card_id)}] [data-ix-press=${JSON.stringify(CARD_RESULT_OPEN)}]`) : [];
-    const all = interactionNextSteps(input.questions, input.cards, [], [...ran, ...(input.follow_ups ?? [])], L);
-    return all.length ? renderInteractionNextSteps(all, L("下一步"), { max: all.length }) : "";
+    const ran = input.finished ? cardOutcomeSteps(input.cards, "", readText, item => `[data-card=${JSON.stringify(item.card_id)}] [data-ix-press=${JSON.stringify(CARD_RESULT_OPEN)}]`) : [];
+    const all = interactionNextSteps(input.questions, input.cards, [], [...ran, ...(input.follow_ups ?? [])], readText);
+    return all.length ? renderInteractionNextSteps(all, uiText.text("workbench.plugin-interaction.next"), { max: all.length }) : "";
   }),
 });

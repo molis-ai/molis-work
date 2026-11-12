@@ -7,8 +7,6 @@ import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
 import { imagesSync } from './replication.js';
 
-import { IMAGES_MESSAGES } from "./messages.js";
-import { IMAGES_EN } from "./en.js";
 export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
   {route_id:"images.connections.list",method:"GET",path:"/connections",permission:"images:connections:read"},
@@ -29,8 +27,8 @@ export const imagesManifest: PluginManifest = {
   version: /* @version product.release */ "0.1.0",
   name: "图片",
   sync: imagesSync,
-  name_en: "Images",
-  summary: "连接生图服务，按描述生成图片。",
+  name_text: { key: "images.directory.name" },
+  summary: "连接生图服务，按描述生成图片。", summary_text: { key: "images.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -49,10 +47,8 @@ export const imagesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [SHELF_ADMIT_ID] },
   artifacts: { produces: [], consumes: [] },
-  ui: {
-    messages: IMAGES_MESSAGES,
-    translations: IMAGES_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
-    views: [{ view_id: "directory", slot: "navigator", title: "图片", title_en: "Images", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
+    views: [{ view_id: "directory", slot: "navigator", title: "图片", title_text: { key: "images.directory.view-directory" }, contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },
 };

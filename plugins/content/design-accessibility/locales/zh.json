@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.content.design-accessibility",
+  "locale": "zh",
+  "messages": {
+    "design-accessibility.directory.name": "设计与无障碍",
+    "design-accessibility.directory.summary": "设计评审、无障碍审查（WCAG 2.1 AA）、设计交付、设计系统与界面文字五个技能，给个人助理、Coding 的界面任务和 Pages 用。",
+    "design-accessibility.skill.accessibility-review.description": "按 WCAG 2.1 AA 审查一个页面、组件、设计稿或一段界面代码的无障碍问题，逐条写出位置、对应的成功准则、影响到谁和怎么改。用户要做无障碍审查、问某个界面能不能只用键盘或读屏用、上线前做无障碍检查，或改了界面要确认没有引入新问题时使用。",
+    "design-accessibility.skill.accessibility-review.when-to-use": "有具体的对象可看（页面、截图、设计稿、组件代码或能打开的地址），想知道它离 WCAG 2.1 AA 还差什么、先改哪几处。",
+    "design-accessibility.skill.accessibility-review.when-not-to-use": "只想听整体设计好不好（用 design-critique）；要写或改界面文字（用 ux-copy）；要法律意见或正式的合规认证，这份审查代替不了。",
+    "design-accessibility.skill.design-critique.description": "对一个界面、流程或设计稿做结构化的设计评审：先弄清它要帮谁完成什么，再从任务能否走通、视觉层次、一致性、状态与反馈、信息密度几方面找问题，每条写明依据、影响和具体改法，分出必须改和可以考虑。用户要设计评审、问某个页面或原型哪里不好、要在几个方案之间比较，或改完界面要人挑毛病时使用。",
+    "design-accessibility.skill.design-critique.when-to-use": "有能看的东西（截图、设计稿、原型、能打开的页面或界面代码），想知道哪里会让人用不顺、看不清或觉得乱，以及先改什么。",
+    "design-accessibility.skill.design-critique.when-not-to-use": "只要逐条对照 WCAG 查无障碍（用 accessibility-review）；只改文字（用 ux-copy）；要把定稿整理成开发能照做的说明（用 design-handoff）；还没有任何草图、只是在想做什么。",
+    "design-accessibility.skill.design-handoff.description": "把定下来的设计整理成开发能照着做、不用再猜的交付说明：范围、每个界面的全部状态、用到的组件与设计变量、交互与动效、真实文字、无障碍要求、数据与边界情况、不同宽度下的变化和待定问题；也用来在开工前检查一份交付说明缺了什么。用户要写设计交付或开发说明、要把设计稿交给开发，或拿到设计准备实现时使用。",
+    "design-accessibility.skill.design-handoff.when-to-use": "设计已经基本定下，要交给别人（或 Coding）实现；或者手上有一份设计稿或交付说明，开工前想知道还缺哪些决定。",
+    "design-accessibility.skill.design-handoff.when-not-to-use": "设计还在探索、要先挑毛病（用 design-critique）；只查无障碍（用 accessibility-review）；只改文字（用 ux-copy）；要维护整套组件和设计变量（用 design-system）。",
+    "design-accessibility.skill.design-system.description": "在代码里使用、扩展和检查一套设计系统：动手写界面前先找已有的设计变量和组件；确实要新增时按层级起名、把状态、主题和无障碍做全、补上组件板的标本；检查一个代码库偏离设计系统的地方（写死的颜色与尺寸、一次性的组件、系统默认控件）并给出迁移顺序。写或改界面代码、要新增组件或设计变量、要清理界面不一致时使用。",
+    "design-accessibility.skill.design-system.when-to-use": "在有设计系统（设计变量、组件库、组件板或设计说明）的项目里写界面代码；要决定是用现成的还是新造；要盘点和收拢界面里的不一致。",
+    "design-accessibility.skill.design-system.when-not-to-use": "评一个界面好不好用（用 design-critique）；查无障碍（用 accessibility-review）；写交付给开发的说明（用 design-handoff）；项目还没有任何设计系统、只是做一次性原型。",
+    "design-accessibility.skill.ux-copy.description": "写和改界面文字：按钮、标题、空状态、错误、确认、提示、加载、权限请求和引导。按「说清发生了什么、接下来能做什么」来写，用词前后一致，中英文各守各的写法，不拼半句、不把数量硬塞进句子。用户要写或改界面文案、觉得某处说法别扭或看不懂、要统一一个功能里的用词，或要给界面文字配英文时使用。",
+    "design-accessibility.skill.ux-copy.when-to-use": "有具体的界面或文字要写、要改、要检查，包括一整个流程的文字统一和中英文对照。",
+    "design-accessibility.skill.ux-copy.when-not-to-use": "写营销文章、长篇帮助文档或公告；评整体设计（用 design-critique）；查无障碍（用 accessibility-review，那里会顺带指出名称和错误提示的问题）。"
+  }
+}

@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
 import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
-import { pageText } from "./fixtures/page-text.js";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 // W3-02-C: the Coding MCP settings section decides "this project has not enabled Coding" from the platform's code, `actions.plugin_disabled`
 // (the code the action layer and the Runtime router give that fact), and then offers the person a button to enable it. The shipped script runs
@@ -37,6 +37,7 @@ class FakeElement {
 
 interface Answer { readonly ok: boolean; readonly status: number; readonly body: unknown }
 const answer = (status: number, body: unknown): Answer => ({ ok: status < 400, status, body });
+const settingsWords = (locale: "zh" | "en") => `${pageTextScript(locale, "coding")}\nconst readText = globalThis.t.text;\n`;
 
 /** The page's `molisWorkRequest`, built from the package's public factory over the fixture's fake network (as the page program builds it). */
 type RequestLog = { url: string; method: string; body?: unknown };
@@ -47,13 +48,13 @@ function pageRequest(answers: (url: string, method: string) => Answer, requests:
       requests.push({ url, method: init.method, ...(typeof init.body === "string" ? { body: JSON.parse(init.body) } : {}) });
       return new Response(JSON.stringify(found.body), { status: found.status });
     },
-    origin: "http://127.0.0.1:1", token: () => "token", newKey: () => "key", translate: text => text,
+    origin: "http://127.0.0.1:1", token: () => "token", newKey: () => "key", readText: text => text,
   }, UI_HOST_CLIENT_CODES);
 }
 
 function fixture(answers: (url: string, method: string) => Answer, locale: "zh" | "en" = "zh") {
   const root = new FakeElement(); root.dataset.prefix = "/projects/project-1/";
-  const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
+  const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement(), documentElement: {} });
   document.querySelector = (selector: string) => selector === "[data-coding-mcp-settings]" ? root : null;
   const requests: RequestLog[] = [];
   const timers = { started: [] as number[], cleared: [] as number[] };
@@ -61,8 +62,8 @@ function fixture(answers: (url: string, method: string) => Answer, locale: "zh" 
   // RAC-2849: exercise the client the three consumers actually receive from the registration.
   const client = codingRegistration.workbench.settingsClient;
   assert.ok(client);
-  vm.runInNewContext(client, {
-    document, location, URL, molisWorkRequest: pageRequest(answers, requests), L: pageText(locale), // the page's translator, as the Host's pages define it
+  vm.runInNewContext(settingsWords(locale) + client, {
+    document, location, URL, molisWorkRequest: pageRequest(answers, requests),
     setInterval: () => { timers.started.push(timers.started.length + 1); return timers.started.length; },
     clearInterval: (id: number) => { timers.cleared.push(id); },
   });
@@ -135,6 +136,6 @@ test("SPC-C08 a committed Coding membership change leaves the refresh message an
 test("VUX-40: the MCP settings speak the page's language when the project has not enabled Coding", async () => {
   const page = fixture(url => url === STATE ? NOT_ENABLED_ANSWER : url === MEMBERSHIP ? observation("first") : answer(500, {}), "en");
   await page.settled();
-  assert.equal(page.status.textContent, "Coding isn't enabled in this project yet. Once it is, you can choose authorized tools; none run automatically.");
+  assert.equal(page.status.textContent, "Coding isn’t enabled in this project yet. Once it is, you can choose authorized tools; none run automatically.");
   assert.equal(page.status.children[0]!.textContent, "Enable Coding in this project");
 });

@@ -1,9 +1,0 @@
-{
-  "exceptions": {
-    "function packages/im-ui/src/views.ts#createViews": {
-      "kind": "cohesive-unit",
-      "reason": "讨论页同一根节点的视图工厂：共享节点查询、HTML缓存、消息格式与当前语言，返回同一页面的局部绘制方法；本次只接入语言与日期，拆出转发工厂不会改变视图职责。",
-      "size": 151
-    }
-  }
-}

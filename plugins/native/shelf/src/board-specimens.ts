@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimen, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { ShelfItemGroup, ShelfItemKind, ShelfItemRecord } from "@molis-ai/molis-work-module-shelf/contract";
 import { renderRow, stageFold } from "./ui.js";
@@ -24,7 +25,7 @@ export function shelfBoardSpecimens(p: PluginBoardSpecimenPorts): readonly Plugi
   });
   const fold = (id: "materials" | "results", label: string, group: ShelfItemGroup) => {
     const rows = ROWS.filter((row) => row[3] === group);
-    return stageFold(p.text(label), id, rows.length, `<ul class="shelf-tree" data-shelf-list="${id}">${rows.map((row) => renderRow(item(row), false, p)).join("")}</ul>`);
+    return stageFold(uiText.text(label), id, rows.length, `<ul class="shelf-tree" data-shelf-list="${id}">${rows.map((row) => renderRow(item(row), false, p)).join("")}</ul>`);
   };
-  return [{ id: "shelf-media", place: "column", title: p.text("媒体材料行 · 图片、视频、音频与失败的结果"), html: `<div data-shelf="board">${fold("materials", "材料", "material")}${fold("results", "生成结果", "result")}</div>` }];
+  return [{ id: "shelf-media", place: "column", title: uiText.text("shelf.board-specimens.media-rows-image-video-audio-failed-result"), html: `<div data-shelf="board">${fold("materials", "shelf.board-specimens.materials", "material")}${fold("results", "shelf.board-specimens.results", "result")}</div>` }];
 }

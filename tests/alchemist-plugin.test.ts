@@ -7,10 +7,12 @@ import {
   alchemistManifest,
   renderAlchemistWorkbench,
 } from "@molis-ai/molis-work-plugin-alchemist";
+import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
+const packs = chinesePagePacks("alchemist");
 const primitives = {
   escape: (value: unknown) => String(value ?? ""),
-  text: (value: string) => value,
+  text: pageTextForPacks("zh", packs),
 };
 
 test("VG-21 the served client finds a pulse job by the same string it always did, now that the table holds its version", () => {
@@ -22,7 +24,7 @@ test("炼金术士是个人侧栏插件，舞台挂载完整工作面", () => {
   assert.equal(alchemistManifest.kind, "native");
   assert.equal(alchemistManifest.ui.views?.[0]?.slot, "navigator");
   assert.equal(alchemistManifest.ui.views?.[0]?.icon, "zap");
-  const html = renderAlchemistWorkbench({ primitives });
+  const html = withPagePacks("zh", packs, () => renderAlchemistWorkbench({ primitives }));
   assert.match(html, /data-alchemist="workbench"/);
   assert.doesNotMatch(html, /<iframe|Founder Lab|app-shell/);
   assert.match(html, /data-alc-rows/);

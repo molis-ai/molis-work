@@ -1,19 +1,35 @@
+import { agentReviewRecoveryDocument } from "../../agent-review-recovery.js";
+
 /** Host-owned review actions. Plugins receive a rendering hook, never a decision capability. */
 export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const mounts=new WeakMap(), busy=new Set(), recoveryDrafts=new Map(), feedbackDrafts=new Map();
+  const mounts=new WeakMap(), recoveryViews=new WeakMap(), busy=new Set(), recoveryDrafts=new Map(), feedbackDrafts=new Map();
+  const renderRecovery=(view)=> (${agentReviewRecoveryDocument.toString()})(view,{
+    escape:value=>String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]),
+    t:globalThis.t,say:globalThis.say,dateArg:(at,style)=>({kind:'date',at,style})
+  });
+  const retitleRecovery=(container,locale)=>{
+    const merge=globalThis.molisWorkRetitleRegion;
+    if(!merge)return;
+    for(const panel of container.querySelectorAll('[data-review-recovery-view]')){
+      const retained=recoveryViews.get(panel);if(!retained || retained.locale===locale)continue;
+      const after=renderRecovery(retained.view);
+      merge(panel.parentElement,retained.html,after);
+      retained.html=after;retained.locale=locale;
+    }
+  };
   const feedbackKey=id=>'molis-review-feedback:'+host.route('/api/agent/reviews')+':'+id;
   const readFeedback=id=>{try{return sessionStorage.getItem(feedbackKey(id)) ?? feedbackDrafts.get(id) ?? '';}catch{return feedbackDrafts.get(id) ?? '';}};
   const saveFeedback=(id,text)=>{feedbackDrafts.set(id,text);try{if(text)sessionStorage.setItem(feedbackKey(id),text);else sessionStorage.removeItem(feedbackKey(id));}catch{}};
   const syncActions=row=>{
     const id=row.dataset.agentReviewItem,hasFeedback=Boolean(row.querySelector('[data-agent-review-feedback]')?.value.trim());
     row.querySelectorAll('[data-agent-review-approve],[data-agent-review-reject],[data-agent-review-inspect]').forEach(button=>{button.disabled=busy.has(id) || hasFeedback && button.hasAttribute('data-agent-review-approve');});
-    const reject=row.querySelector('[data-agent-review-reject]');if(reject)reject.textContent=hasFeedback?'拒绝并反馈':'拒绝';
+    const reject=row.querySelector('[data-agent-review-reject]');if(reject)reject.textContent=hasFeedback?globalThis.t.text("workbench.agent-review.reject-feedback"):globalThis.t.text("workbench.agent-review.reject");
     const input=row.querySelector('[data-agent-review-feedback]');if(input)input.disabled=busy.has(id);
   };
   const current=(state,control)=>state.lifetime.alive && control.lifetime.alive && control.lifetime.visible && !control.signal?.aborted && state.control.lifetime===control.lifetime && state.control.signal===control.signal;
   const read=async(path,body,control) => {
     const {lifetime,signal}=control;
-    const data=await molisWorkRequest(host.route(path),{body,headers:host.headers?.(),scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:'审查暂不可用'});
+    const data=await molisWorkRequest(host.route(path),{body,headers:host.headers?.(),scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:globalThis.t.text("workbench.agent-review.unavailable")});
     lifetime.assertCurrent(body?undefined:signal);return data;
   };
   // scope.runSession lists every run of one runtime session; scope.limit keeps open items plus that much settled history.
@@ -22,8 +38,11 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     let state=mounts.get(container);
     if(!state) {
       const lifetime=host.mountPluginClient(container);if(!lifetime)return;
-      state={key:'',ticket:0,refs:[],more:0,control,lifetime}; mounts.set(container,state);
+      state={key:'',ticket:0,refs:[],more:0,control,lifetime,reviews:null,locale:null}; mounts.set(container,state);
       lifetime.own(()=>{state.ticket++;if(mounts.get(container)===state)mounts.delete(container);});
+      state.lifetime.listen(document, "molis-work:language-changed", () => {
+        if(current(state,state.control))void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
+      });
       state.lifetime.listen(container,'click',event=>{if(!event.target.closest('[data-review-more]'))return;state.more+=50;void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);});
       state.lifetime.listen(container,'input',event=>{
         if(event.target.matches('[data-agent-review-feedback]')){
@@ -39,7 +58,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(recoveryButton && container.contains(recoveryButton)) {
           const row=recoveryButton.closest('[data-agent-review-item]'), review_id=row.dataset.agentReviewItem;
           if(busy.has(review_id))return;
-          const control=state.control,scopeKey=state.key, scope={workspaceId:state.workspaceId,sessionId:state.sessionId};
+          const control=state.control,scopeKey=state.key, locale=document.documentElement.dataset.uiLanguageTag, scope={workspaceId:state.workspaceId,sessionId:state.sessionId};
           const holder=row.querySelector('[data-review-recovery]');
           busy.add(review_id); recoveryButton.disabled=true;
           try {
@@ -50,7 +69,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
               const panel=row.querySelector('[data-review-recovery-view]');
               const confirmed=row.querySelector('[data-review-recovery-confirm]')?.checked===true;
               const reason=row.querySelector('[data-review-recovery-reason]')?.value || '';
-              if(confirm && (!confirmed || !reason.trim()))throw new Error('请填写具体依据并确认原操作未发生');
+              if(confirm && (!confirmed || !reason.trim()))throw new Error(globalThis.t.text("workbench.agent-review.need-evidence"));
               if(confirm && host.confirm && !await host.confirm(row.textContent))return;
               if(!current(state,control))return;
               data=await read('/api/agent/reviews/recovery',{review_id,action:confirm?'not-happened':'refresh',confirmed,reason,revision:panel?.dataset.reviewRevision},control);
@@ -61,7 +80,10 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
               await host.onDecision?.({...scope,receipt:data.view.receipt,error:null});
               if(!current(state,control))return;await show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
             } else {
-              holder.innerHTML=data.html;
+              const html=locale===document.documentElement.dataset.uiLanguageTag ? data.html : renderRecovery(data.view);
+              holder.innerHTML=html;
+              const panel=holder.querySelector('[data-review-recovery-view]');
+              if(panel)recoveryViews.set(panel,{view:data.view,html,locale:document.documentElement.dataset.uiLanguageTag});
               const draft=recoveryDrafts.get(review_id);
               const input=holder.querySelector('[data-review-recovery-reason]'),check=holder.querySelector('[data-review-recovery-confirm]');
               if(input && draft)input.value=draft.reason;
@@ -97,46 +119,52 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
     }
     control={...control,requestLifetime:state.lifetime};state.control=control;
-    const key=JSON.stringify([refs,sessionId,workspaceId,scope?.runSession || null]); const ticket=++state.ticket;
-    if(state.key!==key){container.replaceChildren();delete container.dataset.reviewHtml;state.key=key;state.more=0;}
+    const key=JSON.stringify([refs,sessionId,workspaceId,scope?.runSession || null]); const ticket=++state.ticket, locale=document.documentElement.dataset.uiLanguageTag;
+    if(state.key!==key){container.replaceChildren();delete container.dataset.reviewHtml;state.key=key;state.more=0;state.reviews=null;state.locale=null;}
     state.refs=refs;state.sessionId=sessionId;state.workspaceId=workspaceId;state.scope=scope;
     if(!refs.length && !sessionId && !workspaceId && !scope?.runSession) {container.hidden=true;return;}
+    retitleRecovery(container,locale);
     try {
       const query=new URLSearchParams();if(sessionId)query.set('session_id',sessionId);if(workspaceId)query.set('workspace_id',workspaceId);refs.forEach(ref=>query.append('run_id',ref.run_id));
       if(scope?.runSession)query.set('run_session_id',scope.runSession);if(scope?.limit)query.set('limit',String(scope.limit+state.more));
       const data=await read('/api/agent/reviews?'+query,undefined,control);
       if(!current(state,control) || ticket!==state.ticket || key!==state.key) return;
+      if(locale!==document.documentElement.dataset.uiLanguageTag){void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);return;}
       container.hidden=data.reviews.length===0;
       container.querySelector('[data-review-load-error]')?.remove();
-      if(container.dataset.reviewHtml!==data.html) {
+      const translatedOnly = state.locale !== locale && state.reviews && container.dataset.reviewHtml && globalThis.molisWorkRetitleRegion
+        && JSON.stringify(state.reviews) === JSON.stringify(data.reviews);
+      if(translatedOnly)globalThis.molisWorkRetitleRegion(container,container.dataset.reviewHtml,data.html);
+      else if(container.dataset.reviewHtml!==data.html) {
         const detailKey=item=>{const row=item.closest('[data-agent-review-item]');return JSON.stringify([row?.dataset.agentReviewItem,row?.dataset.agentReviewPhase,item.dataset.reviewDetail]);};
         const details=new Map([...container.querySelectorAll('details[data-review-detail]')].map(item=>[detailKey(item),item.open]));
         const panels=new Map([...container.querySelectorAll('[data-review-recovery-view]')].map(panel=>[panel.closest('[data-agent-review-item]').dataset.agentReviewItem,panel]));
-        const focused=container.contains(document.activeElement) && document.activeElement.matches('[data-agent-review-feedback]') ? {id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd}:null;
+        const focused=container.contains(document.activeElement) && document.activeElement.matches('[data-agent-review-feedback]') ? {id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd,direction:document.activeElement.selectionDirection}:null;
         let scroller=container.parentElement;while(scroller && scroller.scrollHeight<=scroller.clientHeight)scroller=scroller.parentElement;
         const visibleTop=scroller?.getBoundingClientRect().top || 0;
         const anchor=scroller?.scrollTop>0 ? [...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.getBoundingClientRect().bottom>visibleTop) : null;
         const anchorId=anchor?.dataset.agentReviewItem,anchorTop=anchor?.getBoundingClientRect().top;
-        container.innerHTML=data.html;container.dataset.reviewHtml=data.html;
+        container.innerHTML=data.html;
         container.querySelectorAll('[data-agent-review-item]').forEach(row=>{const holder=row.querySelector('[data-review-recovery]'),panel=panels.get(row.dataset.agentReviewItem);if(holder && panel)holder.append(panel);});
         container.querySelectorAll('details[data-review-detail]').forEach(item=>{const open=details.get(detailKey(item));if(open!==undefined)item.open=open;});
         container.querySelectorAll('[data-agent-review-feedback]').forEach(input=>{
           const id=input.closest('[data-agent-review-item]').dataset.agentReviewItem;input.value=readFeedback(id);
-          if(focused?.id===id){input.focus({preventScroll:true});input.setSelectionRange(focused.start,focused.end);}
+          if(focused?.id===id){input.focus({preventScroll:true});input.setSelectionRange(focused.start,focused.end,focused.direction);}
         });
         if(anchorId && scroller){const next=[...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.dataset.agentReviewItem===anchorId);if(next)scroller.scrollTop+=next.getBoundingClientRect().top-anchorTop;}
       }
+      container.dataset.reviewHtml=data.html;state.reviews=data.reviews;state.locale=locale;
       container.querySelectorAll('[data-agent-review-item]').forEach(syncActions);
       // Older settled history is one click away rather than resent on every refresh.
       let more=container.querySelector(':scope > [data-review-more]');
-      if(data.omitted>0){if(!more){more=document.createElement('button');more.type='button';more.className='mw-btn mw-btn--ghost';more.dataset.reviewMore='';}container.append(more);more.textContent='显示更早的 '+data.omitted+' 条审查记录';}
+      if(data.omitted>0){if(!more){more=document.createElement('button');more.type='button';more.className='mw-btn mw-btn--ghost';more.dataset.reviewMore='';}container.append(more);more.textContent=globalThis.t.text("workbench.agent-review.older", { count: data.omitted });}
       else more?.remove();
     } catch(error) {
       if(!current(state,control) || ticket!==state.ticket) return;
       container.hidden=false;
       let note=container.querySelector('[data-review-load-error]');
       if(!note){note=document.createElement('p');note.dataset.reviewLoadError='';note.setAttribute('role','alert');container.prepend(note);}
-      molisWorkRequest.show(note,error);note.prepend(document.createTextNode('审查暂未刷新：'));
+      molisWorkRequest.show(note,error);note.prepend(document.createTextNode(globalThis.t.text("workbench.agent-review.refresh-failed")));
     }
   };
   return show;

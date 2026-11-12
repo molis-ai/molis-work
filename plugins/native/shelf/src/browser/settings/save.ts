@@ -4,6 +4,8 @@ import { labelOf, panelChordOf, panelLabel, PANEL_DEFAULTS, sameChord, samePanel
 import type { Chord, Settings, SettingsPage } from "./types.js";
 import type { ShelfHotKeySlot, ShelfPanelKeySlot, ShelfSettingsPatch } from "@molis-ai/molis-work-module-shelf/contract";
 
+const uiText = globalThis.t;
+
 export const invoke = (name: string, payload?: unknown): Promise<unknown> => {
   const fn = globalThis.__TAURI__?.core?.invoke;
   return typeof fn === "function" ? fn(name, payload) : Promise.resolve(null);
@@ -33,12 +35,12 @@ export function paintHotkeys(page: SettingsPage, root: ParentNode, hotkeys: Sett
   root.querySelectorAll<HTMLElement>("[data-shelf-hotkey-slot]").forEach((row) => paintChord(page, row, hotkeys[row.dataset.shelfHotkeySlot as ShelfHotKeySlot]));
 }
 
-function paintOccupied(page: SettingsPage, root: ParentNode, status: Record<string, boolean> | null): void {
+function paintOccupied(_page: SettingsPage, root: ParentNode, status: Record<string, boolean> | null): void {
   root.querySelectorAll<HTMLElement>("[data-shelf-hotkey-slot]").forEach((row) => {
     const caption = row.querySelector<HTMLElement>("[data-shelf-hotkey-caption]");
     if (!caption) return;
     const taken = status?.[row.dataset.shelfHotkeySlot ?? ""] === false;
-    caption.textContent = taken ? page.L("shelf.settings.hotkey-occupied") : (caption.dataset.idleCaption || caption.textContent);
+    caption.textContent = taken ? uiText.text("shelf.settings.hotkey-occupied") : (caption.dataset.caption || caption.textContent);
     caption.toggleAttribute("data-occupied", taken);
   });
 }
@@ -92,7 +94,7 @@ export function stopRecording(page: SettingsPage): void {
 
 /** One save of a patch: paints what came back and hands the new hotkeys to the desktop. */
 export async function savePatch(page: SettingsPage, root: ParentNode, patch: ShelfSettingsPatch): Promise<Settings> {
-  const body = await molisWorkRequest<Settings>(page.api + "/settings", { method: "POST", body: patch, fallback: page.L("shelf.settings.save-failed") });
+  const body = await molisWorkRequest<Settings>(page.api + "/settings", { method: "POST", body: patch, fallback: uiText.text("shelf.settings.save-failed") });
   paintHotkeys(page, root, body.hotkeys);
   if (patch.hotkeys) {
     const status = await invoke("shelf_apply_hotkeys", { toggle: body.hotkeys.toggle, capture: body.hotkeys.capture, files: body.hotkeys.files }).catch(() => null);
@@ -124,7 +126,7 @@ export async function save(page: SettingsPage, scope: ParentNode, patch: ShelfSe
       line.setAttribute("role", "alert");
       block.append(line);
     }
-    if (line) { line.textContent = messageOf(error) || page.L("shelf.settings.save-failed"); line.hidden = false; }
+    if (line) { line.textContent = messageOf(error) || uiText.text("shelf.settings.save-failed"); line.hidden = false; }
     throw error;
   }
 }

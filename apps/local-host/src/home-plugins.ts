@@ -1,3 +1,4 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -10,7 +11,7 @@ import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registr
 import { declarationOwnersFor, type SettingsVersionClaims } from "./declaration-owners.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
-import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
+import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { registerInstalledActions } from './installed-action-registration.js';
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
@@ -69,8 +70,11 @@ export class HomePluginHost {
     this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
   }
 
-  ready(): Promise<HomePluginPlatform> {
+  /** With start disabled, read the current platform without starting or waiting for the Home plugin owner. */
+  ready({ start = true } = {}): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
+    if (!start) return this.platform ? Promise.resolve(this.platform) : Promise.reject(languagePreviewUnavailable());
+    if (inLanguagePreview() && !this.opening) return Promise.reject(languagePreviewUnavailable());
     return this.opening ??= this.open();
   }
   retry(): Promise<HomePluginPlatform> {
@@ -142,18 +146,14 @@ export class HomePluginHost {
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
   /** Refresh installed definitions after activation replacement and before public directory/dispatch reads them. */
   async refreshPublicActions(): Promise<void> { if (!this.closed) await this.installed?.refreshPublicActions(); }
-  /**
-   * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the
-   * switcher and the tab strip find the plugin's name and icon by the stage's id as they do for every other Home plugin. None for what is not
-   * such a package, is not running, or did not come back.
-   */
-  packageSurface(pluginId: string): string | undefined {
-    return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
+  /** The running installed stage's release; its plugin id is the stage id, and its Manifest owns the label. */
+  packageStage(pluginId: string): InstalledRelease | undefined {
+    if (this.installation(pluginId)?.state === "running" && !this.packageError(pluginId)) return this.installed?.releaseFor(pluginId);
   }
-  /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
-  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false): string | undefined {
-    const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
-    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
+  /** The page the stage frames, opened under this package's Home activation. */
+  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, projection=false) {
+    const release = this.packageStage(pluginId);
+    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration, projection, running: () => this.installation(pluginId) ?? undefined,
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
         await this.options.projectActions(projectId, pluginId);
@@ -233,14 +233,9 @@ export class HomePluginHost {
   private async start(): Promise<HomePluginPlatform> {
     const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
-      const definition = entry.create();
-      return { definition, trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance,
-        releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
-          const released = factory();
-          identity.remember([{ definition: released, trust: HOST_BUILD_TRUST, project_data: identity.projectDataFor(definition),
-            dual_instance: entry.dual_instance }]);
-          return released;
-        }) };
+      const binding = { trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance };
+      const loaded: ReturnType<typeof registeredNativePlugin> = registeredNativePlugin(entry, definition => identity.remember([{ ...binding, definition, localePacks: loaded.localePacks }]));
+      return { ...loaded, ...binding };
     });
     const entries = [...shipped, ...pluginFixtureEntries(this.options.fixtures ?? [])];
     const ids = new Set<string>();
@@ -261,7 +256,7 @@ export class HomePluginHost {
     const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
       invalidateView: pluginId => this.platform?.invalidateView(pluginId), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
-      providerFor: identity.providerFor, dualInstance: identity.dualInstance });
+      providerFor: identity.providerFor, dualInstance: identity.dualInstance, localePacks: identity.localePacks });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
@@ -272,7 +267,7 @@ export class HomePluginHost {
           { registry: this.options.registry, client: this.options.client, project_id: null }),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
-      definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
+      definition: entry.definition, project_data: identity.projectDataFor(entry.definition), localePacks: identity.localePacks(entry.definition),
     })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     this.installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));

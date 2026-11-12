@@ -1,6 +1,6 @@
 ---
 method_id: industry-ecommerce
-version: 1
+version: 2
 kind: industry
 name: "电商"
 summary: "把商品发现、库存价格、交易履约、售后和经营反馈连成完整商业闭环。"

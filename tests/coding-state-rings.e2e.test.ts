@@ -4,12 +4,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { codingTimelineWords, createCodingTimeline, createCodingTurnChanges, renderCodingWorkbench } from "@molis-ai/molis-work-plugin-coding";
+import { renderCodingWorkbench } from "@molis-ai/molis-work-plugin-coding";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { INPUT_RECEIPTS_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
-import { pageText, pageTextScript } from "./fixtures/page-text.js";
+import { pageText, pageTextScript, withPageText } from "./fixtures/page-text.js";
+import { codingTranscriptBundle } from "./fixtures/coding-transcript.js";
 
 // Exercise the production factories from the program the build ships; no second implementation or new API. The page is one bundle
 // of typed modules; each part it is made of is also built alone (plugins/native/coding package.json "build" and scripts/build-test-pieces.mjs) as a factory `(ports) => …`.
@@ -30,15 +31,19 @@ function pieceBundle(file: string | undefined): string {
 const embeddedFactoryHolding = (marker: string): string => pieceBundle(pieceHolding[marker]);
 const embeddedFactory = (name: string): string => pieceBundle(pieceFile[name]);
 
+function codingFixtureHtml(locale: "zh" | "en") {
+  return withPageText(locale, ["coding"], () => renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
+    primitives: { escape: escapeHtml, icon, text: pageText(locale, "coding"), formatDate: value => value } }));
+}
+
 test("RING-07 Coding plan and cooperation render actual rings and preserve receipt meanings", { timeout: 30_000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-state-rings-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
-  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: value => value, formatDate: value => value } });
   try {
+    const html = codingFixtureHtml("zh");
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's SDK text context
     const result = await page.evaluate<{
       running: string[]; paused: string[]; person: string; accepted: string; labels: string[];
       commands: string[]; letters: string[]; delegation: string; errors: string[];
@@ -47,10 +52,10 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
       ${STATE_RING_CLIENT_SCRIPT}
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root), errors=[];
-      const ports={lifetime,translate:L,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{}};
+      const ports={lifetime,translate:globalThis.t.text,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{}};
       // The plan card numbers and settles steps with the TaskBoard's own helpers, as the client hands them over (3d-3).
       const taskboard=(${embeddedFactory("taskboard")})({...ports,board:root.querySelector('[data-coding-board]'),ownTask:text=>text,from:()=>null,roleName:id=>id,navigate:async()=>{},amend:async()=>{}});
-      const progress=(${embeddedFactory("planProgress")})({...ports,roleLabel:id=>id,from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(text=>text).step});
+      const progress=(${embeddedFactory("planProgress")})({...ports,roleLabel:id=>id,from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text).step});
       const nodes=['succeeded','running','not-started','blocked','cancelled','ready'].map((state,i)=>({id:'step-'+(i+1),state,reports:[]}));
       const board={version:1,terminal:false,nodes},entry={board,verdicts:{},plan:{content:{title:'验证状态',steps:nodes.map(n=>({title:n.id,acceptance:'保留事实'}))}}};
       const run={ref:{run_id:'round'},phase:'running',frozen:{role_id:'builder'}};
@@ -86,9 +91,8 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
   const directory = mkdtempSync(join(tmpdir(), "coding-english-panels-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
-  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   try {
+    const html = codingFixtureHtml("en");
     const page = await browser.page();
     await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; meter: string; cards: string; coop: string; errors: string[] }>(`(async () => {
@@ -98,8 +102,8 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       // The page names a role from its id and falls back to the id (client.ts ROLE_NAMES); the cards and results take that port.
       const roleName=id=>({builder:'Builder',reader:'Reader',reviewer:'Reviewer',coordinator:'Coordination'})[id]||id||'Agent';
-      const ports={lifetime,translate:L,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},roleName};
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
+      const ports={lifetime,translate:globalThis.t.text,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},roleName};
+      const {timeline}=(${codingTranscriptBundle()})({readText:globalThis.t.text,lifetime,turns:root});
       const children=[{subagent_id:'c1',role_id:'builder',role_name:'Builder',state:'running',task:'Write the parser',usage:{tokens:{input:1200,output:300}}},
         {subagent_id:'c2',role_id:'reader',role_name:'Reader',state:'failed',task:'Read the docs',error:'MODEL_NETWORK_FAILED: fetch failed',integration_available:true,workspace_path:'/tmp/w/c2',
           activity:[{call_id:'e',name:'edit',target:'a.ts',state:'completed'}]},
@@ -131,7 +135,7 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
     assert.deepEqual(result.han, [], "no Chinese in what these panels draw");
     assert.match(result.cards, /Dispatched 3 sub-tasks|Sub-tasks dispatched: 3/);
     assert.match(result.cards, /You accepted the conclusion/);
-    assert.match(result.meter, /This session's usage/);
+    assert.match(result.meter, /This session’s usage/);
     assert.match(result.meter, /Used 102K \/ 100K tokens \(102%\)/, "compact numbers follow the page's language");
     assert.match(result.coop, /A delegation from another session/);
     assert.match(result.coop, /Accept and put it in the input box/);
@@ -149,10 +153,9 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
   const directory = mkdtempSync(join(tmpdir(), "coding-english-writers-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
-  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   const marker = "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n";
   try {
+    const html = codingFixtureHtml("en");
     const page = await browser.page();
     await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; writers: string; turn: string; integration: string; errors: string[] }>(`(async () => {
@@ -160,7 +163,7 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       const settle=()=>new Promise(resolve=>setTimeout(resolve,20));
-      const writers=(${embeddedFactory("writerDirectories")})({lifetime,translate:L,q,reviews:()=>{},current:()=>'s',workspace:()=>'w',workspaceLabel:()=>'/repo',status:message=>errors.push(message),
+      const writers=(${embeddedFactory("writerDirectories")})({lifetime,translate:globalThis.t.text,q,reviews:()=>{},current:()=>'s',workspace:()=>'w',workspaceLabel:()=>'/repo',status:message=>errors.push(message),
         assignments:()=>[{worktree_id:'wa',task:'Write the parser'}],saveAssignments:async()=>{},select:async()=>{},chosen:()=>'wc',integrate:()=>{},
         api:async()=>({directories:[{canonical_path:'/repo-a',branch:'part-a',base_commit:'abc123',worktree_id:'wa'},{canonical_path:'/repo-b',branch:'part-b',problem:'its branch moved',worktree_id:'wb'},
           {canonical_path:'/repo-c',branch:null,base_commit:'def456',worktree_id:'wc'}]})});
@@ -171,7 +174,7 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
         {kind:'user',text:'Split the work'+${JSON.stringify(marker)}+JSON.stringify([{worktree_id:'wa',directory:'/repo-a',task:'Write the parser',branch:'part-a',base_commit:'abc123'}])});
       const writersText=q('[data-coding-writer-directories-dialog]').textContent.replace(/\\s+/g,' ');
       q('[data-coding-writer-directories-dialog]').close();
-      const integrations=(${embeddedFactory("integrations")})({lifetime,translate:L,q,reviews:()=>{},status:message=>errors.push(message),
+      const integrations=(${embeddedFactory("integrations")})({lifetime,translate:globalThis.t.text,q,reviews:()=>{},status:message=>errors.push(message),
         api:async()=>({workspace_id:'w',source_path:'/tmp/child',branch:'child',target_path:'/repo',files:[
           {path:['a.ts'],revision:'1',selectable:true,target:'modified',diff_html:'<p>diff</p>'},
           {path:['b.ts'],revision:'2',selectable:true,target:'added',before_text:null,after_text:''},
@@ -196,9 +199,9 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
     assert.equal(result.writers.match(/Bring back into the main workspace/g)?.length, 1);
     assert.doesNotMatch(result.writers, /isn't authorized for this project/);
     assert.match(result.writers, /Split saved, not sent yet\./);
-    assert.match(result.turn, /^Split the work.*This turn's split · separate directories: 1.*Branch: part-a · started from: abc123/);
+    assert.match(result.turn, /^Split the work.*This turn’s split · separate directories: 1.*Branch: part-a · started from: abc123/);
     assert.match(result.integration, /From: \/tmp\/child · child.*Back into: \/repo/);
-    assert.match(result.integration, /b\.ts · added.*The file doesn't exist yet.*\(empty file\)/);
+    assert.match(result.integration, /b\.ts · added.*The file doesn’t exist yet.*\(empty file\)/);
     assert.match(result.integration, /Conflict 1 · lines: main workspace 1, sub-task 1.*Use the main workspace.*Keep both/);
     assert.match(result.integration, /Unresolved conflicts: 1/);
     assert.deepEqual(result.errors, []);
@@ -211,23 +214,22 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
   const directory = mkdtempSync(join(tmpdir(), "coding-english-changes-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
-  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   try {
+    const html = codingFixtureHtml("en");
     const page = await browser.page();
     await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; step: string; stepStatus: string; files: string; reader: string; comments: string }>(`(async () => {
       document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
-      const steps=(${embeddedFactory("stepReports")})({lifetime,translate:L,q,current:()=>'s',status:message=>errors.push(message),refresh:async()=>{},prepareRework:()=>{},receipts:{link:()=>null},
+      const steps=(${embeddedFactory("stepReports")})({lifetime,translate:globalThis.t.text,q,current:()=>'s',status:message=>errors.push(message),refresh:async()=>{},prepareRework:()=>{},receipts:{link:()=>null},
         api:async()=>({runs:[{ref:{run_id:'r'},phase:'completed'}],taskboard_plans:[{run_id:'r',revision:2,plan:{content:{steps:[{title:'Write the parser',acceptance:'Tests pass'}]}},
           board:{project_id:'p',version:3,nodes:[{id:'step-1',state:'succeeded',owner:{kind:'person'},reports:[{by:{kind:'subtask',title:'Builder'},note:'Done it'}]}]},
           verdicts:{'step-1':{status:'needs-work',notes:'Missing an edge case',project_id:'p',board_version:2,revision:1}}}]})});
       await steps.open('s','r','step-1');
       const step=q('[data-coding-step-detail]').textContent.replace(/\\s+/g,' '),stepStatus=q('[data-coding-step-status]').textContent;
       q('[data-coding-step-dialog]').close();
-      const changes=(${embeddedFactory("changeReview")})({lifetime,translate:L,root,q,turns:q('[data-coding-turns]'),current:()=>'s',closeReport:()=>{},returnToTask:()=>{},onRunOpen:()=>{},appendDraft:async()=>{},focusDraft:()=>{},
+      const changes=(${embeddedFactory("changeReview")})({lifetime,translate:globalThis.t.text,root,q,turns:q('[data-coding-turns]'),current:()=>'s',closeReport:()=>{},returnToTask:()=>{},onRunOpen:()=>{},appendDraft:async()=>{},focusDraft:()=>{},
         api:async()=>({view_mode:'write',html:'<ol class="mw-diff-rows"><li><button type="button" data-coding-line="3" data-coding-line-side="after">3</button></li></ol>',patch:'diff',
           reference:{artifact_id:'a',version:2},saved_at:Date.UTC(2026,9,20,9,30),output:null,net_groups:[{path:'a.ts',available:true,indices:[0,1]}],
           change:{files:[{path:'a.ts',kind:'modified',added_lines:2,removed_lines:1,review:{decision:'approved',execution:'applied'}},
@@ -263,9 +265,8 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
   const directory = mkdtempSync(join(tmpdir(), "coding-english-composer-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
-  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: pageText("en", "coding"), formatDate: value => value } });
   try {
+    const html = codingFixtureHtml("en");
     const page = await browser.page();
     await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; note: string; changes: string; palette: string; characters: string; actions: string; statuses: string[] }>(`(async () => {
@@ -273,23 +274,24 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),statuses=[],q=selector=>root.querySelector(selector),status=message=>statuses.push(message);
       const settle=()=>new Promise(resolve=>setTimeout(resolve,20));
-      const models=(${embeddedFactory("composerModels")})({q,lifetime,translate:L,status,switchModel:async()=>{},changed:()=>{},redraw:()=>{}});
+      const models=(${embeddedFactory("composerModels")})({q,lifetime,translate:globalThis.t.text,status,switchModel:async()=>{},changed:()=>{},redraw:()=>{}});
       models.fill([]);models.fill([{provider_id:'p',model_id:'m1',label:'Model One',reasoning_effort:true},{provider_id:'p',model_id:'m2',label:'Model Two'}]);
       models.controls({active:true,sending:false,run:{ref:{run_id:'r'},frozen:{model_id:'m1',reasoning_effort:'high',thinking:true},model_switch:{requested:'m2'}}});
-      const changes=(${createCodingTurnChanges.toString()})(globalThis.L).place(document.createElement('section'),
+      const {turnChanges}=(${codingTranscriptBundle()})({readText:globalThis.t.text,lifetime,turns:root});
+      const changes=turnChanges.place(document.createElement('section'),
         {turn:1,sequence:1,files:['a.ts','b.ts','c.ts','d.ts'].map((path,n)=>({path:'src/'+path,byte_length:10+n,digest:'d'+n,checkpoint_id:'cp'+n}))},{ref:{run_id:'r'},phase:'completed',activity:[]},true);
       root.append(changes);changes.querySelector('details').open=true;
-      const commands=(${embeddedFactory("commandsUi")})({lifetime,translate:L,q,input:()=>q('[data-coding-input] .mw-composer__input'),status,commands:()=>[{slash:'new',label:'New session',keys:'Mod+Alt+N',run:()=>{}}],current:()=>'s',
+      const commands=(${embeddedFactory("commandsUi")})({lifetime,translate:globalThis.t.text,q,input:()=>q('[data-coding-input] .mw-composer__input'),status,commands:()=>[{slash:'new',label:'New session',keys:'Mod+Alt+N',run:()=>{}}],current:()=>'s',
         sessions:()=>[{session_id:'o',title:'Other session',state_label:'Running'}],openSession:()=>{}});
       commands.openPalette();const field=q('[data-coding-palette-input]');field.value='zzz';field.dispatchEvent(new Event('input'));
       const palette=q('[data-coding-palette-list]').textContent;q('[data-coding-palette]').close();
       const characters=new Map(),skills=new Map(),titles=new Map();
-      const character=(${embeddedFactoryHolding("data-coding-character-dialog")})({lifetime,translate:L,refresh:async()=>{},q,current:()=>'s',selections:characters,titles,skillSelections:skills,save:async()=>{},controls:()=>{},status,
+      const character=(${embeddedFactoryHolding("data-coding-character-dialog")})({lifetime,translate:globalThis.t.text,refresh:async()=>{},q,current:()=>'s',selections:characters,titles,skillSelections:skills,save:async()=>{},controls:()=>{},status,
         api:async()=>({runtime_id:'other',characters:[{reference:{artifact_id:'c',version:1},title:'Reviewer',available:true,instructions:'Review.',host_tools:[],imported_skills:[{id:'k',name:'Lint',compatibility:'native'}]}]})});
       character.open();await settle();
       root.querySelectorAll('[data-coding-character-dialog] details').forEach(node=>{node.open=true;});
       const charactersText=q('[data-coding-character-dialog]').textContent.replace(/\\s+/g,' ');q('[data-coding-character-dialog]').close();
-      const actions=(${embeddedFactoryHolding("data-coding-actions-dialog")})({lifetime,translate:L,refresh:async()=>{},q,current:()=>'s',selections:new Map([['s',[{capability_id:'gone.action',version:1,provider_id:'x'}]]]),save:async()=>{},controls:()=>{},status,
+      const actions=(${embeddedFactoryHolding("data-coding-actions-dialog")})({lifetime,translate:globalThis.t.text,refresh:async()=>{},q,current:()=>'s',selections:new Map([['s',[{capability_id:'gone.action',version:1,provider_id:'x'}]]]),save:async()=>{},controls:()=>{},status,
         interaction:()=>{},make:()=>{},sessionPath:()=>'',readCurrent:async()=>{},intent:()=>'discuss',
         api:async()=>({actions:[{capability_id:'todo.add',version:2,operation:'write',provider:{provider_id:'todo',title:'Todo'},action:{title:'Add a todo',description:'Adds one',audiences:['agent'],kind:'action'},availability:{available:true}}]})});
       actions.open();await settle();
@@ -302,11 +304,11 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
     })()`);
     assert.deepEqual(result.han, [], "no Chinese in what these draw");
     assert.equal(result.note, "This turn: m1 · Thinking effort Thorough · Thinking on · Asked to switch to m2, from the next model call");
-    assert.match(result.changes, /Files written this turn: 4.*a\.ts · b\.ts · c\.ts · 4 in all.*10 bytes.*Preview rewind.*What the write receipts recorded.*See this turn's changes/);
+    assert.match(result.changes, /Files written this turn: 4.*a\.ts · b\.ts · c\.ts · 4 in all.*10 bytes.*Preview rewind.*What the write receipts recorded.*See this turn’s changes/);
     assert.equal(result.palette, "No matching commands or sessions");
-    assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn't support character limits yet/);
+    assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn’t support character limits yet/);
     assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · needs a native Agent/);
-    assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn't available/);
+    assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn’t available/);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -315,13 +317,12 @@ test("RAC-658-UI-01..03: step details localize holders and authors while preserv
   const directory = mkdtempSync(join(tmpdir(), "coding-step-identity-"));
   const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("No test Chrome"); return; }
-  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
-    primitives: { escape: escapeHtml, icon, text: value => value, formatDate: value => value } });
   try {
     const page = await browser.page();
     for (const locale of ["zh", "en"] as const) {
+      const html = codingFixtureHtml(locale);
       const result = await page.evaluate<{ rows: Array<{ kind: string; title: string | null; owner: string; reports: string[]; markup: boolean }>; leaked: boolean; errors: string[] }>(`(async () => {
-        ${pageTextScript(locale)}
+        ${pageTextScript(locale, "coding")}
         document.documentElement.lang=${JSON.stringify(locale)};document.body.innerHTML=${JSON.stringify(html)};
         const root=document.querySelector("[data-coding-workbench]");root.hidden=false;
         const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),q=selector=>root.querySelector(selector),rows=[],errors=[];
@@ -329,7 +330,7 @@ test("RAC-658-UI-01..03: step details localize holders and authors while preserv
         const node={id:"step-1",state:"succeeded",reports:[]};
         const data={runs:[{ref:{run_id:"r"},phase:"completed"}],taskboard_plans:[{run_id:"r",revision:1,
           plan:{content:{steps:[{title:"Review",acceptance:"Keep identities"}]}},board:{project_id:"p",version:1,nodes:[node]}}]};
-        const steps=(${embeddedFactory("stepReports")})({lifetime,translate:L,q,current:()=>"s",api:async()=>data,
+        const steps=(${embeddedFactory("stepReports")})({lifetime,translate:globalThis.t.text,q,current:()=>"s",api:async()=>data,
           status:message=>errors.push(message),refresh:async()=>{},prepareRework(){},receipts:{link:()=>null}});
         for (const title of titles) for (const kind of ["session","person","none","other","subtask"]) {
           const identity=kind=>({kind,label:"宿主中文原话不能作为页面身份",...(title===null?{}:{title})});

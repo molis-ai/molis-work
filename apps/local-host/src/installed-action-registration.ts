@@ -3,15 +3,19 @@ import type { PluginContribution, PluginDefinition, PluginInstanceRecord } from 
 import { exposeInstalledPlugin, exposedActionId, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { ProjectActions } from './plugin-builder/catalog.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
-import { definitionOrigin } from '@molis-ai/molis-work-plugin-runtime';
+import { definitionOrigin, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
+import type { InstalledRelease } from './installed-release.js';
 
 // Only the Host's actual sandbox definition has a released contract (the Runtime's view of it counts as it). Nothing decoded from a
 // package supplies this port.
-type ActionRelease = InstalledPluginActions['release'];
-const sources = new WeakMap<PluginDefinition, ActionRelease>();
+type ActionRelease = InstalledRelease;
+const sources = new WeakMap<PluginDefinition, { release: ActionRelease; words: PluginLocaleReader | null }>();
 const registrations = new WeakMap<ActionRegistryPort, Map<string, InstalledPluginActions>>();
 const registrationKey = (record: PluginInstanceRecord) => JSON.stringify([record.install_id, record.installation_generation, record.manifest_digest]);
-export function rememberInstalledActionSource(definition: PluginDefinition, release: ActionRelease): void { sources.set(definitionOrigin(definition), release); }
+export function rememberInstalledActionSource(definition: PluginDefinition, release: ActionRelease, words: PluginLocaleReader | null = release.packaged?.localePacks ?? null): void { sources.set(definitionOrigin(definition), { release, words }); }
+
+/** The release already redeemed for this exact Runtime definition; never discover a producer by the plugin id. */
+export const installedLocalePacks = (definition: PluginDefinition) => sources.get(definitionOrigin(definition))?.words ?? null;
 
 /** Permission switches restart an activation without changing its release. Refresh follows that activation; old releases cannot withdraw a new one. */
 export function followInstalledActions(registry: ActionRegistryPort, record: PluginInstanceRecord, release: ActionRelease): InstalledPluginActions | undefined {
@@ -28,7 +32,7 @@ export function followInstalledActions(registry: ActionRegistryPort, record: Plu
 /** Runtime has already checked complete redemption. It owns the returned disposer, including failure and disable cleanup. */
 export function registerInstalledActions(definition: PluginDefinition, contribution: PluginContribution, record: PluginInstanceRecord,
   registration: ActionProviderRegistration, actions: ProjectActions): (() => void) | undefined {
-  const release = sources.get(definitionOrigin(definition));
+  const release = sources.get(definitionOrigin(definition))?.release;
   if (!release || !definition.manifest.actions?.length || contribution.kind !== 'app') return;
   const route = contribution.routes?.find(item => item.route_id === 'studio.call');
   if (!route) throw new Error('沙箱动作没有兑现调用路由');

@@ -1,7 +1,8 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 
 interface PluginSlotsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   /** The service's mark, drawn as the connection rows above draw it. */
   mark(serviceId: string): string;
@@ -14,7 +15,7 @@ interface PluginSlotsPrimitives {
  */
 export function renderPluginSlots(view: Pick<MolisWorkSettingsView, "plugin_slots" | "context_project">, cards: readonly ConnectorSettingsCardView[],
   connections: readonly ConnectorSettingsConnection[], p: PluginSlotsPrimitives): string {
-  const { L, escapeHtml: e } = p, slots = view.plugin_slots ?? [];
+  const { escapeHtml: e } = p, slots = view.plugin_slots ?? [];
   if (!slots.length) return "";
   const rows = slots.map(slot => {
     const service = cards.find(card => card.connector_id === slot.service_id)?.title ?? slot.service_id;
@@ -24,7 +25,7 @@ export function renderPluginSlots(view: Pick<MolisWorkSettingsView, "plugin_slot
     // one already bound can stay chosen.
     const stale = (connection: ConnectorSettingsConnection) => slot.tenant && !connection.target_origin;
     const options = accounts.map(connection => {
-      const chosen = connection.connection_id === slot.connection_id, note = connection.state === "disconnected" ? L("已断开") : stale(connection) ? L("需要重新连接") : "";
+      const chosen = connection.connection_id === slot.connection_id, note = connection.state === "disconnected" ? uiText.text("workbench.settings-plugin-slots.disconnected") : stale(connection) ? uiText.text("workbench.settings-plugin-slots.needs-reconnecting") : "";
       return `<option value="${e(connection.connection_id)}"${chosen ? " selected" : stale(connection) ? " disabled" : ""}${stale(connection) ? " data-needs-reconnect" : ""}>${e(connection.display_name)}${connection.account_label ? ` · ${e(connection.account_label)}` : ""}${note ? ` · ${note}` : ""}</option>`;
     }).join("");
     const reconnect = accounts.some(connection => connection.connection_id === slot.connection_id && stale(connection));
@@ -32,16 +33,16 @@ export function renderPluginSlots(view: Pick<MolisWorkSettingsView, "plugin_slot
       ${p.mark(slot.service_id)}
       <div class="settings-connection-row__identity"><strong>${e(slot.plugin_name)}</strong><small>${e(service)} · ${e(slot.reason)}</small></div>
       <div class="settings-connection-row__actions">
-        <label class="settings-connector-field"><span>${L("使用的账号")}</span><select class="mw-input" data-plugin-slot-account data-saved="${e(slot.connection_id ?? "")}"${slot.tenant ? " data-tenant" : ""}>
-          <option value=""${slot.connection_id ? "" : " selected"}>${slot.tenant ? L("不用账号（插件不能请求这个服务）") : L("不用账号（请求不带凭据）")}</option>${options}</select></label>
-        ${!accounts.length || reconnect ? `<button class="mw-btn mw-btn--secondary" type="button" data-connector-open="${e(slot.service_id)}">${L(reconnect ? "重新连接 {service}" : "连接 {service}", { service })}</button>` : ""}
+        <label class="settings-connector-field"><span>${uiText("workbench.settings-plugin-slots.account-used")}</span><select class="mw-input" data-plugin-slot-account data-saved="${e(slot.connection_id ?? "")}"${slot.tenant ? " data-tenant" : ""}>
+          <option value=""${slot.connection_id ? "" : " selected"}>${slot.tenant ? uiText("workbench.settings-plugin-slots.no-account-plugin-cannot-send-requests-service") : uiText("workbench.settings-plugin-slots.no-account-requests-carry-no-credentials")}</option>${options}</select></label>
+        ${!accounts.length || reconnect ? `<button class="mw-btn mw-btn--secondary" type="button" data-connector-open="${e(slot.service_id)}">${uiText(reconnect ? "workbench.settings-plugin-slots.reconnect-service" : "workbench.settings-plugin-slots.connect-service", { service })}</button>` : ""}
       </div>
       <div class="settings-connection-result" data-plugin-slot-result role="status" aria-live="polite" hidden></div>
     </div>`;
   }).join("");
   const project = view.context_project;
-  return `<section class="settings-connection-section settings-plugin-slots" aria-label="${e(L("插件用的账号"))}" data-plugin-slots="${e("plugin-slots" + (project ? "?project=" + encodeURIComponent(project.project_id) : ""))}">
-    <header><div><h2>${L("插件用的账号")}</h2><p>${L("插件经平台向这些服务发请求时用哪个账号。插件看不到凭据。不选账号时，请求不带凭据；Salesforce、Jira、Confluence 这类按租户分站点的服务不选账号，插件就不能请求。")}${project ? "" : ` ${L("这里只列出个人插件；从项目进入设置，可以看到这个项目装的插件。")}`}</p></div></header>
+  return `<section class="settings-connection-section settings-plugin-slots" aria-label="${e(uiText.text("workbench.settings-plugin-slots.accounts-plugins-use"))}" data-plugin-slots="${e("plugin-slots" + (project ? "?project=" + encodeURIComponent(project.project_id) : ""))}">
+    <header><div><h2>${uiText("workbench.settings-plugin-slots.accounts-plugins-use")}</h2><p>${uiText("workbench.settings-plugin-slots.which-account-plugin-uses-when-sends-requests-these")}${project ? "" : ` ${uiText.text("workbench.settings-plugin-slots.only-personal-plugins-listed-here-open-settings-project")}`}</p></div></header>
     <div class="settings-connection-list">${rows}</div>
   </section>`;
 }

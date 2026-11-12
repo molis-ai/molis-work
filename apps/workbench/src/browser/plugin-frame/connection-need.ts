@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type UiConnectionNeedOutcome, type UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { CONNECTION_NEED_HEIGHTS, connectionNeedHtml, isConnectionLoginUrl, sayNamed, type ConnectionNeedStage, type ConnectionNeedView } from "../../connection-need-card.js";
@@ -96,11 +97,11 @@ function loginSteps(c: Card) {
       const started = await settings<{ authorization_url: string; authorization_id?: string }>("methods/oauth/start", { service_id: prepared.service_id, display_name: prepared.service_title, setup_id: setup.authorization_id, ...again });
       // Only a web page goes into the window: https, or the login's own callback on this computer.
       const url = started.authorization_url;
-      if (!isConnectionLoginUrl(url)) throw new Error(t("服务返回的授权地址无效，请重试。"));
+      if (!isConnectionLoginUrl(url)) throw new Error(t("common.connection-need.service-returned-invalid-authorization-address-please-retry"));
       if (!live(entry)) throw closed();
       const auth: Auth = entry.auth = { id: started.authorization_id ?? setup.authorization_id, url, relogin };
       if (external) await external(url); else if (popup && !popup.closed) popup.location.replace(url);
-      else entry.note = t("浏览器拦截了新窗口。点「再打开一次登录页」继续登录。");
+      else entry.note = t("common.connection-need.browser-blocked-new-window-click-open-sign-page");
       entry.stage = "running"; watch(entry, auth);
     } catch (error) { popup?.close(); throw error; } });
   };
@@ -131,6 +132,7 @@ export type ConnectionNeedTrip = (service_id: string, slot: { slot_id: string; r
 
 export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, translate: Translate, owner: string, trip: ConnectionNeedTrip) {
   const t: (text: string, values?: Record<string, string | number>) => string = sayNamed(translate);
+  const wordsFor = (target: UiConnectionNeedTarget) => sayNamed(translate, target.kind === "image");
   const entries = new Map<string, Entry>(), refused = new Set<string>();
   const send = (kind: string, id: number, more: object = {}) => { if (scope.alive) port.postMessage({ type: "connection-need-" + kind, id, ...more } as ConnectionNeedDown); };
   const ask = <T>(target: UiConnectionNeedTarget, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-connection"),
@@ -160,10 +162,10 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     settings: (path, body, method) => molisWorkRequest("/api/settings/connectors/" + path, { scope, ...(body === undefined ? {} : { body }), ...(method ? { method } : {}) }),
     settle: (entry, answer) => {
       const bound = answer.connection;
-      if (bound?.state === "connected") fold(entry, t("已连上 {name} · {account}", { name: entry.read!.service_title, account: bound.label }), { status: "connected", account: { label: bound.label } });
+      if (bound?.state === "connected") fold(entry, wordsFor(entry.target)("common.connection-need.name-connected-account", { name: entry.read!.service_title, account: bound.label }), { status: "connected", account: { label: bound.label } });
       else { entry.read = answer; entry.stage = startStage(entry); }
     },
-    fail: (entry, note) => { entry.note = note || t("没有连上。这里什么都没改，可以再试一次。"); entry.danger = true; if (entry.stage === "running") entry.stage = startStage(entry); },
+    fail: (entry, note) => { entry.note = note || t("common.connection-need.not-connected-nothing-changed-here-can-try-again"); entry.danger = true; if (entry.stage === "running") entry.stage = startStage(entry); },
     /** Reads the target and, when nothing usable is on it, this service's accounts the card may offer (an image target's: unpinned or pinned here). */
     load: async entry => {
       const read = entry.read = await ask<Read>(entry.target, { operation: "read" });
@@ -185,7 +187,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
         const failure = error as { code?: string; message?: string; name?: string };
         if (!live(entry) || failure.name === "AbortError") return;
         if (failure.code === "connector.setup.unsupported") { entry.stage = "unsupported"; return; }
-        c.fail(entry, failure.code === "connector.check.rate_limited" ? t("{name}那边暂时限流，密钥没有保存；稍后再试。", { name: entry.read!.service_title }) : failure.message);
+        c.fail(entry, failure.code === "connector.check.rate_limited" ? wordsFor(entry.target)("common.connection-need.name-limiting-requests-right-now-so-key-wasn", { name: entry.read!.service_title }) : failure.message);
       } finally { if (live(entry)) { entry.busy = false; if (entry.stage !== "line") draw(entry); } }
     },
   };
@@ -200,7 +202,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     const auth = entry.auth; refused.add(entry.key);
     // The login under way is cancelled as the person (§4.6.1): a late return then only leaves its connection, put on no place.
     if (auth) void c.settings("authorizations/" + encodeURIComponent(auth.id), undefined, "DELETE").catch(() => undefined);
-    fold(entry, t("没有连上，这里什么都没改"), { status: "cancelled" });
+    fold(entry, t("common.connection-need.not-connected-nothing-changed-here"), { status: "cancelled" });
   };
   const steps: Record<string, (entry: Entry) => void> = {
     cancel, connect: entry => connect(entry, false), save,
@@ -223,7 +225,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     const refusal = entry.area.gate(event, control);
     if (refusal?.reason === "silent" || entry.busy || !live(entry) || !entry.read) return;
     if (refusal) {
-      entry.note = refusal.reason === "moved" ? t("刚移动过，请再点一次") : t("请先让这一块完整显示"); entry.danger = false;
+      entry.note = refusal.reason === "moved" ? t("common.connection-need.just-moved-press-again") : t("common.connection-need.show-whole-area-first"); entry.danger = false;
       if (refusal.reason === "partial") { if (refusal.reveal) send("reveal", entry.id); else control.scrollIntoView({ block: "nearest", inline: "nearest" }); }
       draw(entry); return;
     }
@@ -249,13 +251,13 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     if (!area) { fail(); return; }
     area.surface.className = "mw-platform-area connection-need-area";
     area.surface.dataset.connectionNeedArea = "";
-    area.surface.setAttribute("aria-label", t("连接 {name} · 来自 {owner}", { name: read.service_title, owner }));
+    area.surface.setAttribute("aria-label", wordsFor(target)("common.connection-need.connect-name-owner", { name: read.service_title, owner }));
     const entry: Entry = { id: message.id, key, target, area, heights, read, stage: "ask", accounts: [], note: "", danger: false, busy: false, answered: false };
     entries.set(key, entry);
     area.surface.addEventListener("click", event => press(entry, event));
     send("shown", entry.id, { service: read.service_title });
     // Cancelled once on this page: asked again, only the folded line shows, opened by the person (§13.5 三第 1 条).
-    if (refused.has(key)) { heights.narrow = heights.wide = CONNECTION_NEED_HEIGHTS.line; entry.stage = "line"; entry.line = t("没有连上"); draw(entry); return; }
+    if (refused.has(key)) { heights.narrow = heights.wide = CONNECTION_NEED_HEIGHTS.line; entry.stage = "line"; entry.line = t("common.connection-need.not-connected"); draw(entry); return; }
     try { await begin(entry); } catch { if (live(entry)) { close(key); fail(); } }
   };
   return (message: ConnectionNeedUp) => {
@@ -277,8 +279,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
   const made = childNeeds.get(port);
   if (made) return made;
   let sequence = 0;
-  const named: (text: string, values?: Record<string, string | number>) => string = (text, values) => sayNamed(L)(text, values);
-  type Waiting = { element: HTMLElement; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
+  type Waiting = { element: HTMLElement; image: boolean; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
   const entries = new Map<number, Waiting>(), up = (message: ConnectionNeedUp) => port.postMessage(message);
   const close = (id: number, error: Error = closed()) => {
     const entry = entries.get(id); if (!entry) return;
@@ -295,7 +296,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     if (kind === "size") element.style.height = Math.max(0, Number(said.height) || 0) + "px";
     else if (kind === "reveal") element.scrollIntoView({ block: "nearest" });
     // Shown: the place is reported again, since a report made while the shell was still reading the target had no card to go to.
-    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", named("这里需要连接 {name}，连接卡在页面上", { name: String(said.service) })); }
+    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", sayNamed(uiText.text, entry.image)("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) })); }
     else if (kind !== "done") return;
     else if (said.error) close(message.id, said.error === "AbortError" ? closed() : new Error(CONNECTION_NEED_UNAVAILABLE));
     else if (said.outcome) { const settle = entry.settle, outcome = said.outcome; entry.settle = undefined; entry.stop?.(); settle?.resolve(outcome.status === "connected" ? { status: "connected", account: { label: String(outcome.account.label) } } : { status: "cancelled" }); }
@@ -308,7 +309,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     for (const [id, entry] of entries) if (entry.element === place) close(id);
     const id = ++sequence;
     return new Promise((resolve, reject) => {
-      const entry: Waiting = { element: place, settle: { resolve, reject } };
+      const entry: Waiting = { element: place, image: target.kind === "image", settle: { resolve, reject } };
       entries.set(id, entry);
       if (signal) { const abort = () => close(id); signal.addEventListener("abort", abort, { once: true }); entry.stop = () => signal.removeEventListener("abort", abort); }
       up({ type: "connection-need-open", id, target });

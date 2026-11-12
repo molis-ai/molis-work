@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.confluence",
+  "locale": "en",
+  "messages": {
+    "confluence.connection.auth-help": "Use the same Atlassian API token as Jira. Enter site|email|token.",
+    "confluence.connection.inbound": "Feed retrieves wiki pages",
+    "confluence.connection.summary": "Wikis and pages.",
+    "confluence.connection.token-label": "Confluence site, email and API token",
+    "confluence.guide.mcp-link": "View Atlassian Rovo MCP",
+    "confluence.guide.oauth-link": "View Atlassian OAuth 2.0",
+    "confluence.oauth.site-url": "Atlassian site",
+    "confluence.setup.create-atlassian-api-token": "Create Atlassian API Token",
+    "confluence.setup.view-confluence-authentication-guide": "View Confluence authentication guide"
+  }
+}

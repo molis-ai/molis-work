@@ -1,21 +1,22 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import nodeTest from "node:test";
 import ts from "typescript";
 import { transformSync } from "esbuild";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { createLocalHostWorkbenchRenderer, installHostUiText } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { createLocalHostWorkbenchRenderer, htmlLang, installHostUiText, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { FIELD_FIT_CLIENT_SCRIPT, FIELD_FIT_STYLES, FLOATING_DETAILS_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { IM_CLIENT_SCRIPT, IM_STYLES } from "@molis-ai/molis-work-im-ui";
 
-// The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
+// The platform's stable keys use the same text provider as the running Host.
 installHostUiText();
 
 // W3-10: the pages that are written inline (their programs are not part of /assets/, so the helper costs the page-asset
 // budget nothing) carry the one request helper instead of their own copy of the headers function. Each page is rendered
 // by its own renderer, the way the Host serves it.
 
+const test = (name: string, run: () => void) => nodeTest(name, () => runWithLocale("zh", run));
 const TOKEN = "page-control-token-0123456789abcdef";
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
 
@@ -44,7 +45,7 @@ const OWN_HEADERS_FUNCTION = /molisWorkControlHeaders = \(\) =>/;
 function assertCarriesHelper(name: string, html: string) {
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1, `${name}: the request helper, once`);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION, `${name}: no second copy of the headers function`);
-  assert.ok(html.indexOf("globalThis.L = ") >= 0 && html.indexOf("globalThis.L = ") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
+  assert.ok(html.indexOf("data-ui-language-resource") >= 0 && html.indexOf("data-ui-language-resource") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
   assert.match(html, new RegExp(`<meta name="molis-work-page-session" content="${TOKEN}">`), `${name}: the token the helper reads is in the page`);
 }
 
@@ -64,6 +65,22 @@ test("the project settings pages carry the request helper", () => {
   assert.equal(count(library, UI_REQUEST_CLIENT_SCRIPT), 0, "the read-only library asks for nothing");
   assert.doesNotMatch(library, OWN_HEADERS_FUNCTION);
 });
+
+nodeTest("FSS-36 standalone planning clients receive only their Goals words before startup", () => runWithLocale("en", () => {
+  const project = renderer.renderMolisWorkProjectSettingsHub(projectView, guidance, [], TOKEN, false, "planning");
+  const editor = renderer.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN);
+  for (const page of [project, editor]) {
+    const pack = /<script type="application\/json" data-ui-page-text>([^<]+)<\/script>/.exec(page);
+    assert.ok(pack && pack.index < page.indexOf("data-ui-language-resource"));
+    assert.match(page, /data-ui-language-resource src="\/assets\/locale\/workbench\.en\.[a-f0-9]+\.js"/);
+    const [{ slot, producer, packs }] = JSON.parse(pack[1]!);
+    assert.deepEqual([slot, producer], ["settings:planning", "io.molis.work.goals"]);
+    assert.deepEqual(packs.map(({ owner, locale }: { owner: string; locale: string }) => [owner, locale]), [["io.molis.work.goals", "en"]]);
+    const words = packs[0].messages;
+    assert.equal(words["goals.planning-client.fill-least-one-planning-step"], "Fill in at least one planning step.");
+    assert.ok(Object.keys(words).every(key => key.startsWith("goals.planning-client.")));
+  }
+}));
 
 test("the update page and the first-run and new-project journey carry the request helper", () => {
   for (const mode of ["update", "first_run", "new_project"] as const) {
@@ -87,7 +104,7 @@ test("Home and side plugin documents carry the shared field, roving, floating an
   const programs = [FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT];
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
   assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
-  const home = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
+  const home = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, { readText, htmlLang });
   const side = renderer.renderSideViewDocument({ projectPluginId: "lingguang", viewId: "side", projectId: "p1", routePrefix: "/projects/p1", enabled: ["lingguang"], controlToken: TOKEN });
   assert.ok(side, "the side view is served");
   for (const program of programs) {
@@ -140,7 +157,7 @@ test("D0077 D0333: the minified IM page carries the complete shared intrinsic fi
 test("a Home plugin page carries the request helper before the plugin's client runs", () => {
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
   assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
-  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
+  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, { readText, htmlLang });
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION);
   assert.ok(html.indexOf(UI_REQUEST_CLIENT_SCRIPT) < html.indexOf("molisPluginFrames.mount"), "the helper is there before the isolated client mounts");

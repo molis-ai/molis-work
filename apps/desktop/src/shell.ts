@@ -24,13 +24,15 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
-  globalThis.molisWorkShelfNotice=(message,partial=false)=>{
+  globalThis.molisWorkShelfNotice=(message,partial=false,originalWarning=null)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     message=String(message||"");
     window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message}}));
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
-    const display=message.split("\\n").map(line=>globalThis.L?.(line)??line).join("\\n");
+    // The native receipt identifies the appended warning independently of the original diagnostic.
+    const display=originalWarning ? message.slice(0,-originalWarning.length)
+      +(globalThis.t?.text("workbench.desktop-shelf.original-not-registered")??originalWarning) : message;
     globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
     if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };
@@ -95,7 +97,7 @@ export function isDesktopShellRequest(request: IncomingMessage, url: URL): boole
 }
 
 export function withDesktopQuery(href: string): string {
-  if (!href.startsWith("/") || href.startsWith("//")) return href;
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/assets/")) return href;
   if (/(?:[?&])desktop=1(?:&|#|$)/.test(href)) return href;
   const hashIndex = href.indexOf("#");
   const beforeHash = hashIndex >= 0 ? href.slice(0, hashIndex) : href;

@@ -8,12 +8,18 @@ import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { KitSource } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { pluginManifestDigest, type PluginHostLifecycle } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginTextReader, projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
+import { runningInstalledPluginPlatform } from "./installed-plugin-host.js";
+import { runningProjectPlatform } from "./project-plugins.js";
+import { directoryWordResolver } from "./ui-text-provider.js";
 
 /** One installation a call's scope reaches: the Home's, or the calling project's, with a check that it is still the one read. */
 export interface ScopeInstallation extends InstalledPluginEntry {
   scope: "home" | "project";
   /** The captured installation still holds (its identity and state); throws `not_current` otherwise. */
   assertCurrent(): void;
+  readLocalePacks(): PluginTextReader | null;
 }
 
 /** Installation identity, including its current state, is rechecked after any asynchronous permission check. */
@@ -27,6 +33,16 @@ function currentInstallation(record: PluginInstanceRecord, current: () => Plugin
   };
 }
 
+function currentWords(record: PluginInstanceRecord, supervisors: readonly (PluginHostLifecycle | undefined)[]) {
+  for (const supervisor of supervisors) {
+    const source = supervisor?.activeInstance?.(record.plugin_id)?.source?.();
+    if (source && source.activation.install_id === record.install_id && source.activation.installation_generation === record.installation_generation
+      && source.manifest.version === record.version && source.manifest.publisher.signature === record.publisher_signature
+      && pluginManifestDigest(source.manifest) === record.manifest_digest) return pluginTextReader(source.activation);
+  }
+  return null;
+}
+
 /**
  * The installations a call reaches, read once: the Home's and, with a project, the project's. A project installation shadows the same
  * identity's Home installation; two publishers remain distinct. The Skill catalog and the AI kit's reporters read the same list.
@@ -34,16 +50,21 @@ function currentInstallation(record: PluginInstanceRecord, current: () => Plugin
 export async function scopeInstallations(source: ProjectPluginHost, caller: ActionCallContext): Promise<{ reference?: LocalHostProjectReference; installations: ScopeInstallation[] }> {
   const reference = caller.project_id ? source.host.projects().find(project => project.project_id === caller.project_id) : undefined;
   if (caller.project_id && !reference) throw new ActionError("actions.scope_mismatch", "需要当前项目");
-  const homeRows = await installedHomePlugins(source.homePlugins());
+  const home = source.homePlugins(), homeRows = await installedHomePlugins(home);
+  const homeSupervisor = (await home?.ready({ start: false }))?.supervisor;
   const projectRows = reference ? await installedPluginsInProject(source, reference.project_id) : [];
-  const projectChecks = reference ? await source.host.withRuntime(reference, runtime => {
+  const project = reference ? await source.host.withRuntime(reference, async runtime => {
     const records = pluginInstallRecords(runtime.store.db);
-    return new Map(projectRows.map(({ record }) => [record.install_id, currentInstallation(record, () => records.get(record.install_id))]));
-  }) : new Map<string, () => void>();
+    const platforms = await Promise.all([runningProjectPlatform(runtime.store, runtime.project_id), runningInstalledPluginPlatform(runtime.store, runtime.project_id)]);
+    return { checks: new Map(projectRows.map(({ record }) => [record.install_id, currentInstallation(record, () => records.get(record.install_id))])),
+      supervisors: platforms.map(platform => platform?.supervisor) };
+  }) : null;
   const installations = new Map<string, ScopeInstallation>([
     ...homeRows.map(row => [row.record.install_id, { ...row, scope: "home" as const,
+      readLocalePacks: () => currentWords(row.record, [homeSupervisor]),
       assertCurrent: currentInstallation(row.record, () => source.homePlugins()?.installation(row.record.install_id) ?? null) }] as const),
-    ...projectRows.map(row => [row.record.install_id, { ...row, scope: "project" as const, assertCurrent: projectChecks.get(row.record.install_id)! }] as const),
+    ...projectRows.map(row => [row.record.install_id, { ...row, scope: "project" as const,
+      readLocalePacks: () => currentWords(row.record, project!.supervisors), assertCurrent: project!.checks.get(row.record.install_id)! }] as const),
   ]);
   return { reference, installations: [...installations.values()] };
 }
@@ -63,9 +84,12 @@ export async function keptUninstalled(source: ProjectPluginHost, reference: Loca
  * Who an installation is, as the AI kit names a plugin source (§4.5): from the install record and its verified Manifest, never from what
  * a plugin says. `localKey` is this Home's own publisher key, `pins` the ledger's publisher pins read once for the call.
  */
-export function kitPluginSource(record: PluginInstanceRecord, manifest: PluginManifest | undefined, context: { localKey: string | null; pins: ReadonlyMap<string, PluginPublisherPin>; locale?: string }): Extract<KitSource, { kind: "plugin" }> {
-  const words = context.locale === "en" ? manifest?.ui?.translations ?? {} : {}, name = manifest?.name ?? record.plugin_id;
-  return { kind: "plugin", plugin_id: record.plugin_id, title: words[name] ?? name, version: record.version, install_id: record.install_id,
+export function kitPluginSource(record: PluginInstanceRecord, manifest: PluginManifest | undefined, context: { localKey: string | null; pins: ReadonlyMap<string, PluginPublisherPin> }, title = manifest?.name ?? record.plugin_id): Extract<KitSource, { kind: "plugin" }> {
+  return { kind: "plugin", plugin_id: record.plugin_id, title, version: record.version, install_id: record.install_id,
     publisher_label: context.pins.get(record.publisher_signature)?.label ?? manifest?.publisher.publisher_id ?? record.publisher_id,
     trust: record.publisher_trust === "host" ? "host" : record.publisher_signature === context.localKey ? "home_local" : "pinned" };
+}
+
+export function kitPluginWords({ manifest, record, readLocalePacks }: ScopeInstallation, locale?: string): { name: string; summary?: string } {
+  return manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(readLocalePacks(), locale)) : { name: record.plugin_id };
 }

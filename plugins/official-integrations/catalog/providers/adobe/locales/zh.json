@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.adobe",
+  "locale": "zh",
+  "messages": {
+    "adobe.connection.auth-help": "Adobe IMS access token。官方 UserInfo 要带 client_id：填 api-key|access-token。只贴 access token 时也可能通，但多数情况会 401。",
+    "adobe.connection.inbound": "API 验证 Adobe IMS 身份",
+    "adobe.connection.summary": "创意工具。",
+    "adobe.connection.token-label": "Adobe IMS 访问令牌",
+    "adobe.guide.oauth-link": "查看 Adobe 用户授权",
+    "adobe.guide.token-note": "使用 Adobe IMS 用户访问令牌；多数情况下还需要 Client ID。",
+    "adobe.oauth.note": "Adobe Console 中启用 User Authentication；产品 API 权限取决于应用获准范围。",
+    "adobe.setup.open-adobe-developer-console": "打开 Adobe Developer Console"
+  }
+}

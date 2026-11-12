@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.supabase",
+  "locale": "zh",
+  "messages": {
+    "supabase.connection.auth-help": "Supabase Management API access token。拉项目列表。",
+    "supabase.connection.inbound": "Feed 读取项目列表",
+    "supabase.connection.summary": "数据库、认证与存储。",
+    "supabase.connection.token-label": "Supabase Access Token",
+    "supabase.guide.cli-link": "查看 Supabase CLI",
+    "supabase.guide.mcp-link": "查看 Supabase 官方 MCP",
+    "supabase.guide.oauth-link": "查看 Supabase OAuth 应用",
+    "supabase.oauth.note": "读取权限在 Supabase OAuth 应用中配置。",
+    "supabase.setup.create-supabase-access-token": "创建 Supabase Access Token"
+  }
+}

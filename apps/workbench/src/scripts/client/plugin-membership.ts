@@ -13,7 +13,7 @@
  * match what the server renders. The page's state is saved and the page is loaded again.
  */
 export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
-  const { route, translate: L, projectId, saveUiState, showToast } = host;
+  const { route, translate: readText, projectId, saveUiState, showToast } = host;
   const rail = (root = document) => root.querySelector('.plugin-rail-items');
   const tiles = (root = document) => [...(rail(root)?.querySelectorAll('.plugin-rail-tile') || [])];
   const tileOf = (id, root = document) => tiles(root).find((tile) => tile.dataset.pluginTile === id) || null;
@@ -156,14 +156,14 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     rendered = after; revision = next.body.dataset.projectPluginRevision;
     try { saveUiState?.(); } catch {}
     const also = [...came, ...gone].filter((id) => id !== pluginId);
-    if (also.length) showToast?.((adding ? L('同时添加了：{list}') : L('同时移除了：{list}')).replace('{list}', also.map(nameOf).join('、')));
+    if (also.length) showToast?.((adding ? globalThis.t.text("workbench.plugin-membership.also-added-list") : globalThis.t.text("workbench.plugin-membership.also-removed-list")).replace('{list}', also.map(nameOf).join('、')));
   };
 
   const save = async (target, pluginId, adding, expectedRevision) => {
-    if (!target || !expectedRevision) return { error: L('请先刷新项目插件，再继续修改。'), readbackRequired: true };
+    if (!target || !expectedRevision) return { error: readText("workbench.plugin-membership.refresh-the-project-s-plugins-before-making-another"), readbackRequired: true };
     try {
       return { result: await molisWorkRequest('/api/settings/projects/'+encodeURIComponent(target)+'/plugins',{
-        method: adding ? 'POST' : 'DELETE', body: { plugin_id: pluginId, expected_revision: expectedRevision }, fallback: L(adding ? '无法添加插件' : '无法移除插件'),
+        method: adding ? 'POST' : 'DELETE', body: { plugin_id: pluginId, expected_revision: expectedRevision }, fallback: readText(adding ? "workbench.plugin-membership.could-not-add-plugin" : "workbench.plugin-membership.could-not-remove-plugin"),
       }) };
     } catch (error) {
       const details = error.body?.details;
@@ -184,8 +184,8 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       if (toggle.dataset.state === state) continue;
       toggle.dataset.state = state;
       tile.querySelector('.dock-keep').disabled = !added;
-      toggle.title = L(added ? '在本项目停用；数据保留，加回即恢复' : '添加到本项目');
-      const label = L(added ? '移除：{name}' : '添加：{name}').replace('{name}', nameOf(id));
+      toggle.title = readText(added ? "workbench.immersive-shell.turn-off-project-its-data-stays-comes-back" : "workbench.immersive-shell.add-project");
+      const label = readText(added ? "workbench.immersive-shell.remove-name" : "workbench.immersive-shell.add-name", { name: nameOf(id) });
       toggle.setAttribute('aria-label', label);
       const words = toggle.querySelector('.mw-sr-only');
       if (words) words.textContent = label;

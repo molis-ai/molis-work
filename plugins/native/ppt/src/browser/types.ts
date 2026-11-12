@@ -7,7 +7,7 @@ export type Ppt = PptRecord;
 export type Slide = PptSlide;
 
 /** What the workbench hands PPT's client: the shared host fields it uses. */
-export type PptHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "translate" | "download" | "printDocument" | "pluginId" | "projectId" | "pluginRoute" | "confirmBox">;
+export type PptHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "download" | "printDocument" | "pluginId" | "projectId" | "pluginRoute" | "confirmBox">;
 
 /** A failed request: the Host's plain Error with its `code`. */
 export type Failure = Error & { code?: string };
@@ -93,7 +93,7 @@ export interface PptState {
  */
 export interface PptPage {
   readonly host: PptHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly el: Elements;
   readonly s: PptState;
   readonly request: PptRequest;

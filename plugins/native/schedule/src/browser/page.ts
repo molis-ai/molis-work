@@ -2,10 +2,12 @@ import { required } from "./dom.js";
 import type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { OperationReview, Readiness, ReminderReview, ScheduleHost, Translate } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Everything the Schedule client shares between its parts: the page's elements and what is open on it. */
 export interface SchedulePage {
   readonly host: ScheduleHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly workbench: HTMLElement;
   readonly list: HTMLElement;
   /** The new/edit form, in the detail pane where a task's detail goes. */
@@ -44,7 +46,7 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
   const workbench = document.querySelector<HTMLElement>("[data-schedule-workbench]"), list = document.querySelector<HTMLElement>("[data-schedule-list]");
   if (!workbench || !list) return null;
   return {
-    host, L: host.translate, workbench, list,
+    host, readText: uiText.text, workbench, list,
     pane: required(workbench, "[data-schedule-create-pane]"),
     form: required<HTMLFormElement>(workbench, "[data-schedule-create-form]"),
     errorEl: required(workbench, "[data-schedule-create-error]"),

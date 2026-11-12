@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.airtable",
+  "locale": "en",
+  "messages": {
+    "airtable.connection.auth-help": "Use an Airtable PAT with schema.bases:read.",
+    "airtable.connection.inbound": "Feed retrieves tables and records",
+    "airtable.connection.summary": "Tables and records.",
+    "airtable.connection.token-label": "Airtable Personal Access Token",
+    "airtable.guide.mcp-link": "View the official Airtable MCP",
+    "airtable.guide.oauth-link": "View Airtable OAuth",
+    "airtable.setup.create-airtable-personal-access-token": "Create Airtable Personal Access Token"
+  }
+}

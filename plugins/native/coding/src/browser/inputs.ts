@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "./dom.js";
 import type { Api, Lifetime, Translate } from "./types.js";
 export interface InputValue { draft: string; question_drafts: Record<string, unknown> }
@@ -15,7 +16,7 @@ export function codingInputs(ports: InputPorts) {
  const {lifetime,root,current,api,path,storageKey,localDraft,localQuestions,replace,note,status}=ports,states=new Map<string, InputState>();
  // A window keeps only words the service has not confirmed (browser/draft.ts): keeping none, its words are the confirmed ones.
  const local=(id: string)=>({draft:localDraft(id)??baseFor(id).base?.draft,question_drafts:localQuestions(id)});
- const L=ports.translate,notify=(text: string,bad?: boolean)=>status(text,bad);
+ const readText=ports.translate,notify=(text: string,bad?: boolean)=>status(text,bad);
  const copy=<T>(value: T): T=>structuredClone(value),shape=(value: Partial<InputValue>)=>JSON.stringify({draft:value.draft,question_drafts:value.question_drafts||{}});
  const saved=(value: InputSnapshot): InputBase=>({draft:value.draft||'',question_drafts:copy(value.question_drafts||{}),revision:value.input_revision});
  const valid=(value: unknown): value is InputBase=>!!value&&typeof value==="object"&&"revision" in value&&typeof value.revision==="number"&&"draft" in value&&"question_drafts" in value&&Number.isSafeInteger(value.revision)&&value.revision>=0&&typeof value.draft==='string'&&!!value.question_drafts&&typeof value.question_drafts==='object'&&!Array.isArray(value.question_drafts);
@@ -33,39 +34,39 @@ export function codingInputs(ports: InputPorts) {
   if(!baseFor(id).conflict){note.replaceChildren();note.hidden=true;return false;}
   note.hidden=false;
   if(note.querySelector('[data-coding-input-compare]'))return true;
-  note.replaceChildren(node('span',L('coding.input.conflict')));
-  const button=node('button',L('coding.input.compare-saved'),'mw-btn mw-btn--link');button.type='button';button.dataset.codingInputCompare='';note.append(button);return true;
+  note.replaceChildren(node('span',uiText.text('coding.input.conflict')));
+  const button=node('button',uiText.text('coding.input.compare-saved'),'mw-btn mw-btn--link');button.type='button';button.dataset.codingInputCompare='';note.append(button);return true;
  };
  const ack=(id: string,revision: number,value: InputValue)=>{
-  if(!Number.isSafeInteger(revision)||revision<0)throw new Error(L('coding.input.invalid-receipt'));
+  if(!Number.isSafeInteger(revision)||revision<0)throw new Error(uiText.text('coding.input.invalid-receipt'));
   const state=baseFor(id);if(!state.base||revision>=state.base.revision)remember(id,{...copy(value),revision});notice(id);
  };
  const write=async(id: string,body: Record<string, unknown>,expected?: number,premise?: number)=>{
   const state=baseFor(id),base=state.base;
-  if(expected===undefined&&(!base||state.conflict||premise!==undefined&&premise!==state.generation)){state.conflict=true;notice(id);throw new Error(L('coding.input.compare-first'));}
+  if(expected===undefined&&(!base||state.conflict||premise!==undefined&&premise!==state.generation)){state.conflict=true;notice(id);throw new Error(uiText.text('coding.input.compare-first'));}
   const value: InputValue={draft:typeof body.draft==='string'?body.draft:base?.draft??'',question_drafts:copy((body.question_drafts??base?.question_drafts??{}) as Record<string, unknown>)};
   try{const result=await api<{input_revision: number}>(path(id),'PATCH',{...body,expected_input_revision:expected??base!.revision});lifetime.assertCurrent();ack(id,result.input_revision,value);return result;}
   catch(error){if(error&&typeof error==='object'&&'code' in error&&error.code==='coding.inputs_changed'){state.conflict=true;notice(id);}throw new Error(errorMessage(error),{cause:error});}
  };
  const compare=async()=>{
   const id=current(),view=saved(await api<InputSnapshot>(path(id)));lifetime.assertCurrent();if(id!==current())return;
-  if(!valid(view))throw new Error(L('coding.input.unreadable'));
+  if(!valid(view))throw new Error(uiText.text('coding.input.unreadable'));
   const original=local(id),mine=copy({draft:original.draft??'',question_drafts:original.question_drafts??{}}),opener=document.activeElement,dialog=node('dialog',undefined,'mw-dialog mw-dialog--form'),shell=node('div',undefined,'mw-form mw-dialog__shell');
   dialog.dataset.codingInputDialog='';const header=node('header',undefined,'mw-form__header'),body=node('div',undefined,'mw-form__body'),footer=node('footer',undefined,'mw-form__footer'),error=node('p',undefined,'mw-field__error');error.setAttribute('role','alert');error.hidden=true;
-  header.append(node('h2',L('coding.input.compare')));
+  header.append(node('h2',uiText.text('coding.input.compare')));
   const field=(title: string,text: string)=>{const label=node('label',undefined,'mw-field'),input=node('textarea',undefined,'mw-textarea');input.readOnly=true;input.rows=6;input.value=text;label.append(node('span',title,'mw-field__label'),input);return label;};
-  for(const [title,value] of [[L('coding.input.current'),mine],[L('coding.input.saved'),view]] as const){const section=node('section');section.append(field(title,value.draft));if(Object.keys(value.question_drafts||{}).length){const details=node('details',undefined,'mw-disclosure');details.append(node('summary',L('coding.input.answers')),field(L('coding.input.answers'),JSON.stringify(value.question_drafts,null,2)));section.append(details);}body.append(section);}
+  for(const [title,value] of [[uiText.text('coding.input.current'),mine],[uiText.text('coding.input.saved'),view]] as const){const section=node('section');section.append(field(title,value.draft));if(Object.keys(value.question_drafts||{}).length){const details=node('details',undefined,'mw-disclosure');details.append(node('summary',uiText.text('coding.input.answers')),field(uiText.text('coding.input.answers'),JSON.stringify(value.question_drafts,null,2)));section.append(details);}body.append(section);}
   body.append(error);const buttons: HTMLButtonElement[]=[];let pending=false;
   const close=()=>dialog.close();
   const action=(label: string,run: () => Promise<void>,primary=false)=>{const button=node('button',label,'mw-btn '+(primary?'mw-btn--primary':'mw-btn--secondary'));button.type='button';buttons.push(button);lifetime.listen(button,'click',async()=>{
    buttons.forEach(value=>value.disabled=true);error.hidden=true;pending=true;
-   try{if(id!==current()||shape(local(id))!==shape(mine))throw new Error(L('coding.input.changed'));await run();lifetime.assertCurrent();close();}
+   try{if(id!==current()||shape(local(id))!==shape(mine))throw new Error(uiText.text('coding.input.changed'));await run();lifetime.assertCurrent();close();}
    catch(failure){if(lifetime.alive){error.textContent=errorMessage(failure);error.hidden=false;}}
    finally{pending=false;buttons.forEach(value=>value.disabled=false);}
   });footer.append(button);return button;};
-  const cancel=node('button',L('coding.common.cancel'),'mw-btn mw-btn--secondary');cancel.type='button';buttons.push(cancel);lifetime.listen(cancel,'click',close);footer.append(cancel);
-  action(L('coding.input.adopt'),async()=>{remember(id,view,true);replace(id,copy(view));notice(id);notify(L('coding.input.adopted'));});
-  action(L('coding.input.save'),async()=>{await write(id,mine,view.revision);if(id===current())notify(L('coding.input.saved-notice'));},true);
+  const cancel=node('button',uiText.text('coding.common.cancel'),'mw-btn mw-btn--secondary');cancel.type='button';buttons.push(cancel);lifetime.listen(cancel,'click',close);footer.append(cancel);
+  action(uiText.text('coding.input.adopt'),async()=>{remember(id,view,true);replace(id,copy(view));notice(id);notify(uiText.text('coding.input.adopted'));});
+  action(uiText.text('coding.input.save'),async()=>{await write(id,mine,view.revision);if(id===current())notify(uiText.text('coding.input.saved-notice'));},true);
   shell.append(header,body,footer);dialog.append(shell);root.append(dialog);
   lifetime.listen(dialog,'cancel',event=>{if(pending)event.preventDefault();});
   lifetime.listen(dialog,'close',()=>{dialog.remove();if(opener instanceof HTMLElement&&opener.isConnected)opener.focus();});lifetime.own(()=>dialog.remove());dialog.showModal();cancel.focus();
@@ -73,7 +74,7 @@ export function codingInputs(ports: InputPorts) {
  lifetime.listen(root,'click',event=>{if(event.target instanceof Element&&event.target.closest('[data-coding-input-compare]'))void compare().catch(error=>{if(lifetime.alive)notify(errorMessage(error),true);});});
  return {
   write,notice,premise:(id: string)=>baseFor(id).generation,confirmed:(id: string)=>baseFor(id).base?.draft,
-  observe(id: string,value: InputSnapshot){const incoming=saved(value);if(!valid(incoming))throw new Error(L('coding.input.unreadable'));const state=baseFor(id),mine=local(id),base=state.base;
+  observe(id: string,value: InputSnapshot){const incoming=saved(value);if(!valid(incoming))throw new Error(readText('coding.input.unreadable'));const state=baseFor(id),mine=local(id),base=state.base;
    if(base&&incoming.revision<base.revision)return;
    const pristine=base?shape(mine)===shape(base):mine.draft===undefined&&mine.question_drafts===undefined;
    if(pristine&&!ports.editing(id)||shape(mine)===shape(incoming)){remember(id,incoming,true);replace(id,copy(incoming));}

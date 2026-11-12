@@ -2,7 +2,7 @@
 // sheet, the resident bar with the Assistant rising above its composer (DESIGN.md "The bottom bar"), and Coding's
 // directory · dialogue · review columns. Everything outside the interaction is decoration and says so.
 import { escapeHtml, icon, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderInteractionComposerTarget, renderInteractionNextSteps } from "../../packages/design-system/src/index.ts";
+import { renderInteractionComposerTarget, renderInteractionNextSteps } from "../../packages/design-system/src/interaction.ts";
 import { renderThread } from "./render-cards.ts";
 import type { Layout } from "./model.ts";
 

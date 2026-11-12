@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { connectionGuide, connectionLinks } from "./connection-guide.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -34,12 +36,12 @@ export const githubIntegrationManifest = {
     consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
   },
   artifacts: { produces: [], consumes: [] },
-  ui: { contributions: ["settings.integration.github"] },
+  ui: { contributions: ["settings.integration.github"], locales: { default: "zh", available: ["zh", "en"] } },
   connection_services: [{
     service_id: "github",
     title: "GitHub",
     group_id: "code",
-    summary: "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
+    summary: { key: "github.connection.summary" },
     auth_kind: "oauth",
     // Two ways to sign in, side by side: the web flow for a client of the person's own, and the device flow for the product's (the person
     // types a code on GitHub's page). Both read the account the same way.
@@ -53,15 +55,11 @@ export const githubIntegrationManifest = {
       identity: { url: "{service}/user", account_id: [["identity:/id"]], label: ["identity:/login"] },
     }, { kind: "mcp", endpoint: "https://api.githubcopilot.com/mcp/", auth: "either", registration: "manual" }] },
     capabilities: [
-      { label: "Feed 拉未读通知", fulfillment: "live" },
-      { label: "在连接设置中检查当前账号", fulfillment: "live" },
+      { label: { key: "github.connection.inbound" }, fulfillment: "live" },
+      { label: { key: "common.connector.check-current-account" }, fulfillment: "live" },
     ],
-    outbound_note: "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
-    // The catalog package keeps the same links for its connection methods until those move into the plugins (W5-11).
-    setup_links: [
-      { label: "创建 Personal Access Token", url: "https://github.com/settings/tokens/new?scopes=notifications,read:user&description=Molis%20Work" },
-      { label: "注册 OAuth App", url: "https://github.com/settings/applications/new" },
-    ],
+    outbound_note: { key: "github.connection.outbound" },
+    setup_links: connectionLinks,
   }],
   integrations: [{ integration_id: "github", kind: "source", service_id: "github" }],
 } as const satisfies PluginManifest;
@@ -70,8 +68,8 @@ export function createGithubIntegrationPlugin(input: {
   /** The provider for one source's binding; the Host decides where the credential comes from. */
   providerFor(binding: IntegrationBinding): IntegrationProviderPort;
   now?: () => Date;
-}): PluginDefinition {
-  return definePollingIntegrationPlugin({
+}) {
+  const definition: PluginDefinition = definePollingIntegrationPlugin({
     manifest: githubIntegrationManifest,
     createProvider(context, binding) {
       context.requireGrant("network:github.com");
@@ -81,4 +79,8 @@ export function createGithubIntegrationPlugin(input: {
     presentAccount: (cursor, label) => githubAccountPresentation(cursor, label),
     now: input.now,
   });
+  return { ...definition, connectionText: { readLocale(path: string) {
+    const url = new URL("../" + path, import.meta.url);
+    return existsSync(url) ? readFileSync(url, "utf8") : null;
+  }, guides: { github: connectionGuide } } };
 }

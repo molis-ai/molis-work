@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { IMAGES_CLIENT_FACTORY_SCRIPT, IMAGES_MESSAGES, renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
+import { IMAGES_CLIENT_FACTORY_SCRIPT, renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
 
 const SRC = "plugins/native/images/src";
 const BROWSER = join(SRC, "browser");
@@ -21,15 +22,9 @@ test("RAC-142 every word the Images page says has a stable key with both languag
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key) && !SHARED_PHRASES.includes(call.key)), [], "only shared placement phrases use Chinese keys");
   assert.deepEqual(scan.dynamicCalls.filter(call => owns(call.file)), [], "all dynamic stable-key choices are enumerated by the real scanner");
   const used = new Set<string>(calls.map(call => call.key).filter(key => !SHARED_PHRASES.includes(key)));
-  assert.deepEqual([...used].filter(key => !(key in IMAGES_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(IMAGES_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(IMAGES_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderImagesWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /placeholder="«images\.compose\.example»"/u, "the server-drawn page speaks through the translator");
+  assertPageWords("images", used);
+  const html = withPageText("en", ["images"], () => renderImagesWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "images")("images.compose.example")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
@@ -12,7 +13,8 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { L, pageLocale, type WebLocale } from "../web-locale.js";
+import { activeLocale, readText, pageLocale, type WebLocale } from "../web-locale.js";
+import { modelRoundLocale } from "../reply-language.js";
 import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -92,6 +94,9 @@ export function closeAssistantService(host: MolisWorkLocalHost): void {
   services.delete(host);
 }
 
+const personCacheKey = (reference: LocalHostProjectReference | undefined) =>
+  JSON.stringify([reference?.project_id ?? "", activeLocale()]);
+
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
@@ -101,7 +106,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   // checked against its current definition, availability and grant owner when it is dispatched.
   const contexts = new Map<string, { at: number; context: Promise<ActionCallContext> }>();
   const personContext = (reference: LocalHostProjectReference | undefined): Promise<ActionCallContext> => {
-    const key = reference?.project_id ?? "", hit = contexts.get(key), now = Date.now();
+    const key = personCacheKey(reference), hit = contexts.get(key), now = Date.now();
     if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.context;
     const context = localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
     contexts.set(key, { at: now, context });
@@ -112,7 +117,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const directories = new Map<string, { at: number; views: Promise<readonly ActionView[]> }>();
   const personClient = (reference: LocalHostProjectReference | undefined): PersonActions => {
     const client = reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient();
-    const key = reference?.project_id ?? "";
+    const key = personCacheKey(reference);
     return {
       discover: () => {
         const hit = directories.get(key), now = Date.now();
@@ -156,13 +161,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }),
+      }, locale),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
@@ -173,7 +178,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     projectTitle: ports.projectTitle,
     // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
     methods: { roles: () => definitions().signedRoles(),
-      readSigned: (install, ref) => definitions().signedMaterial(install, ref),
+      readSigned: (install, ref) => definitions().signedMaterial(install, ref, modelRoundLocale(ports.homeDirectory)),
       recordSignedUse: (material, caller) => definitions().recordSignedUse(material, caller),
       recordSkillUse: use => definitions().skills.recordUse(use),
       bindSigned: async (project, installs) => {
@@ -233,7 +238,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
-  projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
+  projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service));
@@ -380,7 +385,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materials.materialImage(workId, parts[3]!) } };
       // The connection card of a result that left a connection to finish (ASC-69): read, and cancelled, as whoever prepared it.
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "connection" && (method === "GET" || method === "POST" && body.step === "cancel")) {
-        return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", L) };
+        return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", readText) };
       }
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
@@ -432,7 +437,7 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
 /** A reply with its questions, cards and next steps drawn (the page only binds them). */
 function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result: NativePluginJsonResult): void {
   const { service, store } = assistantServiceFor(ports);
-  drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
+  drawAssistantReply(result.body, { say: readText, card: card => service.offers.html(card, readText),
     drafts: workId => { try { return questionDrafts(store).read(workId); } catch (error) {
       if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "question_drafts_read_failed", error);
       return {};
@@ -461,7 +466,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
         if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "answer_context_read_failed", error);
         return undefined;
       }))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
-      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
+      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, readText, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };
@@ -473,8 +478,8 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
   if (parts[4] !== "redo") return null;
   const card = service.offers.card(workId, parts[3]!);
-  return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
-    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
+  return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: uiText.text("workbench.assistant-http.suggestion-title-did-not-run-why-read-latest",
+    { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
 }
 
 /** The Send HTTP input, before invoking its owner. */

@@ -4,6 +4,7 @@ import test from "node:test";
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
 import { pagesHost } from "./fixtures/pages-host.js";
+import { chinesePagePacks, installPageClientText } from "./fixtures/page-text-packs.js";
 
 interface FakeNode {
   hidden: boolean;
@@ -185,6 +186,7 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
   }) as typeof fetch;
   const previousFetch = globalThis.fetch;
   globalThis.fetch = fetchStub;
+  const restoreText = installPageClientText("zh", chinesePagePacks("pages"));
   try {
     const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: ReturnType<typeof pagesHost>) => void;
     factory(pagesHost(fakeLifetime(), { mountPluginClient: undefined }));
@@ -244,6 +246,7 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
     assert.equal(posts.at(-1)?.url, "/api/plugins/io.molis.work.pages/pages/A");
     assert.equal(posts.at(-1)?.body.body, "A again");
   } finally {
+    restoreText();
     globalThis.setTimeout = previousTimeout;
     globalThis.clearTimeout = previousClear;
     globalThis.fetch = previousFetch;
@@ -332,6 +335,7 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
     if (parsed.pathname.endsWith("/promote")) return json({ document: documents[0], artifact: { artifact_id: "wrong", version: 1 } });
     return json({ document: documents[0] });
   }) as typeof fetch;
+  const restoreText = installPageClientText("zh", chinesePagePacks("pages"));
   try {
     const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: ReturnType<typeof pagesHost>) => void;
     factory(pagesHost(fakeLifetime(), { mountPluginClient: undefined }));
@@ -351,6 +355,7 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
     assert.equal(parts.get("[data-pages-stage-workspace]")?.hidden, false);
     assert.equal(editorBody, "unsaved");
   } finally {
+    restoreText();
     globalThis.setTimeout = previousTimeout;
     globalThis.clearTimeout = previousClear;
   }

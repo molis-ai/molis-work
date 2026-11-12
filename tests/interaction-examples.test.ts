@@ -9,12 +9,14 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
+import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 // specs/ai-interaction-experience §15.8 example 1 (AC-12, AC-04): the model asks for a moment, a length and a Goal in one card;
 // one field filled wrong is named on its own; the corrected answer lets the same run go on. Examples 2 and 3 are covered where
 // they live: an operation card in `action-cards` and `agent-host-offers`, Form's ask-first drafting in `form-draft-questions`.
 
-const say = (text: string, values?: Record<string, string | number>) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values?.[key] ?? ""));
+const packs = chinesePagePacks();
+const say = pageTextForPacks("zh", packs);
 const ASKED = { why: "约下周的复盘会", questions: [
   { id: "at", type: "datetime", prompt: "开会时间" },
   { id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" },
@@ -51,7 +53,7 @@ test("AC-12 §15.8 example 1: one card asks for a moment, a length and a Goal; a
   assert.deepEqual(questions.map(item => item.type), ["datetime", "number", "reference"]);
 
   // The shared card draws all three: a date and a time, a stepper with its unit, and a search of Goals only.
-  const html = agentQuestionHtml(pending, say);
+  const html = withPagePacks("zh", packs, () => agentQuestionHtml(pending, say));
   assert.match(html, /data-ix-part="time"/);
   assert.match(html, /data-ix-value="n1"[\s\S]*?<span class="mw-ix-unit"[^>]*>分钟<\/span>/);
   assert.match(html, /data-ix-field="r2"[\s\S]*?data-ix-ref-source="goal"/);

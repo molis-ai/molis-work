@@ -1,5 +1,5 @@
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
-import { PLUGIN_COMPONENTS, PLUGIN_PRESENTATION_GUIDE, type PluginComponentIntent } from '@molis-ai/molis-work-design-system';
+import { literalPluginWord, PLUGIN_COMPONENTS, pluginComponentCatalog, PLUGIN_PRESENTATION_GUIDE, type PluginComponentIntent } from '@molis-ai/molis-work-design-system';
 import type { AgentProposal, AgentDesign } from './agent-model.js';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { parseModelJson } from './model-json.js';
@@ -11,12 +11,12 @@ export function proposalSketch(proposal: AgentProposal) {
   const { contract, parts } = proposal.preview;
   return { id: proposal.id, title: proposal.title, description: proposal.description, rationale: proposal.rationale, journey: proposal.journey,
     operations: contract.operations.map(({ id, kind, description, input, output, effects }) => ({ id, kind, description, input, output, ...(effects.capabilities?.length ? { effects: { capabilities: effects.capabilities } } : {}) })),
-    pages: contract.pages.map(page => ({ id: page.id, title: page.title, parts: parts.filter(part => part.pageId === page.id).map(part => ({ id: part.id, intent: part.intent, purpose: part.purpose, uses: part.read?.operationId ?? part.submit?.operationId })) })) };
+    pages: contract.pages.map(page => ({ id: page.id, title: literalPluginWord(page.title), parts: parts.filter(part => part.pageId === page.id).map(part => ({ id: part.id, intent: part.intent, purpose: part.purpose, uses: part.read?.operationId ?? part.submit?.operationId })) })) };
 }
 
 export function experienceTask(brief: string, proposal: AgentProposal) {
   return { mode: 'experience', brief, proposal: proposalSketch(proposal),
-    components: PLUGIN_COMPONENTS.filter(component => component.use === 'part'), controls: PLUGIN_PRESENTATION_GUIDE.controls,
+    components: pluginComponentCatalog().filter(component => component.use === 'part'), controls: PLUGIN_PRESENTATION_GUIDE.controls,
     output: '返回 {summary,journey,pages,scenarios}。summary 说明主任务、主内容/动作和取舍；journey 是用户路径的文字数组；pages 是 [{id,title,parts:[{id,intent,purpose,uses?}]}]，uses 是已有操作 id 或 id 数组，一块草图可表达列表及行内动作，完整设计再拆成运行时绑定。可增减或重组草图部件，不能增删操作或扩权。scenarios 是 [{task,content,expected}]：task 是需验证的任务，content 是具体逼真的合成内容（JSON 值，可用文字、记录对象或数组，空数据可用 []），expected 是可观察的结果。阅读提供有段落和结尾的完整正文，比较提供有差异的数值，操作提供连续操作的场景；遵守给定字段约束。只写当前任务需要的场景，不穷举。尚未生成绑定、验收脚本或布局 JSON。' };
 }
 

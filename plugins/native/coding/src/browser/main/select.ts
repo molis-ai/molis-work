@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderArtifacts } from "./artifacts.js";
 import { refreshState } from "./configuration.js";
 import { controls } from "./controls.js";
@@ -36,7 +37,7 @@ function leaveSession(page: Page) {
 
 /** Puts the page on a session: everything shown belongs to the one before until the first read of this one draws. */
 export async function select(page: Page, id: string) {
-  const { L, host, q, root, s } = page, { changeReview, draft, taskboard } = page.refs;
+  const { host, q, root, s } = page, { changeReview, draft, taskboard } = page.refs;
   host.revealTask?.();
   root.dataset.codingResults = "false";
   root.dataset.codingDetail = "true";
@@ -63,7 +64,7 @@ export async function select(page: Page, id: string) {
   s.statusKey = "";
   taskboard.loading(id);
   q("[data-coding-checkpoints-list]").replaceChildren();
-  q("[data-coding-checkpoints-status]").textContent = L("coding.checkpoints.loading");
+  q("[data-coding-checkpoints-status]").textContent = uiText.text("coding.checkpoints.loading");
   q("[data-coding-commands]").querySelectorAll(":scope > .coding-command").forEach(node => node.remove());
   q("[data-coding-commands]").hidden = true;
   controls(page);
@@ -73,7 +74,7 @@ export async function select(page: Page, id: string) {
 
 /** Opens an item of this plugin: a session, or a fixed report or change review of one of its rounds. */
 export async function openCodingItem(page: Page, itemId: string) {
-  const { L, s } = page, { changeReview } = page.refs, ticket = ++s.itemTicket;
+  const { s } = page, { changeReview } = page.refs, ticket = ++s.itemTicket;
   s.reportItem = "";
   s.changeItem = "";
   const prefix = itemId.startsWith("coding-changeset:") ? "coding-changeset:" : itemId.startsWith("coding-report:") ? "coding-report:" : "";
@@ -87,7 +88,7 @@ export async function openCodingItem(page: Page, itemId: string) {
     return;
   }
   const parts = itemId.slice(prefix.length).split(":");
-  if (parts.length !== 2) throw new Error(L("coding.error.artifact-reference"));
+  if (parts.length !== 2) throw new Error(uiText.text("coding.error.artifact-reference"));
   const id = decodeURIComponent(parts[0]!), runId = decodeURIComponent(parts[1]!);
   await select(page, id);
   if (ticket !== s.itemTicket || s.current !== id) return;
@@ -106,8 +107,8 @@ export async function openCodingItem(page: Page, itemId: string) {
  * Anything with a draft, a Goal or a past run is left alone.
  */
 async function untouched(page: Page): Promise<SessionRecord | null> {
-  const { L, s } = page, { draft } = page.refs;
-  for (const session of s.state.sessions.filter(item => item.state === "idle" && item.title === L("coding.session.new-title") && !item.goal_id)) {
+  const { s } = page, { draft } = page.refs;
+  for (const session of s.state.sessions.filter(item => item.state === "idle" && item.title === uiText.text("coding.session.new-title") && !item.goal_id)) {
     if (draft.local(session.session_id)) continue;
     try {
       const data = await api<SessionData>(page, sessionPath(session.session_id) + "?window=1");
@@ -121,8 +122,8 @@ async function untouched(page: Page): Promise<SessionRecord | null> {
 
 /** Starts a session, or reuses an untouched one, and puts the page on it. */
 export async function create(page: Page) {
-  const { L, host } = page, reuse = await untouched(page);
-  const session = reuse || (await api<{ session: SessionRecord }>(page, "/sessions", "POST", { title: L("coding.session.new-title") })).session;
+  const { host } = page, reuse = await untouched(page);
+  const session = reuse || (await api<{ session: SessionRecord }>(page, "/sessions", "POST", { title: uiText.text("coding.session.new-title") })).session;
   if (!reuse) await refreshState(page);
   host.openItem("coding", session.session_id, session.title);
   await select(page, session.session_id);

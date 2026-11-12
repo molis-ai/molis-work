@@ -21,8 +21,8 @@ import { nodesToMarkdown } from "./to-markdown.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 import { pagesFocusPlugin } from "./focus.js";
 import type { Translate, PagesEditorMountOptions, PagesEditorHandle } from "./editor-types.js";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { t, overlayRoot, keepFocus } from "./editor-view-ui.js";
+import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { bindEditorWords, refreshEditorWords, t, overlayRoot, keepFocus } from "./editor-view-ui.js";
 import { codeHighlightPlugin } from "./editor-node-media.js";
 import { hoverHandlePlugin } from "./editor-block-plugin.js";
 import { createEditorPopup } from "./editor-popup.js";
@@ -53,21 +53,21 @@ export function toHTML(value: unknown): string {
   return wrap.innerHTML;
 }
 
-function calendarPlugin() {
+function calendarPlugin(translate: Translate | undefined) {
   return new Plugin({
     view(view) {
       const paint = (next: EditorView) => {
         next.dom.querySelectorAll(".pages-calendar").forEach((host) => {
-          renderCalendar(host as HTMLElement, next.state.doc);
+          renderCalendar(host as HTMLElement, next.state.doc, translate);
         });
       };
       paint(view);
-      return { update: paint };
+      return { update: (next, previous) => { if (next.state.doc !== previous.doc) paint(next); } };
     },
   });
 }
 
-function renderCalendar(host: HTMLElement, doc: Node): void {
+function renderCalendar(host: HTMLElement, doc: Node, translate: Translate | undefined): void {
   if (!host.isConnected) return;
   const events: Array<{ title: string; at: string; day: number }> = [];
   const now = new Date();
@@ -86,16 +86,23 @@ function renderCalendar(host: HTMLElement, doc: Node): void {
   const days = new Date(year, month + 1, 0).getDate();
   const today = now.getFullYear() === year && now.getMonth() === month ? now.getDate() : 0;
   const marks = new Set(events.map((item) => item.day));
-  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
-  const cells: string[] = weekdays.map((label) => `<span class="is-weekday">${label}</span>`);
-  for (let i = 0; i < first; i += 1) cells.push("<span></span>");
-  for (let day = 1; day <= days; day += 1) {
-    const on = marks.has(day);
-    const titles = events.filter((item) => item.day === day).map((item) => item.title).join("、");
-    const cls = [on ? "is-on" : "", day === today ? "is-today" : ""].filter(Boolean).join(" ");
-    cells.push(`<span class="${cls}" title="${escapeHtml(titles)}">${day}</span>`);
+  const header = document.createElement("header"), grid = document.createElement("div");
+  grid.className = "pages-calendar-grid";
+  bindEditorWords(header, () => { header.innerHTML = format.date(`${year}-${String(month + 1).padStart(2, "0")}-01`, "year-month"); });
+  for (let i = 0; i < 7; i += 1) {
+    const day = document.createElement("span");
+    day.className = "is-weekday";
+    bindEditorWords(day, () => { day.innerHTML = format.date(`2024-01-${String(7 + i).padStart(2, "0")}`, "weekday-narrow"); });
+    grid.append(day);
   }
-  host.innerHTML = `<header>${year} / ${month + 1}</header><div class="pages-calendar-grid">${cells.join("")}</div>`;
+  for (let i = 0; i < first; i += 1) grid.append(document.createElement("span"));
+  for (let day = 1; day <= days; day += 1) {
+    const cell = document.createElement("span"), titles = events.filter((item) => item.day === day).map((item) => item.title);
+    cell.classList.toggle("is-on", marks.has(day)); cell.classList.toggle("is-today", day === today);
+    bindEditorWords(cell, () => { cell.innerHTML = format.number(day); cell.title = titles.join(t(translate, "common.list.separator")); });
+    grid.append(cell);
+  }
+  host.replaceChildren(header, grid);
 }
 
 function refreshToc(view: EditorView, translate?: Translate): void {
@@ -111,11 +118,11 @@ function refreshToc(view: EditorView, translate?: Translate): void {
     nav.replaceChildren();
     const lead = document.createElement("p");
     lead.className = "pages-toc-label";
-    lead.textContent = t(translate, "目录");
+    bindEditorWords(lead, () => { lead.textContent = t(translate, "pages.editor.table-of-contents"); });
     nav.append(lead);
     if (!headings.length) {
       const empty = document.createElement("p");
-      empty.textContent = t(translate, "还没有标题");
+      bindEditorWords(empty, () => { empty.textContent = t(translate, "pages.editor.no-headings-yet"); });
       nav.append(empty);
       return;
     }
@@ -126,7 +133,8 @@ function refreshToc(view: EditorView, translate?: Translate): void {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "pages-toc-jump" + (index === current ? " is-on" : "");
-      button.textContent = item.text || t(translate, "无标题");
+      if (item.text) button.textContent = item.text;
+      else bindEditorWords(button, () => { button.textContent = t(translate, "pages.doc.untitled"); });
       button.addEventListener("mousedown", keepFocus);
       button.addEventListener("click", () => {
         const tr = revealHeading(view.state, index);
@@ -146,7 +154,9 @@ function tocPlugin(translate: Translate | undefined) {
     view(view) {
       const paint = (next: EditorView) => refreshToc(next, translate);
       paint(view);
-      return { update: paint };
+      return { update: (next, previous) => {
+        if (next.state.doc !== previous.doc || !next.state.selection.eq(previous.selection)) paint(next);
+      } };
     },
   });
 }
@@ -155,7 +165,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   host.replaceChildren();
   const previews = createEditorPreviews(options);
   // The tools the context toolbar draws (context-toolbar §3: an editor's own commands, not actions). `group` is how they sit on the bar.
-  const toolDefs = editorToolDefinitions(options.translate);
+  let toolDefs = editorToolDefinitions(options.translate);
   overlayRoot().append(previews.linkPreview, previews.commentPreview);
 
   const popup = createEditorPopup(options);
@@ -179,7 +189,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     codeHighlightPlugin(),
     hoverHandlePlugin(options.translate, (index) => openNote(view, index)),
     tocPlugin(options.translate),
-    calendarPlugin(),
+    calendarPlugin(options.translate),
     findPlugin(options.translate),
     keymap({ Escape: selectEnclosingBlock }),
     pagesFocusPlugin({ onFocus: options.onFocus }),
@@ -193,8 +203,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     else { tool.run?.(view.state, view.dispatch.bind(view)); view.focus(); }
   };
 
+  const attributes = () => ({ role: "textbox", "aria-multiline": "true", "aria-label": t(options.translate, "pages.editor.document-body") });
   view = new EditorView(host, {
-    attributes: { role: "textbox", "aria-multiline": "true", "aria-label": t(options.translate, "文档正文") },
+    attributes,
     state: EditorState.create({
       doc: nodeFromUnknown(options.doc),
       plugins,
@@ -227,6 +238,13 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     view.focus();
   };
   document.addEventListener("keydown", onPopEscape, true);
+  const languageChanged = () => {
+    toolDefs = editorToolDefinitions(options.translate);
+    view.setProps({ attributes });
+    refreshEditorWords(view.dom);
+    options.onTools?.();
+  };
+  document.addEventListener("molis-work:language-changed", languageChanged);
   refreshToc(view, options.translate);
   const stopPreviews = previews.follow(view, () => options.onScreen?.());
   return { view, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset), tools: () => editorToolGroups(view, toolDefs), runTool, screen: () => editorSelectionScreen(view),
@@ -234,6 +252,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       stopPreviews();
       hidePop();
       document.removeEventListener("keydown", onPopEscape, true);
+      document.removeEventListener("molis-work:language-changed", languageChanged);
       pop.remove();
       previews.remove();
     } };

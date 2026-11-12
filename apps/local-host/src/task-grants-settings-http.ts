@@ -1,12 +1,14 @@
 import { ActionError, bindActionClient, isSearchEntriesSource, SEARCH_ENTRIES_PAGE_LIMIT, type ActionView, type SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTaskGrantActions, type TaskGrantSetCategory } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
+import { directoryWordResolver, registeredInstallationText } from "./ui-text-provider.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 
@@ -18,11 +20,16 @@ const KEYS: Record<string, readonly string[]> = {
 const text = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 512;
 
 /** The installation a subject is in, in this project or the Home, with the Manifest it runs: its name and what its tasks are. */
-async function installationOf(context: WebRequestContext, project: LocalHostProjectReference, installId: string): Promise<{ plugin_id: string; manifest: PluginManifest | undefined } | null> {
+async function installationOf(context: WebRequestContext, project: LocalHostProjectReference, installId: string): Promise<{ record: PluginInstanceRecord; manifest: PluginManifest | undefined } | null> {
   const own = await context.localHost.withProject(project, runtime => installedPluginEntries(runtime.store.db).find(({ record }) => record.install_id === installId));
-  if (own) return { plugin_id: own.record.plugin_id, manifest: own.manifest };
+  if (own) return own;
   const home = context.localHost.homePlugins, record = home?.installation(installId);
-  return record && record.install_id === installId ? { plugin_id: record.plugin_id, manifest: home?.manifest(record.plugin_id) } : null;
+  return record && record.install_id === installId ? { record, manifest: home?.manifest(record.plugin_id) } : null;
+}
+
+function installationName(installation: NonNullable<Awaited<ReturnType<typeof installationOf>>>): string {
+  const { record, manifest } = installation;
+  return manifest ? projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(registeredInstallationText(record))).name : record.plugin_id;
 }
 
 /** The installation's own search source for the kind its Manifest says its tasks are (task-grants-platform-area.md §5.1), open to the person. */
@@ -69,7 +76,7 @@ export async function handleTaskGrantsSettingsHttp(context: WebRequestContext, p
       // Each installation the subjects are in, by its own name, and whether it says what its tasks are (so the page asks it for their titles).
       const installations = await Promise.all([...new Set(listed.subjects.map(subject => subject.plugin_install_id))].map(async plugin_install_id => {
         const found = await installationOf(context, project, plugin_install_id);
-        return { plugin_install_id, plugin_id: found?.plugin_id ?? null, name: found?.manifest?.name ?? found?.plugin_id ?? null, titled: Boolean(found?.manifest?.task_subjects) };
+        return { plugin_install_id, plugin_id: found?.record.plugin_id ?? null, name: found ? installationName(found) : null, titled: Boolean(found?.manifest?.task_subjects) };
       }));
       sendLocalWebJson(response, 200, { ...listed, installations }); return true;
     }

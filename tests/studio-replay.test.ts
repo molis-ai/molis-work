@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { AgentBuilderWorkflow, type AgentBuilderPorts, type CatalogEntry } from "@molis-ai/molis-work-plugin-builder";
+import { AgentBuilderWorkflow, BUILDER_PROMPTS, expandDesign, freezeStudioUi, parseModelJson, validateAgentDesign, type AgentBuilderPorts, type CatalogEntry } from "@molis-ai/molis-work-plugin-builder";
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -13,6 +13,7 @@ import { entryDigest, entryFromRunRecord, loadCorpus, type ReplayEntry } from ".
 import { CATALOG_MISS, LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
 import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
+import { studioTestLanguages } from "./fixtures/studio-bilingual.js";
 
 // specs/archive/repository-anti-corruption §4.14 (W1-12): the studio Skill replay. Recorded designer answers go through the host's
 // design checks and are compared with a committed baseline; a generation smoke runs the same studio workflow against a real
@@ -84,6 +85,32 @@ test("the prompt example is replayed from the prompt itself, so a prompt edit th
   assert.equal(example!.id, "prompt-example");
   assert.equal(replayEntry(example!).pass, true);
   assert.equal(replayEntry({ ...example!, answer: example!.answer.slice(0, 200) }).pass, false);
+});
+
+test("FSS-74 both detail prompt examples freeze the actual UI slots and use the declared property in browser acceptance", () => {
+  const [example] = builtinEntries();
+  const bodies = { zh: BUILDER_PROMPTS.designer.text, en: BUILDER_PROMPTS.designer.body_by_locale.en! };
+  for (const [current, body] of Object.entries(bodies)) {
+    const sample = /^(\{"summary"[\s\S]+?)\n\n/mu.exec(body)?.[1];
+    assert.ok(sample, current);
+    const answer = parseModelJson(sample, true);
+    assert.ok(answer && typeof answer === "object" && "design" in answer);
+    const draft = answer.design;
+    assert.ok(draft && typeof draft === "object" && "uiText" in draft);
+    const design = expandDesign(answer, example!.base!, "io.molis.work.generated.prompt-example", "example", []);
+    const valid = validateAgentDesign(design, [], [], assertContract);
+    const frozen = freezeStudioUi(valid, draft.uiText, { ...studioTestLanguages, current });
+    assert.equal(frozen.contract.ui?.locales.default, current);
+    assert.equal(frozen.title, current === "en" ? "Quick notes" : "随手记");
+    assert.deepEqual(frozen.acceptance.find(check => check.id === "empty")?.steps, [
+      { action: "page", pageId: "home" },
+      { action: "expectWord", componentId: "notes", word: "emptyText" },
+    ]);
+    const empty = frozen.parts.find(part => part.id === "notes")?.props.emptyText;
+    assert.ok(empty && typeof empty === "object" && "key" in empty);
+    assert.deepEqual(frozen.localePacks?.map(pack => [pack.locale, pack.messages[empty.key]]),
+      [["zh", "还没有笔记"], ["en", "No notes yet"]]);
+  }
 });
 
 test("a refusal is grouped by its kind, not by the names and numbers in it", () => {
@@ -424,7 +451,7 @@ test("a Skill that no longer mounts fails the command; a Skill that changed is r
   writeFileSync(chapter, original + "\n\n" + "多出来的一句话。".repeat(4000));
   const tooBig = run("--skill-dir", copy);
   assert.equal(tooBig.code, 1, tooBig.out);
-  assert.match(tooBig.out, /Skill mount problems[\s\S]*超过 20000 字的挂载上限/);
+  assert.match(tooBig.out, /Skill mount problems[\s\S]*characters exceeds the 20000 character Skill body limit/);
   writeFileSync(chapter, original + "\n\n补一句话。\n");
   const changed = run("--skill-dir", copy);
   assert.equal(changed.code, 0, "a small Skill edit is not a failure of the fixed-answer replay: " + changed.out);
@@ -593,38 +620,45 @@ test("the smoke only runs on an isolated Home with the file secret store, and sa
   const skipped = cli(["smoke"], { MOLIS_WORK_HOME: home });
   assert.equal(skipped.code, 0, skipped.out);
   assert.match(skipped.out, /SKIP: the isolated Home .* has no enabled text model/);
-  assert.match(skipped.out, /pnpm web --port .*\n.*设置 → 模型设置[\s\S]*pnpm studio:replay smoke/);
+  assert.match(skipped.out, /selected-home-server\.mjs .*\n.*\/settings\/models[\s\S]*pnpm studio:replay smoke/);
   assert.doesNotMatch(skipped.out, /REFUSED/);
 });
 
-test("the smoke wiring works end to end against a scripted local model: Home, model, Prologue agent, studio workflow, report", () => {
+test("FSS-74 the smoke wiring works end to end against a scripted local model: Home, model, Prologue agent, studio workflow, report", () => {
   const result = cli(["smoke", "--stand-in", "--minutes", "1"], { MOLIS_WORK_HOME: undefined });
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /STAND-IN MODEL: .* not any Skill or prompt/);
   assert.match(result.out, /Generation smoke: 3\/3 briefs reached a frozen design with stand-in-model; 3 full designs accepted on the first answer; 0 repair rounds/);
-  assert.match(result.out, /notes\s+designed\s+\d+s\s+propose first try, experience first try, detail first try/);
+  assert.match(result.out, /notes\s+zh\s+designed\s+\d+s\s+propose first try, experience first try, detail first try/);
 });
 
 test("the smoke counts the designer's repair rounds, which is what a Skill edit is judged by", async () => {
   const answers = standInAnswers(path.join(corpusDirectory, "corpus.json")), detail = answers.detail as string;
-  const requests: Array<{ mode: string; repair: boolean }> = [];
-  // The first full design is cut off; the repair request gets the whole one.
-  const script: Record<string, string[]> = { propose: [answers.propose as string], experience: [answers.experience as string], detail: [detail.slice(0, 120), detail] };
   const record = (request: BuilderAgentRequest, output: string): BuilderAgentRecord => ({ id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
     instruction: request.instruction, input: request.task, output, configuredModel: "m", reportedModels: [], phase: "completed", startedAt: new Date().toISOString(), activity: [], usage: [] });
-  const report = await runSmoke({ briefs: [{ id: "one", brief: "随手记" }], minutes: 1, pollMs: 5, model: { provider_id: "p", model_id: "m", label: "m" },
-    agent: async () => ({ async close() {}, async records() { return []; }, async run(request: BuilderAgentRequest) {
-      const task = JSON.parse(request.task) as { mode: string; repair?: unknown };
-      requests.push({ mode: task.mode, repair: task.repair !== undefined });
-      const queue = script[task.mode]; if (!queue) throw new Error("no answer for " + task.mode);
-      return record(request, queue.length > 1 ? queue.shift()! : queue[0]!);
-    } }) });
-  const [one] = report.briefs;
-  assert.equal(one!.outcome, "designed");
-  assert.deepEqual(one!.repairRounds, { propose: 0, experience: 0, detail: 1 });
-  assert.deepEqual(one!.firstTry, { propose: true, experience: true, detail: false });
-  assert.match(one!.repairs[0]!, /^detail: .*JSON/, "the host's own words for the refusal are kept");
-  assert.deepEqual(requests.map(item => item.mode + (item.repair ? "+repair" : "")), ["propose", "experience", "detail", "detail+repair"], "the code role and the UI stage never run");
-  assert.deepEqual(report.summary, { briefs: 1, designed: 1, detailFirstTry: 0, repairRounds: 1 });
-  assert.equal(Object.keys(report.skill.stages).length, 5);
+  const monolingual = JSON.parse(detail);
+  delete monolingual.design.uiText.locales.en;
+  for (const [firstDetail, refusal] of [[detail.slice(0, 120), /^detail: .*JSON/], [JSON.stringify(monolingual), /^detail: UI languages must be zh, en/]] as const) {
+    const requests: Array<{ mode: string; repair: boolean }> = [];
+    const script: Record<string, string[]> = { propose: [answers.propose as string], experience: [answers.experience as string], detail: [firstDetail, detail] };
+    const report = await runSmoke({ briefs: [{ id: "one", brief: "随手记" }], minutes: 1, pollMs: 5, model: { provider_id: "p", model_id: "m", label: "m" },
+      agent: async () => ({ async close() {}, async records() { return []; }, async run(request: BuilderAgentRequest) {
+        const task = JSON.parse(request.task) as { mode: string; repair?: unknown; uiText?: { default: string; available: Array<{ tag: string }> } };
+        requests.push({ mode: task.mode, repair: task.repair !== undefined });
+        if (task.mode === "detail") {
+          assert.equal(task.uiText?.default, "zh");
+          assert.deepEqual(task.uiText?.available.map(language => language.tag), ["zh", "en"]);
+        }
+        const queue = script[task.mode]; if (!queue) throw new Error("no answer for " + task.mode);
+        return record(request, queue.length > 1 ? queue.shift()! : queue[0]!);
+      } }) });
+    const [one] = report.briefs;
+    assert.equal(one!.outcome, "designed", one!.error);
+    assert.deepEqual(one!.repairRounds, { propose: 0, experience: 0, detail: 1 });
+    assert.deepEqual(one!.firstTry, { propose: true, experience: true, detail: false });
+    assert.match(one!.repairs[0]!, refusal, "the host's own words for the refusal are kept");
+    assert.deepEqual(requests.map(item => item.mode + (item.repair ? "+repair" : "")), ["propose", "experience", "detail", "detail+repair"], "the code role and the UI stage never run");
+    assert.deepEqual(report.summary, { briefs: 1, designed: 1, detailFirstTry: 0, repairRounds: 1 });
+    assert.equal(Object.keys(report.skill.stages).length, 5);
+  }
 });

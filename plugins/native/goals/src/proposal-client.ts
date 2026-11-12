@@ -1,7 +1,7 @@
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
 /** Goal proposal decisions; Workbench supplies transport and cross-surface refresh/receipts. */
 export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { translate: L, route, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
+    const { translate: readText, route, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
     // The link opens Goals through the common workbench route; only Goals consumes the proposal anchor, once.
     addEventListener("load", () => {
       const entry = document.getElementById(location.hash.slice(1));
@@ -19,7 +19,7 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
         field?.removeAttribute("aria-invalid");
         return false;
       }
-      errorBox.textContent = L(message);
+      errorBox.textContent = globalThis.t.text(message);
       errorBox.hidden = false;
       field?.setAttribute("aria-invalid", "true");
       field?.focus();
@@ -51,16 +51,16 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
       const itemIds = values.getAll("item_id").map(String);
       const receiptContext = decisionReceiptContext(goalTreeDecisionForm);
       if ((decision === "confirm" || decision === "reject") &&
-          requireDecisionText(goalTreeDecisionForm, errorBox, "reason", "请填写决定理由或修改意见")) return;
+          requireDecisionText(goalTreeDecisionForm, errorBox, "reason", "goals.proposal-client.give-decision-reason-revision-note")) return;
       if (!itemIds.length) {
-        errorBox.textContent = L("这份方案已经变化，暂时不能提交。请让 Runtime 按最新状态重新整理。");
+        errorBox.textContent = globalThis.t.text("goals.proposal-client.plan-has-changed-cannot-be-submitted-ask-runtime");
         errorBox.hidden = false;
         return;
       }
       const submitLabel = submitter?.textContent;
       const buttonStates = buttons.map((button) => button.disabled);
       buttons.forEach((button) => { button.disabled = true; });
-      if (submitter) submitter.textContent = L("正在保存…");
+      if (submitter) submitter.textContent = globalThis.t.text("goals.proposal-client.saving");
       errorBox.hidden = true;
       try {
         const key = goalTreeDecisionForm.dataset.idempotencyKey ||= crypto.randomUUID();
@@ -75,18 +75,18 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
             reason,
             idempotency_key: key,
           },
-          fallback: L("方案决定提交失败"),
+          fallback: globalThis.t.text("goals.proposal-client.could-not-submit-plan-decision"),
         });
         if (result.conflict_item_ids?.length) {
-          throw new Error(L("Molis Work 已经发生变化。请让 Runtime 更新方案后再决定。"));
+          throw new Error(globalThis.t.text("goals.proposal-client.molis-work-changed-ask-runtime-update-plan-before"));
         }
         await refreshBoardWithDecisionReceipt(
-          decision === "confirm" ? L("这份 Goal 方案已经采用，相关 Goal 和关系已更新。") : L("这份 Goal 方案已退回，当前 Goal Tree 保持不变。"),
+          decision === "confirm" ? globalThis.t.text("goals.proposal-client.goal-plan-was-used-related-goals-relationships-were") : globalThis.t.text("goals.proposal-client.goal-plan-was-sent-back-current-goal-tree"),
           receiptContext,
         );
         delete goalTreeDecisionForm.dataset.idempotencyKey;
       } catch (error) {
-        errorBox.textContent = humanDecisionError(error.message, L("方案决定提交失败，请重试"));
+        errorBox.textContent = humanDecisionError(error.message, globalThis.t.text("goals.proposal-client.could-not-submit-plan-decision-try-again"));
         errorBox.hidden = false;
         buttons.forEach((button, index) => { button.disabled = buttonStates[index]; });
         if (submitter) submitter.textContent = submitLabel;

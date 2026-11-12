@@ -43,8 +43,8 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
     choose(focus, candidate) {
       const at = this.value, frame = this.element instanceof HTMLIFrameElement ? this.element : null;
       const send = (path, where, control) => post(path, { pane_id: ownPane, focus, landing: where, key: candidate.key, request_id: newRequestId() }, control?.signal, control?.page_id);
-      const gone = () => bar.error(new Error(L("左边的内容已经换了，请重新选择要放进去的位置")));
-      if (!at) { bar.error(new Error(L("左边没有可以放进去的位置"))); return; }
+      const gone = () => bar.error(new Error(globalThis.t.text("workbench.context-landing.what-open-left-has-changed-choose-where-put")));
+      if (!at) { bar.error(new Error(globalThis.t.text("workbench.context-landing.there-no-place-left-put"))); return; }
       send("/api/contextual/prepare", at).then((offer) => {
         const chosen = { plugin_id: at.plugin_id, context_id: focus.context_id, key: candidate.key, offer_id: candidate.offer_id, apply: candidate.apply,
           intent: candidate.intent, title: candidate.title, object: at.object, landing: at }, run = (control) => send("/api/contextual/attach", at, control);
@@ -73,7 +73,7 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
     if (!held) return;
     if (!run) { held.gone(); return; }
     const done = (reply) => frame.contentWindow.postMessage({ type: "workbench-context-attach-done", token: data.token, ...reply }, location.origin);
-    held.run().then((result) => done({ result }), (error) => done({ error: error && error.message || L("暂时处理不了，请稍后重试") }));
+    held.run().then((result) => done({ result }), (error) => done({ error: error && error.message || globalThis.t.text("workbench.context-landing.can-t-do-that-right-now-try-again") }));
   });
   document.addEventListener("molis:surface-landing", (event) => {
     const element = event.target instanceof Element ? event.target : null;

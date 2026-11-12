@@ -1,9 +1,9 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { RECEIPT_WORDS, type InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
+import { RECEIPT_TEXT_KEYS } from "@molis-ai/molis-work-design-system";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputModelClaim, AgentInputQuestion, AgentQueuedInput, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantActivity, AssistantRound, AssistantWorkObject, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { NEXT_STEP } from "../agent-next-steps.js";
+import { NEXT_STEP, type NextStep, type NextStepSay } from "../agent-next-steps.js";
 
 /** Whether the person can open this object from where the work shows it: it has a place to open, and its owner still has it. One test for the delivery note and the round outcome. */
 export function isOpenable(object: AssistantWorkObject): boolean {
@@ -99,17 +99,17 @@ const clip = (text: string, max = 24) => { const chars = Array.from(text.replace
 
 /** The words for a work's state, short and unlike 「已完成」: a part that ended is only said to have ended. */
 function workWords(say: (text: string, values?: Record<string, string | number>) => string): Record<AssistantWorkState, string> {
-  return { idle: say("尚未开始"), running: say("进行中"), "waiting-input": say("等你回答"), "waiting-review": say("等你确认"), paused: say("已暂停"),
-    completed: say("已结束"), failed: say("失败"), stopped: say("已停止"), "needs-check": say("需要核对") };
+  return { idle: say("workbench.assistant-delivery.not-started"), running: say("workbench.assistant-delivery.progress"), "waiting-input": say("workbench.assistant-delivery.needs-answer"), "waiting-review": say("workbench.assistant-delivery.needs-approval"), paused: say("workbench.assistant-delivery.paused"),
+    completed: say("workbench.assistant-delivery.ended"), failed: say("workbench.assistant-delivery.failed"), stopped: say("workbench.assistant-delivery.stopped"), "needs-check": say("workbench.assistant-delivery.needs-checking") };
 }
 
 /** How a result stands now, in the words the card in the conversation uses; empty when it is as recorded. */
 function resultState(result: DeliveryResult, say: (text: string, values?: Record<string, string | number>) => string): string {
-  if (result.state === "changed") return say("之后被改过");
-  if (result.state === "missing") return say("已不存在");
-  if (result.state === "unavailable") return say("暂时读不到");
+  if (result.state === "changed") return say("workbench.assistant-delivery.changed-since");
+  if (result.state === "missing") return say("workbench.assistant-delivery.no-longer-exists");
+  if (result.state === "unavailable") return say("workbench.assistant-delivery.cannot-be-read-now");
   if (result.state !== "moved") return "";
-  return result.movedTo === null ? say("在别的项目里") : say("已移到") + say("「") + result.movedTo + say("」");
+  return result.movedTo === null ? say("workbench.assistant-delivery.another-project") : say("workbench.assistant-delivery.moved-to", { name: result.movedTo });
 }
 
 /**
@@ -118,17 +118,17 @@ function resultState(result: DeliveryResult, say: (text: string, values?: Record
  * supplement was followed or a thing completed.
  */
 export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?: Record<string, string | number>) => string): string {
-  const { FACT, TREATMENT, IMPACT, QUESTION, STEP } = RECEIPT_WORDS, states = workWords(say);
+  const { FACT, TREATMENT, IMPACT, QUESTION, STEP } = RECEIPT_TEXT_KEYS, states = workWords(say);
   // The AI's report of its own steps: done is only "the model reports done".
-  const stepWords = { pending: say("尚未开始"), "in-progress": say("进行中"), done: say(STEP.succeeded), abandoned: say(STEP.cancelled) };
-  const quoted = (text: string) => say("「") + clip(text) + say("」");
+  const stepWords = { pending: say("workbench.assistant-delivery.not-started"), "in-progress": say("workbench.assistant-delivery.progress"), done: say(STEP.succeeded), abandoned: say(STEP.cancelled) };
+  const quoted = (text: string) => say("workbench.assistant-delivery.quoted-supplement", { text: clip(text) });
   // The page binds a supplement's button to its receipt (`shared.link`) by the input id.
   const supplement = (one: DeliverySupplement) => `<button class="mw-btn mw-btn--sm mw-btn--link" type="button" data-input="${esc(one.id)}">${esc(quoted(one.text))}</button>`;
   const line = (...parts: string[]) => parts.join(DOT);
   const group = (title: string, items: string[], attrs = "") => items.length
     ? `<div${attrs}><p class="mw-receipt__who">${esc(title)}</p><ul class="mw-tray__list">${items.map(item => `<li>${item}</li>`).join("")}</ul></div>` : "";
-  const change = (item: DeliveryNote["changes"][number]) => esc(say("改动：") + item.target + DOT + (item.state === "completed" ? say("已修改") : item.state === "failed" ? say("没有完成") : say("结果未确认")));
-  const part = (item: DeliveryNote["subtasks"][number]) => esc(say("子任务：") + item.title + DOT + states[item.state]);
+  const change = (item: DeliveryNote["changes"][number]) => esc(say("workbench.assistant-delivery.change") + item.target + DOT + (item.state === "completed" ? say("workbench.assistant-delivery.edited") : item.state === "failed" ? say("workbench.assistant-delivery.not-finished") : say("workbench.assistant-delivery.result-unconfirmed")));
+  const part = (item: DeliveryNote["subtasks"][number]) => esc(say("workbench.assistant-delivery.sub-task") + item.title + DOT + states[item.state]);
   const ended = (item: DeliveryNote["subtasks"][number]) => item.state === "completed" || item.state === "failed" || item.state === "stopped";
   const unsure = (item: DeliveryNote["changes"][number]) => item.state !== "completed" && item.state !== "failed";
   const result = (item: DeliveryResult) => {
@@ -137,27 +137,27 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
     return word ? line(name, esc(word)) : name;
   };
   const recorded = note.supplements.map(one => line(supplement(one), esc(say(FACT[one.state])),
-    ...one.about ? [esc(say("纠正：针对") + (one.about.text === null ? say("更早的一条") : quoted(one.about.text)))] : [],
-    ...one.questions.map(question => esc(say("为它问的问题：") + say(QUESTION[question.state])))));
+    ...one.about ? [esc(say("workbench.assistant-delivery.corrects") + (one.about.text === null ? say("workbench.assistant-delivery.earlier-one") : quoted(one.about.text)))] : [],
+    ...one.questions.map(question => esc(say("workbench.assistant-delivery.question-about") + say(QUESTION[question.state])))));
   const statements = note.supplements.flatMap(one => one.claim
-    ? [line(supplement(one), esc(say(TREATMENT[one.claim.treatment]) + (one.claim.impacts.length ? say(" · 影响") + one.claim.impacts.map(impact => say(IMPACT[impact])).join(say("、")) : "")))]
-    : one.state === "read" ? [line(supplement(one), esc(say("AI 读到了，没说怎么处理")))] : []);
-  const claimed = [...statements, ...note.steps.map(item => esc(say("AI 报告的步骤：") + clip(item.text, 80) + DOT + stepWords[item.state]))];
+    ? [line(supplement(one), esc(say(TREATMENT[one.claim.treatment]) + (one.claim.impacts.length ? say("workbench.assistant-delivery.affects") + one.claim.impacts.map(impact => say(IMPACT[impact])).join(say("common.list.separator")) : "")))]
+    : one.state === "read" ? [line(supplement(one), esc(say("workbench.assistant-delivery.read-ai-no-word-how-handles-them")))] : []);
+  const claimed = [...statements, ...note.steps.map(item => esc(say("workbench.assistant-delivery.step-ai-reports") + clip(item.text, 80) + DOT + stepWords[item.state]))];
   const missing = [
     ...note.supplements.filter(one => one.state !== "read" && one.state !== "withdrawn").map(one => line(supplement(one), esc(say(FACT[one.state])))),
     ...note.supplements.flatMap(one => one.questions.filter(question => question.state === "open" || question.state === "unresolved")
-      .map(question => line(supplement(one), esc(say("为它问的问题：") + say(QUESTION[question.state]))))),
+      .map(question => line(supplement(one), esc(say("workbench.assistant-delivery.question-about") + say(QUESTION[question.state]))))),
     ...note.subtasks.filter(item => !ended(item)).map(part),
     ...note.changes.filter(unsure).map(change),
-    ...note.results.filter(item => item.state === "missing" || item.state === "unavailable").map(item => esc(say("读不到的结果：") + item.title + DOT + resultState(item, say))),
-    ...note.queue === null ? [] : note.queue.length ? note.queue.map(item => esc(say("排在队里：") + quoted(item.text))
-      + (item.source === "host" ? DOT + esc(say("Molis 写的")) : item.source === "peer" ? DOT + esc(say("别的会话写的")) : "")) : [esc(say("没有排队"))],
+    ...note.results.filter(item => item.state === "missing" || item.state === "unavailable").map(item => esc(say("workbench.assistant-delivery.result-that-can-t-be-read") + item.title + DOT + resultState(item, say))),
+    ...note.queue === null ? [] : note.queue.length ? note.queue.map(item => esc(say("workbench.assistant-delivery.waiting-queue") + quoted(item.text))
+      + (item.source === "host" ? DOT + esc(say("workbench.assistant-delivery.written-molis")) : item.source === "peer" ? DOT + esc(say("workbench.assistant-delivery.written-another-session")) : "")) : [esc(say("workbench.assistant-delivery.nothing-waiting-queue"))],
   ];
-  const title = note.end === "completed" ? say("截至最近一轮：最近一轮已结束") : note.end === "failed" ? say("截至最近一轮：最近一轮失败") : say("截至最近一轮：已停止");
+  const title = note.end === "completed" ? say("workbench.assistant-delivery.latest-turn-has-ended") : note.end === "failed" ? say("workbench.assistant-delivery.latest-turn-failed") : say("workbench.assistant-delivery.latest-turn-was-stopped");
   return `<div class="mw-receipt" data-ix-record="${esc(note.record)}" aria-live="off"><div class="mw-receipt__body"><p class="mw-receipt__who">${esc(title)}</p>`
-    + group(say("记录里的"), recorded) + group(say("AI 自己说的，Molis 没有核对"), claimed, ' class="mw-receipt__claimed"')
-    + group(say("做了什么"), [...note.changes.filter(item => !unsure(item)).map(change), ...note.subtasks.filter(ended).map(part)])
-    + group(say("这项工作做出的结果"), note.results.map(result)) + group(say("还差什么"), missing) + "</div></div>";
+    + group(say("workbench.assistant-delivery.records"), recorded) + group(say("workbench.assistant-delivery.what-ai-says-itself-molis-has-not-checked"), claimed, ' class="mw-receipt__claimed"')
+    + group(say("workbench.assistant-delivery.what-was-done"), [...note.changes.filter(item => !unsure(item)).map(change), ...note.subtasks.filter(ended).map(part)])
+    + group(say("workbench.assistant-delivery.what-work-made"), note.results.map(result)) + group(say("workbench.assistant-delivery.what-still-missing"), missing) + "</div></div>";
 }
 
 /**
@@ -166,9 +166,9 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
  * only the retry, and the note is still drawn. The note is the record `delivery:<work>` in the conversation. A caller that
  * has the view's note already passes it (null for none), so a reply works it out once.
  */
-export function deliverySteps(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string, note: DeliveryNote | null = deliveryNote(view)): InteractionNextStep[] {
+export function deliverySteps<Word>(view: AssistantWorkView, say: NextStepSay<Word>, note: DeliveryNote | null = deliveryNote(view)): NextStep<Word>[] {
   if (!note || view.rounds.at(-1)?.phase === "failed") return [];
   const { record } = note, first = note.results.find(item => item.open);
-  return [{ id: record, label: say("看交付说明"), source: say("这项工作的补充和结果") },
-    ...first ? [{ id: NEXT_STEP.press(record, `open:${first.kind}:${first.id}`), label: say("打开「{title}」", { title: first.title }), source: say("这项工作做出的结果"), primary: false }] : []];
+  return [{ id: record, label: say("workbench.assistant-delivery.see-delivery-note"), source: say("workbench.assistant-delivery.what-was-added-work-what-came") },
+    ...first ? [{ id: NEXT_STEP.press(record, `open:${first.kind}:${first.id}`), label: say("workbench.assistant-delivery.open-title", { title: first.title }), source: say("workbench.assistant-delivery.what-work-made"), primary: false }] : []];
 }

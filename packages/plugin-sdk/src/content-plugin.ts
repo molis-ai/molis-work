@@ -9,12 +9,12 @@ import { isRecord } from "./json-value.js";
 
 /** The top-level keys a plugin with only declarations may write; any other is refused by name. */
 const CONTENT_KEYS = new Set([
-  "schema_version", "plugin_id", "version", "name", "name_en", "summary", "publisher", "host_api_version", "developer", "kind",
+  "schema_version", "plugin_id", "version", "name", "name_text", "summary", "summary_text", "publisher", "host_api_version", "developer", "kind",
   "entrypoints", "permissions", "capabilities", "artifacts", "ui",
   "methods", "blueprint", "requires", "upgrade_compatibility", "runtime",
 ]);
-/** The `ui` keys it may write: the empty contribution list and its words. */
-const CONTENT_UI_KEYS = new Set(["contributions", "messages", "translations", "locales"]);
+/** The `ui` keys it may write: the empty contribution list and the language file declaration. */
+const CONTENT_UI_KEYS = new Set(["contributions", "locales"]);
 /** Lists every Manifest has that must stay empty here: nothing to start, grant, provide, consume, produce or place. */
 const EMPTY_LISTS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["entrypoints", []], ["permissions", []],

@@ -7,6 +7,8 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { clockLabel, parseClock } from "./util.js";
 import type { JellyOccurrence, JellyPage, JellyRelation, LinkedTask } from "./types.js";
 
+const uiText = globalThis.t;
+
 const PRIORITIES = ["none", "P0", "P1", "P2"] as const;
 const ITEM_DIALOG = "[data-jelly-item-dialog]";
 const closeItemDialog = (page: JellyPage): void => page.$<HTMLDialogElement>(ITEM_DIALOG).close();
@@ -17,7 +19,7 @@ export function paintItemChoices(page: JellyPage): void {
   const pressed = (value: boolean) => `aria-pressed="${value}"`;
   $("[data-jelly-kind]").innerHTML = (["task", "event"] as const).map((kind) => btn(kind === "task" ? "jelly.kind.task" : "jelly.kind.event", `data-jelly-item-kind="${kind}" ${pressed(options.kind === kind)}`, kind === "task" ? "check" : "calendar")).join("");
   $("[data-jelly-item-categories]").innerHTML = page.ws().categories.map((entry) => `<button type="button" class="mw-btn mw-btn--ghost" data-jelly-item-category="${esc(entry.id)}" ${pressed(options.category_id === entry.id)}>${page.categoryDot(entry.id)}${page.catName(entry)}</button>`).join("");
-  $("[data-jelly-priority]").innerHTML = PRIORITIES.map((priority) => btn(priority === "none" ? "jelly.priority.none" : priority, `data-jelly-item-priority="${priority}" ${pressed(options.priority === priority)}`)).join("");
+  $("[data-jelly-priority]").innerHTML = PRIORITIES.map((priority) => btn(priority === "none" ? "jelly.priority.none" : { original: priority }, `data-jelly-item-priority="${priority}" ${pressed(options.priority === priority)}`)).join("");
   $("[data-jelly-weekdays]").innerHTML = ["jelly.week.mon", "jelly.week.tue", "jelly.week.wed", "jelly.week.thu", "jelly.week.fri", "jelly.week.sat", "jelly.week.sun"].map((label, i) => btn(label, `data-jelly-item-weekday="${i + 1}" ${pressed(options.weekdays.includes(i + 1))}`)).join("");
   $("[data-jelly-scope-options]").innerHTML = btn("jelly.scope.only-this", `data-jelly-item-scope="onlyThis" ${pressed(options.scope === "onlyThis")}`) + btn("jelly.scope.this-and-future", `data-jelly-item-scope="thisAndFuture" ${pressed(options.scope === "thisAndFuture")}`);
   const editing = page.editingItem;
@@ -59,11 +61,11 @@ export function renderItemRelations(page: JellyPage): void {
     ? `<div class="jelly-choice-row">${btn("jelly.scope.only-this", `data-jelly-relation-scope="instance" aria-pressed="${page.relationScope === "instance"}"`)}${btn("jelly.scope.series", `data-jelly-relation-scope="series" aria-pressed="${page.relationScope === "series"}"`)}</div>` : "";
   const linked = relations.map((entry) => {
     const note = noteOf(entry.note_id);
-    return note ? `<div><span class="jelly-muted">${tx(entry.role === "primary" ? "jelly.relation.primary-note" : "jelly.relation.reference")}</span>${btn(note.title || "jelly.note.untitled", `data-jelly-linked-note="${esc(note.id)}"`, "note")}${btn("jelly.relation.remove", `data-jelly-detach-note="${esc(note.id)}" data-role="${entry.role}"`, "x")}</div>` : "";
+    return note ? `<div><span class="jelly-muted">${tx(entry.role === "primary" ? "jelly.relation.primary-note" : "jelly.relation.reference")}</span>${btn(note.title ? { original: note.title } : "jelly.note.untitled", `data-jelly-linked-note="${esc(note.id)}"`, "note")}${btn("jelly.relation.remove", `data-jelly-detach-note="${esc(note.id)}" data-role="${entry.role}"`, "x")}</div>` : "";
   }).join("");
   const fromTasks = taskLinks.map((entry) => {
     const note = noteOf(entry.note_id);
-    return note ? btn(note.title || "jelly.note.untitled", `data-jelly-linked-note="${esc(note.id)}"`, "check") : "";
+    return note ? btn(note.title ? { original: note.title } : "jelly.note.untitled", `data-jelly-linked-note="${esc(note.id)}"`, "check") : "";
   }).join("");
   target.innerHTML = `<span class="jelly-muted">${tx("jelly.relation.link-note")}</span>${scopes}${linked}${fromTasks}${btn("jelly.relation.attach-existing", "data-jelly-attach-note", "link")}`
     + `${hasOverride && page.relationScope === "instance" ? btn("jelly.relation.reset", "data-jelly-reset-relations", "undo") : ""}${item.notes?.trim() ? btn("jelly.migrate.title", "data-jelly-migrate-notes", "note") : ""}`;
@@ -81,11 +83,11 @@ function fillItemForm(page: JellyPage, item: JellyOccurrence | null, date: strin
   set("end_time", clockLabel(item?.end_time));
   set("until", series?.until || "");
   itemField(page, "pinned").checked = Boolean(item?.pinned);
-  const { $, L } = page;
-  $("[data-jelly-item-heading]").textContent = L(task ? "jelly.item.schedule-note-task" : item ? "jelly.item.edit" : "jelly.item.new");
+  const { $ } = page;
+  $("[data-jelly-item-heading]").textContent = uiText.text(task ? "jelly.item.schedule-note-task" : item ? "jelly.item.edit" : "jelly.item.new");
   $("[data-jelly-delete-item]").hidden = !item;
   $("[data-jelly-complete-item]").hidden = !item;
-  const completeLabel = L(item?.completed_at ? "jelly.item.reopen" : "jelly.item.complete");
+  const completeLabel = uiText.text(item?.completed_at ? "jelly.item.reopen" : "jelly.item.complete");
   $("[data-jelly-complete-item] span").textContent = completeLabel;
   $("[data-jelly-complete-item]").setAttribute("aria-label", completeLabel);
   $("[data-jelly-series-scope]").hidden = !series;
@@ -117,7 +119,6 @@ export function openItem(page: JellyPage, item: JellyOccurrence | null, date = p
 }
 
 async function saveItem(page: JellyPage): Promise<void> {
-  const { L } = page;
   const field = (name: string) => itemField(page, name);
   const options = page.itemOptions;
   const patch = {
@@ -125,8 +126,8 @@ async function saveItem(page: JellyPage): Promise<void> {
     start_date: field("start_date").value, end_date: field("end_date").value, start_time: parseClock(field("start_time").value), end_time: parseClock(field("end_time").value),
     notes: field("notes").value, completion_description: field("completion_description").value,
   };
-  if (!patch.title) throw new Error(L("jelly.error.title-required"));
-  if (patch.end_date < patch.start_date) throw new Error(L("jelly.error.end-before-start"));
+  if (!patch.title) throw new Error(uiText.text("jelly.error.title-required"));
+  if (patch.end_date < patch.start_date) throw new Error(uiText.text("jelly.error.end-before-start"));
   const editing = page.editingItem;
   const recurring = { ...patch, weekdays: options.weekdays, until: field("until").value || null };
   if (page.linkedTask) {
@@ -138,7 +139,7 @@ async function saveItem(page: JellyPage): Promise<void> {
   else if (options.weekdays.length) await command(page, { type: "series.create", series: recurring });
   else await command(page, { type: "item.create", item: patch });
   closeItemDialog(page);
-  showNote(page, L("jelly.item.saved"));
+  showNote(page, uiText.text("jelly.item.saved"));
   if (page.selected) syncTaskIndicators(page);
 }
 
@@ -155,7 +156,7 @@ export async function deleteItem(page: JellyPage): Promise<void> {
   const item = page.editingItem;
   if (!item) return;
   const series = item.series_id && page.itemOptions.scope === "thisAndFuture";
-  if (!await confirmDialog(page, "jelly.item.delete", page.L(series ? "jelly.item.delete-future" : "jelly.item.delete-confirm"), "jelly.action.delete")) return;
+  if (!await confirmDialog(page, "jelly.item.delete", uiText.text(series ? "jelly.item.delete-future" : "jelly.item.delete-confirm"), "jelly.action.delete")) return;
   await command(page, item.series_id ? { type: "series.delete", id: item.series_id, original_date: item.original_date, scope: page.itemOptions.scope } : { type: "item.delete", id: item.id });
   closeItemDialog(page);
   await loadList(page);

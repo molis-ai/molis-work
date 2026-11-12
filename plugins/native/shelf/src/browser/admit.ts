@@ -7,6 +7,8 @@ import { post } from "./request.js";
 import { applySnapshot } from "./snapshot.js";
 import type { Item, ShelfFailure, ShelfPage, SnapshotAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 const FOLDER_LIMIT = 32 * 1024 * 1024;
 
 const readEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => new Promise((resolve, reject) => {
@@ -36,7 +38,7 @@ export async function admitFolderEntry(page: ShelfPage, entry: FileSystemDirecto
   const found: Found[] = [];
   for (const child of await readEntries(entry.createReader())) await walkEntry(child, "", found);
   if (!found.length) return null;
-  if (found.reduce((total, file) => total + file.file.size, 0) > FOLDER_LIMIT) throw new Error(page.L("shelf.admit.this-folder-is-over-32"));
+  if (found.reduce((total, file) => total + file.file.size, 0) > FOLDER_LIMIT) throw new Error(uiText.text("shelf.admit.this-folder-is-over-32"));
   const entries = [];
   for (const file of found) entries.push({ relative: file.relative, bytes_base64: bufferToBase64(new Uint8Array(await file.file.arrayBuffer())), mime: file.file.type || "" });
   const payload = await post<SnapshotAnswer>(page, "/folders", { name: entry.name, entries });
@@ -66,7 +68,7 @@ export async function admitFiles(page: ShelfPage, files: readonly File[]): Promi
   }
   if (!refused.length) return;
   const list = refused.map((entry) => entry.file.name + "（" + entry.reason + "）").join("；");
-  throw Object.assign(new Error(page.L("shelf.admit.done-added-count-could-not", { done: added, count: refused.length, list })), { retryFiles: refused.map((entry) => entry.file) });
+  throw Object.assign(new Error(uiText.text("shelf.admit.done-added-count-could-not", { done: added, count: refused.length, list })), { retryFiles: refused.map((entry) => entry.file) });
 }
 
 export function showAdmissionError(page: ShelfPage, error: unknown): void {
@@ -74,7 +76,7 @@ export function showAdmissionError(page: ShelfPage, error: unknown): void {
   const retryFiles = (error as ShelfFailure).retryFiles;
   page.admitRetry = retryFiles ? { files: retryFiles, hint: message } : null;
   expandShelfStage(page, true);
-  if (!page.selected) showProblem(page, page.L("shelf.admit.could-not-add-material"), message);
+  if (!page.selected) showProblem(page, uiText.text("shelf.admit.could-not-add-material"), message);
   page.stickyHint = message;
   renderBar(page, page.lastBarKind);
 }

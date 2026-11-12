@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingIntentOptions } from "../../composer-labels.js";
 import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
@@ -10,7 +11,7 @@ import { showWorkspace } from "./workspace.js";
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
-  const { L, q } = page, { composerModels } = page.refs, { s } = page;
+  const { q } = page, { composerModels } = page.refs, { s } = page;
   const config = s.configurations.get(s.current);
   if (config) {
     s.intent = config.intent || "discuss";
@@ -21,7 +22,7 @@ export function applyConfiguration(page: Page) {
   s.worktree = config?.worktree ?? null;
   // A session pointed at one of the Host's worktrees names that worktree: it is where its next round runs.
   const workspace = s.state.workspaces?.find(item => item.workspace_id === s.workspaceId);
-  showWorkspace(page, workspace ? s.worktree?.canonical_path ?? workspace.canonical_path : undefined, s.workspaceId ? L("coding.workspace.unavailable") : L("coding.workspace.choose-first"));
+  showWorkspace(page, workspace ? s.worktree?.canonical_path ?? workspace.canonical_path : undefined, s.workspaceId ? uiText.text("coding.workspace.unavailable") : uiText.text("coding.workspace.choose-first"));
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) q<HTMLSelectElement>("[data-coding-workspace-choice]").value = s.workspaceId;
 }
 
@@ -39,10 +40,10 @@ export function rememberConfiguration(page: Page) {
 
 /** The person changed what the next round starts with (the way of working, the model, its effort): kept as the session's start and saved. */
 export function configurationChanged(page: Page) {
-  const { L, refs, s } = page, id = s.current;
+  const { readText, refs, s } = page, id = s.current;
   rememberConfiguration(page);
   controls(page);
-  void refs.draft.flush().then(() => surfaceChanged(page, id)).catch(error => status(page, L("coding.configuration.unsaved", { reason: errorMessage(error) }), true));
+  void refs.draft.flush().then(() => surfaceChanged(page, id)).catch(error => status(page, readText("coding.configuration.unsaved", { reason: errorMessage(error) }), true));
 }
 
 /** The next round's way of working, chosen in the bar, by a command or by a suggestion on the welcome. */
@@ -62,20 +63,20 @@ export function retitle(page: Page, id: string, before: string | undefined | fal
 }
 
 /** The runtime's roles decide which kinds of round the composer offers. */
-function drawIntents(page: Page, result: StateRead) {
-  const { L, s } = page;
+export function drawIntents(page: Page, result: StateRead) {
+  const { readText, s } = page;
   const runtime = result.sessions.find(session => session.session_id === s.current)?.runtime_id || result.project_runtime_id;
   const roles = result.runtimes.find(item => item.runtime_id === runtime)?.roles || [];
   const needs: Readonly<Record<string, string>> = { parallel: "writers", collaborate: "coordinator", execute: "builder", edit: "writer" };
-  s.intents = codingIntentOptions(L, intent => !needs[intent] || Boolean(roles.find(role => role.role_id === needs[intent])?.available));
+  s.intents = codingIntentOptions(readText, intent => !needs[intent] || Boolean(roles.find(role => role.role_id === needs[intent])?.available));
 }
 
 /** The directories the person may run rounds in, as the composer's choice. */
 function drawWorkspaces(page: Page, result: StateRead) {
-  const { L, q } = page, { s } = page;
+  const { q } = page, { s } = page;
   const selected = result.workspaces.find(item => item.workspace_id === s.workspaceId) || result.workspace || (result.workspaces.length === 1 ? result.workspaces[0] : null);
   if (!s.configurations.get(s.current)) s.workspaceId = selected?.workspace_id || "";
-  showWorkspace(page, selected?.canonical_path, L("coding.workspace.choose-first"));
+  showWorkspace(page, selected?.canonical_path, uiText.text("coding.workspace.choose-first"));
   const choice = q<HTMLSelectElement>("[data-coding-workspace-choice]"), key = JSON.stringify(result.workspaces);
   if (choice.dataset.options !== key) {
     choice.replaceChildren(...result.workspaces.map(item => {

@@ -56,7 +56,7 @@ if(command === "authorize") {
   const bootstrap=identity.code("bootstrap",owner.id);await writeFile(join(state,"connect.json"),JSON.stringify(bootstrap,null,2),{mode:0o600});
   const tls=values.cert && values.key ? {cert:await readFile(resolve(values.cert),"utf8"),key:await readFile(resolve(values.key),"utf8")} : undefined;
   const running=await startServer({identity,continuity,events,im:createImDomain({db:storage.db,identity,events}),port:Number(values.port ?? 4187),hostname:values.hostname,
-    publicOrigin:values.origin,tls,imAssets:{html:request=>renderImPage({embedded:false,locale:request.headers["accept-language"]?.toLowerCase().startsWith("en")?"en":"zh-CN"}),css:IM_STYLES,script:IM_CLIENT_SCRIPT}});
+    publicOrigin:values.origin,tls,imAssets:{html:request=>renderImPage({embedded:false,locale:request.headers["accept-language"]}),css:IM_STYLES,script:IM_CLIENT_SCRIPT}});
   const address = running.server.address();
   if (address && typeof address === "object") diagnostics.debug("listening", { address: address.address, port: address.port, tls: Boolean(tls) });
   writeOutput(`Molis Work Server: ${running.origin}/continuity\nOwner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);

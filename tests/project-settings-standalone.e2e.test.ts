@@ -406,7 +406,7 @@ async function fillSettings(surface: SettingsSurface, selector: string, value: s
   await surface.evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});n.value=${JSON.stringify(value)};n.dispatchEvent(new Event('input',{bubbles:true}));n.dispatchEvent(new Event('change',{bubbles:true}));})()`);
 }
 
-for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 ${mode}: real Coding and Shelf settings save once and survive reopening`, { timeout: 120_000 }, async t => {
+for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: real Coding and Shelf settings save once and survive reopening`, { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const traffic = await settingsTraffic(b); t.after(traffic.close); await b.setViewport(1440, 1000);
   const workspace = join(b.homeDirectory, "mcp-workspace"); await mkdir(workspace, { recursive: true });
@@ -423,8 +423,16 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 ${mode}: real Co
   await fillSettings(surface, "[data-mcp-config] [name=label]", "PG070 saved server " + mode);
   await fillSettings(surface, "[data-mcp-config] [name=executable]", "/bin/cat"); await fillSettings(surface, "[data-mcp-config] [name=argv]", "[]");
   await surface.evaluate("document.querySelector('[data-mcp-config] [name=enabled]').checked=false");
+  if (mode === "B") {
+    await b.evaluate(`(() => { window.mcpDraftInput = document.querySelector('[data-mcp-config] [name=label]'); mcpDraftInput.focus();
+      const link = document.createElement('a'); link.dataset.uiLanguage = 'en'; link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove(); })()`);
+    await b.waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
+    assert.deepEqual(await b.evaluate("[document.activeElement === mcpDraftInput, mcpDraftInput.value]"), [true, "PG070 saved server B"]);
+    assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 0, "changing the interface language does not submit the draft");
+  }
   await surface.click("[data-mcp-config] [type=submit]");
-  await surface.waitFor("document.querySelector('[data-mcp-status]')?.textContent.includes('已保存')");
+  const saved = mode === "A" ? "MCP 配置已保存，尚未连接；展开服务可连接。" : "MCP configuration saved but not connected; open the service to connect.";
+  await surface.waitFor(`document.querySelector('[data-mcp-status]')?.textContent === ${JSON.stringify(saved)}`);
   assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 1);
   const state = await b.web.get<{ mcp: { label: string; enabled: boolean }[] }>(api + "/state");
   assert.equal(state.mcp.filter(item => item.label === "PG070 saved server " + mode && !item.enabled).length, 1);

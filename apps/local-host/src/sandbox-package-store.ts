@@ -34,7 +34,7 @@ export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt
     design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
-    packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
+    packaged: { manifest, localePacks: pkg.localePacks, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
       trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }

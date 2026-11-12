@@ -20,5 +20,6 @@ export interface ApiError extends Error {
   status?: number;
   code?: string;
   uncertain?: boolean;
+  word?: string;
 }
 export type Api = <T>(path: string, body?: unknown) => Promise<T>;

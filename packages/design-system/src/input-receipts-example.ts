@@ -46,7 +46,7 @@ export function renderInputReceiptsExample(): string {
   </div>
   <div class="mw-rc-controls"><button type="button" class="mw-btn mw-btn--secondary" data-rc-step>推进一步</button><span>状态区最近说的：<output data-rc-said>（还没有）</output></span></div>
   <script>(()=>{const coding=document.querySelector('[data-rc-coding]'),assistant=document.querySelector('[data-rc-assistant]');if(!coding||!assistant)return;
-    const L=globalThis.L||(text=>text),ui=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
+    const readText=globalThis.t.text,ui=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(readText);
     const turns=${JSON.stringify(TURNS)},board=${JSON.stringify(BOARD)};
     const act={withdraw:async id=>{turns.find(turn=>turn.steer.id===id).steer.state='withdrawn';setTimeout(paint);},
       correct:async(about,text)=>{const n=turns.length+1;turns.push({turn_id:'t'+n,kind:'user',text,steer:{id:'steer-'+n,state:'received',about}});setTimeout(paint);}};

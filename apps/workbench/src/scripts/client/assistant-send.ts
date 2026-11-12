@@ -40,7 +40,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const carrier = res.work.executor?.kind === "plugin" ? executorOffer(res.work.executor.plugin_id) : null;
       if (carrier) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: carrier.capability_ids["run.start"], session_id: res.work.executor.session_id } }));
       // A supplement's fate is its receipt line in the thread, and words kept for the next turn the composer's status line.
-      if (visible && res.outcome === "answered") host.showToast?.(L("已作为回答发送"));
+      if (visible && res.outcome === "answered") host.showToast?.(readText("workbench.assistant-send.sent-answer"));
       // A lost Send that went again from another receiver went where it was first sent: the words in the box now are not its.
       return visible ? res : { ...res, elsewhere: true };
   }
@@ -67,7 +67,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     };
     let state;
     try { state = await check(); } catch { state = "unknown"; }
-    if (state === "unknown") throw Object.assign(new Error(L("没确认送到：再按一次，同一条不会重复。")), {
+    if (state === "unknown") throw Object.assign(new Error(readText("workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be")), {
       code: ${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)}, checkSend: () => check().then(state => state === "unknown" ? "unknown" : "not-sent") });
     return state === "sent";
   }
@@ -150,8 +150,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * waits on a questionnaire whose one text question is among others (the Host marks it `draft_from_composer` with that
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
-export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
-  const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
+export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ readText, shared, chip, api, work, reload, pact }) => {
+  const CHOICES = { answer: "workbench.assistant-send.answer-questions-above", draft: "workbench.assistant-send.write-into-form", steer: "workbench.assistant-send.add-turn" };
+  const NEXT = { answer: "workbench.assistant-send.switch-to-answer", draft: "workbench.assistant-send.switch-to-draft", steer: "workbench.assistant-send.switch-to-steer" };
   let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
@@ -159,12 +160,12 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
   };
   const first = () => ask?.draft_from_composer ? "draft" : "answer";
   // The chip above the input: its words are the choice the next Send makes, and one click switches to the other.
-  const label = () => { chip.textContent = L(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
+  const label = () => { chip.textContent = readText(CHOICES[choice]); chip.title = readText(NEXT[choice === "steer" ? first() : "steer"]); };
   chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
-  const lost = (error) => { throw error.code === ${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)} ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
+  const lost = (error) => { throw error.code === ${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)} ? new Error(readText("workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be")) : error; };
   const act = (round) => round && round.run_id ? {
     withdraw: (input_id) => api("/works/" + encodeURIComponent(work()) + "/control", "POST", { kind: "withdraw", run_id: round.run_id, input_id }).then(() => "", lost).finally(reload),
-    correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? L("已保存，下一轮开始生效") : "", lost).finally(reload),
+    correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? readText("workbench.assistant-send.saved-takes-effect-next-turn") : "", lost).finally(reload),
   } : undefined;
   return {
     /** The receipt under one of the person's supplements, placed after it; none for anything else. The thread is its surface. */
@@ -179,6 +180,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
       if (id !== asked) { asked = id; choice = first(); label(); }
       chip.hidden = !ask;
     },
+    retitle: label,
     /** What the next Send does while the chip shows; nothing otherwise (the words go to the round as a supplement). */
     target: () => chip.hidden || choice === "draft" ? undefined : choice,
     /** The question whose draft the next Send fills instead. */

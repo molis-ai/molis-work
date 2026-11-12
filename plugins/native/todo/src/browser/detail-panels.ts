@@ -2,6 +2,8 @@ import type { TodoChange, TodoItem, TodoLink } from "../contract.js";
 import { iconSvg, make } from "./dom.js";
 import type { AssistantWork, TodoPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** Where an original opens, when it says: a surface and an object id. */
 interface Opens { readonly surface: string; readonly id: string }
 
@@ -34,8 +36,7 @@ const opener = (name: HTMLElement, open: Opens, title: string) => {
 
 /** The sources a todo came from; an original opens where it lives when the todo belongs to the project being looked at. */
 export function renderSources(page: TodoPage, item: TodoItem): void {
-  const { L } = page;
-  const sourceName = (kind: string) => (kind === "inbox" ? "Inbox" : SOURCE_KIND_KEYS[kind] ? L(SOURCE_KIND_KEYS[kind]) : "");
+  const sourceName = (kind: string) => (kind === "inbox" ? "Inbox" : SOURCE_KIND_KEYS[kind] ? uiText.text(SOURCE_KIND_KEYS[kind]) : "");
   const box = page.$("[data-todo-sources]");
   // The same version drawn again (the detail is often asked for twice as it opens) keeps its nodes, so a click already
   // under way on a source is not lost to a redraw.
@@ -55,7 +56,7 @@ export function renderSources(page: TodoPage, item: TodoItem): void {
     if (here && name instanceof HTMLButtonElement) {
       name.type = "button";
       opener(name, here, source.title);
-      name.title = L("todo.source.open-original");
+      name.title = uiText.text("todo.source.open-original");
     }
     head.append(make("span", "todo-link-kind", sourceName(source.kind)), name, make("small", "", page.timeLabel(source.added_at)));
     entry.append(head);
@@ -69,33 +70,32 @@ type WorkResult = NonNullable<AssistantWork["results"]>[number];
 
 /** What a work produced (drafts, documents, notes), as the Assistant recorded them from their owners: the object's own kind and
  *  where it opens, so the todo shows the results without anyone retyping them. */
-function workResultRow(page: TodoPage, result: WorkResult): HTMLElement {
-  const { L } = page;
+function workResultRow(_page: TodoPage, result: WorkResult): HTMLElement {
   const row = make("div", "todo-link todo-work-result");
   const reachable = result.open && !["missing", "moved"].includes(result.state ?? "") ? result.open : null;
   const name = reachable ? make("button", "mw-btn mw-btn--link", result.title) : make("span", "", result.title);
   if (reachable && name instanceof HTMLButtonElement) { name.type = "button"; opener(name, reachable, result.title); }
-  row.append(make("span", "todo-link-kind", L("todo.work.output")), name);
+  row.append(make("span", "todo-link-kind", uiText.text("todo.work.output")), name);
   // Moved is not gone: say where it went, in the Assistant's words for the place.
   const resultKey = result.state ? RESULT_STATE_KEYS[result.state] : undefined;
-  const note = result.state === "moved" && result.moved_to && result.moved_to.title ? L("todo.work.moved-to", { place: result.moved_to.title }) : resultKey ? L(resultKey) : "";
+  const note = result.state === "moved" && result.moved_to && result.moved_to.title ? uiText.text("todo.work.moved-to", { place: result.moved_to.title }) : resultKey ? uiText.text(resultKey) : "";
   if (note) row.append(make("small", "todo-muted", note));
   return row;
 }
 
 /** Progress lives with the Assistant's work; the todo shows where each one stands and continues it (no second record). */
 export function renderWorks(page: TodoPage): void {
-  const { state, L } = page;
+  const { state } = page;
   const box = page.$("[data-todo-works]");
   box.replaceChildren();
   page.$("[data-todo-works-section]").hidden = !state.works.length;
   for (const work of state.works) {
     const line = make("div", "todo-link");
-    const go = make("button", "mw-btn mw-btn--link", L("todo.work.continue"));
+    const go = make("button", "mw-btn mw-btn--link", uiText.text("todo.work.continue"));
     go.type = "button";
     go.dataset.todoContinueWork = work.work_id;
     const stateKey = WORK_STATE_KEYS[work.state];
-    const mark = make("span", "todo-link-kind", stateKey ? L(stateKey) : work.state);
+    const mark = make("span", "todo-link-kind", stateKey ? uiText.text(stateKey) : work.state);
     mark.dataset.mwState = WORK_STATE_MARKS[work.state] || "idle";
     line.append(mark, make("span", "", work.title), go);
     box.append(line);
@@ -131,7 +131,6 @@ export function installWorks(page: TodoPage): void {
 interface LinkRow { link?: TodoLink; text: string; target: string; detail: string }
 
 function linkRow(page: TodoPage, item: TodoItem, entry: LinkRow): HTMLElement {
-  const { L } = page;
   const line = make("div", "todo-link");
   // A draft, a finished result or a material that says where it opens is reached from here, as a source is.
   const opens = !entry.target && entry.link?.open && page.projectId() && item.project_id === page.projectId() ? entry.link.open : null;
@@ -146,7 +145,7 @@ function linkRow(page: TodoPage, item: TodoItem, entry: LinkRow): HTMLElement {
     const remove = make("button", "mw-btn mw-btn--ghost mw-btn--icon-only");
     remove.type = "button";
     remove.dataset.todoUnlink = entry.link.link_id;
-    remove.setAttribute("aria-label", L("todo.link.remove"));
+    remove.setAttribute("aria-label", uiText.text("todo.link.remove"));
     remove.innerHTML = iconSvg("x");
     line.append(remove);
   }
@@ -155,13 +154,13 @@ function linkRow(page: TodoPage, item: TodoItem, entry: LinkRow): HTMLElement {
 
 /** The links to other todos, outcomes and works, the todos waiting on this one, and the choices for a new link. */
 export function renderLinks(page: TodoPage, item: TodoItem): void {
-  const { state, L } = page;
+  const { state } = page;
   const linkDetail = (link: TodoLink) => {
-    if (link.kind === "todo") return link.relation ? L(RELATION_KEYS[link.relation] ?? "todo.relation.related") : "";
-    if (link.kind === "outcome") return link.outcome === "done" ? L("todo.link.outcome-done") : L("todo.link.outcome-draft");
-    return link.kind === "goal" ? "Goal" : link.kind === "work" ? L("todo.link.work") : L("todo.source.material");
+    if (link.kind === "todo") return link.relation ? uiText.text(RELATION_KEYS[link.relation] ?? "todo.relation.related") : "";
+    if (link.kind === "outcome") return link.outcome === "done" ? uiText.text("todo.link.outcome-done") : uiText.text("todo.link.outcome-draft");
+    return link.kind === "goal" ? "Goal" : link.kind === "work" ? uiText.text("todo.link.work") : uiText.text("todo.source.material");
   };
-  const backDetail = (relation: string | null) => (relation === "blocked_by" ? L("todo.relation.blocked-by-reverse") : relation === "blocks" ? L("todo.relation.blocked-by") : L("todo.relation.related"));
+  const backDetail = (relation: string | null) => (relation === "blocked_by" ? uiText.text("todo.relation.blocked-by-reverse") : relation === "blocks" ? uiText.text("todo.relation.blocked-by") : uiText.text("todo.relation.related"));
   const box = page.$("[data-todo-links]");
   const drawn = `${item.id}@${item.revision}@${state.backlinks.map((back) => `${back.item_id}:${back.relation}`).join(",")}@${state.linkPool.map((other) => `${other.id}:${other.title}`).join(",")}`;
   if (box.dataset.drawn === drawn) return;
@@ -171,10 +170,10 @@ export function renderLinks(page: TodoPage, item: TodoItem): void {
     ...item.links.map((link) => ({ link, text: link.title, target: link.kind === "todo" ? link.subject.id : "", detail: linkDetail(link) })),
     ...state.backlinks.map((back) => ({ text: back.title, target: back.item_id, detail: backDetail(back.relation) })),
   ];
-  if (!rows.length) box.append(make("p", "todo-muted", L("todo.link.none")));
+  if (!rows.length) box.append(make("p", "todo-muted", uiText.text("todo.link.none")));
   for (const entry of rows) box.append(linkRow(page, item, entry));
   const select = page.$<HTMLSelectElement>("[data-todo-link-target]");
-  select.replaceChildren(new Option(L("todo.link.choose"), ""));
+  select.replaceChildren(new Option(uiText.text("todo.link.choose"), ""));
   // Any active todo can be linked, not only the ones in the current view.
   for (const other of state.linkPool) {
     if (other.id !== item.id && !item.links.some((link) => link.subject.id === other.id)) select.append(new Option(other.title, other.id));
@@ -182,30 +181,29 @@ export function renderLinks(page: TodoPage, item: TodoItem): void {
 }
 
 function describeChange(page: TodoPage, change: TodoChange): string {
-  const { L } = page;
   const after = change.after as { status?: string; link_added?: { title: string } };
-  const actor = change.actor === "user" ? L("todo.actor.you") : change.actor === "assistant" ? L("todo.source.assistant") : L("todo.history.other");
-  if (change.kind === "create") return actor + L("todo.history.created");
-  if (change.kind === "status") return actor + L("todo.history.set-to") + page.statusName(after.status ?? "");
-  if (change.kind === "archive") return actor + L("todo.action.archive");
-  if (change.kind === "unarchive") return actor + L("todo.action.restore");
-  if (change.kind === "link") return actor + (after.link_added ? L("todo.history.linked", { title: after.link_added.title }) : L("todo.history.unlinked"));
-  if (change.kind === "revert") return actor + L("todo.history.reverted");
-  const names = Object.keys(change.after).map((key) => (FIELD_KEYS[key] ? L(FIELD_KEYS[key]) : "")).filter(Boolean);
-  return `${actor}${L("todo.history.changed")} ${[...new Set(names)].join("、")}`;
+  const actor = change.actor === "user" ? uiText.text("todo.actor.you") : change.actor === "assistant" ? uiText.text("todo.source.assistant") : uiText.text("todo.history.other");
+  if (change.kind === "create") return actor + uiText.text("todo.history.created");
+  if (change.kind === "status") return actor + uiText.text("todo.history.set-to") + page.statusName(after.status ?? "");
+  if (change.kind === "archive") return actor + uiText.text("todo.action.archive");
+  if (change.kind === "unarchive") return actor + uiText.text("todo.action.restore");
+  if (change.kind === "link") return actor + (after.link_added ? uiText.text("todo.history.linked", { title: after.link_added.title }) : uiText.text("todo.history.unlinked"));
+  if (change.kind === "revert") return actor + uiText.text("todo.history.reverted");
+  const names = Object.keys(change.after).map((key) => (FIELD_KEYS[key] ? uiText.text(FIELD_KEYS[key]) : "")).filter(Boolean);
+  return `${actor}${uiText.text("todo.history.changed")} ${[...new Set(names)].join("、")}`;
 }
 
 /** The change history, with undo on the latest change while it is still the todo's current version. */
 export function renderHistory(page: TodoPage): void {
-  const { state, L } = page;
+  const { state } = page;
   const box = page.$("[data-todo-history]");
   box.replaceChildren();
   const latest = state.history.find((change) => change.kind !== "revert");
   for (const change of state.history) {
     const entry = make("li", change.reverted_by ? "is-reverted" : "");
-    entry.append(make("time", "", page.timeLabel(change.at)), make("span", "", describeChange(page, change) + (change.reverted_by ? L("todo.history.undone") : "")));
+    entry.append(make("time", "", page.timeLabel(change.at)), make("span", "", describeChange(page, change) + (change.reverted_by ? uiText.text("todo.history.undone") : "")));
     if (change === latest && !change.reverted_by && state.selected && change.revision_after === state.selected.revision) {
-      const button = make("button", "mw-btn mw-btn--link", change.kind === "create" ? L("todo.history.undo-create") : L("todo.action.undo"));
+      const button = make("button", "mw-btn mw-btn--link", change.kind === "create" ? uiText.text("todo.history.undo-create") : uiText.text("todo.action.undo"));
       button.type = "button";
       button.dataset.todoRevert = change.change_id;
       entry.append(button);

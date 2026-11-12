@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.supabase",
+  "locale": "en",
+  "messages": {
+    "supabase.connection.auth-help": "Use a Supabase Management API access token to list projects.",
+    "supabase.connection.inbound": "Feed reads the project list",
+    "supabase.connection.summary": "Databases, authentication and storage.",
+    "supabase.connection.token-label": "Supabase Access Token",
+    "supabase.guide.cli-link": "View Supabase CLI",
+    "supabase.guide.mcp-link": "View the official Supabase MCP",
+    "supabase.guide.oauth-link": "View Supabase OAuth app",
+    "supabase.oauth.note": "Configure read access in the Supabase OAuth app.",
+    "supabase.setup.create-supabase-access-token": "Create Supabase Access Token"
+  }
+}

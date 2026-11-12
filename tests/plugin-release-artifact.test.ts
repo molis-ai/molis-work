@@ -13,6 +13,8 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { registration as coding } from "@molis-ai/molis-work-plugin-coding/registration";
+import { registration as shelf } from "@molis-ai/molis-work-plugin-shelf/registration";
 import {
   NativePluginExecutor,
   PluginRuntime,
@@ -108,6 +110,23 @@ test("Native plugin factory archives are bundled and rehydrated as exact definit
   const restored = await artifact.restore(source);
   assert.deepEqual(restored.manifest, current.manifest);
   assert.equal(typeof restored.start, "function");
+});
+
+test("FSS-74 native factory archives restore the same released prompts and methods in both languages", async t => {
+  for (const entry of [shelf.runtime, coding.project_runtime]) {
+    assert.ok(entry);
+    await t.test(entry.factory_export, async () => {
+      const current = entry.create();
+      const archive = nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory());
+      const restored = await archive.restore(await archive.capture());
+      assert.deepEqual(restored.manifest, current.manifest);
+      assert.deepEqual(restored.instructions, current.instructions);
+      assert.deepEqual(restored.agent_prompts, current.agent_prompts);
+      assert.deepEqual(restored.agent_skills, current.agent_skills);
+      const bodies = [...(restored.instructions ?? []), ...(restored.agent_prompts ?? []), ...(restored.agent_skills ?? [])];
+      assert.ok(bodies.some(prompt => prompt.body_by_locale?.en && prompt.body !== prompt.body_by_locale.en));
+    });
+  }
 });
 
 test("an archived compatible Native release remains usable when a later candidate is incompatible", async () => {

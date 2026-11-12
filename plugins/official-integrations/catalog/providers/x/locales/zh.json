@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.x",
+  "locale": "zh",
+  "messages": {
+    "x.connection.auth-help": "不要贴开发者后台的 App-Only Bearer（/users/me 会 403）。需要 OAuth 2.0 User Access Token（PKCE）或用户上下文令牌，权限 tweet.read、users.read。开放接口按套餐计费，需要开发者账号具备相应 API 访问资格。",
+    "x.connection.inbound": "Feed 拉帖子与账号",
+    "x.connection.summary": "帖子与账号。",
+    "x.connection.token-label": "X Bearer / User Token",
+    "x.guide.cli-link": "X xurl",
+    "x.guide.mcp-link": "X 官方 MCP",
+    "x.guide.oauth-link": "查看 X OAuth 2.0 PKCE",
+    "x.guide.oauth-note": "需用户上下文与 tweet.read、users.read；Molis Work 尚未接入授权回调。",
+    "x.guide.token-note": "需要 OAuth 用户访问令牌；App-only Bearer 不适用于当前身份接口。",
+    "x.setup.open-x-developer-portal": "打开 X Developer Portal"
+  }
+}

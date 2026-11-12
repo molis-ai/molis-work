@@ -1,8 +1,8 @@
 # 字体、皮肤与语言系统实现方案
 
-状态：实现方案提案（2026-10-12），未执行。本轮只读代码并写文档，不修改源码、依赖、生产手册或真实 Home。[需求书](spec.md)是唯一需求来源，本文件说明技术落点、接入与切换方案，不改变 FSS 验收标准。
+状态：实现方案（2026-10-12 起草；2026-11-08 第 16 批接续）。A 段已随第 14 批落地；B2 真实外观切片、视觉定样与具体资源增长已获确认，首屏检查已接入本批，当前实施 C 段全入口切换；整批回归与原生实操尚未完成，具体边界见 [开工前检查](bc-preflight.md)。D/E 段仍属第 70 批，不在本轮实施；真实 Home 不动。[需求书](spec.md)是唯一需求来源，本文件说明技术落点、接入与切换方案，不改变 FSS 验收标准。
 
-代码依据为本地 `main` 的 `9da1808334da`，不是远端最新版本。当前检出与 `origin/main` 已明显分叉，且同机有多条防腐开发线；实际开发须以当时整合后的基线复核本文点名的接口。本文的类型、目录与动作名均为提案，现行事实以链接的代码为准。
+原方案的代码依据为 2026-10-12 本地 `main` 的 `9da1808334da`，当时与 `origin/main` 分叉。第 16 批以 `226ce892a8` 为开工基点，逐项核对本文点名的接口；类型、目录与动作名中的提案不自动成为现行事实，以实际代码及已落地的 A 段合同为准。
 
 架构复核修订（2026-10-12）：收紧公开入口与加载范围，补齐文件提交、入口语言兑现、资源缓存及发布转换的边界；缩小用户方案校验的执行范围。复核也只读对照了本机缓存 `origin/main @ 2b84e9b9ff47` 的 SDK、Design System 和 Skill 登记接点，未更新检出或把该缓存当作远端最新状态。
 
@@ -24,13 +24,15 @@ A 段（路线书第 14 批）的合同写到字段级，在 [A 段合同设计�
 
 ## 2. 现行代码怎样拆成文件与引擎
 
+下表保留起草时的迁移映射；已删除的旧词典链接固定到起草基点。当前 B/C 接入以 [运行接入合同](bc-runtime-contract.md) 及实际实现为准，不保留旧词典读取。
+
 | 现行入口 | 移到文件的内容 | 保留或替换的代码 |
 | --- | --- | --- |
 | [typeface.ts](../../packages/design-system/src/typeface.ts) | 系统字族列表、离线字体声明、角色字重/字号/字距与后备，成为字体方案/资源数据 | 保留基于已解析字体角色的 CSS 输出；字体路径与实际字节读取由 Host 资源适配器负责，删除写死的字体值与终层默认覆盖 |
 | [palette.ts](../../packages/design-system/src/palette.ts) | 面、字色、操作/状态、形状、抬升和动效值，成为 Soft Workbench/Folio 皮肤文件 | 组件仍使用受支持的语义变量；令牌渲染读已解析定义，不保留第二份常量表 |
 | [visual-foundation.ts](../../packages/design-system/src/visual-foundation.ts)、[page-assets.ts](../../apps/workbench/src/page-assets.ts) | 现行风格的值与可定制规则归皮肤/共同规格 | 保留一次结构、响应式、交互与可访问性样式；收敛多套旧皮肤和重复 Coss/Primitive/Typeface/终层拼接，不追加另一张完整主题表 |
 | [plugin-components.ts](../../packages/design-system/src/plugin-components.ts)、[原语目录](../../packages/design-system/src/primitives/catalog.ts) | 名称/说明的消息引用、分组、能力、状态/变体、可定制属性与标本描述，归同一个共同规格文件 | 保留组件 kind 到真实实现、标本操作到可信函数的绑定；Builder 的组件列表由文件投影，不再单独维护元数据数组 |
-| [i18n.ts](../../apps/workbench/src/i18n.ts)、[EN 词典](../../apps/workbench/src/i18n/en.ts) | 中文/英文文案改为按主人组织的语言 JSON | 语言匹配、完整消息参数处理与格式化成为 SDK 纯工具；Host 保留请求级语言上下文，Workbench 使用可更新文字绑定，删除集中 import 词典与中文原文查表 |
+| [i18n.ts](../../apps/workbench/src/i18n.ts)、[起草时的 EN 词典](https://github.com/molis-ai/molis-work/blob/9da1808334da/apps/workbench/src/i18n/en.ts) | 中文/英文文案改为按主人组织的语言 JSON | 语言匹配、完整消息参数处理与格式化成为 SDK 纯工具；Host 保留请求级语言上下文，Workbench 使用可更新文字绑定，删除集中 import 词典与中文原文查表 |
 | [preferences.ts](../../packages/design-system/src/preferences.ts)、[语言路由](../../apps/local-host/src/web-server.ts) | Home 级皮肤/字体选择单独保存；设备明暗/密度/终端偏好保留；语言偏好仍属入口 | 替换为读取同一快照的启动与更新控制器；语言切换改为更新偏好及当前 DOM，保留无 JS 的站内跳转入口，正常有 JS 路径不跳转 |
 
 共同规格只定义系统实际实现过的组件及可定制项。新增一种交互仍需实现组件；JSON 不能凭一个新 kind、选择器或事件名制造执行能力。目录投影、标准板和 Builder 均核对文件声明与真实实现，无实现的条目不能展示为可用。
@@ -371,6 +373,8 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 ## 11. 开发与切换顺序（仅属于本方案）
 
+第 16 批的实际起点、15 项开工前检查、首屏门禁的单 PR 决定与验收见 [B/C 开工前检查](bc-preflight.md)。首屏检查先在本批子分支完成，与 B/C 一起随 `batch/16` 的唯一 PR 合入，不再以独立门禁 PR 合入作为 B 段开工条件（用户 2026-11-08 定）。
+
 | 阶段 | 产出与依赖 | 合入/切换条件 |
 | --- | --- | --- |
 | A：合同与共享文件工具 | 在现有 UI/Plugin 合同定义 JSON/TextRef/快照/资源协议，SDK `/ui` 及共享工具；从现有值提取完整基线文件；回复语言（T10）；手册与开发流程（T9b） | 不加入空占位 API 或读取双轨；真实 Host/浏览器消费者、无 Node polyfill 的两包样例成立；先核对 §12 的资源门禁决定 |
@@ -409,11 +413,11 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 具体决定点：
 
-- 新增可加载的资源/字体路径按[页面资源体积](../../docs/cli-and-development.md#页面资源体积)的现行规则：对照 `origin/main` 的 merge-base 只许变小，必要增长的许可按任务放在 `tooling/gates/page-asset-allowances/`，新增资源或一次涨超过 10 KB 先问用户（2026-11-07 改：原文的「决定 #17」和 `page-assets.json` 都已过时）。先给出统一资源登记/预算方案与实测节省，确需改门禁再由用户决定，本轮不修改门禁。
+- 新增可加载的资源/字体路径按[页面资源体积](../../docs/cli-and-development.md#页面资源体积)的现行规则：对照 `origin/main` 的 merge-base 只许变小，必要增长的许可按任务放在 `tooling/gates/page-asset-allowances/`，新增资源或一次涨超过 10 KB 先问用户（2026-11-07 改：原文的「决定 #17」和 `page-assets.json` 都已过时）。第 16 批已获准把首屏总量检查与原资源检查同批接入，具体范围见 [开工前检查](bc-preflight.md)；其余门禁变更和未获批的资源仍先给实际差异，由用户决定。
 - 新的系统动作 provider、资源声明、JSON 词典根与原生文字绑定可能触及注册/依赖/静态门禁。沿真实接点登记并验证，不能通过别名调用、分散文件或隐藏路由绕过计数，也不能塞进现存巨大类以求数字不增长。必要门禁调整单列评审决定。
-- 真实 Home 的现行生成插件发布文案转换需要维护授权；Folio 的实际圆润字体和分发依据还需明确（2026-11-04 用户已定：Folio 中英文都随产品带开源圆润字体、只在选用时加载；首批只做中英文，见[需求书 §12](spec.md#12-决策记录)；具体字体与字节随 A 段资源登记测出）。它们不阻止写本方案，但不能在交付时假称完成。
+- 真实 Home 的现行生成插件发布文案转换仍需要维护授权。Folio 已选「杏纸与常青」、Resource Han Rounded 与 Nunito，列明字体、分发名及 B2 额外资源已按 [资源预算](resource-budget.md) §6.5、§6.6 获批；C 段语言目录及其他增量按最终实测另核。原发布物的候选转换、实际发布者采用和真实 Home 维护分别留证，不互相替代。
 
-这些是基于现行规则的技术依赖，不是本轮要求用户批准部署、升级或放宽规则。
+这些是当前实现与验收的依赖。已批准的具体变更按原范围执行，不扩大为部署、真实 Home 升级或任意放宽规则的授权。
 
 ### 12.3 验证安排
 
@@ -425,9 +429,9 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 | Builder/助理 | 实际 Skill/Prompt 版本进入模型请求，生成语义/消息资源，新增及已安装渲染同源；未验证不能报告成功（FSS-10/11/21/22/29/30） |
 | 发行物/作者 | 干净安装资源/Skill 可读、手册真实插件、跨 Home 导入；发布转换保留业务并拒绝无发布权限/签名篡改，renderer 升级不复用旧必要校验；不以源文件存在自证（FSS-09/10/15/25/29/31） |
 
-未来改到 contracts/SDK、装配与多个包需完成共享核心全量；先整体构建，再跑定向与全量，期间不改源码/skills，不并发构建或浏览器批次。失败按 [并行开发规则](../../docs/system/PARALLEL-DEVELOPMENT.md) 用干净基线比对。
+改到 contracts/SDK、装配与多个包需完成共享核心全量。第 16 批先在最终候选整体构建，本机经机器槽以 `--jobs 1` 跑定向验证，Full 按 [并行开发规则 §5.1](../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent) 交统筹安排 CI；不将受影响用例的大清单当成本机全量。验证同一工作树期间不改源码/skills、不并发构建；失败按同一规则用干净基线比对。
 
-下列为未来实现时的检查，不在本轮运行：
+下列列出实现阶段的检查入口，按对应批次和现有授权执行；本机运行方式、真实模型及原生实操边界见 [第 16 批开工前检查](bc-preflight.md)：
 
 ```sh
 pnpm build
@@ -438,11 +442,11 @@ node scripts/check-health-gates.mjs --base origin/main
 pnpm test:contracts
 pnpm test:security
 pnpm page-assets:check
-node scripts/run-tests.mjs tests/primitives.test.ts tests/visual-foundation.test.ts tests/i18n.test.ts tests/translation-check.test.ts tests/assistant-methods.test.ts tests/agent-built-plugins-components.test.ts tests/plugin-sample.e2e.test.ts tests/ui-client-lifecycle.e2e.test.ts
+node scripts/machine-slot.mjs run browser --label "16 focused verification" -- node scripts/run-tests.mjs --jobs 1 tests/primitives.test.ts tests/visual-foundation.test.ts tests/i18n.test.ts tests/translation-check.test.ts tests/assistant-methods.test.ts tests/agent-built-plugins-components.test.ts tests/plugin-sample.e2e.test.ts tests/ui-client-lifecycle.e2e.test.ts
 pnpm studio:replay
 pnpm studio:replay smoke
 ```
 
 API/动作快照只为有意的合同变化刷新，不刷新健康阈值求绿。页面资源预算需符合 §12.2 后再跑；Builder 章节/设计校验变更须离线 replay 加隔离 Home smoke，Mock/录制数据只证明相应局部。实际产品、真实模型和视觉验收仍按需求书分别留证。
 
-本轮交付仅为方案文档；上述代码改造、迁移、依赖引入、浏览器实操、真实模型、构建与产品测试均未执行。
+第 16 批已进入 B/C 实施，阶段构建、定向工程验证及 B2 真实浏览器定样分别留有证据；它们不代表 C 段全部入口、最终整批回归、真实模型或原生实操已通过。D/E 段及真实 Home 维护仍按各自批次与授权执行。

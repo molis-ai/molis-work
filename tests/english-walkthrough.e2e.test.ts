@@ -47,33 +47,53 @@ test("VUX-40: switching the language from Settings keeps the split window and la
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const project = `${origin}/projects/${projectId}/?openPlugin=goals`;
+  const projectPath = `/projects/${projectId}/`;
+  const project = `${origin}${projectPath}?openPlugin=goals`;
+  const fallback = encodeURIComponent(projectPath + "?settings=appearance");
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
   await waitFor("document.readyState === 'complete' && document.querySelector('[data-layout-open]')", 20_000);
   await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  const panes = () => evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].map((pane) => pane.querySelector('[data-tab-id][aria-selected=true], [aria-selected=true]')?.textContent?.trim() || '')");
-  const before = await panes();
-  for (const [lang, word] of [["en", "English"], ["zh", "中文"]] as const) {
+  const paneSelector = "[data-tab-pane]", settings = "[data-appearance-settings]";
+  const choices = "[data-ui-language-options] a";
+  for (const [tag, htmlLang, name, previousLang] of [["en", "en", "English", "zh-CN"], ["zh", "zh-CN", "简体中文", "en"]] as const) {
     await navigate(() => command("Page.navigate", { url: `${origin}/settings/appearance?project=${projectId}` }, sessionId));
-    await waitFor("document.querySelector('.settings-segmented a[lang]')", 20_000);
+    const control = `${choices}[data-ui-language=${tag}]`;
+    await waitFor(`document.body.dataset.desktopSurface === 'settings' && document.querySelector('${settings}')
+      && document.querySelector('${control}') && document.querySelectorAll('${paneSelector}').length === 2`, 20_000);
     const where = await evaluate<string>("location.pathname + location.search");
-    const href = await evaluate<string>(`[...document.querySelectorAll('.settings-segmented a[lang]')].find((a) => a.textContent === ${JSON.stringify(word)}).getAttribute('href')`);
-    assert.match(href, /^\/locale\?lang=(en|zh)&next=/, "the control switches through the locale route");
-    await navigate(() => command("Page.navigate", { url: origin + href }, sessionId));
-    await waitFor(`document.documentElement.lang.startsWith(${JSON.stringify(lang)})`, 20_000);
-    await waitFor("document.querySelector('.settings-segmented a[lang]')", 20_000);
-    await waitFor("document.body.dataset.desktopSurface === 'settings'", 20_000);
-    assert.equal(await evaluate("location.pathname + location.search"), where, "back on the page the switch was made from, with Settings still open on it");
-    assert.equal(await evaluate("document.querySelector('.settings-segmented a[aria-current=true]').getAttribute('lang')"), lang);
+    assert.equal(await evaluate("document.documentElement.lang"), previousLang);
+    const option = await evaluate(`(() => {
+      const link = document.querySelector('${control}');
+      return { name: link.textContent.trim(), lang: link.getAttribute('lang'), href: link.getAttribute('href') };
+    })()`);
+    assert.deepEqual(option, { name, lang: htmlLang, href: `/locale?lang=${tag}&next=${fallback}` });
+
+    await evaluate(`window.splitLanguageBefore = {
+      body: document.body, settings: document.querySelector('${settings}'), panes: [...document.querySelectorAll('${paneSelector}')]
+    }`);
+    await click(control);
+    await waitFor(`document.documentElement.lang === '${htmlLang}' && document.querySelector('${control}')?.getAttribute('aria-current') === 'true'`, 20_000);
+    assert.equal(await evaluate("location.pathname + location.search"), where, "Settings stays open where the switch was made");
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('${choices}[aria-current=true]')].map(link => [link.dataset.uiLanguage, link.lang])`), [[tag, htmlLang]]);
+    assert.deepEqual(await evaluate(`(() => {
+      const before = window.splitLanguageBefore, panes = [...document.querySelectorAll('${paneSelector}')];
+      return {
+        body: document.body === before?.body,
+        settings: document.body.dataset.desktopSurface === 'settings' && document.querySelector('${settings}') === before?.settings,
+        panes: panes.length === 2 && panes.every((pane, i) => pane === before?.panes[i]),
+      };
+    })()`), { body: true, settings: true, panes: true }, `${tag}: Settings and both panes stay mounted`);
+
     await navigate(() => command("Page.navigate", { url: project }, sessionId));
-    await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2", 20_000);
+    await waitFor(`location.pathname === '${projectPath}' && document.documentElement.lang === '${htmlLang}'
+      && document.querySelectorAll('${paneSelector}').length === 2`, 20_000);
     await pause(800);
-    const now = await panes();
-    assert.equal(now.length, before.length, `${lang}: the same two panes`);
+    assert.equal(await evaluate(`document.querySelectorAll('${paneSelector}').length`), 2, `${tag}: the project still has both panes`);
     const layout = (await layoutFindings(evaluate)).filter((finding) => finding.kind !== "tiny-target");
     const spills = (await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill");
-    assert.deepEqual([...layout, ...spills], [], `${lang}: the split window fits after the switch`);
+    assert.deepEqual([...layout, ...spills], [], `${tag}: the split window fits after the switch`);
+    t.diagnostic(`${name} (${htmlLang}): Settings and both panes stayed mounted, and the returned project layout fits`);
   }
 });

@@ -10,6 +10,7 @@ import {
   type BriefGoal,
   type ProjectBriefInput,
 } from "../apps/workbench/src/arrival/project-brief.js";
+import { chinesePagePacks, pageTextForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 // The project brief (specs/archive/project-arrival-flow): what the chooser's sheet says about a project, decided from what the
 // public readers returned. It never fills a gap with a guess, so each test is a gap or a rule about one.
@@ -24,9 +25,11 @@ const event = (id: string, placement: BriefEvent["placement"], hoursAgo: number,
 const input = (extra: Partial<ProjectBriefInput> = {}): ProjectBriefInput =>
   ({ project_id: "p1", name: "项目一", personal: false, demo: false, opened_at: null, description: null, goals: [], events: [], workspace_path: null, now: NOW, ...extra });
 
-const L = (text: string, values: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
+const packs = chinesePagePacks();
+const readText = pageTextForPacks("zh", packs);
+const inChinese = <T>(draw: () => T): T => withPagePacks("zh", packs, draw);
 const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
-const renderer = createWorkbenchProjectBriefRenderer({ L, escapeHtml, dateTimeLocale: () => "zh-CN" });
+const renderer = createWorkbenchProjectBriefRenderer({ readText, escapeHtml, dateTimeLocale: () => "zh-CN" });
 
 test("the current goal is the open one touched last, and none when nothing is open", () => {
   assert.equal(currentBriefGoal([goal("a", "open", 5), goal("b", "open", 1), goal("c", "completed", 0)])?.goal_id, "b");
@@ -96,8 +99,8 @@ test("the row summary reads the waiting count from Home's events, and from the g
   assert.deepEqual(summarizeProjectBrief(noGoals, null, null), { project_id: "p1", goals_done: null, goals_total: null, current: null, waiting: 0, opened_at: null }, "unreadable stays null, never zero");
 });
 
-test("time reads as people say it: just now, minutes, hours, yesterday, days, then a date", () => {
-  const time = createBriefTime({ L, dateTimeLocale: () => "zh-CN" }, "2026-10-01T10:00:00");
+test("time reads as people say it: just now, minutes, hours, yesterday, days, then a date", () => inChinese(() => {
+  const time = createBriefTime({ readText, dateTimeLocale: () => "zh-CN" }, "2026-10-01T10:00:00");
   const ago = (iso: string) => time.ago(iso);
   assert.equal(ago("2026-10-01T09:59:40"), "刚刚");
   assert.equal(ago("2026-10-01T09:30:00"), "30 分钟前");
@@ -109,9 +112,9 @@ test("time reads as people say it: just now, minutes, hours, yesterday, days, th
   assert.equal(time.ago("not a date"), "");
   assert.equal(time.when("2026-10-01T08:05:00"), "今天 08:05");
   assert.equal(time.when("2026-09-30T22:14:00"), "昨天 22:14");
-});
+}));
 
-test("the brief reads title, description, the goal in play and what is next, and escapes what a person typed", () => {
+test("the brief reads title, description, the goal in play and what is next, and escapes what a person typed", () => inChinese(() => {
   const goals = [goal("g1", "completed", 50), goal("g2", "open", 2, { title: "整理 <b>发布</b> 清单", next_hint: "先核对版本号" }), goal("g3", "open", 20)];
   const events = [event("e1", "today", 1, { title: "周五前回复邮件", needs_attention: true, open: { surface: "inbox", id: "m 1", title: "邮件" } })];
   const html = renderer.renderProjectBrief(composeProjectBrief(input({ name: "A & B <项目>", description: "把发布流程梳理清楚。", goals, events, opened_at: hours(3), workspace_path: "~/code/a" })));
@@ -131,9 +134,9 @@ test("the brief reads title, description, the goal in play and what is next, and
   const detailed = renderer.renderProjectBrief(composeProjectBrief(input({ goals, current_detail: "已完成两项，剩发布说明。" })));
   assert.match(detailed, /已完成两项，剩发布说明。/);
   assert.doesNotMatch(detailed, /先核对版本号/);
-});
+}));
 
-test("a project with no description or goals says what is missing instead of inventing it", () => {
+test("a project with no description or goals says what is missing instead of inventing it", () => inChinese(() => {
   const html = renderer.renderProjectBrief(composeProjectBrief(input({ goals: [], events: [] })));
   assert.match(html, /还没有项目描述/);
   assert.match(html, /还没有目标/);
@@ -142,33 +145,33 @@ test("a project with no description or goals says what is missing instead of inv
   assert.match(html, /各插件有要推进或等你确认的事时，会出现在这里。/);
   assert.match(html, /还没有动静。/);
   assert.doesNotMatch(html, /工作目录/);
-});
+}));
 
-test("a brief that could not read says which part, and the rest of the sheet still stands", () => {
+test("a brief that could not read says which part, and the rest of the sheet still stands", () => inChinese(() => {
   const html = renderer.renderProjectBrief(composeProjectBrief(input({ goals: null, events: null, description: "一句话。" })));
   assert.match(html, /暂时读不到事项，进入项目可以看到。/);
   assert.match(html, /暂时读不到动静。/);
   assert.doesNotMatch(html, /当前目标|还没有目标/, "no goal focus is drawn for goals nobody read");
   assert.match(html, /一句话。/);
-});
+}));
 
-test("when every goal is done the focus says so, and a demo project says it can be rebuilt", () => {
+test("when every goal is done the focus says so, and a demo project says it can be rebuilt", () => inChinese(() => {
   const html = renderer.renderProjectBrief(composeProjectBrief(input({ demo: true, goals: [goal("a", "completed", 3), goal("b", "completed", 2)] })));
   assert.match(html, /已完成/);
   assert.match(html, /目标全部完成/);
   assert.match(html, /2 个目标都完成了/);
   assert.match(html, /演示数据，可随时重建/);
-});
+}));
 
-test("the personal space reads as a place, with no goals drawn and no description to write", () => {
+test("the personal space reads as a place, with no goals drawn and no description to write", () => inChinese(() => {
   const html = renderer.renderProjectBrief(composeProjectBrief(input({ project_id: "personal", name: "personal", personal: true, goals: [goal("a", "open", 1)], events: [] })));
   assert.match(html, /<h1 class="mw-brief__title"[^>]*>个人空间<\/h1>/);
   assert.match(html, /只有你能看到/);
   assert.match(html, /不属于任何项目的资料和工作/);
   assert.doesNotMatch(html, /当前目标|还没有项目描述|还没有目标/);
-});
+}));
 
-test("the loading and error sheets keep the name and the project they stand for", () => {
+test("the loading and error sheets keep the name and the project they stand for", () => inChinese(() => {
   const loading = renderer.renderProjectBriefLoading('A "B"', "p<1>");
   assert.match(loading, /aria-busy="true"/);
   assert.match(loading, /data-id="p&lt;1&gt;"/);
@@ -177,4 +180,4 @@ test("the loading and error sheets keep the name and the project they stand for"
   assert.match(failed, /role="alert"|mw-empty--error/);
   assert.match(failed, /项目简介暂时读不到/);
   assert.match(failed, /项目一/);
-});
+}));

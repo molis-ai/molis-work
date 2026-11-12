@@ -4,6 +4,10 @@ import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
+import { connectorLinks, type ConnectorWordReader } from "./connector-words.js";
+import { installHostUiText } from "./ui-text-provider.js";
+import { activeLocale } from "./web-locale.js";
+import { runBackgroundWorkIn } from "./ui-locale-memory.js";
 
 /** Where a card comes from: the plugin that declared the service and the name its Manifest gives it; null for the platform's own. */
 export interface ConnectorDeclaredBy {
@@ -19,32 +23,34 @@ export interface ConnectorDirectoryEntryWithSource extends ConnectorDirectoryEnt
  * The card for one declared service. A plugin's service says whether Feed can read it (an integration of kind `source` is declared
  * for it); a service the platform declares for its own use does not say.
  */
-function directoryEntry(declaration: PluginConnectionServiceDeclaration, feedAvailable: boolean | undefined): ConnectorDirectoryEntry {
+function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: ConnectorWordReader, feedAvailable: boolean | undefined): ConnectorDirectoryEntry {
   const token = declaration.auth.methods.find(method => method.kind === "token");
   return {
     connector_id: declaration.service_id,
-    title: declaration.title,
+    title: word(declaration.title),
     availability: "live",
     auth_kind: declaration.auth_kind,
     group_id: declaration.group_id,
-    summary: declaration.summary,
+    summary: word(declaration.summary),
     ...(token ? {
-      token_label: token.label,
-      ...(token.placeholder === undefined ? {} : { token_placeholder: token.placeholder }),
+      token_label: word(token.label),
+      ...(token.placeholder === undefined ? {} : { token_placeholder: word(token.placeholder) }),
     } : {}),
-    ...(declaration.auth_help === undefined ? {} : { auth_help: declaration.auth_help }),
-    ...(declaration.setup_links === undefined ? {} : { setup_links: declaration.setup_links }),
+    ...(declaration.auth_help === undefined ? {} : { auth_help: word(declaration.auth_help) }),
+    ...(declaration.setup_links === undefined ? {} : { setup_links: connectorLinks(declaration.setup_links, word) }),
     ...(feedAvailable === undefined ? {} : { feed_available: feedAvailable }),
-    capabilities: declaration.capabilities,
-    ...(declaration.outbound_note === undefined ? {} : { outbound_note: declaration.outbound_note }),
+    capabilities: declaration.capabilities.map(item => ({ ...item, label: word(item.label) })),
+    ...(declaration.outbound_note === undefined ? {} : { outbound_note: word(declaration.outbound_note) }),
   };
 }
 
 /** The directory of services, in the order they were declared: built only from declarations, never from a list of names. */
 export function connectorDirectory(declarations: IntegrationDeclarationsView & Partial<Pick<IntegrationRegistry, "mcpOwner">>): readonly ConnectorDirectoryEntryWithSource[] {
-  return declarations.connectionServices().map(({ declaration, owner }) => {
-    const entry = directoryEntry(declaration, owner === PLATFORM_OWNER ? undefined : declarations.hasSource(declaration.service_id));
-    const method_options = connectorMethodsOf(declaration, declarations.mcpOwner?.(declaration.service_id));
+  installHostUiText();
+  return declarations.connectionServices().map(service => {
+    const { declaration, owner, word } = service;
+    const entry = directoryEntry(declaration, word, owner === PLATFORM_OWNER ? undefined : declarations.hasSource(declaration.service_id));
+    const method_options = connectorMethodsOf(service, declarations.mcpOwner?.(declaration.service_id));
     return {
       ...entry,
       method_options,
@@ -60,7 +66,8 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView & P
  * integration package's alike. It is built on each call, so a package attached or detached is seen at once.
  */
 export async function homeConnectorDirectory(home: string): Promise<readonly ConnectorDirectoryEntryWithSource[]> {
-  return connectorDirectory(await homeIntegrationRegistry(home));
+  const list = async () => connectorDirectory(await homeIntegrationRegistry(home));
+  return activeLocale() === null ? runBackgroundWorkIn(home, list) : list();
 }
 
 /**

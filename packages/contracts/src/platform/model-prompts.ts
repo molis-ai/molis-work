@@ -7,7 +7,17 @@
  * material, this call's parameters) is appended by the Host after them. Text the call builds for itself never
  * reaches the model without going through a registered instruction; an automated check fails on raw prompt strings.
  */
-export interface InstructionPrompt {
+export interface LocalizedAgentBody {
+  readonly body: string;
+  /** Alternate shipped bodies of this exact declaration, never selected from a plugin request. */
+  readonly body_by_locale?: Readonly<Record<string, string>>;
+}
+
+export function agentBodyIn(body: LocalizedAgentBody, locale?: string): string {
+  return locale && body.body_by_locale && Object.hasOwn(body.body_by_locale, locale) ? body.body_by_locale[locale] ?? body.body : body.body;
+}
+
+export interface InstructionPrompt extends LocalizedAgentBody {
   /** The Plugin id, or `system:<module>` for the Host's own. */
   readonly owner_id: string;
   readonly prompt_id: string;
@@ -23,7 +33,6 @@ export interface InstructionPrompt {
    * (specs/capability-pack/contract-design.md §4.2).
    */
   readonly role_id?: string;
-  readonly body: string;
 }
 
 const TOKEN = /^[a-z0-9][a-z0-9.-]*$/u;

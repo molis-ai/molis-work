@@ -1,16 +1,11 @@
-// Isolated preview consumes the existing public source barrel through tsx.
-// No product build/dist or running Home is needed, and no product files are modified.
+// The isolated preview reads the component sources through tsx.
 import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
-import {
-  renderIconSprite,
-  renderShellTokens,
-  renderShapeTokens,
-  renderControlMetrics,
-  PRIMITIVE_STYLES,
-  TYPEFACE_STYLES,
-  CRAFT_FINISH_STYLES,
-  INTERACTION_STYLES,
-} from "../../packages/design-system/src/index.ts";
+import { PRIMITIVE_STYLES } from "../../packages/design-system/src/styles/primitives.ts";
+import { CRAFT_FINISH_STYLES } from "../../packages/design-system/src/styles/craft-finish.ts";
+import { TYPEFACE_STYLES } from "../../packages/design-system/src/typeface.ts";
+import { renderIconSprite } from "../../packages/design-system/src/icons.ts";
+import { renderShellTokens, renderShapeTokens, renderControlMetrics } from "../../packages/design-system/src/palette.ts";
+import { INTERACTION_STYLES } from "../../packages/design-system/src/styles/interaction.ts";
 import { renderDemoControls, renderScene } from "./render-frame.ts";
 import { frameStyles } from "./styles.ts";
 import { cardStyles } from "./styles-cards.ts";

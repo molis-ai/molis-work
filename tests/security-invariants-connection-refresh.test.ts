@@ -1,4 +1,5 @@
 import { connectorControl } from "./fixtures/connector-control.js";
+import { noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -265,7 +266,13 @@ test("S-70 ASC-58 a refresh refused during a plugin's request tells the person o
   await assert.rejects(send(), code("connector.plugin_requests.connection_unavailable"));
   const [notice, ...more] = notices();
   assert.equal(more.length, 0);
-  assert.deepEqual([notice?.text, notice?.work_title, notice?.settings_path], ["服务连接「{name}」的登录已失效，需要重新登录。", "Asana", "/settings/connectors?connector=asana"]);
+  assert.ok(notice);
+  assert.deepEqual([notice.text, notice.work_title, notice.settings_path], [
+    { owner: "workbench", key: "workbench.assistant-connection.reauth", args: [{ name: "name", kind: "text", text: "Asana" }] },
+    "Asana", "/settings/connectors?connector=asana",
+  ]);
+  assert.equal(noticeText(notice), "服务连接「Asana」的登录已失效，需要重新登录。");
+  assert.equal(noticeText(notice, "en"), "The sign-in for the service connection “Asana” has expired. Sign in again.");
   assert.doesNotMatch(JSON.stringify(notice), /stale-access|refresh-1|invalid_grant/, "no token and no raw error in the notice");
   // Refused before it is sent while the mark stands: not another failure, not another notice.
   await assert.rejects(send(), code("connector.plugin_requests.connection_unavailable"));

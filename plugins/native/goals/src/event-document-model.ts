@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WORK_STATE_COPY } from "./goal-state-copy.js";
 import type {
   GoalEventStateView,
@@ -203,9 +204,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "satisfied",
       display_status: "completed",
-      status_label: WORK_STATE_COPY.satisfied.label,
-      main_action_label: "显式继续",
-      action_summary: state.closure?.result || state.agreement.outcome || "已有明确完成结论。如需新一轮，打开「继续此目标」并填写原因。",
+      status_label: uiText.text(WORK_STATE_COPY.satisfied.label),
+      main_action_label: uiText.text("goals.event-document-model.continue-explicitly"),
+      action_summary: state.closure?.result || state.agreement.outcome || uiText.text("goals.event-document-model.a-completion-result-is-recorded-to-start"),
     };
   }
   if (state.work_status === "cancelled") {
@@ -213,9 +214,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "invalidated",
       display_status: "cancelled",
-      status_label: WORK_STATE_COPY.invalidated.label,
-      main_action_label: "显式继续",
-      action_summary: "已取消的 Goal 需要显式继续，不会被普通记录自动恢复。",
+      status_label: uiText.text(WORK_STATE_COPY.invalidated.label),
+      main_action_label: uiText.text("goals.event-document-model.continue-explicitly"),
+      action_summary: uiText.text("goals.event-document-model.continue-a-cancelled-goal-explicitly-adding-a"),
     };
   }
   if (state.pending_decisions.length) {
@@ -223,8 +224,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "waiting_for_human",
       display_status: "waiting_user",
-      status_label: WORK_STATE_COPY.waiting_for_human.label,
-      main_action_label: "作出决定",
+      status_label: uiText.text(WORK_STATE_COPY.waiting_for_human.label),
+      main_action_label: uiText.text("goals.event-document-model.make-a-decision"),
       action_summary: state.pending_decisions[0]!.question,
     };
   }
@@ -234,8 +235,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "execution_blocked",
       display_status: "blocked",
-      status_label: WORK_STATE_COPY.execution_blocked.label,
-      main_action_label: "处理问题",
+      status_label: uiText.text(WORK_STATE_COPY.execution_blocked.label),
+      main_action_label: uiText.text("goals.event-document-model.handle-issue"),
       action_summary: blocking[0]!.title,
     };
   }
@@ -245,8 +246,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "executing",
       display_status: "in_progress",
-      status_label: WORK_STATE_COPY.executing.label,
-      main_action_label: "记录进展",
+      status_label: uiText.text(WORK_STATE_COPY.executing.label),
+      main_action_label: uiText.text("goals.event-document-model.record-progress"),
       action_summary: next,
     };
   }
@@ -254,9 +255,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
     event_work: true,
     status: "execution_pending",
     display_status: "continue",
-    status_label: WORK_STATE_COPY.execution_pending.label,
-    main_action_label: state.latest_reports.length || state.progress_summary ? "继续工作" : "开始工作",
-    action_summary: state.progress_summary?.summary || "打开终端开始工作，或添加一条记录。",
+    status_label: uiText.text(WORK_STATE_COPY.execution_pending.label),
+    main_action_label: state.latest_reports.length || state.progress_summary ? uiText.text("goals.event-document-model.continue-work") : uiText.text("goals.event-document-model.start-work"),
+    action_summary: state.progress_summary?.summary || uiText.text("goals.event-document-model.open-the-terminal-to-start-work-or"),
   };
 }
 

@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.cloudflare",
+  "locale": "zh",
+  "messages": {
+    "cloudflare.connection.auth-help": "Cloudflare API Token。identity 打官方 /user/tokens/verify；不要用 Global API Key 的邮箱头。拉域名还需要 Zone.Read。",
+    "cloudflare.connection.inbound": "Feed 读取域名列表",
+    "cloudflare.connection.summary": "Workers、Pages 与 DNS。",
+    "cloudflare.connection.token-label": "Cloudflare API Token",
+    "cloudflare.guide.cli-link": "查看 Wrangler CLI",
+    "cloudflare.guide.mcp-link": "查看 Cloudflare 官方 MCP",
+    "cloudflare.guide.oauth-link": "查看 Cloudflare OAuth",
+    "cloudflare.oauth.api-scopes": "应用已批准的只读 API scopes（空格分隔，点号格式）",
+    "cloudflare.oauth.client-auth": "Client 认证方式（basic / post / none）",
+    "cloudflare.oauth.note": "从官方 OAuth Scopes API 选择需要的只读权限；不使用 Wrangler 的冒号格式 scope。",
+    "cloudflare.setup.create-cloudflare-api-token": "创建 Cloudflare API Token"
+  }
+}

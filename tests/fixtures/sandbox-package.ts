@@ -28,7 +28,7 @@ export const packageParts = (): PluginComponentPlan[] => [
 
 const CODE = `export const operations = {
   'notes.list': async (_input, sdk) => JSON.parse((await sdk.storage.get('notes')) ?? '[]'),
-  'notes.add': async (input, sdk) => { const notes = JSON.parse((await sdk.storage.get('notes')) ?? '[]'); notes.push({ id: String(notes.length + 1), text: input.text }); await sdk.storage.set('notes', JSON.stringify(notes)); return true; },
+  'notes.add': async (input, sdk) => { const notes = JSON.parse((await sdk.storage.get('notes')) ?? '[]'); notes.push({ id: String(notes.length + 1), text: input.text, ...(input.access === undefined ? {} : { access: input.access }) }); await sdk.storage.set('notes', JSON.stringify(notes)); return true; },
 };\n`;
 
 export function newPublisher() {

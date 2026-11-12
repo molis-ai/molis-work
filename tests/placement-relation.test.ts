@@ -9,6 +9,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
+import { pageText } from "./fixtures/page-text.js";
 
 /**
  * PG-032: placement keeps the person's relation between an object and a target its owner keeps (a document's Goal) without knowing which
@@ -73,6 +74,7 @@ function serviceOver(t: { after(fn: () => void): void }, client: ActionClient, r
     spaces: async () => [{ project_id: "q4", title: "Q4", kind: "project" }],
     scope: async () => ({ client, caller }),
     titles: { get: (kind, id) => titles.get(`${kind}:${id}`) ?? null, set: (kind, id, title) => { titles.set(`${kind}:${id}`, title); } },
+    text: pageText("zh"),
     relation,
   };
   return new PlacementService(ports);
@@ -189,7 +191,7 @@ test("RAC-638 Lingguang names where a spark went from the owner placement report
   const fate = list.slice(list.indexOf("const fateLabel"), list.indexOf("const annotateFates"));
   assert.ok(fate.includes("target.plugin"), "the label reads the keeper placement reports");
   assert.doesNotMatch(fate, /["'`](goal|todo|page|document|jelly)["'`]/, "no other plugin's kind is named");
-  const messages = readFileSync(new URL("../plugins/native/lingguang/src/messages.ts", import.meta.url), "utf8");
+  const messages = readFileSync(new URL("../plugins/native/lingguang/locales/zh.json", import.meta.url), "utf8");
   assert.doesNotMatch(messages, /lingguang\.fate\.(goal|todo|page|jelly)\b/);
   assert.match(messages, /lingguang\.fate\.into/);
 });

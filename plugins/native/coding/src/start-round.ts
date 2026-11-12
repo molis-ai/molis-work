@@ -146,14 +146,14 @@ async function roundCharacter(context: PluginStartContext, record: CodingSession
  * anything to read. Only metadata; the round reads a body when the model picks it, and the Host writes that call's `skill_round`.
  */
 async function roundActions(context: PluginStartContext, offered: readonly ActionView[], characterTools: readonly ExactActionReference[] | null | undefined,
-  chosen: readonly ExactActionReference[], selected: readonly SkillRef[], words: string, beforeWrite: CodingBeforeWrite) {
+  chosen: readonly ExactActionReference[], selected: readonly SkillRef[], words: string, locale: CodingExecution["locale"], beforeWrite: CodingBeforeWrite) {
   const control = codingActionControl(beforeWrite);
   const auto = await autoSkillsOf(context.services?.actions, control);
   const action_tools = withSkillTools(withKnowledgeTools(chosen, offered, characterTools), offered, characterTools, auto.length > 0);
   const materials: AgentTextMaterial[] = [];
   const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, words, control);
   if (catalog) materials.push(catalog);
-  const skills = autoSkillMaterial(auto, action_tools, selected);
+  const skills = autoSkillMaterial(auto, action_tools, selected, locale);
   if (skills) materials.push(skills);
   return { action_tools, materials };
 }
@@ -224,7 +224,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const chosenSkills = skillSelection(body.skills ?? []);
   const { action_tools, materials: roundMaterials } = await roundActions(context,
     await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools, chosenActions, chosenSkills,
-    `${record.title}\n${task}`, beforeWrite);
+    `${record.title}\n${task}`, execution.locale, beforeWrite);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
   const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
@@ -312,7 +312,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
 export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string },
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
-  if (!saved) return { started: false, reason: codingText(execution.locale)("coding.server.start-unknown") };
+  if (!saved) return { started: false, reason: codingText("coding.server.start-unknown") };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
   const start = () => startRound(a, record, body, api, execution, beforeWrite);
   const reason = (error: unknown) => error instanceof Error ? error.message : String(error);

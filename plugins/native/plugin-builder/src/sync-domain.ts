@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { assertContract, assertProposalContract, assertEffects } from '@molis-ai/molis-work-plugin-sandbox';
 import { pluginComponentChoices, validatePluginComponentPlans, validatePluginComponentNodes, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import { validateAgentDesign } from './agent-validation.js';
+import { validateStudioPlainWords } from './agent-ui-text.js';
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { builderSyncInvalid, object } from './sync-shape.js';
 import { validateBuilderContractFields } from './sync-contract-fields.js';
@@ -36,6 +37,7 @@ export function validateBuilderPreviewDomain(value: Record<string, unknown>, eff
     assertProposalContract(value.contract); assertEffects(effects);
     validateBuilderContractFields(value.contract);
     const plans = validatePluginComponentPlans(value.parts, value.contract);
+    validateStudioPlainWords({ contract: value.contract, parts: plans });
     if (value.presentation !== undefined) validatePluginPresentation(value.presentation, plans, value.contract);
     const expected = effectsFromContract(value.contract);
     if (!isDeepStrictEqual(expected, effects)) builderSyncInvalid();

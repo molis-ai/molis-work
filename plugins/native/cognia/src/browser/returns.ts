@@ -4,6 +4,8 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { reload } from "./list.js";
 import { notice, q, type CogniaPage } from "./page.js";
 
+const uiText = globalThis.t;
+
 /**
  * The model the asks need (specs/draft-and-return §4): the model-settings button asks the settings for a model with the step `query`, the ask
  * the missing model held back. Back with a model, the list reads again and, once a read shows the model can run (the read right
@@ -35,7 +37,7 @@ function offer(page: CogniaPage, ask: () => void): void {
   const holder = document.createElement("div");
   holder.dataset.cogniaResume = "";
   holder.className = "cognia-resume";
-  holder.innerHTML = renderResumePrompt({ title: page.L("cognia.resume.model-ready"), resume: page.L("cognia.resume.ask"), dismiss: page.L("cognia.resume.dismiss") });
+  holder.innerHTML = renderResumePrompt({ title: uiText.text("cognia.resume.model-ready"), resume: uiText.text("cognia.resume.ask"), dismiss: uiText.text("cognia.resume.dismiss") });
   q(page, "[data-cognia-model]").before(holder);
   holder.addEventListener("click", event => {
     const choice = (event.target as Element | null)?.closest<HTMLElement>("[data-resume-prompt]")?.dataset.resumePrompt;

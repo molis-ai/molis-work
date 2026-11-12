@@ -1,20 +1,20 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {handleProjectRecycleHttp} from './web-project-recycle.js';
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { decodeLocalWebPathPart, readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
-import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
-import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import { ownerLabel } from "./project-deletion-words.js";
+export { ownerLabel };
 import { resolveConfiguredHome } from "./product-home.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 
-/** What an owner says goes with the project, in the person's language; a plugin owner's text is translated with that plugin's own words. */
-export function ownerLabel(owner: Pick<ProjectDeletedOwner, "label" | "label_values" | "words_of">): string {
-  const draw = () => L(owner.label ?? "", owner.label_values && Object.fromEntries(Object.entries(owner.label_values).map(([name, value]) => [name, L(value)])));
-  return owner.words_of ? withPluginWords(owner.words_of, draw) : draw();
+/** Both the Settings HTML and the existing output-folder read use this Home's current, ordered owners. */
+export function projectDeletionLabels(home: string) {
+  return projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: ownerLabel(owner) }] : []);
 }
 
 /** How the settings page hears a refused or failed deletion: the answer every Host exit gives a failure, chosen by its kind (SDK `actionErrorResponse`), so a missing project is the not-found 404 and a live terminal the 409. */
@@ -49,7 +49,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
     const scopeMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete-scope$/);
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.
-      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: ownerLabel(owner) }] : []);
+      const owners = projectDeletionLabels(homeDirectory ?? resolveConfiguredHome());
       const projectId = decodeLocalWebPathPart(scopeMatch[1]);
       try {
         // Whether the dialog asks about the files in the default output directory: only when it has some (§3 「永久删除怎么做」).
@@ -65,12 +65,12 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
       const body = await readBody(request);
       const deletionKey = typeof body.idempotency_key === "string" ? body.idempotency_key.trim() : "";
       if (body.delete_confirmed !== true || deletionKey.length < 8 || deletionKey.length > 200) {
-        sendJson(response, 400, { error: L("请明确确认删除项目，并提供有效的删除请求键。") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-deletion.confirm-project-deletion-provide-valid-deletion-request-key") });
         return true;
       }
       // Only this page asks the person what happens to the files in the default output directory; nothing else is taken (SSC-23).
       if (body.output_files !== undefined && body.output_files !== "keep" && body.output_files !== "delete") {
-        sendJson(response, 400, { error: L("默认输出目录里的文件只能选择留下或删除。") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-deletion.files-default-output-folder-can-only-be-kept") });
         return true;
       }
       try {

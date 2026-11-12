@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.asana",
+  "locale": "zh",
+  "messages": {
+    "asana.connection.auth-help": "Asana PAT。拉指派给当前用户且未完成的任务。",
+    "asana.connection.inbound": "Feed 拉任务与项目",
+    "asana.connection.summary": "任务与项目。",
+    "asana.connection.token-label": "Asana Personal Access Token",
+    "asana.guide.mcp-connected-note": "Asana MCP 的授权与普通 REST API 授权分开。",
+    "asana.guide.mcp-link": "查看 Asana 官方 MCP",
+    "asana.guide.mcp-note": "Asana MCP 的授权与普通 REST API 授权分开；Molis Work 尚未接入。",
+    "asana.guide.oauth-link": "查看 Asana OAuth 应用",
+    "asana.oauth.note": "在应用中启用所需的用户、工作区和任务读取权限。",
+    "asana.setup.create-asana-personal-access-token": "创建 Asana Personal Access Token"
+  }
+}

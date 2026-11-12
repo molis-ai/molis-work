@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pageTextReaderScript } from "./fixtures/page-text.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const docOf = (...content: object[]) => ({ type: "doc", content });
 const original = docOf(...["Alpha", "Beta", "Gamma"].map(paragraph));
-const labels = ["加粗", "斜体", "下划线", "删除线", "代码", "标题 1", "标题 2", "标题 3", "无序列表", "有序列表", "清单", "颜色", "链接", "评论"];
+const labels = [
+  ...["bold", "italic", "underline", "strikethrough", "code-2", "heading-1", "heading-2", "heading-3",
+    "bulleted-list", "numbered-list", "checklist", "color", "link"].map(key => `pages.editor.${key}`),
+  "pages.comments.comments",
+];
 
 async function mount(t: TestContext) {
   const b = await openGoalBrowser(t, true, undefined, null);
@@ -17,13 +22,14 @@ async function mount(t: TestContext) {
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
     Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
+  await b.evaluate(pageTextReaderScript("zh", "pages"));
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='tools-fixture';root.className='pages-editor-host';
     root.style.cssText='width:640px;max-width:90vw;margin:48px auto';
     const other=document.createElement('button');other.id='other-focus';other.textContent='Other';document.body.replaceChildren(root,other);
     window.toolCounts={change:0,tools:0,screen:0};window.toolTranslations=[];window.toolComments=[];
     window.toolOptions={doc:${JSON.stringify(original)},onChange:()=>toolCounts.change++,onTools:()=>toolCounts.tools++,onScreen:()=>toolCounts.screen++,onComment:id=>toolComments.push(id),
-      translate:label=>{toolTranslations.push({label,editorExists:Boolean(root.querySelector('.ProseMirror'))});return label==='加粗'?'Bold fixture':label;}};
+      translate:key=>{toolTranslations.push({key,editorExists:Boolean(root.querySelector('.ProseMirror'))});return key==='pages.editor.bold'?'Bold fixture':isolatedEditorText(key);}};
     window.toolEditor=window.MolisWorkPagesEditor.mount(root,toolOptions);toolEditor.view.focus();
     window.ToolTextSelection=toolEditor.view.state.selection.constructor;
   })()`);
@@ -49,7 +55,7 @@ async function undo(b: Browser) {
 test("W5-10-PGT-01/02: tools retain definition order, optional fields, translations and current pressed state", { timeout: 90_000 }, async t => {
   const b = await mount(t);
   if (!b) return;
-  assert.deepEqual(await b.evaluate("toolTranslations.slice(3,17)"), labels.map(label => ({ label, editorExists: false })));
+  assert.deepEqual(await b.evaluate("toolTranslations.slice(3,17)"), labels.map(key => ({ key, editorExists: false })));
   assert.deepEqual(await b.evaluate("toolEditor.tools()"), [
     { id: "marks", collapse: "overflow", items: [
       { id: "strong", label: "Bold fixture", glyph: "B", pressed: false },

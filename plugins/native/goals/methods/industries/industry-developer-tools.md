@@ -1,6 +1,6 @@
 ---
 method_id: industry-developer-tools
-version: 1
+version: 2
 kind: industry
 name: "开发者工具"
 summary: "围绕开发工作流、集成契约、反馈速度、兼容性和可调试性组织工具产品。"

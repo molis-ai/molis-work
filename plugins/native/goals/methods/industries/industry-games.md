@@ -1,6 +1,6 @@
 ---
 method_id: industry-games
-version: 1
+version: 2
 kind: industry
 name: "游戏"
 summary: "在核心玩法之外补齐内容生产、经济、社区、平台和持续运营的行业闭环。"

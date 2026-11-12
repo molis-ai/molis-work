@@ -1,3 +1,4 @@
+import { literalPluginWord } from "@molis-ai/molis-work-design-system";
 import type { AgentDesign } from './agent-model.js';
 
 /** A person-readable reason from a failed case's detail (plain text or the runner's JSON diagnosis). */
@@ -23,7 +24,7 @@ export function displayProblem(test: AgentDesign['acceptance'][number], detail: 
   if (!expected.length || !info.componentId || typeof info.visible !== 'string') return null;
   const part = parts.find(item => item.id === info.componentId);
   if (part && !part.read) return { type: 'wiring', componentId: info.componentId, expected, visible: info.visible };
-  const labels = (part?.props.columns ?? []).map(column => column.label).filter(Boolean);
+  const labels = (part?.props.columns ?? []).map(column => literalPluginWord(column.label)).filter(Boolean);
   if (labels.some(label => expected.some(text => text !== label && flat(text).includes(label)))) return { type: 'display', componentId: info.componentId, expected, visible: info.visible };
   if (!info.data) return null;
   const inData = expected.every(text => flat(info.data!).includes(flat(text))), onScreen = expected.every(text => flat(info.visible!).includes(flat(text)));

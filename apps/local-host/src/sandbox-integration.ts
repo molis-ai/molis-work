@@ -18,6 +18,9 @@ import { checkedSourcePresentation, checkedSourcePresentationInput, pollingInteg
 import type { InstalledRelease } from './installed-release.js';
 import { GONE } from './plugin-builder/installed.js';
 import { staleInstallation } from './installed-plugin-host.js';
+import { lastUsedLocale } from './ui-locale-memory.js';
+import { sandboxTextPacks } from './ui-text-provider.js';
+import { activeLocale } from './web-locale.js';
 
 export const sandboxIntegrationErrors = defineErrorCodes('host', { integration_pull_invalid: 'upstream', integration_source_invalid: 'invalid' });
 
@@ -95,7 +98,7 @@ export function sandboxIntegrationContribution(input: SandboxIntegrationProxyInp
  * Every call and every request first checks that the installation is still the running one.
  */
 export function sandboxedIntegrationDefinition(release: InstalledRelease, approved: SandboxEffects,
-  host: { connections: CallConnectionsPort; assertLive(identity: Readonly<SandboxIdentity>): void }): PluginDefinition {
+  host: { home: string; connections: CallConnectionsPort; assertLive(identity: Readonly<SandboxIdentity>): void }): PluginDefinition {
   const manifest = release.packaged!.manifest, contract = release.design.contract;
   const integration = manifest.integrations![0]!, service = manifest.connection_services!.find(item => item.service_id === integration.service_id)!;
   let runner: Promise<SandboxRunner> | undefined;
@@ -117,7 +120,8 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
       };
       const open = () => {
         if (runner) return runner;
-        const created = runner = createSandboxRunner({ bundlePath: release.bundlePath, contract, grants: approved, services, identity });
+        const created = runner = createSandboxRunner({ bundlePath: release.bundlePath, contract, grants: approved, services, identity,
+          localePacks: sandboxTextPacks(release.packaged!.localePacks) });
         created.catch(() => { if (runner === created) runner = undefined; });
         return created;
       };
@@ -128,7 +132,8 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
           live();
           const pending = open();
           const beforeEffect = async () => { await control.beforeEffect?.(); control.signal?.throwIfAborted(); live(); };
-          try { const active = await pending; await beforeEffect(); return await active.call(operationId, input, { ...control, beforeEffect }); }
+          const locale = (operationId === SANDBOX_INTEGRATION_OPERATIONS.poll ? null : activeLocale()) ?? lastUsedLocale(host.home);
+          try { const active = await pending; await beforeEffect(); return await active.call(operationId, input, { ...control, beforeEffect, locale }); }
           catch (error) {
             // A dead process starts again at the next call; this one is not replayed.
             if (GONE.has((error as { code?: string }).code ?? '') && runner === pending) runner = undefined;

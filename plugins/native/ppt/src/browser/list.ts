@@ -2,29 +2,30 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { firstLine, textCell, whenOf } from "./dom.js";
 import type { Ppt, PptPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the title or the count. */
-function fixedCell(page: PptPage, record: Ppt): HTMLSpanElement {
-  const { L } = page;
+function fixedCell(_page: PptPage, record: Ppt): HTMLSpanElement {
   const node = document.createElement("span");
   node.className = "mw-status mw-status--plain feed-entry-status";
   if (record.publication_pending) {
     node.dataset.mwState = "unsaved";
     node.classList.add("mw-status--attention");
-    node.textContent = L("ppt.fixed.unfinished");
+    node.textContent = uiText.text("ppt.fixed.unfinished");
   } else if (record.artifact_version > 0) {
     node.dataset.mwState = "saved";
     node.classList.add("mw-status--done");
-    node.textContent = L("ppt.fixed.label") + " v" + record.artifact_version;
+    node.textContent = uiText.text("ppt.fixed.label") + " v" + record.artifact_version;
   } else node.setAttribute("aria-hidden", "true");
   return node;
 }
 
 /** The deck list on the left: drawing it, marking the open row, and reading it from the Host. */
 export function installList(page: PptPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   const artifactLabel = (record: Ppt | null) =>
-    record?.publication_pending ? L("ppt.fixed.resume") : record && record.artifact_version > 0 ? L("ppt.fixed.again") : L("ppt.fixed.save");
+    record?.publication_pending ? uiText.text("ppt.fixed.resume") : record && record.artifact_version > 0 ? uiText.text("ppt.fixed.again") : uiText.text("ppt.fixed.save");
 
   const paintList = () => {
     el.empty.hidden = s.records.length > 0;
@@ -45,7 +46,7 @@ export function installList(page: PptPage): void {
       leading.append(title);
       row.append(
         leading,
-        textCell("plugin-stage-fact", L("ppt.slides.count", { count: (record.slides || []).length })),
+        textCell("plugin-stage-fact", uiText.text("ppt.slides.count", { count: (record.slides || []).length })),
         textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
         fixedCell(page, record),
       );
@@ -103,13 +104,13 @@ export function installList(page: PptPage): void {
     box.setAttribute("role", "alert");
     box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
     const hint = box.querySelector("p")!;
-    box.querySelector("strong")!.textContent = L("ppt.list.failed-title");
-    hint.textContent = messageOf(error) || L("ppt.list.failed-hint");
+    box.querySelector("strong")!.textContent = uiText.text("ppt.list.failed-title");
+    hint.textContent = messageOf(error) || uiText.text("ppt.list.failed-hint");
     const retry = box.querySelector("button")!;
-    retry.textContent = L("ppt.list.retry");
+    retry.textContent = uiText.text("ppt.list.retry");
     retry.addEventListener("click", () => {
       retry.disabled = true;
-      void page.loadList().then(() => box.remove(), (next: unknown) => { retry.disabled = false; hint.textContent = messageOf(next) || L("ppt.list.failed-hint"); });
+      void page.loadList().then(() => box.remove(), (next: unknown) => { retry.disabled = false; hint.textContent = messageOf(next) || uiText.text("ppt.list.failed-hint"); });
     });
     el.rowsEl.replaceChildren(box);
   };

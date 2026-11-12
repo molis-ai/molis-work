@@ -149,7 +149,7 @@ ${BUTTON_STYLES}
     display: grid; gap: 4px; font-size: 13px; color: var(--ink-soft);
   }
   .mw-field__label { display: flex; align-items: baseline; gap: 8px; color: var(--ink); font-weight: var(--weight-control, 500); }
-  .mw-field__label small, .mw-field__hint { color: var(--muted); font-weight: 400; font-size: 12px; line-height: 1.6; }
+  .mw-field__label small, .mw-field__hint { color: var(--muted); font-family: var(--type-note-font, var(--font)); font-weight: var(--type-note-weight, 400); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); letter-spacing: var(--type-note-tracking, 0); }
   /* An error says so in shape as well as colour: an alert glyph leads the message, centred on its first line. */
   .mw-field__error { display: flex; gap: 6px; margin: 0; color: var(--red); font-size: 12px; line-height: 1.6; }
   .mw-field__error::before {
@@ -166,7 +166,7 @@ ${BUTTON_STYLES}
     display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: none;
   }
   .mw-form__header { padding: 24px 24px 8px; }
-  .mw-form__header h2 { margin: 0; font-size: 17px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
+  .mw-form__header h2 { margin: 0; font-size: var(--type-title-size, 17px); line-height: var(--type-title-line-height, 1.4); font-weight: var(--weight-title, 600); letter-spacing: var(--tracking-title, -.02em); color: var(--ink); }
   .mw-form__header p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
   .mw-form__body {
     flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 12px;

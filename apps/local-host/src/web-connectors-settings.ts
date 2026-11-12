@@ -1,6 +1,6 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
 import { feishuCliStatus, startFeishuCliLogin, startFeishuCliSetup } from "./feishu-cli.js";
 
@@ -22,12 +22,12 @@ export async function handleLocalConnectorsSettingsHttp(
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/feishu/cli/setup") {
     try { sendJson(response, 200, { authorizationUrl: await startFeishuCliSetup() }); }
-    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : L("无法配置飞书 CLI") }); }
+    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : uiText.text("workbench.connectors-settings.could-not-configure-feishu-cli") }); }
     return true;
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/feishu/cli/login") {
     try { sendJson(response, 200, { authorizationUrl: await startFeishuCliLogin() }); }
-    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : L("无法开始飞书授权") }); }
+    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : uiText.text("workbench.connectors-settings.could-not-start-feishu-authorization") }); }
     return true;
   }
   return false;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, D14 (stages 1e, 3c): where the Assistant puts the shared receipt under the
 // person's supplements, and the chip that says what Send does while a question waits. The shipped script runs here on a small DOM port.
@@ -28,7 +29,7 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
   const shared = { agreements, tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (owner: Node, turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
     (acts.push(act), owners.push(owner), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
   const api = (path: string, method: string, body: Record<string, unknown>) => { calls.push([path, method, body]); return reply(path, body); };
-  const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; },
+  const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ readText: pageText("zh"), shared, chip, api, work: () => "work 1", reload: () => { reloads++; },
     pact: (content: Node | null, badge: string) => { pacts.push([content, badge]); } }) as {
     line(thread: Node, node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined; into(): { pending_id: string; draft_from_composer?: string } | null;
     after(thread: Node, put: (node: Node) => void, view: object | null): void;

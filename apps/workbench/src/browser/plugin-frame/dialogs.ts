@@ -1,8 +1,9 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageDialogs } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameScope, Translate } from "./types.js";
 
 /** Ordinary dialogs stay inside the page. Host confirmations additionally require a real submission while visible. */
-export function pageDialogs(scope: FrameScope, L: Translate, trusted = false): UiPageDialogs {
+export function pageDialogs(scope: FrameScope, _L: Translate, trusted = false): UiPageDialogs {
   let pending: Promise<unknown> = Promise.resolve();
   const show = (message: string, initial?: string): Promise<string | boolean | null> => {
     const result = pending.then(() => new Promise<string | boolean | null>(resolve => {
@@ -19,8 +20,8 @@ export function pageDialogs(scope: FrameScope, L: Translate, trusted = false): U
       if (input) { input.className = "mw-input"; input.value = initial ?? ""; input.setAttribute("aria-labelledby", title.id); body.append(input); }
       else body.hidden = true;
       const cancel = document.createElement("button"), accept = document.createElement("button");
-      cancel.type = "button"; cancel.className = "mw-btn mw-btn--ghost"; cancel.textContent = L("取消");
-      accept.type = "submit"; accept.className = "mw-btn mw-btn--primary"; accept.textContent = L("确定");
+      cancel.type = "button"; cancel.className = "mw-btn mw-btn--ghost"; cancel.textContent = uiText.text("common.control.cancel");
+      accept.type = "submit"; accept.className = "mw-btn mw-btn--primary"; accept.textContent = uiText.text("common.control.confirm");
       let finished = false;
       const finish = (value: string | boolean | null) => {
         if (finished) return; finished = true;

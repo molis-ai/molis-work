@@ -1,36 +1,36 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { developerMode } from "./developer-mode.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   assistantBoardSamples, parseAssistantFrame, type AssistantFrameOptions, parseConditionFrame, renderMolisWorkAssistantSpecimen, renderMolisWorkBarSpecimen, renderMolisWorkConditionsSpecimen,
   renderMolisWorkNavigationSpecimen, renderMolisWorkPrimitiveCatalog, renderEnvironmentSection, renderEnvironmentSpecimen,
+  type WorkbenchAppearancePorts,
 } from "@molis-ai/molis-work-app-workbench";
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { drawAssistantReply } from "./assistant/assistant-view-html.js";
 import { questionErrors } from "./agent-question-card.js";
-import { L, clientI18nScript, currentLocale, htmlLang, isWebLocale, runWithLocale, type WebLocale } from "./web-locale.js";
+import { readText, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
 
 /**
  * The component board's pages (a development tool, not in the person's navigation): the board, the bottom bar in its own
  * workbench context, the conditions frame and the Assistant frame (specs/visual-ui-experience VUX-39), whose own language
  * comes from its query so the board can compare both. Answers true when it served the request.
  */
-export function handleComponentBoardHttp(request: IncomingMessage, response: ServerResponse, url: URL, pageCsp: string): boolean {
+export function handleComponentBoardHttp(request: IncomingMessage, response: ServerResponse, url: URL, pageCsp: string, appearance?: WorkbenchAppearancePorts): boolean {
   if ((url.pathname === "/__ui/catalog" || url.pathname.startsWith("/__ui/catalog/")) && !developerMode()) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }); response.end("Not found"); return true;
   }
   if (request.method !== "GET") return false;
   // The board's own language switch (`?lang=`) changes this page only, never the Home's language; without it, the Home's.
-  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale,
-    () => renderMolisWorkPrimitiveCatalog(L, locale, environmentSection(locale), t.text("workbench.composer.next-boundary")));
+  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), appearance?.current(), t.text("workbench.composer.next-boundary")));
   const page = url.pathname === "/__ui/catalog" ? () => board(isWebLocale(lang) ? lang : currentLocale())
     : url.pathname === "/__ui/catalog/bar" ? renderMolisWorkBarSpecimen
-      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(L, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))
+      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))
       : url.pathname === "/__ui/catalog/conditions" ? () => {
         const options = parseConditionFrame(url.searchParams);
-        return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { L, htmlLang, clientI18nScript }));
+        return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { readText, htmlLang }));
       } : url.pathname === "/__ui/catalog/assistant" ? () => {
         const options = parseAssistantFrame(url.searchParams);
-        return runWithLocale(options.lang, () => renderMolisWorkAssistantSpecimen(options, { L, htmlLang, clientI18nScript, samples: drawnSamples(options.text) }));
+        return runWithLocale(options.lang, () => renderMolisWorkAssistantSpecimen(options, { readText, htmlLang, samples: drawnSamples(options.text) }));
       } : null;
   if (!page) return false;
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": pageCsp });
@@ -43,7 +43,7 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
  * page switches between them in place; the section itself in the page's language.
  */
 function environmentSection(locale: WebLocale): string {
-  const renders = { zh: runWithLocale("zh", renderEnvironmentSpecimen), en: runWithLocale("en", renderEnvironmentSpecimen) };
+  const renders = Object.fromEntries(WEB_LOCALES.map(tag => [tag, runWithLocale(tag, () => renderEnvironmentSpecimen(tag))]));
   return runWithLocale(locale, () => renderEnvironmentSection(renders, locale));
 }
 
@@ -51,12 +51,12 @@ function environmentSection(locale: WebLocale): string {
  * The Assistant frame's fixed works, drawn by the Host exactly as it draws a real answer (questions, reviews, replies, the
  * next steps and the delivery note), in the page's language — also what a work becomes once answered or checked. Nothing is read from or written to any store.
  */
-function drawnSamples(text: AssistantFrameOptions["text"]): string {
+function drawnSamples(text: AssistantFrameOptions["text"]) {
   const samples = assistantBoardSamples(Date.now(), text);
-  for (const view of [...Object.values(samples.views), ...Object.values(samples.next).flat(), ...Object.values(samples.answered), ...Object.values(samples.closed)]) drawAssistantReply(view, { say: L, drafts: () => ({}), card: () => "" });
+  for (const view of [...Object.values(samples.views), ...Object.values(samples.next).flat(), ...Object.values(samples.answered), ...Object.values(samples.closed)]) drawAssistantReply(view, { say: readText, drafts: () => ({}), card: () => "" });
   // A questionnaire answer the Runtime refuses (the frame's 回答问卷 · 被拒): the first question's options changed meanwhile, in
   // the lines the Host puts beside each field (assistant-http.ts).
   const refused = Object.fromEntries(Object.values(samples.views).flatMap((view) => view.rounds.flatMap((round) => round.awaiting_input))
-    .filter((question) => question.questions?.length).map((question) => [question.pending_id, questionErrors([{ question: 1, reason: "unknown-option" }], L, question.questions)]));
-  return JSON.stringify({ ...samples, refused });
+    .filter((question) => question.questions?.length).map((question) => [question.pending_id, questionErrors([{ question: 1, reason: "unknown-option" }], readText, question.questions)]));
+  return { ...samples, refused };
 }

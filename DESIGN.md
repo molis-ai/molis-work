@@ -211,7 +211,7 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 | Font stacks and weight roles as CSS | `packages/design-system/src/typeface.ts` (`FONT_STACK`, `MONO_FONT_STACK`, `TYPEFACE_STYLES`) |
 | `mw-*` primitives | `packages/design-system/src/styles/primitives.ts` and `src/primitives/*` |
 | Final expression layer: desk, sheet, bottom bar geometry, depth, motion, moments | `packages/design-system/src/styles/craft-finish.ts` (`CRAFT_FINISH_STYLES`, last on every page before the skins) |
-| Skins (Tray, Pill) | `packages/design-system/src/styles/skins.ts` (`SKIN_STYLES`, the very last layer; draws nothing for the default skin) |
+| Skins | `packages/design-system/resources/skins/` and the CSS scopes in `packages/design-system/src/appearance-tokens.ts` |
 | Ways out and back: cover chip close, bar trays | `apps/workbench/src/styles/navigation-flow.ts` (`NAVIGATION_FLOW_STYLES`, right after the final layer on the workbench and settings pages) |
 | Navigation behaviour: history, covers, the bar's second press, kept page state | `apps/workbench/src/scripts/client/tab-workspace.ts` and its parts (`tab-workspace-places.ts` holds history and covers), `tab-workspace-ops.ts`; the rules in [specs/archive/page-interaction-flow](specs/archive/page-interaction-flow/spec.md) |
 | The one list of global settings categories | `apps/workbench/src/settings-sections.ts` |
@@ -367,12 +367,9 @@ Status presentation uses the shared twelve-segment state ring (`renderStateRing`
 
 ## Skins
 
-A skin (皮肤) restates the primitives' material and geometry: corners, edges, fills, shadows and control height. Colour tokens, type, spacing between parts, motion, focus, status and layout stay the same in every skin. Soft Workbench is the default and is the rest of this document. The skin is a local preference like density: `html[data-skin]`, stored under `molis-work:skin`, switched from the component board's 皮肤 control. `styles/skins.ts` is the last layer of every stylesheet and scopes each rule to a non-default skin, so the default page keeps its cascade exactly and no rule needs `!important`.
+The Home chooses a skin from Settings › Interface and language. Soft Workbench is the default described here. Folio uses the apricot paper and evergreen palette in [its approved baseline](docs/design/folio-baseline/README.md) and recommends the bundled Folio Rounded font. The chooser previews the combination in a separate specimen before saving. The Home shares the saved skin and font selection across its windows. Theme, density and terminal colors stay with the device.
 
-- **Tray (托盘).** A raised key on a sunken tray: more touch, sharper edges. Secondary buttons are paper keys with an ink-11% edge and `--lift-1`; the primary adds a 1px inner highlight. Fields and the segmented track sink: an ink 3% wash (5% for the track) with a 1px inset shadow, and the thumb is a paper key with a hairline ring. Cards have an ink-9% edge and `--lift-1`, menus and popovers a hairline ring over `--lift-2`, the toast is paper with a ring instead of graphite, and a status tag gains a 14% ring in its own tone. Corners stay Soft's: 8px controls and items, a 10px track around a 6px thumb, 12px cards and menus. In Dark the raised face is `--popover`.
-- **Pill (圆润).** Capsules, softer and a little taller. Controls are capsules 4px taller than the density height (36px standard) with 16px inline padding. Secondary buttons and fields are borderless washes (ink 6% and 5%, deeper on hover and press) without shadow, and the primary has no lift. The segmented track and its thumb are capsules; status tags are 20px capsules. Larger boxes stay concentric: textareas 16px, cards 20px with 20px padding, menus 16px with 6px padding around 10px items, dialogs 24px, the toast a graphite capsule.
-
-Phones and coarse pointers keep at least 44px controls in every skin. The first version covers the shared `mw-*` primitives and the segmented controls; product surfaces with their own control rules keep Soft until they move onto the primitives. `tests/visual-foundation.test.ts` holds the scoping and the order; `tests/visual-order.e2e.test.ts` audits the default skin.
+Each skin uses the roles in `packages/design-system/resources/ui-spec.json`. The Design System turns those roles into the page, specimen and recovery CSS scopes. Phones and coarse pointers retain the 44px touch targets. The component board renders the Home’s appearance and the same component catalog that Builder uses.
 
 ## Iconography
 

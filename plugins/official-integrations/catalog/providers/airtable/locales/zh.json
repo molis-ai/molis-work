@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.airtable",
+  "locale": "zh",
+  "messages": {
+    "airtable.connection.auth-help": "Airtable PAT，需要 schema.bases:read。",
+    "airtable.connection.inbound": "Feed 拉表格与记录",
+    "airtable.connection.summary": "表格与记录。",
+    "airtable.connection.token-label": "Airtable Personal Access Token",
+    "airtable.guide.mcp-link": "查看 Airtable 官方 MCP",
+    "airtable.guide.oauth-link": "查看 Airtable OAuth",
+    "airtable.setup.create-airtable-personal-access-token": "创建 Airtable Personal Access Token"
+  }
+}

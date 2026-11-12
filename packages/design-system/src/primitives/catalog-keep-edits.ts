@@ -15,43 +15,42 @@ export const KEEP_EDITS_BOARD_STYLES = `
   [data-keep-wash-hold]::after { animation: none; opacity: 1; }
 `;
 
-const LONG_TITLE = "这条规则在别处改过，而且改的正好是你现在写的这几个字段：判断说明、判断条件和结果怎样用";
-const LONG_BODY = "你写的都还在，还没存。载入最新版之后，两边都改的字段会把你写的摆在该字段正下方，只有你改的字段留着，存下去的可能是两边都没见过的组合，所以放回之前请先看一眼。";
-const LONG_ACTION = "载入最新版之后再逐项决定：两边都改的字段放回你写的，别处改的字段留着最新版，然后从头看一遍再发布这条判断规则";
-const SHORT_KEPT = "只看客户直接发来的消息，转发的不算。";
-const LATEST_KEPT = "客户发来的消息都算，也包括转发过来的。";
-const LONG_KEPT = "只看客户直接发来的消息，转发的不算。如果消息里提到了退款、合同到期或者投诉，就算值得跟进；只是问候、自动回复或者已经由别的同事回复过的，都不算。遇到拿不准的情况，宁可多留一条，也不要漏掉，因为漏掉一条要跟进的消息比多看一条的代价大得多。周末和节假日发来的也一样处理，不要因为时间不对就跳过。";
+const LONG_TITLE = "workbench.catalog-keep-edits.this-rule-changed-elsewhere-and-in-exactly";
+const LONG_BODY = "workbench.catalog-keep-edits.what-you-wrote-is-still-here-not";
+const LONG_ACTION = "workbench.catalog-keep-edits.load-the-latest-version-then-decide-field";
+const SHORT_KEPT = "workbench.catalog-keep-edits.only-messages-customers-sent-directly-forwarded-ones-2";
+const LATEST_KEPT = "workbench.catalog-keep-edits.every-message-from-a-customer-counts-forwarded";
+const LONG_KEPT = "workbench.catalog-keep-edits.only-messages-customers-sent-directly-forwarded-ones";
 
 /**
  * 收起 already has two English texts in the served dictionaries and the translation gate allows no third, while the decided sample
  * says Dismiss on an alert and Show less on a fold. Until N14's interface gives them stable keys, the board picks by language itself.
  */
-const hide = (say: Say, english: string): string => (say("你写的") === "你写的" ? "收起" : english);
 
 function alertActionsSection(say: Say): string {
-  const load = (): MwButtonOptions => ({ label: say("载入最新版"), variant: "primary" });
-  const keepAsNew = (): MwButtonOptions => ({ label: say("存成新规则") });
+  const load = (): MwButtonOptions => ({ label: say("workbench.ui.load-latest"), variant: "primary" });
+  const keepAsNew = (): MwButtonOptions => ({ label: say("workbench.ui.save-new-rule") });
   const stack = (body: string) => `<div class="mw-keep-stack">${body}</div>`;
   const replay = (attr: string, label: string) => renderButton({ label: say(label), variant: "secondary", attrs: { [attr]: "" } });
-  return section("alert-actions", say("提示里的按钮 / Alert Actions"), `<div class="mw-catalog__specimens">
-    ${specimen(say("要处理的事：一个主按钮"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [load()] })))}
-    ${specimen(say("两条出路：主按钮排在后面"), stack(renderAlert({ tone: "warning", title: say("这条规则又被改了一次"), body: say("可能还有人在改它。你写的都还在，还没存。"), actions: [keepAsNew(), load()] })))}
-    ${specimen(say("慢了才出转圈，按钮不变宽"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [{ ...load(), loading: true }] })))}
-    ${specimen(say("坏消息：说得平和，给下一步"), stack(renderAlert({ tone: "warning", title: say("最新版还没载入"), body: say("连接好像断了。你写的都还在，连上后再试一次。"), actions: [{ label: say("再试一次"), variant: "primary" }] })))}
-    ${specimen(say("只是知会：没有主按钮"), stack(renderAlert({ title: say("这条规则刚在别处改过，已换成最新版"), body: say("发布前看一眼。"), actions: [{ label: say("看看改了什么") }] })))}
-    ${specimen(say("完成：升起，对勾落定"), stack(`<div data-keep-rise>${renderAlert({ tone: "success", state: "done", rise: true, title: say("已载入最新版"), body: say("判断说明两边都改了，你写的就在它下面。"), actions: [{ label: hide(say, "Dismiss") }] })}</div><div class="mw-catalog__row">${replay("data-keep-replay-rise", "再看一遍")}</div>`))}
-    ${specimen(say("被拦下时：轻跳一下，焦点到主按钮"), stack(`<div data-keep-nudge>${renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), attrs: { tabindex: "-1" }, actions: [load()] })}</div><div class="mw-catalog__row">${renderButton({ label: say("发布 v1"), variant: "secondary", attrs: { "data-keep-press": "" } })}</div>`))}
-    ${specimen(say("最挤：长标题、长正文、两个长按钮"), stack(renderAlert({ tone: "warning", title: say(LONG_TITLE), body: say(LONG_BODY), actions: [{ label: say("用我写的另起一条") }, { label: say("载入最新版，再放回"), variant: "primary" }] })))}
-    ${specimen(say("最挤：按钮的字放不下时折行"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [{ label: say("存成新规则") }, { label: say(LONG_ACTION), variant: "primary", attrs: { "data-keep-long-label": "" } }] })))}
+  return section("alert-actions", say("workbench.catalog-keep-edits.alert-actions"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-keep-edits.something-to-deal-with-one-primary-button"), stack(renderAlert({ tone: "warning", title: say("workbench.ui.rule-changed-elsewhere"), body: say("workbench.ui.what-wrote-still-here-not-saved-yet"), actions: [load()] })))}
+    ${specimen(say("workbench.catalog-keep-edits.two-ways-out-the-primary-comes-last"), stack(renderAlert({ tone: "warning", title: say("workbench.ui.rule-changed-again"), body: say("workbench.ui.someone-may-still-be-working-what-wrote-still"), actions: [keepAsNew(), load()] })))}
+    ${specimen(say("workbench.catalog-keep-edits.a-spinner-only-when-it-is-slow"), stack(renderAlert({ tone: "warning", title: say("workbench.ui.rule-changed-elsewhere"), body: say("workbench.ui.what-wrote-still-here-not-saved-yet"), actions: [{ ...load(), loading: true }] })))}
+    ${specimen(say("workbench.catalog-keep-edits.bad-news-said-calmly-with-a-next"), stack(renderAlert({ tone: "warning", title: say("workbench.ui.couldn-t-load-latest-version"), body: say("workbench.ui.connection-seems-down-what-wrote-still-here-try"), actions: [{ label: say("common.appearance.try-again"), variant: "primary" }] })))}
+    ${specimen(say("workbench.catalog-keep-edits.only-telling-you-no-primary-button"), stack(renderAlert({ title: say("workbench.ui.rule-just-changed-elsewhere-so-re-latest-now"), body: say("workbench.ui.take-look-before-publish"), actions: [{ label: say("workbench.ui.see-what-changed") }] })))}
+    ${specimen(say("workbench.catalog-keep-edits.done-rises-in-the-tick-settles"), stack(`<div data-keep-rise>${renderAlert({ tone: "success", state: "done", rise: true, title: say("workbench.ui.latest-version-loaded"), body: say("workbench.catalog-keep-edits.instructions-changed-on-both-sides-yours-is"), actions: [{ label: say("common.control.close") }] })}</div><div class="mw-catalog__row">${replay("data-keep-replay-rise", "workbench.catalog-keep-edits.play-again")}</div>`))}
+    ${specimen(say("workbench.catalog-keep-edits.when-a-press-is-blocked-one-small"), stack(`<div data-keep-nudge>${renderAlert({ tone: "warning", title: say("workbench.ui.rule-changed-elsewhere"), body: say("workbench.ui.what-wrote-still-here-not-saved-yet"), attrs: { tabindex: "-1" }, actions: [load()] })}</div><div class="mw-catalog__row">${renderButton({ label: say("workbench.client-records.publish-first-version"), variant: "secondary", attrs: { "data-keep-press": "" } })}</div>`))}
+    ${specimen(say("workbench.catalog-keep-edits.most-crowded-a-long-title-long-text"), stack(renderAlert({ tone: "warning", title: say(LONG_TITLE), body: say(LONG_BODY), actions: [{ label: say("workbench.catalog-keep-edits.start-fresh-with-what-i-wrote") }, { label: say("workbench.catalog-keep-edits.load-latest-then-put-back"), variant: "primary" }] })))}
+    ${specimen(say("workbench.catalog-keep-edits.most-crowded-a-button-s-words-wrap"), stack(renderAlert({ tone: "warning", title: say("workbench.ui.rule-changed-elsewhere"), body: say("workbench.ui.what-wrote-still-here-not-saved-yet"), actions: [{ label: say("workbench.ui.save-new-rule") }, { label: say(LONG_ACTION), variant: "primary", attrs: { "data-keep-long-label": "" } }] })))}
     ${skillAlertSpecimens(say)}
   </div>`);
 }
 
 function keptSection(say: Say): string {
-  const put = say("放回"), back = say("换回"), yours = say("你写的"), latest = say("最新版");
-  const putName = say("放回你写的：{field}", { field: say("判断说明") }), backName = say("换回最新版：{field}", { field: say("判断说明") });
-  const more = () => ({ label: say("看全部"), attrs: { "data-keep-more": "", "data-keep-open": say("看全部"), "data-keep-close": hide(say, "Show less") } });
-  const field = (value: string) => renderField({ label: say("判断说明"), control: renderTextarea({ rows: 3, value: say(value), attrs: { "data-keep-field": "" } }) });
+  const put = say("workbench.client-keep.put-back"), back = say("workbench.client-keep.swap-back"), yours = say("workbench.client-keep.wrote"), latest = say("workbench.client-keep.latest-version");
+  const putName = say("workbench.client-keep.put-back-what-wrote-field", { field: say("workbench.client-keep.judgment-instructions") }), backName = say("workbench.client-keep.swap-back-latest-field", { field: say("workbench.client-keep.judgment-instructions") });
+  const more = () => ({ label: say("workbench.client-keep.show-all"), attrs: { "data-keep-more": "", "data-keep-open": say("workbench.client-keep.show-all"), "data-keep-close": say("workbench.catalog-keep-edits.show-less") } });
+  const field = (value: string) => renderField({ label: say("workbench.client-keep.judgment-instructions"), control: renderTextarea({ rows: 3, value: say(value), attrs: { "data-keep-field": "" } }) });
   const row = (kept: string, options: { long?: boolean; swapped?: boolean; rise?: boolean; index?: number } = {}) => renderKept({
     who: options.swapped ? latest : yours,
     text: say(kept),
@@ -63,30 +62,30 @@ function keptSection(say: Say): string {
     attrs: { "data-keep-labels": JSON.stringify({ yours, latest, put, back, putName, backName }) },
   });
   const swapping = (value: string, kept: string, options: { long?: boolean; swapped?: boolean } = {}) => `<div class="mw-keep-stack" data-keep-pair><div data-keep-box>${field(value)}</div>${row(kept, options)}</div>`;
-  return section("kept", say("你写的 / Kept Value"), `<div class="mw-catalog__specimens">
-    ${specimen(say("两边都改：你写的贴在字段下面，可以放回"), swapping(LATEST_KEPT, SHORT_KEPT))}
-    ${specimen(say("放回之后：同一格换成最新版，可以换回"), swapping(SHORT_KEPT, LATEST_KEPT, { swapped: true }))}
-    ${specimen(say("你清空过这一栏"), `<div class="mw-keep-stack">${field(LATEST_KEPT)}${renderKept({ who: yours, text: "", blankText: say("你清空了这一栏"), action: { label: put, attrs: { "aria-label": putName } } })}</div>`)}
-    ${specimen(say("最挤：长内容收在三行，看全部"), swapping(LATEST_KEPT, LONG_KEPT, { long: true }))}
-    ${specimen(say("一组：错开出现"), `<div class="mw-keep-stack"><div class="mw-keep-stack" data-keep-group>${[0, 1, 2].map((index) => renderKept({ who: yours, text: say(SHORT_KEPT), rise: true, index, action: { label: put, attrs: { "aria-label": say("放回你写的：{field}", { field: say(["判断说明", "判断条件", "结果怎样用"][index]!) }) } } })).join("")}</div><div class="mw-catalog__row">${renderButton({ label: say("再看一遍"), variant: "secondary", attrs: { "data-keep-replay-group": "" } })}</div></div>`)}
+  return section("kept", say("workbench.catalog-keep-edits.kept-value"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-keep-edits.changed-on-both-sides-yours-sits-under"), swapping(LATEST_KEPT, SHORT_KEPT))}
+    ${specimen(say("workbench.catalog-keep-edits.once-put-back-the-same-slot-holds"), swapping(SHORT_KEPT, LATEST_KEPT, { swapped: true }))}
+    ${specimen(say("workbench.catalog-keep-edits.you-had-cleared-this-field"), `<div class="mw-keep-stack">${field(LATEST_KEPT)}${renderKept({ who: yours, text: "", blankText: say("workbench.client-keep.cleared-field"), action: { label: put, attrs: { "aria-label": putName } } })}</div>`)}
+    ${specimen(say("workbench.catalog-keep-edits.most-crowded-long-text-folds-to-three"), swapping(LATEST_KEPT, LONG_KEPT, { long: true }))}
+    ${specimen(say("workbench.catalog-keep-edits.a-group-one-after-another"), `<div class="mw-keep-stack"><div class="mw-keep-stack" data-keep-group>${[0, 1, 2].map((index) => renderKept({ who: yours, text: say(SHORT_KEPT), rise: true, index, action: { label: put, attrs: { "aria-label": say("workbench.client-keep.put-back-what-wrote-field", { field: say(["workbench.client-keep.judgment-instructions", "workbench.catalog-keep-edits.criteria", "workbench.catalog-keep-edits.how-the-result-is-used"][index]!) }) } } })).join("")}</div><div class="mw-catalog__row">${renderButton({ label: say("workbench.catalog-keep-edits.play-again"), variant: "secondary", attrs: { "data-keep-replay-group": "" } })}</div></div>`)}
   </div>`);
 }
 
 function stepDotSection(say: Say): string {
-  const dot = () => renderStepDot({ label: say("这一步有改动要看") });
-  const steps = (names: readonly string[], current: number, dotted: readonly number[]) => `<nav class="functions-steps" aria-label="${say("规则设置步骤")}" data-keep-steps>${names.map((name, index) => `<button type="button"${index === current ? ' aria-current="step"' : ""}><span>${index + 1}${dotted.includes(index) ? dot() : ""}</span>${say(name)}</button>`).join("")}</nav>`;
-  return section("step-dot", say("步骤上的小点 / Step Dot"), `<div class="mw-catalog__specimens">
-    ${specimen(say("别的步骤有改动：走到那一步小点就收起"), `<div class="mw-keep-stack">${steps(["选择用途", "判断规则", "试跑与启用"], 0, [2])}</div>`)}
-    ${specimen(say("两个步骤都有"), `<div class="mw-keep-stack">${steps(["选择用途", "判断规则", "试跑与启用"], 2, [0, 1])}</div>`)}
-    ${specimen(say("最挤：步骤名很长"), `<div class="mw-keep-stack">${steps(["先选这条判断规则的用途和名称", "再写清楚怎样判断、结果怎样用", "最后试跑几条样例并决定是否启用"], 1, [0, 2])}</div>`)}
+  const dot = () => renderStepDot({ label: say("workbench.ui.something-changed-step") });
+  const steps = (names: readonly string[], current: number, dotted: readonly number[]) => `<nav class="functions-steps" aria-label="${say("workbench.catalog-keep-edits.rule-setup-steps")}" data-keep-steps>${names.map((name, index) => `<button type="button"${index === current ? ' aria-current="step"' : ""}><span>${index + 1}${dotted.includes(index) ? dot() : ""}</span>${say(name)}</button>`).join("")}</nav>`;
+  return section("step-dot", say("workbench.catalog-keep-edits.step-dot"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-keep-edits.a-change-on-another-step-the-dot"), `<div class="mw-keep-stack">${steps(["workbench.ui.choose-use", "workbench.ui.judgment-rule", "workbench.ui.test-activate"], 0, [2])}</div>`)}
+    ${specimen(say("workbench.catalog-keep-edits.on-two-steps"), `<div class="mw-keep-stack">${steps(["workbench.ui.choose-use", "workbench.ui.judgment-rule", "workbench.ui.test-activate"], 2, [0, 1])}</div>`)}
+    ${specimen(say("workbench.catalog-keep-edits.most-crowded-long-step-names"), `<div class="mw-keep-stack">${steps(["workbench.catalog-keep-edits.first-choose-what-this-judgment-rule-is", "workbench.catalog-keep-edits.then-write-down-how-to-judge-and", "workbench.catalog-keep-edits.finally-try-a-few-samples-and-decide"], 1, [0, 2])}</div>`)}
   </div>`);
 }
 
 function fieldWashSection(say: Say): string {
-  const field = (value: string) => renderField({ label: say("判断说明"), control: renderTextarea({ rows: 5, value: say(value) }) });
-  return section("field-wash", say("字段到达光 / Field Arrival"), `<div class="mw-catalog__specimens">
-    ${specimen(say("定格在最亮的一帧"), `<div class="mw-keep-stack"><div data-craft-new="field" data-keep-wash-hold>${field(LATEST_KEPT)}</div></div>`)}
-    ${specimen(say("真实的一次：淡淡亮一下"), `<div class="mw-keep-stack"><div data-keep-wash>${field(LONG_KEPT)}</div><div class="mw-catalog__row">${renderButton({ label: say("再亮一次"), variant: "secondary", attrs: { "data-keep-replay-wash": "" } })}</div></div>`)}
+  const field = (value: string) => renderField({ label: say("workbench.client-keep.judgment-instructions"), control: renderTextarea({ rows: 5, value: say(value) }) });
+  return section("field-wash", say("workbench.catalog-keep-edits.field-arrival"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-keep-edits.held-at-its-brightest-frame"), `<div class="mw-keep-stack"><div data-craft-new="field" data-keep-wash-hold>${field(LATEST_KEPT)}</div></div>`)}
+    ${specimen(say("workbench.catalog-keep-edits.the-real-thing-one-faint-glow"), `<div class="mw-keep-stack"><div data-keep-wash>${field(LONG_KEPT)}</div><div class="mw-catalog__row">${renderButton({ label: say("workbench.catalog-keep-edits.glow-again"), variant: "secondary", attrs: { "data-keep-replay-wash": "" } })}</div></div>`)}
   </div>`);
 }
 

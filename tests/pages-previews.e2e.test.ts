@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pageTextReaderScript } from "./fixtures/page-text.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 const link = (href: string) => ({ type: "link", attrs: { href } });
@@ -20,6 +21,7 @@ async function mount(t: TestContext) {
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
     Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
+  await b.evaluate(pageTextReaderScript("zh", "pages"));
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='previews-fixture';root.className='pages-editor-host';root.style.cssText='width:640px;max-width:90vw;margin:260px auto';
     const other=document.createElement('button');other.id='other-focus';other.textContent='Other';other.style.cssText='position:fixed;bottom:8px;right:8px';
@@ -28,7 +30,7 @@ async function mount(t: TestContext) {
     window.open=(...args)=>{previewOpened.push(args);return null};
     window.previewOptions={doc:${JSON.stringify(original)},onChange:()=>previewCounts.change++,onScreen:()=>previewCounts.screen++,onComment:id=>previewComments.push(id),
       onTools:()=>{if(window.releasingPreview){const before=previewCounts.screen;window.dispatchEvent(new Event('resize'));previewRelease.push({link:previewLink.isConnected,comment:previewComment.isConnected,screenDelta:previewCounts.screen-before})}},
-      translate:label=>{previewTranslations.push(label);return label}};
+      translate:key=>{const label=isolatedEditorText(key);previewTranslations.push(label);return label}};
     window.previewEditor=MolisWorkPagesEditor.mount(root,previewOptions);previewEditor.view.focus();window.PreviewSelection=previewEditor.view.state.selection.constructor;
     window.previewLink=document.querySelector('.pages-link-preview');window.previewComment=document.querySelector('.pages-comment-preview');
   })()`);

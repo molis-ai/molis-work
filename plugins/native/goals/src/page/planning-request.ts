@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlanningMethodPack } from "../contract/goals.js";
 import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
 import { goalsPlanningRouteOf, selectGoalsPlanningPageMethod, type GoalsPlanningRoute } from "../planning-routes.js";
@@ -20,7 +21,7 @@ export async function renderPlanningRequest(
   if (method !== "GET") return null;
   const route = goalsPlanningRouteOf(match);
   if (!route) return null;
-  if ("rejected" in route) return { status: 404, error: translate(scope === "project" ? "找不到这个项目方法" : "找不到这套规划方法") };
+  if ("rejected" in route) return { status: 404, error: uiText.text(scope === "project" ? "goals.planning-request.that-project-method-wasn-t-found" : "goals.planning-request.that-planning-method-wasn-t-found") };
   const owner = await load(route);
   if ("error" in owner) return owner;
   if (route.kind === "library") return { status: 200, html: owner.library() };

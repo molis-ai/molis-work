@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
 import { terminal } from "./composer-state.js";
 import { phaseRing, toInput } from "./helpers.js";
@@ -26,22 +27,22 @@ function outcomeIcon(name: string): SVGSVGElement {
 }
 
 /** One finished round's row: its changes and its report. */
-function outcomeRow(page: Page, runId: string): HTMLElement {
-  const { L } = page, row = el("div", "", "coding-outcome"), change = el("button", "", "mw-btn mw-btn--ghost"), report = el("button", "", "mw-btn mw-btn--ghost");
+function outcomeRow(_page: Page, runId: string): HTMLElement {
+  const row = el("div", "", "coding-outcome"), change = el("button", "", "mw-btn mw-btn--ghost"), report = el("button", "", "mw-btn mw-btn--ghost");
   row.dataset.codingOutcome = runId;
   change.type = "button";
   change.dataset.codingChangeOpen = runId;
-  change.append(outcomeIcon("columns"), L("coding.short.change"));
+  change.append(outcomeIcon("columns"), uiText.text("coding.short.change"));
   report.type = "button";
   report.dataset.codingReportOpen = runId;
-  report.append(outcomeIcon("file"), L("coding.outcome.report"));
+  report.append(outcomeIcon("file"), uiText.text("coding.outcome.report"));
   row.append(el("span", "", "coding-outcome-name"), el("span", "", "coding-outcome-phase"), change, report);
   return row;
 }
 
 /** One row per finished round: its changes and its report, newest first. */
 export function renderOutcomes(page: Page, all: readonly RunView[]) {
-  const { L, q, s } = page, list = q("[data-coding-outcome-list]");
+  const { q, s } = page, list = q("[data-coding-outcome-list]");
   const ended = all.filter(run => ["completed", "failed", "stopped", "cancelled"].includes(run.phase));
   q("[data-coding-outcomes]").hidden = !ended.length;
   const rows = new Map(([...list.children] as HTMLElement[]).map(node => [node.dataset.codingOutcome, node]));
@@ -53,7 +54,7 @@ export function renderOutcomes(page: Page, all: readonly RunView[]) {
     }
     const phase = row.querySelector<HTMLElement>(".coding-outcome-phase");
     if (!phase) continue;
-    row.querySelector(".coding-outcome-name")!.textContent = L("coding.turn.number", { number: all.indexOf(run) + 1 });
+    row.querySelector(".coding-outcome-name")!.textContent = uiText.text("coding.turn.number", { number: all.indexOf(run) + 1 });
     phase.textContent = s.phases[run.phase] || run.phase;
     phase.dataset.mwState = phaseRing(run.phase);
     phase.dataset.tone = run.phase === "completed" ? "done" : run.phase === "failed" ? "failed" : "idle";

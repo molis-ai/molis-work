@@ -78,8 +78,8 @@ export const pluginInstallActions = {
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins", "refused"], properties: {
-      plugins: { type: "array", items: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "name", "name_en", "summary", "runtime_scope", "publisher"], properties: {
-        plugin_id: text, version: text, name: text, name_en: { type: ["string", "null"] }, summary: { type: ["string", "null"] }, runtime_scope: { enum: ["home", "project"] },
+      plugins: { type: "array", items: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "name", "summary", "runtime_scope", "publisher"], properties: {
+        plugin_id: text, version: text, name: text, summary: { type: ["string", "null"] }, runtime_scope: { enum: ["home", "project"] },
         publisher: { type: "object", additionalProperties: false, required: ["publisher_id", "key_id", "pinned_label", "revoked"], properties: {
           publisher_id: text, key_id: text, pinned_label: { type: ["string", "null"] }, revoked: { type: "boolean" } } } } } },
       refused: { type: "array", items: { type: "object", additionalProperties: false, required: ["file", "code", "message"], properties: { file: text, code: text, message: text } } } } } } } as ActionDefinition<Record<string, never>, BundledPluginList>,

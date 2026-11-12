@@ -1,6 +1,8 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
+const uiText = globalThis.t;
+
 /** The page's one request helper (packages/ui-host request-client): control headers, one origin, plain Errors with `code`. */
 export const pageRequest = (): UiRequest => molisWorkRequest;
 
@@ -99,7 +101,11 @@ export const versionsOf = (publications: CharacterPublication[], characterId: st
   publications.filter(record => record.payload?.character_id === characterId).sort((a, b) => b.version - a.version);
 
 /** The fixed text of a Character as the person reads it before and after publishing. */
-export function readableContent(content: CharacterContent, describeActions: (tools: ActionRef[] | null | undefined) => string): string {
-  const tools = content.host_tools === null ? "沿用调用方" : content.host_tools.join(", ") || "不用内置工具";
-  return content.instructions + "\n\n内置工具：" + tools + "\n动作能力：" + describeActions(content.action_tools);
+export function readableContent(content: CharacterContent, describeActions: (tools: ActionRef[] | null | undefined) => string): Node[] {
+  const tools = content.host_tools === null ? uiText.text("workbench.characters.inherit-caller") : content.host_tools.join(", ") || uiText.text("workbench.characters.no-builtins");
+  const authored = el("span", content.instructions); authored.translate = false;
+  const names = el("span", tools); names.translate = Boolean(!content.host_tools?.length);
+  const actions = el("span", describeActions(content.action_tools)); actions.translate = !content.action_tools?.length;
+  return [authored, document.createTextNode("\n\n"), el("span", uiText.text("workbench.characters.tools-label")), names,
+    document.createTextNode("\n"), el("span", uiText.text("workbench.characters.actions-label")), actions];
 }

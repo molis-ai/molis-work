@@ -3,16 +3,17 @@ import test from "node:test";
 import { createArtifactReferenceRenderer } from "@molis-ai/molis-work-app-workbench";
 import { isProjectReference } from "@molis-ai/molis-work-app-workbench";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
+installHostUiText();
 const render = createArtifactReferenceRenderer({
   escape: (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
   icon,
-  text: L,
+  text: readText,
 });
 
 test("Workbench mounts Artifact links with the unchanged file endpoint", () => {
-  const html = render("project://notes/result.md#summary", "Results <2026>");
+  const html = runWithLocale("zh", () => render("project://notes/result.md#summary", "Results <2026>"));
   assert.match(html, /href="\/api\/project-references\/project%3A%2F%2Fnotes%2Fresult.md%23summary" data-project-reference/);
   // It opens in the workbench's overlay, not a new browser tab (specs/artifact-positioning P18).
   assert.match(html, /data-project-reference/);
@@ -21,7 +22,7 @@ test("Workbench mounts Artifact links with the unchanged file endpoint", () => {
   assert.doesNotMatch(html, /data-copy-value/);
 });
 
-test("Artifact reference embeds retain external links and copy-only opaque or unsafe local references", () => {
+test("Artifact reference embeds retain external links and copy-only opaque or unsafe local references", () => runWithLocale("zh", () => {
   assert.match(render("https://example.com/report?a=1&b=2"), /href="https:\/\/example.com\/report\?a=1&amp;b=2"/);
   for (const value of ["file:///private/result.txt", "javascript:alert(1)", "project://../secret.txt", "project:///etc/passwd", "opaque-result", ""]) {
     assert.equal(isProjectReference(value), false);
@@ -29,7 +30,7 @@ test("Artifact reference embeds retain external links and copy-only opaque or un
     assert.match(html, /<button class="inline-ref" type="button" data-copy-value=/);
     assert.doesNotMatch(html, /<a\b/);
   }
-});
+}));
 
 test("Artifact reference translation remains request-local and untrusted labels stay escaped", () => {
   const english = runWithLocale("en", () => render('opaque" onclick="bad', '<img src=x onerror="bad">'));

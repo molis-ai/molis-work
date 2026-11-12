@@ -198,7 +198,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 | 9 | 调用次数 | 一次召回从逐条授权变成一页一次（`authorizeEach`）；一批授权只读一次遗忘事实，多条时批末复读一次。已知增加：一次 promote 的 `beforeEffect` 约 20 次，main 上 6 次 |
 | 10 | 升级与数据 | 旧 Home 升到新格式后归属与开关都在；金样 Home 逐字节重放；完整 Home 恢复用例 `home-restore-*` |
 | 11 | 成果与过程项 | 不涉及：记忆不进成果库 |
-| 12 | 页面、外壳与文字 | 记忆管理挂在工作台设置位置，不出整页；资源增长用 `tooling/gates/page-asset-allowances/memory-v0.json`（工作台 +21,063 B、Coding +6,496 B，在用户已批合计之内），没有新资源 |
+| 12 | 页面、外壳与文字 | 记忆管理挂在工作台设置位置，不出整页；资源增长用 `tooling/gates/page-asset-allowances/memory-v0.json`（工作台 +21,804 B、Coding +6,496 B，在用户已批合计之内），没有新资源 |
 | 13 | 错误 | 错误码用 `defineErrorCodes("memory", …)`（`horizontal/memory/src/errors.ts`），没有新 Error 子类 |
 | 14 | 冲突面 | 公开 API 快照、动作快照、`tooling/versions.json`、vendored SDK、`packages/kernel/src/action-execution-context.ts` |
 | 15 | 全局最优 | 逐条答复的授权做进 SDK 的 `MemoryAuthority`，任何 App 和插件都能用；助理、Coding、插件走同一个运行时策略；会话绑定的通用化记为后续，不为猜测的使用者先造抽象 |
@@ -211,7 +211,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **重试停用被拒。** 见上面「本会话的用户决定」的「重试停用」。Prologue 分支 `claude/memory-deactivation-replay` 提交 `08470eb6`：最后一次操作新增可选 `before: { paused, disabled }`，只在暂停与停用上出现；读取时严格检查（别的操作带它、不是两个布尔值、暂停前已停用、两项同时为真都拒读）。没有它的旧行照旧不带原条目重试，行格式不升（旧读者忽略这一项也是这样）；SDK 公开 API 只加这一个可选字段。重试的新用例在 Prologue main 的源码上全部失败，七种拒读去掉规则后全部失败，`memory-state-lifecycle` 64/64；SDK 记忆用例 971/972，唯一失败的 `memory-context-handles`「concurrently prepared handles」在 `1128126d`、`83bee7fc` 的源码上同样失败，与这次无关。换包时 Molis 一侧随之补用例：形成开关关着时，同一个操作号重试暂停、停用都通过，且问到 Authority 的原条目与第一次相同。SDK 的 `memory-context-handles`「concurrently prepared handles」在本机失败，在 `1128126d` 与 `83bee7fc` 的源码上同样失败，与这次改动无关，另记。
 - **读后检查的出处。** 见「本会话的用户决定」的「Inbox 读后检查」：出处更正后用户仍选保留。
 - **Coding 会话绑定。** 记为已批例外，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md)。
-- **巨大单元。** `apps/workbench/src/settings-memory.ts` 在本 PR 从 536 行涨到 887 行，登记的「内聚单元」理由自己列了几件事。按职责拆：改一条记忆（正文、分类与期限、续期、历史）移到 `apps/workbench/src/settings-memory-editors.ts`，沿用分类矩阵已有的工厂写法；页面文件回到 713 行，删掉它的巨大单元登记。
+- **巨大单元。** `apps/workbench/src/settings-memory.ts` 在本 PR 从 536 行涨到 887 行，登记的「内聚单元」理由自己列了几件事。按职责拆：改一条记忆（正文、分类与期限、续期、历史）移到 `apps/workbench/src/settings-memory-editors.ts`，沿用分类矩阵已有的工厂写法；页面文件回到 713 行，删掉它的巨大单元登记。拆出的工厂调用与参数让工作台脚本多 741 字节，复审时页面资源门因此不过；把 `memory-v0.json` 的工作台额度改成实测 +21,804（仍在用户批准的合计 +27,407 之内），门禁通过。
 - **记录过时。** `docs/system/CONTRACT-CHANGES.md`、`docs/system/HOME-DATA.md` 开头写的恢复日志 schema 2 与「无旧库迁移」改成 schema 1 与已登记的 1 → 2 升级段；本 spec 状态句、BL-1071、BL-1072 改到现状；补上本节之前的开工前检查。
 
 ## 1. 用户结果与责任边界

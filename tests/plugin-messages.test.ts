@@ -46,7 +46,7 @@ test("RAC-751 a current Manifest accepts locale files and rejects each retired i
   assert.doesNotThrow(() => parsePluginManifest(manifest({})));
   for (const [field, value] of [["messages", { [TITLE]: { zh: "笔记", en: "Notes" } }], ["translations", { 笔记: "Notes" }]] as const) {
     for (const extra of [{ [field]: value }, { locales: declared, [field]: value }]) {
-      assert.throws(() => parsePluginManifest(manifest(extra)), { code: "plugin.declaration_invalid", message: /ui\.locales.*messages or translations|ui\.locales.*messages 或 translations/u }, field);
+      assert.throws(() => parsePluginManifest(manifest(extra)), { code: "plugin.declaration_invalid", message: new RegExp(`^ui\\.${field} 已取消：.*ui\\.locales`, "u") }, field);
     }
   }
   assert.throws(() => parsePluginManifest({ ...manifest({ locales: declared }), schema_version: 2 }), { code: "plugin.manifest_version_invalid", message: /Manifest 版本不受支持|Manifest version is not supported/ });

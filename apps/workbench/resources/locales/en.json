@@ -7989,9 +7989,27 @@
     "workbench.session-source-specimens.project-brand": "Brand handbook",
     "workbench.session-source-specimens.project-team": "Website refresh (team)",
     "workbench.session-source-specimens.project-long": "Q4 2026 client annual review and next-year planning materials",
-    "workbench.session-source-specimens.line-filed": "{dir} · {n} sessions filed here",
-    "workbench.session-source-specimens.line-readable": "{dir} · AI can read these {n} sessions",
-    "workbench.session-source-specimens.line-team": "{dir} · {n} sessions; others on the team could see what its AI reads, so this isn’t open yet",
+    "workbench.session-source-specimens.line-filed": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{dir} · {n} session filed here",
+        "other": "{dir} · {n} sessions filed here"
+      }
+    },
+    "workbench.session-source-specimens.line-readable": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{dir} · AI can read this {n} session",
+        "other": "{dir} · AI can read these {n} sessions"
+      }
+    },
+    "workbench.session-source-specimens.line-team": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{dir} · {n} session; others on the team could see what its AI reads, so this isn’t open yet",
+        "other": "{dir} · {n} sessions; others on the team could see what its AI reads, so this isn’t open yet"
+      }
+    },
     "workbench.session-source-specimens.line-none": "{dir} · no sessions filed here yet",
     "workbench.session-source-specimens.saving": "Saving…",
     "workbench.session-source-specimens.on": "On",
@@ -8024,13 +8042,31 @@
     "workbench.session-source-specimens.search": "Search",
     "workbench.session-source-specimens.edit-file": "Edit file",
     "workbench.session-source-specimens.run-command": "Run command",
-    "workbench.session-source-specimens.lines-read": "{n} lines read",
-    "workbench.session-source-specimens.matches-in-files": "{n} matches in {files} files",
+    "workbench.session-source-specimens.lines-read": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} line read",
+        "other": "{n} lines read"
+      }
+    },
+    "workbench.session-source-specimens.matches-in-files": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} match in {files} files",
+        "other": "{n} matches in {files} files"
+      }
+    },
     "workbench.session-source-specimens.passed": "{n} passed",
     "workbench.session-source-specimens.load-earlier": "Load {n} earlier entries",
     "workbench.session-source-specimens.loading-earlier": "Loading {n} earlier entries…",
     "workbench.session-source-specimens.search-term": "dark",
-    "workbench.session-source-specimens.hits": "{n} matches for “{term}”",
+    "workbench.session-source-specimens.hits": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} match for “{term}”",
+        "other": "{n} matches for “{term}”"
+      }
+    },
     "workbench.session-source-specimens.previous-hit": "Previous match",
     "workbench.session-source-specimens.next-hit": "Next match"
   }

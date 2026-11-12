@@ -146,15 +146,22 @@ export function getListenerRunByOperationId(
   return row ? mapRun(row) : null;
 }
 
+/** How many of a source's latest runs its settings show as pull history (`stage-ui.ts` lists the same number). */
+export const SOURCE_RUN_HISTORY = 8;
+
 export function listListenerRuns(
   db: FeedSql,
   projectId: string,
   page?: { source_id?: string; after_id?: string; limit: number; summaries?: boolean },
 ): ListenerRunRecord[] {
+  // A bounded directory read: each source's latest runs, as many as its settings list as pull history (`SOURCE_RUN_HISTORY`), newest
+  // first, with only the receipt fields that list and the rate-limit notice read (when to retry, the RSS reply's status).
   if (page?.summaries) return (db.all(`SELECT project_id,run_id,source_id,operation_id,phase,outcome,empty,error_code,
-    json_object('retry_after_at',json_extract(receipt_json,'$.retry_after_at')) AS receipt_json,
+    CASE WHEN json_extract(receipt_json,'$.rss_http.status') IS NULL THEN json_object('retry_after_at',json_extract(receipt_json,'$.retry_after_at'))
+      ELSE json_object('retry_after_at',json_extract(receipt_json,'$.retry_after_at'),'rss_http',json_object('status',json_extract(receipt_json,'$.rss_http.status'))) END AS receipt_json,
     created_count,deduped_count,recovery_count,started_at,completed_at,updated_at FROM
-    (SELECT *,ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY started_at DESC,run_id) AS position FROM feed_source_runs WHERE project_id = ?) WHERE position = 1`, projectId) as Row[]).map(mapRun);
+    (SELECT *,ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY started_at DESC,run_id) AS position FROM feed_source_runs WHERE project_id = ?)
+    WHERE position <= ? ORDER BY started_at DESC, run_id`, projectId, SOURCE_RUN_HISTORY) as Row[]).map(mapRun);
   if (page) return (db.all(`SELECT * FROM feed_source_runs WHERE project_id = ?${page.source_id ? " AND source_id = ?" : ""}${page.after_id ? " AND run_id > ?" : ""} ORDER BY run_id LIMIT ?`,
     projectId, ...(page.source_id ? [page.source_id] : []), ...(page.after_id ? [page.after_id] : []), Math.min(200, Math.max(1, page.limit))) as Row[]).map(mapRun);
   return (db.all("SELECT * FROM feed_source_runs WHERE project_id = ? ORDER BY started_at DESC, run_id", projectId) as Row[]).map(mapRun);

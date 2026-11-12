@@ -171,6 +171,13 @@ const pages: Record<string, Draw> = {
 // Batch 16 final integration: an independent build of main 2630160877 reproduced all 66 accepted hashes and lengths. The token
 // comparison found 49 changed drawings from the approved language and appearance work, including the display-only Goal labels,
 // two added language data blocks and the translated planning methods. The Goal data, fixed view and golden Homes were unchanged.
+// Batch 15 (#2017): main eee4ec34cb already drew 28 records differently from golden.json — batch 27 (#2010) changed the shell's settings
+// and immersive markup without re-recording, and batches 16 and 25 each recorded on their own base. Those 28 were first recorded on an
+// independently built eee4ec34cb (the accepted product). Against that record, this branch differs in 24 (the 12 project and refresh
+// pages in two languages) and only by its reviewed changes: the Goals tree row's leading cell is a `<div>` that can hold the owner's
+// presentation chip (the fallback branch keeps the title button, its attributes now on two lines), and the old project home
+// (shortcuts, dates, day list, detail) is replaced by the composed home's shell (heading, read state, groups, offers, quick look);
+// the home's lost Todo rows are BL-todo-home-presentation. Those 24 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 42 match main's record.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

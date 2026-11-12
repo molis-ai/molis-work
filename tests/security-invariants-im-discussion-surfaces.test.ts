@@ -103,16 +103,19 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
   const pageSubject = { kind: "pages_document", id: document.id };
   const callLog = f.host.callLog!, recordCall = callLog.record;
   let pageReads = 0, withdraw = false;
+  // Where each counted read came from, so a failed count names the caller instead of only the number.
+  const readSources: string[] = [];
   callLog.record = function (caller, action, outcome) {
     if (action.capability_id === "pages.subject.read" && outcome.ok) {
       pageReads++;
+      readSources.push(String(new Error().stack).split("\n").filter(line => /handleImRequest|im-discussion-surfaces|surface-|home-|search/u.test(line)).map(line => line.trim()).join(" < "));
       if (withdraw) db.db.prepare("DELETE FROM mw_access WHERE project_id=? AND member_id=?").run(project.project_id, owner.id);
     }
     return recordCall.call(this, caller, action, outcome);
   };
   try {
     const posted = await send({ client_id: randomUUID(), body: "", subjects: [pageSubject] });
-    assert.equal(pageReads, 1, "the send transaction proved the original object once");
+    assert.equal(pageReads, 1, "the send transaction proved the original object once: " + readSources.join(" || "));
     const quoted = await send({ client_id: randomUUID(), body: "Pages quote", quote_id: posted.message.id });
     const views = [{ message_id: posted.message.id, part: "message" }, { message_id: quoted.message.id, part: "quote" }];
     const read = await json<SurfaceHomeDisplay>(await post(surfaces, { views }));

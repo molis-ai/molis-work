@@ -314,7 +314,9 @@ test("S-surface-composition SCS-12 a restore saved before its Runtime switch fai
   t.mock.method(declaration, "create", () => {
     const definition = create();
     return { ...definition, async start(context: Parameters<typeof definition.start>[0]) {
-      if (fail) throw new Error("fixture Inbox start failed");
+      // Only the switch's own start fails. A cause that stays would also fail each pending event delivery's start, and the Runtime
+      // rightly quarantines the plugin after three failed recoveries (maxRecoveryAttempts), which no page reopen undoes.
+      if (fail) { fail = false; throw new Error("fixture Inbox start failed"); }
       return definition.start(context);
     } };
   });
@@ -330,7 +332,7 @@ test("S-surface-composition SCS-12 a restore saved before its Runtime switch fai
   assert.equal(memberEvents(f).length, events + 1);
   await json(await f.click(INBOX, card), 409);
   assert.equal(memberEvents(f).length, events + 1, "a retry with the shown card writes nothing");
-  fail = false;
+  assert.equal(fail, false, "the switch's start was the one that failed");
   assert.equal((await f.request(f.prefix + "/")).status, 200);
   const { record } = await inboxRecords(f);
   assert.equal(record().state, "running", "reopening the project page repairs only the Runtime");

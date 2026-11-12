@@ -199,7 +199,7 @@ export declare const servicesSurfaceCompositionContract: {
     readonly contractId: "io.molis.work.service.surface-composition.v1";
     readonly kind: "service";
     readonly schemaVersion: 1;
-    readonly maturity: "contract-only";
+    readonly maturity: "partial";
     readonly ssot: "specs/shared-sources-and-surfaces/spec.md";
 };
 

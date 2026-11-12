@@ -18,7 +18,7 @@ export const servicesSurfaceCompositionContract = {
   contractId: /* @version contract.io.molis.work.service.surface-composition "io.molis.work.service.surface-composition.v{version}" */ "io.molis.work.service.surface-composition.v1",
   kind: "service",
   schemaVersion: /* @version contract.io.molis.work.service.surface-composition */ 1,
-  maturity: "contract-only",
+  maturity: "partial",
   ssot: "specs/shared-sources-and-surfaces/spec.md",
 } as const satisfies ContractDescriptor;
 

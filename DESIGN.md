@@ -244,7 +244,7 @@ Body copy uses ink or ink-soft, never muted. Do not stack extra opacity on faint
 
 ### Primary
 
-Ink blue `--action` (`#2d4f6c`, Dark `#dbe6ef`), the accent's deep shade, with `--action-ink` fills the primary button, a selected choice, the selected Home day, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
+Ink blue `--action` (`#2d4f6c`, Dark `#dbe6ef`), the accent's deep shade, with `--action-ink` fills the primary button, a selected choice, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
 
 Mist blue `--accent` (`#3c6e98`, Dark `#8fb8dc`) marks keyboard focus, text links, work in progress (`--tone-progress`), the Dock's current dot and a field's focus halo. `--accent-soft` is its wash (new-item landing, accent tags). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to the accent. The accent never fills a primary button. The palette was chosen on the component board from three candidates (mist, celadon, indigo; user 2026-11-03): immersive for long work, not sharp, no brown-red.
 
@@ -274,7 +274,7 @@ Plugins carry no identity colour on screen, with two exceptions. On the tab stri
 
 | Role | Size / weight / colour | What it is | Why |
 | --- | --- | --- | --- |
-| Display | 30 / 600, ink | Home's day heading, a document's title, the onboarding question | Content that is the page itself; one per page, so there is no doubt where reading starts. |
+| Display | 30 / 600, ink | Home's heading (项目首页), a document's title, the onboarding question | Content that is the page itself; one per page, so there is no doubt where reading starts. |
 | Page heading | 24 / 600, ink (20 on phones) | A plugin page's name, a settings page | Says where you are. 1.85 × the body, the one jump big enough to read as "a different level" at a glance; it sits apart and does not compete with the list. |
 | Record title | 20 / 600, ink | The title of an opened item (an Inbox reference, an artifact, a Feed message) | The thing you opened, a step below the page you are on and above its sections. |
 | Section and dialog title | 15 / 600, ink | A group's heading, a dialog's question, an empty state's line | One step above the body, separated by weight more than size, so a page keeps few levels. |
@@ -301,7 +301,7 @@ Status copy stays direct and specific. Timeline events use human-readable labels
 
 **Breakpoints.**
 
-- **≥ 1020px of home width:** Home shows its margin (note, things at hand) beside the day column; the board shows six columns when the pane is ≥ 840px.
+- **≥ 840px of pane width:** the board shows six columns. Home has no breakpoint of its own: one centred column at every width, its plugin cards in an auto-fit grid.
 - **≤ 1050px:** directory default 220px.
 - **≤ 900px:** the composer hides its shortcut hint.
 - **≤ 760px:** form and reader actions use 44px targets; settings stack; only the focused pane is shown, and the titlebar's strip leads with 主区｜右侧 and shows only the current tab (the rest, pinned ones too, are in 全部标签).
@@ -547,7 +547,7 @@ Goals retains event writing and domain decisions; Working directories retain the
 
 ### Home, Feed and settings
 
-Home is the platform's, composed from what each plugin declares (specs/surface-composition §4, the order the person chose on 2026-11-04): one centred column up to 1280px that scrolls inside its own box while the window chrome stays put. The heading is 项目首页 with one quiet lead line and a quiet read-state line under it; then **等你** (the count beside it; a quiet sentence when nothing waits), **接着做**, and **项目插件**: one card per plugin in an auto-fit grid of columns at least 27rem wide. A card's band is the owner's soft hue with its glyph and name; under it a status mark when it is stopped, stale or unreadable, the owner's own summary, its rows, its notes and its actions — 打开, 启用 and the owner's starts — with a consequence written under any action that has one. Every row is an owner's presentation in one of the shared forms (name chip, row, card, peek): a row with a peek opens it in the 速览 dialog, with that object's offers below; nothing opens by itself. A project with nothing to show yet keeps 从这里开始 with 添加插件. There is no day strip, calendar, Goal card, events list or shortcut margin on Home any more; those were the Soft Workbench home this replaces. There is no quotation carousel and no Home “打开 Goals” control.
+Home is the platform's, composed from what each plugin declares (specs/surface-composition §4, the order the person chose on 2026-11-04): one centred column up to 1280px that scrolls inside its own box while the window chrome stays put. The heading is 项目首页 with one quiet lead line and a quiet read-state line under it; then **等你** (the count beside it; a quiet sentence when nothing waits), **接着做** (only once a plugin reports work records to pick up; until then the group is not drawn), and **项目插件**: one card per plugin in an auto-fit grid of columns at least 27rem wide. A card's band is the owner's soft hue with its glyph and name; under it a status mark when it is stopped, stale or unreadable, the owner's own summary, its rows, its notes and its actions — 打开, 启用 and the owner's starts — with a consequence written under any action that has one. Every row is an owner's presentation in one of the shared forms (name chip, row, card, peek): a row with a peek opens it in the 速览 dialog, with that object's offers below; nothing opens by itself. A project with nothing to show yet keeps 从这里开始 with 添加插件. There is no day strip, calendar, Goal card, events list or shortcut margin on Home any more; those were the Soft Workbench home this replaces. There is no quotation carousel and no Home “打开 Goals” control.
 
 The creation modal is a writing surface, not a form. Two borderless lines carry the whole default state: the Goal's name at 19px and its outcome below it, both label-less with the question in the placeholder and the label kept for assistive technology. A single 11px example sits under the name and fades on the first keystroke, so guidance appears only while it is needed. These lines opt out of the shared field ring through `data-plain-field` and answer focus with a 2px copper underline over a one-step background — a pen line rather than a box. The outcome line grows with what is written, up to 260px. Everything else — supporting notes and acceptance, parent and dependencies, identity and priority — sits behind one quiet disclosure that names all three, never three stacked accordions. Enter in the name creates the Goal, and ⌘/Ctrl+Enter submits from anywhere in the modal.
 

@@ -144,7 +144,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   active = b;
   await waitFor("document.body.dataset.sideOpen === 'true'", 15_000);
   await waitFor(`(document.querySelector('[data-side-materials-window]')?.textContent ?? '').startsWith('second')`, 15_000);
-  await evaluate("document.querySelector('[data-side-materials-window]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  // The reader can draw its window again once the read settles, so the key goes to the panel's body, which stays.
+  await evaluate("document.querySelector('[data-side-files-body]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("document.body.dataset.sideOpen === 'false'");
   await open("coding");
   await click(`${coding} [data-coding-face="sessions"]`);
@@ -236,6 +237,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   // The drawer and the explicit main navigation, on a companion's page (Git's; Files', which this used, retired in batch 06).
   await open("git");
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");
+  await b.click('.navigator-directory-toggle');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Dock's drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await b.click('[data-directory-show]');
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), true);
   await b.evaluate("molisWorkOpenPlugin('git')");

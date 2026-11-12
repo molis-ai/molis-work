@@ -178,7 +178,8 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   const notes = `[data-side-file][data-kind="workspace_file"][data-id$=":notes.md"]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(notes)}))`, 30_000);
   await click(notes);
-  await waitFor("!document.querySelector('[data-side-materials-tools]').hidden && (document.querySelector('[data-side-materials-window]')?.textContent ?? '').startsWith('first')", 20_000);
+  // A short Markdown file is read whole, so the reader draws it as Markdown rather than in windows.
+  await waitFor("!document.querySelector('[data-side-materials-tools]').hidden && (document.querySelector('[data-side-files-body]')?.textContent ?? '').includes('first')", 20_000);
   assert.deepEqual(await evaluate<string[]>(HAN_IN('[data-side-body="files"]')), [], "the materials reader in English");
   assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "the materials reader in English fits");
 });

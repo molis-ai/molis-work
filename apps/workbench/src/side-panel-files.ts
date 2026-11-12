@@ -266,13 +266,13 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const hits=query&&found&&found.query===query?found.cards.map(card=>'<button class="side-files-row side-files-hit" type="button" data-knowledge-hit data-kind="'+esc(card.subject.kind)+'" data-id="'+esc(card.subject.id)+'" data-surface="'+esc(card.open?.surface||'')+'" data-open="'+esc(card.open?.id||'')+'">'+icons.file+'<span><strong>'+esc(card.title)+'</strong><em>'+esc(card.hint||card.brief||'')+'</em></span><small>'+esc(card.plugin_title)+'</small></button>').join(''):'';
     const hitGroup=hits?'<section class="side-files-group"><h3>'+esc(globalThis.t.text("workbench.side-panel-files.found-content"))+'</h3>'+hits+'</section>':'';
     const searching=query&&query.length>=2&&(!found||found.query!==query);
-    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?globalThis.t.text("workbench.side-panel-files.searching-contents"):query?globalThis.t.text("workbench.side-panel-files.nothing-found"):sources.length?globalThis.t.text("workbench.side-panel-files.these-plugins-have-no-pieces-yet"):globalThis.t.text("workbench.side-panel-files.no-plugin-project-provides-pieces-yet"))+'</p>';
+    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?globalThis.t.text("workbench.side-panel-files.searching-contents"):query?globalThis.t.text("workbench.side-panel-files.nothing-found"):sources.length?globalThis.t.text("workbench.side-panel-files.these-plugins-have-no-pieces-yet"):globalThis.t.text("workbench.side-panel-files.no-pieces"))+'</p>';
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};
   const openLabel=openButton.querySelector('span'),pluginLabel=openLabel?.textContent||'';
   // A file of the project's folders opens in the main area's reader; another plugin's object in that plugin.
-  const setOpen=(target)=>{openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';if(openLabel)openLabel.textContent=target?.surface==='materials'?globalThis.t.text("workbench.side-panel-files.open-in-main-area"):pluginLabel;};
+  const setOpen=(target)=>{openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';if(openLabel)openLabel.textContent=target?.surface==='materials'?globalThis.t.text("workbench.side-panel-files.open-main"):pluginLabel;};
   // The shared preview renderer (design system), the same one the 成果库 uses: Markdown, CSV as a table, plain text.
   const {renderFilePreview,materialsReader}=host.kit;
   const render=(file,note)=>{

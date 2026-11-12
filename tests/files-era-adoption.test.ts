@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, openProjectVersionStores,
-  projectActionAvailability, retireFilesConsents } from "@molis-ai/molis-work-app-local-host";
+  projectActionAvailability, retireFilesConsents, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
 import { materialsActions, MATERIALS_PROVIDER_ID, SYSTEM_MATERIALS_SOURCE, type MaterialsCaptureResult, type MaterialsPinnedResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { person } from "./fixtures/home-runtime.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -118,6 +118,10 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
   const filesMembers = (rows: Row[]) => rows.filter(row => row.plugin_id === "files").map(row => row.project_id).sort();
   assert.deepEqual([filesMembers(membershipBefore.active), filesMembers(membershipBefore.portable)], [[], []]);
 
+  // The new build's Host upgrades what this Home's stores hold before any adoption step runs, as it does when it starts (the catalog
+  // went from 2 to 3 after this Home was made); adoption itself then needs the current catalog.
+  const upgrade = runHomeUpgrade(home);
+  assert.ok(upgrade.units.every(unit => unit.state !== "failed"), JSON.stringify(upgrade.units));
   const owner = acquireStorageOwner(join(home, "agent-runtime"));
   try {
     // Each project on its own: an old-layout library of a Home that never synced, whose unsent lines are carried, nothing refused.

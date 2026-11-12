@@ -376,7 +376,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId, ...(seen ? { read_revision: seen } : {}) }); return; }
     if (object.kind === "workspace_file") {
       const at = object.id.indexOf(":");
-      if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(globalThis.t.text("workbench.placement.long-file-can-only-pinned-selection"));
+      if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(globalThis.t.text("workbench.placement.long-pin"));
       const { ref } = await ask("/api/materials/capture", { workspace_id: object.id.slice(0, at), path: object.id.slice(at + 1).split("/"), fingerprint: seen });
       await ask("/api/plugins/io.molis.work.goals/goals/" + encodeURIComponent(goalId) + "/inputs", { action: "bind", ref });
       return;
@@ -511,7 +511,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         if (view.state === "ok" && object.kind === "workspace_file" && digest !== undefined) {
           if (!digest) state.textContent += " · " + globalThis.t.text("workbench.placement.content-not-checked");
           else void molisWorkRequest(route("/api/materials/read"), { body: { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: digest.slice(7) } }, mode: "head" }, fallback: "" })
-            .then((read) => { if (read.state === "changed") state.textContent += " · " + globalThis.t.text("workbench.placement.original-has-changed"); }).catch(() => {});
+            .then((read) => { if (read.state === "changed") state.textContent += " · " + globalThis.t.text("workbench.placement.changed"); }).catch(() => {});
         }
         if (view.state === "ok" && view.open) {
           const open = ghost(globalThis.t.text("common.control.open"));
@@ -538,7 +538,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       fixed.forEach((row, index) => {
         const found = versions[index] ? items[at++] : null, gone = !found || !found.ref;
         row.classList.toggle("is-gone", gone);
-        row.querySelector("[data-goal-material-snapshot-state]").textContent = gone ? globalThis.t.text("workbench.placement.version-cant-read-now") : "";
+        row.querySelector("[data-goal-material-snapshot-state]").textContent = gone ? globalThis.t.text("workbench.placement.unreadable") : "";
       });
     }).catch((error) => { fixed.forEach((row) => molisWorkRequest.show(row.querySelector("[data-goal-material-snapshot-state]"), error)); });
   };

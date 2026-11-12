@@ -48,7 +48,7 @@ export function pageMaterialsPicker(port: MessagePort, scope: FrameScope, pageId
     void (async () => {
       const allowed = (await Promise.all(items.map(async item => (await readable(item) ? item : null)))).filter((item): item is Item => item !== null);
       if (!scope.alive || !scope.visible) return;
-      if (allowed.length < items.length) toast(uiText.text("workbench.materials-picker.count-pieces-were-not-added-plugin", { count: items.length - allowed.length }));
+      if (allowed.length < items.length) toast(uiText.text("workbench.materials-picker.unread-n", { count: items.length - allowed.length }));
       reply({ request_id: asked.asked, outcome: "confirmed", items: allowed });
     })();
   });

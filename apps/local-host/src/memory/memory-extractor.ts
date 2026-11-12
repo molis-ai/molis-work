@@ -33,22 +33,26 @@ export function memoryExtractor(homeDirectory: string, generation: () => HostTex
     const generate = generation();
     if (!generate) throw memoryErrors.unavailable("没有可用的文字模型");
     input.signal.throwIfAborted();
-    const slots = new Map(input.slots.map((slot, index) => [`d${index}`, slot]));
+    // The model sees one short ID per destination and kind: the SDK slots behind it differ only in what the model cannot see,
+    // so each draft that names it takes the next free one (BL-1073: listing every slot cost tokens on every formation).
+    const slots = new Map<string, AgentMemoryExtractionRequest["slots"][number][]>();
     const memories = new Map(input.context?.existing.map((entry, index) => [entry.memory_id, `m${index}`]));
-    const destinations = new Map<string, { scope: string; replacement?: string; task?: string; slots: Record<string, string[]> }>();
-    for (const [id, slot] of slots) {
+    const destinations = new Map<string, { scope: string; replacement?: string; task?: string; slots: Record<string, string> }>();
+    for (const slot of input.slots) {
       const target = slot.replacement?.memory_id, task = slot.meta.applies_when?.task;
       if (target && !memories.has(target)) memories.set(target, `m${memories.size}`);
       const key = JSON.stringify([slot.scope, target ?? null, task ?? null]);
       const group = destinations.get(key) ?? { scope: slot.scope, ...(target ? { replacement: memories.get(target)! } : {}),
         ...(task === undefined ? {} : { task }), slots: {} };
-      (group.slots[slot.meta.kind!] ??= []).push(id); destinations.set(key, group);
+      const id = group.slots[slot.meta.kind!] ??= `d${slots.size}`;
+      slots.set(id, [...slots.get(id) ?? [], slot]); destinations.set(key, group);
     }
+    const existing = input.context?.existing ?? [], pending = input.context?.pending ?? [];
     const data = JSON.stringify({ work_title: input.context?.work_title ?? null,
       sources: input.sources.map((source, index) => ({ id: `s${index}`, text: source.text })),
-      existing: input.context?.existing.map(({ memory_id, ...entry }) => ({ id: memories.get(memory_id)!, ...entry })) ?? [],
-      pending: input.context?.pending.map(({ version, scope, kind, text, work_title }, index) =>
-        ({ id: `p${index}`, version, scope, kind, text, ...(work_title === undefined ? {} : { work_title }) })) ?? [],
+      ...(existing.length ? { existing: existing.map(({ memory_id, version: _version, ...entry }) => ({ id: memories.get(memory_id)!, ...entry })) } : {}),
+      ...(pending.length ? { pending: pending.map(({ scope, kind, text, work_title }, index) =>
+        ({ id: `p${index}`, scope, kind, text, ...(work_title === undefined ? {} : { work_title }) })) } : {}),
       destinations: [...destinations.values()],
     });
     const outputSchema = schema(input, [...slots.keys()]);
@@ -60,7 +64,13 @@ export function memoryExtractor(homeDirectory: string, generation: () => HostTex
     if (!compileActionSchema(outputSchema)(result.structured)) throw memoryErrors.invalid("模型没有返回合格式的记忆草稿");
     const drafts = (result.structured as { drafts: Draft[] }).drafts;
     const sources = new Map(input.sources.map((source, index) => [`s${index}`, source]));
-    const projected: AgentMemoryExtractionDraft[] = drafts.map(draft => ({ slot_id: slots.get(draft.slot_id)!.id, text: draft.text,
+    const taken = new Map<string, number>();
+    const slotFor = (id: string): string => {
+      const index = taken.get(id) ?? 0, slot = slots.get(id)![index];
+      if (!slot) throw memoryErrors.invalid("记忆草稿超过了这个去处能放的条数");
+      taken.set(id, index + 1); return slot.id;
+    };
+    const projected: AgentMemoryExtractionDraft[] = drafts.map(draft => ({ slot_id: slotFor(draft.slot_id), text: draft.text,
       ...(draft.applies_when?.task.trim() ? { applies_when: { task: draft.applies_when.task } } : {}), suggested_basis: draft.suggested_basis,
       evidence: draft.evidence.map(evidence => {
         const source = sources.get(evidence.source_id);

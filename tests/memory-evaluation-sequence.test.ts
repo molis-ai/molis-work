@@ -41,7 +41,7 @@ test("MEM-36: continuous sequences use real formation, candidate promotion, emit
     if (body.max_tokens === 1500) {
       const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string" ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
       const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-      const slot = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement)?.slots.convention[0];
+      const slot = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement)?.slots.convention;
       assert.ok(slot, "fixture chooses a supplied destination, not a precomputed candidate id");
       text = JSON.stringify({ drafts: [{ slot_id: slot, text: data.sources[0].text, suggested_basis: "explicit",
         evidence: data.sources.map((source: { id: string; text: string }) => ({ source_id: source.id, quote: source.text })) }] });
@@ -131,8 +131,10 @@ test("MEM-36: partial SDK formation remains failed while preserving committed it
     const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string"
       ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
     const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-    const slots = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement).slots.convention.slice(0, 2);
-    assert.equal(slots.length, 2);
+    // Two drafts for the same destination: the model names its one ID twice, and the extractor gives each its own SDK slot.
+    const id = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement).slots.convention;
+    assert.equal(typeof id, "string");
+    const slots = [id, id];
     const text = JSON.stringify({ drafts: slots.map((slot_id: string) => ({ slot_id, text: data.sources[0].text, suggested_basis: "inferred",
       evidence: [{ source_id: data.sources[0].id, quote: data.sources[0].text }] })) });
     const frames: string[] = [];

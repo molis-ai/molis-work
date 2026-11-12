@@ -31,9 +31,9 @@ function formationReply(body: { messages: Array<{ content: string | Array<{ type
   const prompt = typeof content === "string" ? content : content.filter(block => block.type === "text").map(block => block.text).join("\n");
   const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
     sources: Array<{ id: string; text: string }>;
-    destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }>;
+    destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }>;
   };
-  const slot = data.destinations.find(destination => destination.scope === "user" && !destination.replacement)?.slots.preference?.[0];
+  const slot = data.destinations.find(destination => destination.scope === "user" && !destination.replacement)?.slots.preference;
   assert.ok(slot, "Coding's current permission supplies a personal preference slot");
   assert.equal(data.sources.length, 1, "continuation never manufactures a second original");
   const source = data.sources[0]!;

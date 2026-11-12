@@ -14,7 +14,7 @@ function formation(request: CodingProviderRequest) {
   const prompt = typeof content === "string" ? content : content.map(block => block.text ?? "").join("\n");
   try {
     const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-    return data.sources && data.destinations ? data as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }> } : undefined;
+    return data.sources && data.destinations ? data as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } : undefined;
   } catch { return undefined; }
 }
 
@@ -26,7 +26,7 @@ test("MEM-V0-C2 Coding's protected completed round enters the original durable l
     const data = formation(request);
     if (!data) return cogniaModelResponse("已读。");
     extracted++;
-    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0];
+    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention;
     assert.ok(slot);
     return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit",
       evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
@@ -85,7 +85,7 @@ for (const canonicalOnly of [false, true]) for (const archiveAt of ["extraction"
     extracted++;
     if (extracted === 2) { assert.equal(data.sources.length, 2, "production selection includes the original pending source A");
       if (archiveAt === "extraction") { entered.resolve(); await release.promise; } }
-    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0]; assert.ok(slot);
+    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention; assert.ok(slot);
     return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit",
       evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
   });
@@ -138,7 +138,7 @@ for (const reinstalled of [false, true]) test(`MEM-V0-C2 queued Host restart ${r
   const text = "本项目以后统一用 pnpm 安装依赖";
   const f = await codingProductHost(t, request => {
     const data = formation(request); if (!data) return cogniaModelResponse("已读。"); extracted++;
-    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0]; assert.ok(slot);
+    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention; assert.ok(slot);
     return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit", evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
   });
   const originalService = ensureSystemAgentService(f.host, f.home); await originalService.ready;
@@ -224,7 +224,7 @@ test("MEM-V0-C2 Coding retains a matching Assistant pending source and the origi
   const f = await codingProductHost(t, request => {
     const data = formation(request);
     if (data) {
-      extracted++; const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0]; assert.ok(slot);
+      extracted++; const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention; assert.ok(slot);
       return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit", evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
     }
     const review = endingReviewAnswer(request, () => []);
@@ -277,7 +277,7 @@ test("MEM-V0-C2 existing assisted policy keeps the original two-source v3 automa
   const text = "本项目以后统一用 pnpm 安装依赖";
   const f = await codingProductHost(t, request => {
     const data = formation(request); if (!data) return cogniaModelResponse("已读。"); extracted++;
-    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0]; assert.ok(slot);
+    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention; assert.ok(slot);
     return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit", evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
   });
   assert.equal((await f.call(f.project.project_id, "/api/memory/prefs", { scope: "project", preset: "assisted" })).status, 200);
@@ -295,7 +295,7 @@ test("MEM-V0-C2 SDK candidate success followed by App projection failure retries
   const text = "本项目以后统一用 pnpm 安装依赖";
   const f = await codingProductHost(t, request => {
     const data = formation(request); if (!data) return cogniaModelResponse("已读。"); extracted++;
-    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0]; assert.ok(slot);
+    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention; assert.ok(slot);
     return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit", evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
   });
   const system = ensureSystemAgentService(f.host, f.home); await system.ready;
@@ -362,7 +362,7 @@ test("MEM-V0-A4-L an unrelated canonical Session archive leaves the real two-sou
   const f = await codingProductHost(t, async request => {
     const data = formation(request); if (!data) return cogniaModelResponse("已读。");
     if (++extracted === 2) { assert.equal(data.sources.length, 2); entered.resolve(); await release.promise; }
-    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention?.[0]; assert.ok(slot);
+    const slot = data.destinations.find(item => item.scope === "project" && !item.replacement)?.slots.convention; assert.ok(slot);
     return cogniaModelResponse(JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit", evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] }));
   });
   const a = await round(f, text); assert.equal((await settled(f, (await queued(f, a.ref)).key)).state, "done");

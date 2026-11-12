@@ -132,9 +132,9 @@ test("current complete saved preferences retain automatic writing, project overr
     if (!prompt.includes('"destinations":')) return "完成。";
     const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
       sources: Array<{ id: string; text: string }>;
-      destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }>;
+      destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }>;
     };
-    const slot = data.destinations.find(destination => destination.scope === "project" && !destination.replacement)?.slots.convention?.[0];
+    const slot = data.destinations.find(destination => destination.scope === "project" && !destination.replacement)?.slots.convention;
     assert.ok(slot); assert.equal(data.sources.length, 2);
     assert.deepEqual(data.sources.map(source => source.text), [automatic.text, automatic.text]);
     extractionCalls++;

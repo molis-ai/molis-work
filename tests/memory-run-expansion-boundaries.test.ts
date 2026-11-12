@@ -18,7 +18,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 
 type Request = CodingProviderRequest & { tools?: Array<{ name: string; description?: string }> };
 const toolResults = (request: Request) => request.messages.flatMap(message => Array.isArray(message.content) ? message.content.filter(block => block.type === "tool_result") : []);
-function canonical(request: Request): Array<{ memory: { id: string; scope: string }; text: string }> {
+function canonical(request: Request): Array<{ memory?: { id: string; scope: string }; text: string }> {
   return request.messages.flatMap(message => {
     const texts = typeof message.content === "string" ? [message.content] : message.content.filter(block => block.type === "text").map(block => block.text ?? "");
     return texts.flatMap(text => text.split("\n").filter(line => line.startsWith('{"source":"memory-recall"')).map(line => JSON.parse(line)));
@@ -77,7 +77,7 @@ test("C1 actual Assistant HTTP list supplies canonical identities and sends bodi
     }
     if (seen.length === 2) {
       const entries = canonical(request), target = entries.find(entry => entry.text === "ASSISTANT_BODY_ONLY_CONTEXT");
-      assert.ok(target); assert.equal(target.memory.scope, "user");
+      assert.ok(target?.memory); assert.equal(target.memory.scope, "user");
       assert.doesNotMatch(JSON.stringify(toolResults(request)), /"queued"\s*:|"omitted"\s*:|ASSISTANT_BODY_ONLY_CONTEXT/);
       return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: target.memory.id } });
     }
@@ -217,12 +217,12 @@ test("C1 same text in personal and project Context is addressed by its actual sc
     if (seen.length === 1) return cogniaScriptedResponse({ name: "list-memories", input: {} });
     if (seen.length === 2) {
       const entries = canonical(request).filter(entry => entry.text === text);
-      assert.equal(entries.length, 2); assert.deepEqual(entries.map(entry => entry.memory.scope).sort(), ["project", "user"]);
-      assert.notEqual(entries[0]!.memory.id, entries[1]!.memory.id);
-      for (const entry of entries) assert.equal(JSON.stringify(toolResults(request)).includes(entry.memory.id), false);
-      return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: entries.find(entry => entry.memory.scope === "project")!.memory.id } });
+      assert.equal(entries.length, 2); assert.deepEqual(entries.map(entry => entry.memory!.scope).sort(), ["project", "user"]);
+      assert.notEqual(entries[0]!.memory!.id, entries[1]!.memory!.id);
+      for (const entry of entries) assert.equal(JSON.stringify(toolResults(request)).includes(entry.memory!.id), false);
+      return cogniaScriptedResponse({ name: "forget-memory", input: { memory_id: entries.find(entry => entry.memory!.scope === "project")!.memory!.id } });
     }
-    assert.deepEqual(canonical(request).filter(entry => entry.text === text).map(entry => entry.memory.scope), ["user"]);
+    assert.deepEqual(canonical(request).filter(entry => entry.text === text).map(entry => entry.memory!.scope), ["user"]);
     return cogniaScriptedResponse(undefined, "已停用项目那条，个人那条保留。");
   }, { loopbackProvider: true });
   const project = molisWorkHostProjectReference({ databasePath: f.project.database_path, projectId: f.project.project_id });
@@ -254,7 +254,7 @@ test("C1 Assistant remember replaces an explicit-only target taken from its actu
     seen.push(request);
     if (seen.length === 1) return cogniaScriptedResponse({ name: "list-memories", input: {} });
     if (seen.length === 2) {
-      const target = canonical(request).find(entry => entry.text === oldText); assert.ok(target);
+      const target = canonical(request).find(entry => entry.text === oldText); assert.ok(target?.memory);
       modelTarget = target.memory.id;
       return cogniaScriptedResponse({ name: "remember", input: { scope: "personal", text: newText, said: newText, replaces: target.memory.id } });
     }
@@ -339,10 +339,15 @@ async function memory35Business(t: TestContext, business: Memory35Business, resp
     get web() { return web; } };
 }
 
-function memory35Context(actual: Awaited<ReturnType<Awaited<ReturnType<typeof memory35Business>>["start"]>>, expected: MemoryItem, forbidden: readonly string[] = []) {
+function memory35Context(actual: Awaited<ReturnType<Awaited<ReturnType<typeof memory35Business>>["start"]>>, expected: MemoryItem, forbidden: readonly string[] = [],
+  addressable = true) {
   const entries = actual.requests.flatMap(canonical);
-  assert.ok(entries.some(entry => entry.memory.id === expected.memory_id && entry.memory.scope === "project" && entry.text === expected.text),
+  if (addressable) assert.ok(entries.some(entry => entry.memory?.id === expected.memory_id && entry.memory.scope === "project" && entry.text === expected.text),
     "the real model payload contains the current canonical identity and complete value");
+  // A round that cannot address a memory (no gateway, no Memory Action) gets the complete value without an identity it could not use (BL-1073);
+  // the dispatch receipt below still ties it to the same canonical ID and version.
+  else assert.ok(entries.some(entry => entry.memory === undefined && entry.text === expected.text) && entries.every(entry => entry.memory === undefined),
+    "the real model payload contains the complete value and no identity");
   for (const text of forbidden) assert.ok(!entries.some(entry => entry.text === text), "the old canonical value never reaches the new task");
   const dispatched = actual.view.memory_recalled?.contexts?.filter(context => context.status === "response-observed") ?? [];
   assert.ok(dispatched.some(context => context.references.some(ref => ref.memory_id === expected.memory_id && ref.version === expected.version)),
@@ -358,17 +363,18 @@ for (const business of ["coding", "assistant"] as const) test(`MEM-35 ${business
   const oldText = `${topic}项目服务于独立设计师`, newText = `${topic}项目服务于小型设计工作室`, task = `根据 ${topic} 项目的服务对象写产品介绍。`;
   const saved = await f.manager().invoke(memoryActions.write, { scope: "project", kind, text: oldText,
     classification: { scenes: [business], lifecycle: "long-term" } }); assert.ok(saved.memory);
-  const first = await f.start(task); memory35Context(first, saved.memory);
+  const addressable = business === "assistant";
+  const first = await f.start(task); memory35Context(first, saved.memory, [], addressable);
   const corrected = await f.manager(randomUUID()).invoke(memoryActions.change, { action: "update", memory_id: saved.memory.memory_id,
     expected_version: saved.memory.version, text: newText }); assert.ok(corrected.memory);
   assert.equal(corrected.memory.memory_id, saved.memory.memory_id); assert.ok(corrected.memory.version > saved.memory.version);
   const next = await f.start(task); assert.notEqual(next.view.ref.session_id, first.view.ref.session_id);
-  memory35Context(next, corrected.memory, [oldText]);
+  memory35Context(next, corrected.memory, [oldText], addressable);
   await f.reopen();
   const persisted = (await f.manager().invoke(memoryActions.list, { scope: "project" })).items.find(item => item.memory_id === saved.memory!.memory_id);
   assert.ok(persisted); assert.equal(persisted.text, newText); assert.equal(persisted.version, corrected.memory.version);
   const restarted = await f.start(task); assert.notEqual(restarted.view.ref.session_id, next.view.ref.session_id);
-  memory35Context(restarted, persisted, [oldText]);
+  memory35Context(restarted, persisted, [oldText], addressable);
   t.diagnostic(JSON.stringify({ kind: "memory35-corrected", business, canonical: { id: persisted.memory_id, version: persisted.version },
     runs: [first.view.ref, next.view.ref, restarted.view.ref], contexts: [next.view.memory_recalled, restarted.view.memory_recalled] }));
 });
@@ -382,11 +388,11 @@ for (const business of ["coding", "assistant"] as const) test(`MEM-35 ${business
   const f = await memory35Business(t, business, request => {
     const last = request.messages.at(-1)?.content;
     const prompt = typeof last === "string" ? last : last?.filter(block => block.type === "text").map(block => block.text ?? "").join("\n") ?? "";
-    let formation: { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }> } | undefined;
+    let formation: { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } | undefined;
     try { const parsed = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)); if (parsed.sources && parsed.destinations) formation = parsed; }
     catch { /* This is an ordinary business request, not the registered formation instruction. */ }
     if (formation) {
-      const slot = formation.destinations.find(one => one.scope === "project" && !one.replacement)?.slots[kind]?.[0];
+      const slot = formation.destinations.find(one => one.scope === "project" && !one.replacement)?.slots[kind];
       assert.ok(slot, "the person's configured project access supplies an actual fact formation slot");
       assert.ok(formation.sources.every(source => source.text === text));
       return cogniaScriptedResponse(undefined, JSON.stringify({ drafts: [{ slot_id: slot, text, suggested_basis: "explicit",
@@ -447,8 +453,10 @@ for (const business of ["coding", "assistant"] as const) test(`MEM-35 ${business
   remember = false;
   await f.manager().invoke(memoryActions.savePrefs, { scope: "project", prefs: { learn_from_work: false } });
   const next = await f.start(`根据 ${topic} 项目的服务对象写产品介绍。`);
-  memory35Context(next, fresh.memory);
-  assert.ok(!next.requests.flatMap(canonical).some(entry => entry.memory.id === old.memory.memory_id));
+  memory35Context(next, fresh.memory, [], business === "assistant");
+  assert.ok(!next.requests.flatMap(canonical).some(entry => entry.memory?.id === old.memory.memory_id));
+  assert.ok(!(next.view.memory_recalled?.contexts ?? []).some(context => context.references.some(ref => ref.memory_id === old.memory.memory_id)),
+    "the forgotten identity is not in any dispatch receipt either, with or without identities in the payload");
   await f.reopen();
   const persisted = (await f.manager().invoke(memoryActions.list, { scope: "project" })).items.filter(one => one.text === text);
   assert.deepEqual(persisted.map(one => [one.memory_id, one.version]), [[fresh.memory.memory_id, fresh.memory.version]]);

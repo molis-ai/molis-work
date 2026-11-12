@@ -10,6 +10,7 @@ import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/service
 import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
+import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -479,7 +480,11 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
       mcpConnections: [...new Set([...(input.mcp_tools ?? []), ...(input.mcp_sources ?? [])].map(mcpConnectionId))],
       characterRef: parts.character.ref,
       ...(parts.textResources.length ? { mount: { textResources: parts.textResources } } : {}),
-      ...(input.memory ? { memory: { consumer: input.memory.consumer, currentScene: input.memory.current_scene, addressable: true,
+      // Memory IDs reach the model only in a round that can address a memory: the business gateway (forget, replace, or a Memory
+      // Action from the directory) or a frozen Memory Action. Elsewhere they were tokens on every recalled memory that nothing
+      // could use (BL-1073).
+      ...(input.memory ? { memory: { consumer: input.memory.consumer, currentScene: input.memory.current_scene,
+        addressable: !!input.action_gateway || !!input.actions?.tools.some(tool => (tool.provider_id ?? tool.provider.provider_id) === MEMORY_PROVIDER_ID),
         ...(input.memory.facts ? { facts: { ...(input.memory.facts.plugins ? { plugins: input.memory.facts.plugins } : {}),
           ...(input.memory.facts.object_kinds ? { objectKinds: input.memory.facts.object_kinds } : {}),
           ...(input.memory.facts.goals ? { goals: input.memory.facts.goals } : {}) } } : {}),

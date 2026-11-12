@@ -21,19 +21,17 @@ export function scriptedMemoryExtraction() {
   const generate: Generation = async (prompt, options) => {
     await options?.beforeDispatch?.();
     const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
-      sources: Array<{ id: string; text: string }>; existing: Array<{ id: string; text: string }>;
-      destinations: Array<{ scope: string; replacement?: string; task?: string; slots: Record<string, string[]> }>;
+      sources: Array<{ id: string; text: string }>; existing?: Array<{ id: string; text: string }>;
+      destinations: Array<{ scope: string; replacement?: string; task?: string; slots: Record<string, string> }>;
     };
-    const used = new Set<string>();
     const drafts = proposals.map(proposal => {
       const scope = proposal.scope === "personal" ? "user" : proposal.scope;
-      const targets = proposal.supersedes ? data.existing.filter(entry => proposal.replaces_text === undefined || entry.text === proposal.replaces_text) : [];
+      const targets = proposal.supersedes ? (data.existing ?? []).filter(entry => proposal.replaces_text === undefined || entry.text === proposal.replaces_text) : [];
       if (proposal.supersedes && targets.length !== 1) throw new Error("Scripted correction needs one unambiguous existing text");
-      const group = data.destinations.find(destination => destination.scope === scope && destination.replacement === targets[0]?.id
-        && destination.slots[proposal.kind]?.some(id => !used.has(id)));
-      const slot = group?.slots[proposal.kind]?.find(id => !used.has(id));
+      // One ID per destination and kind; the extractor gives each draft naming it the next free slot behind it.
+      const slot = data.destinations.find(destination => destination.scope === scope && destination.replacement === targets[0]?.id
+        && destination.slots[proposal.kind])?.slots[proposal.kind];
       if (!slot) throw new Error("Scripted draft has no authorized destination");
-      used.add(slot);
       const quoted = data.sources.filter(source => source.text.includes(proposal.quote));
       return { slot_id: slot, text: proposal.text, suggested_basis: proposal.basis,
         ...(proposal.applies_when ? { applies_when: { task: proposal.applies_when } } : reply.blankTask ? { applies_when: { task: "" } } : {}),

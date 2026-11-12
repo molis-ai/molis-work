@@ -1232,7 +1232,7 @@
     "prompt.knowledge.locate": 2,
     "prompt.knowledge.organize": 2,
     "prompt.lingguang.conversation": 2,
-    "prompt.memory.extract": 2,
+    "prompt.memory.extract": 3,
     "prompt.memory.tidy": 2,
     "prompt.onboarding.notes": 2,
     "prompt.onboarding.proposal": 2,

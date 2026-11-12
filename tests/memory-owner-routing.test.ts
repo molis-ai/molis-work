@@ -176,9 +176,11 @@ async function assertConsumption(f: Awaited<ReturnType<typeof ownerFixture>>, ex
     const recalled = request.messages.flatMap(message => {
       const texts = typeof message.content === "string" ? [message.content] : message.content.filter(block => block.type === "text").map(block => block.text ?? "");
       return texts.flatMap(text => text.split("\n").filter(line => line.startsWith('{"source":"memory-recall"')).map(line => JSON.parse(line)));
-    }).filter(item => item.memory?.id === reference.memory_id);
+    }).filter(item => item.text === expectedReference);
     assert.equal(recalled.length, 1, "one canonical reference supplies this background fact");
-    assert.deepEqual([recalled[0].memory.scope, recalled[0].text], ["project", expectedReference]);
+    // This round has no Memory Action to address it with, so the value arrives without an identity (BL-1073); the receipts below
+    // tie it to the canonical ID and version.
+    assert.equal(recalled[0].memory, undefined, "a round that cannot address a memory is not sent its identity");
     return "已按长期说明核对记忆参考资料。";
   }], [], [], task);
   const receipt = codingRun.view.memory_recalled; assert.ok(receipt, "real Run retains a recall receipt");

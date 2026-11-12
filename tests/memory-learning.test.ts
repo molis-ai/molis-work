@@ -17,9 +17,9 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 function newProjectConvention(prompt: string): string {
   const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
-    destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }>;
+    destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }>;
   };
-  const id = data.destinations.find(group => group.scope === "project" && !group.replacement)?.slots.convention?.[0];
+  const id = data.destinations.find(group => group.scope === "project" && !group.replacement)?.slots.convention;
   assert.ok(id, "the model must select a supplied project convention destination"); return id;
 }
 
@@ -664,4 +664,32 @@ for (const stage of ["prepare", "record"] as const) test(`MEM-V0-A4-L canonical 
   await f.restart();
   assert.deepEqual((await read().list("project", "project-q4")).map(entry => ({ id: entry.memory_id, version: entry.version })), formal.map(entry => ({ id: entry.memory_id, version: entry.version })));
   assert.deepEqual(f.marker(key), marker); assert.deepEqual((await f.service.changes(person)), []);
+});
+
+test("MEM-FORM BL-1073 the model sees one ID per destination and kind; drafts naming it take the free slots in turn, more than there are is refused, and an empty context is not sent", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-extractor-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const slot = (id: string, scope: "user" | "project", kind: string) => ({ id, scope, owner: "o", origin: "molis", meta: { kind } });
+  const request = { operation_id: "op", trigger: "run-end" as const, signal: new AbortController().signal, before_dispatch: async () => {},
+    sources: [{ event_id: "e1", version: 1, text: "以后周报都把风险放最前面。" }] as never,
+    slots: [slot("sdk-1", "project", "convention"), slot("sdk-2", "project", "convention"), slot("sdk-3", "user", "preference")],
+    context: { work_title: "周报", existing: [], pending: [] },
+    limits: { max_sources: 4, max_slots: 3, max_drafts: 3, max_source_chars: 2000, max_draft_chars: 200, timeout_ms: 1000 } };
+  let prompt = "", picks: string[] = [];
+  const extractor = memoryExtractor(home, () => async text => {
+    prompt = text;
+    return { value: "{}", structured: { drafts: picks.map(id => ({ slot_id: id, text: "周报把风险放在最前面", suggested_basis: "explicit",
+      evidence: [{ source_id: "s0", quote: "以后周报都把风险放最前面。" }] })) }, run_ref: { kind: "run", id: "x", revision: 1 },
+      state: "completed", configuredModel: "fixture", reportedModels: [], usage: [], validateResult() {} } as never;
+  });
+  picks = [];
+  await extractor.extract({} as never, request as never);
+  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as Record<string, unknown> & { destinations: Array<{ scope: string; slots: Record<string, string> }> };
+  assert.deepEqual(data.destinations, [{ scope: "project", slots: { convention: "d0" } }, { scope: "user", slots: { preference: "d1" } }]);
+  assert.ok(!("existing" in data) && !("pending" in data), "nothing saved and nothing pending sends neither list");
+  picks = ["d0", "d0"];
+  const two = await extractor.extract({} as never, request as never);
+  assert.deepEqual(two.drafts.map(draft => draft.slot_id), ["sdk-1", "sdk-2"], "the second draft naming d0 takes the second slot behind it");
+  picks = ["d1", "d1"];
+  await assert.rejects(extractor.extract({} as never, request as never), { code: "memory.invalid" });
 });

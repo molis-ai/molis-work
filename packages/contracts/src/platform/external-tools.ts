@@ -82,7 +82,7 @@ const thirdPartyApp = inApp("只在产品界面里有（第三方说法）", "th
 const PRIVATE_APP = { discover: hidden(), list: thirdPartyApp, read: hidden(), search: thirdPartyApp, resume: thirdPartyApp, send: thirdPartyApp, stop: thirdPartyApp,
   export: gap("not_offered", "没有导出（第三方说法）", "third_party") } as const;
 
-/** Not checked tool by tool: nothing runs these yet (S-115). A tool's adapter confirms them when it lands. */
+/** Not checked tool by tool: nothing runs these yet (S-sessions-read-only-commands). A tool's adapter confirms them when it lands. */
 const VERSION_PROBE = { version_argv: ["--version"], version_pattern: "\\d+\\.\\d+" } as const;
 const CHECKED = { on: "2026-11-05" } as const;
 const CODEX_HOME = { base: "home", segments: [".codex"], env: "CODEX_HOME" } as const;

@@ -16,8 +16,8 @@ interface Row { readonly id: string; readonly name: string; readonly line: strin
 
 function permitRow(row: Row): string {
   const described = `catalog-permit-${row.id}`;
-  const control = renderSwitch({ checked: row.on, attrs: { "aria-label": uiText.text("workbench.session-source-specimens.let-ai-read", { project: row.name }), "aria-describedby": described, "aria-busy": row.note?.kind === "saving" ? "true" : undefined } });
-  return renderPermitRow({ project: { id: row.id, name: row.name }, badges: row.badges, description: row.line, descriptionId: described, control, note: row.note, current: row.current });
+  const control = renderSwitch({ checked: row.on, attrs: { "aria-label": uiText.text("workbench.session-source-specimens.let-ai-read", { project: row.name }), "aria-describedby": described } });
+  return renderPermitRow({ project: { id: row.id, name: row.name }, badges: row.badges, description: row.line, descriptionId: described, control, note: row.note, current: row.current, attrs: { "aria-busy": row.note?.kind === "saving" ? "true" : undefined } });
 }
 
 const onNote = (): MwPermitNote => ({ kind: "on", status: uiText.text("workbench.session-source-specimens.on"), text: uiText.text("workbench.session-source-specimens.on-note") });

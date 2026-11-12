@@ -100,7 +100,7 @@ export interface MwPermitRowOptions {
 /** The receipt's own markup, for a page that swaps it in place when the save answers (the row's `.mw-permit__note` holds it). */
 export function renderPermitNote(note: MwPermitNote | undefined): string {
   if (!note) return "";
-  if (note.kind === "saving") return `<p class="mw-loading" role="status">${escapeHtml(note.label)}</p>`;
+  if (note.kind === "saving") return `<p class="mw-loading">${escapeHtml(note.label)}</p>`;
   if (note.kind === "failed") return `<span>${escapeHtml(note.text)}</span>${renderButton({ label: note.retry, variant: "ghost", size: "sm", icon: "refresh", attrs: note.retryAttrs })}`;
   return `${renderStatusMark({ label: note.status, tone: note.kind === "on" ? "done" : "quiet", plain: true })}<span>${escapeHtml(note.text)}</span>`;
 }

@@ -1,4 +1,7 @@
-/** How the panel is laid out: the side pane beside the conversation or as a drawer over it, and the room it takes. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
+/** How the panel is laid out: the side pane beside the conversation or as a drawer over it, and the room it takes. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place.
+ * It also marks the root (data-side-shared) while the side browser and this panel are both drawn and share the width (side-panel.ts), watching
+ * only those few nodes' attributes, so no style rule re-checks the whole page with :has() (VUX-36).
+ */
 export const ASSISTANT_LAYOUT_PART = String.raw`  // A narrow panel shows the side pane as a drawer over the conversation; a wide one beside it, as the person left it.
   const SIDE_KEY = "molis.assistant.side";
   const wide = window.matchMedia ? window.matchMedia("(min-width: 1240px)") : { matches: true, addEventListener() {} };
@@ -30,12 +33,8 @@ export const ASSISTANT_LAYOUT_PART = String.raw`  // A narrow panel shows the si
   const sideChanged = () => { const now = spacious(); if (now !== spaciousBefore) { spaciousBefore = now; drawerOpen = false; } paintLayout(); };
   if ("MutationObserver" in window) new MutationObserver(sideChanged).observe(document.body, { attributes: true, attributeFilter: ["data-side-open", "style"] });
   window.addEventListener("resize", () => { if (sideWidth()) sideChanged(); });
-  // The side browser and this panel, both drawn, share the width (side-panel.ts): the root carries it, not a page-wide :has().
-  const sidePanel = document.querySelector("[data-side-panel]"), sideBrowser = sidePanel?.querySelector(":scope>[data-side-browser]"), barNode = island.parentElement, root = document.body;
-  const markShared = () => root.toggleAttribute("data-side-shared", root.dataset.sideOpen === "true" && !root.hasAttribute("data-side-solo") && !!sidePanel && !sidePanel.hidden
-    && !sidePanel.inert && !!sideBrowser && !sideBrowser.hidden && !!barNode?.matches(".workbench-bar:not([data-dock-hidden])") && !!panel && !panel.hidden);
-  if ("MutationObserver" in window) {
-    const shared = new MutationObserver(markShared);
-    for (const node of [root, sidePanel, sideBrowser, barNode, panel]) if (node) shared.observe(node, { attributes: true, attributeFilter: ["data-side-open", "data-side-solo", "hidden", "inert", "data-dock-hidden"] });
-  }
+  const sideP = document.querySelector("[data-side-panel]"), sideB = sideP?.querySelector(":scope>[data-side-browser]"), root = document.body;
+  const markShared = () => root.toggleAttribute("data-side-shared", root.dataset.sideOpen == "true" && !root.hasAttribute("data-side-solo") && !!sideB
+    && !sideP.hidden && !sideP.inert && !sideB.hidden && !island.parentElement.hasAttribute("data-dock-hidden") && !!panel && !panel.hidden);
+  if ("MutationObserver" in window) { const o = new MutationObserver(markShared); for (const n of [root, sideP, sideB, island.parentElement, panel]) if (n) o.observe(n, { attributes: true, attributeFilter: ["data-side-open", "data-side-solo", "hidden", "inert", "data-dock-hidden"] }); }
   markShared();`;

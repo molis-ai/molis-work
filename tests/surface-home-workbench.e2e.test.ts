@@ -64,16 +64,20 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
     await b.command("Network.setCookie", { name: "molis_work_locale", value: lang, url: b.origin }, b.sessionId);
     await go();
     await painted();
-    const sample = await b.evaluate<{ words: string; content: string; theme: string; overflow: boolean }>(`(() => {
+    const sample = await b.evaluate<{ words: string; content: string; theme: string; overflow: boolean; starts: string[] }>(`(() => {
       const box = document.querySelector(${JSON.stringify(home)}), mark = box.querySelector(${JSON.stringify(row + ' .mw-status')});
       const grid = box.querySelector('.home-plugin-cards');
       return { words: mark?.textContent || '', content: box.innerText, theme: document.documentElement.dataset.resolvedTheme,
-        overflow: grid.scrollWidth > grid.clientWidth + 1 };
+        overflow: grid.scrollWidth > grid.clientWidth + 1,
+        starts: [...box.querySelectorAll('.home-plugin-card__actions [data-home-control]')].map(button => (button.innerText + ' ' + (button.getAttribute('aria-label') || '')).trim()) };
     })()`);
     assert.ok(sample.content.includes("Homepage object"), width + "/" + lang + "/" + theme);
     assert.equal(sample.theme, theme);
     assert.equal(sample.overflow, false);
     assert.match(sample.words, lang === "zh" ? /进行中/ : /In progress/);
+    // RAC-603 on this home: the plugins' start entries are labelled, and in the English interface they carry no Chinese.
+    assert.ok(sample.starts.length > 0 && sample.starts.every(Boolean), JSON.stringify(sample.starts));
+    if (lang === "en") assert.doesNotMatch(sample.starts.join("\n"), /\p{Script=Han}/u, JSON.stringify(sample.starts));
     assert.doesNotMatch(sample.content, /(?:接着做|Pick up where you left off|当天的事件|Today’s events)/u);
     // F-11 (batch 27 item 14, now on this home): no standing greeting or slogan, and no second explanation of how to start above the actions.
     assert.doesNotMatch(sample.content, /(?:早上好|中午好|下午好|晚上好|夜深了|Good (?:morning|midday|afternoon|evening)|Working late|今天的工作|Today’s work|插件提供的新事项和待处理事项会出现在这里|New and pending items from plugins appear here)/u);

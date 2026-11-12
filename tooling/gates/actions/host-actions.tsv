@@ -441,8 +441,6 @@ search.query	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,u
 search.rebuild	1	system.search	command	operation	home	write	concurrent	user	search:manage	-	-	-	95b7741253bf	b11c9beb88b3	-
 search.references	1	system.search	query	query	home	read	concurrent	plugin,user	search:read	-	-	-	b97ecba7506e	d300be37db51	-
 search.status	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	95b7741253bf	67fb0130cd9a	-
-surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	54be99d3709f	-
-surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-
 skills.body.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	7ab98c3605d4	ed41f9af69f3	-
 skills.catalog.list	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	432f3f6a5823	9616a6f9f77b	-
 skills.import.confirm	1	plugin-install	command	operation	home	write	-	user	skills:manage	-	-	-	6991138fea2c	d14b3d6b0630	-
@@ -450,3 +448,5 @@ skills.import.preview	1	plugin-install	command	operation	home	write	-	user	skill
 skills.kit.report	1	system.skills	query	query	home	read	concurrent	user	skills:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	69404a9dbf5f	b3b4ba8c0864	-
 skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	2b646704d211	-
+surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	f59223c9f9fd	-
+surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-

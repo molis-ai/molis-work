@@ -468,8 +468,9 @@ export interface SandboxManifestInput {
     ownerFiles?: readonly PluginOwnerFileEntry[];
 }
 
-export type SandboxUiContribution = Pick<UiContributionDeclaration, "slots">;
 export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "schema_mismatch", reason: string) => never;
+
+export type SandboxUiContribution = Pick<UiContributionDeclaration, "slots">;
 
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";

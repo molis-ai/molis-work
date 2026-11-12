@@ -203,13 +203,7 @@ export class HomePluginHost {
       if (this.startFailure !== undefined) throw this.startFailure;
       throw new ActionError("actions.plugin_unavailable", this.closed ? "Home 插件宿主已关闭" : "Home 插件正在启动，请稍候", { kind: "unavailable" });
     }
-    const records = platform.runtime.list();
-    if (!includeSurfaceSlots) return records;
-    return records.map(record => {
-      const contribution = platform.supervisor.contribution(record.plugin_id);
-      const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
-      return { ...record, surface_slots: slots };
-    });
+    return includeSurfaceSlots ? withSurfaceSlots(platform, platform.runtime.list()) : platform.runtime.list();
   }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
@@ -352,4 +346,12 @@ export class HomePluginHost {
         } } });
     return platform;
   }
+}
+
+/** Each installation with the object slots its running views declare (surface-composition §14), read off the live supervisor. */
+function withSurfaceSlots(platform: HomePluginPlatform, records: readonly PluginInstanceRecord[]): Array<PluginInstanceRecord & { surface_slots: readonly UiSlotDescriptor[] }> {
+  return records.map(record => {
+    const contribution = platform.supervisor.contribution(record.plugin_id);
+    return { ...record, surface_slots: contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [] };
+  });
 }

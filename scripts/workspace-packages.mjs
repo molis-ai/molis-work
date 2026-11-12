@@ -159,6 +159,8 @@ export const WORKSPACE_PACKAGES = [
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-module-artifacts",
+      // The project discussion's object bridge type (batch 15): the parent draws objects into the im-ui frame it hosts.
+      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
       "@molis-ai/molis-work-plugin-sdk"

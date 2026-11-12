@@ -3940,6 +3940,7 @@
     "workbench.home-model-settings.previous-connection-unavailable-choose-another": "Previous connection unavailable; choose another",
     "workbench.home-model-settings.settings-could-not-load-input-preserved-please-retry": "Settings could not load. Your input is preserved. Please retry.",
     "workbench.home-offers.automatic-judgment-only-considers-actions-feed-has-been": "Automatic judgment only considers the actions Feed has been granted; grant more in permissions or judge manually if you need them.",
+    "workbench.home-offers.confirm": "Confirm",
     "workbench.home-offers.connection-dropped-before-result-arrived-check-item-s": "The connection dropped before a result arrived. Check the item’s status first.",
     "workbench.home-offers.finding-available-actions": "Finding available actions…",
     "workbench.home-offers.page-couldn-t-save-request-state-don-t": "This page couldn’t save the request state. Don’t refresh; check the result in the item first.",

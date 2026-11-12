@@ -3672,6 +3672,7 @@
     "workbench.home-model-settings.previous-connection-unavailable-choose-another": "原连接已不可用，请重新选择",
     "workbench.home-model-settings.settings-could-not-load-input-preserved-please-retry": "设置加载失败，当前输入已保留，请重试。",
     "workbench.home-offers.automatic-judgment-only-considers-actions-feed-has-been": "自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断",
+    "workbench.home-offers.confirm": "确认",
     "workbench.home-offers.connection-dropped-before-result-arrived-check-item-s": "连接中断，尚未取得执行结果。请先核对事项状态。",
     "workbench.home-offers.finding-available-actions": "正在查找可用动作…",
     "workbench.home-offers.page-couldn-t-save-request-state-don-t": "当前页面无法保存请求状态，请勿刷新，先到事项中核对执行结果。",

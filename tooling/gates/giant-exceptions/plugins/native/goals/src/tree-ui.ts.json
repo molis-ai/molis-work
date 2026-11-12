@@ -3,7 +3,7 @@
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": {
       "kind": "cohesive-unit",
       "reason": "Goal 树视图的渲染：树、依赖线、折叠、状态过滤与进度条，共用同一套 HTML 助手和翻译；这是同一个视图的渲染函数族，最大的 renderGoalTree 只有 70 行。",
-      "size": 240
+      "size": 238
     }
   }
 }

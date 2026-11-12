@@ -1,5 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageOpeningView, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type PreparedStageView, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import type { PluginDirectory } from "@molis-ai/molis-work-ui-host";
+import { declaredStageContributionId, railEntries, stageContributionId, stageDataAction, stageObjectAction, stageOpeningView, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type PreparedStageView, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -336,4 +337,10 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
     }
   }
   return { data, views };
+}
+
+/** Rank the project home cards by the shell's rail, with one directory entry per shell key. */
+export function projectHomeRailOrder(entries: PluginDirectory): ReadonlyMap<string, number> {
+  const directory = [...new Map(entries.map(entry => [entry.id, entry])).values()];
+  return new Map(railEntries(directory.map(entry => entry.id), directory).map((entry, index) => [entry.id, index]));
 }

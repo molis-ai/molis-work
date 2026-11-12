@@ -210,6 +210,20 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
+export interface PluginLocaleManifest extends DirectoryWordManifest {
+    readonly kind: string;
+}
+
+export type PluginLocaleRead = (path: string) => string | null;
+
+export interface PluginLocaleReader {
+    readonly owner: string;
+    readonly default: string;
+    readonly available: readonly string[];
+    pack(locale: string): UiLocalePack | null;
+    problems(): readonly LocaleSetProblem[];
+}
+
 export interface PresentationFormValues {
     readonly locale: string | null;
     readonly ownerDisplay: {
@@ -225,18 +239,6 @@ export interface PresentationFormValues {
         readonly reason: OwnedTextRef;
         readonly next?: PresentationControl;
     }[];
-export interface PluginLocaleManifest extends DirectoryWordManifest {
-    readonly kind: string;
-}
-
-export type PluginLocaleRead = (path: string) => string | null;
-
-export interface PluginLocaleReader {
-    readonly owner: string;
-    readonly default: string;
-    readonly available: readonly string[];
-    pack(locale: string): UiLocalePack | null;
-    problems(): readonly LocaleSetProblem[];
 }
 
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
@@ -415,7 +417,6 @@ export declare function parseUiLanguageCatalog(source: string, file?: string): U
 
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
 
-export declare function presentationOwnerHue(pluginId: string): UiViewHue;
 export declare const pluginLocaleFilePath: (locale: string) => string;
 
 export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
@@ -423,6 +424,8 @@ export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifes
 export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
 
 export declare function preferredUiLanguage(catalog: UiLanguageCatalog, requested: readonly string[]): UiLanguageDescriptor | undefined;
+
+export declare function presentationOwnerHue(pluginId: string): UiViewHue;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
@@ -623,11 +626,13 @@ export declare function renderMenu(options: {
     items: string;
     className?: string;
     labelledBy?: string;
+    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderMenuItem(options: {
     label: string;
     description?: string;
+    id?: string;
     iconName?: Parameters<typeof icon>[0];
     danger?: boolean;
     shortcut?: string;
@@ -888,13 +893,14 @@ interface MwInputOptions {
     attrs?: Record<string, AttrValue>;
 }
 
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
+
 interface PresentationControl {
     readonly key: string;
     readonly label: string;
     readonly primary?: boolean;
     readonly consequence?: readonly SurfaceConsequence[];
 }
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
 
 interface RingSegment {
     points: number[][];

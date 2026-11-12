@@ -12,7 +12,6 @@ import type { HomePluginHost } from "./home-plugins.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { installedManifestMatches, installedStageIdentity, installedStageReleaseMatches, sameInstalledRelease } from "./installed-stage-identity.js";
 import { installedStageSurface } from "./installed-stage-section.js";
-import { projectHomeRailOrder } from "./plugin-directory.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions } from "./plugin-install-actions.js";
@@ -20,7 +19,7 @@ import { availableProjectPluginIds, PLATFORM_PLUGIN_REGISTRATIONS, shownProjectP
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentProjectPlatform } from "./project-plugins.js";
-import { projectHomeStageLocation, runtimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
+import { projectHomeRailOrder, projectHomeStageLocation, runtimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
 
 export type SurfaceHomeCatalogReader = <Result>(operation: (catalog: MolisWorkProjectCatalog) => Result) => Result | undefined;
 

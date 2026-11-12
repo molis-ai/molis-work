@@ -51,12 +51,17 @@ export function generatedPluginManifest(release: Pick<InstalledRelease, 'pluginI
     contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
 }
 
+/** What the Host lends a sandboxed plugin's definition. */
+export interface SandboxedPluginHost {
+  capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(context: SandboxServiceContext): Promise<readonly CapabilityExecution[]>;
+  backgroundLocale?(): string;
+  /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
+  assertLive?(identity: Readonly<SandboxIdentity>): void;
+  grantedCapabilities?(identity: Readonly<SandboxIdentity>): readonly string[];
+}
+
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(context: SandboxServiceContext): Promise<readonly CapabilityExecution[]>;
-    backgroundLocale?(): string;
-    /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
-    assertLive?(identity: Readonly<SandboxIdentity>): void;
-    grantedCapabilities?(identity: Readonly<SandboxIdentity>): readonly string[] } = {},
+export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: SandboxedPluginHost = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);

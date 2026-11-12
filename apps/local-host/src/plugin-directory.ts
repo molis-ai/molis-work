@@ -1,4 +1,3 @@
-import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import type { PluginActiveInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { directoryWordResolver, drawRegisteredText } from "./ui-text-provider.js";
 import { pluginTextReader, projectDirectoryWords, type DirectoryWordSource, type PluginDirectory, type PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
@@ -86,10 +85,4 @@ export async function homePluginDirectory(host?: HomePluginHost, home?: string):
 export function mergePluginDirectories(...parts: readonly PluginDirectory[]): PluginDirectoryEntry[] {
   const seen = new Set<string>();
   return parts.flat().filter(entry => !seen.has(entry.id) && (seen.add(entry.id), true));
-}
-
-/** Rank the project home cards by the shell's rail, with one directory entry per shell key. */
-export function projectHomeRailOrder(entries: PluginDirectory): ReadonlyMap<string, number> {
-  const directory = [...new Map(entries.map(entry => [entry.id, entry])).values()];
-  return new Map(railEntries(directory.map(entry => entry.id), directory).map((entry, index) => [entry.id, index]));
 }

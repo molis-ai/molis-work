@@ -10,6 +10,12 @@ const permissionEntries = new WeakSet<ActionUserAction>();
 // The same switch for the plugins that run as the Home's own instance (BL-700, S-94): the Host settings door, no project; a third membership.
 const homePermissionEntries = new WeakSet<ActionUserAction>();
 const projectReachEntries = new WeakMap<ActionUserAction, string>();
+// What a page's own entry door issued for one request (`web-entry-actions.ts`, B9): each door keeps its own membership beside this one.
+const webEntries = new WeakSet<ActionUserAction>();
+
+/** Only `webEntryDoor` calls these: the issued object keeps its identity through the Host's queue while its request lasts. */
+export function issueWebEntryAction(action: ActionUserAction): void { webEntries.add(action); }
+export function revokeWebEntryAction(action: ActionUserAction): void { webEntries.delete(action); }
 
 export async function withProjectReachSettingsEntry<Result>(caller: ActionCallContext,
   invoke: (caller: ActionCallContext) => Promise<Result>): Promise<Result> {
@@ -53,7 +59,7 @@ export async function withHomePluginPermissionSettingsEntry<Result>(caller: Acti
 
 /** Snapshot ordinary audit locators as before; an issued, immutable credential keeps its identity through the Host's queue. */
 export function snapshotHostUserAction(action: ActionUserAction): ActionUserAction {
-  return entries.has(action) || permissionEntries.has(action) || homePermissionEntries.has(action) || projectReachEntries.has(action) ? action : { ...action };
+  return entries.has(action) || permissionEntries.has(action) || homePermissionEntries.has(action) || projectReachEntries.has(action) || webEntries.has(action) ? action : { ...action };
 }
 
 export function assertPluginConsentSettingsEntry(caller: ActionCallContext): void {

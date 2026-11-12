@@ -267,7 +267,7 @@ export {
 } from "./agent-host-composition.js";
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
-export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
+export { agentReviewActions, agentReviewProvider, handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { handlePluginTrustHttp } from "./plugin-trust-http.js";
@@ -300,7 +300,7 @@ export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 // The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
-export { assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+export { assistantPanelActions, assistantPanelProvider, assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 export { assistantSurroundings, repositoryName } from "./assistant/assistant-surroundings.js";
 export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
@@ -411,3 +411,5 @@ export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent
 export { gatewayFactory } from "./continuity-gateway.js";
 export { configureMemberActions } from "./continuity-admin.js";
 export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";
+export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
+export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";

@@ -172,6 +172,6 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
 export function assistantCandidate(candidate: MemoryCandidate): AssistantMemoryCandidate {
   return { candidate_id: candidate.candidate_id, work_id: candidate.work?.work_id ?? "", work_title: candidate.work?.title ?? "", scope: candidate.scope,
     ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies.task ?? "",
-    state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}),
+    state: candidate.state, version: candidate.version, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}),
     ...(candidate.from === "gate" && candidate.hold_reason ? { held: candidate.hold_reason } : {}) };
 }

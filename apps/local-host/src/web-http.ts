@@ -17,7 +17,7 @@ export function isTopLevelNavigation(request: IncomingMessage): boolean {
   return request.method === "GET" && requestHeader(request, "sec-fetch-mode") === "navigate" && requestHeader(request, "sec-fetch-dest") === "document";
 }
 
-export function requestHeader(request: IncomingMessage, name: string): string | undefined {
+export function requestHeader(request: Pick<IncomingMessage, "headers">, name: string): string | undefined {
   const candidates = [request.headers[name]];
   for (const value of candidates) {
     if (typeof value === "string" && value.trim()) return value;

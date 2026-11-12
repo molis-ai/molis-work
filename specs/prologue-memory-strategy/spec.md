@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-12，Memory 收口 P0 在 Draft PR molis-ai/molis-work#2020：已并入 main `206884b4`，SDK 换到上游 `770a2e27`（molis-prologue#113，含重试停用修复）；评审台对整个 PR 的审查意见已改完，CI 全量在跑。BL-1072 换包后按冻结方法正式重测一次，暖读中位数增量 +31.1 ms，超上限 30 ms，未通过，用户定照实记录、不挡合入，BL-1072 保持打开；BL-1073 第一次对照 B2 没有胜过 B1；按用户「合入前先修」修了形成记账、空条件和插件读项目事实，重跑 B2：质量各门过了；用户选「先压 token 再测」，压后再跑一次，只剩总 token 高 B1 2.6%（冷启动），未过，用户定照实记录、不挡合入，BL-1073 保持打开；BL-1075 的 MEM-43/44 移到 V0 之后；BL-1076 本人验收未做。V0 未完成。
+状态：2026-11-13，Memory 收口 P0 在 Draft PR molis-ai/molis-work#2020：已并入 main `206884b4`，SDK 换到上游 `770a2e27`（molis-prologue#113，含重试停用修复）；评审台对整个 PR 的审查意见已改完，CI 全量在跑。BL-1072 换包后按冻结方法正式重测一次，暖读中位数增量 +31.1 ms，超上限 30 ms，未通过，用户定照实记录、不挡合入，BL-1072 保持打开；BL-1073 第一次对照 B2 没有胜过 B1；按用户「合入前先修」修了形成记账、空条件和插件读项目事实，重跑 B2：质量各门过了；用户选「先压 token 再测」，压后再跑一次，只剩总 token 高 B1 2.6%（冷启动），未过，用户定照实记录、不挡合入，BL-1073 保持打开；BL-1075 的 MEM-43/44 移到 V0 之后；BL-1076 由 Claude 在 dev 模式 App 代走 1–12 行，发现的问题在本 PR 里修掉并复走；用户 11-13 定视作通过，本人实走与剩下的事记进后续 BL。V0 未完成。
 
 交付范围：App 分支 `claude/memory-v0-adopt-6664-20261107` 一个面向 main 的 Draft PR（#2020）；SDK 改动先走上游 molis-prologue 的 PR，合入后再换包。下面各日期节保留当时的授权与结果，现状以本节和「收口执行记录」为准。
 
@@ -136,6 +136,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - 重试停用（11-12）：同一个操作号重试暂停或停用时，SDK 发给 Authority 的请求不带原条目，形成开关关着时重试被拒。用户定改 Prologue；评审台指出只凭已提交条目推不出原状态（已暂停再暂停、已停用再停用、停用顶替暂停都不留痕迹），用户再选「存下准确状态」：暂停或停用在最后一次操作里记下调用前是否已暂停、已停用，重试时照原样带上，与第一次问的完全相同。推送、合入、换包各一步都先问用户。
 - Coding 会话绑定（11-12）：宿主里按 Coding 与助理开的记忆会话绑定（`apps/local-host/src/memory/memory-session-binding.ts`、合同 `packages/contracts/src/services/memory-session.ts` 把会话种类写成 `"coding" | "assistant"`），记为插件同等待遇的已批例外，不在本 PR 改；以后改成任何插件都能声明会话种类，见 [BL-memory-session-kinds](../backlog/BL-memory-session-kinds.md)。
 - 留到 V0 之后的验收（11-12）：MEM-10、MEM-11、MEM-19（P1）与 MEM-43、MEM-44（§10.3 跨主人完整动线，归 BL-1075）描述的是 V0 之后的工作，移到 §10A，不算 #2020 的门；编号照旧占着。
+- BL-1076（11-13）：用户定「视作我通过吧，这个记录后续的 BL」。通过是用户的决定，不是本人走过一遍；代走用的是 dev Home，没动真实 Home。代走发现的问题按用户「不管是不是 Memory 带来的，链路要通」在本 PR 修掉：明说记住的也能撤销；首页说的事默认归个人；个人页可直接选项目改为项目记忆。余项见 BL-memory-own-app-walkthrough、BL-app-account-environment、BL-desktop-same-version-install、BL-blank-503-notice、BL-text-provider-conflict、BL-home-recent-coverage、BL-memory-session-residues。
 
 ### BL-1072：配对测量结果，性能门未通过（2026-11-11）
 

@@ -33,7 +33,7 @@
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；第 10 批已实现公共组件、首页与助理接入（#1991，2026-11-09 合入 main）；Coding／其余入口与语音待后续批。10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作。
 - [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
-- [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理，尚未实现。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
+- [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理，尚未实现（§13 的 PWA-27／PWA-137 常驻运行与错过提示已随第 25 批 #2034 于 2026-11-12 实现，其余未实现）。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
 - [work-brief](work-brief/spec.md)：项目综合首页与工作简报；10-27 已定可选安装、未安装时的基础首页、共用公开来源／呈现、承接生成页面及 Feed 归属。保留 Home 级范围、周期报告、living page、风险总览接续与版本能力；需求已整理，尚未实现。需求维护 Codex，实施沿原 E 轨并与 C/D/A 协作。
 - [scene-and-page-contract](scene-and-page-contract/spec.md)：场景与生成页面公共合同（路线书 20 ①）。场景方案由哪些部分组成、各交给哪个主人；设置的有效值与来源；角色模板；生成页面怎样隔离运行与挂首页；多步采用的续做、撤销、移除与升级；插件要声明什么才能被配置。**公共合同、SDK 校验与必要接入已实现并合入（2026-11-09，main `6df7285c31`）；页面运行与真实安全归 37，采用／另存归 44，官方场景包成品归 51。**
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。

@@ -1,6 +1,6 @@
 # 常驻、休眠与错过的事：设计
 
-状态：已实现（2026-11-12，路线书第 25 批第 1 项，本批分支 `batch/25`；实现时改的地方写在 §10，以那里为准）。行为以[主动助理](spec.md) §13、PWA-27、PWA-137 与 §18 决策记录为准（11-04 菜单栏面板、桌面是本机服务的主人；11-11 错过的事归各自的主人、Home 里的地址文件），本文只写怎么做。界面照 11-04 定样（[`docs/design/runtime-and-recovery`](../../docs/design/runtime-and-recovery/README.md)「运行状态」），不重新出样。第一片（Dock 重开主窗口、退出项写明后台服务继续运行、BL-645／BL-352 对账）已随 #1815 合入。
+状态：已实现（2026-11-12，路线书第 25 批第 1 项；已随 #2034 于 2026-11-12 合入 main `3d844d493a`。实现时改的地方写在 §10，以那里为准；合后审计的修整见 [第 25 批文件](../post-anticorruption-roadmap/reference/batches/25.md#post-merge-audit-2026-11-12)）。行为以[主动助理](spec.md) §13、PWA-27、PWA-137 与 §18 决策记录为准（11-04 菜单栏面板、桌面是本机服务的主人；11-11 错过的事归各自的主人、Home 里的地址文件），本文只写怎么做。界面照 11-04 定样（[`docs/design/runtime-and-recovery`](../../docs/design/runtime-and-recovery/README.md)「运行状态」），不重新出样。第一片（Dock 重开主窗口、退出项写明后台服务继续运行、BL-645／BL-352 对账）已随 #1815 合入。
 
 验收编号用 `RES-` 前缀，在 §9 列出；它们细化 PWA-27、PWA-137。
 
@@ -80,9 +80,9 @@ Schedule 的提供方是 Home 级读（它在每个项目里都有表）：照 T
 
 宿主已有的「错过的提醒」（`sweepReminders`，读的是 Todo 一类插件的到期提醒）不变：那是提醒用户，已经晚了就说晚了，不是要补跑的工作。
 
-### 2.2 平台汇总：`runtime.overview@1`
+### 2.2 平台汇总：宿主的运行概况路由
 
-宿主登记一个系统动作 `runtime.overview@1`（query，scope home，受众 user、agent）：按类型发现全部提供方，并发调一次，合成：
+实现时改成宿主的两条路由，不登记为动作（见 §10）：`GET /api/runtime/overview` 与 `POST /api/runtime/runs/decide`。宿主按类型发现全部提供方，并发调一次，合成：
 
 ```ts
 interface RuntimeOverview {
@@ -95,9 +95,9 @@ interface RuntimeOverview {
 ```
 
 - 一个提供方失败或超时（2 秒），其余照常，这一路写进 `unavailable_sources`，不让整张表失败。
-- 「现在做／跳过」页面直接调那一件的提供方的 `runs.decision`（`provider` 给出准确引用），平台不转一层。
-- `waiting.network` 取宿主现有的联网探测（模型连接检查的同一个结果），`waiting.model` 取默认文字模型的连接状态；`needs` 里有对应项的那一件标 `waiting`。
-- 调用次数：一次面板打开 = 一个 `runtime.overview` 请求 = 每个提供方一次调用，每个提供方各开一次自己的库（Schedule 读各项目时按项目开，和 Todo 读到期提醒一样）。面板开着时 30 秒刷新一次，关着不刷。
+- 「现在做／跳过」由页面调宿主的路由；宿主在那一处按 `scope_project_id`＋`provider_id` 重新按类型找到主人再交给它（页面不拿动作引用）。
+- `waiting.network` 取宿主现有的联网探测；`waiting.model` 是「没有设好可用的文字模型」（只问有没有，不调模型）；`needs` 里有对应项的那一件标 `waiting`。
+- 调用次数：一次面板打开 = 一个 `GET /api/runtime/overview` 请求 = 每个提供方一次调用，每个提供方各开一次自己的库（Schedule 读各项目时按项目开，和 Todo 读到期提醒一样）。面板开着时 30 秒刷新一次，关着不刷。
 
 ## 3. 没在运行的时段
 
@@ -126,7 +126,7 @@ interface RuntimeOverview {
 
 **退出**：托盘「退出 Molis Work」和主窗口 ⌘Q 都先打开面板的退出确认：`mw-alert`（warning）「退出后，这些不会运行」+ 接下来 24 小时内的事（最多 5 行，多的写「还有 n 件」），「取消」「退出」。没有要运行的事就直接退。确认后照现在的退出：停掉桌面拉起的宿主（写 `stopped_at`）；宿主不是桌面拉起的，照 #1815 写明后台服务继续运行、不列清单。
 
-**再次打开**：首页顶部（`mw-brief` 之上）同一张错过的提示，加上已核对、不再提醒的那几件（助理跟进里结果是「已不需要」的，来自跟进自己的结果，不另判断）。
+**再次打开**：首页顶部（`mw-brief` 之上）同一张错过的提示；「已核对、不再提醒」的那几件今天没有来源（见 §10.1），首页只列错过的。
 
 ## 5. 两个开关（设置 › 运行）
 
@@ -157,8 +157,8 @@ interface RuntimeOverview {
 | Schedule：宽限、错过表（第 2 版）、两个动作 | `plugins/native/schedule/src/` | Schedule 主人 |
 | Feed：宽限、错过表（存来源的库升一版）、两个动作 | `plugins/native/feed/src/` | Feed 主人 |
 | 助理跟进：两个动作、「现在做」 | `apps/local-host/src/assistant/` | A |
-| `runtime.overview@1`、presence、地址文件、睡眠检测 | `apps/local-host/src/`（新 `runtime-overview.ts`、`host-presence.ts`、`host-endpoint.ts`；`web-server.ts`） | C1（宿主启动，枢纽） |
-| 面板、首页提示、设置 › 运行 | `apps/workbench/src/`（`capsule.ts`、首页、新 `settings-runtime.ts`） | D |
+| 运行概况与决定两条宿主路由、presence、地址文件、睡眠检测 | `apps/local-host/src/`（新 `runtime-overview.ts`、`host-presence.ts`、`host-endpoint.ts`；`web-server.ts`） | C1（宿主启动，枢纽） |
+| 面板、首页提示、设置 › 运行 | `apps/workbench/src/`（`capsule.ts`、首页、新 `settings-running.ts`） | D |
 | 桌面：退出确认、托盘点、停止页、两个开关、地址文件、运行时授权 | `apps/desktop/adapters/tauri/src/`、`src-tauri/runtime-capabilities/`、`Cargo.toml`（`tauri-plugin-autostart`） | F |
 
 ## 9. 验收
@@ -169,7 +169,7 @@ interface RuntimeOverview {
 | RES-02 | 「现在做」用到点的同一条路跑一次并标 `run_now`；「跳过」只标 `skip`；已删的任务返回 `gone` | 同上 |
 | RES-03 | Feed 晚过宽限的来源不拉、记错过、推到下一时刻；「现在做」立刻拉这一个 | `tests/feed-sources.test.ts` |
 | RES-04 | 助理跟进的错过与接下来按同一格式交出，「现在做」开一轮 | `tests/assistant-followups-collaborator.test.ts` |
-| RES-05 | `runtime.overview@1` 按类型找到全部提供方；一个提供方失败其余照常；每个提供方只调一次 | `tests/runtime-overview.test.ts` |
+| RES-05 | 运行概况路由按类型找到全部提供方；一个提供方失败其余照常；每个提供方只调一次 | `tests/runtime-overview.test.ts` |
 | RES-06 | presence：正常退出记 `quit`、被杀记 `crash`、计时器隔了 3 分钟以上记 `sleep` 并立刻检查一次 | `tests/host-presence.test.ts`（注入时钟） |
 | RES-07 | 地址文件：监听后写、退出时删、不含令牌；启动器按 环境变量 > 文件 > 4173 选地址，文件里的端口身份核不过就不用 | `tests/host-endpoint.test.ts`；桌面 `res07_…`（`host_port.rs`、`web_service.rs`） |
 | RES-08 | 桌面只对核过的端口开授权；别的端口与来源被拒（S-14 改写后的拒绝测试） | `res08_s14_…`（`host_port.rs`、`runtime.rs`）、`tests/security-invariants-desktop-ipc.test.ts` |
@@ -199,11 +199,13 @@ interface RuntimeOverview {
 
 ### 10.1 已知局限（评审 #2034 提出，本批不改）
 
-- **退出被拦住时的系统注销与关机**：桌面在 `ExitRequested` 上先问，macOS 注销或关机时也会先等这一问；系统会提示应用没退出。系统发起的退出不问直接退，另立事项 [BL-desktop-quit-on-system-logout](../backlog/BL-desktop-quit-on-system-logout.md)。
-- **换端口后旧端口的授权**：Tauri 运行时加上的能力不撤下，留到桌面退出；两个端口都只在本机回环、都要过核身份才会被用到。
-- **Feed 的「现在做」**：把下次拉取设成当下；如果之后十分钟以上没有轮到（例如马上睡眠），会再记一次错过，人再决定一次即可（[BL-feed-run-now-missed-again](../backlog/BL-feed-run-now-missed-again.md)）。
-- **没决定的错过不过期**：一直列着，直到人选「现在做」或「跳过」，或来源被删（[BL-missed-runs-never-expire](../backlog/BL-missed-runs-never-expire.md)）。
-- **面板读不到时**：读失败一律显示「没在运行」，不区分宿主没起和一次读超时；30 秒后再读。
+- **退出被拦住时的系统注销与关机**：桌面在 `ExitRequested` 上先问，macOS 注销或关机时也会先等这一问；系统会提示应用没退出。系统发起的退出不问直接退，另立事项 [BL-desktop-quit-on-system-logout](../backlog/BL-desktop-quit-on-system-logout.md)。**接受、不修**；重看条件：第 26 批做退出与更新体验时一并看 Tauri 能否分辨系统发起的退出。
+- **换端口后旧端口的授权**：Tauri 运行时加上的能力不撤下，留到桌面退出；两个端口都只在本机回环、都要过核身份才会被用到。**接受、不修**；重看条件：Tauri 支持按窗口撤下能力时再看。
+- **Feed 的「现在做」**：把下次拉取设成当下；如果之后十分钟以上没有轮到（例如马上睡眠），会再记一次错过，人再决定一次即可（[BL-feed-run-now-missed-again](../backlog/BL-feed-run-now-missed-again.md)）。重看条件：Feed 照 Schedule 的做法把「现在做排上的那一次」排除在宽限判断外时删掉。
+- **没决定的错过不过期**：一直列着，直到人选「现在做」或「跳过」，或来源被删（[BL-missed-runs-never-expire](../backlog/BL-missed-runs-never-expire.md)）；期限属产品语义，等用户定，重看条件写在该 BL。
+- **面板读不到时**：读失败一律显示「没在运行」，不区分宿主没起和一次读超时；30 秒后再读。**接受、不修**；重看条件：界面能可靠区分「宿主没起」和「一次读超时」时再看。
+- **「已核对、不再提醒」没有来源**：11-04 决定要求在首页也列「已核对、不再提醒」的，但助理跟进的结果里没有「已不需要」这一种，首页只列错过的；另立 [BL-followup-already-unneeded](../backlog/BL-followup-already-unneeded.md)（A 轨／助理，等跟进有了这个结果再接）。
+- **运行中宿主重启进入升级**：升级开场页只在桌面启动等待时显示；应用已打开、宿主重启进入升级时，主窗口停在原页面（「没在运行」页），不另行导航。重看条件：第 26 批把宿主重启与升级体验合起来看。
 
 ## 11. 开工前检查
 

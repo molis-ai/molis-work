@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 持续运行与升级恢复（2026-11-12，#2034）
+
+- **常驻运行与错过的事**：关掉窗口后 Molis Work 继续在后台跑（设置 › 运行可关）；菜单栏「运行」面板显示是否在运行、等着什么、错过的事（每件可「现在做」「跳过」）与接下来 5 件，有未处理的错过时托盘带一个点；退出前先列出 24 小时内不会运行的事；再次打开时首页顶部先提示没在运行的时段与错过的事。错过的事由各自的主人保存（Schedule 的定时任务与提醒、Feed 的拉取、助理的跟进），晚过宽限（10 分钟）就不自动补跑，平台只按类型汇总展示。
+- **Home 地址文件**：宿主监听后把端口写进 `run/endpoint.json`（不含令牌）；桌面、命令行与 MCP 按 `MOLIS_WORK_WEB_URL` > 地址文件 > `127.0.0.1:4173` 找宿主，桌面只对核过身份的端口开授权（S-14 改写）。BL-108 删除。
+- **主人暂不可用与回到上一版**：升级时某个库失败只停它那一块（说明卡、可复制的诊断号、Dock 暂不可用），维护态给开场页与 `/upgrade-progress`，上次没做完的升级接着做完后在首页给结果卡；保留上一版程序与升级前快照，`molis-work home rollback` 或设置 › 更新里的一个按钮回退（默认先把现在的数据另存一份），回退后停在上一版，「重新装上」后下次启动装回新版。
+- **库与文件**：Schedule、Feed 的项目库从第 1 版升到第 2 版（各新增一张错过表，由升级链自动升级）；新带版本文件 `run/presence.json`、`run/endpoint.json`、`config/desktop.json`、`releases/previous/rollback.json`、`config/rollback-hold.json`、`upgrade/notice.json`，卸载按安装器自己的文件处理。
+- **新合同（全是新增）**：`platform/actions` 新增 `scheduled-runs` 一组（`defineRunsOverviewAction`、`defineRunDecisionAction`、四个类型、宽限 `RUN_MISSED_GRACE_MS` 与上限常量），由 SDK 转出；自己定时跑东西的插件声明这一对就进菜单栏面板与首页错过提示。`services/assistant` 的 `AssistantFollowUp` 加可选 `missed`。已有插件不用改。
+
 ### Feed 有界读取（2026-11-11，待 CI 验收）
 
 - `feed.snapshot@1`、`feed.stage.read@1` 改为每页最多 200 条元数据，输入为字符串 `offset` 和 JSON 字符串 `filter`，返回 `offset`、`next_offset`、来源汇总 `facets`；移除 `include_contents`。列表不含正文与材料，调用方使用 `feed.items.get@1` 读取一项完整内容，页面通过阅读器按页读取材料。固定引用须按 `next_offset` 继续读取，不能将第一页当完整集合。

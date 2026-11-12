@@ -159,6 +159,17 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 工程验证见 `tests/security-invariants-plugin-scheduler.test.ts`、`tests/security-invariants-plugin-agents.test.ts`、`tests/security-invariants-plugin-installations.test.ts`、`tests/security-invariants-plugin-projects.test.ts`、`tests/security-invariants-plugin-notifications.test.ts`、`tests/security-invariants-plugin-dependencies.test.ts`；真实驻留行为见 `tests/schedule-resident-runtime.test.ts`。
 
+### 错过与接下来（菜单栏「运行」）
+
+自己定时跑东西的插件（定时任务、提醒、拉取、跟进）声明一对动作，宿主的菜单栏「运行」面板与首页错过提示就按类型找到你，宿主不写名单：
+
+- `defineRunsOverviewAction("<插件>.runs.overview", 1, "<标题>", [读取权限], "project" | "home")`（query）：输入 `{ now, upcoming_until }`，返回 `{ source: { surface, title }, upcoming, missed }`；每条 run 带 `run_id`（同一次运行的稳定 id，下一次是另一个）、`title`、`due_at`、`project_id`（个人为 null）、`open: { surface, id } | null`、`needs`（`"network"`／`"model"`），错过的多一个 `missed_at`。项目插件声明 `project` 范围（定义函数会把它写成 `home_aggregate` 查询，宿主在每个打开的项目里各问一次）；Home 级插件声明 `home`。
+- `defineRunDecisionAction("<插件>.runs.decide", 1, "<标题>", [写入权限], 同范围)`（command）：输入 `{ run_id, decision: "run_now" | "skip" }`，返回 `{ state: "started" | "skipped" | "gone" }`。`run_now` 要走到点时同一条路跑一次，`started` 只表示接下了、不等跑完；`gone` 表示这件已经不在了。
+- 晚过宽限（`RUN_MISSED_GRACE_MS`，10 分钟）就不要自动补跑：记一行错过、照常排下一次；错过的事实留在你自己的库，平台只按类型汇总，不另存。上限 `RUNS_UPCOMING_LIMIT`／`RUNS_MISSED_LIMIT`。
+- 宿主读的汇总是它自己的两条路由（`GET /api/runtime/overview`、`POST /api/runtime/runs/decide`），不是动作：页面不拿动作引用，决定由宿主在那一处按 `scope_project_id`＋`provider_id` 重新找到你。
+- SDK 的声明检查（`inspectActionDeclarations`）按到期提醒同一个写法查这一对动作的形状。生产实例见 Schedule、Feed 与助理定时。
+
+
 ## 个人 Home Runtime 与插件 SQLite
 
 数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`；唯一的例外是来自已固定发布者的签名沙箱包，见下一段）。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。

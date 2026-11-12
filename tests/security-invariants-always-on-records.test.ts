@@ -362,7 +362,8 @@ test("ASR-12 a read-only directory never authorizes after await; new requests se
   t.after(() => { db.close(); otherDb.close(); });
   const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
   const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
+  // Goals declares presentations; a real Host checks them against its action directory, which is not what this test is about.
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger, assertPresentation: () => undefined });
   const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
     definition: { manifest: goals, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
   const policy = projectActionAvailability(async (_options, work) => work(a.catalog), a.home), caller = person([], a.project.project_id);

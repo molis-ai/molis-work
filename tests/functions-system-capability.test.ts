@@ -398,7 +398,8 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "plugins/native/feed/src/stage-ui.ts",
     "apps/workbench/src/stage-renderers.ts",
     "apps/workbench/src/declared-stages.ts",
-    "apps/workbench/src/scripts/client/project-home.ts",
+    "apps/workbench/src/browser/project-home.ts",
+    "apps/workbench/src/browser/project-home-render.ts",
     "plugins/native/inbox/src/browser/client.ts",
     "plugins/native/feed/src/browser/factory.ts",
     "plugins/native/feed/src/browser/sources.ts",
@@ -473,7 +474,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.doesNotMatch(page, /"function_scenes"/);
   assert.match(page, /"inbox_judgment"/);
   assert.doesNotMatch(page, /"home_dock_functions"/);
-  const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
+  const homeClient = (await Promise.all(["project-home", "project-home-render"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/browser/${part}.ts`), "utf8")))).join("\n");
   const functionsClient = (await Promise.all(["client", "client-render", "client-records", "client-events"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/judgment-rules/${part}.ts`), "utf8")))).join("\n");
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
   assert.doesNotMatch(functionsClient, /\/api\/home\/dock-judgment|\/api\/inbox\/judgment/, "the generic editor must not keep native scene dispatch branches");

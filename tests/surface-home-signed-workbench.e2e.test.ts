@@ -27,10 +27,11 @@ test("SCS-11: an ordinary signed plugin opens its original form and exact origin
     return storage.snapshotInstallationData(installed.install_id);
   });
   const start = '[data-home-card="' + PACKAGE_PLUGIN_ID + '"] [data-home-control$=":start:0"]';
-  const child = await pluginFrameBrowser(t, b, PACKAGE_PLUGIN_ID, '[data-installed-plugin="' + PACKAGE_PLUGIN_ID + '"] > iframe');
   const dialog = 'document.querySelector(\'[data-component-id="editor"] dialog\')';
   await go();
   await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`);
+  // The installed stage mounts the package's opaque frame itself, named by the stage's surface.
+  const child = await pluginFrameBrowser(t, b, await b.evaluate<string>(`document.querySelector('[data-work-surface][data-installed-plugin=${JSON.stringify(PACKAGE_PLUGIN_ID)}]').dataset.workSurface`));
   const open = async () => {
     await b.click(start);
     await child.waitFor(`${dialog}?.open && ${dialog}.contains(document.activeElement)`, 15_000);

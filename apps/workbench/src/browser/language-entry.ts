@@ -209,7 +209,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   const matches = (value: string | undefined | null): value is UiLanguageTag => knownLanguage(displayed.catalog, value);
   const text = installLanguageText(initial.pack.locale, packsFor(initial.pack, inline), intlLocale(initial.catalog));
   const reselect = () => text.select(displayed.pack.locale, packsFor(displayed.pack, [...inline, ...cachedSettingsText()], surface.packs()), intlLocale(displayed.catalog));
-  const surface = surfaceTextState(molisWorkRequest, () => displayed.pack.locale, reselect);
+  const surface = surfaceTextState(() => molisWorkRequest, () => displayed.pack.locale, reselect);
   globalThis.molisWorkInstallSettingsText = (root, page) => { settingsText.set(root, viewPacks(page)); reselect(); };
   showLanguage(initial);
   globalThis.molisWorkLanguageCatalog = () => displayed.catalog;

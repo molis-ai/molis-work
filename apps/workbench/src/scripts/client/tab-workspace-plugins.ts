@@ -290,21 +290,36 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   };
   const homeOrder = () => [...new Set([...(embedded ? parent.document : document).querySelectorAll(":is([data-dock-pins], [data-bar-own]) [data-dock-pin]:not(.is-leaving)")]
     .map(node => directory.find(entry => entry.id === node.dataset.dockPin)?.plugin_id).filter(Boolean))].slice(0, ${SURFACE_HOME_ORDER_LIMIT});
-  const signedHomeSelection = (frame, href, selection) => {
-    const select = () => {
-      if (!frame.isConnected || frame.closest("[hidden]") || new URL(frame.src).href !== href) return;
-      frame.contentWindow?.postMessage({ type: "workbench-view", ...selection, intent: "open" }, location.origin);
+  // An installed package's stage mounts its own opaque frame from its page source only once it is opened. The homepage's reply is bound to that
+  // exact page (the installation it names), and a panel or record reaches the frame through the stage, as the carrier page gives it, once mounted.
+  const signedHomeWaits = new WeakMap();
+  const signedHomeStage = (mount, owner, href) => mount?.dataset.installedPlugin === owner && mount.dataset.pluginPageSource
+    && new URL(href, location.origin).origin === location.origin && new URL(mount.dataset.pluginPageSource, location.origin).href === href ? mount : null;
+  const signedHomeSelection = (stage, href, selection) => {
+    signedHomeWaits.get(stage)?.();
+    const detail = typeof selection.panel === "string" ? { panel: selection.panel } : typeof selection.itemId === "string" ? { itemId: selection.itemId } : null;
+    if (!detail) return;
+    const current = () => stage.isConnected && !stage.closest("[hidden]") && !!stage.dataset.pluginPageSource
+      && new URL(stage.dataset.pluginPageSource, location.origin).href === href;
+    // What opens takes the focus there. A frame mounted earlier is not focused by its mount, and focus reaches its isolated document
+    // asynchronously, so the panel is asked for a frame after the focus moved; otherwise its dialog opens without holding the focus.
+    const send = () => {
+      if (!current()) return;
+      [...stage.querySelectorAll("iframe[data-plugin-frame]")].find(frame => frame.dataset.pluginFrame === stage.dataset.workSurface)?.focus({ preventScroll: true });
+      requestAnimationFrame(() => { if (current()) stage.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { ...detail, intent: "open" } })); });
     };
-    if (frame.contentDocument?.readyState === "complete" && frame.contentDocument.URL === href) select();
-    else frame.addEventListener("load", select, { once: true });
-  };
-  const signedHomeFrame = (mount, owner, href) => {
-    const frame = mount?.dataset.installedPlugin === owner && mount.querySelector(":scope > iframe");
-    return frame && new URL(href, location.origin).origin === location.origin && new URL(frame.src).href === href ? frame : null;
+    if (stage.dataset.uiClientState === "ready") { send(); return; }
+    const watch = new MutationObserver(() => {
+      const mounted = stage.dataset.uiClientState;
+      if (mounted === "ready") { stop(); send(); } else if (mounted === "failed" || !stage.isConnected) stop();
+    });
+    const stop = () => { watch.disconnect(); if (signedHomeWaits.get(stage) === stop) signedHomeWaits.delete(stage); };
+    signedHomeWaits.set(stage, stop);
+    watch.observe(stage, { attributes: true, attributeFilter: ["data-ui-client-state"] });
   };
   const selectSignedHomeTarget = (pane, plugin, owner, href, selection) => {
     const paneFrame = panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(paneFrameKey(pane)) + '"]');
-    if (!paneFrame) { const frame = signedHomeFrame(findTopLevelSurface(plugin), owner, href); if (frame) signedHomeSelection(frame, href, selection); return; }
+    if (!paneFrame) { const stage = signedHomeStage(findTopLevelSurface(plugin), owner, href); if (stage) signedHomeSelection(stage, href, selection); return; }
     const select = () => {
       if (!paneFrame.isConnected || paneFrame.hidden || ops.focused(state) !== pane || ops.shownPlugin(pane) !== plugin) return;
       paneFrame.contentWindow?.postMessage({ type: "workbench-view", signedHomeTarget: { plugin, owner, href, selection } }, location.origin);
@@ -324,7 +339,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (result.frame_path) {
       if (typeof result.frame_path !== "string") return false;
       const url = new URL(result.frame_path, location.origin);
-      if (!signedHomeFrame(mount, result.owner_plugin_id, url.href)) return false;
+      if (!signedHomeStage(mount, result.owner_plugin_id, url.href)) return false;
       openPlugin(plugin);
       if (selection.panel || result.item_id) selectSignedHomeTarget(ops.focused(state), plugin, result.owner_plugin_id, url.href,
         selection.panel ? { panel: selection.panel } : { itemId: result.item_id });

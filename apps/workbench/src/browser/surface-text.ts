@@ -4,7 +4,11 @@ import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 declare global {
   /** The protected home's word grants (surface-composition §14.6); the language entry keeps their packs with the realm's own. */
-  var molisWorkSurfaceText: { install(route: string, text: readonly SurfaceHomeText[], signal: AbortSignal): Promise<void> } | undefined;
+  var molisWorkSurfaceText: {
+    install(route: string, text: readonly SurfaceHomeText[], signal: AbortSignal): Promise<void>;
+    /** The home released these grants (left, replaced or refused): they are no longer read, here or by a later switch. */
+    release(refs: readonly string[]): void;
+  } | undefined;
 }
 
 interface Answer { readonly texts?: readonly { ref: string; owner: string; packs: readonly UiLocalePack[] }[] }
@@ -31,21 +35,25 @@ export async function readSurfaceText(request: UiRequest, route: string, locale:
 
 /**
  * What the language entry holds of the home's words: the grants and the packs read for them in the displayed language. A switch reads the
- * next language for the same grants and applies with everything else; nothing is composed again.
+ * next language for the same grants and applies with everything else; nothing is composed again. The request client is read at each
+ * use, not here: the language asset runs before the page installs it.
  */
-export function surfaceTextState(request: UiRequest, displayed: () => string, reselect: () => void) {
+export function surfaceTextState(request: () => UiRequest, displayed: () => string, reselect: () => void) {
   let current: { route: string; text: readonly SurfaceHomeText[]; packs: readonly UiLocalePack[] } = { route: "", text: [], packs: [] };
   globalThis.molisWorkSurfaceText = { async install(route, text, signal) {
-    const packs = text.length ? await readSurfaceText(request, route, displayed(), text, signal) : [];
+    const packs = text.length ? await readSurfaceText(request(), route, displayed(), text, signal) : [];
     signal.throwIfAborted();
     current = { route, text, packs }; reselect();
+  }, release(refs) {
+    if (!current.text.some(item => refs.includes(item.ref))) return;
+    current = { route: "", text: [], packs: [] }; reselect();
   } };
   return {
     packs: () => current.packs,
     async prepare(locale: string, signal: AbortSignal) {
       const held = current;
       if (!held.text.length) return undefined;
-      const packs = await readSurfaceText(request, held.route, locale, held.text, signal);
+      const packs = await readSurfaceText(request(), held.route, locale, held.text, signal);
       return { packs, apply() { if (current === held) current = { ...held, packs }; } };
     },
   };

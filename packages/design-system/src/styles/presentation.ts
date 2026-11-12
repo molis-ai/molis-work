@@ -11,7 +11,7 @@ export const PRESENTATION_FORM_STYLES = `
   .mw-presentation__tag .mw-presentation__owner { inline-size: 1.5em; block-size: 1.5em; border-radius: var(--sk-r-slot, var(--r-tag)); }
   .mw-presentation__tag > strong { overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-control); }
   .mw-presentation__tag .mw-status { flex: none; }
-  .mw-presentation__tag .mw-status:has(.mw-state-ring) > span {
+  .mw-presentation__tag .mw-status > .mw-state-ring + span {
     position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%);
   }
   .mw-presentation--row { container-type: inline-size; }

@@ -594,7 +594,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const signed = event.data.signedHomeTarget;
       if (signed) {
         if (typeof signed.plugin !== "string" || typeof signed.href !== "string" || !signed.selection || ops.shownPlugin(ops.focused(state)) !== signed.plugin) return;
-        const target = signedHomeFrame(findTopLevelSurface(signed.plugin), signed.owner, signed.href);
+        const target = signedHomeStage(findTopLevelSurface(signed.plugin), signed.owner, signed.href);
         if (target) signedHomeSelection(target, signed.href, { panel: signed.selection.panel, itemId: signed.selection.itemId });
         return;
       }

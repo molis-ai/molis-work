@@ -6,6 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
+import { CODING_OPEN } from "./fixtures/coding-composer.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
@@ -132,7 +133,9 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
     .filter(row => row.subject.kind === "coding_session").map(row => row.subject.id);
   const before = await sessions();
   await open(homeCard("coding") + ' [data-home-control$=":start:0"]');
-  await coding.waitFor("document.querySelector('[data-coding-session][aria-current=true]') && !document.querySelector('[data-coding-task]').disabled");
+  // Coding takes the workbench bar's one input (batch 11): the new session is current in its frame and the bar's box takes words.
+  await coding.waitFor("!!document.querySelector('[data-coding-session][aria-current=true]')");
+  await b.waitFor(CODING_OPEN);
   const selected = await coding.evaluate<string>("document.querySelector('[data-coding-session][aria-current=true]').dataset.codingSession");
   assert.deepEqual((await sessions()).filter(id => !before.includes(id)), [selected]);
 });

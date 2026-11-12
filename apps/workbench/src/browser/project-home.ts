@@ -106,10 +106,12 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
   peek.addEventListener("close", onClose);
 }
 
-/** A replaced or dropped response ends its own word grants; a newer one keeps its own. */
+/** A replaced or dropped response ends its own word grants, also for a later language switch; a newer one keeps its own. */
 function releaseHomeText(host: HomeHost, old: SurfaceHomeDisplay | null) {
   const text = old?.surface_text?.map(item => item.ref);
-  if (text?.length) void host.read("", { release_text: text }, new AbortController().signal).catch(() => undefined);
+  if (!text?.length) return;
+  globalThis.molisWorkSurfaceText?.release(text);
+  void host.read("", { release_text: text }, new AbortController().signal).catch(() => undefined);
 }
 /** The grants differ on every read; what is shown does not have to. */
 const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) =>

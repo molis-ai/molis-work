@@ -14,8 +14,12 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
   type Defaults = { root: HTMLElement; view: PositionView; source?: { id: string; part: Part } };
   let defaults: Defaults | undefined;
   const path = (id: string) => "/im/api/rooms/" + encodeURIComponent(id) + "/surfaces";
+  // Rows scrolled into view read their objects then, not at the discussion's next render.
+  let scroller: HTMLElement | null = null;
+  const schedule = () => { if (!frameId) frameId = requestAnimationFrame(() => { frameId = 0; refresh(); }); };
   const clear = () => {
     task?.abort(); cancelAnimationFrame(frameId); frameId = 0;
+    scroller?.removeEventListener("scroll", schedule); scroller = null;
     for (const parts of entries.values()) for (const entry of parts) { entry.view.destroy(); entry.root.remove(); }
     defaults?.view.destroy(); defaults?.root.remove(); defaults = undefined;
     entries.clear(); stream = null;
@@ -110,8 +114,11 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
     search(room, query, signal) { return api(path(room), { query }, signal); },
     update(id, node, shown) {
       if (!shown || frame.contentDocument !== node.ownerDocument) { clear(); return; }
-      if (room !== id || stream !== node) { clear(); room = id; stream = node; }
-      if (!frameId) frameId = requestAnimationFrame(() => { frameId = 0; refresh(); });
+      if (room !== id || stream !== node) {
+        clear(); room = id; stream = node;
+        scroller = node.closest<HTMLElement>("[data-scroll]"); scroller?.addEventListener("scroll", schedule, { passive: true });
+      }
+      schedule();
     },
     clear,
   };

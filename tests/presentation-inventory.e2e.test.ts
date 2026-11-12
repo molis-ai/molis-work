@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 test("IUI-21: the presentation board separates sample data from the complete built-in declaration inventory", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
@@ -48,9 +49,11 @@ test("IUI-21: the presentation board separates sample data from the complete bui
         rows,
       };
     })()`);
+    // Each plugin is named as the workbench's directory names it in the board's language (its own words since batch 16).
+    const directory = runWithLocale(lang, () => builtinPluginDirectory());
     const expected = BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
       id: manifest.plugin_id,
-      name: lang === "en" && manifest.name_en !== undefined ? manifest.name_en : manifest.name,
+      name: directory.find(entry => entry.plugin_id === manifest.plugin_id)?.name ?? manifest.name,
       status: manifest.presentation && manifest.presentation.objects.length > 0 ? words[lang].declared : words[lang].missing,
     }));
     assert.equal(board.example, words[lang].example, label);

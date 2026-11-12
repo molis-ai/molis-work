@@ -81,25 +81,26 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
   }));
   await b.command("Network.enable", {}, b.sessionId);
   for (const { scope, id, surfaceId, entry, title, page, slot, endpoint } of records) {
-    const holder = '[data-work-surface="' + surfaceId + '"][data-installed-plugin="' + id + '"] > iframe';
-    const child = await pluginFrameBrowser(t, b, id, holder);
+    // The installed stage mounts the package's opaque frame itself; the slot's trusted area is drawn in the workbench document beside it.
+    const stage = '[data-work-surface="' + surfaceId + '"][data-installed-plugin="' + id + '"]', frames = stage + " iframe[data-plugin-frame]";
+    const child = await pluginFrameBrowser(t, b, surfaceId);
     let navigation: { loaderId?: string; errorText?: string } | undefined;
     try { await b.navigate(async () => { navigation = await b.command<typeof navigation>("Page.navigate", { url: b.origin + prefix + "/plugins/" + id }, b.sessionId); }); }
     catch (cause) { throw new Error(JSON.stringify({ scope, navigation, documents: documents.slice(-15) }), { cause }); }
-    const doc = "document.querySelector(" + JSON.stringify(holder) + ")?.contentDocument";
+    const doc = "document.querySelector(" + JSON.stringify(stage) + ")";
     const area = '[data-framed-area] .surface-slot-body';
     const one = (selector: string) => doc + "?.querySelector(" + JSON.stringify(selector) + ")";
     const content = area + ' [data-home-subject-id="' + entry.entry_id + '"]';
     try { await b.waitFor(`${one(content)}?.innerText.includes(${JSON.stringify(title)})`, 10_000); }
     catch (cause) {
-      const state = await b.evaluate(`(() => {const holder = document.querySelector(${JSON.stringify(holder)}), doc = holder?.contentDocument;
-        return {url: location.pathname + location.search, stage: holder?.parentElement?.dataset.workSurface, hidden: !!holder?.closest('[hidden]'),
+      const state = await b.evaluate(`(() => {const holder = document.querySelector(${JSON.stringify(stage)});
+        return {url: location.pathname + location.search, stage: holder?.dataset.workSurface, hidden: !!holder?.closest('[hidden]'), client: holder?.dataset.uiClientState,
           frames: [...document.querySelectorAll('[data-installed-plugin]')].map(section => ({id: section.dataset.installedPlugin, surface: section.dataset.workSurface})),
-          carrier: doc?.body?.innerText.slice(0, 500), opaque: doc?.querySelector('[data-plugin-frame]')?.dataset.pluginFrame,
-          slot: doc?.querySelector('[data-framed-area]')?.innerText.slice(0, 300)};})()`);
+          opaque: holder?.querySelector('[data-plugin-frame]')?.dataset.pluginFrame, slot: holder?.querySelector('[data-framed-area]')?.innerText.slice(0, 300)};})()`);
       throw new Error(JSON.stringify({ state, requests: [...requests.values()] }), { cause });
     }
-    assert.equal(await b.evaluate(`document.querySelectorAll(${JSON.stringify(holder)}).length`), 1, "the original signed stage is drawn only once");
+    assert.deepEqual(await b.evaluate(`[document.querySelectorAll(${JSON.stringify(stage)}).length, document.querySelectorAll(${JSON.stringify(frames)}).length]`), [1, 1],
+      "the original signed stage is drawn only once");
     assert.equal(await b.evaluate(`location.pathname + location.search`), prefix + "/", "the direct address opens that workbench stage");
     assert.ok([...requests.values()].some(item => item.mode === "reserve" && item.status === 200)
       && [...requests.values()].some(item => item.mode === "read" && item.status === 200), "the browser reserved and read a trusted area");
@@ -109,9 +110,9 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
     const pick = (label: string) => `[...(${doc}?.querySelectorAll(${JSON.stringify(area + ' [data-presentation-action]')}) ?? [])].find(button => button.textContent.trim() === ${JSON.stringify(label)})`;
     const press = async (expression: string) => {
       await b.waitFor(`!!(${expression})?.checkVisibility() && !(${expression}).hasAttribute('aria-disabled') && !(${expression}).closest('[data-unready]')`);
-      const point = await b.evaluate<{ x: number; y: number }>(`(() => { const outer = document.querySelector(${JSON.stringify(holder)}).getBoundingClientRect();
+      const point = await b.evaluate<{ x: number; y: number }>(`(() => {
         const button = (${expression}); button.scrollIntoView({block:'nearest'}); const box = button.getBoundingClientRect();
-        return { x: outer.left + box.left + box.width / 2, y: outer.top + box.top + box.height / 2 }; })()`);
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
       for (const type of ["mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, button: "left", clickCount: 1, ...point }, b.sessionId);
     };
     const choose = async (label: string) => {
@@ -136,7 +137,7 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
     const written = feed.getInboxEntry(projectId, entry.entry_id);
     assert.deepEqual([written.status, written.revision], [status, entry.revision + 1]);
 
-    const carrier = new URL(await b.evaluate<string>("document.querySelector(" + JSON.stringify(holder) + ").src"), b.origin);
+    const carrier = new URL(await b.evaluate<string>("document.querySelector(" + JSON.stringify(stage) + ").dataset.pluginPageSource"), b.origin);
     const originalInstallation = JSON.parse(carrier.searchParams.get("installation")!);
     carrier.searchParams.set("installation", JSON.stringify({ ...originalInstallation, scope: scope === "project" ? "home" : "project" }));
     assert.equal((await request(carrier.pathname + carrier.search)).status, 409, "the original carrier cannot change its scope");
@@ -158,7 +159,8 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
     await b.click("[data-plugin-picker-toggle]");
     await b.click('[data-plugin-picker-popover] [data-work-surface-open="' + surfaceId + '"]');
     await b.waitFor(`${one(area)}?.textContent.includes('暂时读不到') && !${one(content)}`, 15_000);
-    assert.equal(await b.evaluate(`document.querySelectorAll(${JSON.stringify(holder)}).length`), 1, "the switcher reopens the same single original stage");
+    assert.deepEqual(await b.evaluate(`[document.querySelectorAll(${JSON.stringify(stage)}).length, document.querySelectorAll(${JSON.stringify(frames)}).length]`), [1, 1],
+      "the switcher reopens the same single original stage");
     assert.deepEqual([feed.getInboxEntry(projectId, entry.entry_id).status, feed.getInboxEntry(projectId, entry.entry_id).revision], [status, written.revision]);
     const inbox = await pluginFrameBrowser(t, b, "inbox");
     await b.click('[data-plugin-strip] [data-plugin-id="inbox"]');
@@ -263,10 +265,10 @@ test("IUI-02 IUI-13: a signed free reader displays its fallback only in the orig
     };
   `);
   await b.setViewport(1440, 900);
-  const holder = '[data-work-surface="app-' + build + '"][data-installed-plugin="' + id + '"] > iframe';
-  const child = await pluginFrameBrowser(t, b, id, holder);
+  const stage = '[data-work-surface="app-' + build + '"][data-installed-plugin="' + id + '"]';
+  const child = await pluginFrameBrowser(t, b, "app-" + build);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/plugins/" + id }, b.sessionId));
-  const area = `document.querySelector(${JSON.stringify(holder)})?.contentDocument?.querySelector('[data-framed-area] .surface-slot-body')`;
+  const area = `document.querySelector(${JSON.stringify(stage)})?.querySelector('[data-framed-area] .surface-slot-body')`;
   await b.waitFor(`${area}?.innerText.includes(${JSON.stringify(title)})`, 15_000);
   assert.doesNotMatch(await b.evaluate<string>(`${area}.innerText`), new RegExp(content, "u"));
   await child.waitFor("document.querySelector('[data-component-surface-slot]')?.getBoundingClientRect().height > 0 && window.slotMessages.length > 0");

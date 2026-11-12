@@ -83,3 +83,45 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
     }
   }
 });
+
+test("SCS-12 FSS-34 the project home changes its owners' words in place when the language changes, without composing it again", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null);
+  if (!b) return;
+  const project = await createProject(b.web, "Home words"), prefix = "/projects/" + project.project_id;
+  await b.web.post(prefix + "/api/plugins/io.molis.work.goals/goals", { title: "Home words goal", idempotency_key: "home-words-goal" });
+  await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
+  await b.waitFor(`document.querySelector(${JSON.stringify(row + " .mw-status")}) && !document.querySelector(${JSON.stringify(home)}).hidden`, 15_000);
+  // Count what the switch asks for: a compose is a POST to the home endpoint, the owners' words are a locale read naming the grants.
+  await b.evaluate(`(() => {
+    window.homeMark = document.querySelector(${JSON.stringify(row + " .mw-status")}); window.homeRow = homeMark.closest('[data-home-row]');
+    window.homeComposes = 0; window.homeWordReads = [];
+    const original = window.fetch;
+    window.fetch = (input, init) => {
+      const url = new URL(String(input?.url || input), location.href);
+      if (url.pathname.endsWith(${JSON.stringify(endpoint)})) homeComposes += 1;
+      if (url.pathname.endsWith('/api/ui/locales') && url.searchParams.has('surface_text')) homeWordReads.push(url.searchParams.get('locale'));
+      return original(input, init);
+    };
+  })()`);
+  assert.match(await b.evaluate<string>("homeMark.textContent"), /进行中/u);
+  const select = (tag: "zh" | "en") => b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+    link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+  for (const [tag, words] of [["en", /In progress/u], ["zh", /进行中/u]] as const) {
+    await select(tag);
+    await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+    assert.match(await b.evaluate<string>("homeMark.textContent"), words, tag);
+    assert.deepEqual(await b.evaluate(`[document.querySelector(${JSON.stringify(row + " .mw-status")}) === homeMark, homeMark.closest('[data-home-row]') === homeRow,
+      homeComposes, homeWordReads.at(-1)]`), [true, true, 0, tag], "the same nodes are retexted from the granted words; nothing is composed again");
+  }
+  // Leaving the home releases its grants: a switch made elsewhere does not read them and still succeeds; the home rereads on return.
+  await b.click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await b.waitFor(`!document.querySelector(${JSON.stringify(home)}).checkVisibility()`);
+  const readsBefore = await b.evaluate<number>("homeWordReads.length");
+  await select("en");
+  await b.waitFor("document.documentElement.dataset.uiLanguageTag === 'en' && !document.querySelector('[data-ui-language-status]')");
+  assert.equal(await b.evaluate<number>("homeWordReads.length"), readsBefore, "released grants are not read by a later switch");
+  await b.click('[data-dock-pin="home"]');
+  await b.waitFor(`document.querySelector(${JSON.stringify(home)}).checkVisibility() && /In progress/u.test(document.querySelector(${JSON.stringify(row + " .mw-status")})?.textContent ?? "")`, 15_000);
+  assert.equal(await b.evaluate("homeWordReads.at(-1)"), "en", "the home installs fresh grants in the new language");
+});

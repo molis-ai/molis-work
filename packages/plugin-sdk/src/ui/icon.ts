@@ -4,7 +4,11 @@ import type { PluginIconName } from "./icon-names.js";
 
 export { PLUGIN_ICON_NAMES, type PluginIconName } from "./icon-names.js";
 
-function escapeAttribute(value: string | number | undefined): string {
+/**
+ * Escape one HTML attribute value (text, a class or an icon name a page handed on). The SDK draws markup that lands in the
+ * host page, so this stays the one implementation: the page's icon sprite (`design-system/src/icons.ts`) imports it too.
+ */
+export function escapeAttribute(value: string | number | undefined): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")

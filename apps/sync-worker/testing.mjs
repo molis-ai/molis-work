@@ -12,7 +12,8 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
     const user=request.headers.get('Authorization')?.replace('Bearer ','');
     if(user==='redirect')return new Response(null,{status:302,headers:{Location:'https://other.example.test/token-leak'}});
     if(!['alice','bob','wrong-app'].includes(user))return Response.json({error:'invalid'},{status:401});
-    return Response.json({data:{userId:user,applicationId:user==='wrong-app'?'other':'work'}});
+    // Auth V2 identity shape: the Worker reads data.user.{userId,issuer} and data.session.applicationId.
+    return Response.json({data:{user:{issuer:new URL(authOrigin).origin,userId:user,displayName:user,email:null},session:{applicationId:user==='wrong-app'?'other':'work'}}});
   }};
   const mf=new Miniflare(convertV4MiniflareOptions(options));
   t.after(()=>mf.dispose());

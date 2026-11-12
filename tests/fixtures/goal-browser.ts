@@ -154,7 +154,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       const url = new URL(request ? request.url : String(input), location.href);
       const method = String(init?.method ?? request?.method ?? 'GET').toUpperCase();
       if (url.origin === fixtureOrigin && method === 'GET') {
-        if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local', syncEnabled: false }));
+        if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local' }));
         if (url.pathname === '/api/sync') return Promise.resolve(Response.json({ available: false, reason: '本地空间不参与同步，请先切换到个人空间。' }));
       }
       return original(input, init);

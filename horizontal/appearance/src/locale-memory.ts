@@ -1,8 +1,19 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { VersionedFile } from "@molis-ai/molis-work-storage";
 
 export const UI_LOCALE_RELATIVE_PATH = join("config", "ui-locale.json");
 const SCHEMA_VERSION = /* @version format.ui.last-locale */ 1;
+
+/** The same file for the upgrade process (upgrade-chain-design §2.6): its version, steps and a strict read of the current format. */
+export const UI_LOCALE_FILE: VersionedFile<{ readonly locale: string }> = {
+  version: SCHEMA_VERSION, field: "schema_version", upgrades: [],
+  parse: (value) => {
+    const stored = value as { readonly schema_version?: unknown; readonly locale?: unknown } | null;
+    if (!stored || stored.schema_version !== SCHEMA_VERSION || typeof stored.locale !== "string") throw new Error("ui-locale.json is not a record of this version");
+    return { locale: stored.locale };
+  },
+};
 
 export interface AppearanceLocaleOptions<Locale extends string> {
   readonly defaultLocale: Locale;

@@ -101,6 +101,17 @@ test("a caller's headers cannot replace or add the control headers, in any lette
   assert.deepEqual(Object.keys(headersOf(seen[1]!)), ["x-molis-work-fragment"], "a read gets no control header from the caller either");
 });
 
+// The wire name says page session, not control token: the value is the proof the Host binds to the page's session cookie
+// (web-sessions.ts), and the retired `x-molis-work-control-token` header is neither sent nor accepted from a caller.
+test("the write credential is the page-session proof; the retired control-token header is never sent", async () => {
+  const { seen, request } = harness();
+  await request("/api/things", { body: {}, headers: { "x-molis-work-control-token": "legacy-token" } });
+  const sent = headersOf(seen[0]!);
+  assert.equal(sent["x-molis-work-page-session"], "page-token", "the proof comes from the page's own port, not the caller");
+  assert.equal("x-molis-work-control-token" in sent, false, "the retired control-token header is not sent");
+  assert.deepEqual(Object.keys(sent).sort(), ["content-type", "x-molis-work-idempotency-key", "x-molis-work-page-session"]);
+});
+
 test("headers() and token() are the same headers and token the helper sends", async () => {
   const { request } = harness();
   const first = request.headers();

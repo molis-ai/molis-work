@@ -1,6 +1,6 @@
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
-import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH } from "@molis-ai/molis-work-service-appearance";
+import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, UI_LOCALE_FILE } from "@molis-ai/molis-work-service-appearance";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginProjectTablesVersion } from "@molis-ai/molis-work-plugin-runtime";
 import {
@@ -134,6 +134,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", block: { kind: "setting", page: "access" }, pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", block: HOME_BLOCK, pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
   { owner: "apps/local-host", block: { kind: "projects" }, pattern: join("config", "project-arrival.json"), file: PROJECT_ARRIVAL_FILE },
+  { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: join("config", "ui-locale.json"), file: UI_LOCALE_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("browser", "sites.json"), file: BROWSER_SITES_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "settings.json"), file: COMPUTER_SETTINGS_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },

@@ -205,6 +205,8 @@ export * from "./onboarding.js";
 export { createLocalHostCapsule } from "./capsule.js";
 
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
+// The control-token binding the three page channels share; the socket regression test drives it directly.
+export { bindSocketAuthority, bindWebSocketAuthority, type AuthoritySocket, type SocketAuthority } from "./socket-authority.js";
 export { characterNativeExecution } from "./character-native-execution.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";

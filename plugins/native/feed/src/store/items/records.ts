@@ -7,7 +7,8 @@ import type {
   FeedMaterialRecord,
 } from "../../contract/feed.js";
 import { FeedGoalLinks } from "./goal-links.js";
-import { json, mapFeedItem, mapFeedMaterial, text, type Row } from "./rows.js";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
+import { mapFeedItem, mapFeedMaterial, text, type Row } from "./rows.js";
 import type { FeedSql } from "../sql.js";
 import type { FeedModuleOptions } from "./types.js";
 
@@ -93,7 +94,7 @@ export class FeedRecords {
       project_id: text(row.project_id),
       item_id: text(row.item_id),
       type: text(row.type) as FeedEvent["type"],
-      payload: json<Record<string, unknown>>(row.payload_json, {}),
+      payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
       at: text(row.at),
     }));
   }

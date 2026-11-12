@@ -29,7 +29,6 @@ export function createPersonalPageHttp(refreshPages:AccountRefreshPages) {
     }else if(action==='ack')preparation=refreshPages.acknowledge(page,lease,id);
     else if(action==='cancel')refreshPages.cancel(page,lease,id);
     else if(action==='leave')refreshPages.leave(page,lease);
-    else if(action==='status')preparation=refreshPages.snapshot(lease);
     else{sendLocalWebJson(response,400,{error:'准备操作无效。'});return true;}
     sendLocalWebJson(response,200,preparation??{ready:false,preparation:null});return true;
   }

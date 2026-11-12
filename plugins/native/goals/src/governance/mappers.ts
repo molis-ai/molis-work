@@ -14,6 +14,8 @@ export function json(value: unknown): string {
 const unreadableStoredJson = Symbol("unreadable-stored-json");
 const unreadableStoredJsonMessage = "Goals 存的一条记录读不出来（JSON 已损坏），读取已停止，没有按空值处理";
 
+/** Goals' strict read: a stored value that is not JSON is reported as `unreadableStoredJson`, not silently
+ * replaced by the fallback (the SDK's shared `parseJson` is the forgiving read other owners use). */
 export function parseJson<T>(value: unknown, fallback: T): T {
   if (value == null) return fallback;
   let parsed: unknown = unreadableStoredJson;

@@ -40,6 +40,8 @@ export interface SkillImportPorts {
   readSealedPublisherKeyId(input: LocalPackageSignInput, caller: ActionExecutionContext): Promise<string | null>;
   /** Verified releases retained by the Home, including uninstalled and other-project versions of this source. */
   retained(pluginId: string, keyId: string): NonNullable<InstalledRelease['packaged']>[];
+  /** Every verified release retained for this source, whoever signed it: the versions the preview and the confirmation both count up from. */
+  retainedOf(pluginId: string): NonNullable<InstalledRelease['packaged']>[];
   sign(input: LocalPackageSignInput, caller: ActionExecutionContext): Promise<LocalPackageSignResult>;
   install: Pick<PluginInstallService, 'readPreview' | 'confirm'>;
 }
@@ -121,8 +123,9 @@ export class SkillImportService {
     }
     const preview_id = randomUUID();
     this.held.set(preview_id, { who, plugin_id, name: `从 ${externalTool(runtime).display_name} 导入的技能`, skills, expires: this.now() + PREVIEW_TTL_MS });
-    const keyId = this.ports.publisherKeyId();
-    const retained = keyId ? this.ports.retained(plugin_id, keyId) : [];
+    // The same versions the confirmation counts up from, read without this Home's publisher metadata: a missing or unreadable
+    // publisher file is recovered at signing, so a preview that fell back to 「1.0.0」 here would name a version the install never takes.
+    const retained = this.ports.retainedOf(plugin_id);
     return { preview_id, package: { plugin_id, version: nextVersion(retained), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
   }
 
@@ -160,13 +163,15 @@ export class SkillImportService {
       ...(installed ? { compatible_from: [installed.manifest.version] } : {}) };
     const keyId = this.ports.publisherKeyId() ?? await this.ports.readSealedPublisherKeyId(
       contentPackageDraft({ ...packageFields, version: nextVersion(installed ? [installed] : []), skills: chosen }), caller);
-    const retained = keyId ? this.ports.retained(held.plugin_id, keyId) : [];
+    // The package version counts every retained release of this source, the same list the preview read: the key id is needed only for
+    // the per-Skill prior versions below (the releases it signed).
+    const retainedAll = this.ports.retainedOf(held.plugin_id), retained = keyId ? this.ports.retained(held.plugin_id, keyId) : [];
     const skills = chosen.map(skill => {
       const prior = retained.filter(pkg => pkg.manifest.methods?.some(method => method.skill_id === skill.declaration.skill_id))
         .sort((a, b) => b.manifest.methods!.find(method => method.skill_id === skill.declaration.skill_id)!.version - a.manifest.methods!.find(method => method.skill_id === skill.declaration.skill_id)!.version)[0];
       return { ...skill, declaration: { ...skill.declaration, version: versionOf(skill, prior) } };
     });
-    const draft = contentPackageDraft({ ...packageFields, version: nextVersion(installed ? [...retained, installed] : retained), skills });
+    const draft = contentPackageDraft({ ...packageFields, version: nextVersion(installed ? [...retainedAll, installed] : retainedAll), skills });
     const { preview_id } = await this.ports.sign(draft, caller);
     const preview = this.ports.install.readPreview(preview_id, who);
     return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);

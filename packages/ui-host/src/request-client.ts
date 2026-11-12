@@ -63,15 +63,19 @@ export interface UiFailureViewPorts {
 }
 
 /**
- * Requests to the Host. The control token and one-time key go on every change and only to this page's origin; a request is
- * sent once (a person decides to try again); an answer is a value or a plain Error with `code`, `status`, `callId`, `body`.
- * The address that is checked is the address that is sent: it is resolved against the origin, never against the page. A
- * caller's headers never replace the control headers. With no answer a read can simply be asked again, but a write may or
- * may not have been done, and the helper does not guess. (Notes live here, not in the body: the body is sent to the page.)
+ * Requests to the Host. The page-session proof (the cookie-bound `x-molis-work-page-session` value, not the Host's
+ * control credential) and one-time key go on every change and only to this page's origin; a request is sent once (a person
+ * decides to try again); an answer is a value or a plain Error with `code`, `status`, `callId`, `body`. The address that is
+ * checked is the address that is sent: it is resolved against the origin, never against the page. A caller's headers never
+ * replace the reserved headers below. With no answer a read can simply be asked again, but a write may or may not have been
+ * done, and the helper does not guess. (Notes live here, not in the body: the body is sent to the page.)
  */
 export function createUiRequest(ports: UiRequestPorts, codes: typeof UI_HOST_CLIENT_CODES): UiRequestCall {
-  const controlTokenHeader = "x-molis-work-page-session";
-  const controlHeaders = ["content-type", controlTokenHeader, "x-molis-work-control-token", "x-molis-work-idempotency-key"];
+  /** The proof the page's session cookie binds (captureWebSessionAuthority on the Host side); named page-session, not a control token. */
+  const pageSessionHeader = "x-molis-work-page-session";
+  // Kept as controlHeaders/molisWorkControlHeaders for the callers that still use those names: the values are the page-session
+  // proof and the one-time key (and the retired control-token header, listed so a caller cannot send one).
+  const controlHeaders = ["content-type", pageSessionHeader, "x-molis-work-control-token", "x-molis-work-idempotency-key"];
   const failure = (message: string, code: string, status: number, callId: string | null, body: unknown): UiRequestFailure =>
     Object.assign(new Error(message), { code, status, callId, body });
   const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
@@ -81,7 +85,7 @@ export function createUiRequest(ports: UiRequestPorts, codes: typeof UI_HOST_CLI
   };
   const writeHeaders = (key?: string): Record<string, string> => ({
     "content-type": "application/json",
-    [controlTokenHeader]: ports.token(),
+    [pageSessionHeader]: ports.token(),
     "x-molis-work-idempotency-key": key ?? ports.newKey(),
   });
 
@@ -98,7 +102,7 @@ export function createUiRequest(ports: UiRequestPorts, codes: typeof UI_HOST_CLI
     if (!read) Object.assign(headers, writeHeaders(init.key));
     else {
       Object.assign(headers, ports.readHeaders?.());
-      if (init.control) headers[controlTokenHeader] = ports.token();
+      if (init.control) headers[pageSessionHeader] = ports.token();
     }
     const options: UiFetchInit = { method, headers, cache: "no-store" };
     if (init.signal) options.signal = init.signal;
@@ -282,7 +286,8 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
 /**
  * The page program: builds both halves from the page's own fetch, origin, meta tag, `crypto`, text reader and clipboard,
  * installs the copy handler, and publishes the result as `molisWorkRequest`. `molisWorkControlHeaders` stays as the
- * headers-only entrance of the same helper for the callers that have not moved yet. Runs once per page. The page budget counts
+ * headers-only entrance of the same helper for the callers that have not moved yet; the name is historical — what it returns is
+ * the page-session proof (`x-molis-work-page-session`) plus a fresh idempotency key, never the Host's control credential. Runs once per page. The page budget counts
  * every byte of the Workbench program, so the factories go in without the compiler's indentation: a line's leading blanks are
  * all that is taken out, which is safe because nothing in them spans lines inside a string (they have no template literal).
  */

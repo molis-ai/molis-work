@@ -1,0 +1,7 @@
+# BL-golden-coverage-uncovered
+
+分组：7. 平台与架构
+
+| 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-golden-coverage-uncovered | `tooling/gates/golden-coverage.json` 的 `uncovered` 第一份金样时 19 条：18 条是 `HOME-DATA.md` 的「必备份」路径，另一条 `config/installation.json` 是设计 §2 第 3 条要求金样单独收的。路径：`agent-runtime/checkpoints/`、`alchemist/projects/<id>/search-content/`、`artifacts/.../originals/<sha256>`、`computer/records/<id>/{record.json,<序号>.png}`、`computer/settings.json`、`config/connector-mcp-actions.json`、`config/external-mcp-actions.json`、`config/installation.json`、`config/ui-locale.json`、`feed/evidence/blobs/**`、`git-operation-details.json`、`images/assets/`、`plugin-builder/<project_id>/{design,builds,releases,runs}/`、`runtime-config-backups/<runtime>/<plan>.bak`、`runtime-integrations/<runtime>.json`、`shelf/catalog.json.lock.sqlite`、`shelf/jobs/<job>/`、`spaces/<spaceId>/sync/device.json`。覆盖面门禁允许它们带理由列在 `uncovered`，但只有 `computer/settings.json` 一条挂了 `BL-golden-computer-settings`；其余要么补进金样、要么把 HOME-DATA 的「必备份」登记降下来，不能一直停在白名单里 | 第 05 批复核（2026-11-11 代码质量复审）；[金样回放设计](../upgrade-continuity/golden-replay-design.md) §5、§7 UPG2-04 | 已知缺口 | 补齐要生成金样，需要 macOS + `.nvmrc` 锁定的 Node，并逐条经主人动作写：`computer/` 要系统权限、`feed/evidence` 与 `runtime-integrations` 要联网或真实 Runtime、`plugin-builder` 要真实模型，生成条件不满足；降登记会改变备份承诺，要用户决定 | 下一次发布生成金样（U2-e 检查单第 2 节）；`computer/settings.json` 先按 BL-golden-computer-settings 的平台分支做 | 中 | U2 金样（执行会话待分配） |

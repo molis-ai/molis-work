@@ -1145,6 +1145,7 @@ export interface AgentMemoryTools {
         said: string;
         kind?: "preference" | "convention" | "fact" | "experience";
         replaces?: string;
+        expires_at?: string;
     }, control: AgentMemoryToolControl): Promise<{
         memory_id: string;
         scope: "personal" | "project" | "character";
@@ -1154,10 +1155,9 @@ export interface AgentMemoryTools {
     }>;
     list(control: AgentMemoryToolControl): Promise<Array<{
         memory_id: string;
-        version: number;
         scope: "personal" | "project" | "character";
+        text: string;
     }>>;
-    expandList?(control: AgentMemoryToolControl): Promise<unknown>;
     forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{
         forgotten: boolean;
         note?: string;

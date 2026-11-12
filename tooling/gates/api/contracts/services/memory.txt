@@ -124,6 +124,7 @@ export interface MemoryChange {
     at: string;
     undoable: boolean;
     state: "active" | "undone";
+    moved_to?: "personal" | "project";
 }
 
 export type MemoryChangeKind = "kept" | "auto_kept" | "replaced" | "auto_replaced" | "merged" | "edited" | "restored" | "moved" | "disabled" | "auto_disabled" | "enabled" | "paused" | "resumed" | "removed" | "accepted" | "imported" | "cleared";
@@ -317,7 +318,9 @@ export interface MemoryLearningTaskRequest extends MemoryLearningRequest {
 
 export interface MemoryLedgerPort {
     readonly forgetting: import("services/memory-forgetting").MemoryForgettingPort;
-    forget(memoryId: string, selection_mode: import("services/memory-forgetting").MemoryForgettingSelection["selection_mode"]): void;
+    forget(memoryId: string, selection_mode: import("services/memory-forgetting").MemoryForgettingSelection["selection_mode"], options?: {
+        moved_to?: "personal" | "project";
+    }): void;
     forgetScopes(input: {
         scopes: ReadonlyArray<{
             scope: MemoryScope;

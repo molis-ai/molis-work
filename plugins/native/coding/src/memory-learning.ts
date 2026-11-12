@@ -4,13 +4,14 @@ import type { CodingActivation } from "./route-activation.js";
 import type { CodingBeforeWrite } from "./route-entry.js";
 import type { CodingExecution } from "./routes.js";
 
-/** Coding alone owns business archival and the current mapping to a Runtime Session. */
+/** Coding alone owns business archival and the current mapping to a Runtime Session. The platform learns only from the Runtime that
+ * ran the round, so the session id it names is matched to Coding's own record; Coding never spells a Runtime's id (RAC-453). */
 export function codingMemorySources(execution: CodingExecution, projectId: string, beforeWrite: CodingBeforeWrite) {
   return (sources: readonly MemoryLearningOwnedSource[]): void => {
     beforeWrite.assert_current();
     for (const sessionId of new Set(sources.map(source => source.session_id))) {
       const record = execution.sessions.byRuntimeSession(projectId, sessionId);
-      if (!record || record.archived || record.project_id !== projectId || record.runtime_session_id !== sessionId || record.runtime_id !== "prologue")
+      if (!record || record.archived || record.project_id !== projectId || record.runtime_session_id !== sessionId)
         throw new ActionError("actions.forbidden", "记忆来源会话已归档或不再属于当前项目");
     }
     beforeWrite.assert_current();

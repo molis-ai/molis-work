@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import type { CodingWorkbenchHost } from "../workbench.js";
+import { hostRequest } from "./request.js";
 import type { SessionRecord } from "./shapes.js";
 
 /** The already declared directory surface reads its own owner, with the same filter and explicit restore as the workbench. */
@@ -13,7 +14,7 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
   const notice = el("p", "", "coding-face-note"); notice.setAttribute("role", "status"); list.after(notice);
   let archived = false, rows: SessionRecord[] = [], cursor: string | null = null, generation = 0, readTicket = 0, loading = false;
   const request = <T>(path: string, method: "GET" | "PATCH" = "GET", body?: unknown, signal?: AbortSignal) =>
-    molisWorkRequest<T>(host.pluginRoute(path), { method, body, signal: signal ?? lifetime.signal, scope: lifetime, fallback: uiText.text("coding.error.request") });
+    hostRequest<T>(host, lifetime, path, { method, body, signal: signal ?? lifetime.signal });
   const render = () => {
     archivedButton.setAttribute("aria-pressed", String(archived));
     const needle = root.querySelector<HTMLInputElement>("[data-coding-search]")?.value.trim().toLocaleLowerCase() ?? "";

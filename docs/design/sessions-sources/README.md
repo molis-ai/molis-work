@@ -182,7 +182,7 @@ python3 -m http.server 4471 --bind 127.0.0.1 --directory docs/design/sessions-so
 | 浅色下 Directory Row 悬停、按下、选中后底色变深，状态词不到 4.5:1：attention 选中 4.32，quiet 选中 4.08，progress 选中 4.18、按下 3.96，blocked 选中 4.21、按下 3.98，idle 按下 4.32 | Status mark 的色调令牌与 `--nav-hover`、`--nav-press`、`--nav-active` 的组合 | 行内 attention、progress、blocked 掺 20% `--ink`，quiet、idle 换 `--ink-soft`；色相不变，含义靠文字 |
 | 深色下 `.mw-select` 箭头平铺 | 组件板 `.mw-select` | 补一条背景不重复 |
 
-已在组件板补标本（`cf539df892`，在源头改）。Status mark 没有改行高：1.35 会让 Directory Row 的状态框从 16px 缩到 12px、单独的状态框从 11px 长到 15px，改成让 `.mw-status > span` 的裁切范围上下各多出 0.2em（`padding-block` 加等量负 `margin-block`），字尾露出、外框高度不变。浅色行内状态词改后在悬停、按下、选中三种底色上：attention 5.53/4.96/5.26，progress 5.31/4.77/5.06，blocked 5.49/4.92/5.22，quiet 与 idle 6.49/5.82/6.18。
+已在组件板补标本（`cf539df892`，在源头改）。Status mark 没有改行高：1.35 会让 Directory Row 的状态框从 16px 缩到 12px、单独的状态框从 11px 长到 15px，改成让 `.mw-status > span` 的裁切范围上下各多出 0.2em（`padding-block` 加等量负 `margin-block`），字尾露出、外框高度不变。浅色行内状态词改后在悬停、按下、选中三种底色上：attention 5.53/4.96/5.26，progress 5.31/4.77/5.06，blocked 5.49/4.92/5.22，quiet 与 idle 6.49/5.82/6.18。补法和原型一样不分状态：浅色行内这几种状态词静止时也用新色调，否则一悬停就换色；静止底色上对比度只升不降。
 
 **交 D 轨，这次不改：** 390 下开关的点按区只有 36×22，组件板对 Switch 没有放大，补标本时一起看。场景卡片错开的 60ms、120ms 是手写值，令牌里没有错开时长，由 D 轨定。 已在组件板补标本：Switch 在窄屏与触屏下点按区 44×44、看上去不变（`433ab0ef1d`）；错开时长令牌 `--dur-stagger`（60ms，`14d83e73f1`），已有手写的错开值这次没换。
 

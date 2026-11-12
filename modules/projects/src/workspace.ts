@@ -142,19 +142,19 @@ export class ProjectWorkspaceService {
    * person made is left too: a tool cannot narrow what the person linked, they unlink it in the project's settings.
    */
   unlink(workspaceId: string, projectId: string, actorId: string): WorkspaceUnlinkOutcome {
+    // The relation is read once; one this project does not list is absent (a project in the recycle bin lists none).
     return this.repository.transaction(() => {
-      const own = this.repository.workspaces.projectDirectoryRows(this.requiredProjectId(projectId)).find(row => row.workspace_id === workspaceId);
-      if (own?.roles.includes("output")) return "output_kept";
-      if (this.repository.workspaces.isPersonMembership(this.requiredWorkspaceId(workspaceId), projectId)) return "person_kept";
-      const changes = this.repository.workspaces.removeWorkspaceMembership(
-        this.requiredWorkspaceId(workspaceId),
-        this.requiredProjectId(projectId),
-      );
-      if (changes === 0) return "absent";
-      this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
-      this.appendEvent(projectId, "project.workspace_unlinked", this.requiredActorId(actorId), {
-        workspace_id: workspaceId,
-      });
+      const project = this.requiredProjectId(projectId);
+      const workspace = this.requiredWorkspaceId(workspaceId);
+      const own = this.repository.workspaces.projectDirectoryRows(project).find(row => row.workspace_id === workspace);
+      if (!own) return "absent";
+      if (own.roles.includes("output")) return "output_kept";
+      if (this.repository.workspaces.isPersonMembership(workspace, project)) return "person_kept";
+      // Who acted is asked for only when something is recorded, as the event needs it.
+      const actor = this.requiredActorId(actorId);
+      this.repository.workspaces.removeWorkspaceMembership(workspace, project);
+      this.repository.workspaces.removeWorkspaceIfEmpty(workspace);
+      this.appendEvent(project, "project.workspace_unlinked", actor, { workspace_id: workspace });
       return "unlinked";
     });
   }

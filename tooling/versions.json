@@ -1042,6 +1042,8 @@
     "format.gmail.gmail_live_cursor": 1,
     "format.home.installation": 1,
     "format.home.onboarding": 1,
+    "format.home.release.rollback": 1,
+    "format.home.release.rollback_hold": 1,
     "format.home.restore.journal": 1,
     "format.home.snapshot.file-body": 1,
     "format.home.snapshot.file-wrapper": 1,

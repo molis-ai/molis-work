@@ -3,7 +3,7 @@ import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
   acquireStorageOwner, assertNoPendingHomeRestore, entryAt, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
-  pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
+  pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeSnapshotListed, verifyUpgradeSnapshot, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
   upgradeVersionedFile, USER_VERSION_ACCESS, versionedFileStepsProblem,
   type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
@@ -469,4 +469,44 @@ export function watchHomeUpgradePending(home: string, owner: StorageOwner): void
     return refusalOfFailedUnit(root, relativePath);
   });
   onStorageOwnerRelease(agentRuntimeDirectory(home), owner, stop);
+}
+
+/**
+ * Whether the last round can be put back to where it started, for going back a version (upgrade-continuity U3 §5.2): every store it moved
+ * on has its snapshot, and a plugin's tables have their file's (they are upgraded inside it, after it). Reads the record, the manifest and the
+ * directory only; no store is opened. `from` is the stamp the round started from.
+ */
+export function upgradeRoundRestorable(home: string): { readonly kind: "none" } | { readonly kind: "unfinished" }
+  | { readonly kind: "round"; readonly run_id: string; readonly from: string | null; readonly started_at: string; readonly restorable: boolean } {
+  const root = realpathSync(home);
+  let ledger: UpgradeLedger | undefined;
+  try { ledger = readUpgradeLedger(root); } catch { return { kind: "unfinished" }; }
+  if (!ledger) return { kind: "none" };
+  if (ledger.units.some(unfinishedUnit)) return { kind: "unfinished" };
+  const committed = ledger.units.filter(unit => unit.state === "committed");
+  const restorable = committed.every(unit => unit.kind === "plugin_tables"
+    ? committed.some(other => other.kind !== "plugin_tables" && unit.relative_path.startsWith(`${other.relative_path}#`))
+    : upgradeSnapshotListed(root, ledger.run_id, unit.relative_path));
+  return { kind: "round", run_id: ledger.run_id, from: ledger.from, started_at: ledger.started_at, restorable };
+}
+
+/**
+ * Puts every store the last round moved on back from its snapshot, for going back a version (U3 §5.3 step 3), and removes the stamp so the
+ * program that comes next scans them all. The caller holds the owner lock and nothing has a store open. Only stores this build's descriptors
+ * list are put back: the record names them, the descriptors say where they are. Every snapshot is checked before the first is put back, so a
+ * bad one changes nothing; a kill part-way leaves whole old stores and whole new ones, and doing it again finishes it.
+ */
+export function putBackUpgradeRound(home: string, owner: StorageOwner): readonly string[] {
+  const lockDirectory = agentRuntimeDirectory(home);
+  assertStorageOwner(lockDirectory, owner);
+  const root = realpathSync(home), ledger = readUpgradeLedger(root);
+  if (!ledger) { removeUpgradeStamp(root); return []; }
+  const stores = listStores(homeUpgradeDescriptors(), root);
+  const units = ledger.units.filter(unit => unit.state === "committed" && unit.kind !== "plugin_tables");
+  if (units.some(unit => !stores.has(unit.relative_path) || stores.get(unit.relative_path)!.unlisted)) throw upgradeFailedRefusal("这个 Home", "snapshot_invalid", "要放回的库有不在这一版登记里的，什么都没有动");
+  const lock = { owner, lockDirectory, home: root };
+  for (const unit of units) verifyUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath: unit.relative_path });
+  removeUpgradeStamp(root);
+  for (const unit of units) restoreUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath: unit.relative_path });
+  return units.map(unit => unit.relative_path);
 }

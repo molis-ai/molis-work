@@ -112,14 +112,17 @@ interface UnavailableOwner {
 
 ### 5.1 保留上一版程序
 
-安装器换上新程序时（`installMolisWorkHome`，发布目录内容或版本变了），把**当前在用的那一版**留成回退点：
+安装器换上新程序时（`installMolisWorkHome`，发布目录内容或版本变了），把**当前在用的那一版**留成回退点（`installer/home-rollback.ts` 的 `keepPreviousRelease`）：
 
 ```text
 releases/previous/
-  release/                 原来的发布目录整份（rename，不拷贝）
+  release/                 同一版本重建时：新程序占了旧目录的名字，旧目录（安装器的备份）rename 进来
   installation.json        换之前的 config/installation.json 原样
-  rollback.json            { schema_version: 1, version, content_digest, home_fingerprint, kept_at }
+  rollback.json            { schema_version: 1, version, content_digest, release_path, home_fingerprint, kept_at }
 ```
+
+- 不同版本：旧程序的目录名不同（`releases/molis-work-<版本>`），**留在原处不搬**——还在跑的旧宿主会按需加载里面的模块，搬走会让它中途坏掉；`rollback.json` 的 `release_path` 指向它。只有同名重建才搬进 `previous/release/`，`release_path` 写 `releases/previous/release`。读时 `lstat` 核是 Home 内的普通目录，路径不许绝对、不许 `..`（实现时改）。
+- 留回退点是顺手的事：失败（比如盘满）不让安装失败，设置 › 更新就说没有可回的上一版。
 
 - `home_fingerprint` 是换程序那一刻 Home 的升级戳记（`upgrade/state.json` 的 fingerprint，没有戳记就是 `null`）：它说明上一版程序是在哪一组库版本上跑的。
 - 只留一个：已有 `releases/previous/` 时先删旧的再放新的（rename 到临时名、换好再删）。不同版本的更老目录照现状不清（C-3 第 7 条「保留当前 + 上一个」的清理留给更新器，第 26 批）。
@@ -138,25 +141,25 @@ type RollbackPoint =
 ```
 
 - 没有 `releases/previous/` → `no_previous`。
-- 当前戳记的 fingerprint 等于 `rollback.json` 的 `home_fingerprint` → `data: "unchanged"`：换程序之后库没升过，只换回程序。
-- 否则要放回快照：最近一轮升级记录的 `from` 必须等于 `home_fingerprint`，并且这一轮每个 `committed` 的单元都有快照（`upgrade/<run-id>/manifest.json` 里有它、sha256 对得上）→ `data: "restore"`。对不上 → `snapshot_missing`（比如又升过一轮，快照已经被下一轮替换）或 `snapshot_invalid`。
-- 记录里有未完成的单元 → `upgrade_unfinished`（先让它做完）。
-- `written_since` 是升级完成的时间（戳记的 `completed_at`），对话框据此写「这之后写的内容会回到那时的样子」。
+- 换程序之后没有开始过一轮升级（没有记录，或记录那一轮的 `started_at` 早于 `kept_at`）→ `data: "unchanged"`：库没升过，只换回程序。按时间而不按戳记相等判断，是因为一轮里有库失败时不写戳记，戳记相等说不出「没升过」（实现时改）。
+- 否则要放回快照：最近一轮升级记录的 `from` 必须等于 `home_fingerprint`，并且这一轮每个 `committed` 的单元都在快照清单里、快照文件还在（插件表单元随它所在文件的快照）→ `data: "restore"`。对不上 → `snapshot_missing`（比如又升过一轮，快照已经被下一轮替换）。摘要在回退时、动手之前逐个核（`verifyUpgradeSnapshot`），对不上就整件不做、报 `snapshot_invalid`。
+- 记录里有未完成的单元，或记录读不了 → `upgrade_unfinished`（先让它做完）。
+- `written_since` 是那一轮开始的时间（记录的 `started_at`），对话框据此写「这之后写的内容会回到那时的样子」。
 
-开库 0 次：只读文件和清单摘要。
+开库 0 次：只读记录、清单和目录。
 
 ### 5.3 回退做什么
 
 `molis-work home rollback --confirm [--save-current <目录>] [--home <Home>] [--json]`，离线、持存储主人锁，按顺序：
 
-1. 取锁（`acquireStorageOwner`，不升级）；有未完成的 `home restore` 或升级就拒绝。再读一次回退点，`available: false` 就停，什么都不动。
-2. `--save-current` 时先做一次离线快照（`home snapshot` 的同一个编排，到给定目录）。失败就停，什么都不动。
-3. `data: "restore"`：按快照清单把每个 `committed` 单元放回（U1 §5.2 的放回步骤：核摘要、删 `-wal`／`-shm`／`-journal`、临时文件、fsync、rename、再核摘要）。中途失败：已经放回的不再退（它们都是完整的旧版），记录写 `rolling_back`，下次 `home rollback` 接着做；程序不换，回退不算完成。
+1. `--save-current` 时先读一次回退点，不能回就停（免得白存一份整个 Home）；能回就先做一次离线快照（`home snapshot` 的同一个编排，到给定目录，它自己取锁、放锁）。失败就停，什么都不动。
+2. 取锁（`acquireStorageOwner`，不升级）；有未完成的 `home restore` 就拒绝。再读一次回退点，`available: false` 就停（`installer.rollback.unavailable`，`details.reason` 是原因），什么都不动。
+3. `data: "restore"`：先逐个核快照摘要，有一个对不上就整件不做；再删戳记，按清单把每个 `committed` 单元放回（U1 §5.2 的放回步骤）。中途失败：已经放回的不再退（它们都是完整的旧版），程序不换、回退点还在，再跑一次 `home rollback` 从头核、从头放，结果一样（实现时改：不另写 `rolling_back` 状态，放回本身可重复）。
 4. 换程序：当前发布目录 rename 到 `releases/.rolled-back-<run>`；`releases/previous/release/` rename 回 `releases/molis-work-<旧版本>`；`config/installation.json` 换成 `previous/installation.json`；重写启动器（`bin/`）。和安装器的提升同一套原子换目录。完成后删 `.rolled-back-*` 与 `previous/`（回退之后不能再「回到上一版」的上一版）。
-5. 删升级戳记（下次启动全量扫一遍，旧程序见到的都是它的版本）；写 `config/rollback-hold.json`：`{ schema_version: 1, held_version, held_digest, rolled_back_from: { version, content_digest }, at }`（`format.home.release.rollback_hold` 第 1 版）。
+5. 戳记在第 3 步已删（下次启动全量扫一遍，旧程序见到的都是它的版本）；写 `config/rollback-hold.json`：`{ schema_version: 1, held_version, held_digest, rolled_back_from: { version, content_digest }, at }`（`format.home.release.rollback_hold` 第 1 版）。
 6. 放锁。
 
-**停在上一版**：桌面（`embedded_runtime_upgrade_available`）见到 `rollback-hold.json` 且内置运行时的版本或摘要等于 `rolled_back_from`，就不装进 Home，只在设置 › 更新写「已回到上一版 <版本>；需要时可以更新到最新版」。用户点「更新到最新版」（第 26 批接更新器；本批这一处按钮做的是「重新装上刚才那一版」：删掉 hold，下次启动照常装内置运行时）。内置运行时比 `rolled_back_from` 还新（真的出了新版）时照常装，并删 hold。
+**停在上一版**：桌面（`embedded_runtime_upgrade_available`）见到 `rollback-hold.json` 且内置运行时的版本或摘要等于 `rolled_back_from`，就不装进 Home，只在设置 › 更新写「已回到上一版 <版本>；需要时可以更新到最新版」。用户点「更新到最新版」（第 26 批接更新器；本批这一处按钮做的是「重新装上刚才那一版」：删掉 hold，下次启动照常装内置运行时）。内置运行时比 `rolled_back_from` 还新（真的出了新版）时照常装；任何一次真的换了程序的安装都删 hold（能走到安装，就是人或新版本要换了）。
 
 ### 5.4 从界面回退
 
@@ -177,18 +180,18 @@ type RollbackPoint =
 | 描述符加 `block`；`describeUnavailable`；诊断号；日志加号 | `apps/local-host/src/platform-upgrade-stores.ts`、`home-upgrade-stores.ts`、`home-upgrade.ts`、新文件 `home-unavailable-owners.ts` | C1（宿主启动，按枢纽文件处理） |
 | 说明卡、插件格的说明、页面恢复 | `apps/workbench/src/`（新 `owner-unavailable.ts`，`plugin-store-unavailable.ts` 并入）、`unavailable-plugin-stage.ts`、`apps/local-host/src/web-request.ts`、`web-home-plugin-recovery.ts`（改名 `web-owner-unavailable.ts`）、`project-plugin-stages.ts`、`home-plugin-http.ts` | D（界面）、宿主枢纽 |
 | 开场页、`/upgrade-progress` | `apps/local-host/src/upgrade-maintenance.ts` | C1 |
-| 结果卡、`seen.json` | `apps/local-host/src/home-upgrade-ledger.ts`、首页 | C1、D |
+| 结果卡、`notice.json` | `apps/local-host/src/home-upgrade-ledger.ts`、首页 | C1、D |
 | 回退点、`home rollback`、保留上一版、hold | `apps/local-host/src/installer/`（`home.ts`、`home-release.ts`、新 `home-rollback.ts`）、`apps/cli` | F（安装器） |
 | 桌面：`rollback_to_previous`、hold、开场导航 | `apps/desktop/adapters/tauri/src/web_service.rs`、`main.rs`、`capabilities/*.json` | F |
 | 设置 › 更新（当前版本、回到上一版；演练与「重启以更新」第 26 批） | `apps/workbench/src/settings-update.ts`（新） | D |
 
-不新增动作、Manifest 字段或公开合同：`block` 和不可用表都是宿主内部；`home rollback` 是 CLI 命令；桌面命令走 Tauri。三个新带版本文件（`seen.json`、`rollback.json`、`rollback-hold.json`）登记进 `tooling/versions.json`，走 `verify-release-versions` 的核对。
+不新增动作、Manifest 字段或公开合同：`block` 和不可用表都是宿主内部；`home rollback` 是 CLI 命令；桌面命令走 Tauri。三个新带版本文件（`upgrade/notice.json`、`rollback.json`、`rollback-hold.json`）登记进 `tooling/versions.json`，走 `verify-release-versions` 的核对。
 
 ## 7. 安全与边界
 
 - 回退只读可信 Home 推出的路径：快照清单里的 `relative_path` 只用来和当前描述符对上，真实路径现算（S-upgrade-ledger-verified 的同一条）。`releases/previous/` 用 `lstat` 核是普通目录，不跟符号链接。
 - `rollback_to_previous` 只开给主窗口在本机地址上的主文档；Capsule 等别的窗口调用就拒绝（新不变量 `S-desktop-rollback-main-only`，拒绝测试在 Rust 单元测试里）。
-- `/upgrade-progress` 只有数字（新不变量 `S-upgrade-progress-numbers-only`：响应体的键只有那四个，测试断言拒绝多出来的字段和非回环 Host）。
+- `/upgrade-progress` 只有数字：并进维护态监听已有的不变量 `S-upgrade-maintenance-listener`（开场页与进度都在那个监听上，同一组 Host/Origin 拒绝），测试断言响应体的键只有那四个、开场页不带令牌和库名（实现时改，不另立一条）。
 - 回退被拒、或中途失败，都不写任何业务数据；另存失败就整件不做。
 
 ## 8. 验收

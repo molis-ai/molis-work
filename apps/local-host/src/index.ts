@@ -2,6 +2,7 @@ export { accountSessionForHost } from "./account-host.js";
 export {syncDocumentFiles} from './sync-document-files.js';
 export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type RuntimeProjectCopyInput } from "./runtime-project-copy.js";
 export { installMolisWorkHome } from "./installer/home.js";
+export { keepPreviousRelease, readRollbackHold, readRollbackPoint, rollbackErrors, rollbackHome, type RollbackPoint, type RollbackResult } from "./installer/home-rollback.js";
 export {openProjectCopyJournal} from './project-copy-journal.js';
 
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";

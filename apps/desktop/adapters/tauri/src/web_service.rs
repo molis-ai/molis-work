@@ -160,7 +160,30 @@ fn read_runtime_version(path: &Path) -> Option<Version> {
     Version::parse(metadata.version.trim()).ok()
 }
 
-fn embedded_version_is_upgrade(embedded: &Version, installed: Option<&Version>) -> bool {
+#[derive(Deserialize)]
+struct RollbackHold {
+    schema_version: u32,
+    rolled_back_from: RuntimeVersionMetadata,
+}
+
+/// After `home rollback` (upgrade-continuity U3 §5.3), the version the Home came back from: the desktop does not put it back on its own.
+fn read_rollback_hold(home: &Path) -> Option<Version> {
+    let path = home.join("config").join("rollback-hold.json");
+    let hold = serde_json::from_slice::<RollbackHold>(&fs::read(path).ok()?).ok()?;
+    if hold.schema_version != 1 {
+        return None;
+    }
+    Version::parse(hold.rolled_back_from.version.trim()).ok()
+}
+
+fn embedded_version_is_upgrade(
+    embedded: &Version,
+    installed: Option<&Version>,
+    held: Option<&Version>,
+) -> bool {
+    if held.is_some_and(|held| embedded <= held) {
+        return false;
+    }
     installed.map(|version| embedded > version).unwrap_or(true)
 }
 
@@ -172,7 +195,11 @@ fn embedded_runtime_upgrade_available(resource_dir: &Path, home: &Path) -> bool 
         return false;
     };
     let installed_version = read_runtime_version(&home.join("config").join("installation.json"));
-    embedded_version_is_upgrade(&embedded_version, installed_version.as_ref())
+    embedded_version_is_upgrade(
+        &embedded_version,
+        installed_version.as_ref(),
+        read_rollback_hold(home).as_ref(),
+    )
 }
 
 fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), String> {
@@ -401,7 +428,7 @@ pub(crate) fn start_molis_work_web(
 #[cfg(test)]
 mod embedded_runtime_version_tests {
     use super::{
-        embedded_version_is_upgrade, install_or_reuse_healthy,
+        embedded_version_is_upgrade, install_or_reuse_healthy, read_rollback_hold,
         sync_managed_web_service_after_upgrade, Version,
     };
     use std::{
@@ -432,10 +459,46 @@ mod embedded_runtime_version_tests {
         let current = Version::parse("0.1.5").unwrap();
         let newer = Version::parse("0.1.6").unwrap();
 
-        assert!(embedded_version_is_upgrade(&current, None));
-        assert!(embedded_version_is_upgrade(&newer, Some(&current)));
-        assert!(!embedded_version_is_upgrade(&current, Some(&current)));
-        assert!(!embedded_version_is_upgrade(&old, Some(&current)));
+        assert!(embedded_version_is_upgrade(&current, None, None));
+        assert!(embedded_version_is_upgrade(&newer, Some(&current), None));
+        assert!(!embedded_version_is_upgrade(&current, Some(&current), None));
+        assert!(!embedded_version_is_upgrade(&old, Some(&current), None));
+    }
+
+    #[test]
+    fn upgr04_a_home_that_went_back_is_not_updated_again_to_the_version_it_left() {
+        let old = Version::parse("0.1.4").unwrap();
+        let left = Version::parse("0.1.5").unwrap();
+        let newer = Version::parse("0.1.6").unwrap();
+
+        assert!(!embedded_version_is_upgrade(&left, Some(&old), Some(&left)));
+        assert!(
+            embedded_version_is_upgrade(&newer, Some(&old), Some(&left)),
+            "a later version installs as usual"
+        );
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let home =
+            std::env::temp_dir().join(format!("molis-rollback-hold-{}-{nonce}", process::id()));
+        fs::create_dir_all(home.join("config")).unwrap();
+        assert_eq!(read_rollback_hold(&home), None);
+        let hold = home.join("config").join("rollback-hold.json");
+        fs::write(&hold, r#"{"schema_version":1,"held_version":"0.1.4","rolled_back_from":{"version":"0.1.5","content_digest":"x"},"at":"t"}"#).unwrap();
+        assert_eq!(read_rollback_hold(&home), Some(left));
+        fs::write(
+            &hold,
+            r#"{"schema_version":2,"rolled_back_from":{"version":"0.1.5"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_rollback_hold(&home),
+            None,
+            "a hold this build cannot read holds nothing"
+        );
+        fs::remove_dir_all(home).unwrap();
     }
 
     #[test]

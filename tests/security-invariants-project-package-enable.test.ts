@@ -148,7 +148,11 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
   const originalWords = remembered();
   assert.ok(originalWords, "the original signed method and role are remembered");
   const agent = homeAgentDefinitions(h.home);
-  const offered = () => agent.methods().filter(method => method.owner_id === PACKAGE_PLUGIN_ID);
+  // Live material: the signed roles a round may be handed, then the methods, each with the installation that offers it.
+  const offered = () => [
+    ...agent.signedRoles().filter(role => role.owner_id === PACKAGE_PLUGIN_ID).map(({ name, install_id }) => ({ kind: "role", name, install_id })),
+    ...agent.methods().filter(method => method.owner_id === PACKAGE_PLUGIN_ID).map(({ name, install_id }) => ({ kind: "method", name, install_id })),
+  ];
   const editable = () => agent.registrations().find(registration => registration.owner_id === PACKAGE_PLUGIN_ID);
   const disabled = editable();
   assert.equal(disabled?.source.kind === "plugin" && disabled.source.state, "disabled");

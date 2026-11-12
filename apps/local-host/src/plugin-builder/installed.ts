@@ -73,11 +73,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   const localePacks = sandboxTextPacks(words);
   const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
-  const lanes = new Map<Lane, Promise<SandboxRunner>>();
-  let background: SandboxBackgroundLane | undefined;
+  const lanes = new Map<Lane, Promise<SandboxRunner>>(); let background: SandboxBackgroundLane | undefined;
   const packaged = release.packaged, bodies = packaged?.agentBodies;
-  const definition: PluginDefinition = {
-    manifest,
+  const definition: PluginDefinition = { manifest,
     ...(instructions ? { instructions } : {}),
     ...(packaged && bodies ? {
       agent_prompt_names: Object.fromEntries(bodies.filter(item => item.kind === 'role').map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
@@ -122,19 +120,16 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: allowed, services,
           identity, localePacks });
-        lanes.set(lane, created);
-        created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
+        lanes.set(lane, created); created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
         return created;
       };
       // A bundle that cannot start fails the installation, not the person's first click.
       await open('quick');
-      const contribution: PluginAppContribution = {
-        kind: 'app',
+      const contribution: PluginAppContribution = { kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
           let outcomeUnknown = false, refused: unknown;
           try {
-            const body = isRecord(request.body) ? request.body : {};
-            const raw = Object.hasOwn(body, 'operation');
+            const body = isRecord(request.body) ? request.body : {}, raw = Object.hasOwn(body, 'operation');
             if (body.binding === 'submit' || raw && (!request.execution || Object.keys(body).some(key => key !== 'operation' && key !== 'input')))
               throw new ActionError('actions.forbidden', '已安装组件的提交须经原页面动作网关');
             const node = raw ? undefined : release.nodes.find(item => item.id === body.componentId);
@@ -156,8 +151,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
                 throw new SandboxError('plugin_builder.capability_denied', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
               }
             }
-            const binding = capabilityPolicyBinding(effects, capabilities);
-            let policyChanged = false;
+            const binding = capabilityPolicyBinding(effects, capabilities); let policyChanged = false;
             const beforeEffect = async () => {
               await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
               if (!host.capabilities || !dependencies.length) return;

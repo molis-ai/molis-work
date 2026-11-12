@@ -58,8 +58,9 @@ export async function installedPackageHost() {
     const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
   };
-  const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
-    { plugins: ProjectPluginInstalledView[] }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  const rows = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
+    { plugins: ProjectPluginInstalledView[] }).plugins;
+  const plugins = async () => (await rows()).filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   // Taking a plugin off is the project settings door's alone (S-94, BL-915): the fixture sends it through that door's real route, as the 插件 page does.
   let door: Promise<{ server: Server; origin: string }> | undefined;
   const settingsDoor = () => door ??= new Promise((resolve, reject) => {
@@ -79,7 +80,7 @@ export async function installedPackageHost() {
   /** The person switches a signed-package plugin off or on, or takes it off (BL-623). */
   const control = async (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget }) => {
     if (action === "enable") {
-      const row = (await plugins()).find(item => item.plugin_id === input.plugin_id);
+      const row = (await rows()).find(item => item.plugin_id === input.plugin_id);
       assert.ok(row);
       return host.actionClient(reference).invoke(person, pluginControlActions.enable, { plugin_id: input.plugin_id, expected_installation: projectInstallation(row) });
     }

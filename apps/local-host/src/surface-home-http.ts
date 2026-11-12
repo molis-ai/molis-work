@@ -34,6 +34,12 @@ type Intent = { kind: "read"; home_order?: string[] } | { kind: "click"; owner: 
 const invalid = () => new ActionError("actions.input_invalid", "首页请求无效");
 const changed = () => new ActionError("actions.provider_changed", "原首页卡片已变化，请重新读取");
 const unknown = (cause: unknown) => new ActionError("actions.outcome_unknown", "操作已执行，但原首页或授权已变化，请检查结果", { cause });
+
+/** One home card click: who clicked in which project and runtime, the request's transport fence, and where the answer goes. */
+interface HomeClick {
+  owner: MolisWorkLocalHost; project: LocalHostProjectReference; runtime: MolisWorkProjectRuntime; caller: ActionCallContext; client: ActionClient;
+  prefix: string; transport: ReturnType<typeof pluginRouteControl>; deliver(value: unknown): void;
+}
 function homeIntent(body: Record<string, unknown>, click: boolean): Intent {
   if (!isRecord(body)) throw invalid();
   if (click) {
@@ -64,9 +70,8 @@ function exactClickClient(client: ActionClient, caller: ActionCallContext, view:
     user_action: { source: "web", conversation_ref: `web:${caller.project_id}`, message_ref: `web:request:${randomUUID()}` } }));
 }
 
-async function enablePackage(client: ActionClient, caller: ActionCallContext, runtime: MolisWorkProjectRuntime, entry: HomeDirectoryEntry,
-  target: Extract<SurfaceHomeEnable, { kind: "project_installation" }>, view: ActionView, transport: ReturnType<typeof pluginRouteControl>,
-  assertOfferCurrent: () => void, deliver: (value: unknown) => void) {
+async function enablePackage({ client, caller, runtime, transport, deliver }: HomeClick, entry: HomeDirectoryEntry,
+  target: Extract<SurfaceHomeEnable, { kind: "project_installation" }>, view: ActionView, assertOfferCurrent: () => void) {
   const records = pluginInstallRecords(runtime.store.db);
   const assertCurrent = () => {
     requireSynchronous(transport.assert_authority_current?.());
@@ -91,9 +96,8 @@ async function enablePackage(client: ActionClient, caller: ActionCallContext, ru
  * transaction. Once the member is shown again only the edition is checked: the Runtime may already be starting it, and a member someone
  * else saved meanwhile has moved the revision, which Projects refuses.
  */
-async function enableMembership(owner: MolisWorkLocalHost, project: LocalHostProjectReference, runtime: MolisWorkProjectRuntime, entry: HomeDirectoryEntry,
-  target: Extract<SurfaceHomeEnable, { kind: "project_membership" }>, transport: ReturnType<typeof pluginRouteControl>,
-  card: { assertCurrent(): void; isShownMember(member: string): boolean }, deliver: (value: unknown) => void) {
+async function enableMembership({ owner, project, runtime, transport, deliver }: HomeClick, entry: HomeDirectoryEntry,
+  target: Extract<SurfaceHomeEnable, { kind: "project_membership" }>, card: { assertCurrent(): void; isShownMember(member: string): boolean }) {
   const member = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === entry.plugin.plugin_id && item.project_runtime)?.project_plugin_id;
   if (!member) throw changed();
   const records = pluginInstallRecords(runtime.store.db);
@@ -114,9 +118,8 @@ async function enableMembership(owner: MolisWorkLocalHost, project: LocalHostPro
   deliver({ kind: "enabled" });
 }
 
-async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: HomeReadSample, owner: MolisWorkLocalHost, project: LocalHostProjectReference,
-  runtime: MolisWorkProjectRuntime, caller: ActionCallContext, client: ActionClient, prefix: string, transport: ReturnType<typeof pluginRouteControl>,
-  deliver: (value: unknown) => void) {
+async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: HomeReadSample, click: HomeClick) {
+  const { runtime, caller, client, prefix, transport, deliver } = click;
   const object = homeObjectClick(intent.target, intent.owner, sample);
   if (object) {
     const fallback = object.item && assertHomeDisplayReader(sample, object.entry, object.item);
@@ -151,12 +154,12 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   const action = target.action;
   const view = [...sample.views].find(item => item.capability_id + "@" + item.version === action.ref && item.provider.provider_id === action.provider_id);
   if (!view) throw changed();
-  if (target.kind === "project_installation") return enablePackage(client, caller, runtime, entry, target, view, transport, () => {
+  if (target.kind === "project_installation") return enablePackage(click, entry, target, view, () => {
     sample.actionsCurrent?.(); sample.catalog.assertVisiblePackage(intent.owner);
-  }, deliver);
-  if (target.kind === "project_membership") return enableMembership(owner, project, runtime, entry, target, transport, {
+  });
+  if (target.kind === "project_membership") return enableMembership(click, entry, target, {
     assertCurrent() { sample.actionsCurrent?.(); sample.catalog.assertCurrent(); }, isShownMember: member => sample.catalog.isShownMember(member),
-  }, deliver);
+  });
   assertStageInstallation(entry.installation.scope, entry.record, target.installation);
   if (view.provider.plugin_id !== intent.owner || view.provider.plugin_install_id !== entry.installation.install_id || view.action.scope !== entry.installation.scope) throw changed();
   if (target.kind === "form") return deliver(stageNavigation(entry, target, prefix));
@@ -220,7 +223,7 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
           const current = () => { requireSynchronous(transport.assert_authority_current?.()); sample.assertCurrent(); };
           const result = await preparePositionPlacement(sample, context, object.item, intent.target.kind, object.revision, { window }, current);
           current(); deliverCurrent(result);
-        } else await clickHomeCard(intent, sample, owner, reference, runtime, caller, client, prefix, transport, deliverCurrent);
+        } else await clickHomeCard(intent, sample, { owner, project: reference, runtime, caller, client, prefix, transport, deliver: deliverCurrent });
         return true;
       } finally { deadline?.dispose(); }
     }, window);

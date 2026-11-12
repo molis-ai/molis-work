@@ -155,16 +155,9 @@ export class HomePluginHost {
   async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {},
     control?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<readonly PluginRetainedItem[]> {
     const change = async (assertOpen?: () => void): Promise<readonly PluginRetainedItem[]> => {
-      const assertCurrent = () => {
-        assertOpen?.();
-        input.assertCurrent?.();
-        control?.signal?.throwIfAborted();
-        requireSynchronous(control?.assert_authority_current?.());
-      };
-      await control?.beforeEffect?.();
-      assertCurrent();
-      const installed = this.installed;
-      if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+      const assertCurrent = () => { assertOpen?.(); input.assertCurrent?.(); control?.signal?.throwIfAborted(); requireSynchronous(control?.assert_authority_current?.()); };
+      await control?.beforeEffect?.(); assertCurrent();
+      const installed = this.installed; if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
       // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read; the row is found and checked there.
       if (action === "uninstall") { const retained = await installed.uninstall(pluginId, { ...input, assertCurrent }); await installed.refreshPublicActions(); return retained; }
       const record = installed.recordFor(pluginId);
@@ -173,12 +166,10 @@ export class HomePluginHost {
       const release = installed.packageOf(pluginId);
       if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
       await installed.lifecycle(action, release, { ...input, assertCurrent });
-      await installed.refreshPublicActions();
-      return [];
+      await installed.refreshPublicActions(); return [];
     };
     if (action !== "disable") return this.installationScope.run(change);
-    await this.ready();
-    return change();
+    await this.ready(); return change();
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }

@@ -45,7 +45,7 @@ export const PAIRED_LATENCY_PLAN = Object.freeze({
   /** Arm identity is pinned, not taken from the label: B1 frozen tool tree and SDK, B2 the current SDK on any other head. */
   arms: {
     B1: { head: "5e47ed2bc369c8c0123c651b4e2a70fa0e1f2665", sdkCommit: "753dbae8359e56a74397d030af4d18abf402d5b5" },
-    B2: { sdkCommit: "1128126de14e9209152f7dc36d152991fb933aea" },
+    B2: { sdkCommit: "770a2e27bd96f51377842d289d18a0678c84e408" },
   },
 });
 const CLIFF_SIZE = 2000;

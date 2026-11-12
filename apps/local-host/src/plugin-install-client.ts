@@ -5,7 +5,7 @@ import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { PLUGIN_INSTALL_PATH } from "./plugin-install-gateway.js";
 import { resolveConfiguredHome } from "./product-home.js";
-import { DEFAULT_RESIDENT_HOST_URL, RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
+import { RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostAddress, residentHostOrigin } from "./resident-host-request.js";
 
 export interface LocalPluginInstallInput {
   bundle_path: string;
@@ -24,7 +24,7 @@ export interface LocalPluginInstallInput {
  */
 export async function runLocalPluginInstall(input: LocalPluginInstallInput): Promise<Record<string, unknown>> {
   const home = input.home ?? resolveConfiguredHome();
-  const address = process.env[RESIDENT_HOST_URL_ENV]?.trim() || DEFAULT_RESIDENT_HOST_URL;
+  const address = residentHostAddress(home);
   let bundle: unknown;
   try { bundle = JSON.parse(await readFile(input.bundle_path, "utf8")); }
   catch { throw pluginErrors.package_invalid(`读不了插件包文件：${input.bundle_path}`); }

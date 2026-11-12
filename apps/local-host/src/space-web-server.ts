@@ -1,4 +1,5 @@
 import { WebSessions, webRequestAuthenticated, webPageToken, webPageScope, withWebSessionRequest, revokeWebSession } from "./web-sessions.js";
+import { attachHostPresence } from "./host-endpoint.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 import { WEB_ACCOUNT_COOKIE, type WebAccountSession } from "./personal-web-sessions.js";
@@ -435,6 +436,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
     }));
   }));
   bindSpaceSockets(server,sessions,{surface,selection,attach});
+  attachHostPresence(server,home);
   timer=setInterval(sweep,1000);timer.unref();
   shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);sessions.close();loginSessions.close();stop();},
     async()=>{await releaseRetired(true);await account.drained();});

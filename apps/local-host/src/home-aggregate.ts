@@ -47,7 +47,7 @@ const closing = (error: unknown) => codeOf(error) === "host.project_closing";
 const same = (a: ActionReference, b: Required<ActionReference>) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 
 /** One slow provider cannot keep the Home waiting or hold another project's answer behind it. */
-async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: 2_000, reason: new ActionError("actions.timeout", "首页读取超时，请重试") } });
   try { lifetime.assertActive(); return await lifetime.wait(work(lifetime.signal)); }
   finally { lifetime.dispose(); }

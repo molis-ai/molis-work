@@ -13,6 +13,7 @@ import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_
 import { AGENT_DEFINITIONS_HOME_STORE } from "./agent-definitions/agent-definitions.js";
 import { AGENT_DECLARATIONS_HOME_STORE } from "./agent-definitions/agent-declarations.js";
 import { ALCHEMIST_HOME_STORE } from "./alchemist-paths.js";
+import { RUN_HOME_STORE } from "./host-presence.js";
 import { UPGRADE_DIRECTORY } from "./home-upgrade-ledger.js";
 import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
 import { CONNECTOR_TOOLS_HOME_STORE } from "./connector-tool-download.js";
@@ -54,6 +55,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     // the first time something writes or runs there. A snapshot carries none of it and a restore leaves it as it is (SSC-23); purge clears it.
     ...owned("modules/projects", { path: "outputs", snapshot: omittedSnapshot("Files in each project's default output directory stay where they are", "preserve") }),
     ...owned("apps/local-host", { path: UPGRADE_DIRECTORY, snapshot: omittedSnapshot("Upgrade snapshots and progress", "reset") }),
+    // The running Host's own address file and presence record (resident-runtime-design §3, §6): about this run, not data to carry.
+    ...owned("apps/local-host", { ...RUN_HOME_STORE, snapshot: omittedSnapshot("Where the running Host listens and when it was not running", "reset") }),
     ...owned("apps/local-host",
       { path: "spaces", snapshot: omittedSnapshot("Each account space has its own Home and storage authority", "preserve") },
       { path: "storage-space.json", snapshot: omittedSnapshot("The original Home owns its immutable space identity", "preserve") },

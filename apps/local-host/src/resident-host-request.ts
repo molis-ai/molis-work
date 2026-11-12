@@ -5,6 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { NATIVE_SESSION_HEADER } from "./personal-native-session.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
+import { homeHostUrl } from "./host-endpoint.js";
 
 /**
  * Where a process that only forwards (the stdio MCP, the CLI) looks for its Home's resident Host when nothing says otherwise.
@@ -12,6 +13,11 @@ import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
  */
 export const DEFAULT_RESIDENT_HOST_URL = "http://127.0.0.1:4173";
 export const RESIDENT_HOST_URL_ENV = "MOLIS_WORK_WEB_URL";
+
+/** The address to ask this Home's Host at: `MOLIS_WORK_WEB_URL`, else the port in the Home's address file, else the default. */
+export function residentHostAddress(homeDirectory: string | undefined): string {
+  return process.env[RESIDENT_HOST_URL_ENV]?.trim() || homeHostUrl(homeDirectory);
+}
 
 /**
  * The address a forwarding process may ask: a numeric loopback HTTP origin, nothing else. This is the one place that rule is

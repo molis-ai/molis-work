@@ -6,6 +6,7 @@ import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/m
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
+import { handleRuntimeOverviewHttp } from "./runtime-overview-http.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
@@ -145,6 +146,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     sendJson(response, 200, { status: "ok", process_id: process.pid, service_process_id: serviceProcessId(), project_count: projects.length, desktop_tui: true });
     return true;
   } },
+  // What runs on its own here and what was missed, from every owner that declares the runs types (resident-runtime-design §2.2).
+  { id: "runtime-overview", handle: ({ request, response, url, serverOptions, localHost }) => handleRuntimeOverviewHttp(request, response, url, localHost, serverOptions.homeDirectory) },
   // U3 §3: the person closed the notice that an interrupted upgrade was finished; it is gone for that round only.
   { id: "upgrade-notice", handle: async ({ request, response, url, serverOptions }) => {
     if (!(request.method === "POST" && url.pathname === "/api/upgrade/notice/dismiss" && serverOptions.homeDirectory)) return false;

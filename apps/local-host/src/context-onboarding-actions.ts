@@ -38,7 +38,9 @@ export const contextOnboardingActions = {
   start: door.define({ capability_id: "onboarding.context.start", version: /* @version action.onboarding.context.start */ 1, scope, metered: true,
     title: "开始整理", description: "首次引导：进入读取阶段并在后台整理这一轮的来源。",
     input_schema: { type: "object", properties: { journey }, required: ["journey"], additionalProperties: false } },
-  (entry, input) => startContextJourney(entry.home, input.journey, entry.ports)),
+  // The round the start wrote, as it was then: the background job goes on with the same object (and may fail it at once), while the
+  // answer is read only after the action returns.
+  (entry, input) => structuredClone(startContextJourney(entry.home, input.journey, entry.ports))),
   reopen: door.define({ capability_id: "onboarding.context.reopen", version: /* @version action.onboarding.context.reopen */ 1, scope,
     title: "回到选择来源", description: "首次引导：这一轮回到选择阶段。",
     input_schema: { type: "object", properties: { journey }, required: ["journey"], additionalProperties: false } },

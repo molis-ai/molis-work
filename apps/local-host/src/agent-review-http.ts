@@ -6,9 +6,11 @@ import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest } 
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderAgentReviewSurface, renderAgentReviewRecovery } from "@molis-ai/molis-work-app-workbench";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { confirmArrivedTooSoon, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
+import { computerErrors } from "./computer/computer-errors.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -40,6 +42,12 @@ interface ReviewEntry { readonly ports: AgentReviewHttpPorts; readonly page: Ret
 const door = webEntryDoor<ReviewEntry>("agent:reviews", "审批只接受本人在审批入口的操作");
 const reviewId = { type: "string", minLength: 1, maxLength: 200 } as const;
 const missing = (message: string) => new ActionError("actions.missing", message);
+const REVIEW_CONFLICT = "agent.review_conflict";
+/** A decision or a check that cannot be recorded (decided, expired, cancelled, too soon, nothing to check against) is a conflict, not a fault. */
+const conflict = (error: unknown, fallback: string) => {
+  const code = (error as { code?: unknown } | null)?.code;
+  return new ActionError(typeof code === "string" ? code : REVIEW_CONFLICT, error instanceof Error && error.message ? error.message : fallback, { kind: "conflict", cause: error });
+};
 
 export const agentReviewActions = {
   decide: door.define({ capability_id: "agent.reviews.decide", version: /* @version action.agent.reviews.decide */ 1, scope: "home",
@@ -52,12 +60,14 @@ export const agentReviewActions = {
     const projectId = page ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
     if (!review || review.project_id !== projectId) throw missing("找不到这条待审操作");
     if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, ports.now?.() ?? Date.now())) {
-      throw Object.assign(new Error("这一步刚落到屏幕上，助理不能马上批准自己"), { code: "computer.self_approval" });
+      throw computerErrors.self_approval("这一步刚落到屏幕上，助理不能马上批准自己");
     }
     await ports.agentHost.reviews.refresh(projectId);
-    page?.assertCurrent();
-    return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, decision: input.decision, actor_id: ports.actorId,
-      ...(input.note ? { note: input.note } : {}), ...(input.remember ? { remember: input.remember } : {}) }) };
+    try {
+      page?.assertCurrent();
+      return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, decision: input.decision, actor_id: ports.actorId,
+        ...(input.note ? { note: input.note } : {}), ...(input.remember ? { remember: input.remember } : {}) }) };
+    } catch (error) { throw conflict(error, "这条待审操作已经不能再决定"); }
   }),
   recover: door.define({ capability_id: "agent.reviews.recover", version: /* @version action.agent.reviews.recover */ 1, scope: "home",
     title: "核对一项结果未知的原操作", description: "本人按原执行记录重新核对，或在确认后记下原操作没有发生。",
@@ -67,17 +77,19 @@ export const agentReviewActions = {
     await ports.agentHost.reviews.refresh(ports.projectId);
     page?.assertCurrent();
     if (ports.agentHost.reviews.get(input.review_id)?.project_id !== ports.projectId) throw missing("找不到此项目的原操作");
-    if (!ports.observeGitIndex) throw new Error("当前暂存区核对尚未接通");
-    if (input.action === "not-happened" && input.confirmed !== true) throw new Error("请明确确认原操作未发生");
-    return { view: await ports.agentHost.reviews.recover({ review_id: input.review_id, action: input.action, actor_id: ports.actorId,
-      ...(input.revision !== undefined ? { revision: input.revision } : {}), ...(input.reason !== undefined ? { reason: input.reason } : {}) }, ports.observeGitIndex) };
+    const observe = ports.observeGitIndex;
+    try {
+      if (!observe) throw new Error("当前暂存区核对尚未接通");
+      if (input.action === "not-happened" && input.confirmed !== true) throw new Error("请明确确认原操作未发生");
+      return { view: await ports.agentHost.reviews.recover({ review_id: input.review_id, action: input.action, actor_id: ports.actorId,
+        ...(input.revision !== undefined ? { revision: input.revision } : {}), ...(input.reason !== undefined ? { reason: input.reason } : {}) }, observe) };
+    } catch (error) { throw conflict(error, "无法核对原操作"); }
   }),
 };
 export const agentReviewProvider = () => webEntryProvider("system.agent-reviews", "审批", Object.values(agentReviewActions));
 const asPerson = (request: IncomingMessage, ports: AgentReviewHttpPorts) => ({ host: ports.host, request, entry: { ports, page: pluginPageRequest(request) } });
-/** A decision that cannot be recorded (gone, decided, expired, cancelled, too soon) is not a server fault and must not read as success. */
-const refusal = (error: unknown) => ({ status: (error as { code?: string }).code === "actions.missing" ? 404 : 409,
-  message: error instanceof Error ? error.message : "", code: (error as { code?: string }).code });
+/** What went wrong, answered with the status its kind gives (gone 404, conflict 409, refused 403): it must not read as success. */
+const refuse = (response: ServerResponse, error: unknown) => { const refusal = actionErrorResponse(error); sendLocalWebJson(response, refusal.status, refusal.body); };
 
 const STATUSES: readonly AgentReviewStatus[] = [
   "pending", "approved", "rejected", "cancelled", "expired",
@@ -100,7 +112,7 @@ export async function handleAgentReviewHttp(
           ...(typeof body.confirmed === "boolean" ? { confirmed: body.confirmed } : {}),
           ...(typeof body.revision === "string" ? { revision: body.revision } : {}), ...(typeof body.reason === "string" ? { reason: body.reason } : {}) });
         sendLocalWebJson(response, 200, { view, html: renderAgentReviewRecovery(view, escape) });
-      } catch (error) { const failed = refusal(error); sendLocalWebJson(response, failed.status, { error: failed.message || "无法核对原操作" }); }
+      } catch (error) { refuse(response, error); }
       return true;
     }
     await ports.agentHost.reviews.refresh(ports.projectId);
@@ -176,11 +188,7 @@ export async function handleAgentReviewHttp(
       sendLocalWebJson(response, 200, await door.invoke(asPerson(request, ports), agentReviewActions.decide.definition, { review_id: reviewId, decision,
         ...(typeof body.note === "string" && body.note !== "" ? { note: body.note } : {}),
         ...(body.remember === "session" || body.remember === "app-this-round" ? { remember: body.remember } : {}) }));
-    } catch (error) {
-      const failed = refusal(error);
-      sendLocalWebJson(response, failed.status, failed.status === 404 ? { error: failed.message }
-        : { error: failed.message || "这条待审操作已经不能再决定", code: failed.code ?? "agent.review_conflict" });
-    }
+    } catch (error) { refuse(response, error); }
     return true;
   }
 

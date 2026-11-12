@@ -1,10 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding,
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding,
   type ActionProviderRegistration, type ActionSchema, type ActionUserAction, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { captureWebSessionAuthority } from "./web-sessions.js";
+import { pageLocale } from "./web-locale.js";
 import { issueWebEntryAction, revokeWebEntryAction } from "./plugin-consent-settings-entry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
@@ -36,8 +37,9 @@ export interface WebEntryActionSpec<S extends ActionSchema> {
 }
 
 export interface WebEntryCall<Entry> {
-  readonly host: MolisWorkLocalHost;
-  readonly request: IncomingMessage;
+  readonly host: Pick<MolisWorkLocalHost, "actionClient" | "homeActionClient">;
+  /** Only its headers are read: the one-time key names the act in the audit locator. */
+  readonly request: Pick<IncomingMessage, "headers">;
   readonly reference?: LocalHostProjectReference;
   readonly entry: Entry;
   readonly original_file?: ActionCallContext["original_file"];
@@ -67,9 +69,21 @@ export function webEntryDoor<Entry>(scope: string, refusal: string): WebEntryDoo
       const user_action: ActionUserAction = Object.freeze(entryUserAction("web", scope, webEntryMessage(call.request)));
       issued.set(user_action, { entry: call.entry, project_id: call.reference?.project_id ?? null });
       issueWebEntryAction(user_action);
+      // The door's actions are the Host's own, need no permission and are called by exact identity: the person's call reaches that one
+      // action and nothing else, without working out the person's whole directory per request (`invokeLocalWebCatalogAction` likewise).
+      const sessionCurrent = captureWebSessionAuthority(), locale = pageLocale();
+      const assertAuthority = (target?: ActionReference) => {
+        sessionCurrent();
+        call.signal?.throwIfAborted();
+        if (target && (target.capability_id !== definition.capability_id || target.version !== definition.version)) throw new ActionError("actions.forbidden", refusal);
+      };
+      assertAuthority();
+      const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: call.reference?.project_id ?? null, audience: "user",
+        permissions: [], user_action, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version }],
+        ...(locale ? { locale } : {}), ...(call.signal ? { signal: call.signal } : {}), ...(call.original_file ? { original_file: call.original_file } : {}),
+        validate_authority: async target => { assertAuthority(target); }, assert_authority_current: target => { assertAuthority(target); } };
       try {
-        return await bindLocalWebActions(call.host, call.reference, [], { user_action: () => user_action,
-          ...(call.original_file ? { original_file: call.original_file } : {}), ...(call.signal ? { signal: call.signal } : {}) }).invoke(definition, input);
+        return await bindActionClient(call.reference ? call.host.actionClient(call.reference) : call.host.homeActionClient(), () => caller).invoke(definition, input);
       } finally {
         revokeWebEntryAction(user_action);
         issued.delete(user_action);

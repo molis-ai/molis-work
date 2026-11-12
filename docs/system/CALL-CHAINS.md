@@ -295,68 +295,29 @@
 
 通用 OAuth 回调仍由平台按 state 处理声明，不把授权执行代码搬进插件；Gmail 既有回调与 Notion 的 localhost 别名按原声明保留。通用连接管理 HTTP 与 R2/R3 分别登记，不因本片删除其它管理入口。
 
-#### 10.1.1 B9 接入前登记
+#### 10.1.1 B9 接入记录
 
-按 2026-11-01 的决定登记实际效果和主人，后续逐组接入动作。这些路径由 `apps/local-host/src/web-server.ts` 的本机请求检查保护。每组接入前须按实际效果定输入、权限与重试，原保护继续有效。
+按 2026-11-01 的决定逐组接入。首次引导整理旅程、Agent 审批与助理面板三组的写入已在第 27 批改成动作（设计稿 `specs/visual-ui-experience/work-items/batch27-http-write-actions/spec.md`）：每个 POST 是动作目录里的一个 `system` 动作，受众只有 `user`，处理器第一步是页面的入口门（`apps/local-host/src/web-entry-actions.ts` 的 `webEntryDoor`，S-page-entry-actions）：路由每次请求签发一个凭据，只有本人经这扇门、在这次请求里的调用才服务，Agent、MCP、工作流和插件够不到。HTTP 只剩传输：读请求、把路径里的标识和请求体交给动作、把结果写回（含助理的「画好再给页面」）。这些路径仍由 `apps/local-host/src/web-server.ts` 的本机请求检查保护。动作调用的就是原来 HTTP 调用的主人方法，参数相同，主人的行为与「接入时保留」的各项不变。
 
-首次引导整理旅程的入口在 `apps/local-host/src/web-context-onboarding.ts`。下表的 `/<id>` 路径接在 `/api/onboarding/context` 之后。旅程状态由 `apps/local-host/src/context-onboarding-store.ts` 持有，读写流程在 `apps/local-host/src/context-onboarding-service.ts`。
-
-| 路径 | 主人和实际效果 | 接入时保留 |
+| 组 | 动作 | 主人 |
 | --- | --- | --- |
-| `POST /api/onboarding/context` | 整理旅程存储创建一轮，供本人继续选择来源 | 同一旅程标识的现行创建行为 |
-| `POST /<id>/files` | `apps/local-host/src/context-onboarding-staging.ts` 把本人选的一份原文件流写入本轮暂存，返回供选择引用的文件摘要 | 原文件继续走流式传输，按本轮与选择阶段限制暂存 |
-| `POST /<id>/selection` | 整理旅程保存来源范围、预览与自动开始选择，必要时撤回等待中的 Gmail 授权状态 | 只接受可选阶段的本轮输入，范围相同的已读材料可继续用 |
-| `POST /<id>/start` | 整理旅程记进入读取阶段并启动后台整理，保存进度。整理经现有模型入口与 Todo 的动作生成草稿 | 同一进程内同轮只开一个作业，中断保留读取进度，继续时沿原检查点 |
-| `POST /<id>/reopen` | 整理旅程回到选择阶段，清理错误与自动开始标记 | 正在处理、已经确认内容或已完成的旅程按现行条件拒绝 |
-| `POST /<id>/draft` | 整理旅程保存本人修改的摘要标题与正文 | 只在可编辑的审核阶段接受修改 |
-| `POST /<id>/adopt` | 整理旅程固定确认内容并记录进度，经 Projects 目录创建项目与启用 Pages，已有 Pages、成果库和 Todo 动作保存各自数据，成功后写引导完成状态并清本轮暂存 | 继续固定项目和已确认内容，保留分步检查点、重试幂等和各提供方授权 |
-| `GET /<id>`、`GET /<id>/text/<sha256>` | 两个读取路径都经 `readContextJourney`。Gmail 授权过期，或重启后原读取、采用作业已失去持有者时，整理旅程会保存恢复状态 | 按写入盘点恢复步骤；材料正文只由本轮已登记的引用读取 |
+| 首次引导整理旅程（`apps/local-host/src/web-context-onboarding.ts`，`/api/onboarding/context` 与 `/<id>/files`、`selection`、`start`、`reopen`、`draft`、`adopt`） | `onboarding.context.create`、`stage_file`、`select`、`start`、`reopen`、`draft`、`adopt`（`apps/local-host/src/context-onboarding-actions.ts`）。原文件仍从请求流式写入暂存，请求流跟着入口凭据走，不进动作输入 | 旅程状态 `apps/local-host/src/context-onboarding-store.ts`，读写流程 `apps/local-host/src/context-onboarding-service.ts` |
+| Agent 审批（`apps/local-host/src/agent-review-http.ts`，`POST /api/agent/reviews/decide`、`/recovery`） | `agent.reviews.decide`、`agent.reviews.recover`。项目归属、插件页的页面授权核对、桌面持有轮次的自批等待期都在处理器里，HTTP 的状态码与错误体不变 | `horizontal/agent-host/src/reviews.ts`，执行与恢复归原操作的主人 |
+| 助理面板（`apps/local-host/src/assistant/assistant-http.ts`，相对 `/api/assistant`：`send`、`cards`、`attachments`、`notices`、`followups/remove`，`works/<id>/` 下的 `control`、`draft`、`rename`、`mode`、`take-back`、`undo/<undo>`、`budget`、`results`、`handover`、`recovery`、`archive`、`reviews/<review>`、`answer`、`question-draft`、`cards/<card>/run`、`dismiss`、`redo`） | `assistant.panel.*`，每个路径一个（`assistantPanelActions`）。两条记忆建议 `memory-candidates/<candidate>/accept`、`discard` 不另起动作，走 Memory 现有的 `memory.candidates.accept`、`discard`，面板带上它看到的版本（`expected_version`） | 助理服务 `apps/local-host/src/assistant/assistant-service.ts`；实际运行归 Agent Host 或执行方插件，记忆归 Memory |
 
-Agent 审批的入口在 `apps/local-host/src/agent-review-http.ts`，审批状态归 `horizontal/agent-host/src/reviews.ts`，具体执行与恢复由原操作的主人负责。审批权限只来自现行受保护的本人入口，项目来自可信页面与运行上下文。
+已经走动作的不变：原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 走 `assistant.threads.*`，从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`；`GET`／`POST /works/<id>/cards/<card>/connection` 走 `connectors.authorization.read`／`connectors.authorization.cancel`。助理的设置写入（`capabilities`、`memories`、`memory-prefs`、`rules`、`budget`）见上表。
 
-| 路径 | 主人和实际效果 | 接入时保留 |
+读取仍是 HTTP。读的时候会做的恢复与结算登记如下，归各自主人，不是本人的新决定：
+
+| 路径 | 主人和实际效果 | 保留 |
 | --- | --- | --- |
-| `POST /api/agent/reviews/decide` | Agent Host 经原执行方记录允许或拒绝。项目页与无项目入口沿原归属核对，后者由 `handleUnscopedAgentReviews` 装配 | 保留安装复核、项目归属、阻断助理自批的等待期与现行免询问范围；回执区分已决定和已执行 |
-| `POST /api/agent/reviews/recovery` | 仅项目内的 Git 暂存操作由 `horizontal/agent-host/src/adapters/prologue-git-recovery.ts` 核对。`refresh` 据原派发记录收口；`not-happened` 需本人确认、依据和所见版本 | 核对与裁定都沿原执行记录，保持未知状态与明确拒绝条件 |
+| 引导 `GET /api/onboarding/context/<id>`、`GET /<id>/text/<sha256>` | 两个读取路径都经 `readContextJourney`。Gmail 授权过期，或重启后原读取、采用作业已失去持有者时，整理旅程会保存恢复状态 | 按写入盘点恢复步骤；材料正文只由本轮已登记的引用读取 |
 | `GET /api/agent/reviews`、`GET /api/agent/reviews/recovery` | 读取前的 `reviews.refresh` 由各执行方恢复原回执。Git 执行方首次恢复时可取消重启前已证实未派发的操作 | 区分历史回执恢复与本人新决定。查询、恢复和主动核对均沿原执行权，已有动作不会因查看再次派发 |
-
-##### 助理面板
-
-路径相对于 `/api/assistant`，入口为 `apps/local-host/src/assistant/assistant-http.ts`。设置写入见上表。原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 已走 `assistant.threads.*`。从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`。`GET`／`POST /works/<id>/cards/<card>/connection` 已走 `connectors.authorization.read`／`connectors.authorization.cancel`，待接入标识来自宿主保存的卡，沿原工作会话核对。
-
-| 路径 | 主人和实际效果 | 接入时保留 |
-| --- | --- | --- |
-| `POST /send` | 助理的 Send 持久化输入及收据，启动、追加或回答原轮次，实际运行归 Agent Host 或执行方插件 | 链 3 的 `request_id` 幂等、原工作范围、可信来源与输入拒绝 |
-| `POST /cards` | 助理保存页面提出的操作卡及来源关系，可按需新建工作 | 同一 `message_id` 只放一张卡，实际动作等明确点击 |
-| `POST /attachments` | Agent Host 解析 PDF 后返回当前输入用的材料。图片经 `horizontal/agent-host/src/adapters/prologue-documents.ts` 发布为 Runtime 资源 | 文档解析与资源写入分列，保持文件限制、受控暂存和资源引用 |
-| `POST /notices` | 助理通知记录本人已看或略过的状态 | 同一通知或工作内的现行收口范围 |
-| `POST /followups/remove` | 助理移除跟进记录并取消所关联的计划任务。同一服务也有 `assistant.followups.remove` | 对照 HTTP 的移除结果、动作的工作范围及现有调度取消语义 |
-| `POST /memory-candidates/<candidate>/accept` | Memory 以本人身份保存认可的建议，可带用户修改的文字。已有 `memory.candidates.accept` 要求所见版本 | 保留候选原作用域与来源核对。接入前明确页面如何传所见版本 |
-| `POST /memory-candidates/<candidate>/discard` | Memory 记录用户放弃同一候选。已有 `memory.candidates.discard` 要求所见版本 | 保留原范围和放弃后的状态。接入前明确页面如何传所见版本 |
-| `POST /works/<id>/control` | 助理和原执行方处理暂停、继续、停止或撤回输入。停止还处理原委托、待审和待接入 | 已发出的效果按原回执继续核对，执行方和原评论各走自己的权限 |
-| `POST /works/<id>/draft` | 助理保存工作输入草稿 | 原工作身份和内容大小检查 |
-| `POST /works/<id>/rename` | 助理按所见版本改工作名 | 原 revision 冲突拒绝 |
-| `POST /works/<id>/mode` | 执行方插件在自己的会话保存后续轮次模式，需要时建立其会话关联 | 执行方归属与现有会话优先 |
-| `POST /works/<id>/take-back` | 助理收回委托子任务 | 父子工作归属及原执行方状态 |
-| `POST /works/<id>/undo/<undo>` | 助理从原撤销记录请求动作主人撤销 | 当前授权、动作引用与原工作绑定 |
-| `POST /works/<id>/budget` | 助理保存工作用量上限 | 委托子任务仍受父工作的上限约束 |
-| `POST /works/<id>/results` | 助理记录页面交回的对象关系并通知，正文归原 owner | 保留原对象引用与工作状态 |
-| `POST /works/<id>/handover` | 助理与执行方保存转交及会话关系 | 在现行可交接阶段、项目和提供方范围内执行 |
-| `POST /works/<id>/recovery` | 带 `run_id` 时，原 Runtime 按所见版本关闭中断轮次，助理更新关联委托。其余输入读原恢复视图 | 本人明确关闭与查看分开，沿原回执恢复且不重跑 |
-| `POST /works/<id>/archive` | 助理归档或恢复工作，归档前核对该工作及委托，停止相应跟进 | 在途轮次拒绝归档，跟进由原服务处理 |
-| `POST /works/<id>/reviews/<review>` | Agent Host 由原执行方记录本人的审批决定。助理拒绝后可把决定传回当前轮次 | 核对原工作、会话、项目和待审，批准与实际结果分开 |
-| `POST /works/<id>/answer` | 原 Runtime 接受对应待答项的答案，助理清理这次问卷草稿 | 保持待答版本与字段拒绝，回答成功才清草稿 |
-| `POST /works/<id>/question-draft` | 助理保存对应待答项的草稿 | 原待答标识与草稿 revision |
-| `POST /works/<id>/cards/<card>/run` | 助理复核卡与所见版本，经原动作运行并记录回执 | 原动作的提供方、权限和一次效果 |
-| `POST /works/<id>/cards/<card>/dismiss` | 助理将原操作卡收起并记录状态 | 本人选择、卡片身份和版本规则 |
-| `POST /works/<id>/cards/<card>/redo` | 助理以页面来源发起重新准备一轮 | 只准备新卡，已过时的原动作维持原结论 |
-| `GET /works`、`GET /notices` | 助理根据已有轮次和主人状态生成或结算通知。通知读取还处理已被原插件处置的事项 | 查询前的回执归并分列，保留用户的已看、略过和未决状态 |
-| `GET /usage` | 助理从已完成轮次的真实回执补记用量 | 同一轮只入账一次，未结束的轮次留到完成后 |
-| `GET /memories`、`GET /memory-candidates` | Memory 读正式记录与候选时可结算过期候选 | 沿原作用域和已到期条件结算 |
-| `GET /works/<id>`、`GET /works/<id>/wait` | 助理读工作时会核对并收起已过期或改版的卡、补记该工作用量。Memory 可结算这个工作的过期建议 | 回执与收尾效果分列。等待连接只是这份工作视图的传输，断开停止等待 |
-| `GET /related` | 与 `assistant.works.related` 共用对象关联投影。为列出每项相关工作的结果，会走上行的工作读取与收尾 | 复用原投影与工作权限，接入时保留实际回执效果 |
-
-接入时继续复用原动作和既有 owner，特别是模型等待、审批决定、跟进、回执结算与连接权限的边界。
+| 助理 `GET /works`、`GET /notices` | 助理根据已有轮次和主人状态生成或结算通知。通知读取还处理已被原插件处置的事项 | 查询前的回执归并分列，保留用户的已看、略过和未决状态 |
+| 助理 `GET /usage` | 助理从已完成轮次的真实回执补记用量 | 同一轮只入账一次，未结束的轮次留到完成后 |
+| 助理 `GET /memories`、`GET /memory-candidates` | Memory 读正式记录与候选时可结算过期候选 | 沿原作用域和已到期条件结算 |
+| 助理 `GET /works/<id>`、`GET /works/<id>/wait` | 助理读工作时会核对并收起已过期或改版的卡、补记该工作用量。Memory 可结算这个工作的过期建议 | 回执与收尾效果分列。等待连接只是这份工作视图的传输，断开停止等待 |
+| 助理 `GET /related` | 与 `assistant.works.related` 共用对象关联投影。为列出每项相关工作的结果，会走上行的工作读取与收尾 | 复用原投影与工作权限，保留实际回执效果 |
 
 ##### 插件创作台
 
@@ -382,4 +343,4 @@ Agent 审批的入口在 `apps/local-host/src/agent-review-http.ts`，审批状�
 
 **首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的六个 POST 路径都经现行 `system.home` 动作。事项列表、打开位置、动作选项与准备分别调用 `home.events.read`、`home.events.open`、`home.actions.choices`、`home.actions.prepare` 的查询。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
 
-B9 其余组的写入、已接动作的传输路径和读取时发生的恢复见 §10.1.1。后续按实际效果逐组接入。
+B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组属于用户批过的构建期例外，随 BL-377 重做。

@@ -5,6 +5,7 @@ import type { CodingExecution } from "./routes.js";
 import type { CodingBeforeWrite } from "./route-entry.js";
 import { codingActions } from "./route-entry.js";
 import type { CodingSessionRecord } from "./store.js";
+import { codingStoreErrors } from "./store-errors.js";
 import { codingError } from "./words.js";
 
 const errors = defineErrorCodes("coding", { lifecycle_conflict: "conflict", lifecycle_incomplete: "conflict" });
@@ -24,14 +25,18 @@ export async function changeCodingSessionLifecycle(a: CodingActivation, executio
   };
   current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id } : undefined;
+  let executionArchived: boolean | undefined;
   if (session) {
     const view = await api.invoke(agent.readSession, [session]);
     if (view.checkpoint_busy || view.recovery || view.latest_run && !isTerminalAgentPhase(view.latest_run.phase)) {
       throw codingError(errors.lifecycle_conflict, "coding.server.stop-before-archive");
     }
-    await api.invoke(agent.readSessionLifecycle, [session]);
+    executionArchived = (await api.invoke(agent.readSessionLifecycle, [session])).state === "archived";
     current();
   }
+  // Both halves already there (or no execution session to change): a repeat is refused, as the store refuses it, never a silent success.
+  // Only a change left half done gets through, so a later request can finish the other half.
+  if (record.archived === archived && (!session || executionArchived === archived)) throw codingStoreErrors.session_unknown(archived ? "会话已归档" : "会话没有归档");
   try {
     const control = { beforeEffect: async () => { await beforeWrite(); current(); }, assert_authority_current: current };
     if (archived && session) await api.invoke(agent.archiveSession, [session], control);

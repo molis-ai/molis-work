@@ -107,7 +107,9 @@ test("A4-K selected Assistant knowledge must not reach a new provider request af
     assert.ok(followupRequests.every(row => !row.raw.includes(title) && !row.raw.includes(brief)), "a new explicit Run of the same Assistant does not reintroduce its old archived catalog through opening history");
     const organizeBeforeRestore = received.filter(row => row.organize).length;
     const restore = async () => {
-      await client.invoke(await host.localPersonContext(reference), update, { session_id: id, archive: false });
+      // Restoring an active session is refused (as archiving an archived one is), so only a scenario that left it archived restores it.
+      const now = await client.invoke(await host.localPersonContext(reference), state, { subject_id: id }) as { state: string };
+      if (now.state === "archived") await client.invoke(await host.localPersonContext(reference), update, { session_id: id, archive: false });
       await untilSetup(async () => { await client.invoke(await host.localPersonContext(reference), knowledgeActions.list, {}); return cards.get(project, subject)?.state === "ready" ? true : undefined; }, "same-content source returns to its retained ready card", 20_000);
       const card = cards.get(project, subject)!;
       assert.equal(card.revision, originalCard.revision); assert.equal(card.organized_revision, originalCard.organized_revision);

@@ -374,6 +374,9 @@ PR 和 main 冲突，CI 一个检查都没跑起来；并入 main 的 #2010、#2
   - **`web-route-table`（W5-07，预期变化）**：快照钉住每个地址返回的顶层键。`/api/memory/overview`（Home 与项目两条）按本 spec 的有界读取改成 `items/cursor/exhausted/stopped/total/scanned/cost`，不再有 `counts`；按用例写明的办法（`MOLIS_WORK_UPDATE_ROUTE_SNAPSHOT=1`）重写快照，只有这两条变了。
   - **`issue-assistant`（ISSUE-07，Security invariants 4/8）**：用例的假模型服务器靠旧提炼提示里的一句话认出后台记忆提炼、把它挡在业务回合外；本 PR 把 `memory.extract` 改到第 3 版后那句话没了，提炼请求吃掉了排给业务回合的回复，「重新读取后改标题」那一轮拿不到修改调用。改成认新提示的开头，并按现在的输出形状回 `{"drafts":[]}`（原来回旧形状，日志里的 `memory.conflict` 警告就是它）。
 - **复验。** 一次 `pnpm build`，上面 7 个用例加相邻的 agent-host、Character、Coding 会话与归档、助理归档用例共 39 个文件 `--jobs 1` 一次，全部通过（3.8 分钟）。健康门禁、版本核对、包边界、首屏字节门、页面资源门禁对 main `539d2d7d4` 通过。
+- **评审台复审 `63505044a`：Coding 重复归档在本人入口上仍会悄悄成功。** 上面的改法让生命周期命令在业务记录已是目标状态时跳过存储写入，存储层的拒绝就走不到了；Runtime 那边的会话归档本来就能重复调用，于是完整归档之后再发 `coding.sessions.update {archive:true}` 返回成功、什么也不写（main 上会被拒）。改成：生命周期命令留下读到的执行会话归档状态，业务记录和执行会话（或根本没有执行会话）都已是目标状态时照旧拒绝（「会话已归档」/「会话没有归档」）；只有一半完成时放行，让这次请求补完另一半。新增经真实 Coding 路由的回归用例（`coding-session-effect-control`：没有执行会话的归档与恢复各重复一次被拒；只归档了执行会话的会话由同一请求补完，之后再重复被拒），在旧代码上确认它会失败。同一用例文件的 `ui` 桩补上平台合同要求的 `invalidate`。`knowledge-assistant-dispatch`（本 PR 的用例）每个场景之后都调一次恢复，原来依赖「恢复没归档的会话也算成功」；改成只在会话确实归档时恢复，断言不变。
+- **CI 的 Security invariants (3/8)。** `security-invariants-skill-delegation` 在 CI 上 fetch 遇到 `ECONNRESET`；本 PR 没碰相关代码，本机单跑通过。推送新头后 CI 会整个重跑，仍失败再查宿主为什么断开。
+- **复验（第二轮）。** 一次 `pnpm build`，上面 39 个文件加 `coding-session-effect-control`、`security-invariants-skill-delegation` 共 40 个文件 `--jobs 1` 一次：39 个通过，`knowledge-assistant-dispatch` 因上一条失败，改后单跑 4/4 通过。健康门禁通过。
 
 ## 1. 用户结果与责任边界
 

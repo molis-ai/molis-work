@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-12，Memory 收口 P0 在 Draft PR molis-ai/molis-work#2020：已并入 main `4d025ff4`，SDK 换到上游 `83bee7fc`（molis-prologue#112）；评审台对整个 PR 的审查要改，正在按「评审台整 PR 审查后的修改」一节改，CI 全量在跑。BL-1072 唯一一次正式测量未通过、重测未做；BL-1073、BL-1075 的 MEM-43/44、BL-1076 未做。V0 未完成。
+状态：2026-11-12，Memory 收口 P0 在 Draft PR molis-ai/molis-work#2020：已并入 main `206884b4`，SDK 换到上游 `770a2e27`（molis-prologue#113，含重试停用修复）；评审台对整个 PR 的审查意见已改完，CI 全量在跑。BL-1072 换包后按冻结方法正式重测一次，暖读中位数增量 +31.1 ms，超上限 30 ms，未通过，用户定照实记录、不挡合入，BL-1072 保持打开；BL-1073 计划已批，合入后执行；BL-1075 的 MEM-43/44 移到 V0 之后；BL-1076 本人验收未做。V0 未完成。
 
 交付范围：App 分支 `claude/memory-v0-adopt-6664-20261107` 一个面向 main 的 Draft PR（#2020）；SDK 改动先走上游 molis-prologue 的 PR，合入后再换包。下面各日期节保留当时的授权与结果，现状以本节和「收口执行记录」为准。
 

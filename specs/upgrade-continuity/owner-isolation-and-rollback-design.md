@@ -182,7 +182,7 @@ type RollbackPoint =
 | 开场页、`/upgrade-progress` | `apps/local-host/src/upgrade-maintenance.ts` | C1 |
 | 结果卡、`notice.json` | `apps/local-host/src/home-upgrade-ledger.ts`、首页 | C1、D |
 | 回退点、`home rollback`、保留上一版、hold；卸载认得回退点与 hold | `apps/local-host/src/installer/`（`home.ts`、新 `home-rollback.ts`、`uninstall-files.ts`）、`apps/local-host/src/cli-home.ts`；放回快照 `home-upgrade.ts` 的 `putBackUpgradeRound`、`packages/storage/src/upgrade-snapshot.ts` 的 `upgradeSnapshotListed` | F（安装器） |
-| 桌面：`rollback_to_previous`、hold、开场导航 | 新 `apps/desktop/adapters/tauri/src/rollback.rs`、`web_service.rs`、`main.rs`、`capabilities/main-rollback.json`、`permissions/rollback.toml` | F |
+| 桌面：`rollback_to_previous`、hold、开场导航 | 新 `apps/desktop/adapters/tauri/src/rollback.rs`、`web_service.rs`、`main.rs`、`runtime-capabilities/main-rollback.json`（第 25 批起授权按核过的端口在运行时加）、`permissions/rollback.toml` | F |
 | 设置 › 更新（当前版本、回到上一版、停在上一版时「重新装上」；演练与「重启以更新」第 26 批） | `apps/workbench/src/settings-update.ts`（新）、`settings-sections.ts`；宿主 `web-catalog-settings.ts`、`web-catalog-routes.ts`（`POST /api/update/hold/lift`） | D |
 
 不新增动作、Manifest 字段或公开合同：`block` 和不可用表都是宿主内部；`home rollback` 是 CLI 命令；桌面命令走 Tauri。三个新带版本文件（`upgrade/notice.json`、`rollback.json`、`rollback-hold.json`）登记进 `tooling/versions.json`，走 `verify-release-versions` 的核对。
@@ -201,7 +201,7 @@ type RollbackPoint =
 | UPG3-01 | 一个平台库升级失败，只有它那一块给说明卡，别的插件、项目、设置页照常（UPG-04） | `tests/upgrade-owner-isolation.test.ts`（新） |
 | UPG3-02 | 较新的库只拒这一个，说明卡写「来自更新的版本」，库的字节没变（UPG-05） | 同上 |
 | UPG3-03 | 目录库升级失败时，项目页给整页说明卡，设置里的外观页照常打开，`/api/` 读回 `unavailable`，写被拒 | 同上 |
-| UPG3-04 | Dock 上那一颗带「暂不可用」点并读得出来；说明卡的诊断号同一轮不变，日志里能用它找到原因 | 同上 + 浏览器用例 `tests/browser/owner-unavailable.e2e.test.ts` |
+| UPG3-04 | Dock 上那一颗带「暂不可用」点并读得出来；说明卡的诊断号同一轮不变，日志里能用它找到原因 | 同上 + 浏览器用例 `tests/owner-unavailable.e2e.test.ts` |
 | UPG3-05 | 维护态答开场页和 `/upgrade-progress`，后者只有四个键，非回环 Host 被拒（UPG-19） | `tests/upgrade-maintenance.test.ts` |
 | UPG3-06 | 中断的升级接着做完后，首页出结果卡；关掉后同一轮不再出现（UPG-06） | `tests/upgrade-owner-isolation.test.ts` |
 | UPGR-01 | 换上新程序时上一版留在 `releases/previous/`，只留一个；同版同摘要重装不动它 | `tests/home-rollback.test.ts`（新） |

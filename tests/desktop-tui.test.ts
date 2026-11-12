@@ -49,7 +49,7 @@ const TERMINAL_PANELS_SOURCE = terminalSource("panels.ts", "panel-spawn.ts");
 const WEB_RENDER_SOURCE = readFileSync(new URL("../apps/workbench/src/renderer.ts", import.meta.url), "utf8");
 const WORKBENCH_UI_SOURCE = [WEB_RENDER_SOURCE, CLIENT_SCRIPT].join("\n");
 const DESKTOP_CAPABILITIES = JSON.parse(
-  readFileSync(new URL("../apps/desktop/src-tauri/capabilities/default.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../apps/desktop/src-tauri/runtime-capabilities/default.json", import.meta.url), "utf8"),
 ) as { permissions?: string[] };
 const TAURI_CONFIG = JSON.parse(
   readFileSync(new URL("../apps/desktop/src-tauri/tauri.conf.json", import.meta.url), "utf8"),

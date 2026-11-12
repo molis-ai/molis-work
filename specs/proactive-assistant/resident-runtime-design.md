@@ -1,6 +1,6 @@
 # 常驻、休眠与错过的事：设计
 
-状态：设计（2026-11-11，路线书第 25 批第 1 项，在本批分支 `batch/25` 上实现）。行为以[主动助理](spec.md) §13、PWA-27、PWA-137 与 §18 决策记录为准（11-04 菜单栏面板、桌面是本机服务的主人；11-11 错过的事归各自的主人、Home 里的地址文件），本文只写怎么做。界面照 11-04 定样（[`docs/design/runtime-and-recovery`](../../docs/design/runtime-and-recovery/README.md)「运行状态」），不重新出样。第一片（Dock 重开主窗口、退出项写明后台服务继续运行、BL-645／BL-352 对账）已随 #1815 合入。
+状态：已实现（2026-11-12，路线书第 25 批第 1 项，本批分支 `batch/25`；实现时改的地方写在 §10，以那里为准）。行为以[主动助理](spec.md) §13、PWA-27、PWA-137 与 §18 决策记录为准（11-04 菜单栏面板、桌面是本机服务的主人；11-11 错过的事归各自的主人、Home 里的地址文件），本文只写怎么做。界面照 11-04 定样（[`docs/design/runtime-and-recovery`](../../docs/design/runtime-and-recovery/README.md)「运行状态」），不重新出样。第一片（Dock 重开主窗口、退出项写明后台服务继续运行、BL-645／BL-352 对账）已随 #1815 合入。
 
 验收编号用 `RES-` 前缀，在 §9 列出；它们细化 PWA-27、PWA-137。
 
@@ -130,7 +130,7 @@ interface RuntimeOverview {
 
 ## 5. 两个开关（设置 › 运行）
 
-新设置页「运行」（`apps/workbench/src/settings-runtime.ts`），只在桌面里出现（浏览器里不列这一页）：
+新设置页「运行」（`apps/workbench/src/settings-running.ts`），只在桌面里出现（浏览器里不列这一页）：
 
 - **登录时启动**：开的是桌面本身（11-04 定）。用 `tauri-plugin-autostart`（macOS 写一个登录项的 LaunchAgent），状态以系统为准，页面每次打开时读。
 - **关掉窗口后继续运行**：默认开。关掉时，关主窗口就走退出（先确认清单）。存在 `config/desktop.json`（`format.home.desktop` 第 1 版，主人 `apps/desktop`，由 Rust 读写，宿主不读）。
@@ -159,21 +159,36 @@ interface RuntimeOverview {
 | 助理跟进：两个动作、「现在做」 | `apps/local-host/src/assistant/` | A |
 | `runtime.overview@1`、presence、地址文件、睡眠检测 | `apps/local-host/src/`（新 `runtime-overview.ts`、`host-presence.ts`、`host-endpoint.ts`；`web-server.ts`） | C1（宿主启动，枢纽） |
 | 面板、首页提示、设置 › 运行 | `apps/workbench/src/`（`capsule.ts`、首页、新 `settings-runtime.ts`） | D |
-| 桌面：退出确认、托盘点、停止页、两个开关、地址文件、运行时授权 | `apps/desktop/adapters/tauri/src/`、`src-tauri/capabilities/`、`Cargo.toml`（`tauri-plugin-autostart`） | F |
+| 桌面：退出确认、托盘点、停止页、两个开关、地址文件、运行时授权 | `apps/desktop/adapters/tauri/src/`、`src-tauri/runtime-capabilities/`、`Cargo.toml`（`tauri-plugin-autostart`） | F |
 
 ## 9. 验收
 
 | 编号 | 检查 | 测试 |
 | --- | --- | --- |
-| RES-01 | Schedule 的任务、操作、提醒晚过宽限不执行、记一行错过、照常排下一次；宽限内照常执行 | `plugins/native/schedule/tests/missed-runs.test.ts`（新） |
+| RES-01 | Schedule 的任务、操作、提醒晚过宽限不执行、记一行错过、照常排下一次；宽限内照常执行 | `tests/schedule-missed-runs.test.ts` |
 | RES-02 | 「现在做」用到点的同一条路跑一次并标 `run_now`；「跳过」只标 `skip`；已删的任务返回 `gone` | 同上 |
-| RES-03 | Feed 晚过宽限的来源不拉、记错过、推到下一时刻；「现在做」立刻拉这一个 | `plugins/native/feed/tests/missed-pulls.test.ts`（新） |
-| RES-04 | 助理跟进的错过与接下来按同一格式交出，「现在做」开一轮 | `tests/assistant-followups.test.ts` |
-| RES-05 | `runtime.overview@1` 按类型找到全部提供方；一个提供方失败其余照常；每个提供方只调一次 | `tests/runtime-overview.test.ts`（新） |
-| RES-06 | presence：正常退出记 `quit`、被杀记 `crash`、计时器隔了 3 分钟以上记 `sleep` 并立刻检查一次 | `tests/host-presence.test.ts`（新，注入时钟） |
-| RES-07 | 地址文件：监听后写、退出时删、不含令牌；启动器按 环境变量 > 文件 > 4173 选地址，文件里的端口身份核不过就不用 | `tests/host-endpoint.test.ts`（新） |
-| RES-08 | 桌面只对核过的端口开授权；别的端口与来源被拒（S-14 改写后的拒绝测试） | `apps/desktop` Rust 单元测试、`tests/security-invariants-desktop-ipc.test.ts` |
-| RES-09 | 退出前列出 24 小时内不会运行的事；没有就直接退；宿主不是桌面拉起的照 #1815 写明后台继续运行 | Rust 单元测试 + 浏览器用例 `tests/browser/runtime-panel.e2e.test.ts` |
-| RES-10 | 面板：在运行、等着、错过（现在做／跳过）、处理完；宿主停了显示「没在运行」，不显示仍在运行（PWA-137） | 浏览器用例同上 |
-| RES-11 | 设置 › 运行的两个开关只在桌面出现，经原生命令读写；「关掉窗口后继续运行」关掉时关窗走退出确认 | Rust 单元测试 + 浏览器用例 |
+| RES-03 | Feed 晚过宽限的来源不拉、记错过、推到下一时刻；「现在做」立刻拉这一个 | `tests/feed-sources.test.ts` |
+| RES-04 | 助理跟进的错过与接下来按同一格式交出，「现在做」开一轮 | `tests/assistant-followups-collaborator.test.ts` |
+| RES-05 | `runtime.overview@1` 按类型找到全部提供方；一个提供方失败其余照常；每个提供方只调一次 | `tests/runtime-overview.test.ts` |
+| RES-06 | presence：正常退出记 `quit`、被杀记 `crash`、计时器隔了 3 分钟以上记 `sleep` 并立刻检查一次 | `tests/host-presence.test.ts`（注入时钟） |
+| RES-07 | 地址文件：监听后写、退出时删、不含令牌；启动器按 环境变量 > 文件 > 4173 选地址，文件里的端口身份核不过就不用 | `tests/host-endpoint.test.ts`；桌面 `res07_…`（`host_port.rs`、`web_service.rs`） |
+| RES-08 | 桌面只对核过的端口开授权；别的端口与来源被拒（S-14 改写后的拒绝测试） | `res08_s14_…`（`host_port.rs`、`runtime.rs`）、`tests/security-invariants-desktop-ipc.test.ts` |
+| RES-09 | 退出前列出 24 小时内不会运行的事；没有就直接退；宿主不是桌面拉起的照 #1815 写明后台继续运行 | `res09_…`（`main.rs`）+ 浏览器用例 `tests/runtime-panel.e2e.test.ts` |
+| RES-10 | 面板：在运行、等着、错过（现在做／跳过）、处理完；宿主停了显示「没在运行」，不显示仍在运行（PWA-137） | `res10_…`（`main.rs`、`runtime.rs`）+ 浏览器用例同上 |
+| RES-11 | 设置 › 运行的两个开关只在桌面出现，经原生命令读写；「关掉窗口后继续运行」关掉时关窗走退出确认 | `res11_…`（`runtime.rs`）、`tests/plugin-global-settings.test.ts` + 浏览器用例同上 |
 | RES-12 | [人工] 真机：关窗仍跑、睡眠醒来看到错过、退出确认、再打开首页的提示、登录时启动 | 本人验收 |
+
+## 10. 实现时改
+
+以下几处与上文不同，以这里为准（2026-11-12）：
+
+- **汇总不是动作，是宿主的两条路由**：`GET /api/runtime/overview` 与 `POST /api/runtime/runs/decide`（`apps/local-host/src/runtime-overview.ts`、`runtime-overview-http.ts`），没有登记 `runtime.overview@1`。汇总只给本机的人看，Agent 要的是各主人自己的 `runs.overview`；「现在做／跳过」由宿主按 `scope_project_id`＋`provider_id` 在同一处重新按类型找到那位主人再交给它，页面不拿动作引用，平台也不另判。主人超时 2 秒（首页汇总的同一个 `home-aggregate` 读法），一位失败只在 `unavailable_sources` 里留错误码，它说的话不带出来。
+- **项目里的主人按项目找**：Schedule、Feed 的 `runs.overview`／`runs.decide` 是 scope project 的动作，宿主在每个打开的项目里各问一次（与首页汇总同一套 `home_aggregate`）；助理定时的两个动作挂在 `io.molis.work.assistant.rules` 这个系统提供方上（scope home）。动作 id 是 `<主人>.runs.overview@1`、`<主人>.runs.decide@1`。
+- **`waiting.model`** 是「没有设好可用的文字模型」，不是连接探测；`waiting.network` 是本机有没有网络。
+- **醒来立刻检查**只让宿主的周期任务马上跑一次（`onHostWake` → `periodic.wake()`），Schedule、Feed 的错过在它们各自的唤醒里记。
+- **胶囊的「运行」一节**用胶囊自己的样式类，经桌面命令读和决定（`runtime_overview`、`runtime_decide`、`runtime_missed_dot`、`runtime_quit_confirmed`、`runtime_open`），不加载页面的共享请求客户端：那个客户端比这一节本身还大，胶囊整页会超过 10 KB 的增长线。首页的提示用组件板的 `mw-*` 与 `molisWorkRequest`。
+- **「已核对、不再提醒」那几件今天没有来源**：助理跟进的结果里没有「已不需要」这一种，首页只列错过的。等跟进有了这个结果再接（不在本批另判断）。
+- **设置 › 运行**一份页面两种样子：设置区把页面抓取进来时不带桌面标记、页面里的内联脚本也不执行，所以由 `molisWorkBindRunningSettings` 看有没有桌面命令，有就显示两个开关，没有就说开关在桌面里；目录只在桌面里列这一页，地址在浏览器里也打得开。
+- **胶囊能打开的主窗口页**在 `/projects/…` 之外只多了正好 `/settings/models`（「去设置模型」那一下）。
+- **宿主不是桌面起的**：LaunchAgent 装的本机服务仍固定在 4173（服务的 plist 不随地址文件变）；只有桌面自己起宿主、4173 被别的程序占着时才换到 4174–4199。
+- **运行时授权**：`src-tauri/capabilities/` 不再有静态授权，六份模板在 `src-tauri/runtime-capabilities/`，启动核过端口后按端口填好再 `add_capability`（`host_port.rs`、`main.rs` 的 `grant_host_capabilities`）；同一个端口只加一次。

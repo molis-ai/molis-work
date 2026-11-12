@@ -97,7 +97,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("computer", "plugin-files", "git-operation-details.json", "config/onboarding.json",
       "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
     ...owned("apps/local-host", { path: MCP_CLIENT_CREDENTIAL_DIRECTORY, snapshot: omittedSnapshot("Independent MCP client keys require explicit reconnection; never exported", "preserve") }),
-    ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }),
+    // The desktop's two switches of 设置 › 运行 (resident-runtime-design §5): the person's, read and written only by the desktop.
+    ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }, ...at("config/desktop.json")),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },
     { path: "config/installation.json", reason: "Installation receipt belongs to this running installation" },

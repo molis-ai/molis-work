@@ -71,6 +71,8 @@ test('BSH-14-D a dirty device keeps its unsent lines, adopts with them and takes
     source.close();
   }
   toOriginalLayout(project.database_path);
+  // The old device kept the receipt of each upload as its head: it took part in the old stream, so its unsent lines need keeping.
+  {const db=new DatabaseSync(project.database_path);try{for(const id of ['coding-plan','files-shared'])db.prepare('INSERT INTO process_items_replica_heads(key,revision) VALUES (?,1)').run(key(id));}finally{db.close();}}
 
   // Device B runs the cutover; it holds nothing locally, so it only reads the old stream.
   const cutover=await clientB.processItems.cutOver();assert.equal(cutover.phase,'complete');

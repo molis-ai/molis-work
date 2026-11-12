@@ -69,13 +69,15 @@ function filesEra(db: Db, projectId: string): void {
 }
 
 const rows = (db: Db, sql: string, ...params: unknown[]) => db.prepare(sql).all(...params);
+/** What a device that once synced process items keeps in its original journal: a receipt's head for a line it sent. */
+const synced = (db: Db, projectId: string) => db.prepare("INSERT INTO process_items_replica_heads(key,revision) VALUES (?,1)").run(JSON.stringify([projectId, "process_item", "other-line"]));
 const journal = (db: Db, prefix: string) => Object.fromEntries(["changes", "heads", "outbox", "conflicts", "resolutions", "state"]
   .map(table => [table, rows(db, `SELECT * FROM ${prefix}_replica_${table} ORDER BY 1`)]));
 
 test("BSH-14-F an original library is adopted once: lines, outputs and default bindings move with their history, the journal switches, and the old journal stays", async t => {
   const h = await home(t);
   let db = openTestSqlite(h.path);
-  toOriginalLayout(db); filesEra(db, h.projectId);
+  toOriginalLayout(db); filesEra(db, h.projectId); synced(db, h.projectId);
   const versionsBefore = rows(db, "SELECT * FROM process_item_versions ORDER BY artifact_id, version");
   const originalJournal = journal(db, "process_items");
   assert.ok((originalJournal.changes as unknown[]).length >= 4, "the original journal recorded the Files-era writes");
@@ -84,7 +86,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.throws(() => new LocalProjectDatabase(h.path), /结构与当前完整基线不符|SQLITE_BASELINE_TRIGGER_MISMATCH/u);
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
-  assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, refused: [], unsettled: [] });
+  assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, carried: 0, refused: [], unsettled: [] });
   assert.deepEqual(inspected.unsettled, inspected.refused, "all that stops it is what a recovery file can keep");
   assert.match(inspected.refused.join("\n"), unsent, "lines the original journal never sent are unsettled");
   // BSH-14-D: those lines are adopted only once a recovery file of this Home keeps them.
@@ -101,7 +103,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
 
   const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: capture.captureId! });
   assert.equal(report.state, "adopted");
-  assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, refused: [], backup: undefined });
+  assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, carried: 0, refused: [], backup: undefined });
   assert.ok(report.backup && existsSync(report.backup), "a backup is taken before the first change");
   const backup = openTestSqlite(report.backup!);
   assert.equal((backup.prepare("SELECT COUNT(*) AS n FROM process_items WHERE producer_plugin_id=?").get(FILES.id) as { n: number }).n, 3, "the backup is the library before adoption");
@@ -200,7 +202,7 @@ test("BSH-14-F adoption needs the Home's own storage owner and a project of that
 test("BSH-14-D a recovery file keeps the original journal and each line's graph; a changed journal or file, or a foreign Home, is refused", async t => {
   const h = await home(t);
   let db = openTestSqlite(h.path);
-  toOriginalLayout(db); filesEra(db, h.projectId);
+  toOriginalLayout(db); filesEra(db, h.projectId); synced(db, h.projectId);
   const key = JSON.stringify([h.projectId, "process_item", "files-snapshot"]);
   db.prepare("INSERT INTO process_items_replica_outbox(key,through_seq,operation) VALUES (?,?,?)").run(key, 1, JSON.stringify({ operationId: "device:1", key, base: 0, value: null }));
   db.close();
@@ -339,7 +341,7 @@ test("BSH-14-F/BSH-06 Files' own current consents are taken back once every proj
   const copy = grant(FILES.id, "someone-else", "always_on", "always_on", "2026-11-01T00:00:00Z");
   const wiring = grant("io.molis.work.diff", "official-diff-binding", "default_wiring", `before<-${FILES.id}:before@${FILES.signature}`, "2026-11-01T00:00:00Z");
   const db = openTestSqlite(h.path);
-  toOriginalLayout(db); filesEra(db, h.projectId);
+  toOriginalLayout(db); filesEra(db, h.projectId); synced(db, h.projectId);
   db.close();
 
   const waiting = retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-12T00:00:00Z" });
@@ -356,4 +358,34 @@ test("BSH-14-F/BSH-06 Files' own current consents are taken back once every proj
   assert.equal(ledger.consent(wiring.consent_id)!.revoked_at, null, "Diff's agreement stays readable; its subject names a source that is gone");
   assert.deepEqual(retireFilesConsents({ home: h.directory, owner: h.owner, at: "2026-11-13T00:00:00Z" }), { waiting: [], revoked: 0 }, "a second run takes nothing more back");
   assert.equal(ledger.consent(kept.consent_id)!.revoked_at, "2026-11-12T00:00:00Z");
+});
+
+test("BSH-14-F a Home that never took part in process-item sync is adopted without a recovery file: its never-offered lines stay unsent in the adopted journal", async t => {
+  const h = await home(t);
+  const db = openTestSqlite(h.path);
+  toOriginalLayout(db); filesEra(db, h.projectId);
+  const pending = rows(db, "SELECT key FROM process_items_replica_changes GROUP BY key ORDER BY MIN(seq)");
+  const originalJournal = journal(db, "process_items");
+  db.close();
+  assert.ok(pending.length >= 4);
+  assert.equal(existsSync(join(h.directory, "sync")), false, "this Home never synced");
+  const inspected = inspectProjectAdoption(h.path, { failures: [], neverSynced: true });
+  assert.deepEqual([inspected.unsettled, inspected.refused, inspected.carried], [[], [], pending.length]);
+  const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups });
+  assert.deepEqual([report.state, report.carried, report.refused], ["adopted", pending.length, []]);
+  const read = openTestSqlite(h.path);
+  t.after(() => read.close());
+  assert.deepEqual(rows(read, "SELECT key FROM process_items_adopted_replica_changes ORDER BY seq"), pending, "each never-offered key, once, in the order first recorded");
+  assert.deepEqual(journal(read, "process_items"), originalJournal, "the original journal stays as it was");
+  assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups }).state, "current");
+  assert.deepEqual(rows(read, "SELECT key FROM process_items_adopted_replica_changes ORDER BY seq"), pending, "adopting again carries nothing twice");
+
+  // One receipt in the original journal is enough to say the device took part: its unsent lines need a recovery file again.
+  const other = await home(t);
+  const db2 = openTestSqlite(other.path);
+  toOriginalLayout(db2); filesEra(db2, other.projectId); synced(db2, other.projectId);
+  db2.close();
+  const refused = adoptProjectDatabase({ home: other.directory, owner: other.owner, projectId: other.projectId, backupDirectory: other.backups });
+  assert.deepEqual([refused.state, refused.carried], ["refused", 0]);
+  assert.match(refused.refused.join("\n"), /not yet uploaded from the original journal/u);
 });

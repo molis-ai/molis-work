@@ -13,7 +13,7 @@ import { PROCESS_ITEMS_TRIGGER_NAMES } from "./project-database-schema.js";
 import { ADOPTED_PROCESS_ITEMS_JOURNAL, ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL } from "./project-replication-schema.js";
 import { layoutOf, type ProjectLayout } from "./project-layout.js";
 import { processItemKey, verifyProcessItemsRecovery } from "./process-items-recovery.js";
-import { processItemsSyncFailureKeys } from "@molis-ai/molis-work-module-sync-replication";
+import { processItemsSyncFailureKeys, readProcessItemsSyncEvidence } from "@molis-ai/molis-work-module-sync-replication";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { openHomePluginStore, openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -41,6 +41,11 @@ export interface ProjectAdoptionReport {
   readonly private_values: number;
   /** The project's Files reading position carried to the materials service (0 or 1). */
   readonly positions: number;
+  /**
+   * Keys of a library that never took part in the old stream, carried into the adopted journal as unsent changes (user 2026-11-12): they
+   * were never offered to any stream, so if sync is turned on later they go to the adopted one as new writes. 0 for any other library.
+   */
+  readonly carried: number;
   readonly refused: readonly string[];
   /** The copy taken before this run changed anything. */
   readonly backup?: string;
@@ -55,6 +60,23 @@ const adoptionErrors = {
  * deferred events for this project are sync still in flight: they settle first, or a verified recovery file keeps them
  * (process-items-recovery.ts), since after adoption nothing moves them on the old stream again.
  */
+/**
+ * Whether this Home ever took part in the public process-item collection: sync.db holds no cursor, failure, deferred event, upload or
+ * cached part for it. A Home that never synced, or never chose process items, answers true.
+ */
+export function processItemsNeverSynced(home: string): boolean {
+  const evidence = readProcessItemsSyncEvidence(home);
+  return !evidence.failures.length && evidence.streamCursor === null && evidence.partitionCursor === null && !evidence.uploads.length && !evidence.parts.length;
+}
+
+/** A library whose original journal never received, froze or conflicted anything: its changes are lines no stream was ever offered. */
+function neverOffered(db: DatabaseSync): boolean {
+  const empty = (table: string) => !db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+  const cursor = db.prepare("SELECT cursor FROM process_items_replica_state WHERE id=1").get() as { cursor: number } | undefined;
+  return ["process_items_replica_heads", "process_items_replica_outbox", "process_items_replica_conflicts", "process_items_replica_resolutions"].every(empty) && Number(cursor?.cursor ?? 0) === 0;
+}
+const pendingKeys = (db: DatabaseSync) => (db.prepare("SELECT COUNT(DISTINCT key) AS n FROM process_items_replica_changes").get() as { n: number }).n;
+
 function unsettled(db: DatabaseSync, failures: readonly string[]): string[] {
   const count = (table: string) => (db.prepare(`SELECT COUNT(DISTINCT key) AS n FROM ${table}`).get() as { n: number }).n;
   const reasons: string[] = [];
@@ -66,7 +88,9 @@ function unsettled(db: DatabaseSync, failures: readonly string[]): string[] {
   return reasons;
 }
 
-interface Plan { layout: ProjectLayout; items: number; versions: number; outputs: number; bindings: number; private_values: number; positions: number; refused: string[]; unsettled: string[] }
+interface Plan { layout: ProjectLayout; items: number; versions: number; outputs: number; bindings: number; private_values: number; positions: number; carried: number; refused: string[]; unsettled: string[] }
+/** What sync.db says that bears on one library: its failures and deferred events, and whether the Home ever took part in the collection. */
+export interface ProcessItemsSyncFacts { readonly failures: readonly string[]; readonly neverSynced: boolean }
 
 /** Files kept the project's last reading position under this key (plugins/native/files/src/position.ts), as `{workspace_id,path}`. */
 const FILES_POSITION_KEY = "reading-position";
@@ -80,7 +104,7 @@ const positionMoves = (db: DatabaseSync) => planPrivateValueMove(db, {
 const privateValues = (db: DatabaseSync): PrivateValueAdoptionPlan[] =>
   PLATFORM_PLUGIN_REGISTRATIONS.filter(registration => registration.private_value_adoption).map(registration => planPrivateValueAdoption(db, registration));
 
-function plan(db: DatabaseSync, path: string, failures: readonly string[] = []): Plan {
+function plan(db: DatabaseSync, path: string, sync: ProcessItemsSyncFacts = { failures: [], neverSynced: false }): Plan {
   const layout = layoutOf(db, path);
   const items = planProcessItemReassignment(db, FILES_PRODUCER, SYSTEM_MATERIALS_SOURCE.process_items);
   const wiring = planWiringReassignment(db, FILES_PRODUCER.plugin_id, SYSTEM_PRODUCER.plugin_id, SYSTEM_MATERIALS_SOURCE.outputs.map(output => output.port));
@@ -91,16 +115,17 @@ function plan(db: DatabaseSync, path: string, failures: readonly string[] = []):
   for (const row of wiring.handed) if (!moving.has(row.artifact_id)) refused.push(`output ${row.port}: ${row.artifact_id} is not a Files process item`);
   return { layout, items: items.items.length, versions: items.versions, outputs: wiring.outputs, bindings: wiring.bindings,
     private_values: values.reduce((sum, plan) => sum + plan.changes.length, 0), positions: positions.moves.length, refused,
-    unsettled: layout === "original" ? unsettled(db, failures) : [] };
+    ...(layout === "original" && sync.neverSynced && neverOffered(db) ? { carried: pendingKeys(db), unsettled: [] }
+      : { carried: 0, unsettled: layout === "original" ? unsettled(db, sync.failures) : [] }) };
 }
 
 /**
  * Read-only: what adopting this library would do, without taking a backup or changing anything. `refused` names everything that stops
  * it now; `unsettled` is the part of that a recovery file of this Home can keep (lines sync has not settled, given its `failures`).
  */
-export function inspectProjectAdoption(path: string, failures: readonly string[] = []): Omit<ProjectAdoptionReport, "project_id" | "state" | "backup"> & { readonly unsettled: readonly string[] } {
+export function inspectProjectAdoption(path: string, sync?: ProcessItemsSyncFacts): Omit<ProjectAdoptionReport, "project_id" | "state" | "backup"> & { readonly unsettled: readonly string[] } {
   const db = new DatabaseSync(path, { readOnly: true });
-  try { const { unsettled, refused, ...found } = plan(db, path, failures); return { ...found, refused: [...refused, ...unsettled], unsettled }; } finally { db.close(); }
+  try { const { unsettled, refused, ...found } = plan(db, path, sync); return { ...found, refused: [...refused, ...unsettled], unsettled }; } finally { db.close(); }
 }
 
 /**
@@ -119,8 +144,8 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
     db.exec("PRAGMA busy_timeout=5000");
     const bound = readDatabaseSpace(db);
     if (!bound || bound.spaceId !== space.spaceId) throw adoptionErrors.space(path);
-    const failures = processItemsSyncFailureKeys(home).filter(key => processItemKey(key).projectId === input.projectId);
-    const found = plan(db, path, failures);
+    const sync = { failures: processItemsSyncFailureKeys(home).filter(key => processItemKey(key).projectId === input.projectId), neverSynced: processItemsNeverSynced(home) };
+    const found = plan(db, path, sync);
     // Unsettled lines are adopted only when a recovery file of this Home, checked against it now, keeps this project's.
     const kept = found.unsettled.length > 0 && input.recovery !== undefined
       && verifyProcessItemsRecovery({ home, captureId: input.recovery }).projects.some(project => project.projectId === input.projectId);
@@ -136,7 +161,7 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
     db.exec("BEGIN IMMEDIATE");
     let committed = false;
     try {
-      if (JSON.stringify(plan(db, path, failures)) !== JSON.stringify(found)) throw new ActionError("actions.conflict", `${path} 在备份后变了，请重新采用`);
+      if (JSON.stringify(plan(db, path, sync)) !== JSON.stringify(found)) throw new ActionError("actions.conflict", `${path} 在备份后变了，请重新采用`);
       if (found.layout === "original") for (const name of PROCESS_ITEMS_TRIGGER_NAMES) db.exec(`DROP TRIGGER ${name}`);
       // A library already on the adopted journal (upgraded from 1) records nothing for the move: the owner's own applying flag.
       else db.exec(`UPDATE ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_state SET applying=1 WHERE id=1`);
@@ -145,9 +170,12 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
       const values = privateValues(db).reduce((sum, plan) => sum + applyPrivateValueAdoption(db, plan), 0);
       const positions = applyPrivateValueMove(db, positionMoves(db).moves);
       if (found.layout === "original") db.exec(`${ADOPTED_PROCESS_ITEMS_JOURNAL_SQL}\n${ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL}`);
+      // Lines no stream was ever offered stay unsent, now in the adopted journal, in the order they were first recorded; the original stays.
+      if (found.carried) db.exec(`INSERT INTO ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_changes(key) SELECT key FROM process_items_replica_changes GROUP BY key ORDER BY MIN(seq)`);
       else db.exec(`UPDATE ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_state SET applying=0 WHERE id=1`);
       const after = plan(db, path);
-      if (items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || values !== found.private_values || positions !== found.positions || after.layout !== "current"
+      const carried = (db.prepare(`SELECT COUNT(DISTINCT key) AS n FROM ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_changes`).get() as { n: number }).n;
+      if ((found.layout === "original" && carried !== found.carried) || items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || values !== found.private_values || positions !== found.positions || after.layout !== "current"
         || after.items || after.outputs || after.bindings || after.private_values || after.positions || after.refused.length) {
         throw new ActionError("actions.service_unavailable", `${path} 采用后的读回与计划不符，已回滚`);
       }

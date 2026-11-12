@@ -382,7 +382,7 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
-export { adoptProjectDatabase, inspectProjectAdoption, retireFilesConsents, type FilesConsentRetirement, type ProjectAdoptionReport } from "./process-items-adoption.js";
+export { adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type FilesConsentRetirement, type ProjectAdoptionReport } from "./process-items-adoption.js";
 export type { ProjectLayout } from "./project-layout.js";
 export { captureProcessItemsRecovery, verifyProcessItemsRecovery, type ProcessItemsRecoveryCapture } from "./process-items-recovery.js";
 export { processItemsMaintenance, type ProcessItemsMaintenance, type ProcessItemsMaintenancePorts, type ProcessItemsMaintenanceView } from "./process-items-maintenance.js";

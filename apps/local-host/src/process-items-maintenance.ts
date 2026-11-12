@@ -4,7 +4,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listProcessItemsRecoveries, processItemsSyncFailureKeys, type PersonalSync, type ProcessItemsTakeoverOutcome, type SyncCutoverView } from "@molis-ai/molis-work-module-sync-replication";
 import { readStorageSpace, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { projectDatabases } from "./platform-upgrade-stores.js";
-import { adoptProjectDatabase, inspectProjectAdoption, retireFilesConsents, type ProjectAdoptionReport } from "./process-items-adoption.js";
+import { adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type ProjectAdoptionReport } from "./process-items-adoption.js";
 import { captureProcessItemsRecovery, processItemKey, verifyProcessItemsRecovery } from "./process-items-recovery.js";
 
 /**
@@ -65,8 +65,8 @@ export function processItemsMaintenance(sync: Pick<PersonalSync, "processItems">
     return projectDatabases(root, space).map(relative => ({ projectId: pathUtil.basename(pathUtil.dirname(relative)), path: pathUtil.join(root, relative) }));
   };
   const inspect = () => {
-    const failures = processItemsSyncFailureKeys(home());
-    return libraries().map(library => ({ ...library, report: inspectProjectAdoption(library.path, failures.filter(key => processItemKey(key).projectId === library.projectId)) }));
+    const failures = processItemsSyncFailureKeys(home()), neverSynced = processItemsNeverSynced(home());
+    return libraries().map(library => ({ ...library, report: inspectProjectAdoption(library.path, { failures: failures.filter(key => processItemKey(key).projectId === library.projectId), neverSynced }) }));
   };
   /** The newest recovery file of this cutover that this Home still matches; a file that no longer checks is passed over, never used. */
   const verified = (cutoverId: string | null) => {

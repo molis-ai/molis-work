@@ -64,6 +64,8 @@ test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, ad
     source.close();
   }
   toOriginalLayout(project.database_path);
+  // The old device kept the receipt of each upload as its head: it took part in the old stream, so its unsent lines need keeping.
+  {const db=new DatabaseSync(project.database_path);try{for(const id of ['files-shared'])db.prepare('INSERT INTO process_items_replica_heads(key,revision) VALUES (?,1)').run(key(id));}finally{db.close();}}
   // Files' own agreement in the Home ledger, from before the retirement.
   const ledger=new HomeConsentLedger(homes[0]);
   const [files]=ledger.record({plugin_id:FILES.plugin_id,publisher_signature:FILES.binding_signature,manifest_digest:'sha256:old',granted_by:'user',grants:[{kind:'default_group',subject:'files-group'}],at:'2026-11-01T00:00:00Z'});

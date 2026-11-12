@@ -65,6 +65,8 @@ export const catalogErrors = {
 export function catalogSchemaCompatibilityError(
   actualSchemaVersion: number,
   currentSchemaVersion: number = CATALOG_SCHEMA_VERSION,
+  /** The catalog's place in its Home (`projects/catalog.db`), when it is a Home's: the page names the part it stops by it (U3 §2.2). */
+  path?: string,
 ): ActionError | null {
   if (Number.isInteger(actualSchemaVersion) && actualSchemaVersion > currentSchemaVersion) {
     return storageErrors.store_too_new(
@@ -76,6 +78,7 @@ export function catalogSchemaCompatibilityError(
         supported_schema_min: currentSchemaVersion,
         supported_schema_max: currentSchemaVersion,
         recovery: "upgrade_then_context_resolve",
+        ...(path ? { path } : {}),
       },
     );
   }

@@ -21,6 +21,8 @@ export interface PeriodicTasks {
   /** Starts the task; the returned function stops it alone. */
   every(task: PeriodicTask): () => void;
   list(): PeriodicTaskView[];
+  /** Runs every task now (one already running is left to finish): the computer woke up, and what fell due while it slept is looked at at once. */
+  wake(): void;
   stop(): Promise<void>;
 }
 
@@ -50,6 +52,7 @@ export function createPeriodicTasks(): PeriodicTasks {
       tasks.set(task.id, { task, timer, view: { runs: 0, running: false, last_finished_at: null, last_error: null } });
       return () => { remove(task.id); };
     },
+    wake: () => { for (const id of tasks.keys()) tick(id); },
     list: () => [...tasks.values()].map(({ task, view }) => ({ id: task.id, title: task.title, owner: task.owner, interval_ms: task.intervalMs, ...view })),
     stop() {
       stopped = true;

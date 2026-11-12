@@ -106,7 +106,10 @@ fn wait_for_owned_web(
         }
         Wait::TimedOut => {
             stop_owned_web_service(service_state);
-            Err("Molis Work Web 已启动，但 127.0.0.1:4173 尚未就绪".into())
+            Err(format!(
+                "Molis Work Web 已启动，但 {} 尚未就绪",
+                crate::host_port::host()
+            ))
         }
     }
 }
@@ -160,7 +163,30 @@ fn read_runtime_version(path: &Path) -> Option<Version> {
     Version::parse(metadata.version.trim()).ok()
 }
 
-fn embedded_version_is_upgrade(embedded: &Version, installed: Option<&Version>) -> bool {
+#[derive(Deserialize)]
+struct RollbackHold {
+    schema_version: u32,
+    rolled_back_from: RuntimeVersionMetadata,
+}
+
+/// After `home rollback` (upgrade-continuity U3 §5.3), the version the Home came back from: the desktop does not put it back on its own.
+fn read_rollback_hold(home: &Path) -> Option<Version> {
+    let path = home.join("config").join("rollback-hold.json");
+    let hold = serde_json::from_slice::<RollbackHold>(&fs::read(path).ok()?).ok()?;
+    if hold.schema_version != 1 {
+        return None;
+    }
+    Version::parse(hold.rolled_back_from.version.trim()).ok()
+}
+
+fn embedded_version_is_upgrade(
+    embedded: &Version,
+    installed: Option<&Version>,
+    held: Option<&Version>,
+) -> bool {
+    if held.is_some_and(|held| embedded <= held) {
+        return false;
+    }
     installed.map(|version| embedded > version).unwrap_or(true)
 }
 
@@ -172,7 +198,11 @@ fn embedded_runtime_upgrade_available(resource_dir: &Path, home: &Path) -> bool 
         return false;
     };
     let installed_version = read_runtime_version(&home.join("config").join("installation.json"));
-    embedded_version_is_upgrade(&embedded_version, installed_version.as_ref())
+    embedded_version_is_upgrade(
+        &embedded_version,
+        installed_version.as_ref(),
+        read_rollback_hold(home).as_ref(),
+    )
 }
 
 fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), String> {
@@ -329,12 +359,37 @@ fn install_or_reuse_healthy(
     }
 }
 
+/// The port this start looks at first: the one the Home's address file names, once the Host there
+/// proves it holds this Home's control key; otherwise 4173, as before. A file only points the way.
+fn adopt_endpoint_port(home: &Path) {
+    // Proved first, then adopted: no other thread ever reads a port nobody has proved.
+    if let Some(port) = crate::host_port::endpoint_port(home) {
+        if crate::web_identity::answer_at(port).is_ok() {
+            crate::host_port::set_port(port);
+            return;
+        }
+    }
+    crate::host_port::set_port(crate::host_port::DEFAULT_PORT);
+}
+
+/// The `--port` for a Host this desktop starts: none while 4173 is free, a spare one while something
+/// else holds it, a refusal when 4174–4199 are all taken too.
+fn start_port(occupied: impl Fn(u16) -> bool) -> Result<Option<u16>, String> {
+    if !occupied(crate::host_port::DEFAULT_PORT) {
+        return Ok(None);
+    }
+    crate::host_port::spare_port()
+        .map(Some)
+        .ok_or_else(|| "127.0.0.1 的 4173–4199 端口都被别的程序占着，Molis Work 起不来".to_string())
+}
+
 pub(crate) fn start_molis_work_web(
     resource_dir: Option<&Path>,
     service_state: &WebServiceState,
 ) -> Result<Started, String> {
     let home = molis_work_home();
     let mut bin = web_launcher(&home);
+    adopt_endpoint_port(&home);
     // Never replace the runtime while this Home is already upgrading its data.
     if matches!(crate::web_identity::answer(), Ok(Answer::Upgrading)) {
         return Ok(Started::Upgrading);
@@ -357,7 +412,8 @@ pub(crate) fn start_molis_work_web(
     if web_healthy() {
         if !web_desktop_ready() {
             eprintln!(
-        "127.0.0.1:4173 上的 Molis Work Web 不含桌面终端。请在仓库运行 pnpm install:local 后执行 molis-work service restart --confirm，再重新打开 App。"
+        "{} 上的 Molis Work Web 不含桌面终端。请在仓库运行 pnpm install:local 后执行 molis-work service restart --confirm，再重新打开 App。",
+        crate::host_port::host()
       );
         }
         return Ok(Started::Ready);
@@ -387,6 +443,12 @@ pub(crate) fn start_molis_work_web(
     command
         .args(["--home", home.to_str().unwrap_or_default()])
         .env("PATH", &path);
+    // 4173 answers, but not as this Home's Host: another program's port. This Host listens on a spare
+    // one and says so in its address file (resident-runtime-design §6).
+    if let Some(port) = start_port(crate::host_port::occupied)? {
+        crate::host_port::set_port(port);
+        command.args(["--port", &port.to_string()]);
+    }
     let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -400,8 +462,19 @@ pub(crate) fn start_molis_work_web(
 
 #[cfg(test)]
 mod embedded_runtime_version_tests {
+    // RES-07: a Host the desktop starts takes 4173 while it is free, and a spare port while another
+    // program holds it.
+    #[test]
+    fn res07_a_started_host_moves_off_4173_only_while_another_program_holds_it() {
+        assert_eq!(super::start_port(|_| false), Ok(None));
+        let spare = super::start_port(|port| port == crate::host_port::DEFAULT_PORT)
+            .unwrap()
+            .expect("a spare port");
+        assert!((4174..=4199).contains(&spare));
+    }
+
     use super::{
-        embedded_version_is_upgrade, install_or_reuse_healthy,
+        embedded_version_is_upgrade, install_or_reuse_healthy, read_rollback_hold,
         sync_managed_web_service_after_upgrade, Version,
     };
     use std::{
@@ -432,10 +505,46 @@ mod embedded_runtime_version_tests {
         let current = Version::parse("0.1.5").unwrap();
         let newer = Version::parse("0.1.6").unwrap();
 
-        assert!(embedded_version_is_upgrade(&current, None));
-        assert!(embedded_version_is_upgrade(&newer, Some(&current)));
-        assert!(!embedded_version_is_upgrade(&current, Some(&current)));
-        assert!(!embedded_version_is_upgrade(&old, Some(&current)));
+        assert!(embedded_version_is_upgrade(&current, None, None));
+        assert!(embedded_version_is_upgrade(&newer, Some(&current), None));
+        assert!(!embedded_version_is_upgrade(&current, Some(&current), None));
+        assert!(!embedded_version_is_upgrade(&old, Some(&current), None));
+    }
+
+    #[test]
+    fn upgr05_a_home_that_went_back_is_not_updated_again_to_the_version_it_left() {
+        let old = Version::parse("0.1.4").unwrap();
+        let left = Version::parse("0.1.5").unwrap();
+        let newer = Version::parse("0.1.6").unwrap();
+
+        assert!(!embedded_version_is_upgrade(&left, Some(&old), Some(&left)));
+        assert!(
+            embedded_version_is_upgrade(&newer, Some(&old), Some(&left)),
+            "a later version installs as usual"
+        );
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let home =
+            std::env::temp_dir().join(format!("molis-rollback-hold-{}-{nonce}", process::id()));
+        fs::create_dir_all(home.join("config")).unwrap();
+        assert_eq!(read_rollback_hold(&home), None);
+        let hold = home.join("config").join("rollback-hold.json");
+        fs::write(&hold, r#"{"schema_version":1,"held_version":"0.1.4","rolled_back_from":{"version":"0.1.5","content_digest":"x"},"at":"t"}"#).unwrap();
+        assert_eq!(read_rollback_hold(&home), Some(left));
+        fs::write(
+            &hold,
+            r#"{"schema_version":2,"rolled_back_from":{"version":"0.1.5"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_rollback_hold(&home),
+            None,
+            "a hold this build cannot read holds nothing"
+        );
+        fs::remove_dir_all(home).unwrap();
     }
 
     #[test]

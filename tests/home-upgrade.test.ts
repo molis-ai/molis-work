@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import { acquireUpgradedHomeOwner, ensureHomeUpgraded, runHomeUpgrade, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, openBaselineHomeSqlite, personalStorageSpace, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import {
   ADD_TAG, BASELINE_V2, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, notesOf, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, storePath, unitOf, upgradeTestHome, useDescriptors, V1, V2, versionOf, writeLedger,
@@ -417,6 +417,32 @@ test("UPG1-05: killed inside the transaction: SQLite drops it, and the run start
   assert.equal(versionOf(beta), 2);
   const manifest = JSON.parse(readFileSync(join(home, "upgrade", run, "manifest.json"), "utf8")) as { files: { path: string; sha256: string }[] };
   assert.equal(manifest.files.find(entry => entry.path === relativeStore("beta"))?.sha256, betaBase);
+});
+
+for (const scenario of ["ok", "fail"] as const) {
+  test(`UPG3-06 a round a start was killed in, finished by the next, is said once on the home page until it is closed (${scenario})`, t => {
+    const { home } = crashHome(t);
+    assert.ok(runChild(home, "die-in-step", "0").killed);
+    const run = ledgerOf(home).run_id;
+    const stop = useDescriptors(t, ...crashDescriptors(scenario));
+    runHomeUpgrade(home);
+    assert.deepEqual(upgradeNoticeFor(home), { run_id: run, unavailable: scenario === "fail" ? 1 : 0 });
+    assert.equal(dismissUpgradeNotice(home, "another-round"), false, "closing is for the round it says, not another");
+    assert.ok(upgradeNoticeFor(home));
+    assert.equal(dismissUpgradeNotice(home, run), true);
+    assert.equal(upgradeNoticeFor(home), undefined);
+    runHomeUpgrade(home);
+    stop();
+    assert.equal(upgradeNoticeFor(home), undefined, "a start with nothing left over says nothing again");
+  });
+}
+
+test("UPG3-06 an upgrade that ran start to end in one go leaves no notice", t => {
+  const { home } = crashHome(t);
+  useDescriptors(t, ...crashDescriptors("ok"));
+  runHomeUpgrade(home);
+  assert.equal(ledgerOf(home).units.every(unit => unit.state === "committed"), true);
+  assert.equal(upgradeNoticeFor(home), undefined);
 });
 
 test("UPG1-05: a resumed round holds the same lock rules: another holder stops it before it reads the record", t => {

@@ -82,3 +82,4 @@ export { createFeedWriter, type FeedWriter } from "./runtime-writes.js";
 export type { FeedHydrate } from "./item-hydration.js";
 
 export { syncBindings as createFeedSyncBindings } from "./sync-binding.js";
+export { createFeedRunsHandlers, decideMissedPull, feedRunsActions, feedRunsOverview, missedPullRunId } from "./missed-pulls.js";

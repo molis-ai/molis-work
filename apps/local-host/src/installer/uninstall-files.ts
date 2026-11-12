@@ -3,6 +3,7 @@ import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../web-control-token.js";
 import { CURRENT_LAUNCHER_NAMES, isCurrentInstallManifest, isCurrentReleaseManifest, isOwnedLauncherText } from "./home-contract.js";
+import { rollbackOwnedPaths } from "./home-rollback.js";
 import type { MolisWorkUninstallChange } from "./uninstall-contract.js";
 export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
   ownedPaths: string[];
@@ -40,7 +41,11 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
     if (error.code === "ENOENT") return [];
     throw error;
   });
+  const rollback = rollbackOwnedPaths(homeDirectory);
+  ownedPaths.push(...rollback.owned);
+  for (const unknown of rollback.unknown) conflicts.push(`回退点不属于 Molis Work 或已损坏，不会删除：${unknown}`);
   for (const entry of entries) {
+    if (entry.name === "previous") continue;
     const releasePath = path.join(releasesDirectory, entry.name);
     const releaseManifestPath = path.join(releasePath, "release.json");
     const releaseManifestText = entry.isDirectory() ? await readText(releaseManifestPath) : null;
@@ -53,7 +58,7 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
 }
 
 export function assetKind(target: string): MolisWorkUninstallChange["kind"] {
-  if (target.endsWith("installation.json")) return "install_manifest";
+  if (target.endsWith("installation.json") || target.endsWith("rollback-hold.json")) return "install_manifest";
   if (target.includes(`${path.sep}releases${path.sep}`)) return "release";
   return "launcher";
 }

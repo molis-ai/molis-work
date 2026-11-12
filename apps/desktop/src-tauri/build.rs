@@ -21,6 +21,8 @@ fn tray_words() {
         "quit",
         "quit-keep-service",
         "restore-appearance",
+        "stopped",
+        "stopped-tip",
     ];
     let mut tray = Vec::new();
     let mut views = Vec::new();
@@ -52,7 +54,8 @@ fn tray_words() {
             .collect::<serde_json::Map<String, Value>>();
         tray.push(serde_json::json!({ "language": { "tag": tag, "html_lang": descriptor["html_lang"], "direction": descriptor["direction"] }, "words": words }));
         views.push(serde_json::json!({ "tag": tag, "html_lang": descriptor["html_lang"], "direction": descriptor["direction"],
-            "intl": descriptor["intl"], "loading": label("boot-loading"), "failed": label("boot-failed") }));
+            "intl": descriptor["intl"], "loading": label("boot-loading"), "failed": label("boot-failed"),
+            "stopped": label("boot-stopped"), "open": label("boot-open") }));
     }
     let boot_tray =
         serde_json::json!({ "default": catalog["default"], "locales": tray }).to_string();
@@ -78,7 +81,7 @@ fn tray_words() {
         .collect::<Vec<_>>()
         .join(",");
     let colors = |mode: &str| {
-        ["page", "ink", "ink-soft"]
+        ["page", "paper", "line", "ink", "ink-soft"]
             .iter()
             .map(|role| {
                 format!(

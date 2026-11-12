@@ -3,7 +3,7 @@
   "description": "Explicit directory access for the main local onboarding page.",
   "windows": ["main"],
   "remote": {
-    "urls": ["http://127.0.0.1:4173/onboarding*", "http://localhost:4173/onboarding*"]
+    "urls": ["http://127.0.0.1:{port}/onboarding*", "http://localhost:{port}/onboarding*"]
   },
   "permissions": ["allow-context-directories"]
 }

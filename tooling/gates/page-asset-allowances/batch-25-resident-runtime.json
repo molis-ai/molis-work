@@ -1,0 +1,8 @@
+{
+  "reason": "第 25 批：首页错过提示的行与按钮排布（运行面板首页样式）增加 436 字节；工作台页面程序增加 1339 字节——设置 › 运行的绑定 1041 字节（按有无桌面命令显示两个开关或说明、读写两个开关、拒绝时放回），设置目录认得 /settings/running 与调这份绑定，Dock 把升级停下的插件读作「暂不可用」。复用组件板控件与现有资源，没有新增路径；胶囊与首页的运行面板脚本内联在各自页面里，不进这两个资源。",
+  "review": "specs/proactive-assistant/resident-runtime-design.md §4、§5，specs/upgrade-continuity/owner-isolation-and-rollback-design.md §5.4（RES-10、RES-11、UPGR-08）；实测增量随第 25 批 PR 提交评审，单个资源都在 10 KB 以内。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 436,
+    "/assets/molis-work-workbench.js": 1339
+  }
+}

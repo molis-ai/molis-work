@@ -34,7 +34,7 @@ const step = name => {
   return { from: 1, sql: ADD_TAG };
 };
 registerHomeUpgradeDescriptors(() => ["alpha", "beta"].map(name => ({
-  owner: "tests/notes", pattern: `${name}/${name}.db`, baseline: { version: 2, schema: V2, upgrades: [step(name)] }, open: file => new DatabaseSync(file),
+  owner: "tests/notes", block: { kind: "home" }, pattern: `${name}/${name}.db`, baseline: { version: 2, schema: V2, upgrades: [step(name)] }, open: file => new DatabaseSync(file),
 })));
 armed = true;
 runHomeUpgrade(home);

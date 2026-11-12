@@ -21,14 +21,17 @@ test("D0304 D0308 Home plugin startup is unavailable before ready and preserves 
 
 test("D0308 the unavailable page has one translated alert, keeps the original file and never renders a backend reason", async () => {
   installHostUiText();
-  const { renderPluginStoreUnavailablePage } = await import("@molis-ai/molis-work-app-workbench");
+  const { renderOwnerUnavailablePage } = await import("@molis-ai/molis-work-app-workbench");
   const { desktopWorkbenchRendererPorts } = await import("@molis-ai/molis-work-app-desktop");
-  for (const code of ["storage.store_too_new", "storage.upgrade_required", "storage.stores_unavailable"]) {
-    const html = runWithLocale("en", () => renderPluginStoreUnavailablePage({ project: { project_id: "fixture", display_name: "Fixture" }, membership: { plugins: ["goals", "feed"], hidden: ["feed"] },
-      reason: "PRIVATE_FAILURE_BODY", code, reloadHref: "/projects/fixture/", desktopShell: false }, { readText, htmlLang: () => "en", desktop: desktopWorkbenchRendererPorts }));
-    assert.equal((html.match(/role="alert"/g) ?? []).length, 1, code);
-    assert.doesNotMatch(html, /PRIVATE_FAILURE_BODY/);
-    assert.ok(html.includes(code === "storage.stores_unavailable" ? "Its files have been kept." : "The original file is kept."), code);
-    assert.match(html, new RegExp(code.replaceAll(".", "\\.")));
+  // The page says why in its own words and gives the number to quote (upgrade-continuity U3 §2.3), never the store's message or code.
+  for (const [reason, kept] of [["store_too_new", "neither reads nor changes it"], ["unreadable", "The original file is kept unchanged."]] as const) {
+    const html = runWithLocale("en", () => renderOwnerUnavailablePage({ project: { project_id: "fixture", display_name: "Fixture" }, membership: { plugins: ["goals", "feed"], hidden: ["feed"] },
+      card: { title: "The Home plugin store", reason, diagnostic_id: "D-3F9A2C81", rollback_href: null, reload_href: "/projects/fixture/" },
+      desktopShell: false }, { readText, htmlLang: () => "en", desktop: desktopWorkbenchRendererPorts }));
+    assert.equal((html.match(/role="alert"/g) ?? []).length, 1, reason);
+    assert.doesNotMatch(html, /PRIVATE_FAILURE_BODY|storage\./u);
+    assert.ok(html.includes(kept), reason);
+    assert.match(html, /data-copy-value="D-3F9A2C81"/u);
+    assert.match(html, /data-stored-project-plugin="feed" data-plugin-hidden="true"/u);
   }
 });

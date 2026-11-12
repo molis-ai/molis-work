@@ -1,0 +1,15 @@
+[[permission]]
+identifier = "allow-runtime-capsule"
+description = "Let the menu-bar popover read what runs on its own here, decide on a missed run, show the tray's dot and quit after the person confirmed; and, on its local 「没在运行」 page, start the Host again (resident-runtime-design §4)."
+commands.allow = [
+  "runtime_overview",
+  "runtime_decide",
+  "runtime_missed_dot",
+  "runtime_quit_confirmed",
+  "runtime_open",
+]
+
+[[permission]]
+identifier = "allow-runtime-settings"
+description = "Read and change open at login and keep running with the window closed, from Settings › Running in the main window (resident-runtime-design §5)."
+commands.allow = ["runtime_settings_get", "runtime_settings_set"]

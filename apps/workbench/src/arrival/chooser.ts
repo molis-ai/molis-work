@@ -17,6 +17,7 @@ import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "../scripts/co
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
+import { renderRuntimePanel, RUNTIME_PANEL_CLIENT_SCRIPT } from "../runtime-panel.js";
 import type { WebProjectNavigation } from "../settings-navigation.js";
 import { renderPluginDirectoryData, type PluginDirectory } from "../plugin-directory.js";
 import { pluginDirectoryFor } from "../plugin-catalog.js";
@@ -30,6 +31,8 @@ export interface ChooserArrival {
   opened: Readonly<Record<string, string>>;
   /** The project list could not be read: the chooser says so where the list would be, and the personal space still opens. */
   load_error?: boolean;
+  /** An upgrade a start was interrupted in, finished by a later one (upgrade-continuity U3 §3): said once, until it is closed. */
+  upgrade_notice?: { readonly run_id: string; readonly unavailable: number };
   /** The plugins the Home's pages run, as each project page has them: where a personal search hit opens (BL-041). */
   plugin_directory?: PluginDirectory;
 }
@@ -86,12 +89,16 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       return row(project, caption);
     }).join("");
     const failed = `<div class="mw-empty mw-empty--error chooser-error" role="alert"><span class="mw-empty__mark">${icon("circle-alert")}</span><h2>${uiText("workbench.chooser.can-t-read-project-list-right-now")}</h2><p>${uiText("workbench.chooser.project-directory-computer-didn-t-answer-personal-space")}</p>${renderButton({ variant: "secondary", size: "md", icon: "refresh", label: uiText.text("common.control.retry"), attrs: { "data-act": "reload" } })}</div>`;
-    const rows = `${renderDirectoryHeading(uiText.text("workbench.chooser.personal"))}${row(personal, uiText.text("workbench.chooser.materials-work-that-belong-no-project"))}${arrival.load_error ? failed : projectRows ? `${renderDirectoryHeading(uiText.text("workbench.chooser.projects-most-recently-opened-first"))}${projectRows}` : ""}`;
+    const notice = arrival.upgrade_notice;
+    const resumed = notice ? `<div class="mw-alert mw-alert--${notice.unavailable > 0 ? "warning" : "success"}" data-slot="alert" role="status" data-upgrade-notice data-run-id="${escapeHtml(notice.run_id)}"><strong>${escapeHtml(notice.unavailable > 0
+      ? uiText.text("workbench.chooser.upgrade-resumed-some-unavailable", { count: notice.unavailable }) : uiText.text("workbench.chooser.upgrade-resumed"))}</strong>${notice.unavailable > 0
+      ? `<p>${escapeHtml(uiText.text("workbench.chooser.upgrade-resumed-open-to-see"))}</p>` : ""}<div class="mw-alert__actions">${renderButton({ variant: "ghost", size: "sm", label: uiText.text("common.control.close"), attrs: { "data-act": "dismiss-upgrade-notice" } })}</div></div>` : "";
+    const rows = `${resumed}${renderDirectoryHeading(uiText.text("workbench.chooser.personal"))}${row(personal, uiText.text("workbench.chooser.materials-work-that-belong-no-project"))}${arrival.load_error ? failed : projectRows ? `${renderDirectoryHeading(uiText.text("workbench.chooser.projects-most-recently-opened-first"))}${projectRows}` : ""}`;
 
     const entry = last ?? personal;
     const subtitle = last && arrival.opened[last.project_id]
       ? uiText.text("workbench.chooser.last-name-when", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : uiText.text("workbench.chooser.welcome-molis-work");
-    const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>
+    const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>${renderRuntimePanel("home")}
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${uiText("workbench.chooser.search-projects")}" aria-label="${uiText("workbench.chooser.search-projects")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
       ${renderButton({ variant: "secondary", icon: "search", label: uiText("workbench.chooser.search-personal"), className: "chooser-personal-search", attrs: { "data-global-search-open": "", "aria-haspopup": "dialog" } })}
       <p class="ob-error" role="alert" data-chooser-search-error hidden></p>
@@ -134,7 +141,7 @@ globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ transl
 // The person's own content, searched from here with the workbench's dialog (BL-041): the Host fixes the scope to the Home, and a hit opens in its own space.
 // Its program comes on the first press of its button (chooser-search.ts).
 ${CHOOSER_SEARCH_LOADER_SCRIPT}
-${CHOOSER_CLIENT_SCRIPT}`;
+${CHOOSER_CLIENT_SCRIPT}${RUNTIME_PANEL_CLIENT_SCRIPT}`;
     return shell.document({
       title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,

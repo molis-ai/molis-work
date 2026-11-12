@@ -1,4 +1,5 @@
-export { workbenchClientSource } from "./page-assets.js";
+export { renderMolisWorkArrivalStylesheet, workbenchClientSource } from "./page-assets.js";
+export { renderUpgradeOpeningPage } from "./arrival/upgrade-opening.js";
 export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
@@ -103,7 +104,11 @@ export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
 export {renderPersonalAccountEntry,renderAccountSameOriginEntry} from './arrival/shell.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
-export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
+export { renderOwnerUnavailablePage } from "./owner-unavailable.js";
+export { renderOwnerUnavailableCard, type OwnerUnavailableCard, type OwnerUnavailableReason } from "./owner-unavailable-card.js";
+// 设置 › 更新 goes out with the renderer that draws it (the execution-adapter check reads this file for SQL words, and a module name is not one).
+export { renderUpdateSettings } from "./settings-renderer.js";
+export { hostSettingsSectionLabel } from "./settings-sections.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";
 

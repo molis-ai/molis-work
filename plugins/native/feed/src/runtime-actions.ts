@@ -1,3 +1,4 @@
+import { feedRunsActions } from "./missed-pulls.js";
 import { feedDemoSeedAction } from "./demo-seed.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedArtifactPreview } from "./artifact-preview.js";
@@ -81,7 +82,7 @@ export const GOAL_CONTRACT = { capability_id: "goals.contract.read", version: /*
 export const FEED_PROJECT_ACTIONS: ActionDefinition[] = [
   ...[feedArtifactPreview, ...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions),
     ...Object.values(feedSourceActions), ...FEED_INBOX_ACTIONS, ...FEED_NOTIFICATION_ACTIONS, feedSubjectAction, feedSourceSubjectAction, feedSearchEntriesAction,
-    feedHomeEventsAction].map(runtimeAction),
+    feedHomeEventsAction, ...Object.values(feedRunsActions)].map(runtimeAction),
   WAKE, feedDemoSeedAction,
 ];
 

@@ -14,7 +14,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "kit" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories" | "sync";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "kit" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "update" | "running" | "directories" | "sync";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "grants" | "rules" | "planning";
 
@@ -92,7 +92,7 @@ function renderSettingsNavigation(
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${uiText("workbench.settings-navigation.system-settings")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${uiText("workbench.settings-navigation.return-project")}</a>
     <div class="settings-nav-body">
-      ${groupedGlobalSettingsSections(shownPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
+      ${groupedGlobalSettingsSections(shownPlugins, desktopShell).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
       ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
     </div>
   </nav>`;

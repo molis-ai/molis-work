@@ -1,3 +1,4 @@
+import { createFeedRunsHandlers } from "./missed-pulls.js";
 import { releaseHistoryPages } from "./history-pages.js";
 import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
@@ -153,7 +154,7 @@ export function createFeedPlugin(): PluginDefinition {
     const bindings: ActionHandlerBinding[] = [
       { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
-      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
+      ...createFeedRunsHandlers(projectId, { feed: () => feed }), ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
         stage: { sourceCatalog: vocabulary ? () => feedSourceCatalog(vocabulary) : noVocabulary, recommendations: sceneRuntime.selection.recommendations,
           sourcePresentations: async sources => Object.fromEntries(await Promise.all(sources.flatMap(source => {
             const id = feedSourcePresentationId(source);

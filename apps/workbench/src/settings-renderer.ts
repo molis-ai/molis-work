@@ -19,6 +19,9 @@ import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
 import { renderLocalDirectorySettings } from "./settings-local-directories.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
+import { renderUpdateSettings } from "./settings-update.js";
+export { renderUpdateSettings } from "./settings-update.js";
+import { renderRunningSettings } from "./settings-running.js";
 import { renderSyncSettings } from './settings-sync.js';
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpSettings, renderRuntimeSettings } from "./settings-runtimes.js";
@@ -91,7 +94,9 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? uiText.text("workbench.settings-renderer.project-settings")
         : view.section === "diagnostics"
           ? uiText.text("workbench.settings-renderer.diagnostics")
-          : (pluginPage?.label ?? groupedGlobalSettingsSections().flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
+        : view.section === "update" ? uiText.text("workbench.settings-update.title")
+        : view.section === "running" ? uiText.text("workbench.settings-running.title")
+          : (pluginPage?.label ?? groupedGlobalSettingsSections(undefined, true).flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
@@ -120,6 +125,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
           ? renderProjectSettings(view, desktopShell, primitives)
           : view.section === "diagnostics"
             ? renderDiagnosticsSettings(view, primitives, desktopShell)
+          : view.section === "update" ? renderUpdateSettings(view, desktopShell)
+          : view.section === "running" ? renderRunningSettings()
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">

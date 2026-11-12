@@ -212,6 +212,10 @@ export interface AssistantFollowUp {
         outcome: "started" | "missed" | "skipped" | "failed";
         detail?: AssistantSavedText;
     };
+    missed?: Array<{
+        due_at: string;
+        missed_at: string;
+    }>;
 }
 
 export interface AssistantHandover {

@@ -1,4 +1,5 @@
 import { t as uiText, escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderOwnerUnavailableCard, type OwnerUnavailableCard } from "./owner-unavailable-card.js";
 
 /** What the Host may offer for a project plugin that does not run: start it again, or release its quarantine and start it. */
 export type PluginRestartOffer = "restart" | "release-quarantine";
@@ -16,6 +17,11 @@ export interface UnavailablePluginStage {
   code?: string | null;
   /** Project scope: set by the Host only for an instance that failed or was quarantined (never one switched off, blocked or uninstalled). */
   restart?: PluginRestartOffer | null;
+  /**
+   * Set by the Host when an upgrade is why the plugin's data was refused (upgrade-continuity U3 §2.4): the stage then draws that card, with
+   * no restart (starting again cannot upgrade a store).
+   */
+  upgrade?: OwnerUnavailableCard | null;
 }
 
 /** A stage drawn for a plugin that did not start, either scope (`renderUnavailablePluginStage`): the shell's amber marks find it by this. */
@@ -24,6 +30,7 @@ export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-proj
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
   readText: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
+  if (stage.upgrade) return renderOwnerUnavailableCard(stage.upgrade, announce);
   if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-starting", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p></div>`;
   return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p>${stage.scope === "home" ? homeHint(stage, readText) : projectHint(stage, readText)}</div>`;
 }

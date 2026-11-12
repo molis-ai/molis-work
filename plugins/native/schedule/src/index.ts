@@ -66,3 +66,4 @@ export type { ScheduledTaskRunner, ScheduleJobPort } from "./wakeup.js";
 export { scheduledTaskRunner } from "./runtime-wakeups.js";
 
 export { SCHEDULE_PROJECT_DATABASE, SCHEDULE_TASKS_SCHEMA_SQL } from "./database.js";
+export { decideMissedRun, missedRunId, noteMissedWakeup, scheduleRunsActions, scheduleRunsOverview, createScheduleRunsHandlers } from "./missed-runs.js";

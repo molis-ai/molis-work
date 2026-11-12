@@ -55,6 +55,7 @@ import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { awaitWebServerShutdown } from "./web-server-close.js";
+import { onHostWake } from "./host-presence.js";
 import { handleLanguagePreference, languagePreview, requestLanguage } from "./web-ui-preference.js";
 
 function loopbackWebOrigin(server: http.Server): string {
@@ -156,7 +157,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const webViewCache: MolisWorkWebViewCache = new Map();
     const demoSeeding = startDemoSeed(fixture);
     const { periodicTasks: periodic } = composition;
-    resources.push(["periodic", () => periodic.stop()]);
+    resources.push(["periodic", () => periodic.stop()], ["host-wake", onHostWake(() => periodic.wake())]);
     const { im, browserHost, sites, computer, projectExists, projectSchedules } = createWebStorageResources({
       home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });

@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RuntimeWorkContext, RuntimeProjectSuggestionClue, RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { readProductEnv } from "@molis-ai/molis-work-storage";
+import { readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { homeHostUrl } from "./host-endpoint.js";
 export type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 
@@ -16,7 +17,8 @@ export function runtimeContextHostFromEnvironment(
   return {
     homeDirectory: readProductEnv("HOME", environment),
     runtimeContext: signals.runtime_context,
-    webBaseUrl: readProductEnv("WEB_URL", environment) ?? "http://127.0.0.1:4173",
+    // `MOLIS_WORK_WEB_URL` first, then the Home's address file, then 4173 (resident-runtime-design §6). The default Home is looked up only for this process's own environment.
+    webBaseUrl: readProductEnv("WEB_URL", environment) ?? homeHostUrl(readProductEnv("HOME", environment) ?? (environment === process.env ? resolveMolisWorkHome() : undefined)),
     molisWorkSessionId: signals.molis_work_session_id,
     nativeRuntimeSessionId: signals.native_runtime_session_id,
     hostWorkContextId: readProductEnv("WORK_CONTEXT_ID", environment) || null,

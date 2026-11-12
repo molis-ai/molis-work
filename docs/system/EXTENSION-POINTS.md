@@ -212,7 +212,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 ### 3.14 界面语言
 
-**现行（2026-11-11 第 16 批 #2031 切换后）：** 文字主人各自拥有语言文件 `locales/<语言>.json`。插件在 Manifest 的 `ui.locales` 声明；平台主人（工作台 `apps/workbench/resources/locales/`、im-ui `packages/im-ui/resources/locales/`）在 `packages/design-system/resources/registry.json` 的 `locale` 行登记。加一种语言：该主人加一份语言文件（插件再加 `ui.locales.available` 一个词）；平台主人还要按 [A 段设计稿 §1.4](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处) 的登记、测试名单、`files` 清单一起改。`WEB_LOCALES` 与 `ActionLocale` 已由语言描述驱动（`ActionLocale = UiLanguageTag`；`WEB_LOCALES` 从 `WORKBENCH_LANGUAGES` 聚合，见 `apps/workbench/src/i18n.ts:11-12`），旧的按主人聚合的 `*_EN` 词典（含 `apps/workbench/src/i18n/` 28 个文件）已删除，不再按 `locale === "en"` 分支取词。加语言仍要跑 `pnpm health:check`（`scripts/gates/translations.mjs`）和 `tests/workbench-language.e2e.test.ts`。
+**现行（2026-11-11 第 16 批 #2031 切换后）：** 文字主人各自拥有语言文件 `locales/<语言>.json`。插件在 Manifest 的 `ui.locales` 声明；平台主人（工作台 `apps/workbench/resources/locales/`、im-ui `packages/im-ui/resources/locales/`）在 `packages/design-system/resources/registry.json` 的 `locale` 行登记。加一种语言：该主人加一份语言文件（插件再加 `ui.locales.available` 一个词）；平台主人还要按 [A 段设计稿 §1.4](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处) 的登记、测试名单、`files` 清单一起改。`WEB_LOCALES` 与 `ActionLocale` 已由语言描述驱动（`ActionLocale = UiLanguageTag`；`WEB_LOCALES` 从 `WORKBENCH_LANGUAGES` 聚合，见 `apps/workbench/src/i18n.ts:11-12`），旧的按主人聚合的 `*_EN` 词典（含已删除的工作台旧聚合词典 28 个文件）已删除，不再按 `locale === "en"` 分支取词。加语言仍要跑 `pnpm health:check`（`scripts/gates/translations.mjs`）和 `tests/workbench-language.e2e.test.ts`。
 
 **以下「怎么加」「现在」「第 14 批之后」三段是第 16 批切换前的历史记录**，保留作迁移史料，不再作现行做法。
 

@@ -357,6 +357,15 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **执行。** 2026-11-12 17:24–17:32（Asia/Shanghai），#2020 本地头 `677038240` + SDK `770a2e27`，186 次网络尝试（上限 192），单次请求正文最大 2,694 字节；MiniMax-M3，密钥由 `appkey exec` 临时注入，只在隔离 Home 里用；美元花费未报告。原件连同 SHA256SUMS 在本机 `~/Documents/Molis-Evaluations/memory-v0/2026-11-12-bl1073-rerun2/`（仓外，只含合成材料）。
 - **BL-1073 不关闭。** 只剩 MEM-38 的总 token（冷启动）未过，以及 Assistant 注入编号的那部分没测到。用户 11-12 定：照实记录、不挡合入（同 BL-1072）；BL-1073 保持打开，留给冷启动 token 与 Assistant 短编号（后者要动 SDK，先问用户）。
 
+### 第三次并入 main（`539d2d7d4`，2026-11-12）
+
+PR 和 main 冲突，CI 一个检查都没跑起来；并入 main 的 #2010、#2033、#2032 解决冲突，合并提交 `fb043f001`。没有删或放宽断言。
+
+- **助理归档。** main 把助理面板的写入改成只经面板的动作门。本 PR 原先在路由里直接调归档，请求断开就停下它自己剩下的写入；改成只给归档这一条路径接上「响应关闭即中止」的信号，经动作调用交给归档动作，归档动作再把它放进 `service.archive` 的 `beforeEffect` 与 `assert_current`。已经提交的事实仍归原主人。原来的直连函数删掉。
+- **其余冲突。** 插件执行器的会话表保留定义（本 PR 的插件动作回调要用），执行表取 main 的；合同 `ActionCallContext` / `ActionExecutionContext`、插件运行时的动作提供方、agent-host 入口导出、S-68 文档、插件 SDK README 两边取并集。
+- **门禁。** 公开 API 快照按构建重写（`contracts/platform/actions`、`platform/plugin`），动作快照不变。巨大单元按实测重记 `MolisWorkLocalHost` 325 行、`AssistantRoundMaterials` 306 行。main #2032 改了库结构门禁的量法，现在量到本 PR 已批准、已登记的记忆账本 1 → 2 升级，`stores.tsv` 按实测记为第 2 版、一步升级。页面资源对 main `539d2d7d4` 独立构建实测：工作台脚本 +25,416、Coding 脚本 +5,545，比上次多 1 和 2 字节，仍在用户批准的合计之内。健康门禁、版本核对、包边界、页面资源门禁通过。
+- **用例。** main 给 `defineSearchEntriesAction`、`defineSubjectContextAction` 加了版本参数，本 PR 的三个用例（`action-query-result-current`、`knowledge-source-retention`、`plugin-capability-availability`）按新写法补上。之后一次 `pnpm build`，相关 170 个文件 `--jobs 1` 一次（16.7 分钟），169 个通过；`coding-state-rings.e2e` 因本机没有专用测试浏览器（`MOLIS_WORK_TEST_CHROME`）失败，只差环境，交给 CI。
+
 ## 1. 用户结果与责任边界
 
 用户说“本项目主要服务小型设计工作室”，下次继续该项目时应能参考这个背景；切到个人助理安排日程时，不应带入无关项目背景。用户说“这周会议尽量放下午”，应成为有期限的助理记忆，不能变成永久习惯。用户纠正了旧偏好，旧值应停止影响回答；打开记忆管理时，应看得懂记住了什么、来自哪里、在哪些场景使用，并能纠正、停用、遗忘和撤销自动修改。像“这个项目只用 pnpm”这样的长期项目规矩，按 §1.3 写入项目长期说明。

@@ -1013,7 +1013,6 @@
     "workbench.assistant-composer.no-matching-capability-try-other-words-just-say": "没有匹配的能力；换个词，或直接说要做什么",
     "workbench.assistant-composer.original-comment-title": "原评论：{title}",
     "workbench.assistant-composer.other-sessions": "别的会话",
-    "workbench.assistant-composer.file-not-added-page-takes-no-files": "文件没有加进去：现在底栏发给这一页，它不收文件。回到助理再添加。",
     "workbench.assistant-composer.pasted-image": "粘贴的图片",
     "workbench.assistant-composer.role-material": "角色资料",
     "workbench.assistant-composer.role-material-title": "角色资料：{name}",

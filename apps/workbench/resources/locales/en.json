@@ -1039,7 +1039,6 @@
     "workbench.assistant-composer.no-matching-capability-try-other-words-just-say": "No matching capability; try other words, or just say what to do",
     "workbench.assistant-composer.original-comment-title": "Original comment: {title}",
     "workbench.assistant-composer.other-sessions": "Other sessions",
-    "workbench.assistant-composer.file-not-added-page-takes-no-files": "The file was not added: the bar is sending to this page, and it does not take files. Go back to the Assistant and add it there.",
     "workbench.assistant-composer.pasted-image": "Pasted image",
     "workbench.assistant-composer.role-material": "Role material",
     "workbench.assistant-composer.role-material-title": "Role material: {name}",

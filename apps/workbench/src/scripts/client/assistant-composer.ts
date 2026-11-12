@@ -319,11 +319,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     .finally(() => { sending -= 1; syncComposer(); }); };
   // Files the side pane takes go where every file goes: onto the composer's strip, whose upload reads them; 待发送 names what
   // the strip carries (a read file as a picture or a file, a pick as the object it is), told again by the composer's onMaterials.
-  // While a page in front has the bar, its box is the page's and may take no files at all: say so instead of dropping them.
-  function addFiles(chosen) {
-    if (boundPage) { host.showToast?.(readText("workbench.assistant-composer.file-not-added-page-takes-no-files"), true); return; }
-    composer?.attach(chosen);
-  }
+  function addFiles(chosen) { if (!boundPage) composer?.attach(chosen); }
   globalThis.molisBarReceiverChanged = () => syncComposer();
   stripPending = () => (composer && !boundPage ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }

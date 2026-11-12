@@ -222,11 +222,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     },
     // The person's Home, for the reminders they set in Plugins.
     homeActions: async () => personClient(undefined),
-    // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
-    scopeActions: async work => personClient(work.project_ref),
-    // A reference to the project's folders the person handed in (the side panel's 「加入任务」): read as them, with the folder read.
-    readMaterial: async (project, ref) => bindLocalWebActions(ports.localHost, project, [...LOCAL_OWNER_PERMISSIONS, ...MATERIALS_OWNER_PERMISSIONS])
-      .invoke(materialsActions.read, { ref, mode: "text" }),
+    // Reading related objects back from their owners, as the person (the work's project, or the Home), and a material they handed in.
+    scopeActions: async work => personClient(work.project_ref), readMaterial: personMaterialReader(ports.localHost),
     // A landing's object, read again from its owner as the person before a round hears of it (H3's reader).
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
     // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
@@ -253,6 +250,12 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     { definitions: [...threadActions.definitions, ...relatedActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
   return entry;
+}
+
+/** A material the person handed in, read through the platform's materials service as them, with the folder read their page has. */
+function personMaterialReader(host: MolisWorkLocalHost): NonNullable<AssistantServicePorts["readMaterial"]> {
+  return async (project, ref) => bindLocalWebActions(host, project, [...LOCAL_OWNER_PERMISSIONS, ...MATERIALS_OWNER_PERMISSIONS])
+    .invoke(materialsActions.read, { ref, mode: "text" });
 }
 
 /** One exact published Character of the work's project, frozen for a round: the Host checks the version again at dispatch. */

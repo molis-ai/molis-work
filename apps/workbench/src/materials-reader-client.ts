@@ -3,25 +3,25 @@
  * panel and in the main area:
  * a file listed by the platform's materials service opens in place with what the person can take from it. Drag a passage and
  * 「引用选区」 fixes exactly that text, or the same button lists the passages to choose with the arrow keys and Enter; 「固定快照」
- * fixes the whole file as it is now; 「加入任务」 puts the quote, the snapshot or the file as it is into the task's input. A file
+ * fixes the whole file as it is now, from a menu that can also hand it to Diff as the version before or after (`ports`); 「加入任务」 puts the quote, the snapshot or the file as it is into the task's input. A file
  * longer than one read comes in windows, and 「继续读取」 reads the next. Reading is read-only: nothing is fixed until the person
  * asks, and each fix is read again by the service, which refuses a file that changed since it was shown.
  *
  * The factory takes its place's helpers and the attribute its controls are named by (`renderMaterialsTools`); `open` answers false for
  * a file it does not read, which the place then shows as before. A place that collects what is taken (the materials picker) passes
- * `take`, which gets `{ ref, title, hint }`; without it 「加入任务」 opens the Assistant with it.
+ * `take`, which gets `{ ref, title, hint }`; without it 「加入任务」 opens the Assistant with it. Without `ports`, 「固定快照」 fixes at once.
  */
 export function renderMaterialsTools(L: (text: string) => string, name: "side-materials" | "stage-materials"): string {
   return `<div class="side-materials-tools" data-${name}-tools role="toolbar" aria-label="${L("取用这份资料")}" hidden>
           <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="quote">${L("引用选区")}</button>
-          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="pin">${L("固定快照")}</button>
+          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-${name}="pin" aria-haspopup="menu" aria-expanded="false">${L("固定快照")}</button>
           <span class="side-materials-held" data-${name}-held hidden></span>
           <button class="mw-btn mw-btn--secondary mw-btn--sm side-materials-add" type="button" data-${name}="add">${L("加入任务")}</button>
           <p class="side-materials-problem" data-${name}-problem role="status" hidden></p>
         </div>`;
 }
 
-export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=({name,L,esc,body,tools,held,problem,post,renderFile,take})=>{
+export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=({name,L,esc,body,tools,held,problem,post,renderFile,take,ports})=>{
     let state=null;
     // Each place names its own controls (the side panel's, the main area's), so two readers on one page never answer each other.
     const sel=(value)=>value==null?'[data-'+name+']':'[data-'+name+'="'+value+'"]';
@@ -99,8 +99,8 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       for(const part of state.windows){const re=/[^\n]+(?:\n[^\n]+)*/g;let match;while((match=re.exec(part.text)))if(match[0].trim())list.push({start:part.start+match.index,end:part.start+match.index+match[0].length,cursor:part.cursor,text:match[0]});}
       return list;
     };
-    const fix=async(range,button)=>{
-      const input={workspace_id:state.workspace_id,path:state.path,...(range.cursor?{cursor:range.cursor}:{fingerprint:state.revision}),...(range.end!==undefined?{start:range.start,end:range.end}:{})};
+    const fix=async(range,button,port)=>{
+      const input={workspace_id:state.workspace_id,path:state.path,...(range.cursor?{cursor:range.cursor}:{fingerprint:state.revision}),...(range.end!==undefined?{start:range.start,end:range.end}:{}),...(port?{port}:{})};
       button.disabled=true;
       try{return await post('/api/materials/capture',input);}
       catch(error){say(error);return null;}
@@ -132,17 +132,41 @@ export const MATERIALS_READER_CLIENT_SCRIPT = String.raw`const materialsReader=(
       if(take){take({ref:item.ref,title:item.title||state.title,hint:item.title&&item.title!==state.title?'':item.label||''});return;}
       document.dispatchEvent(new CustomEvent('molis:assistant-open',{detail:{source:{surface:'materials',title:L('项目资料')},materials:[{title:item.title||state.title,ref:item.ref}]}}));
     };
+    // A whole file fixed as it is now; handed to Diff as the version before or after when the person says so (one commit with the port).
+    const pin=async(button,port)=>{
+      const fixed=await fix({start:0},button,port);
+      if(fixed&&state){state.pinned={ref:fixed.ref,label:port?L('固定快照')+' · '+L(port==='before'?'对比前':'对比后'):L('固定快照'),title:state.title};state.quote=null;paintHeld();}
+    };
+    let menu=null;
+    const pinMenu=(button)=>{
+      if(!menu){
+        menu=document.createElement('div');menu.className='mw-menu mw-menu--context side-materials-menu';menu.setAttribute('popover','auto');menu.setAttribute('role','menu');menu.setAttribute('aria-label',L('固定快照'));menu.setAttribute('data-'+name+'-menu','');
+        for(const [port,label] of [['','只固定这一版'],['before','作为对比前（Diff）'],['after','作为对比后（Diff）']]){const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.port=port;item.textContent=L(label);menu.append(item);}
+        menu.addEventListener('click',event=>{const item=event.target?.closest?.('[role=menuitem]');if(!item)return;menu.hidePopover();button.focus();void pin(button,item.dataset.port||undefined);});
+        menu.addEventListener('keydown',event=>{
+          const items=[...menu.querySelectorAll('[role=menuitem]')],at=items.indexOf(document.activeElement);
+          if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();items[(at+(event.key==='ArrowDown'?1:items.length-1))%items.length]?.focus();}
+          else if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.hidePopover();button.focus();}
+        });
+        menu.addEventListener('toggle',event=>button.setAttribute('aria-expanded',String(event.newState==='open')));
+        document.body.append(menu);
+      }
+      menu.showPopover();
+      const box=button.getBoundingClientRect();
+      menu.style.left=Math.max(8,Math.min(box.left,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.round(box.bottom+4)+'px';
+      menu.querySelector('[role=menuitem]')?.focus();
+    };
     const act=async(action,button)=>{
       if(!state)return;
       say(null);
       if(action==='next'){await next(button);return;}
       if(action==='drop'){state.quote=null;state.pinned=null;paintHeld();return;}
       if(action==='quote'){const range=selected();if(range==='split'){say(new Error(L('选区跨了两段，请在一段里选')));return;}if(range)await quote(range,button);else choosePassage(button);return;}
-      if(action==='pin'){const fixed=await fix({start:0},button);if(fixed&&state){state.pinned={ref:fixed.ref,label:L('固定快照'),title:state.title};state.quote=null;paintHeld();}return;}
+      if(action==='pin'){if(ports)pinMenu(button);else await pin(button);return;}
       if(action==='add')add();
     };
     // Pressing 引用选区 must not move focus off the text: where the text sits in a focused box (the picker), that clears the selection.
     tools.addEventListener('mousedown',event=>{if(event.target?.closest?.(sel('quote')))event.preventDefault();});
     for(const container of [tools,held,body])container.addEventListener('click',event=>{const button=event.target?.closest?.(sel());if(button)void act(button.getAttribute('data-'+name),button);});
-    return {open,close,say};
+    return {open,close:()=>{menu?.hidePopover?.();close();},say};
   };`.replace(/^[ \t]*\/\/.*\n/gm, "").replace(/^[ \t]+/gm, "");

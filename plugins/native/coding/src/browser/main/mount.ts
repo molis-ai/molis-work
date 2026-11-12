@@ -6,6 +6,7 @@ import { mountControlEvents, mountSessionEvents } from "./mount-events.js";
 import { mountForms } from "./mount-forms.js";
 import { mountComposer, mountPolling } from "./mount-submit.js";
 import { mountWork } from "./mount-work.js";
+import { mountFilesFace } from "./files-face.js";
 
 /**
  * Mounts Coding's page on the root the workbench made: the markup is found, the page's memory made, then its parts built in the
@@ -15,6 +16,7 @@ export function mountCoding(host: CodingHost): void {
   const page = createPage(host);
   if (!page) return;
   mountFoundations(page);
+  page.refs.filesFace = mountFilesFace(page);
   mountComposerParts(page);
   mountBoard(page);
   mountWork(page);

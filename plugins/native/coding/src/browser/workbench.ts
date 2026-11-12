@@ -3,7 +3,7 @@ import type { UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contr
 import type { CodingHost } from "./main/host.js";
 import { mountCoding } from "./main/mount.js";
 
-/** What Files' and Git's clients hand back; each reads through its own plugin's routes. */
+/** What Git's client hands back; it reads through its own plugin's routes. */
 interface CompanionBrowser {
   refresh?(): Promise<void> | void;
   /** Shows another of the project's folders: which one Coding's panel shows is the page's own state. */
@@ -15,7 +15,7 @@ interface CompanionBrowser {
 type CompanionClient = (ports: { readonly root: Element; readonly openResult: () => void; readonly closeResult: () => void; readonly onWorkspaceSelected?: (workspaceId: string) => void }) => CompanionBrowser | null;
 
 /**
- * What the workbench hands Coding's bundle when it mounts a root: the shell's ports, the Files and Git clients Coding's
+ * What the workbench hands Coding's bundle when it mounts a root: the shell's ports, the Git client Coding's
  * registration names in `clientUses` (`clients`), and the Host's review actions (`reviews`).
  */
 export interface CodingWorkbenchHost {
@@ -37,14 +37,15 @@ export interface CodingWorkbenchHost {
   readonly hideDirectory?: () => void;
   readonly workspaces: UiPageWorkspaces;
   readonly clients: Readonly<Record<string, CompanionClient | undefined>>;
+  readonly invokeAction: CodingHost["invokeAction"];
   readonly reviews: UiPageReviews<Element>;
   readonly drafts: CodingHost["drafts"];
   readonly returns: CodingHost["returns"];
 }
 
 /**
- * Mounts Coding's page: its own client (src/browser/main) with the Files and Git panels, which the workbench lends as `host.clients`
- * (their own bundles, loaded beside this one). Built with esbuild into `dist/workbench-bundle.js` (src/workbench-client.ts reads it).
+ * Mounts Coding's page: its own client (src/browser/main) with the Git panel, which the workbench lends as `host.clients`
+ * (its own bundle, loaded beside this one); the files face is Coding's own (main/files-face.ts). Built with esbuild into `dist/workbench-bundle.js` (src/workbench-client.ts reads it).
  */
 export function codingWorkbench(host: CodingWorkbenchHost): void {
   const { mountPluginClient, translate, readRefusal, pluginId, pluginRoute, confirm, clients } = host;
@@ -57,7 +58,7 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
   const openCompanionResult = (name: string) => {
     if (codingRoot) { codingRoot.dataset.codingDetail = "true"; codingRoot.dataset.codingResults = "true"; }
     codingRoot?.querySelector("[data-coding-tools]")?.setAttribute("data-companion-open", "true");
-    for (const kind of ["files", "git"]) { const panel = codingRoot?.querySelector<HTMLElement>(`[data-${kind}-results]`); if (panel) panel.hidden = kind !== name; }
+    for (const kind of ["git"]) { const panel = codingRoot?.querySelector<HTMLElement>(`[data-${kind}-results]`); if (panel) panel.hidden = kind !== name; }
   };
   const closeCompanionResult = () => {
     codingRoot?.querySelector("[data-coding-tools]")?.removeAttribute("data-companion-open");
@@ -68,15 +69,12 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
   };
   const gitBrowser: CompanionBrowser | null = codingRoot ? clients.git?.({ root: codingRoot,
     openResult: () => openCompanionResult("git"), closeResult: closeCompanionResult }) ?? null : null;
-  const filesBrowser: CompanionBrowser | null = codingRoot ? clients.files?.({ root: codingRoot,
-    onWorkspaceSelected: (id: string) => { gitBrowser?.browse?.(id); },
-    openResult: () => openCompanionResult("files"), closeResult: closeCompanionResult }) ?? null : null;
   mountCoding({ ...lent, interaction: host.interaction, receipts: host.receipts, drafts: host.drafts, returns: host.returns,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
-    onDirectoryFace: (face: string) => { const handled = filesBrowser?.show?.(face) ?? false; gitBrowser?.show?.(face); return handled; },
+    onDirectoryFace: (face: string) => { gitBrowser?.show?.(face); },
     showReviews,
     addWorkspace: (workspacePath: string) => host.workspaces.add(workspacePath),
-    selectWorkspace: async (id: string) => { filesBrowser?.browse?.(id); gitBrowser?.browse?.(id); },
+    selectWorkspace: async (id: string) => { gitBrowser?.browse?.(id); }, invokeAction: host.invokeAction,
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),
   });

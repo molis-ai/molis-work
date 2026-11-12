@@ -20,7 +20,7 @@ export const registration: PluginRegistration = {
     settingsClient: CODING_SETTINGS_CLIENT_SCRIPT,
     // The attributes the Characters import page and the shared diff view read or set.
     stylesheetShared: ["data-coding-workbench", "data-coding-line"],
-    clientUses: ["git", "files"],
+    clientUses: ["git"],
     specimens: codingBoardSpecimens,
   },
 };

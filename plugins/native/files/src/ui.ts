@@ -58,9 +58,6 @@ export const filesUiDescriptor: UiContributionDeclaration = {
     { surface_id: "tree", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "reader", target_slot_id: "workbench.main", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
-    // The browser the Coding page embeds (`ui.embedded_plugins`): the slots are the ones that page opens, by their ids.
-    { surface_id: "browser-directory", target_slot_id: "coding.companion-directory", format: "declarative-html" },
-    { surface_id: "browser-result", target_slot_id: "coding.companion-result", format: "declarative-html" },
   ],
   slots: [],
 };
@@ -72,8 +69,6 @@ export const filesUiContribution: UiContribution<FilesUiModel | CompanionStageMo
     switch (request.surface) {
       case "workbench": return renderFilesStage(stage);
       case "tree": return "nodes" in request.model ? renderFilesTree(request.model) : renderFilesBrowserDirectory(stage.primitives.text);
-      case "browser-directory": return renderFilesBrowserDirectory(stage.primitives.text);
-      case "browser-result": return renderFilesBrowserResult(stage.primitives.text);
       case "reader": return renderFilesReader(request.model as FilesUiModel);
       default: return renderFilesTree(request.model as FilesUiModel);
     }

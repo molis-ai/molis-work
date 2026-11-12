@@ -84,7 +84,8 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
-      "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
+      // The embedded Git shows a file's changes through Diff, under this page.
+      "diff.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
@@ -97,6 +98,8 @@ export const codingManifest: PluginManifest = {
       knowledgeActions.list.capability_id,
       // A folder file, a quote or a snapshot chosen as a round's material is read through the platform's materials service.
       materialsActions.read.capability_id,
+      // The files face opens a folder file as the platform's 「打开资料」, then shows it in the side panel's reader.
+      materialsActions.open.capability_id,
       projectDirectoryActions.get.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
@@ -221,7 +224,7 @@ export const codingManifest: PluginManifest = {
   ui: {
     messages: CODING_MESSAGES,
     translations: CODING_EN,
-    embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
+    embedded_plugins: ["io.molis.work.git", "io.molis.work.diff"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },

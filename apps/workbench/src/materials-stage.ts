@@ -39,7 +39,7 @@ export const MATERIALS_STAGE_FACTORY_SCRIPT = String.raw`(host) => {
     if(file.encoding==='base64'){body.innerHTML='<p class="side-files-note">'+esc(L('这种文件（{type}）不能在这里预览。',{type}))+'</p>';return;}
     body.innerHTML=renderFilePreview({...file,truncated:false},{escape:esc,text:L});
   };
-  const reader=materialsReader({name:'stage-materials',L,esc,body,tools:$('[data-stage-materials-tools]'),held:$('[data-stage-materials-held]'),problem:$('[data-stage-materials-problem]'),post,renderFile:render});
+  const reader=materialsReader({name:'stage-materials',ports:true,L,esc,body,tools:$('[data-stage-materials-tools]'),held:$('[data-stage-materials-held]'),problem:$('[data-stage-materials-problem]'),post,renderFile:render});
   let current='';
   const show=async(id)=>{
     const at=id.indexOf(':'),request=current=id;

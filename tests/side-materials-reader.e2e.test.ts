@@ -66,10 +66,27 @@ test("BSH-08 the side panel reads a project-folder file in place: quote, choose 
   await waitFor("window.__handed.length === 2");
   assert.equal(await readBack(await evaluate("window.__handed[1].materials[0].ref")), "第三段：结论");
 
-  // The whole file as it is now; a file changed since it was shown is refused, and nothing is held.
+  // 固定快照 asks how: only this version, or as Diff's version before or after (one commit with the port; materials-ui-contract §2).
   await click('[data-side-materials="drop"]');
+  const menuOpen = "Boolean(document.querySelector('[data-side-materials-menu]')?.matches(':popover-open'))";
+  await click('[data-side-materials="pin"]');
+  await waitFor(`${menuOpen} && document.activeElement?.dataset.port === '' && document.querySelector('[data-side-materials=pin]').getAttribute('aria-expanded') === 'true'`);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-side-materials-menu] [role=menuitem]')].map(item => item.textContent)"),
+    ["只固定这一版", "作为对比前（Diff）", "作为对比后（Diff）"]);
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))");
+  assert.equal(await evaluate("document.activeElement?.dataset.port"), "before", "arrow keys move through the menu");
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor(`!${menuOpen} && document.activeElement?.matches('[data-side-materials=pin]') && document.querySelector('[data-side-materials=pin]').getAttribute('aria-expanded') === 'false'`);
+  assert.equal(await held(), "", "closing the menu fixes nothing");
+  await click('[data-side-materials="pin"]');
+  await click('[data-side-materials-menu] [data-port="before"]');
+  await waitFor("(document.querySelector('[data-side-materials-held]:not([hidden]) span')?.textContent ?? '').includes('固定快照 · 对比前')", 10_000);
+  await click('[data-side-materials="drop"]');
+
+  // The whole file as it is now; a file changed since it was shown is refused, and nothing is held.
   await writeFile(join(directory, "notes.txt"), notes + "后来加的一行\n");
   await click('[data-side-materials="pin"]');
+  await click('[data-side-materials-menu] [data-port=""]');
   await waitFor("(document.querySelector('[data-side-materials-problem]:not([hidden])')?.textContent ?? '').includes('文件已改变')", 10_000);
   assert.equal(await held(), "", "a refused snapshot holds nothing");
 

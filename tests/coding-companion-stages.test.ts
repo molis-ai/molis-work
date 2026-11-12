@@ -79,13 +79,13 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
     assert.match(coding, /data-coding-directory/);
-    // Manifest order: embedded_plugins lists Files before Git; both fill the directory and the result slot of the page.
-    assert.deepEqual(codingManifest.ui.embedded_plugins, ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"]);
+    // Git fills the directory and the result slot of the page; the files face is Coding's own, read through the platform (WMD-05).
+    assert.deepEqual(codingManifest.ui.embedded_plugins, ["io.molis.work.git", "io.molis.work.diff"]);
     const at = (text: string) => coding.indexOf(text);
-    for (const marker of ["data-files-browser", "data-git-browser", "data-files-results", "data-git-results"]) assert.ok(at(marker) > 0, `${marker} is in Coding's page`);
-    assert.ok(at("data-files-browser") < at("data-git-browser"), "directories: Files before Git");
-    assert.ok(at("data-files-results") < at("data-git-results"), "readers: Files before Git");
-    assert.ok(at("data-coding-directory") < at("data-files-browser") && at("data-git-browser") < at("data-coding-results-index"), "the directories are in the page's directory, the readers after the results index");
+    for (const marker of ["data-coding-files-face", "data-git-browser", "data-git-results"]) assert.ok(at(marker) > 0, `${marker} is in Coding's page`);
+    assert.doesNotMatch(coding, /data-files-browser|data-files-results/, "Files no longer fills a place in Coding's page");
+    assert.ok(at("data-coding-directory") < at("data-coding-files-face") && at("data-coding-files-face") < at("data-git-browser"), "the files face, then Git's changes under it, in the page's directory");
+    assert.ok(at("data-git-browser") < at("data-coding-results-index") && at("data-coding-results-index") < at("data-git-results"), "the directories are in the page's directory, the readers after the results index");
     // Diff and Text Stats declare no surface for the two slots: they add nothing to Coding's page.
     assert.doesNotMatch(coding, /data-companion=/);
   });
@@ -121,7 +121,7 @@ test("RAC-435 an embedded plugin that is not running leaves its place in Coding'
     const { html } = renderProjectRuntimeStages(stopped, store, { shown: SHOWN, drawn: [], model: model() });
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
-    assert.match(coding, /data-files-browser/, "Files still fills its place");
+    assert.match(coding, /data-coding-files-face/, "Coding's own files face still draws");
     assert.doesNotMatch(coding, /data-git-browser|data-git-results/, "Git's places are empty");
   });
 });
@@ -130,15 +130,15 @@ test("RAC-436 an embedded surface that fails leaves its place empty and the page
   await withProject(async (store, state) => {
     const failing = withContribution(state, (pluginId, real) => {
       const contribution = real as { kind?: string; views?: Array<{ descriptor: unknown }> } | undefined;
-      if (pluginId !== "io.molis.work.files" || contribution?.kind !== "app") return real;
+      if (pluginId !== "io.molis.work.git" || contribution?.kind !== "app") return real;
       return { ...contribution, views: (contribution.views ?? []).map(view => ({ descriptor: view.descriptor, render: () => { throw new Error("the surface failed"); } })) };
     });
     const { html, unavailable } = renderProjectRuntimeStages(failing, store, { shown: SHOWN, drawn: [], model: model() });
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
-    assert.doesNotMatch(coding, /data-files-browser|data-files-results/, "Files' places are empty");
-    assert.match(coding, /data-git-browser/, "Git still fills its place");
-    assert.ok(unavailable.some(stage => stage.surface === "files"), "Files' own stage, which fails the same way, is the unavailable shell");
+    assert.doesNotMatch(coding, /data-git-browser|data-git-results/, "Git's places are empty");
+    assert.match(coding, /data-coding-files-face/, "Coding's own files face still draws");
+    assert.ok(unavailable.some(stage => stage.surface === "git"), "Git's own stage, which fails the same way, is the unavailable shell");
     assert.ok(!unavailable.some(stage => stage.surface === "coding"));
   });
 });
@@ -207,7 +207,7 @@ test("RAC-449 every surface an embedded plugin puts into Coding's page targets a
         targets.push(`${embeddedId}:${surface.surface_id}`);
       }
     }
-    assert.deepEqual(targets.sort(), ["io.molis.work.files:browser-directory", "io.molis.work.files:browser-result", "io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
+    assert.deepEqual(targets.sort(), ["io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
   });
 });
 

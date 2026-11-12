@@ -148,6 +148,7 @@ export const SIDE_FILES_STYLES = String.raw`
 .side-files-card-form :is(.mw-input,.mw-textarea){width:100%;font-size:13px}
 .side-materials-tools{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex:none;padding:6px 12px;border-bottom:1px solid var(--line)}
 .side-materials-tools[hidden],.side-materials-held[hidden]{display:none}
+.side-materials-menu:popover-open{position:fixed;inset:auto;margin:0}
 .side-materials-held{display:inline-flex;align-items:center;gap:2px;min-width:0;max-width:100%;padding-left:8px;border-radius:6px;background:var(--wash,var(--nav-hover));color:var(--ink-soft,var(--ink));font-size:12px}
 .side-materials-held span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-materials-held .side-files-tool{width:24px;height:24px}
@@ -287,7 +288,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     body.innerHTML=head+renderFilePreview({...file,truncated:false},{escape:esc,text:L});
   };
   // A file of the project's folders opens in the platform's reader: quote, pin, read on, add to the task (materials-ui-contract §4).
-  const reader=materialsReader({name:'side-materials',L,esc,body,tools:$('[data-side-materials-tools]'),held:$('[data-side-materials-held]'),problem:$('[data-side-materials-problem]'),post,renderFile:(file)=>render(file)});
+  const reader=materialsReader({name:'side-materials',ports:true,L,esc,body,tools:$('[data-side-materials-tools]'),held:$('[data-side-materials-held]'),problem:$('[data-side-materials-problem]'),post,renderFile:(file)=>render(file)});
   // The piece's card above its preview: how far it is organized, its brief and keywords, and what the person can do with it.
   const showCard=async(kind,id,request)=>{
     cardBox.hidden=true;cardBox.replaceChildren();

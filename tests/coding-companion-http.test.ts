@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
@@ -33,7 +33,8 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     ["none", []],
     ["files", ["files", "diff", "text-stats"]],
     ["git", ["git", "diff"]], ["diff", ["diff"]],
-    ["text-stats", ["files", "diff", "text-stats"]], ["coding", surfaces.filter(id => id !== "workspace")],
+    // Coding embeds Git and Diff; its files face is its own and reads through the platform, so Files and Text Stats stay off (WMD-05).
+    ["text-stats", ["files", "diff", "text-stats"]], ["coding", ["coding", "git", "diff"]],
   ];
   try {
     for (const [plugin, allowed] of cases) {
@@ -65,7 +66,8 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       assert.equal(session.status, plugin === "coding" ? 200 : 403, "companion access must never imply Coding execution access");
     }
 
-    const files = projects.get("files")!, other = projects.get("coding")!;
+    // The other project also runs Files (through Text Stats), so a refusal there is about the folder, not the plugin.
+    const files = projects.get("files")!, other = projects.get("text-stats")!;
     // Changing which folder is the output needs the Home's control token, and names only this project's own folders.
     const setOutput = async (project: { id: string }, authorized = true) => request(projectDirectoriesPath(project.id), "POST",
       { change: "set_output", input: { workspace_id: files.workspace, expected_revision: (await readProjectDirectories(directories, project.id)).revision } }, authorized);
@@ -77,12 +79,18 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     const open = () => request(api(files.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] });
     const first = await open(); assert.equal(first.status, 200); assert.equal(first.body.result.text, "中文🙂\nfirst\n");
     const capture = (port: string, fingerprint: string) => request(api(files.id, "files", "/capture"), "POST", { workspace_id: files.workspace, path: ["note.txt"], port, fingerprint });
+    // Since S1 Diff and Text Stats read the versions fixed through the platform's materials service, as the reader's 固定快照 menu
+    // fixes them (materials-ui-contract §2); Files' own captures still answer until Files is removed.
+    const fixMaterial = (port: string, text: string) => request(`/projects/${files.id}/api/materials/capture`, "POST",
+      { workspace_id: files.workspace, path: ["note.txt"], fingerprint: createHash("sha256").update(text).digest("hex"), port });
     assert.equal((await capture("before", first.body.result.fingerprint)).status, 200);
+    const fixedBefore = await fixMaterial("before", "中文🙂\nfirst\n"); assert.equal(fixedBefore.status, 200, JSON.stringify(fixedBefore.body));
     await writeFile(path.join(files.directory, "note.txt"), "中文🙂\nsecond\n");
     const second = await open(); assert.equal(second.status, 200);
     assert.equal((await capture("after", second.body.result.fingerprint)).status, 200);
+    const fixedAfter = await fixMaterial("after", "中文🙂\nsecond\n"); assert.equal(fixedAfter.status, 200, JSON.stringify(fixedAfter.body));
     const diff = await request(api(files.id, "diff")); assert.equal(diff.body.view.phase, "ready"); assert.equal(diff.body.view.identical, false);
-    assert.match(diff.body.html, /first/); assert.match(diff.body.html, /second/, "the default Files→Diff graph carries both captured texts");
+    assert.match(diff.body.html, /first/); assert.match(diff.body.html, /second/, "the default materials→Diff graph carries both fixed texts");
     const stats = await request(api(files.id, "text-stats")); assert.equal(stats.body.view.characters, 10); assert.equal(stats.body.view.lines, 2);
 
     const gitProject = projects.get("git")!;

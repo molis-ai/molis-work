@@ -137,6 +137,7 @@ export interface WorktreeChoice { readonly worktree_id: string; readonly canonic
 
 /** The pieces the page is made of, each built once when the page mounts. */
 export interface Refs {
+  filesFace: import("./files-face.js").FilesFace;
   attachMenu: HTMLElement;
   attachToggle: HTMLElement;
   changeReview: ChangesetClient;

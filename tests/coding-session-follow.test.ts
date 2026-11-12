@@ -9,7 +9,7 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlu
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -50,7 +50,8 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
       if (stop) await new Promise<void>(resolve => { releaseWait = resolve; });
       // Each wait answers with the next phase, as the Host does when the run's view changes.
       await new Promise(resolve => setTimeout(resolve, 20));
-      seenStates.push(sessions.get(DEMO_PROJECT_ID, "s").state);
+      // The test looks at the record as itself, not as the Coding call this answer is for (each read is checked against its caller, BL-943).
+      seenStates.push(outsidePluginAction(() => sessions.get(DEMO_PROJECT_ID, "s").state));
       const phase = phases[Math.min(waits, phases.length - 1)]!; waits++;
       return { version: `v${waits}`, view: view(phase) } as Output;
     }

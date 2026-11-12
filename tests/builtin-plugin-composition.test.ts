@@ -115,8 +115,8 @@ test('RAC-540 PG-070 every client is a bundle of its own: Files, Git, Diff and T
   }
   for (const id of ['files', 'git', 'diff', 'text-stats']) assert.notEqual(clients.get(id)?.factory, clients.get('coding')?.factory, `${id} has a client of its own`);
   for (const client of clients.values()) assert.equal(client.bundle, client.id, client.id);
-  // Coding calls Files' and Git's clients, so the page loads their bundles before it mounts Coding's.
-  assert.deepEqual(clients.get('coding')?.assets, ['/assets/molis-work-plugins/git.js', '/assets/molis-work-plugins/files.js']);
+  // Coding calls Git's client, so the page loads its bundle before it mounts Coding's; Coding's files face is its own (WMD-05).
+  assert.deepEqual(clients.get('coding')?.assets, ['/assets/molis-work-plugins/git.js']);
 });
 
 test('RAC-541 W5-02-REG-08 a client gets the clients its registration names in clientUses, mounted as the plugin they belong to', () => {
@@ -132,10 +132,11 @@ test('RAC-541 W5-02-REG-08 a client gets the clients its registration names in c
   const factories: Record<string, unknown> = { lent: runInNewContext(`(${lentOwn?.clientFactory})`) };
   assert.equal(runInNewContext(`(${used?.clientFactory})({ root: 'page', route: path => '/p' + path })`, { molisWorkbenchPluginFactories: factories }), 'r:io.molis.work.lent:/p/api/plugins/io.molis.work.lent/x', 'it mounts with its own plugin\'s identity, never the user\'s');
   assert.throws(() => pluginWorkbenchPacks([user, { ...lent, workbench: { ...lent.workbench, clientFactory: undefined } }]), /user uses the client of lent, which has none/);
-  // The build: Coding calls Git's and Files' clients; the workbench has no Coding-specific script.
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === 'coding')?.workbench.clientUses, ['git', 'files']);
-  for (const id of ['git', 'files']) assert.ok(pluginWorkbenchPacks().find(pack => pack.project_plugin_id === id)?.clientFactory, id);
-  assert.match(pluginWorkbenchClientAsset('coding') ?? '', /clients: \{ "git": ports => .+, "files": ports => .+ \}/s);
+  // The build: Coding calls Git's client (its files face reads through the platform, WMD-05); the workbench has no Coding-specific script.
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === 'coding')?.workbench.clientUses, ['git']);
+  assert.ok(pluginWorkbenchPacks().find(pack => pack.project_plugin_id === 'git')?.clientFactory, 'git');
+  assert.match(pluginWorkbenchClientAsset('coding') ?? '', /clients: \{ "git": ports => .+ \}/s);
+  assert.doesNotMatch(pluginWorkbenchClientAsset('coding') ?? '', /"files": ports =>/);
 });
 
 test('a registration that sets clientServed is sent without its whole-line comments and indentation; one that does not, as written', () => {

@@ -1,6 +1,11 @@
 import { PLUGIN_SLOTS_EN } from "./plugin-slots-en.js";
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "只固定这一版": "Fix this version only",
+  "作为对比前（Diff）": "As the version before (Diff)",
+  "作为对比后（Diff）": "As the version after (Diff)",
+  "对比前": "before",
+  "对比后": "after",
   "已选的资料": "Chosen material",
   "加入选择": "Add to choice",
   "已加入：{title}": "Added: {title}",

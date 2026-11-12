@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -33,7 +33,8 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     for (const display_name of ["文件 A", "文件 B"]) {
       const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true });
       assert.equal(created.status, 201); projects.push(created.body.project.project_id);
-      await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" });
+      // Files is enabled for itself: Coding no longer embeds it (WMD-05; its files face reads through the platform).
+      await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "files" });
     }
     const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
     const web = directoriesWebOf(request);
@@ -83,6 +84,14 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     });
     const before = await capture("before", first.body.result.fingerprint);
     assert.equal(before.status, 200, JSON.stringify(before.body)); assert.equal(before.body.saved.artifact.version, 1);
+    // Since S1 Diff and Text Stats read the versions fixed through the platform's materials service (the reader's 固定快照 menu);
+    // Files' own captures above still answer until Files is removed, and the default graph below is the materials one.
+    const materials = (route: string, body: Record<string, unknown>) => request(`/projects/${projects[0]}/api/materials/${route}`, "POST", body);
+    const fixMaterial = async (port: string, text: string) => {
+      const fixed = await materials("capture", { workspace_id: ids[0], path: ["note.txt"], fingerprint: createHash("sha256").update(text).digest("hex"), port });
+      assert.equal(fixed.status, 200, JSON.stringify(fixed.body));
+    };
+    await fixMaterial("before", first.body.result.text);
     const stats = await request(api("text-stats", "/state"));
     assert.equal(stats.status, 200, JSON.stringify(stats.body));
     assert.equal(stats.body.view.characters, Array.from(first.body.result.text).length); assert.equal(stats.body.view.lines, 2);
@@ -94,6 +103,7 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     refused(await capture("after", first.body.result.fingerprint), "files.invalid", "cannot silently capture bytes the user has not read");
     const second = await open(["note.txt"]);
     assert.equal((await capture("after", second.body.result.fingerprint)).status, 200);
+    await fixMaterial("after", second.body.result.text);
     const diff = await request(api("diff", "/state")); assert.equal(diff.body.view.phase, "ready");
     assert.equal(diff.body.view.identical, false); assert.ok(diff.body.html.includes("second"));
     assert.deepEqual((await request(api("text-stats", "/state"))).body, stats.body, "stats still count fixed before, not current disk");
@@ -103,8 +113,9 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     assert.equal((await request(api("files", "/state"))).body.position.workspace_id, ids[0], "the folder last read survives the restart");
     const republished = await capture("before", second.body.result.fingerprint);
     assert.equal(republished.body.saved.artifact.version, 2);
-    // Reading the input instead: the snapshots Files handed on came from the output, so they are withdrawn.
+    // Reading the input instead: the snapshots handed on came from the output, so they are withdrawn.
     const input = await open(["note.txt"], ids[1]); assert.equal(input.status, 200, JSON.stringify(input.body)); assert.equal(input.body.result.text, "中文🙂\nfirst\n");
+    const opened = await materials("open", { workspace_id: ids[1], path: ["note.txt"] }); assert.equal(opened.status, 200, JSON.stringify(opened.body));
     assert.equal((await request(api("diff", "/state"))).body.view.phase, "waiting");
     assert.equal((await request(api("text-stats", "/state"))).body.view.phase, "waiting");
     refused(await request(api("files", "/capture"), "POST", { workspace_id: otherFolder, path: ["note.txt"], port: "after", fingerprint: second.body.result.fingerprint }), "files.invalid",

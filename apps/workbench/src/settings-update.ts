@@ -1,4 +1,5 @@
 import { t as uiText, escapeHtml, format, renderAlert, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { SETTINGS_UPDATE_CLIENT_SCRIPT } from "./scripts/settings-update.js";
 import { settingRow } from "./settings-row.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
 
@@ -72,22 +73,5 @@ export function renderUpdateSettings(view: MolisWorkSettingsView, desktopShell: 
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title" tabindex="-1">${uiText("workbench.settings-update.title")}</h1></div></header>
     ${version}${held}${back}
     <div data-rollback-progress hidden>${renderAlert({ tone: "info", state: "running", title: uiText.text("workbench.settings-update.going-back"), body: uiText.text("workbench.settings-update.going-back-wait") })}</div>
-  </section><script>${UPDATE_SETTINGS_SCRIPT}</script>`;
+  </section><script>${SETTINGS_UPDATE_CLIENT_SCRIPT}</script>`;
 }
-
-const UPDATE_SETTINGS_SCRIPT = String.raw`(()=>{
-  const root=document.querySelector('[data-update-settings]');if(!root)return;
-  const dialog=root.querySelector('[data-rollback-dialog]'),error=root.querySelector('[data-rollback-error]'),progress=root.querySelector('[data-rollback-progress]');
-  root.querySelector('[data-rollback-open]')?.addEventListener('click',()=>dialog?.showModal());
-  root.querySelector('[data-rollback-confirm]')?.addEventListener('click',async(event)=>{
-    const button=event.currentTarget;button.disabled=true;error.hidden=true;dialog.close();progress.hidden=false;
-    try{await globalThis.__TAURI__.core.invoke('rollback_to_previous',{saveCurrent:root.querySelector('[data-rollback-save]').checked});location.reload();}
-    catch(failure){progress.hidden=true;button.disabled=false;error.textContent=String(failure);error.hidden=false;dialog.showModal();}
-  });
-  const lift=root.querySelector('[data-rollback-lift]');
-  lift?.addEventListener('click',async()=>{
-    lift.disabled=true;
-    try{await molisWorkRequest('/api/update/hold/lift',{method:'POST',body:{}});location.reload();}
-    catch{lift.disabled=false;}
-  });
-})();`;

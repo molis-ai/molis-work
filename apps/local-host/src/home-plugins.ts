@@ -61,15 +61,15 @@ export class HomePluginHost {
   private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
   private unwatchArtifacts?: () => void;
   private readonly releaseRegistration: () => void;
-  /** The Home this host runs in. */
-  get homeDirectory(): string { return this.options.home; }
-
+  /** The Home this host runs in, for the stage that says why a plugin stopped (U3 §2.4). */
+  readonly homeDirectory: string;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
     settingsVersionClaims?: SettingsVersionClaims;
     projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
     inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }) {
+    this.homeDirectory = options.home;
     this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
   }
 

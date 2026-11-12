@@ -90,7 +90,9 @@ test("UPG3-05 while it upgrades the port answers the opening page and its two nu
   assert.match(html, /data-upgrade-opening/u);
   assert.match(html, /mw-bar-status/u);
   assert.match(html, /href="\/assets\/molis-work-arrival\.css"/u);
-  assert.doesNotMatch(html, /notes|molis-work-page-session/u, "no store name and no token reach the page");
+  assert.doesNotMatch(html, /notes/u, "no store name reaches the page");
+  // The page loads the shared request helper, whose source names the page-session header; what must not be there is the token itself.
+  assert.doesNotMatch(html, /<meta[^>]*molis-work-page-session/u, "no page token reaches the page");
   const css = await fetch(`${url}/assets/molis-work-arrival.css`);
   assert.equal(css.status, 200);
   assert.match(css.headers.get("content-type") ?? "", /^text\/css\b/u);

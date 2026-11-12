@@ -1,5 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { hostSettingsSectionLabel, renderOwnerUnavailablePage, type OwnerUnavailableCard } from "@molis-ai/molis-work-app-workbench";
+import { hostRecoveryPages, type OwnerUnavailableCard } from "./workbench-renderer.js";
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
 import { describeUnavailable, diagnosticId, rollbackHrefFor, upgradeRefusal, type UnavailableOwner } from "./home-unavailable-owners.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
@@ -31,7 +31,7 @@ function partTitle(owner: UnavailableOwner, project: { display_name: string } | 
   const { block } = owner;
   if (block.kind === "plugin") return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === block.plugin_id)?.manifest.name ?? block.plugin_id;
   if (block.kind === "project") return project?.display_name ?? uiText.text("workbench.owner-unavailable.block.project");
-  if (block.kind === "setting") return hostSettingsSectionLabel(block.page) ?? block.page;
+  if (block.kind === "setting") return hostRecoveryPages.settingsSectionLabel(block.page) ?? block.page;
   return uiText.text(BLOCK_TEXT[block.kind]);
 }
 
@@ -87,7 +87,7 @@ export function refusedOwner(home: string | undefined, error: unknown): Unavaila
 /** The card page, in place of whatever the request would have drawn: 200, because the page itself is what the person asked for. */
 export function sendOwnerUnavailablePage({ request, response, url, composition }: WebRequestContext, card: OwnerUnavailableCard,
   project: { project_id: string; display_name: string } | null, membership?: ProjectPluginMembership) {
-  const html = renderOwnerUnavailablePage({ project, card, ...(membership ? { membership } : {}),
+  const html = hostRecoveryPages.ownerUnavailablePage({ project, card, ...(membership ? { membership } : {}),
     desktopShell: composition.isDesktopShellRequest(request, url) }, { readText, htmlLang, desktop: composition.desktopRenderer });
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": composition.PAGE_CSP });
   response.end(html);

@@ -11,7 +11,7 @@ import { WEB_CONTROL_TOKEN_RELATIVE_PATH, sendWebHealth } from "./web-control-to
 import { refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { installHostUiText } from "./ui-text-provider.js";
-import { renderMolisWorkArrivalStylesheet, renderUpgradeOpeningPage } from "@molis-ai/molis-work-app-workbench";
+import { hostRecoveryPages } from "./workbench-renderer.js";
 import { htmlLang } from "./web-locale.js";
 import { tightenServedCss } from "./served-page-text.js";
 
@@ -123,12 +123,12 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
     }
     if (request.method === "GET" && url.pathname === "/assets/molis-work-arrival.css") {
       response.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-      response.end(arrivalStylesheet ??= tightenServedCss(renderMolisWorkArrivalStylesheet()));
+      response.end(arrivalStylesheet ??= tightenServedCss(hostRecoveryPages.arrivalStylesheet()));
       return;
     }
     if (request.method === "GET" && /\btext\/html\b/u.test(request.headers.accept ?? "")) {
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "1", "content-security-policy": OPENING_CSP });
-      response.end(renderUpgradeOpeningPage(htmlLang()));
+      response.end(hostRecoveryPages.upgradeOpeningPage(htmlLang()));
       return;
     }
     response.setHeader("retry-after", "1");

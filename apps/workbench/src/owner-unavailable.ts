@@ -4,11 +4,10 @@ import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/mod
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { renderWorkbenchDocument } from "./document-shell.js";
 import { renderUnavailablePluginStatus } from "./unavailable-plugin-stage.js";
+import { OWNER_UNAVAILABLE_COPY_CLIENT_SCRIPT } from "./scripts/owner-unavailable-copy.js";
 import { renderOwnerUnavailableCard, type OwnerUnavailableCard } from "./owner-unavailable-card.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 
-/** The static page has no shell, so no shared copy feedback: these few lines answer its one copy button the same way. */
-const COPY_SCRIPT = `document.addEventListener("click",async(e)=>{const b=e.target.closest&&e.target.closest("[data-copy-value]");if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copyValue);b.dataset.copy="done";}catch{b.dataset.copy="failed";}setTimeout(()=>{delete b.dataset.copy;},2500);});`;
 
 /**
  * A page for a part that has no page of its own to hold the card: the project list, a whole project, the Home plugin ledger. It has no
@@ -36,7 +35,7 @@ export function renderOwnerUnavailablePage(input: {
   const back = uiText.text("workbench.plugin-store-unavailable.back-projects");
   const html = renderWorkbenchDocument({
     lang: locale.htmlLang(), title: uiText.text("workbench.owner-unavailable.title", { part: input.card.title }),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${locale.desktop.bootstrapScript}${COPY_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>body[data-owner-unavailable-page] .mw-btn { min-height: var(--control-h); min-width: var(--control-h); }</style>`,
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${locale.desktop.bootstrapScript}${OWNER_UNAVAILABLE_COPY_CLIENT_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>body[data-owner-unavailable-page] .mw-btn { min-height: var(--control-h); min-width: var(--control-h); }</style>`,
     body_attributes: { class: "settings-page project-preferences-page global-preferences-page", "data-owner-unavailable-page": true,
       ...(membership ? { "data-home-plugin-store-unavailable": true } : {}),
       "data-desktop-shell": "false", "data-native-desktop": input.desktopShell ? "true" : false, style: "--control-h:44px" },

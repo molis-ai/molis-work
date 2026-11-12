@@ -1,4 +1,6 @@
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UPGRADE_OPENING_CLIENT_SCRIPT } from "../scripts/upgrade-opening.js";
 import { renderBarStatus, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 
 /**
@@ -27,24 +29,7 @@ export function renderUpgradeOpeningPage(lang: string): string {
     <main class="arrival-stage" id="stage"></main>
     <div class="workbench-bar arrival-bar" data-dock data-bar="upgrading"><div class="bar-start"></div><div class="bar-center" data-upgrade-status hidden data-template="${escapeHtml(progress)}">${status}</div><div class="bar-end"></div></div>
   </div>
-  <script>${UPGRADE_OPENING_SCRIPT}</script>
+  <script>${UI_REQUEST_CLIENT_SCRIPT}${UPGRADE_OPENING_CLIENT_SCRIPT}</script>
 </body>
 </html>`;
 }
-
-const UPGRADE_OPENING_SCRIPT = `(() => {
-  const box = document.querySelector("[data-upgrade-status]"), line = box.querySelector(".mw-bar-status__text strong");
-  const tick = async () => {
-    try {
-      const response = await fetch("/upgrade-progress", { cache: "no-store" });
-      if (!response.ok) { location.reload(); return; }
-      const progress = await response.json();
-      if (progress.state === "upgrading" && Date.now() - progress.started_at >= 2000) {
-        line.textContent = box.dataset.template.replace("%done", String(progress.done)).replace("%total", String(progress.total));
-        box.hidden = false;
-      }
-    } catch { /* Between the maintenance listener and the Host, nothing answers for a moment: ask again. */ }
-    setTimeout(tick, 500);
-  };
-  tick();
-})();`;

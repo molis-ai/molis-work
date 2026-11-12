@@ -246,6 +246,34 @@ test("Inbox separates preparation, verification and uncertain judgment without c
   assert.match(english, /data-inbox-compose-mode="compose">Create a document<\/button>/);
 });
 
+test("W6 the suggested-rule summary draws its reason itself and never the unavailable placeholder", () => {
+  const host = new UiHost(); host.register(inboxUiContribution);
+  // A reason can be another owner's own sentence (an unavailable scene's reason): it is original text, drawn as written.
+  const summary = { name: "收件箱下一步", enabled: true, available: false, reason: "此能力需要已配置的个人服务" };
+  const render = (locale: "zh" | "en") => runWithLocale(locale, () => runWithRegisteredText(owner, () => host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID, surface: "workbench", model: model({ judgment: summary }),
+  })));
+  for (const locale of ["zh", "en"] as const) {
+    const html = render(locale), start = html.indexOf('class="inbox-next-config"');
+    assert.ok(start >= 0, `${locale}: the suggested-rule summary is drawn`);
+    const block = html.slice(start, html.indexOf("</details>", start));
+    assert.match(block, /此能力需要已配置的个人服务/u, `${locale}: an owner's reason is kept, not looked up as a key`);
+    assert.doesNotMatch(block, /…|这句话暂时显示不了|This text cannot be shown right now/u, `${locale}: no unavailable placeholder`);
+    assert.doesNotMatch(block, /inbox\.[a-z-]+(?:\.[a-z0-9-]+)+/u, `${locale}: no bare key`);
+    assert.match(block, /收件箱下一步/u);
+  }
+  assert.match(render("zh"), /下一步建议/u);
+  assert.match(render("en"), /Suggested next step/u);
+  // The sentence Inbox itself writes for "nothing bound" is a language-file word: it is drawn from the words of the read,
+  // not passed through the page's text lookup again (which is what used to print the placeholder).
+  const fixed = { name: "收件箱下一步", enabled: false, available: false, reason: "No rule is bound yet" };
+  const english = runWithLocale("en", () => runWithRegisteredText(owner, () => host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID, surface: "workbench", model: model({ judgment: fixed }),
+  })));
+  assert.match(english, /No rule is bound yet/u);
+  assert.doesNotMatch(english, /…|This text cannot be shown right now/u);
+});
+
 test("Inbox list does not paint a board-level judgment binder", () => {
   const host = new UiHost();
   host.register(inboxUiContribution);

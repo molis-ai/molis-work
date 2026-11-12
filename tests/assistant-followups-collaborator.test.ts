@@ -24,7 +24,10 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
   let now = new Date(start);
   const store = new AssistantStore(db, () => now);
   const works = new Map<string, Work>([["w1", { work_id: "w1", title: "周报", session_id: "s1", archived: false }]]);
-  const changed: string[] = [], notices: Array<{ text: AssistantSavedText; dedupe: string }> = [], sent: Array<{ text: string; requestId: string }> = [];
+  const changed: string[] = [], notices: Array<{ text: AssistantSavedText; dedupe: string }> = [];
+  // What the collaborator hands the send port: a bound key and its arguments, never a sentence written at the call site.
+  type SendWords = Parameters<AssistantFollowUpPorts<Work>["send"]>[1];
+  const sent: Array<{ words: SendWords; requestId: string }> = [];
   const settings = new Map<string, string>();
   let rules: AssistantRule[] = [];
   const tasks = new Map<string, AgentScheduledTask>();
@@ -46,7 +49,7 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
     get homeActions() { return homeActions; },
     host: async () => ({}) as never, state: async () => "idle",
-    send: async (_work, text, requestId) => { sent.push({ text, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
+    send: async (_work, words, requestId) => { sent.push({ words, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
     schedule: async () => schedule,
   };
   return { followUps: new AssistantFollowUps(ports), tasks, sent, notices, changed, settings, works, db, store,
@@ -102,7 +105,11 @@ test("W4-05-01 a daily follow-up is queued, runs once at its time and queues the
   assert.deepEqual(h.changed, ["w1"], "the work's page hears that its stored facts changed");
   h.at("2026-10-15T10:00:30.000Z");
   await h.run(key);
-  assert.deepEqual(h.sent, [{ text: "（按你的定时安排「每天十八点整理」）整理今天的进展", requestId: key }], "one round, keyed by its due time");
+  assert.equal(h.sent.length, 1, "one round, keyed by its due time");
+  assert.equal(h.sent[0]!.requestId, key);
+  assert.deepEqual(h.sent[0]!.words, { owner: "workbench", key: "workbench.assistant-followup.scheduled-message",
+    args: [{ name: "label", kind: "text", text: "每天十八点整理" }, { name: "text", kind: "text", text: "整理今天的进展" }] },
+  "the timed round carries a bound key and the person's own words, not a Chinese shell built at the call site");
   const [after] = h.followUps.list("w1");
   assert.equal(after?.next_at, "2026-10-16T10:00:00.000Z");
   assert.equal(after?.last?.outcome, "started");
@@ -110,6 +117,20 @@ test("W4-05-01 a daily follow-up is queued, runs once at its time and queues the
   // The task of a time since moved on does nothing.
   await h.run(key);
   assert.equal(h.sent.length, 1);
+});
+
+test("W6 the timed round's words are read in the language in use and carry the person's label and request unchanged", async () => {
+  const h = harness();
+  const saved = await h.followUps.save({ work_id: "w1", text: "整理今天的进展", at: "2026-10-15T10:00:00.000Z", label: "每天十八点整理" });
+  h.at("2026-10-15T10:00:30.000Z");
+  await h.run(`fu-${saved.followup_id}-${Date.parse("2026-10-15T10:00:00.000Z")}`);
+  const words = h.sent[0]!.words;
+  const zh = savedText(words as AssistantSavedText, "zh")!, en = savedText(words as AssistantSavedText, "en")!;
+  assert.match(zh, /按你的定时安排/u); assert.match(zh, /「每天十八点整理」/u);
+  assert.match(en, /Scheduled by you/u); assert.match(en, /“每天十八点整理”/u);
+  assert.match(zh, /整理今天的进展/u); assert.match(en, /整理今天的进展/u);
+  assert.doesNotMatch(en, /[（）「」：；，、]/u, "English words use English punctuation, not the Chinese marks of the zh sentence");
+  assert.notEqual(zh, en, "the sentence is taken from the language in use, not frozen in one language");
 });
 
 test("W4-05-01 a follow-up removed before its time does not run, and archiving stops the rest with a reason", async () => {

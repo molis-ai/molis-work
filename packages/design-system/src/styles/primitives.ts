@@ -46,8 +46,8 @@ ${BUTTON_STYLES}
     background-position: right 8px center;
     background-size: 14px 14px;
   }
-  html[data-resolved-theme="dark"] .mw-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  html[data-resolved-theme="dark"] .mw-select { /* the dark theme's generic select rule (momentum.ts) resets repeat, position and size with its background shorthand */
+    background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
   .mw-input::placeholder, .mw-textarea::placeholder { color: var(--muted); }
   .mw-input:hover:where(:not(:disabled, :focus-visible)),
@@ -195,7 +195,7 @@ ${BUTTON_STYLES}
     white-space: nowrap;
   }
   .mw-status svg { width: calc(1em + 2px); height: calc(1em + 2px); flex: none; }
-  .mw-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .mw-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-block: .2em; margin-block: -.2em; } /* the clip reaches past line-height 1, so p, y and g keep their tails and no box grows */
   .mw-status--plain {
     min-height: 0; padding: 0; background: transparent; border-radius: 0;
   }
@@ -1042,10 +1042,10 @@ ${BUTTON_STYLES}
     font-size: 12px; font-weight: 400; line-height: 16px;
   }
   .mw-dir-row .mw-dir-row__status svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
-  .mw-dir-row.is-selected .mw-dir-row__status,
-  .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
-  .mw-dir-row-wrap:hover { background: var(--nav-hover); }
-  .mw-dir-row-wrap:active { background: var(--nav-press); }
+  .mw-dir-row.is-selected .mw-dir-row__status, .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
+  /* Light rows darken when hovered, pressed or selected; these tones keep their hue but take 20% ink (or ink-soft) so the word stays at 4.5:1. */
+  html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--attention, .mw-status--progress, .mw-status--blocked) { color: color-mix(in srgb, var(--status-tone) 80%, var(--ink)); } html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--quiet, .mw-status--idle) { color: var(--ink-soft); }
+  .mw-dir-row-wrap:hover { background: var(--nav-hover); } .mw-dir-row-wrap:active { background: var(--nav-press); }
   .mw-dir-row-wrap:hover .mw-dir-row,
   .mw-dir-row-wrap:active .mw-dir-row { color: var(--ink); background: transparent; }
   .mw-dir-row-wrap:has(.is-selected),

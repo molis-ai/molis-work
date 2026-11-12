@@ -64,3 +64,13 @@ begin、finish 用单条状态变更及其触发器，或用失败会 **ABORT �
 随后在 `9e8583022` 整体构建 Host，通过 `apps/sync-worker/process-items.test.mjs`（1/1、零跳过）：两个临时 Home 使用真实 Host collection、Rust/WASM、D1/R2，完整传输大正文和后续固定版本，归档状态一致、无上传回声，接收不启动 Coding。使用合成 Auth，不涉及真实账号或云端。构建只使用临时编译缓存及 ad hoc helper 签名，保留既有 xterm 构建警告。
 
 这些结果只证明当前 v6 Worker 与双 Home 测试环境可用，未覆盖本稿新增的预留、跨 namespace 附件防护、同版本结构采用或旧设备接管。更早的 Files 专项 Host 探针只用模拟运输和现行 Rust SQL，不能与上述现行版本基线合并宣称新协议通过。Rust 原生 CI 覆盖两 crate 的 wasm32 编译检查，Worker 测试另用 `cloudFixture`、D1/R2 不持久化，机器 slot 各一份，Node `--test-concurrency=1`。仅本地迁移使用 `--local --persist-to <tmp>`。
+
+## Host 一侧实施（2026-11-12）
+
+- 切换前过程项不移动：`PersonalSync` 对公开 N 不建本地 lane，不发不收、也不读旧流；状态只显示等待原因，项目删除仍按两个过程项日志（原日志与采用后日志）的未结算计数拒绝越过本机未发内容。旧选择不需改写。
+- 本机「已采用」记为 `sync.db` 的 `sync_stream_cursors` 一行，名字是 `[spaceId,cutoverId,"process_items_adopted"]`（初值 0），不新增表。只有带这一行的 Home 才在每次引擎运行时读一次 `GET /v1/process-items/cutover`；其余 Home 的空闲轮仍只有一次请求。采用后的游标、失败、附件缓存与保护都按该 lane 记，请求仍写公开 N，并带 `X-Molis-Process-Items-Cutover` 范围头。
+- 采用后的 lane 从空开始；游标低于 completionHead 时这一轮停在「接齐」之前，不上传本机内容。
+- `processItems.cutOver()` 跑本稿的计划、封印、播种、读回与完成；它不采用。`processItems.adopt(cutoverId)` 只接受服务端报告已完成的同一 cutoverId，写入上面的 lane 行。项目库的同版本采用（`adoptProjectDatabase`）仍是独立的维护步骤。
+- 转换由过程项 owner 做：Files 身份及每个版本里的 producer 副本改为平台资料（`system.materials`），版本自己的 `producer_plugin_version`、作者、正文与时间不变；随后在临时目录的现行项目库里回读。活动流收件在建项目前拒 Files 来源和冒用系统来源。
+- 证据：`apps/sync-worker/process-items-cutover-host.test.mjs`（真实 Rust/WASM、D1/R2、两个临时 Home，旧 Host 编码写入旧流的 Files 大正文与 Coding 计划；完成后重跑得同一结果；新附件只经播种入口上传、预留结清；Home B 只从活动流收到转换后的图，无上传回声）与改写后的 `apps/sync-worker/process-items.test.mjs`。BSH-14-D 的恢复件与旧设备接管（H4）、同步设置页面（H6）尚未实施。
+

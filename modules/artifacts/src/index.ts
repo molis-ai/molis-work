@@ -19,7 +19,7 @@ import {
 
 export { createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, type ArtifactReplicationContext, type PortableArtifact, type PortableProcessItem } from './replication.js';
 export { installArtifactReplicationJournal, installProcessItemReplicationJournal, artifactReplicationJournalSql, processItemReplicationJournalSql } from './replication-journal.js';
-export { planProcessItemReassignment, reassignProcessItems, type ProcessItemProducer, type ProcessItemReassignmentPlan } from './producer-reassignment.js';
+export { planProcessItemReassignment, reassignPortableProcessItem, reassignProcessItems, type ProcessItemProducer, type ProcessItemReassignmentPlan } from './producer-reassignment.js';
 
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;

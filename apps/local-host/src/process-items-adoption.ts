@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import pathUtil from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -18,8 +18,8 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
  * items to the platform's materials source (modules/artifacts), its output ports and default bindings likewise (Plugin Runtime), and the
  * process-item triggers to the adopted journal (this Host). Anything the preflight cannot prove leaves that library exactly as it was.
  */
-const FILES_PRODUCER: ProcessItemProducer = Object.freeze({ plugin_id: "io.molis.work.files", signature: "official-files-binding" });
-const SYSTEM_PRODUCER: ProcessItemProducer = Object.freeze({ plugin_id: SYSTEM_MATERIALS_SOURCE.plugin_id, signature: SYSTEM_MATERIALS_SOURCE.signature });
+export const FILES_PRODUCER: ProcessItemProducer = Object.freeze({ plugin_id: "io.molis.work.files", signature: "official-files-binding" });
+export const SYSTEM_PRODUCER: ProcessItemProducer = Object.freeze({ plugin_id: SYSTEM_MATERIALS_SOURCE.plugin_id, signature: SYSTEM_MATERIALS_SOURCE.signature });
 
 /** The exact library every project had before adoption: the current baseline with the original process-item journal triggers. */
 const ORIGINAL_SCHEMA = PROJECT_DATABASE_BASELINE.schema.replace(PROJECT_REPLICATION_SCHEMA_SQL, ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL);
@@ -100,10 +100,11 @@ export function inspectProjectAdoption(path: string): Omit<ProjectAdoptionReport
  */
 export function adoptProjectDatabase(input: { home: string; owner: StorageOwner; projectId: string; backupDirectory: string }): ProjectAdoptionReport {
   assertStorageOwner(agentRuntimeDirectory(input.home), input.owner);
-  const space = readStorageSpace(input.home);
-  const relative = space && projectDatabases(input.home, space).find(entry => pathUtil.basename(pathUtil.dirname(entry)) === input.projectId);
+  // Libraries are found and checked at the Home's real path, as the upgrade finds them.
+  const home = realpathSync(input.home), space = readStorageSpace(home);
+  const relative = space && projectDatabases(home, space).find(entry => pathUtil.basename(pathUtil.dirname(entry)) === input.projectId);
   if (!space || !relative) throw new ActionError("actions.missing", `这个 Home 没有项目 ${input.projectId}`);
-  const path = pathUtil.join(input.home, relative);
+  const path = pathUtil.join(home, relative);
   const db = new DatabaseSync(path);
   try {
     db.exec("PRAGMA busy_timeout=5000");

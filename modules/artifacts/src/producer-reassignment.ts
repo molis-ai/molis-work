@@ -1,4 +1,6 @@
 import { PROCESS_ITEM_TABLES, type ArtifactsSqliteDatabase } from "./repository.js";
+import type { PortableProcessItem } from "./replication.js";
+import { fixedVersionInvalid } from "./fixed-version-replication-shape.js";
 
 /** One producer identity as a process item records it: the plugin id and the publisher signature, compared together. */
 export interface ProcessItemProducer { readonly plugin_id: string; readonly signature: string }
@@ -49,4 +51,22 @@ export function reassignProcessItems(db: Pick<ArtifactsSqliteDatabase, "prepare"
   const result = db.prepare(`UPDATE ${PROCESS_ITEM_TABLES.identities} SET producer_plugin_id=?, producer_binding_signature=? WHERE producer_plugin_id=? AND producer_binding_signature=?`)
     .run(to.plugin_id, to.signature, from.plugin_id, from.signature);
   return Number(result.changes);
+}
+
+/**
+ * The same rule for one carried item (the sync cutover's adoption of an old stream value, sync-cutover.md): an item under exactly the
+ * old producer moves to the new one, with every version of a declared type; its versions keep what they recorded. Any other item is
+ * returned as it was. A version of an undeclared type refuses the item, as it refuses the library. The carried form repeats the line's
+ * producer on each version (the library keeps it once, on the line), so those copies move with it; each version's producing plugin
+ * version, author, body and times stay as recorded.
+ */
+export function reassignPortableProcessItem(item: PortableProcessItem, from: ProcessItemProducer, to: ProcessItemProducer,
+  types: readonly { readonly artifact_type_id: string; readonly schema_version: number }[]): PortableProcessItem {
+  const identity = item.identity;
+  if (identity.producer_plugin_id !== from.plugin_id || identity.producer_binding_signature !== from.signature) return item;
+  const allowed = new Set(types.map(typeKey));
+  if (!item.versions.length) fixedVersionInvalid(`${identity.artifact_id}: no version`);
+  for (const version of item.versions) if (!allowed.has(typeKey(version))) fixedVersionInvalid(`${identity.artifact_id}@${version.version}: ${typeKey(version)} is not a type the new producer writes`);
+  const producer = { producer_plugin_id: to.plugin_id, producer_binding_signature: to.signature };
+  return { ...item, identity: { ...identity, ...producer }, versions: item.versions.map(version => ({ ...version, ...producer })) };
 }

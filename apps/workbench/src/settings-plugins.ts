@@ -1,3 +1,5 @@
+import type { PluginRetainedKind } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * 插件 in a project's settings (ac-trust T7, specs/archive/repository-anti-corruption/slices/ac-trust-install.md): what is installed in the project
  * with who signed it, what it asked for and why, what it keeps doing in the background and the agreements the person gave it; installing a
@@ -10,7 +12,10 @@
  * Home's own instance, shared by every project, are listed below the project's with the same rows; their switch goes through the Host settings
  * door for them, `/api/settings/plugin-permissions/set` (BL-700, S-94), as an agreement is taken back through the Host's, and so do switching a signed one off and on and taking it off (`/api/settings/plugin-permissions/{disable,enable,uninstall}`, BL-715).
  */
-export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
+/** The mark each kind of thing an uninstall left behind is shown with (BL-915); the page draws them from these templates. */
+export const PLUGIN_RETAINED_ICONS = { home_library: "database", owner_files: "folder", network_credential: "key", installation_binding: "link", task_grant: "shield", declared_rule: "tune" } as const satisfies Record<PluginRetainedKind, PluginIconName>;
+
+export function renderPluginTrustSettings({ L, projectId, chevron, kinds }: { L(text: string): string; projectId: string; chevron: string; kinds: Readonly<Record<string, string>> }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
     <header class="settings-page-heading"><h1 id="plugin-trust-title">${L("插件")}</h1>
       <p>${L("这个项目里装着的插件：谁签的名、要了哪些权限、在后台做什么，以及你给过它们的同意。")}</p></header>
@@ -38,6 +43,7 @@ export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: s
       <ul class="plugin-trust-list" data-plugin-trust-publishers><li class="settings-muted">${L("正在读取…")}</li></ul>
     </section>
     <template data-plugin-trust-chevron>${chevron}</template>
+    ${Object.entries(kinds).map(([kind, mark]) => `<template data-plugin-trust-kind="${kind}">${mark}</template>`).join("")}
   </section>`;
 }
 
@@ -60,6 +66,9 @@ const button = (text, variant) => { const node = el("button", "mw-btn " + varian
 const TRUST = { host: "随 Molis Work 提供", pinned: "你固定的发布者", unsigned: "没有签名" };
 const STATE = { installed: "已安装", running: "运行中", disabled: "已停用", uninstalled: "已卸载" };
 const KIND = { always_on: "常开", default_wiring: "默认连线", default_group: "默认输入组", local_directory: "本机目录" };
+// What an uninstall that deleted data left in place, and why (BL-915): each owner's own kind and reason, never a path, an id or a credential.
+const KEPT = { home_library: "它的个人库", owner_files: "它存的文件", network_credential: "它用的联网凭据", installation_binding: "连接账号的绑定", task_grant: "交给它的任务授权", declared_rule: "它带来的判断规则" };
+const WHY = { ownership_unverified: "核实不了是不是它的，为稳妥没有删", other_holder: "别处（另一个项目或个人空间）的同一个插件还在用", inventory_unavailable: "有的资料读不了，没法确认还有没有在用，先留着" };
 const EFFECT = { storage: "保存数据", artifacts: "成果库", capabilities: "调用动作", events: "收发事件", networkDomains: "联网", secretRefs: "密钥", resources: "资源" };
 const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
@@ -172,18 +181,38 @@ box.append(actions); return box;
 // A signed plugin is switched off and on and taken off here (BL-623), one of the Home's through the Host settings door (BL-715); a publisher taken back leaves only taking it off.
 const controls = (plugin, revoked, act = (name, payload) => api("/installed/" + name, payload)) => {
 const box = el("div", "plugin-trust-actions");
-const step = (text, variant, name, payload, done, title, detail) => {
+const step = (text, variant, name, payload, done, title, detail, into = box) => {
 const node = button(text, variant);
 node.addEventListener("click", async () => {
 if (title && !await ask(title, detail, text)) return;
-error.hidden = true;
-try { await act(name, { plugin_id: plugin.plugin_id, ...payload }); toast(done); await load(); } catch (failure) { fail(failure); }
+error.hidden = true; node.disabled = true; node.setAttribute("aria-busy", "true");
+const row = node.closest(".plugin-trust-list > li"), list = act === homeApi ? "home" : "list";
+try {
+const answer = await act(name, { plugin_id: plugin.plugin_id, ...payload });
+broken = null;
+// What an uninstall left stays where its row was until 「知道了」 (BL-915, option A); nothing left is the usual toast.
+if (answer && answer.retained && answer.retained.length) outcome = { list, index: row ? [...row.parentNode.children].indexOf(row) : 0, name: plugin.name, retained: answer.retained, fresh: true };
+else toast(done);
+await load();
+} catch (failure) {
+if (name !== "uninstall") { node.disabled = false; node.removeAttribute("aria-busy"); fail(failure); return; }
+// An uninstall that stopped part way is said and retried in its own row; anything else is the page's error.
+broken = { install_id: plugin.install_id, message: failure && failure.message, fresh: true }; await load().catch(() => {});
+if (![...current, ...personal].some((item) => item.install_id === plugin.install_id && item.pending_keep_data !== undefined)) { broken = null; fail(failure); }
+}
 });
-box.append(node);
+into.append(node);
 };
 const name = plugin.name, target = plugin.uninstall_target;
-// An uninstall whose clean-up did not finish (BL-915) is only retried, with the choice it was made with.
-if (plugin.pending_keep_data !== undefined) { step(L("重试卸载"), "mw-btn--secondary", "uninstall", { keep_data: plugin.pending_keep_data, target }, L("已卸载")); return box; }
+// An uninstall whose clean-up did not finish (BL-915) is said in place and only retried, with the choice it was made with.
+if (plugin.pending_keep_data !== undefined) {
+const said = broken && broken.install_id === plugin.install_id ? broken.message : "", alert = notice("danger", L("卸载没做完"), "alert"), actions = el("div", "mw-alert__actions");
+alert.append(el("p", "", said ? L(said) : L(plugin.pending_keep_data ? "上次卸载（保留数据）没有清理完，可以重试" : "上次卸载（删除数据）没有清理完，可以重试")), actions);
+step(L("重试卸载"), "mw-btn--primary", "uninstall", { keep_data: plugin.pending_keep_data, target }, L("已卸载"), undefined, undefined, actions);
+// Just failed here: bring it into view and put the retry under the person's hand, once.
+if (said && broken.fresh) { broken.fresh = false; requestAnimationFrame(() => { alert.scrollIntoView({ block: "nearest" }); actions.firstChild?.focus({ preventScroll: true }); }); }
+return alert;
+}
 if (plugin.state === "running") step(L("停用"), "mw-btn--secondary", "disable", {}, L("已停用"), L("停用这个插件？"), L("{plugin} 停用后不再运行，也不再提供动作；数据保留，可以随时重新启用。", { plugin: name }));
 else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) step(L("启用"), "mw-btn--secondary", "enable", {}, L("已启用"));
 step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true, target }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据保留；以后再装同一个插件时会接着用。", { plugin: name }));
@@ -197,7 +226,7 @@ summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.c
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 const pending = plugin.pending_keep_data !== undefined;
-if (pending) body.append(el("span", "settings-form-error", L(plugin.pending_keep_data ? "上次卸载（保留数据）没有清理完，可以重试" : "上次卸载（删除数据）没有清理完，可以重试")));
+if (pending) box.open = Boolean(broken && broken.install_id === plugin.install_id);
 else if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
 else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : plugin.recovery_error === "plugin.package_missing" ? "找不到这个插件安装时的包，只能卸载" : "插件暂时无法启动，请重试或查看诊断") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
@@ -222,6 +251,23 @@ item.append(revoke);
 }
 return item;
 };
+const notice = (tone, title, role) => { const box = el("div", "mw-alert mw-alert--" + tone + " mw-alert--rise"); box.dataset.slot = "alert"; box.setAttribute("role", role); box.append(el("strong", "", title)); return box; };
+let outcome = null, broken = null;
+// The result of an uninstall in place of its row: what was left, each with why, and that the rest is gone; 「知道了」 puts it away.
+const result = () => {
+const item = el("li", "plugin-trust-result"), list = el("ul", "plugin-trust-kept"), actions = el("div", "mw-alert__actions"), done = button(L("知道了"), "mw-btn--secondary");
+const alert = notice(outcome.retained.some((kept) => kept.reason !== "other_holder") ? "warning" : "info", L("已卸载 {plugin} · 有 {count} 项留下了", { plugin: outcome.name, count: outcome.retained.length }), "status");
+for (const kept of outcome.retained) {
+const row = el("li"), mark = root.querySelector('[data-plugin-trust-kind="' + kept.kind + '"]');
+if (mark) row.append(mark.content.cloneNode(true));
+row.append(el("strong", "", L(KEPT[kept.kind] || kept.kind) + (kept.label ? " · " + kept.label : "")), el("span", "", L(WHY[kept.reason] || kept.reason))); list.append(row);
+}
+done.addEventListener("click", () => { outcome = null; load().catch(fail); });
+actions.append(done); alert.append(list, el("p", "settings-muted", L("其余数据已经删除。")), actions); item.tabIndex = -1; item.append(alert);
+const target = $(outcome.list), empty = target.children.length === 1 && !target.firstElementChild.querySelector("details");
+if (empty) target.replaceChildren(item); else target.insertBefore(item, target.children[outcome.index] || null);
+if (outcome.fresh) { outcome.fresh = false; item.focus(); }
+};
 let current = [], personal = [], loading = 0;
 const load = async () => {
 const revision = ++loading;
@@ -243,6 +289,7 @@ return item;
 const homeSend = (payload) => homeApi("set", payload);
 draw($("home"), L("个人空间里没有插件"), personal.map((plugin) => installed(plugin, homeSend, revoked, homeApi)));
 draw($("publishers"), L("你还没有固定过发布者"), data.publishers.map(publisher));
+if (outcome) result();
 };
 const preview = $("preview");
 const close = () => { preview.replaceChildren(); preview.hidden = true; };

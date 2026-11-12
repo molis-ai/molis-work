@@ -1,6 +1,6 @@
 # 卸载后留下的项目（第 27 批 · BL-915）
 
-状态：定样中，三个方案等用户选（2026-11-11）。选定后把方案、理由、否掉了哪些写进 [BL-915 的 spec](../../../specs/visual-ui-experience/work-items/batch27-sandbox-recovery/spec.md) 的决策记录，再写产品代码。
+状态：用户 2026-11-11 选定 A（就地结果），已实现；方案、理由、否掉的 B 与 C 记在 [BL-915 的 spec](../../../specs/visual-ui-experience/work-items/batch27-sandbox-recovery/spec.md)「设置页呈现」。
 
 ## 要解决什么
 

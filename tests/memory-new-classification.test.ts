@@ -102,7 +102,7 @@ test("new classification grants no permission when current preferences are revok
   assert.deepEqual(await f.raw().list("project", "project-a"), []);
 });
 
-test("unclassified direct writes, unknown scenes and unclassified current imports receive no guessed classification", async t => {
+test("MEM-15 unclassified direct writes, unknown scenes and unclassified current imports receive no guessed classification", async t => {
   const f = await fixture(t);
   await assert.rejects(f.raw().write({ scope: "project", owner: "project-a", operation_id: "raw", text: "No class", origin: "person", meta: { kind: "convention", source: "manual", approved_by: { by: "person" } } }), { code: "MEMORY_META_INVALID" });
   await assert.rejects(f.service.write(caller("unknown", { current_scene: "unknown" }), { scope: "project", text: "Unknown scene" }));

@@ -15,10 +15,10 @@ const snapshot = (id: string, text: string): AgentMemorySourceSnapshot => ({ eve
   speaker: { kind: "person", id: actor }, derivation: "original", occurred_at_ms: 1_795_000_000_000 });
 const proposal = (text: string, extra: Partial<MemoryProposal> = {}): MemoryProposal => ({ text, kind: "convention", scope: "project", basis: "explicit", quote: text, ...extra });
 
-async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
+async function fixture(t: Parameters<typeof memoryServiceHome>[0], now?: () => Date) {
   const sources = new Map<string, AgentMemorySourceSnapshot>();
   const extraction = scriptedMemoryExtraction();
-  const env = await memoryServiceHome(t, { projects: ["project-a"], generate: extraction.generate, sources: {
+  const env = await memoryServiceHome(t, { projects: ["project-a"], generate: extraction.generate, ...(now ? { now } : {}), sources: {
     async resolve(caller, request) {
       if (caller.actor_id !== actor || request.target.scope !== "project" || request.target.owner !== "project-a") return [];
       return request.refs.flatMap(ref => { const source = sources.get(ref.event_id); return source?.version === ref.version ? [source] : []; });
@@ -67,6 +67,24 @@ test("MEM-09 two independent originals promote once; repeating an original under
   await env.memory().undo(person, changes[0]!.change_id);
   assert.equal((await env.memory().list(person, { scope: "project" })).items.length, 0);
   assert.equal(env.memory().sourceAllowed(actor, "project", "project-a", [first, second]), false, "undo removal suppresses every contributing original");
+});
+
+// MEM-21: extraction lands in the one durable candidate box; a candidate that waited past its 14 days can be neither
+// accepted nor promoted by a later independent original (repeats are not independent evidence: the MEM-09 case above and
+// memory-learning.test.ts MEM-SOURCE-07).
+test("MEM-21 an expired candidate cannot be accepted and a later independent original does not promote it", { timeout: 20_000 }, async t => {
+  let clock = 1_795_000_000_000;
+  const env = await fixture(t, () => new Date(clock)), text = "以后发布前先写回滚步骤";
+  assert.equal((await env.learn("first", [snapshot("person-input-1", text)]))[0]!.outcome, "candidate");
+  const [waiting] = await env.memory().candidates(person, { scope: "project" });
+  assert.ok(waiting); assert.equal(waiting.state, "pending");
+  clock = Date.parse(waiting.created_at) + 14 * 24 * 60 * 60 * 1000 + 1;
+  assert.deepEqual(await env.memory().candidates(person, { scope: "project" }), [], "an expired candidate leaves the review box");
+  await assert.rejects(env.memory().accept(person, waiting.candidate_id, { expected_version: waiting.version }));
+  const later = await env.learn("second", [{ ...snapshot("person-input-2", text), occurred_at_ms: clock }]);
+  assert.ok(later.every(item => item.outcome !== "written"), JSON.stringify(later));
+  assert.deepEqual((await env.memory().list(person, { scope: "project" })).items, [], "nothing became formal");
+  assert.ok(!(await env.memory().changes(person)).some(item => item.kind === "auto_kept"));
 });
 
 test("MEM-09 whole-message meaning, unknown sources, non-person sources and duplicate source ids cannot promote", { timeout: 20_000 }, async t => {

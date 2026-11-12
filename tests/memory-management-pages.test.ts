@@ -78,7 +78,7 @@ test("search and classification filtering retain bounded empty continuation and 
   assert.deepEqual(filtered.flatMap(page => page.items), []);
 });
 
-test("off management preserves actual expired state and all six kinds without widening write classification", async t => {
+test("MEM-15 off management preserves actual expired state and all six kinds without widening write classification", async t => {
   let now = Date.UTC(2026, 9, 23);
   const f = await memoryServiceHome(t, { projects: ["project-a"], now: () => new Date(now) }), service = await f.open();
   for (const kind of ["preference", "convention", "fact", "experience", "habit", "project-decision"]) await f.raw().write({ scope: "personal", owner: person.actor_id,

@@ -18,6 +18,7 @@ function formation(request: CodingProviderRequest) {
   } catch { return undefined; }
 }
 
+// MEM-21: Coding's extraction lands in the same durable candidate box, not a new inbox.
 test("MEM-V0-C2 Coding's protected completed round enters the original durable learning runner and forms a reviewed candidate", { timeout: 60_000 }, async t => {
   let extracted = 0;
   const text = "本项目以后统一用 pnpm 安装依赖";

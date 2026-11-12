@@ -99,6 +99,7 @@ test("C1 actual task + test-selected resident + expansion share one budget and r
   for (const request of seen.slice(1)) assert.doesNotMatch(JSON.stringify(receipts(request)), /largeA|largeB|EXPLICIT_PAYLOAD/);
 });
 
+// MEM-29: an entry that expires while a selection waits leaves the Run at once; it is never delivered stale.
 for (const change of ["disable", "remove", "expire", "revoke", "cancel"] as const) test(`C1 selection waiting then ${change} never delivers stale memory`, { timeout: 40_000 }, async t => {
   const selected = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); t.after(() => release.resolve());
   const seen: Request[] = [], f = await codingProductHost(t, scripted(seen), { loopbackProvider: true }), manager = person(f);

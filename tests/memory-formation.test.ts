@@ -16,7 +16,7 @@ async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
   return { ...env, memory, originals, extraction };
 }
 
-test("MEM-FORM no standing signal reads no source and calls no extractor", async t => {
+test("MEM-31 MEM-FORM no standing signal reads no source and calls no extractor", async t => {
   const originals = originalMemorySources(["project-a"]);
   const resolve = t.mock.method(originals.port, "resolve");
   let calls = 0;
@@ -61,7 +61,7 @@ test("MEM-FORM independent full originals form once then use v3 promotion and or
   assert.equal((await env.raw(person).list("project", "project-a")).length, 1, "accepting the covered original never adds a second formal memory");
 });
 
-test("MEM-FORM extraction excludes expired, disabled, paused and other-scene formal context without blocking new candidates", async t => {
+test("MEM-31 MEM-FORM extraction excludes expired, disabled, paused and other-scene formal context without blocking new candidates", async t => {
   let now = new Date("2026-10-23T10:00:00Z");
   const originals = originalMemorySources(["project-a"]), extraction = scriptedMemoryExtraction();
   const contexts: Array<{ ids: string[]; targets: string[] }> = [];
@@ -239,7 +239,7 @@ test("MEM-FORM a later source failure preserves partial candidates and usage for
   assert.equal((await env.raw(person).candidates.list("project", "project-a")).length, 2);
 });
 
-test("MEM-FORM pending review context cannot expose another scene, private namespace or expired candidate", async t => {
+test("MEM-31 MEM-FORM pending review context cannot expose another scene, private namespace or expired candidate", async t => {
   let now = new Date("2026-10-01T00:00:00Z");
   const originals = originalMemorySources(["project-a"]), extraction = scriptedMemoryExtraction();
   const env = await memoryServiceHome(t, { projects: ["project-a"], now: () => now, sources: originals.port, generate: extraction.generate });

@@ -215,7 +215,7 @@ test("a wish drawn out of work that is the same words as a memory already kept i
   assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => item.text), ["金额<1000要先问我"]);
 });
 
-test("deleted project sources are checked before the model and again before the candidate write", { timeout: 60_000 }, async t => {
+test("MEM-31 deleted project sources are checked before the model and again before the candidate write", { timeout: 60_000 }, async t => {
   const { service, sources, model, setGeneration } = await memoryHome(t);
   const text = "以后周报都把风险放最前面";
   let asked = 0, exists = true, during: () => void = () => {};
@@ -389,6 +389,7 @@ test("MEM-SOURCE-01: a references-only learning task survives restart, learns on
   assert.deepEqual((await fixture.service.list(person)).items, []);
 });
 
+// MEM-21: a retry is not a second independent original.
 test("MEM-SOURCE-07: a real queue retry after candidate commit remains one source, and a renamed job cannot make it independent", { timeout: 60_000 }, async t => {
   const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
   let attempts = 0;

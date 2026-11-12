@@ -98,6 +98,7 @@ test("same-operation ledger repair after the candidate deadline keeps the commit
   assert.equal(f.ledger.revisions(accepted.memory!.memory_id).length, 1);
 });
 
+// MEM-21: a candidate whose deadline passes while acceptance waits never becomes formal.
 test("expiry while current authority waits produces no new formal write", async t => {
   const f = await fixture(t), expires = new Date(START + DAY).toISOString();
   const pending = await f.service.propose(caller("proposal"), proposal("Use a temporary meeting schedule"), { formal_expires_at: expires });
@@ -128,6 +129,7 @@ test("v2 export and import retain classification, namespace, repeated basis and 
   assert.deepEqual(await f.service.importScope(caller("import-again"), "project", pack), { written: 0, skipped: 1, refused: 0 });
 });
 
+// MEM-29: turning short-term into long-term needs a new decision; undoing an expiry cannot do it.
 test("expiry undo cannot turn a short-term item into permanent memory", async t => {
   const f = await fixture(t), expires = new Date(START + DAY).toISOString();
   const saved = await f.service.write(caller("save"), { scope: "project", text: "Temporary weekly routine", expires_at: expires });

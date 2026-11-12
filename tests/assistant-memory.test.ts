@@ -472,6 +472,7 @@ test("a claim of keeping made before the call that then failed is held at the en
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// MEM-32: a round that cannot run prepares no memory and carries no recall into the next round.
 test("a round with no configured model never prepares memory or sends a model request, and does not carry its recipe receipt into the next round", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-start-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });

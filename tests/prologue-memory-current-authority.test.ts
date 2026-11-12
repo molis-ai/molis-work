@@ -203,3 +203,36 @@ test("clearing a fixed preview retries its original references and never deletes
   assert.deepEqual((await f.bound().list(where.scope, where.owner)).map(item => item.memory_id), [later.memory_id]);
   await assert.rejects(f.bound().clearScope({ ...command, operation_id: "replacement-clear" }));
 });
+
+test("MEM-01 a secret anywhere in a write, or content too deep or too large, is refused before anything is stored, even when the App allows the write", async t => {
+  // The App's policy here allows every write by alice; the refusal is the SDK's own content gate, which no adapter option removes.
+  const f = await fixture(t), memory = f.bound(), before = f.bytes();
+  const secret = "sk-proj-abcdefghijklmnopqrstu12345";
+  let deep: Record<string, unknown> = { leaf: "x" };
+  for (let at = 0; at < 1000; at++) deep = { next: deep };
+  type Input = Parameters<typeof memory.write>[0];
+  // Each place a secret can sit, written once with the secret and once, as a control, with a harmless value in the same place.
+  const places: Array<[string, (value: string, id: string) => Input]> = [
+    ["body", (value, id) => ({ ...save, operation_id: id, text: `The deploy key is ${value}` })],
+    ["origin", (value, id) => ({ ...save, operation_id: id, origin: `pasted ${value}` })],
+    ["evidence text", (value, id) => ({ ...save, operation_id: id, meta: { evidence: [{ kind: "note", text: `seen ${value}` }] } })],
+    ["applicability task", (value, id) => ({ ...save, operation_id: id, meta: { applies_when: { task: `when using ${value}` } } })],
+  ];
+  // Classification values, extra ones included, come from the App's declared lists, so no free text (and no secret) can sit there.
+  for (const [name, input] of [...places.map(([name, build]) => [name, build(secret, `secret-${name}`)] as const),
+    ["too large", { ...save, operation_id: "too-large", text: "x".repeat(1_000_000) }] as const]) {
+    await assert.rejects(memory.write(input), `${name} is refused`);
+    assert.deepEqual(f.bytes(), before, `${name}: no entry, candidate or history byte is written`);
+  }
+  assert.deepEqual(await memory.list(where.scope, where.owner), []);
+  await f.reopen();
+  assert.deepEqual(await f.bound().list(where.scope, where.owner), []);
+  // The same caller, policy and places accept a harmless value, so each refusal above is about the secret.
+  for (const [name, build] of places) assert.ok((await f.bound().write(build("release-notes", `plain-${name}`))).memory_id, `${name} without a secret is stored`);
+  // Too deep: Molis's write contract has no field that nests, and the bridge copies only the declared fields, so depth smuggled
+  // into a write never reaches the SDK (whose own gate refuses deep input).
+  const note = { kind: "note" as const, text: "deep", nested: deep };
+  const smuggled = await f.bound().write({ ...save, operation_id: "too-deep", text: "Keep notes short.", meta: { evidence: [note] } });
+  assert.deepEqual(smuggled.meta.evidence, [{ kind: "note", text: "deep" }]);
+  assert.equal(JSON.stringify(await f.bound().list(where.scope, where.owner)).includes("next"), false);
+});

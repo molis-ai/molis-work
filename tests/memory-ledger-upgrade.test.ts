@@ -80,7 +80,7 @@ async function versionOneHome(t: TestContext) {
   return home;
 }
 
-test("MEM-40 UPG2: the memory ledger's 1 → 2 step clears the old memories' facts, keeps every switch and owner title, and adds an empty class list", () => {
+test("MEM-15 MEM-40 UPG2: the memory ledger's 1 → 2 step clears the old memories' facts, keeps every switch and owner title, and adds an empty class list", () => {
   const db = new DatabaseSync(":memory:");
   try {
     db.exec(MEMORY_LEDGER_BASELINE.schema);

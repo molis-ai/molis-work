@@ -128,6 +128,7 @@ test("manual allows personal saving and acceptance while task reads and learning
 });
 
 // MEM-24: actual UI route provides explicit intent, while ordinary Action/MCP contexts cannot get it from model input.
+// MEM-32: under the manual preset task recall is off and only the person's explicit entry reads.
 test("manual recall is explicit only at the protected memory HTTP entry and not from action arguments or MCP identity", async t => {
   const web = await serveHomeRuntime(t);
   const actions = bindActionClient(web.host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));

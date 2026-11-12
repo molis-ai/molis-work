@@ -7,6 +7,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 import { person } from "./fixtures/home-runtime.js";
 
 // MEM-CLASS-01 / MEM-24: explicit-only stops automatic/task reads, while authorized human recall and management remain real SDK paths.
+// MEM-32: with task reads off, nothing is read automatically while the person's explicit recall still works.
 test("explicit-only stops task bodies but preserves authorized person recall and category-off management", async t => {
   const f = await memoryServiceHome(t, { projects: [] }), service = await f.open();
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui" as const, person: true };

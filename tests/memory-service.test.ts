@@ -339,7 +339,9 @@ test("repeated experience waits across restart, then a person's acceptance repla
   assert.equal(manual.memory!.source, "manual");
 });
 
-test("recall is scoped, filtered and bounded, honours each consumer's switch, and records where each memory was used", { timeout: 60_000 }, async t => {
+// MEM-05: scope, consumer switches, plugin and object conditions, state and expiry filter recall; the natural-language task does not.
+// (`exclude` is an SDK recall option Molis never passes; the SDK proves it.)
+test("MEM-05 recall is scoped, filtered and bounded, honours each consumer's switch, and records where each memory was used", { timeout: 60_000 }, async t => {
   let now = new Date("2025-12-31T00:00:00.000Z");
   const env = await memoryHome(t, () => now);
   const memory = await env.open();
@@ -362,6 +364,9 @@ test("recall is scoped, filtered and bounded, honours each consumer's switch, an
   assert.ok((await memory.recall(assistant(), { query: "起个标题", situation: { plugin_id: "io.molis.work.pages" } })).items.some(item => item.memory_id === pages.memory_id));
   assert.ok(!(await memory.recall(assistant(), { query: "周报发给王总" })).items.some(item => item.memory_id === old.memory_id));
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === old.memory_id)!.state, "disabled", "an expired one is shown as off");
+  // The task a memory applies to is a relevance hint, not a filter: a request worded differently still recalls it.
+  const weekly = (await memory.write(person(), { scope: "project", kind: "fact", text: "GMV 口径按含税统计", applies: { task: "写月度经营分析时" } })).memory!;
+  assert.ok((await memory.recall(assistant(), { query: "这周 GMV 怎么算" })).items.some(item => item.memory_id === weekly.memory_id));
 
   // Switched off: not recalled; on again: recalled.
   await memory.change(person(), { memory_id: style.memory_id, action: "disable" });

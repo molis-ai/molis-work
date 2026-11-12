@@ -62,7 +62,7 @@ test("read and formation restrictions remain independent and never replace consu
 });
 
 // MEM-CLASS-01 / MEM-26: a rule for another use or nonapplicable scene must not affect this use.
-test("canonical multiscene entries match only current or common scenes and unknown is not common", () => {
+test("MEM-15 canonical multiscene entries match only current or common scenes and unknown is not common", () => {
   const multiscene = { ...target, classification: { ...target.classification, scenes: ["coding", "assistant", "common"] } };
   assert.equal(memoryClassReadAllowed([restriction({ scene: "assistant" })], context, multiscene, "task"), true);
   assert.equal(memoryClassReadAllowed([restriction({ scene: "coding" })], context, multiscene, "task"), false);

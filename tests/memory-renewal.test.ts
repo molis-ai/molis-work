@@ -20,7 +20,7 @@ async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
 }
 
 // MEM-08/17/28/29: real Service -> production policy/adapter -> Node storage; no replacement execution or model.
-for (const state of ["active", "paused", "disabled"] as const) test(`explicit renewal preserves ${state} identity, facts and raw state across restart`, async t => {
+for (const state of ["active", "paused", "disabled"] as const) test(`MEM-15 explicit renewal preserves ${state} identity, facts and raw state across restart`, async t => {
   const f = await fixture(t), raw = f.raw(caller("raw"));
   let original = (await raw.list("project", "project-a"))[0]!;
   if (state !== "active") original = await raw[state === "paused" ? "pause" : "disable"]({ scope: "project", owner: "project-a",
@@ -41,6 +41,30 @@ for (const state of ["active", "paused", "disabled"] as const) test(`explicit re
   assert.deepEqual(f.ledger().revisions(original.memory_id).map(row => row.snapshot?.meta.expires_at_ms === undefined ? null : new Date(row.snapshot.meta.expires_at_ms).toISOString()),
     [f.saved.expires_at, request.expires_at]);
   await assert.rejects(reopened.change(who, renewal(original.memory_id, original.version, START + 2 * DAY)), { code: "memory.conflict" });
+});
+
+// MEM-29: reading never renews. Task recall, a Run recipe and the person's own listing leave the deadline, version and
+// update time untouched, and the entry leaves recall the moment its deadline passes, with no sweep in between. Turning
+// short-term into long-term is a separate decision (memory-classification-edit.test.ts); a reader or non-person caller
+// cannot move the shared deadline ("renewal rejects malformed, implicit, mixed, foreign, non-person…" below).
+test("MEM-29 recall, Run recipes and listing never extend a short-term deadline, and expiry leaves recall at once", async t => {
+  const f = await fixture(t), raw = f.raw(caller("raw"));
+  const short = (await f.service.write(caller("short"), { scope: "project", text: "Use the temporary staging host this week", kind: "convention",
+    expires_at: new Date(START + DAY).toISOString() })).memory!;
+  const before = (await raw.list("project", "project-a")).find(row => row.memory_id === short.memory_id)!;
+  const task = caller("task", { person: false, consumer: "assistant", purpose: "task", current_scene: "assistant", work: { work_id: "w", title: "Week" } });
+  for (let round = 0; round < 3; round += 1) {
+    f.advance(START + (round + 1) * 3_600_000);
+    assert.ok((await f.service.recall(task, { scopes: ["project"], query: "staging host" })).items.some(item => item.memory_id === short.memory_id));
+    assert.ok(await f.service.forRun(task, { query: "staging host" }));
+    await f.service.list(caller("list"), { scope: "project" });
+  }
+  assert.deepEqual((await raw.list("project", "project-a")).find(row => row.memory_id === short.memory_id), before, "reads change neither deadline, version nor update time");
+  assert.equal(f.ledger().revisions(short.memory_id).length, 1);
+  f.advance(START + DAY);
+  assert.ok(!(await f.service.recall(task, { scopes: ["project"], query: "staging host" })).items.some(item => item.memory_id === short.memory_id),
+    "at the deadline the entry is out of recall without any maintenance pass");
+  assert.deepEqual((await raw.list("project", "project-a")).find(row => row.memory_id === short.memory_id), before);
 });
 
 test("SDK commit with ledger failure repairs once after restart; a later edit or deletion never supplies the old renewal history", async t => {
@@ -95,6 +119,7 @@ test("same-version competitors permit one renewal, and the whole operation fixes
   assert.equal(f.ledger().revisions(f.saved.memory_id).length, 2);
 });
 
+// MEM-29: a reader or non-person caller cannot move a shared deadline; an expired decision is not renewed by a retry.
 test("renewal rejects malformed, implicit, mixed, foreign, non-person and expired retry decisions without rewriting facts", async t => {
   const f = await fixture(t), request = renewal(f.saved.memory_id, f.saved.version);
   await assert.rejects(f.service.change(caller("not-expired"), request));

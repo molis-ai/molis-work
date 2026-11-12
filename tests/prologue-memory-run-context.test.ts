@@ -30,6 +30,12 @@ async function finished(adapter: Awaited<ReturnType<typeof createPrologueNodeAda
 }
 
 /** Real Node/HTTP/SQLite and production App authority; scripted model output is engineering evidence, not model quality. */
+// MEM-14: memory reaches the model only through the SDK's own recall and its receipt, on the asynchronous Run path; Molis
+// prepares no body of its own (the §9.2 benefit clause is MEM-38's measurement, not proven here).
+// MEM-07: the real Run keeps the retrieval's receipt id into the final Context, and a round refused before dispatch keeps
+// its ready retrieval apart from delivery (injected stays empty). MEM-06: the vector-fallback case reports each attempt as it ran.
+// MEM-16: the recent reference is the final Context's receipt, survives a usage-sink fault and adapter reopen, a repeat read keeps it,
+// and a refused round cannot replace it.
 for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy}: trusted Run goal/object facts select only applicable memory through final HTTP Context and survive Session reopen`, { timeout: 40_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-run-context-")), requests: string[] = [];
   const server = createServer(async (request, response) => {
@@ -167,4 +173,146 @@ for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
   }
+});
+
+/** The same real Node/HTTP/SQLite App wiring as above, for the cases that only need one Run and its final HTTP body. */
+async function runRig(options: { read?: (read: Record<string, unknown>) => Record<string, unknown>; appId?: string; home?: string } = {}) {
+  const readPolicy = options.read, ownHome = !options.home;
+  const home = options.home ?? await mkdtemp(join(tmpdir(), "molis-memory-run-rig-")), requests: string[] = [];
+  const server = createServer(async (request, response) => {
+    let body = ""; for await (const chunk of request) body += chunk;
+    requests.push(body);
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"model":"scripted","choices":[{"index":0,"delta":{"content":"Ready."},"finish_reason":null}]}\n\n'
+      + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":2}}\n\ndata: [DONE]\n\n');
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  if (ownHome) {
+    const initialOwner = acquireStorageOwner(join(home, "agent-runtime"));
+    try { initializeMemoryForgetting({ homeDirectory: home, storageOwner: initialOwner, assertCurrent() {} }); }
+    finally { initialOwner.release(); }
+  }
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  if (ownHome) for (const key of ["personal", "project-default"]) ledger.savePrefs(caller.actor_id, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
+  let alive = true, service!: MemoryService;
+  const owner: MemoryRuntimePolicyOwner = { alive: () => alive, forgettingPhase: () => service.forgettingPhase(), prefsFor: (scope, id) => service.prefsFor(caller.actor_id, scope, id),
+    owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
+    projectExists: async id => id === project, deletingProject: () => undefined };
+  const memory = memoryRuntimePolicy(() => owner), matrix = memory.policy.matrix;
+  assert.ok(matrix?.rows);
+  const policy = !readPolicy ? memory.policy : { ...memory.policy, matrix: { ...matrix,
+    rows: matrix.rows.map((row): typeof row => ({ ...row, read: readPolicy(row.read as never) as typeof row.read })) } };
+  const close = async () => {
+    alive = false; ledger.close();
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    if (ownHome) await rm(home, { recursive: true, force: true });
+  };
+  const adapter = await createPrologueNodeAdapter({ app: { appId: options.appId ?? "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"),
+    memoryUsage: receipt => service.settleUses(receipt), memory: { ...memory, policy, promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+      decide: (caller, request) => service.promotion.decide(caller, request),
+      undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
+    modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, model: "scripted", credential_ref: "fixture" }),
+    resolveCredential: () => "test-only" }).catch(async error => { await close(); throw error; });
+  const backend = prologueMemoryBackend(async () => adapter.memory!);
+  service = new MemoryService({ ledger, backend });
+  const sessionOwner = { project_id: project, plugin_id: coding, install_id: "coding", actor_id: caller.actor_id };
+  const session = await adapter.createSession({ ...sessionOwner, workspace: "none", role_id: "reader", title: "Memory context" });
+  return {
+    home, requests, service, backend, ledger,
+    save: (text: string, meta: Record<string, unknown>) => backend.withCaller(person).write({ scope: "project", owner: project, text, origin: "person", operation_id: text,
+      meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, ...meta } as never }),
+    start: async (recipe: NonNullable<Awaited<ReturnType<MemoryService["forRun"]>>>, expected = "completed") => finished(adapter, await adapter.start({ ...sessionOwner, session, workspace: "none",
+      role_id: "reader", task: "Release checklist", role: { role_id: "reader", version: 1, workspace: "none", execution: "read-only", host_tools: [], prompts: [], memory: recipe } }), expected),
+    close: async () => { try { await adapter.close(); } finally { await close(); } },
+  };
+}
+
+// MEM-06: fallback happens only as the App configured it. With no vector backend installed, a vector policy without a
+// fallback, or with a fallback for another reason only, is refused when the runtime is assembled: it never starts and
+// quietly answers with keyword instead (the configured "unavailable" fallback, reported attempt by attempt, is the
+// vector-fallback case above). The runtime half is the SDK slot's own contract: a failed or timed-out algorithm closes
+// its reader without falling back, and fabricated references or replacement bodies are refused (Prologue
+// packages/sdk/test/memory-recaller.live.test.ts "closes a failed algorithm's reader without falling back…",
+// "does not fallback for normal empty results or a reason excluded by the recipe", "rejects fabricated references and
+// replacement bodies", "still rejects fabricated results and version violations with fallback enabled").
+test("MEM-06 vector with no fallback, or a fallback for another reason only, is refused at assembly instead of silently using keyword", { timeout: 40_000 }, async () => {
+  for (const read of [
+    (row: Record<string, unknown>) => { const { fallback: _none, ...rest } = row; return { ...rest, algorithm: "vector" }; },
+    (row: Record<string, unknown>) => ({ ...row, algorithm: "vector", fallback: { algorithm: "keyword", on: ["failed"] } }),
+  ]) {
+    await assert.rejects(runRig({ read }), (error: { code?: string; safeMessage?: string }) =>
+      error.code === "RUNTIME_OPTIONS_INVALID" && /recall algorithm vector unavailable/.test(error.safeMessage ?? ""));
+  }
+});
+
+// MEM-32: a skip scene does no automatic recall and puts no memory in the final Context; the person's explicit recall
+// still reads it; a Coding Run never receives an entry classified for the Assistant; and a preference is not pinned into
+// every Run (it arrives only when recall selects it). The explicit-only HTTP entry under the manual preset is
+// memory-presets.test.ts "manual recall is explicit only…".
+test("MEM-32 skip Runs carry no memory in the final HTTP Context, explicit recall still reads, Coding never gets Assistant entries, preferences are not pinned", { timeout: 40_000 }, async () => {
+  const rig = await runRig();
+  try {
+    const coded = await rig.save("Release checklist: CODING_ONLY", { classification: { scenes: ["coding"], lifecycle: "long-term" } });
+    await rig.save("Release checklist: ASSISTANT_ONLY", { classification: { scenes: ["assistant"], lifecycle: "long-term" } });
+    await rig.save("Indentation: PREFERENCE_ONLY", { kind: "preference", classification: { scenes: ["coding"], lifecycle: "long-term" } });
+    const markers = /CODING_ONLY|ASSISTANT_ONLY|PREFERENCE_ONLY/;
+    const skipped = await rig.service.forRun({ ...caller, work: { work_id: "skip", title: "Release" } }, { query: "Release checklist" }, { skip: true });
+    assert.ok(skipped); assert.equal(skipped.skip, true); assert.equal(skipped.task, false); assert.deepEqual(skipped.pinned, []);
+    const quiet = await rig.start(skipped);
+    assert.equal(rig.requests.length, 1); assert.doesNotMatch(rig.requests[0]!, markers);
+    assert.deepEqual(quiet.memory_recalled?.injected ?? [], []);
+    assert.deepEqual(quiet.memory_recalled?.retrievals.map(({ receipt_id: _id, ...rest }) => rest), [{ outcome: "skip" }],
+      "a skip Run attempts no algorithm and scans nothing");
+    assert.deepEqual(quiet.memory_recalled?.selected, []);
+    assert.deepEqual(quiet.memory_recalled?.contexts?.map(context => [context.status, context.tokens, context.references.length]), [["response-observed", 0, 0]],
+      "the final Context the model saw holds no memory");
+    assert.deepEqual(rig.service.uses({ work_id: "skip" }), []);
+    const explicit = await rig.service.recall(person, { query: "Release checklist" });
+    assert.ok(explicit.items.some(item => item.memory_id === coded.memory_id), "explicit recall is still readable while the Run skipped");
+    const automatic = await rig.service.forRun({ ...caller, work: { work_id: "auto", title: "Release" } }, { query: "Release checklist" });
+    assert.ok(automatic); assert.equal(automatic.task, true); assert.deepEqual(automatic.pinned, [], "no preference is pinned into every Run");
+    const view = await rig.start(automatic);
+    assert.equal(rig.requests.length, 2);
+    assert.match(rig.requests[1]!, /CODING_ONLY/);
+    assert.doesNotMatch(rig.requests[1]!, /ASSISTANT_ONLY/, "the Coding scene never receives an Assistant entry");
+    assert.doesNotMatch(rig.requests[1]!, /PREFERENCE_ONLY/, "a preference the recall did not select stays out of the Context");
+    assert.deepEqual(view.memory_recalled?.injected, [{ memory_id: coded.memory_id, version: coded.version }]);
+  } finally { await rig.close(); }
+});
+
+// MEM-25: one entry classified for two scenes is the same reference in both, with no copied body; another App on the same
+// storage, holding the same-named classes, sees and writes nothing under Molis's authority; Molis's own classes are
+// unchanged when it reopens. The SDK half (each App's own taxonomy, kinds the SDK does not rewrite, isolation by App id)
+// is Prologue packages/sdk/test/memory-access.live.test.ts "并行场景视图固定身份；分类跨重启保存且不同 App 隔离".
+test("MEM-25 two scenes share one reference without copies, and another App on the same storage sees and writes nothing", { timeout: 40_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-two-apps-"));
+  try {
+    const owner = acquireStorageOwner(join(home, "agent-runtime"));
+    try { initializeMemoryForgetting({ homeDirectory: home, storageOwner: owner, assertCurrent() {} }); } finally { owner.release(); }
+    const seed = openMemoryLedger({ homeDirectory: home });
+    for (const key of ["personal", "project-default"]) seed.savePrefs(caller.actor_id, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
+    seed.close();
+    const molis = await runRig({ home });
+    let shared: Awaited<ReturnType<typeof molis.save>>;
+    try {
+      shared = await molis.save("Release checklist: SHARED_ONLY", { classification: { scenes: ["coding", "assistant"], lifecycle: "long-term" } });
+      const assistant = { actor_id: caller.actor_id, project_id: project, consumer: "assistant", current_scene: "assistant", purpose: "task" } as const;
+      const fromCoding = await molis.service.recall(caller, { query: "Release checklist" });
+      const fromAssistant = await molis.service.recall(assistant, { query: "Release checklist" });
+      assert.deepEqual(fromCoding.items.map(item => item.memory_id), [shared.memory_id]);
+      assert.deepEqual(fromAssistant.items.map(item => item.memory_id), [shared.memory_id], "both scenes read the one reference");
+      assert.equal((await molis.backend.withCaller(person).list("project", project)).length, 1, "no per-scene copy is stored");
+    } finally { await molis.close(); }
+    const other = await runRig({ home, appId: "io.example.notes" });
+    try {
+      assert.deepEqual(await other.backend.withCaller(person).list("project", project), [], "another App sees nothing");
+      await assert.rejects(other.save("Release checklist: OTHER_APP", { classification: { scenes: ["coding"], lifecycle: "long-term" } }), { code: "MEMORY_SCOPE_DENIED" });
+    } finally { await other.close(); }
+    const again = await runRig({ home });
+    try {
+      const rows = await again.backend.withCaller(person).list("project", project);
+      assert.deepEqual(rows.map(row => [row.memory_id, row.meta.classification]), [[shared.memory_id, { scenes: ["coding", "assistant"], lifecycle: "long-term" }]]);
+    } finally { await again.close(); }
+  } finally { await rm(home, { recursive: true, force: true }); }
 });

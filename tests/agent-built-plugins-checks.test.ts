@@ -262,7 +262,7 @@ test('S-47 an installed raw operation refuses actor names, JSON and Host route c
     const release = { buildId: 'b', pluginId: f.options.contract.pluginId, version: 1, design: { title: '回声', contract: f.options.contract, parts: [], acceptance: [] }, nodes: [],
       manifest: f.options.manifest, directory: f.root, bundlePath: checked.bundlePath!, packagePath: f.root, permissions: {}, publishedAt: '' } as never;
     const definition = sandboxedPluginDefinition(release, {}, []);
-    const running = await definition.start({ requireGrant() {}, services: { storage }, project_id: 'p', install_id: 'install-1' } as never) as { routes: Array<{ handle(request: unknown): Promise<{ status: number; body: unknown }> }> };
+    const running = await definition.start({ requireGrant() {}, grants: ['storage:private'], services: { storage }, project_id: 'p', install_id: 'install-1' } as never) as { routes: Array<{ handle(request: unknown): Promise<{ status: number; body: unknown }> }> };
     const execution = { signal: new AbortController().signal, beforeEffect: async () => {} };
     const request = { method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: 'web-user', body: { operation: 'echo', input: 'hi' } };
     try {

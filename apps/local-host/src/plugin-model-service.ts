@@ -60,7 +60,8 @@ export function createPluginModelPort(home: PluginPlatformHome, carried: readonl
           const catalog = openConfiguredModels(home.directory);
           try {
             const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
-            if (selected) { label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
+            // What a plugin may show the person: the connection and model they configured, not the runtime underneath (F-01).
+            if (selected) { label = `${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
             return true;
           } finally { catalog?.storage.close(); }
         });

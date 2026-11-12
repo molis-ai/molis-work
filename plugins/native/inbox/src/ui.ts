@@ -99,18 +99,19 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const details = model.entries.map((entry) => renderInboxDetail(entry, p, model.locale ?? null)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
-      <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost inbox-compose-trigger" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${uiText("inbox.ui.write-materials-pages")}</span></button></header>
+      <header class="plugin-stage-chrome"></header>
       ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${uiText("inbox.ui.suggested-next-step")}</summary><p>${p.escape(model.judgment.name || uiText.text("inbox.ui.no-rule-selected"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(p.text(model.judgment.reason))}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${uiText("inbox.ui.configure-judgment-rule")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${uiText("inbox.ui.update-suggestions-first-20-open-items")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
       ${renderInboxFold("active", uiText.text("inbox.ui.open"), "alert", active, p)}
       ${renderInboxFold("history", uiText.text("inbox.ui.history"), "check", history, p)}
+      <button class="mw-btn mw-btn--ghost inbox-compose-trigger" type="button" data-inbox-compose-open="" aria-haspopup="dialog">${p.icon("note")}<span>${uiText("inbox.ui.write-materials-pages")}</span></button>
     </div>
     <div class="plugin-stage-workspace" data-inbox-stage-workspace hidden>
       ${details}
       <div class="feed-detail-empty mw-empty" data-inbox-detail-empty>${p.icon("inbox")}<h1>${uiText("inbox.ui.nothing-needs-attention-right-now")}</h1></div>
     </div>
-    <dialog class="inbox-compose-dialog" data-inbox-compose>
+    <dialog class="inbox-compose-dialog" data-inbox-compose aria-labelledby="inbox-compose-title">
       <form data-inbox-compose-form>
-        <header><h2>${uiText("inbox.ui.write-materials-pages")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-inbox-compose-close aria-label="${uiText("inbox.ui.close")}">${p.icon("x")}</button></header>
+        <header><h2 id="inbox-compose-title">${uiText("inbox.ui.write-materials-pages")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-inbox-compose-close aria-label="${uiText("inbox.ui.close")}">${p.icon("x")}</button></header>
         <p>${uiText("inbox.ui.select-original-materials-inbox-add-instructions-then-continue")}</p>
         <fieldset data-inbox-compose-materials><legend>${uiText("inbox.ui.selected-materials")}</legend></fieldset>
         <label>${uiText("inbox.ui.document-title")}<input class="mw-input" name="title" required maxlength="80" autocomplete="off"></label>

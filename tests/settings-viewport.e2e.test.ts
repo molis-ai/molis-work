@@ -180,3 +180,93 @@ test('RAC-2850 global Characters entry carries only its own CSS through real HTT
   assert.equal(await entry("document.querySelector('.characters-settings-entry style').textContent.includes('.characters-terminal')"), false);
   await shot('characters-global-extracted-narrow');
 });
+
+test("B27-AC01: Assistant rule scopes and the name and state of a capability switch", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { command, sessionId, navigate, origin, waitFor, evaluate, click } = b;
+  const quiet = "[data-assistant-rule-quiet]", pause = "[data-assistant-rule-pause]";
+  const failure = "input[data-assistant-rule-except=failed]";
+  const row = "[data-assistant-capabilities] .assistant-capability";
+  const toggle = row + " input[role=switch]";
+  const switchDom = `document.querySelector('${toggle}')`;
+  const open = async () => {
+    await navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
+    await waitFor(`document.querySelector('[data-assistant-rule-surfaces] input') && ${switchDom}`);
+    await evaluate("document.fonts.ready.then(() => true)");
+  };
+  const switchAX = async () => {
+    const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
+    const { nodeId } = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector: toggle }, sessionId);
+    const { nodes } = await command<{ nodes: { role?: { value: string }; name?: { value: string }; properties?: { name: string; value: { value: string } }[] }[] }>(
+      "Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false }, sessionId);
+    const entry = nodes.find(node => node.role?.value === "switch");
+    assert.ok(entry, "Chrome exposes a switch");
+    return [entry.name?.value, entry.properties?.find(property => property.name === "checked")?.value.value];
+  };
+  const readSwitch = async () => {
+    const [name, checked] = await evaluate<[string, boolean]>(`[document.querySelector('${row} strong').textContent, ${switchDom}.checked]`);
+    assert.deepEqual(await switchAX(), [name, String(checked)]);
+    return { name, checked };
+  };
+  const directory = process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/batch27-assistant-settings`;
+  await mkdir(directory, { recursive: true });
+  for (const [locale, labels] of [
+    ["zh", ["在这些地方，助理这一轮失败时仍提醒我", "暂停期间，助理这一轮失败时仍提醒我"]],
+    ["en", ["In these places, still notify me if an Assistant turn fails", "While paused, still notify me if an Assistant turn fails"]],
+  ] as const) {
+    await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: origin }, sessionId);
+    await open();
+    assert.deepEqual(await evaluate(`['${quiet} ${failure}', '${pause} ${failure}'].map(s => document.querySelector(s).labels[0].textContent.trim())`), labels);
+    await readSwitch();
+    for (const width of [1440, 1024, 390]) {
+      await b.setViewport(width, 900);
+      for (const theme of ["light", "dark"]) {
+        await evaluate(`localStorage.setItem('molis-work:theme','${theme}'); dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
+        await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
+        for (const [area, selector] of [["rules", "[data-assistant-rules]"], ["memory", "[data-assistant-memory]"]]) {
+          await evaluate(`document.querySelector('${selector}').scrollIntoView({block:'start',behavior:'instant'})`);
+          const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+          await writeFile(`${directory}/assistant-${area}-${locale}-${theme}-${width}.png`, Buffer.from(data, "base64"));
+        }
+        assert.equal(await evaluate(`(() => {
+          const title = document.querySelector('#assistant-memory-title'), range = document.createRange();
+          range.selectNodeContents(title);
+          const lines = new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top)));
+          return title.checkVisibility() && lines.size === 1 && getComputedStyle(title).writingMode === 'horizontal-tb';
+        })()`), true, `memory heading reads horizontally at ${width}px, ${locale}, ${theme}`);
+      }
+    }
+  }
+  await b.setViewport(1440, 900);
+  const before = await readSwitch();
+  await click(toggle);
+  await waitFor(`${switchDom}?.checked === ${!before.checked} && !${switchDom}.disabled`);
+  assert.deepEqual(await readSwitch(), { name: before.name, checked: !before.checked });
+  await open();
+  assert.deepEqual(await readSwitch(), { name: before.name, checked: !before.checked }, "state persists and the switch keeps its name");
+
+  type Rule = { rule_id: string; kind: string; except: string[]; surfaces: string[]; until?: string };
+  const readRules = async () => (await b.web.get<{ rules: Rule[] }>("/api/assistant/rules")).rules;
+  const previousIds = new Set((await readRules()).map(rule => rule.rule_id));
+  const page = quiet + " [data-assistant-rule-surfaces] input";
+  const surface = await evaluate<string>(`document.querySelector('${page}').value`);
+  await click(page);
+  await click(quiet + " " + failure);
+  await click(quiet + " [type=submit]");
+  await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 1}`);
+  const pausedAt = Date.now();
+  await click(pause + " [type=submit]");
+  await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 2}`);
+  await open();
+  await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 2}`);
+  const rules = (await readRules()).filter(rule => !previousIds.has(rule.rule_id));
+  const location = rules.find(rule => rule.kind === "quiet"), timed = rules.find(rule => rule.kind === "pause");
+  assert.ok(location && timed);
+  assert.deepEqual(location.surfaces, [surface]);
+  assert.deepEqual(location.except, ["reminder", "connection"]);
+  assert.equal(location.until ?? null, null);
+  assert.deepEqual(timed.surfaces, []);
+  assert.deepEqual(timed.except, ["failed", "connection"]);
+  const pauseStart = Date.parse(timed.until ?? "") - 60 * 60_000;
+  assert.ok(pausedAt <= pauseStart && pauseStart <= Date.now(), "the pause has its own one-hour expiry");
+});

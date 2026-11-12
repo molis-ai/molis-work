@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { ActionError, defineErrorCodes, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginTerminalClient, PluginTerminalProgram } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, type PluginTerminalClient, type PluginTerminalProgram, type SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createActionDefinition, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { array, boolean, identifier, object, text } from "./contract/goal-actions.js";
 import type { GoalEventStateView } from "./contract/goal-events.js";
@@ -28,6 +28,11 @@ function terminalAction<Input, Output>(id: string, version: number, title: strin
     subject_kinds: ["goal"], input_schema: input, output_schema: output }, version);
 }
 
+/** The text the person's page read for the Goal from the plugins that keep some (GAS-01); bound into the prompt as untrusted data. */
+const sourceContexts = { type: "array", maxItems: UI_SUBJECT_CONTEXT_PLUGINS, items: object({ plugin_id: identifier,
+  source_context: { type: "string", minLength: 1, maxLength: UI_SUBJECT_CONTEXT_LIMIT } }) };
+type PromptInput = { goal_id: string; onboarding?: boolean; source_contexts?: SubjectContextAnswer["contexts"] };
+
 type OpenInput = { goal_id: string; key?: string; runtime?: string; resume_session_id?: string; command?: string; args?: string[]; workspace_id?: string };
 export const goalsTerminalActions = {
   list: terminalAction<{ goal_id: string }, { panels: PanelRow[]; read_only: boolean }>(
@@ -41,9 +46,10 @@ export const goalsTerminalActions = {
   close: terminalAction<{ goal_id: string; key: string }, { closed: true }>(
     "goals.terminal.close", /* @version action.goals.terminal.close */ 1, "关闭目标的工作终端", "结束这个目标上的一个工作终端并忘掉它", "command",
     ["goals:write", "terminal:run"], object({ ...goal, key }), object({ closed: { const: true } })),
-  prompt: terminalAction<{ goal_id: string; onboarding?: boolean }, { goal_id: string; title: string; prompt: string }>(
-    "goals.terminal.prompt", /* @version action.goals.terminal.prompt */ 1, "读取推进目标的提示词", "给终端里的编程 Agent 的推进提示：目标的当前事实与项目指引", "query",
-    ["goals:read"], object({ ...goal, onboarding: boolean }, ["goal_id"]), object({ goal_id: text, title: text, prompt: text })),
+  prompt: terminalAction<PromptInput, { goal_id: string; title: string; prompt: string }>(
+    "goals.terminal.prompt", /* @version action.goals.terminal.prompt */ 1, "读取推进目标的提示词",
+    "给终端里的编程 Agent 的推进提示：目标的当前事实与项目指引；页面读到的关联原文只作为不可信数据附上", "query",
+    ["goals:read"], object({ ...goal, onboarding: boolean, source_contexts: sourceContexts }, ["goal_id"]), object({ goal_id: text, title: text, prompt: text })),
 } as const;
 export const GOALS_TERMINAL_ACTIONS: readonly ActionDefinition[] = Object.values(goalsTerminalActions);
 
@@ -103,11 +109,12 @@ export function createGoalsTerminalActionHandlers(ports: GoalsTerminalPorts): Ac
       return { closed: true as const };
     } },
     { ...goalsTerminalActions.prompt, handle: async (caller, input) => {
-      const { goal_id, onboarding } = input as { goal_id: string; onboarding?: boolean };
+      const { goal_id, onboarding, source_contexts } = input as PromptInput;
       const { record, state, parent } = readGoal(goal_id);
       if (parent) throw terminalErrors.read_only("这条上层 Goal 由子 Goal 共同完成，不能直接推进。请选择一个具体的子 Goal。");
-      // Goals' own facts and guidance only: a person's delegated read of Feed's user-only text has no path yet (BL-911).
-      return { goal_id, title: record.title, prompt: goalAdvancePrompt({ goal_id, title: record.title,
+      // Other plugins' text about the Goal comes from the person's page, which read it as the person (GAS-01); Goals reads none itself.
+      const source_context = source_contexts?.map(item => item.source_context).join("\n\n") || undefined;
+      return { goal_id, title: record.title, prompt: goalAdvancePrompt({ goal_id, title: record.title, source_context,
         project_guidance_prefix: await ports.guidancePrefix(caller), onboarding: onboarding === true, current_facts: state?.owner ? goalFacts(state) : undefined }) };
     } },
   ];

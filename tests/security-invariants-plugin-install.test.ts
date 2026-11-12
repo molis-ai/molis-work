@@ -15,11 +15,12 @@ import { localPackageSignAction, type LocalPackageSignResult } from "@molis-ai/m
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ActionService, compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { contentPackageDraft, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
-import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, pluginPackageSigningBytes, signPluginPackage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_PROJECT_ID, HomeConsentLedger, HOST_PLUGIN_IDS, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
   pluginConsentProvider, pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { SECOND_PLUGIN_ID } from "./fixtures/home-sandbox.js";
+import { integrationPackage } from "./fixtures/home-upgrade-source.js";
 
 // S-84 (ac-trust T2): a plugin is installed from a signed package only through one path the person walks, and the Host checks the package
 // before it writes anything. Unsigned, altered, wrongly signed, from a revoked publisher, or not in the sandbox package format: refused at
@@ -274,6 +275,71 @@ test("RAC-383 S-84 a package that verifies but is not in the sandbox package for
       h.nothingWritten();
     } finally { await h.done(); }
   }
+});
+
+const terminalPermission = (required: boolean) => ({ permission: "terminal:run", required, reason: "Open a terminal" });
+function replaceSignedFile(bundle: PluginPackageBundle, path: string, contents: string): void {
+  const file = bundle.payload.files.find(item => item.path === path);
+  assert.ok(file, path);
+  file.content_base64 = Buffer.from(contents).toString("base64");
+}
+
+test("BL910-01 S-103 signed sandbox packages that declare terminal:run are refused at preview with the reason and no writes", async t => {
+  const h = await harness(undefined, true), publisher = newPublisher();
+  t.after(h.done);
+  const stopped = async (bundle: PluginPackageBundle) => {
+    await assert.rejects(h.service.preview({ bundle }, who), {
+      code: "plugin.declaration_invalid", kind: "invalid", message: /不能打开终端.*沙箱外.*系统权限/,
+    });
+    h.nothingWritten();
+  };
+  for (const required of [true, false]) {
+    const label = required ? "required" : "optional";
+    for (const scope of ["project", "home"] as const) {
+      await t.test(`${scope} app, ${label}`, async () => {
+        await stopped(signedPackage(publisher, (_files, manifest) => {
+          if (scope === "home") manifest.runtime = { scope };
+          manifest.permissions = [...manifest.permissions, terminalPermission(required)];
+        }));
+      });
+    }
+    await t.test(`Home integration, ${label}`, async () => {
+      const bundle = integrationPackage(publisher), { manifest } = bundle.payload;
+      manifest.permissions = [...manifest.permissions, terminalPermission(required)];
+      replaceSignedFile(bundle, "manifest.json", JSON.stringify(manifest));
+      await stopped(signPluginPackage({ payload: bundle.payload, signature: null, publisher_key: null }, publisher.signer));
+    });
+  }
+  const ordinary = await h.service.preview({ bundle: signedPackage(publisher) }, who);
+  assert.deepEqual(ordinary.preview.permissions.map(item => item.permission), ["storage:private"]);
+  h.nothingWritten();
+});
+
+test("BL910-02 S-103 a terminal declaration cannot mask signature, publisher-key or package Manifest checks", async t => {
+  const h = await harness(), publisher = newPublisher();
+  t.after(h.done);
+  const bundle = signedPackage(publisher, (_files, manifest) => { manifest.permissions = [...manifest.permissions, terminalPermission(true)]; });
+  const tampered = structuredClone(bundle);
+  replaceSignedFile(tampered, "plugin.mjs", "export const operations = {};\n");
+  const mismatched = structuredClone(bundle);
+  replaceSignedFile(mismatched, "manifest.json", JSON.stringify({ ...mismatched.payload.manifest, name: "Different inside" }));
+  // The normal signer refuses inconsistent Manifests; construct the Ed25519 signature over these exact bytes.
+  mismatched.signature = { algorithm: "ed25519", value_base64: Buffer.from(publisher.signer.sign(pluginPackageSigningBytes(mismatched.payload))).toString("base64") };
+  const other = newPublisher();
+  for (const [candidate, code, message] of [
+    [{ ...bundle, signature: null, publisher_key: null }, "plugin.signature_invalid", /未签名/],
+    [tampered, "plugin.signature_invalid", /内容或签名已改变/],
+    [{ ...bundle, publisher_key: { algorithm: "ed25519", spki_base64: other.signer.public_key_spki_base64 } }, "plugin.signer_mismatch", /公钥/],
+    [mismatched, "plugin.package_invalid", /manifest\.json 不一致/],
+  ] as const) {
+    await assert.rejects(h.service.preview({ bundle: candidate }, who), { code, message });
+    h.nothingWritten();
+  }
+  const unrelated = signedPackage(publisher, (_files, manifest) => {
+    manifest.permissions = [...manifest.permissions, { permission: "network:any", required: true, reason: "Read network" }];
+  });
+  await assert.rejects(h.service.preview({ bundle: unrelated }, who), { code: "plugin.declaration_invalid", message: /清单不是沙箱插件的形状/ });
+  h.nothingWritten();
 });
 
 test("RAC-383 S-84 an unknown runtime scope is refused before signing with plugin.manifest_invalid, before anything is written", async () => {

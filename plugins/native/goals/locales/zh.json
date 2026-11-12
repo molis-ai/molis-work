@@ -120,7 +120,6 @@
     "goals.dialogs-ui.close": "关闭",
     "goals.dialogs-ui.confirm-goal-reason-action": "请先确认这条 Goal 和本次操作原因。",
     "goals.dialogs-ui.create-goal": "创建 Goal",
-    "goals.dialogs-ui.example-goal-authoring": "例如 GOAL-AUTHORING",
     "goals.dialogs-ui.example-goal-can-be-created-appears-left-tree": "例如：可以创建 Goal，并在左侧 Tree 中立即看到",
     "goals.dialogs-ui.example-new-user-knows-what-do-next-right": "例如：让新用户安装后知道下一步怎么开始",
     "goals.dialogs-ui.explain-practical-flow-boundaries-plain-language": "用简单语言说明实际使用方式和边界",
@@ -1186,6 +1185,7 @@
     "goals.presentation.start": "创建目标",
     "goals.presentation.summary": "本项目最近更新的目标",
     "goals.read-group.goals.description": "目标的状态、正文、进展记录、关系与资料",
-    "goals.read-group.goals.title": "目标"
+    "goals.read-group.goals.title": "目标",
+    "goals.dialogs-ui.generated-if-empty": "不填会自动生成"
   }
 }

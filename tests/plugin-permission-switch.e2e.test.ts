@@ -128,13 +128,18 @@ async function openPluginPage(t: TestContext, fixture: "permissions" | "dual" | 
   return { page, seen, requests, switchOf, checked, prefix, model, dualHome, projectPlugin, homePlugin };
 }
 
-test("RAC-2910 dual optional permissions have one Home switch, including stopped/crashed and missing Home states", { timeout: 120_000 }, async t => {
+test("RAC-2910 F-20: dual optional permissions have one Home switch, including stopped/crashed and missing Home states", { timeout: 120_000 }, async t => {
   const browser = await openPluginPage(t, "dual"); if (!browser) return;
   const { page, requests, seen, model, dualHome } = browser;
   const project = "[data-plugin-trust-list]", personal = "[data-plugin-trust-home]";
   const optional = 'input[role=switch][aria-label="dual:optional"]';
   assert.equal(await page.evaluate(`document.querySelectorAll('${project} ${optional}').length`), 0);
   assert.match(await page.evaluate<string>(`document.querySelector('${project}').innerText`), /请在个人空间里管理这个插件的可选权限/u);
+  // F-20: a plugin in both groups says why on the project's row; no internal word for where it came from.
+  const copies = await page.evaluate<string[]>(`[...document.querySelectorAll('${project} .setting-copy')].map(copy => copy.innerText)`);
+  assert.match(copies.find(text => text.includes("双实例插件")) ?? "", /个人空间里也有一份/u);
+  assert.doesNotMatch(copies.find(text => text.includes("项目里的插件")) ?? "", /个人空间里也有一份/u, "only a plugin in both groups says so");
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-plugin-trust-settings]').innerText"), /宿主随带/u);
   await page.click(`${personal} ${optional}`);
   await requests(1); assert.deepEqual(seen[0], { url: "/api/settings/plugin-permissions/set", body: { install_id: "dual-install", permission: "dual:optional", granted: false } });
   await page.wait(`document.querySelector('${personal} ${optional}').disabled === false`);

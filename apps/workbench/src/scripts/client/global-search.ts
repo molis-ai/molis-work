@@ -28,7 +28,10 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId, itemTabs: ITEM_TABS } = host;
+  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS } = host;
+  // \`home\`: the Home's project list (BL-041). No project is open there, so the person's own content is the one scope, every hit
+  // opens in its own space (a Home-level record in the personal space), and there are no tools or quick actions to switch to.
+  const home = Boolean(host.home);
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -48,15 +51,18 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const scopes = hasProject && projectId !== ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? ["all", "project", "personal"] : ["personal"];
   // A hit from another partition can only be the person's own space (search answers nothing else across projects).
   // A page without a catalog id has no other partitions: its hits are its own, opened in place.
-  const away = (hit) => Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId;
+  const away = (hit) => home || (Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId);
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
   let selected = 0;
   // Whether the person moved the selection themselves (arrows or pointer) since the words last changed.
   let explicit = false;
+  let pointerOnHit = false;
+  let pendingRender = false;
   let composing = false;
   let lastTrigger = null;
-  let remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" };
+  const emptyResults = (query = "") => ({ query, status: query ? "loading" : "idle", hits: [], sources: [], next: null, error: "" });
+  let remote = emptyResults();
   let requestSeq = 0;
   let debounce = null;
   let retry = null;
@@ -64,8 +70,10 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let notice = "";
   const isOpen = () => dialog.open;
   const isBusy = () => composing || isOpen();
+  const mobileDocument = () => { if (matchMedia("(max-width: 600px)").matches) setMobileView("document"); };
   const localGroups = (query) => {
-    const q = query.trim().toLowerCase();
+    if (home) return [];
+    const q = query.toLowerCase();
     const groups = [];
     const items = [...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id], [data-dock] [data-plugin-id]')]
       .filter((el) => !['home', 'market', 'settings'].includes(el.dataset.pluginId))
@@ -74,36 +82,38 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const tools = takeSearchHits(items, q, limit);
     if (tools.length) groups.push({ label: globalThis.t.text("workbench.global-search.plugin"), items: tools });
     const actions = [
-      { kind: "action", id: "create", title: globalThis.t.text("workbench.global-search.new-goal"), plugin: globalThis.t.text("workbench.global-search.quick-actions"), search: "新建目标 create goal", selector: "[data-open-create]" },
-      { kind: "action", id: "home", title: globalThis.t.text("workbench.global-search.project-home"), plugin: globalThis.t.text("workbench.global-search.quick-actions"), search: "项目首页 home", selector: '[data-plugin-id="home"]' },
-      { kind: "action", id: "settings", title: globalThis.t.text("workbench.global-search.settings"), plugin: globalThis.t.text("workbench.global-search.quick-actions"), search: "设置 settings", selector: '[data-plugin-id="settings"]' },
-      { kind: "action", id: "market", title: globalThis.t.text("workbench.global-search.plugin-market"), plugin: globalThis.t.text("workbench.global-search.quick-actions"), search: "插件市场 market", selector: '[data-plugin-id="market"]' },
-    ].filter((item) => document.querySelector(item.selector) && (!q || item.search.includes(q)));
+      ["create", globalThis.t.text("workbench.global-search.new-goal"), "新建目标 create goal", "[data-open-create]"],
+      ["home", globalThis.t.text("workbench.global-search.project-home"), "项目首页 home", '[data-plugin-id="home"]'],
+      ["settings", globalThis.t.text("workbench.global-search.settings"), "设置 settings", '[data-plugin-id="settings"]'],
+      ["market", globalThis.t.text("workbench.global-search.plugin-market"), "插件市场 market", '[data-plugin-id="market"]'],
+    ].filter(([, title, keyword, selector]) => (title + " " + keyword).toLowerCase().includes(q) && document.querySelector(selector))
+      .map(([id, title, , selector]) => ({ kind: "action", id, title, plugin: globalThis.t.text("workbench.global-search.quick-actions"), selector }));
     if (actions.length) {
-      if (q) groups.push({ label: globalThis.t.text("workbench.global-search.quick-actions"), items: actions });
-      else groups.unshift({ label: globalThis.t.text("workbench.global-search.quick-actions"), items: actions });
+      const group = { label: globalThis.t.text("workbench.global-search.quick-actions"), items: actions };
+      if (q) groups.push(group);
+      else groups.unshift(group);
     }
     return groups;
   };
   const remoteGroups = () => {
     const byPlugin = new Map();
     for (const hit of remote.hits) {
-      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) ? " · " + globalThis.t.text("workbench.global-search.personal-space") : "");
+      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) && !home ? " · " + globalThis.t.text("workbench.global-search.personal-space") : "");
       if (!byPlugin.has(label)) byPlugin.set(label, []);
       byPlugin.get(label).push({ kind: "hit", id: hit.subject.id, title: hit.title, plugin: label, hit });
     }
     return [...byPlugin.entries()].map(([label, items]) => ({ label, items }));
   };
-  const statusText = () => {
-    if (notice) return notice;
-    if (remote.status === "error") return remote.error || globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly");
-    if (!input.value.trim()) return hasProject ? globalThis.t.text("workbench.global-search.search-everything-project-personal-space-jump-tool-name") : globalThis.t.text("workbench.global-search.search-personal-content-jump-tool-name");
-    if (remote.status === "loading" && !remote.hits.length) return globalThis.t.text("workbench.global-search.searching");
+  const statusMessage = (query) => {
+    if (notice) return ["", notice];
+    if (remote.status === "error") return ["failed", remote.error || globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly")];
+    if (!query) return ["", hasProject ? globalThis.t.text("workbench.global-search.search-everything-project-personal-space-jump-tool-name") : home ? globalThis.t.text("workbench.global-search.search-personal") : globalThis.t.text("workbench.global-search.search-personal-content-jump-tool-name")];
+    if (remote.status === "loading" && !remote.hits.length) return ["running", globalThis.t.text("workbench.global-search.searching")];
     const indexing = remote.sources.filter((source) => source.state === "indexing").map((source) => source.title);
-    if (indexing.length) return globalThis.t.text("workbench.global-search.building-search-index") + indexing.join("、");
+    if (indexing.length) return ["indexing", globalThis.t.text("workbench.global-search.building-search-index") + indexing.join("、")];
     const failing = remote.sources.filter((source) => ["failed", "stale", "unavailable"].includes(source.state));
-    if (failing.length) return globalThis.t.text("workbench.global-search.some-content-can-t-be-searched-right-now") + failing.map((source) => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、");
-    return "";
+    if (failing.length) return ["partial", globalThis.t.text("workbench.global-search.some-content-can-t-be-searched-right-now") + failing.map((source) => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、")];
+    return ["", ""];
   };
   const paintSelection = () => {
     results.querySelectorAll("[data-global-search-hit]").forEach((button, index) => {
@@ -112,7 +122,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const active = results.querySelector('[aria-selected="true"]');
     if (active) input.setAttribute("aria-activedescendant", active.id);
     else input.removeAttribute("aria-activedescendant");
-    active?.scrollIntoView({ block: "nearest" });
+    if (!pointerOnHit) active?.scrollIntoView({ block: "nearest" });
   };
   const snippetHtml = (hit) => {
     const text = String(hit.snippet || "");
@@ -134,21 +144,33 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     });
   };
   const render = () => {
-    const query = input.value;
+    // Even changing the status line can move the aimed row. Keep the drawn list and its click targets together.
+    if (pointerOnHit) { pendingRender = true; return; }
+    pendingRender = false;
+    const previous = explicit && hits[selected];
+    const query = remote.query;
     const groups = localGroups(query);
-    const content = query.trim() ? remoteGroups() : [];
+    const content = remoteGroups();
     // Content first when the words find something; tools stay reachable after it.
-    const ordered = query.trim() ? [...content, ...groups] : groups;
-    const noContent = query.trim() && !content.length && remote.status === "done" && remote.query === query.trim();
+    const ordered = [...content, ...groups];
+    const noContent = query && !content.length && remote.status === "done";
     // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
     const ask = noContent && typeof askAssistant === "function"
-      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(globalThis.t.text("workbench.global-search.ask-assistant") + "“" + query.trim() + "”") + "</button>" : "";
+      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(globalThis.t.text("workbench.global-search.ask-assistant") + "“" + query + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
+    if (previous) selected = hits.findIndex(item => item.kind === previous.kind && (item.kind === "hit" ? item.hit.hit_id === previous.hit.hit_id : item.id === previous.id));
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
-    if(statusLine){const text=statusText();if(typeof text==="string")statusLine.textContent=text;else molisWorkRequest.show(statusLine,text);statusLine.hidden=!text;if (notice) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "error") statusLine.dataset.mwState = "failed"; else if (!input.value.trim()) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "loading" && !remote.hits.length) statusLine.dataset.mwState = "running"; else if (remote.sources.some(source => source.state === "indexing")) statusLine.dataset.mwState = "indexing"; else if (remote.sources.some(source => ["failed", "stale", "unavailable"].includes(source.state))) statusLine.dataset.mwState = "partial"; else statusLine.removeAttribute("data-mw-state"); }
+    if (statusLine) {
+      const [state, text] = statusMessage(query);
+      if (typeof text === "string") statusLine.textContent = text;
+      else molisWorkRequest.show(statusLine, text);
+      statusLine.hidden = !text;
+      if (state) statusLine.dataset.mwState = state;
+      else delete statusLine.dataset.mwState;
+    }
     paintScopes();
     if (!ordered.length) {
-      const waiting = query.trim() && remote.status !== "done" && remote.status !== "error";
+      const waiting = query && remote.status === "loading";
       results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-matching-items")) + "</p>" + ask;
       input.removeAttribute("aria-activedescendant");
       return;
@@ -166,24 +188,32 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         return html;
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
-    }).join("") + (remote.next && query.trim() ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(globalThis.t.text("workbench.global-search.show-more-results")) + "</button>" : "")
+    }).join("") + (remote.next ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(globalThis.t.text("workbench.global-search.show-more-results")) + "</button>" : "")
       // Tools matched but content did not: say so about content only, not as if nothing matched.
       + (ask ? '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-content-matches")) + "</p>" + ask : "");
     paintSelection();
   };
+  const releasePointer = (keepSelection = false) => {
+    pointerOnHit = false;
+    if (!pendingRender) return;
+    if (!keepSelection) { selected = 0; explicit = false; }
+    render();
+  };
   const request=(path,body)=>molisWorkRequest(route(path),{body,fallback:globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly")});
   const search = async (append = false) => {
-    const query = input.value.trim();
+    const { query } = remote;
     clearTimeout(retry);
-    if (!query) { remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" }; render(); return; }
+    if (!query || !dialog.open) return;
     const seq = ++requestSeq;
-    if (!append) remote = { ...remote, query, scope, status: "loading", error: "", ...(remote.query === query && remote.scope === scope ? {} : { hits: [], next: null }) };
-    render();
+    if (!append && remote.status !== "loading") {
+      remote = { ...remote, status: "loading", error: "" };
+      render();
+    }
     try {
       const result = await request("/api/search/query", { query, scope, limit: 20, ...(append && remote.next ? { cursor: remote.next } : {}) });
       if (seq !== requestSeq || !dialog.open) return;
       const merged = append ? [...remote.hits, ...result.hits.filter((hit) => !remote.hits.some((known) => known.hit_id === hit.hit_id))] : result.hits;
-      remote = { query, scope, status: "done", hits: merged, sources: result.sources || [], next: result.next_cursor, error: "" };
+      remote = { query, status: "done", hits: merged, sources: result.sources || [], next: result.next_cursor, error: "" };
       render();
       // The first index is still being built: ask again shortly, while the person is still looking.
       if (result.sources?.some((source) => source.state === "indexing") && retries < 12) {
@@ -191,13 +221,23 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         retry = setTimeout(() => { if (dialog.open && input.value.trim() === query) void search(); }, 900);
       }
     } catch (error) {
-      if (seq !== requestSeq) return;
+      if (seq !== requestSeq || !dialog.open) return;
       remote = { ...remote, status: "error", error };
       render();
     }
   };
-  const schedule = () => { clearTimeout(debounce); retries = 0; notice = ""; debounce = setTimeout(() => void search(), 140); };
-  const close = () => {
+  const resetQuery = () => {
+    clearTimeout(debounce); clearTimeout(retry); requestSeq += 1;
+    selected = 0; explicit = false;
+    pointerOnHit = false;
+    retries = 0; notice = "";
+    remote = emptyResults(input.value.trim());
+    render();
+    if (remote.query) debounce = setTimeout(() => void search(), 140);
+  };
+  // \`returnTo\`: where focus goes once it has closed, in place of what opened it (the project list's ⌘K keeps its filter).
+  const close = (returnTo) => {
+    if (returnTo?.nodeType === 1) lastTrigger = returnTo;
     if (dialog.open) dialog.close();
   };
   // After the owner opened the object, bring the matched words into view in whichever pane shows it.
@@ -249,7 +289,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     else if (ITEM_TABS.includes(surface) && !(surface === "feed" && kind === "source")) openTabItem?.(surface, id, title);
     else if (RECORD_ROWS.includes(surface)) openPluginRecord?.(surface, id);
     else openPlugin?.(surface);
-    if (matchMedia("(max-width: 600px)").matches) setMobileView("document");
+    mobileDocument();
   };
   // The same rule as in place, but in the object's own space: a tab for item surfaces, the plugin's list row for record surfaces.
   const openElsewhere = (project, target, title) => {
@@ -264,7 +304,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!item) return;
     if (item.kind === "plugin") {
       close();
-      requestAnimationFrame(() => { openPlugin?.(item.id); if (matchMedia('(max-width: 600px)').matches) setMobileView('document'); });
+      requestAnimationFrame(() => { openPlugin?.(item.id); mobileDocument(); });
       return;
     }
     if (item.kind === "action") { close(); requestAnimationFrame(() => document.querySelector(item.selector)?.click()); return; }
@@ -282,7 +322,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       close();
       const target = opened.open || hit.open;
       if (!target) return;
-      if (away(hit)) { openElsewhere(hit.project_id, target, opened.title || hit.title); return; }
+      if (away(hit)) { openElsewhere(hit.project_id || ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)}, target, opened.title || hit.title); return; }
       requestAnimationFrame(() => {
         openTarget(target, hit.subject.kind, opened.title || hit.title);
         locate(target.surface, hit.locator?.field !== "title" ? hit.locator?.text : "");
@@ -296,10 +336,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const open = (trigger, query) => {
     lastTrigger = trigger?.nodeType === 1 ? trigger : document.activeElement;
     input.value = "";
-    selected = 0; explicit = false;
-    notice = "";
-    remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" };
-    render();
+    resetQuery();
     if (!dialog.open) dialog.showModal();
     input.setAttribute("aria-expanded", "true");
     input.focus();
@@ -313,41 +350,41 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   });
   input.addEventListener("input", () => {
     if (composing) return;
-    selected = 0; explicit = false;
     noteSearchActivity();
-    render();
-    schedule();
+    resetQuery();
   });
   input.addEventListener("compositionstart", () => { composing = true; noteSearchActivity(); });
   input.addEventListener("compositionend", () => {
     composing = false;
-    selected = 0; explicit = false;
     noteSearchActivity(500);
-    render();
-    schedule();
+    resetQuery();
   });
   scopeBar?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-global-search-scope-option]");
     if (!button || !scopes.includes(button.dataset.globalSearchScopeOption)) return;
     scope = button.dataset.globalSearchScopeOption;
     try { sessionStorage.setItem("molis-work:search-scope", scope); } catch {}
-    selected = 0;
-    schedule();
-    render();
+    resetQuery();
     input.focus();
   });
-  results.addEventListener("mousemove", (event) => {
+  const aim = (event) => {
     const hit = event.target.closest("[data-global-search-hit]");
-    if (!hit) return;
-    selected = Number(hit.dataset.globalSearchHit); explicit = true;
-    paintSelection();
-  });
+    if (!hit) { releasePointer(); return; }
+    pointerOnHit = true;
+    explicit = true;
+    const index = Number(hit.dataset.globalSearchHit);
+    if (index !== selected) { selected = index; paintSelection(); }
+  };
+  results.addEventListener("mousemove", aim);
+  results.addEventListener("mousedown", aim);
+  results.addEventListener("mouseleave", () => releasePointer());
   results.addEventListener("click", (event) => {
     if (event.target.closest("[data-global-search-more]")) { event.preventDefault(); void search(true); return; }
     if (event.target.closest("[data-global-search-ask]")) { event.preventDefault(); const words = input.value.trim(); close(); askAssistant?.(words); return; }
     const hit = event.target.closest("[data-global-search-hit]");
     if (!hit) return;
     event.preventDefault();
+    pointerOnHit = false;
     void activate(hits[Number(hit.dataset.globalSearchHit)]);
   });
   dialog.addEventListener("close", () => {
@@ -367,35 +404,27 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   });
   const handleKeyboard = (event) => {
     const meta = event.metaKey || event.ctrlKey;
-    if (meta && event.key.toLowerCase() === "k" && !event.shiftKey && !event.altKey && !inTerminal(event.target)) {
-      event.preventDefault();
-      if (isOpen()) close();
-      else open(document.activeElement);
-      return true;
-    }
-    if (meta && event.key.toLowerCase() === "f" && !event.shiftKey && !event.altKey && !inTerminal(event.target)) {
+    const shortcut = meta && !event.shiftKey && !event.altKey && event.key.toLowerCase();
+    if ((shortcut === "k" || shortcut === "f") && !inTerminal(event.target)) {
       event.preventDefault();
       if (!isOpen()) open(document.activeElement);
-      else input.focus();
+      else if (shortcut === "k") close();
+      else { releasePointer(true); input.focus(); }
       return true;
     }
     if (!isOpen()) return false;
+    releasePointer(true);
     if (meta && /^[1-9]$/.test(event.key)) {
       event.preventDefault();
       void activate(hits[Number(event.key) - 1]);
       return true;
     }
-    if (event.key === "ArrowDown") {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!hits.length) return true;
-      selected = selected < 0 ? 0 : (selected + 1) % hits.length; explicit = true;
-      paintSelection();
-      return true;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!hits.length) return true;
-      selected = selected <= 0 ? hits.length - 1 : selected - 1; explicit = true;
+      if (event.key === "ArrowDown") selected = (selected + 1) % hits.length;
+      else selected = selected <= 0 ? hits.length - 1 : selected - 1;
+      explicit = true;
       paintSelection();
       return true;
     }

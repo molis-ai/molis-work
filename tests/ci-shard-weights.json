@@ -26,7 +26,7 @@
  "tests/action-plugin-audience.test.ts": 1,
  "tests/action-prepare-refusal.test.ts": 3,
  "tests/action-query-only.test.ts": 1,
- "tests/action-read-compatibility.test.ts": 44,
+ "tests/action-read-history.test.ts": 44,
  "tests/action-result.test.ts": 1,
  "tests/action-retained-authority.test.ts": 1,
  "tests/action-schema-compiler.test.ts": 1,

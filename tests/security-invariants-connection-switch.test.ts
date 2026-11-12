@@ -106,8 +106,8 @@ async function slotHome(t: TestContext, declareEverywhere = false) {
     for (const install_id of ["install-declared", "install-undeclared"]) store.bind({ scopeId: pluginBindingScope({ install_id }), pluginId: plugin_id, slotId: "account", serviceId: "github", connectionId: a!.connection_id });
     store.bind({ scopeId: pluginBindingScope({ install_id: "install-declared", project_id: "project-1", record_key: "repo-1" }), pluginId: plugin_id, slotId: "repos", serviceId: "github", connectionId: a!.connection_id });
   });
-  const declarations = async (_caller: ActionCallContext, install_id: string) => declareEverywhere || install_id === "install-declared"
-    ? [{ slot_id: "account", service_id: "github" }, { slot_id: "repos", service_id: "github", binding: "per_record" as const }] : [];
+  const declarations = { projectNames: async () => new Map(), manifest: async (install_id: string) => ({ connections: { slots: declareEverywhere || install_id === "install-declared"
+    ? [{ slot_id: "account", service_id: "github" }, { slot_id: "repos", service_id: "github", binding: "per_record" as const }] : [] } }) };
   const handler = connectorAccountActionProvider(home, () => {}, undefined, undefined, undefined, declarations as never).handlers.find(entry => entry.capability_id === connectorPluginSlotSwitch.capability_id)!;
   const bound = () => withConnectorConnections(home, store => store.pluginBindings(a!.connection_id).length);
   return { home, a: a!, b: b!, plugin_id, handler, bound };

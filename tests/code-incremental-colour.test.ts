@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
 import { codeTokens, growCodeTokens, type CodeColouring } from "@molis-ai/molis-work-plugin-sdk/highlight";
 
@@ -94,5 +95,66 @@ test("VUX-33: a text edited anywhere is coloured again from the edited line and 
       assert.ok(next.pieces.slice(0, next.from).every((piece, index) => piece === last.pieces[index]));
       last = next;
     } }
+  }
+});
+
+test("VUX-33, VUX-35, VUX-36: the Assistant reuses the unchanged colouring before a corrected line", async (t) => {
+  const highlight = "@molis-ai/molis-work-plugin-sdk/highlight";
+  const sdk = JSON.stringify(import.meta.resolve(highlight));
+  const key = "assistantColourProbe";
+  const probe = { offsets: [] as number[], colourings: [] as CodeColouring[] };
+  Reflect.set(globalThis, key, probe);
+  // Observe the SDK boundary while the public Assistant renderer drives the real grower and tokenizer.
+  const observedSdk = `data:text/javascript,${encodeURIComponent(`
+    export * from ${sdk};
+    import { growCodeTokens as grow } from ${sdk};
+    const probe = globalThis[${JSON.stringify(key)}];
+    export function growCodeTokens(last, text, language, tokenize) {
+      const next = grow(last, text, language, (source, hint, offset = 0) => {
+        probe.offsets.push(offset);
+        return tokenize(source, hint, offset);
+      });
+      probe.colourings.push(next);
+      return next;
+    }
+  `)}`;
+  const hook = registerHooks({ resolve(specifier, context, nextResolve) {
+    return specifier === highlight ? { url: observedSdk, shortCircuit: true } : nextResolve(specifier, context);
+  } });
+  t.after(() => { hook.deregister(); Reflect.deleteProperty(globalThis, key); });
+  const { assistantTextHtml } = await import("@molis-ai/molis-work-app-workbench");
+  const original = Array.from({ length: 1000 }, (_, index) => `const row = ${index};\n`).join("");
+  const corrected = original.replace("const row = 900;", "let row = 900;");
+  for (const source of [original, corrected]) assistantTextHtml("```ts\n" + source + "\n```", [], word => word);
+  assert.equal(probe.offsets.length, 2, "the original and corrected render both use the shared tokenizer");
+  const restart = probe.offsets[1]!;
+  assert.ok(restart > original.indexOf("const row = 899;") && restart <= corrected.indexOf("let row = 900;"),
+    `the correction restarts the tokenizer at the affected line boundary, got offset ${restart}`);
+  const [before, after] = probe.colourings;
+  assert.deepEqual(after!.pieces, codeTokens(corrected, "ts"));
+  assert.ok(after!.from > 0 && after!.pieces.slice(0, after!.from).every((piece, index) => piece === before!.pieces[index]),
+    "pieces ahead of the correction keep their identity");
+});
+
+test("B27SRC-04: CR and CRLF end a line as LF does: a line comment stops there, and growing or correcting colours from the edited line", () => {
+  for (const ending of ["\n", "\r\n", "\r"]) {
+    const text = ["// first", "const second = 2;", "const third = 3;"].join(ending);
+    const whole = codeTokens(text, "ts");
+    assert.deepEqual(whole.slice(0, 3), [["comment", "// first"], [null, ending], ["keyword", "const"]], `the comment ends at its line (${JSON.stringify(ending)})`);
+    // Appending to the last line colours again only from the piece covering the line break before it (";" and the break are one piece).
+    const grown = growCodeTokens(growCodeTokens(null, text, "ts", codeTokens), text + " // tail", "ts", codeTokens);
+    assert.deepEqual(grown.pieces, codeTokens(text + " // tail", "ts"));
+    assert.equal(grown.starts[grown.from], text.indexOf("2;") + 1, `coloured again from the last break (${JSON.stringify(ending)})`);
+  }
+  // A CR that later gains its LF is coloured again with it, and the result is the whole colouring at every step.
+  const before = growCodeTokens(null, "a = 1;\r", "ts", codeTokens), after = growCodeTokens(before, "a = 1;\r\nb", "ts", codeTokens);
+  assert.deepEqual(after.pieces, codeTokens("a = 1;\r\nb", "ts"));
+  for (const ending of ["\r\n", "\r"]) for (const [language, text] of Object.entries(SAMPLES)) {
+    if (language === "diff") continue;
+    const changed = text.replaceAll("\n", ending);
+    for (let seed = 1; seed <= 10; seed += 1) for (const step of grownBy(changed, language, seed))
+      assert.deepEqual(step.pieces, codeTokens(step.text, language), `${language} ${JSON.stringify(ending)}, seed ${seed}, at ${step.text.length}`);
+    // A string or a comment does not run past a CR any more than past an LF.
+    assert.ok(codeTokens(changed, language).every(([kind, value]) => kind !== "string" || language === "py" || !/[\r\n]/u.test(value.replace(/`[\s\S]*`/u, ""))), `${language} strings stop at a line end`);
   }
 });

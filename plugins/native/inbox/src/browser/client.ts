@@ -62,10 +62,19 @@ export function inboxClient(host: InboxHost): void {
     showOrigin(id);
     const check = guard(); void results().catch(failure => { try { check(); error(failure, q('[data-inbox-entry-results="' + CSS.escape(id) + '"]')); } catch { /* A newer entry owns the reader. */ } });
   };
+  let evaluatedNotice = "";
   const refresh = async () => {
     const check = guard(), sequence = ++refreshSequence, scroll = q("[data-inbox-list]")?.scrollTop || 0;
     const group = q("[data-inbox-row].is-selected")?.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
-    const html = await host.view.readDocument({ signal: reads.signal }); check(); if (sequence !== refreshSequence) return;
+    const html = await host.view.readDocument({ signal: reads.signal }).catch(error => {
+      check();
+      const reason = molisWorkRequest.text(error);
+      if (!reason) throw error;
+      // The failure itself, with the new sentence in front: its own code, status and callId keep its diagnostic ID button.
+      if (error instanceof Error) error.message = uiText.text("inbox.client.list-refresh-failed-input-kept") + " " + reason;
+      throw error;
+    });
+    check(); if (sequence !== refreshSequence) return;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(uiText.text("inbox.client.could-not-refresh-inbox-list"));
     // Retain the draft form and the latest evaluation message while authoritative rows refresh.
     for (const selector of ["[data-inbox-compose]", "[data-inbox-evaluate-status]"]) {
@@ -73,6 +82,8 @@ export function inboxClient(host: InboxHost): void {
     }
     const config = q<HTMLDetailsElement>(".inbox-next-config"), nextConfig = q<HTMLDetailsElement>(".inbox-next-config", next); if (config && nextConfig) nextConfig.open = config.open;
     root.replaceChildren(...next.childNodes);
+    // Said by the refresh that shows the new suggestions, whichever one that is, never before them (BL-131).
+    if (evaluatedNotice) { const status = q("[data-inbox-evaluate-status]"); if (status) { status.textContent = evaluatedNotice; status.closest("details")?.setAttribute("open", ""); } evaluatedNotice = ""; }
     const row = selected && all("[data-inbox-row]").find(row => row.dataset.inboxEntryId === selected && row.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup === group);
     if (row) select(selected); else collapse(); const list = q("[data-inbox-list]"); if (list) list.scrollTop = scroll;
   };
@@ -101,7 +112,7 @@ export function inboxClient(host: InboxHost): void {
       if (target.closest("[data-inbox-compose-close]")) { remember(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); return; }
       const action = target.closest<HTMLButtonElement>("[data-inbox-action],[data-inbox-evaluate]");
       if (action) { if (action.disabled) return; const check = guard(); action.disabled = true; const status = q("[data-inbox-action-status]", action.closest("[data-inbox-detail]") || root) || q("[data-inbox-evaluate-status]");
-        try { const evaluate = action.hasAttribute("data-inbox-evaluate"); if (evaluate) await api("/judgment/evaluate", "POST", { entry_ids: action.dataset.inboxEvaluate ? [action.dataset.inboxEvaluate] : all('[data-inbox-row][data-inbox-status="open"],[data-inbox-row][data-inbox-status="in_progress"]').slice(0, 20).map(row => row.dataset.inboxEntryId) }); else await api("/entries/" + encodeURIComponent(action.dataset.inboxEntryId!) + "/status", "POST", { status: action.dataset.inboxAction, expected_revision: Number(action.dataset.inboxEntryRevision) }); check(); host.invalidateView(); await refresh(); if (evaluate) { const nextStatus = q("[data-inbox-evaluate-status]"); if (nextStatus) { nextStatus.textContent = uiText.text("inbox.client.suggestions-updated-review-each-item-choose-its-next"); nextStatus.closest("details")?.setAttribute("open", ""); } } }
+        try { const evaluate = action.hasAttribute("data-inbox-evaluate"); if (evaluate) await api("/judgment/evaluate", "POST", { entry_ids: action.dataset.inboxEvaluate ? [action.dataset.inboxEvaluate] : all('[data-inbox-row][data-inbox-status="open"],[data-inbox-row][data-inbox-status="in_progress"]').slice(0, 20).map(row => row.dataset.inboxEntryId) }); else await api("/entries/" + encodeURIComponent(action.dataset.inboxEntryId!) + "/status", "POST", { status: action.dataset.inboxAction, expected_revision: Number(action.dataset.inboxEntryRevision) }); check(); if (evaluate) evaluatedNotice = uiText.text("inbox.client.suggestions-updated-review-each-item-choose-its-next"); host.invalidateView(); await refresh(); }
         catch (failure) { try { check(); error(failure, status); } catch { /* A new entry or hidden mount owns the UI. */ } }
         finally { try { check(); action.disabled = false; } catch { /* No old-finally writes. */ } } return;
       }

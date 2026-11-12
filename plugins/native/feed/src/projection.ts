@@ -65,22 +65,6 @@ export interface FeedSnapshot {
   out_rules: FeedOutRuleRecord[];
 }
 
-const FEED_SOURCE_KINDS = new Set([
-  "research_library",
-  "rss",
-  "web_query",
-  "youtube_channel",
-  "custom_rss",
-]);
-
-export function sourceKindOpensAttention(sourceKind: string): boolean {
-  return !FEED_SOURCE_KINDS.has(sourceKind);
-}
-
-export function feedItemTypeForSource(_sourceKind: string): FeedItemType {
-  return "feed";
-}
-
 function bounded(value: string, maximum: number): string {
   const normalized = value.trim();
   return normalized.length > maximum ? `${normalized.slice(0, maximum - 1)}…` : normalized;

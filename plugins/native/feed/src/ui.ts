@@ -7,6 +7,7 @@ import type {
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
+import { feedRunFailure, type FeedRunFailure } from "./run-failure.js";
 import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
 import type { FeedReaderData, FeedStageData } from "./query-actions.js";
 import { t as uiText, type MwButtonOptions, renderAlert, renderButton, renderKept, renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -82,6 +83,7 @@ export interface FeedUiSourceRun {
   readonly phase: "running" | "terminal" | "interrupted";
   readonly outcome: string | null;
   readonly error_code: string | null;
+  readonly http_status?: number;
   readonly created_count: number;
   readonly deduped_count: number;
   readonly started_at: string;
@@ -92,6 +94,8 @@ export interface FeedUiCatalogSource {
   readonly id: string;
   readonly name: string;
   readonly category_label: string;
+  /** The catalog states a limitation (blocked on many networks, summaries only…); such a feed is never preselected. */
+  readonly limited: boolean;
 }
 
 export interface FeedUiConnectorStatus {
@@ -415,12 +419,23 @@ export function renderSourceWorkbench(model: FeedUiModel): string {
   return `<section class="desktop-work-surface source-workbench" data-work-surface="sources" data-work-surface-label="${uiText("feed.ui.source")}" data-source-workbench hidden>${panels}<div class="feed-detail-empty" data-source-detail-empty${panels ? " hidden" : ""}>${p.icon("settings")}<h1>${panels ? uiText("feed.ui.select-source") : uiText("feed.ui.no-manageable-sources-yet")}</h1>${panels ? "" : `<button class="mw-btn mw-btn--primary" type="button" data-feed-sources-open>${p.icon("plus")}${uiText("feed.ui.add-source")}</button>`}</div></section>`;
 }
 
+/** What each kind of failed pull says (run-failure.ts decides which). The table stays beside its translator call so the translation gate sees
+ *  the keys; `Record<FeedRunFailure, …>` makes both copies cover every kind. */
+const RUN_FAILURE: Readonly<Record<FeedRunFailure, string>> = Object.freeze({
+  kept: "feed.run.existing-kept-retry-later",
+  refused: "feed.run.source-refused-access",
+  not_feed: "feed.run.not-rss-atom",
+  unusable: "feed.run.unusable-response",
+  unavailable: "feed.run.source-unavailable",
+});
+
 function renderSourceRuns(source: FeedUiSource, p: FeedUiModel["primitives"]): string {
   return source.runs.length ? `<ol class="source-run-ledger">${source.runs.map((run) => {
-    const state = run.phase === "running" ? "running" : run.phase === "interrupted" || run.error_code ? "error" : "complete";
-    const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : run.error_code ? "failed" : "done";
-    const title = run.phase === "running" ? uiText.text("feed.ui.pulling") : run.phase === "interrupted" ? uiText.text("feed.ui.pull-interrupted") : run.error_code ? uiText.text("feed.ui.pull-failed") : uiText.text("feed.ui.pull-completed");
-    const summary = run.phase === "running" ? uiText.text("feed.ui.started-waiting-source-answer") : run.error_code ? uiText.text("feed.ui.error-code-safe-retry", { code: run.error_code }) : uiText.text("feed.ui.created-new-deduped-deduplicated", { created: run.created_count, deduped: run.deduped_count });
+    const kind = feedRunFailure(run), failure = kind ? uiText.text(RUN_FAILURE[kind]) : null;
+    const state = run.phase === "running" ? "running" : failure ? "error" : "complete";
+    const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : failure ? "failed" : "done";
+    const title = run.phase === "running" ? uiText.text("feed.ui.pulling") : run.phase === "interrupted" ? uiText.text("feed.ui.pull-interrupted") : failure ? uiText.text("feed.ui.pull-failed") : uiText.text("feed.ui.pull-completed");
+    const summary = run.phase === "running" ? uiText.text("feed.ui.started-waiting-source-answer") : failure ?? uiText.text("feed.ui.created-new-deduped-deduplicated", { created: run.created_count, deduped: run.deduped_count });
     return `<li data-run-state="${state}"><span>${renderStateRing({ state: ringState })}</span><div><strong>${title}</strong><p>${p.escape(summary)}</p></div><time>${p.formatDate(run.completed_at || run.started_at)}</time></li>`;
   }).join("")}</ol>` : `<div class="source-panel-empty">${p.icon("waiting")}<strong>${uiText("feed.ui.no-run-history-yet")}</strong></div>`;
 }
@@ -467,7 +482,9 @@ export function renderFeedOverlays(_model: FeedUiModel): string { return ""; }
 
 function renderFeedSetupPanel(model: FeedUiModel): string {
   const p = model.primitives;
-  const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
+  // Preselect the first feed the catalog states no limitation for; a limited one stays in place for an explicit choice.
+  const defaultSource = model.source_catalog.find((source) => !source.limited);
+  const catalogOptions = (defaultSource ? "" : `<option value="" disabled selected>${uiText("feed.ui.choose-feed")}</option>`) + model.source_catalog.map((source) => `<option value="${p.escape(source.id)}"${source === defaultSource ? " selected" : ""}>${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
     ? uiText.text(kind === "gmail" ? "feed.ui.credentials-saved" : "feed.ui.connected") : uiText.text("feed.ui.disconnected");
   const choices = [
@@ -489,7 +506,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
         <form id="feed-add-task-form" data-feed-add-form hidden><label><span>${uiText("feed.ui.source-name")} <small>${uiText("feed.ui.optional")}</small></span><input data-feed-add-name maxlength="80" placeholder="${uiText("feed.ui.example-product-notes")}"></label>
           <div data-feed-setup-kind="research_library" hidden><label><span>${uiText("feed.ui.git-hub-repository")}</span><input data-feed-source-value="research_library" value="molis-ai/research-library" required></label><label><span>${uiText("feed.ui.research-source-id")}</span><input data-feed-research-source value="twitter-ai-observation" required></label><small>${uiText("feed.ui.read-published-research-original-links-versions-usage-limits")}</small></div>
           <label data-feed-setup-kind="custom_rss" hidden><span>${uiText("feed.ui.feed-address")}</span><input data-feed-source-value="custom_rss" type="url" placeholder="https://example.com/feed.xml" required><small>${uiText("feed.ui.enter-rss-atom-address-site-provides")}</small></label>
-          <label data-feed-setup-kind="rss" hidden><span>${uiText("feed.ui.choose-feed")}</span><select data-feed-rss-definition>${catalogOptions}</select></label>
+          <label data-feed-setup-kind="rss" hidden><span>${uiText("feed.ui.choose-feed")}</span><select data-feed-rss-definition required>${catalogOptions}</select></label>
           <label data-feed-setup-kind="web_query" hidden><span>${uiText("feed.ui.what-do-want-follow")}</span><input data-feed-source-value="web_query" placeholder="${uiText("feed.ui.example-ai-product-design")}" required></label>
           <label data-feed-setup-kind="youtube_channel" hidden><span>${uiText("feed.ui.tube-channel-id")}</span><input data-feed-source-value="youtube_channel" placeholder="UC…" required><small>${uiText("feed.ui.copy-channel-id-tube-channel-s-advanced-settings")}</small></label>
           <label><span>${uiText("feed.ui.pull-frequency")}</span><select data-feed-create-frequency><option value="0">${uiText("feed.ui.pull-manually")}</option><option value="60">${uiText("feed.ui.hourly")}</option><option value="360">${uiText("feed.ui.every-6-hours")}</option><option value="1440">${uiText("feed.ui.every-day")}</option></select><small>${uiText("feed.ui.scheduled-pulls-need-molis-work-local-service-stay")}</small></label>

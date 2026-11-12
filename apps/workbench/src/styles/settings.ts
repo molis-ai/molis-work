@@ -208,6 +208,8 @@ export const SETTINGS_STYLES = `
   .settings-action-section > div > p, .settings-import-row > div > p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
   .inline-settings-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
   .inline-settings-form > label:first-child { min-width: 0; display: grid; gap: 4px; color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-control, 500); }
+  [data-wc="dialog"] .mw-form__footer { flex-wrap: wrap; }
+  [data-wc="dialog"] [data-wc="error"] { box-sizing: border-box; flex: 0 0 100%; overflow-wrap: anywhere; }
   .inline-settings-form input[type=text] { width: 100%; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--control-input); border-radius: var(--radius-control); color: var(--ink); background: var(--paper); }
   .inline-settings-form .inline-confirm { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
   .inline-settings-form .settings-form-error { grid-column: 1 / -1; }
@@ -418,7 +420,7 @@ export const SETTINGS_STYLES = `
     text-decoration: none;
   }
   .project-manager-open:hover { background: color-mix(in srgb, var(--action) 88%, var(--action-ink)); }
-  .project-manager-open:focus-visible, .project-settings-fold > summary:focus-visible, .project-manager-index-actions > *:focus-visible, .project-manager-create-form button:focus-visible, .project-delete-quiet:focus-visible, .project-manager-danger-actions button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  .project-manager-open:focus-visible, .project-settings-fold > summary:focus-visible, .project-manager-index-actions > *:focus-visible, .project-manager-create-form button:focus-visible, .project-manager-danger-actions button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .project-settings-identity { margin: 0; min-width: 0; }
   .project-settings-identity .inline-settings-form { margin: 0; width: 100%; min-width: 0; }
   .project-settings-identity .inline-settings-form input[type=text] { min-height: var(--control-h); border-radius: var(--radius-control); }
@@ -487,17 +489,6 @@ export const SETTINGS_STYLES = `
   .project-manager-danger { margin: 56px 0 0; padding-top: 0; border-top: 0; }
   .project-manager-danger h3 { margin: 0 0 8px; font-size: 13px; font-weight: var(--weight-title, 600); }
   .project-manager-danger > p { max-width: 58ch; margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.55; }
-  .project-delete-quiet {
-    padding: 0;
-    border: 0;
-    color: var(--muted);
-    background: transparent;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 400;
-    cursor: pointer;
-  }
-  .project-delete-quiet:hover { color: var(--red); }
   .project-manager-danger-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .project-manager .settings-footnote { margin-top: 32px; }
   @media (max-width: 760px) {
@@ -508,7 +499,7 @@ export const SETTINGS_STYLES = `
     .project-manager-detail { padding: 24px 16px 72px; }
     .project-manager-hero { flex-direction: column; align-items: stretch; gap: 16px; }
     .project-manager-hero h1, .project-manager-hero h2 { font-size: 24px; }
-    .project-manager-open, .project-manager-index-actions > *, .project-manager-danger-actions button, .project-delete-quiet, .project-settings-fold > summary { min-height: 44px; }
+    .project-manager-open, .project-manager-index-actions > *, .project-manager-danger-actions button, .project-settings-fold > summary { min-height: 44px; }
     .project-manager-create-form input, .project-settings-identity input { font-size: 16px; }
     .project-settings-fold-body .guidance-aside { grid-template-columns: 1fr; gap: 16px; }
   }

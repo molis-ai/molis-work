@@ -86,6 +86,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-approval-note{margin:0;color:var(--muted)}
 .side-browser-approval h2,.side-browser-sites h2{margin:0;font-size:13px;font-weight:600}
 .side-browser-approval p,.side-browser-sites p{margin:0;overflow-wrap:anywhere}
+.side-browser-approval-copy{display:contents}
 .side-browser-approval dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;margin:0;font-size:12px}
 .side-browser-approval dt{color:var(--muted)}.side-browser-approval dd{margin:0;overflow-wrap:anywhere}
 .side-browser-actions-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -94,6 +95,31 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-toggle{display:flex;align-items:center;gap:8px;font-size:12px}
 .side-browser-sites li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-browser-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:0}
+@media(min-width:601px) and (max-width:760px){
+  @container side-panel (max-width:420px){
+    .side-browser-approval{gap:6px;padding-block:8px}
+    .side-browser-approval .side-browser-actions-row{flex-wrap:nowrap;gap:6px}
+    .side-browser-approval .mw-btn{flex:1 1 0;min-width:0;padding-inline:6px;white-space:normal;overflow-wrap:anywhere;line-height:1.2;text-align:center}
+    .side-browser-approval [data-browser-action=approve-site]{flex-grow:1.6}
+    .side-browser-approval-copy{display:block;max-height:clamp(26px,calc(33dvh - 159px),120px);overflow:auto}
+    .side-browser-approval-copy:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
+    .side-browser-approval-copy dl{margin-block-start:4px}
+    .side-browser:has(.side-browser-sites:not([hidden])){display:grid;grid-template:min-content min-content min-content minmax(0,1fr) min-content/minmax(0,1fr)}
+    .side-browser>*{grid-column:1}
+    .side-browser-bar{grid-row:1}
+    .side-browser-approval{grid-row:2}
+    .side-browser-strip{grid-row:3}
+    .side-browser-view,.side-browser-sites{grid-row:4}
+    .side-browser-control{grid-row:5}
+    .side-browser-sites{z-index:1;align-self:start;min-height:0;max-height:100%;grid-template-columns:minmax(0,1fr);overflow:auto;background:var(--paper)}
+    .side-browser-sites ul{grid-template-columns:minmax(0,1fr)}
+    @media(max-height:750px){
+      .side-browser-bar,.side-browser-control{padding-block:4px}
+      .side-browser-control p{line-height:1.35;max-height:3lh;overflow:auto;overflow-wrap:anywhere}
+      .side-browser-control .mw-btn{flex:none;max-width:52%;white-space:normal;line-height:1.25;text-align:center}
+    }
+  }
+}
 @media(prefers-reduced-motion:reduce){.side-browser-marker{transition:none}}
 `;
 
@@ -113,6 +139,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='',attached=false,lastMode='person',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewRow=null,polled=false;
   const routePrefix=document.body.dataset.routePrefix||('/projects/'+encodeURIComponent(projectId));
   const approval=$('[data-browser-approval]'),sitesBox=$('[data-browser-sites]');
+  const deciding=new Set();
   let fileChoice=null,sitesRender=0;
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
   const viewport=()=>{const rect=view.getBoundingClientRect();return {width:Math.max(240,Math.floor(rect.width)),height:Math.max(200,Math.floor(rect.height)),dpr:Math.min(2,Math.max(1,devicePixelRatio||1))};};
@@ -217,40 +244,69 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     lastMode=mode;
     // A step may already be waiting (the panel was reloaded, or the person took the page over): look once per change.
     if(!reviewTimer&&(mode!=='person'||changed||!reviewing&&!polled)){polled=true;void pollReviews();}
-    else if(changed&&reviewRow)renderApproval(reviewRow,true);
+    else if(changed&&reviewRow)renderApproval(reviewRow);
   };
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
-    let rows=[];
+    let rows;
     try{
       const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending');
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{}
-    renderApproval(rows[0]||null);
-    if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);
+    // A failed read did not settle the visible review. Keep it available at the same polling cadence.
+    if(rows)renderApproval(rows[0]||null);
+    if(reviewing||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);
   };
-  const renderApproval=(row,force=false)=>{
+  const focusBrowserTab=()=>{
+    const tab=document.querySelector('[data-side-tab=browser][aria-selected=true]');
+    if(visible()&&tab?.getClientRects().length)tab.focus({preventScroll:true});
+  };
+  const paintApprovalBusy=()=>{
+    const busy=deciding.has(reviewing)?'true':null;
+    for(const choice of approval.querySelectorAll('[data-browser-action]'))choice.ariaDisabled=busy;
+  };
+  const renderApproval=(row)=>{
     reviewRow=row;
-    if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
+    const focused=approval.contains(document.activeElement)?document.activeElement:null;
+    if(!row){if(focused)focusBrowserTab();approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over';
-    if(!force&&reviewing===row.request.review_id&&reviewMode===held)return;
+    const same=reviewing===row.request.review_id;
+    if(same&&reviewMode===held)return;
+    if(!same&&focused)focusBrowserTab();
+    const scroll=same&&(!held||focused)?approval.querySelector('.side-browser-approval-copy').scrollTop:0;
     reviewing=row.request.review_id;reviewMode=held;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
-    approval.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl>'+(held
-      // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
-      ?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p><div class="side-browser-actions-row">'+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>'
-      :'<div class="side-browser-actions-row">'+browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'')+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>');
+    // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
+    const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':'';
+    const details=fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
+    const choices=held?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
+    approval.innerHTML='<h2 id="side-browser-approval-title">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
+      +'<div class="side-browser-approval-copy" role="group" aria-labelledby="side-browser-approval-title" tabindex="0">'
+      +note+'<p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+details+'</dl></div>'
+      +'<div class="side-browser-actions-row">'+choices+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>';
     approval.dataset.site=site;approval.hidden=false;
+    paintApprovalBusy();
+    const copy=approval.querySelector('.side-browser-approval-copy');
+    copy.scrollTop=scroll;
+    if(same&&focused){
+      const next=focused.dataset.browserAction?tool(focused.dataset.browserAction):copy;
+      (next?.getClientRects().length?next:tool('reject')).focus({preventScroll:true});
+    }
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm-what",{what:doc.summary||''}),true);
   };
-  const decide=async(decision,id)=>{
-    if(!id)return;
-    try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});}catch(error){say(molisWorkRequest.text(error),true);return;}
-    if(reviewing===id){approval.hidden=true;reviewing=null;}
-    void pollReviews();
+  const decide=async(decision,id,site)=>{
+    if(!id||deciding.has(id))return;
+    deciding.add(id);paintApprovalBusy();
+    try{
+      if(site)await setSite(site,'allow');
+      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
+      if(reviewing===id)renderApproval(null);
+      void pollReviews();
+    }catch(error){fail(error);}
+    finally{deciding.delete(id);if(reviewing===id)paintApprovalBusy();}
   };
   const sitesUrl='/api/browser/sites';
   const renderSites=async()=>{
@@ -302,12 +358,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       return;
     }
     if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(globalThis.t.text("workbench.side-panel-browser.handed-back-assistant-looks-page-again-before-going"));return;}
-    if(action==='approve-once'){await decide('approve',reviewing);return;}
-    if(action==='reject'){await decide('reject',reviewing);return;}
-    if(action==='approve-site'){
-      const id=reviewing,site=approval.dataset.site;if(!id)return;
-      try{await setSite(site,'allow');}catch(error){fail(error);return;}
-      await decide('approve',id);return;
+    if(action==='approve-once'||action==='reject'||action==='approve-site'){
+      await decide(action==='reject'?'reject':'approve',reviewing,action==='approve-site'?approval.dataset.site:undefined);return;
     }
     if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();else sitesRender++;return;}
     if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope,action.slice(5));await renderSites();}catch(error){fail(error);}return;}

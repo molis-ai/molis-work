@@ -16,7 +16,10 @@ import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
-import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { noteRetained } from "./uninstall-retained.js";
+import { openInstalledPluginLibrary, removeInstalledPluginLibrary } from "./installed-plugin-libraries.js";
+import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { declaresProjectCoordination } from "./plugin-project-coordination.js";
@@ -39,6 +42,7 @@ import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
+import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
 import { pluginTextFor, pluginTextViews } from "./plugin-host-services.js";
 import { runWithPluginText } from "./web-locale.js";
 import { realpathSync } from "node:fs";
@@ -46,10 +50,12 @@ import { join } from "node:path";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients (`declaresProjectCoordination`, PG-025). */
 export class HomePluginExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
+  private readonly sessions = new Map<string, { context: PluginStartContext; execution: PluginStopExecution; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
     background?: ReturnType<typeof pluginBackgroundFor> }>();
   /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
   private readonly partitionDeletions = new Map<string, PartitionDeletions>();
+  /** A stopped sandbox library's process exit, by installation: what an uninstall waits for before it removes the library (BL-915). */
+  private readonly libraryExits = new Map<string, Promise<void>>();
   /** Service calls each instance's code made after it stopped, each doing nothing (BL-411). */
   private readonly stoppedCalls = new StoppedServiceCalls();
   constructor(private readonly options: {
@@ -75,7 +81,7 @@ export class HomePluginExecutor implements PluginExecutor {
   async start(definition: PluginDefinition, context: PluginStartContext) {
     // Before anything is built: a package the sandbox cannot serve does not start here either (S-60).
     refuseUngivenSandboxServices(definition, context);
-    const manifest = definition.manifest;
+    const manifest = definition.manifest, execution = definition.execution;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
       throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
@@ -112,7 +118,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const failures: unknown[] = [];
       try { terminal?.dispose(); } catch (error) { failures.push(error); }
       withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.();
-      for (const release of [() => database?.close(), () => sandboxLibrary?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
+      for (const release of [() => database?.close(), () => { if (sandboxLibrary) { sandboxLibrary.close(); this.libraryExits.set(context.install_id, sandboxLibrary.exited()); } }, () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -178,7 +184,7 @@ export class HomePluginExecutor implements PluginExecutor {
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await runWithPluginText(context, () => background ? background.starting(() => definition.start(given)) : definition.start(given));
-      this.sessions.set(context.install_id, { context: given, revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
+      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
@@ -189,7 +195,7 @@ export class HomePluginExecutor implements PluginExecutor {
   async stop(definition: PluginDefinition, context: PluginStartContext): Promise<void> {
     const session = this.sessions.get(context.install_id);
     session?.revoke();
-    try { await definition.stop?.(session?.context ?? context); }
+    try { await awaitPluginStopHook(definition, session?.context ?? context, "home", session ? session.execution : definition.execution); }
     finally { try { session?.dispose(); } finally { this.sessions.delete(context.install_id); } }
   }
 
@@ -223,13 +229,18 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
-  uninstalled(record: PluginInstanceRecord): void {
+  async uninstalled(record: PluginInstanceRecord): Promise<void> {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
     if (record.execution === "sandbox" && !record.retain_private_data) {
       removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
       forgetSandboxImageBindings(this.options.home, record.install_id);
+      // Its own library goes too, once its statement process has exited, and only the one the ledger and its verified Manifest agree on (BL-915 A).
+      await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
+      const manifest = new SandboxPackageStore(this.options.home).installedManifest(record), declared = manifest?.databases?.home;
+      const kept = removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
+      if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });
     }
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }

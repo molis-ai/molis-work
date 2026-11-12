@@ -61,6 +61,8 @@ export class ProjectStatementProcess {
   private next = 1;
   private idle: NodeJS.Timeout | undefined;
   private disposed = false;
+  /** The newest process's actual exit (its `close`), for an owner that must not touch the file until it has gone (BL-915). */
+  private lastExit: Promise<void> = Promise.resolve();
 
   constructor(private readonly path: string, private readonly record: PluginProjectDatabaseRecord | null, limits: Partial<StatementLimits> = {}) {
     this.limits = Object.freeze({ ...DEFAULT_STATEMENT_LIMITS, ...limits });
@@ -129,6 +131,9 @@ export class ProjectStatementProcess {
     });
   }
 
+  /** Resolves once the newest process has actually exited; after `dispose`, once nothing of this one is left running over the file. */
+  exited(): Promise<void> { return this.lastExit; }
+
   /** Kills the process; calls waiting for their turn are refused. */
   dispose(): void {
     this.disposed = true;
@@ -173,7 +178,8 @@ export class ProjectStatementProcess {
     child.unref();
     child.channel?.unref();
     this.child = child;
-    this.exits.set(child, new Promise(resolve => child.once("close", () => resolve())));
+    const exit = new Promise<void>(resolve => child.once("close", () => resolve()));
+    this.exits.set(child, exit); this.lastExit = exit;
     child.on("message", reply => {
       const message = reply as StatementMessage;
       if (this.child === child && "fatal" in message) { this.kill(fatalError(message)); return; }

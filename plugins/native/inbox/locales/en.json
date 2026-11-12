@@ -45,7 +45,6 @@
     "inbox.projection.working": "Working",
     "inbox.ui.back-inbox-list": "Back to Inbox list",
     "inbox.ui.close": "Close",
-    "inbox.ui.configure-judgment-rule": "Configure judgment rule",
     "inbox.ui.continue-later": "Continue later",
     "inbox.ui.create-document": "Create a document",
     "inbox.ui.current-state": "Current state",
@@ -82,7 +81,6 @@
     "inbox.ui.source-source-needs-attention": "Source “{source}” needs attention",
     "inbox.ui.suggested-action-choose-whether-proceed": "Suggested: {action}. You choose whether to proceed.",
     "inbox.ui.suggested-next-step": "Suggested next step",
-    "inbox.ui.update-suggestions-first-20-open-items": "Update suggestions for the first 20 open items",
     "inbox.ui.verify-first": "Verify first",
     "inbox.ui.view-original-message": "View original message",
     "inbox.ui.why-entered-inbox": "Why it entered Inbox",
@@ -97,6 +95,9 @@
     "inbox.presentation.source_rule": "Added by a source rule",
     "inbox.presentation.summary": "Recently updated pending items",
     "inbox.read-group.inbox.description": "Items waiting in the Inbox and what they contain",
-    "inbox.read-group.inbox.title": "Inbox"
+    "inbox.read-group.inbox.title": "Inbox",
+    "inbox.client.list-refresh-failed-input-kept": "Could not refresh the list. Your input is preserved.",
+    "inbox.ui.configure-judgment-rule": "Configure judgment rule",
+    "inbox.ui.update-suggestions-first-20-open-items": "Update suggestions for the first 20 open items"
   }
 }

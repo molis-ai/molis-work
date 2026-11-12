@@ -65,7 +65,14 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
       if (route === "install/confirm") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.confirm, body) };
       if (route === "installed/disable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.disable, body) };
       if (route === "installed/enable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.enable, body) };
-      if (route === "installed/uninstall") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.uninstall, body) };
+      if (route === "installed/uninstall") {
+        // Taking a plugin off is the project settings door's, as switching its permissions is (S-94, BL-915): a plugin's own page cannot.
+        if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
+        const caller = await localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
+        const { capability_id, version } = pluginControlActions.uninstall;
+        return { status: 200, body: await withPluginPermissionSettingsEntry(caller, entry =>
+          client.invoke(entry, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };
+      }
       return null;
     },
   }); } finally {

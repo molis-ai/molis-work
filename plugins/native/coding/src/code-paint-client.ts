@@ -59,12 +59,12 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
   type Region = { start: number; end: number; node: PaintElement; content: PaintElement; pieces: Piece[]; nodes: PaintChild[] };
   type Job = { text: string; language: string; at: number; regions: Region[]; state: CodeColouring | null; framed?: boolean; waiting?: PaintObserver };
   const colouring = new WeakMap<PaintElement, Job>(), source = new WeakMap<PaintElement, string>();
-  const pieceNode = ([kind, value]: Piece): PaintChild => {
-    if (!kind) return document.createTextNode(value);
-    const span = document.createElement("span"); span.className = "tok-" + kind; span.textContent = value; return span;
+  const pieceNode = ([kind, value]: Piece): PaintChild => { // a lone CR is drawn as a space: a <br> after it shows its line, adds no text
+    if (!kind && !/\r(?!\n)/.test(value)) return document.createTextNode(value); const span = document.createElement("span"); if (kind) span.className = "tok-" + kind;
+    for (const part of /\r(?!\n)/.test(value) ? value.split(/(?<=\r)(?!\n)/) : [value]) { span.append(part); if (part.endsWith("\r")) span.append(document.createElement("br")); } return span;
   };
   const SLICE = 16000, BLOCK_SLICE = 4000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
-  const throughLine = (text: string, at: number) => { const next = Math.min(text.length, at + BLOCK_SLICE), end = text.indexOf("\n", next); return end < 0 ? text.length : end + 1; };
+  const throughLine = (text: string, at: number) => { const breaks = /\r\n|\r|\n/g; breaks.lastIndex = Math.min(text.length, at + BLOCK_SLICE); const found = breaks.exec(text); return found ? found.index + found[0].length : text.length; }; // after LF, CRLF or CR
   const piecesIn = (state: CodeColouring, start: number, end: number): Piece[] => {
     const pieces: Piece[] = []; let low = 0, high = state.starts.length - 1;
     while (low < high) { const middle = Math.ceil((low + high) / 2); if (state.starts[middle]! <= start) low = middle; else high = middle - 1; }
@@ -117,7 +117,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     if (last && last.text === text && last.at === text.length) { frame(target, last); return true; }
     let same = 0; const coloured = last?.state?.text ?? "";
     while (same < Math.min(coloured.length, text.length) && coloured.charCodeAt(same) === text.charCodeAt(same)) same += 1;
-    const at = same === coloured.length ? same : same === 0 ? 0 : Math.max(0, text.lastIndexOf("\n", same - 1));
+    const end = same === 0 ? -1 : Math.max(text.lastIndexOf("\n", same - 1), text.lastIndexOf("\r", same - 1)), at = same === coloured.length ? same : Math.max(0, end > 0 && text[end] === "\n" && text[end - 1] === "\r" ? end - 1 : end);
     const job: Job = { text, language, at, state: last?.state ?? null, regions: last?.regions ?? [] };
     if (!last) target.replaceChildren();
     slicing.get(target)?.waiting?.disconnect(); colouring.set(target, job); slicing.set(target, job); readAtOnce(target, job);

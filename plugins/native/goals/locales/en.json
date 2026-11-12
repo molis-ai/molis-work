@@ -120,7 +120,6 @@
     "goals.dialogs-ui.close": "Close",
     "goals.dialogs-ui.confirm-goal-reason-action": "Confirm this Goal and the reason for this action.",
     "goals.dialogs-ui.create-goal": "Create Goal",
-    "goals.dialogs-ui.example-goal-authoring": "For example GOAL-AUTHORING",
     "goals.dialogs-ui.example-goal-can-be-created-appears-left-tree": "For example: a Goal can be created and appears in the left tree immediately",
     "goals.dialogs-ui.example-new-user-knows-what-do-next-right": "For example: a new user knows what to do next right after installing",
     "goals.dialogs-ui.explain-practical-flow-boundaries-plain-language": "Explain the practical flow and boundaries in plain language",
@@ -1240,6 +1239,7 @@
     "goals.presentation.start": "Create a goal",
     "goals.presentation.summary": "Recently updated project goals",
     "goals.read-group.goals.description": "Goal status, body, progress records, relationships, and materials",
-    "goals.read-group.goals.title": "Goals"
+    "goals.read-group.goals.title": "Goals",
+    "goals.dialogs-ui.generated-if-empty": "Generated if left empty"
   }
 }

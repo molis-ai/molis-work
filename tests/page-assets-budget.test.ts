@@ -109,6 +109,44 @@ test("CCR-03/04 two independent Git branches merge allowances without editing th
   assert.equal(run(root, ...args).code, 1);
   assert.equal(run(root, ...args, "--output", path.join(work, "not-an-artifact.json")).code, 1);
 });
+test("R7-N2-01 CCR-03/04 CLI bounds the first allowance for a new asset and refuses reuse", () => {
+  const root = path.join(work, "new-asset"); mkdirSync(root);
+  gitAt(root, "init", "-q", "-b", "main");
+  gitAt(root, "commit", "--allow-empty", "-qm", "base");
+  gitAt(root, "checkout", "-qb", "new-asset");
+  const file = "tooling/gates/page-asset-allowances/new-asset.json";
+  const record = { reason: "add a page script", review: "review fixture", assets: { "/assets/new.js": 7 } };
+  put(file, JSON.stringify(record), root);
+  gitAt(root, "add", file);
+
+  const baseSizes = path.join(root, "base-sizes.json");
+  const headSizes = path.join(root, "head-sizes.json");
+  writeFileSync(baseSizes, JSON.stringify(BASE));
+  writeFileSync(headSizes, JSON.stringify({ ...BASE, "/assets/new.js": 7 }));
+  const args = ["--base", "main", "--base-sizes", baseSizes, "--sizes", headSizes];
+  const unapproved = run(root, ...args);
+  assert.equal(unapproved.code, 1, unapproved.out);
+  assert.match(unapproved.out, /new-asset\.json: \/assets\/new\.js is new or over 10 KB; userApproval is required/);
+
+  put(file, JSON.stringify({ ...record, userApproval: "user decision fixture" }), root);
+  gitAt(root, "add", file);
+  gitAt(root, "commit", "-qm", "add the approved asset");
+  const approved = run(root, ...args);
+  assert.equal(approved.code, 0, approved.out);
+
+  writeFileSync(headSizes, JSON.stringify({ ...BASE, "/assets/new.js": 8 }));
+  const excess = run(root, ...args);
+  assert.equal(excess.code, 1, excess.out);
+  assert.match(excess.out, /\/assets\/new\.js grew 0 → 8 \(\+8\); new allowances cover 7 bytes/);
+
+  // Adopt the allowance into main before comparing a later increase.
+  gitAt(root, "branch", "-f", "main", "HEAD");
+  gitAt(root, "commit", "--allow-empty", "-qm", "later growth");
+  writeFileSync(baseSizes, JSON.stringify({ ...BASE, "/assets/new.js": 7 }));
+  const reused = run(root, ...args);
+  assert.equal(reused.code, 1, reused.out);
+  assert.match(reused.out, /\/assets\/new\.js grew 7 → 8 \(\+1\); new allowances cover 0 bytes/);
+});
 test("CCR-05 artifact requires exact commit, collector and successful trusted workflow", async () => {
   const sha = "a".repeat(40), key = "collector", report = { sha, key, measured: BASE, misses: [] };
   assert.equal(reportMatches(report, sha, key), true);

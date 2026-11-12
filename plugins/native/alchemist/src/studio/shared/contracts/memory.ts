@@ -20,8 +20,6 @@ export const createTasteRuleSchema = z
   })
   .strict();
 
-export const memoryRuleParamsSchema = z.object({ id: z.string().min(1) }).strict();
-
 export interface MemoryWorkspaceDto {
   taste: readonly TasteRule[];
   playbook: ReadonlyArray<PlaybookRule & { applications: ReadonlyArray<{ planId: string; runId?: string }> }>;

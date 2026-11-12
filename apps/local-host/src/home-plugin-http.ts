@@ -41,9 +41,17 @@ async function changeHomePlugin(request: IncomingMessage, response: ServerRespon
   };
   try {
     if (home.hasPackage(pluginId)) {
+      // A package installed in the Home (BL-628): switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
+      if (operation === "uninstall" && pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
       const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
-      await home.packageAction(pluginId, operation, { keepData: body?.keep_data === true }, { assert_authority_current: assertConnected });
-      sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
+      // The installation this request reaches is fixed when it arrives (BL-915): a reinstall or upgrade while it waits is not taken off in its place; what it kept is answered as the settings door answers it (`retained`).
+      // Read once the Home has started: before that no installation is known, and the uninstall would fall back to whatever is current then.
+      if (operation === "uninstall") await home.ready();
+      const row = operation === "uninstall" ? home.installation(pluginId) : undefined;
+      const retained = await home.packageAction(pluginId, operation, { keepData: body?.keep_data === true,
+        ...row ? { target: { install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } } : {} },
+        { assert_authority_current: assertConnected });
+      sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true, ...retained.length ? { retained } : {} });
     } else if (operation === "uninstall") {
       sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
     } else if (operation === "enable") {

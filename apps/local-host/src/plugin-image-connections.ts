@@ -9,7 +9,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 
 export const imagePortErrors = defineErrorCodes("host", {
   image_target_invalid: "invalid", image_connection_unavailable: "conflict", image_connection_changed: "conflict",
-  image_provider_failed: "upstream", image_runtime_unavailable: "unavailable", image_timeout: "timeout", image_not_sent: "conflict",
+  image_provider_failed: "upstream", image_runtime_unavailable: "unavailable", image_timeout: "timeout", image_not_sent: "conflict", image_too_large: "invalid",
 });
 /** Same accepted endpoint boundary as image providers: no userinfo, query or fragment. */
 export function imageBaseUrl(value: string): string {

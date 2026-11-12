@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { createServer, request as httpRequest, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
+import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, handlePluginTrustHttp, molisWorkHostProjectReference,
   pluginControlActions, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, type PackageFiles } from "./sandbox-package.js";
 
@@ -57,15 +60,41 @@ export async function installedPackageHost() {
   };
   const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
     { plugins: ProjectPluginInstalledView[] }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  // Taking a plugin off is the project settings door's alone (S-94, BL-915): the fixture sends it through that door's real route, as the 插件 page does.
+  let door: Promise<{ server: Server; origin: string }> | undefined;
+  const settingsDoor = () => door ??= new Promise((resolve, reject) => {
+    const server = createServer((request, response) => {
+      handlePluginTrustHttp(request, response, new URL(request.url ?? "/", "http://127.0.0.1"), { localHost: host, projectRef: reference })
+        .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } }, error => { response.statusCode = 500; response.end(String(error)); });
+    });
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
+  });
+  /** The row's own `uninstall_target`, as the 插件 page sends it; a row without one (not from a signed package, or none at all) names one that matches nothing. */
+  const targetOf = async (pluginId: string): Promise<PluginUninstallTarget> => {
+    const rows = (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
+      { plugins: Array<{ plugin_id: string; install_id: string; uninstall_target?: PluginUninstallTarget }> }).plugins.filter(item => item.plugin_id === pluginId);
+    return rows[0]?.uninstall_target ?? { install_id: rows[0]?.install_id ?? "none", installation_generation: "none", version: "0.0.0", manifest_digest: "none" };
+  };
   /** The person switches a signed-package plugin off or on, or takes it off (BL-623). */
-  const control = async (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean }) => {
-    const definition = pluginControlActions[action], client = host.actionClient(reference);
+  const control = async (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget }) => {
     if (action === "enable") {
       const row = (await plugins()).find(item => item.plugin_id === input.plugin_id);
       assert.ok(row);
-      return client.invoke(person, definition, { plugin_id: input.plugin_id, expected_installation: projectInstallation(row) });
+      return host.actionClient(reference).invoke(person, pluginControlActions.enable, { plugin_id: input.plugin_id, expected_installation: projectInstallation(row) });
     }
-    return client.invoke(person, definition, action === "uninstall" ? input : { plugin_id: input.plugin_id });
+    if (action !== "uninstall") return host.actionClient(reference).invoke(person, pluginControlActions[action], { plugin_id: input.plugin_id });
+    const { origin } = await settingsDoor(), payload = JSON.stringify({ ...input, target: input.target ?? await targetOf(input.plugin_id) });
+    // `node:http`, not `fetch`: a test may stand in for the global `fetch` (a model's answers), and this request is not one of those.
+    const text = await new Promise<string>((resolve, reject) => {
+      const sent = httpRequest(`${origin}/api/plugin-trust/installed/uninstall`, { method: "POST", headers: { "content-type": "application/json" } }, response => {
+        const chunks: Buffer[] = []; response.on("data", chunk => chunks.push(chunk)); response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8"))); response.on("error", reject);
+      });
+      sent.on("error", reject); sent.end(payload);
+    });
+    const body = JSON.parse(text) as { plugin_id: string; state: string } | { error: string; code: string };
+    if ("code" in body) throw new ActionError(body.code, body.error);
+    return body;
   };
   const operation = async (name: string) => {
     await host.inspectActions(caller, reference);
@@ -76,6 +105,9 @@ export async function installedPackageHost() {
   return { home, reference, install, control, plugins, operation, data, ledger: new HomeConsentLedger(home), person,
     get host() { return host; }, get client() { return host.actionClient(reference); },
     async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); },
-    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => "disabled" }),
-    async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
+    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => ({ state: "disabled" }) }),
+    async close() {
+      try { if (door) { const { server } = await door; server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } await host.close(); }
+      finally { await rm(home, { recursive: true, force: true }); }
+    } };
 }

@@ -1,0 +1,34 @@
+/* 27 · 卸载后留下的项目（BL-915）— 原型自己的样式，只有两类：
+   1. 原型条与页面骨架（不是产品界面）；
+   2. 版式：把组件板已有的部件（mw-alert、mw-dialog、mw-toast、plugin-trust-rows 的行）按方案排好，不定义新外观。
+   颜色、圆角、阴影、时长与曲线只用 kit.css／settings.css 里的令牌。没有「组件板新增」。 */
+
+/* ---------- 1. 原型条与骨架 ---------- */
+html, body.proto-body { height: 100%; }
+body.proto-body { margin: 0; display: flex !important; flex-direction: column; overflow: hidden; background: var(--desk); color: var(--ink); }
+#app { flex: 1; min-height: 0; display: grid; grid-template-rows: 44px minmax(0, 1fr); }
+.proto { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--paper); border-bottom: 1px solid var(--line-strong); font-size: 12px; color: var(--muted); }
+.proto b { color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); margin-right: 8px; }
+.proto label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proto .mw-select { width: auto; min-width: 0; height: 28px; font-size: 12px; }
+.proto #reset { margin-left: auto; }
+.proto-note { flex: none; margin: 0; padding: 6px 16px; font-size: 12px; line-height: 18px; color: var(--muted); background: var(--paper); border-bottom: 1px solid var(--line); }
+.proto-note:empty { display: none; }
+/* The toast's placement is the host's: inset and auto margins, never a transform (the toast animates its own transform). */
+.proto-toasts { position: fixed; inset-inline: 16px; bottom: 24px; z-index: 60; display: flex; justify-content: center; pointer-events: none; }
+.proto-toasts .mw-toast { pointer-events: auto; }
+
+/* ---------- 2. 版式 ---------- */
+/* What was left behind: one row per kind, its name first, the reason under it (the rows of 「已安装的插件」, plugin-trust-rows). */
+.proto-kept { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.proto-kept > li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; row-gap: 2px; padding: 6px 0; overflow-wrap: anywhere; }
+.proto-kept > li + li { border-top: 1px solid var(--line); }
+.proto-kept > li > svg { grid-row: span 2; width: 16px; height: 16px; margin-top: 2px; color: var(--muted); }
+.proto-kept > li > strong { font-size: 13px; font-weight: 500; color: var(--ink); }
+.proto-kept > li > span { font-size: 12px; line-height: 18px; color: var(--muted); }
+.proto-gone { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--muted); }
+/* A: the result takes the row's place in the list, inside the same fold rhythm. */
+.plugin-trust-list > li.proto-result { padding: 8px 0 12px; }
+.plugin-trust-list > li.proto-result .mw-alert { margin: 0; }
+/* C: the alert dialog's body carries the result (mw-form__body is the board's own slot under the header). */
+.mw-dialog .proto-kept { margin-top: 4px; }

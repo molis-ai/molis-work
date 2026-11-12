@@ -30,7 +30,10 @@ test("Memory's scope and stale preview keep their owner codes; Assistant managem
   assert.match(String(scope.body.error), /没有项目/);
   const missing = await answer(home, "/api/assistant/memories", { action: "disable", memory_id: "not-kept" });
   assert.deepEqual([missing.status, missing.body.code], [404, "memory.not_found"]);
-  const candidate = await answer(home, "/api/assistant/memory-candidates/not-proposed/accept", {});
+  // The panel names the version it saw (B9: Memory's own `memory.candidates.accept`); without one the request itself is wrong.
+  const unversioned = await answer(home, "/api/assistant/memory-candidates/not-proposed/accept", {});
+  assert.deepEqual([unversioned.status, unversioned.body.code], [400, "actions.input_invalid"]);
+  const candidate = await answer(home, "/api/assistant/memory-candidates/not-proposed/accept", { expected_version: 1 });
   assert.deepEqual([candidate.status, candidate.body.code], [404, "memory.not_found"]);
   const invalid = await answer(home, "/api/assistant/memories", { action: "unknown" });
   assert.deepEqual([invalid.status, invalid.body.code, invalid.body.error], [400, "assistant.invalid", "不支持的操作"]);

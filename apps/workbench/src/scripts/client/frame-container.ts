@@ -489,7 +489,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
     try { for (const asset of await (await host.frameAssets()).list(signal)) assets.set(asset.kind + ":" + asset.id, asset); }
-    catch { if (!signal.aborted) showToast(globalThis.t.text("workbench.frame-container.could-not-load-view-retry"), true); return; }
+    catch { if (!signal.aborted) showToast(globalThis.t.text("workbench.frame-container.drop-content-unreadable"), true); return; }
     if (signal.aborted || !isFrameTabActive() || curTab !== target || version !== receivingVersion) return;
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";

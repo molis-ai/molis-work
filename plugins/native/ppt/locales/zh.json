@@ -99,6 +99,18 @@
     "ppt.capability-library.ppt-create-v1.title": "新建演示稿",
     "ppt.capability-library.ppt-files-entries-v1.title": "演示稿",
     "ppt.capability-library.ppt-placement-copy-v1.title": "演示稿",
-    "ppt.capability-library.ppt-placement-move-v1.title": "演示稿"
+    "ppt.capability-library.ppt-placement-move-v1.title": "演示稿",
+    "ppt.color.swatch": "{role} · {color}",
+    "ppt.color.indigo": "靛蓝",
+    "ppt.color.blue": "蓝",
+    "ppt.color.purple": "紫",
+    "ppt.color.green": "绿",
+    "ppt.color.red": "红",
+    "ppt.color.off-white": "柔白",
+    "ppt.color.pale-purple": "淡紫",
+    "ppt.color.pale-blue": "淡蓝",
+    "ppt.color.charcoal": "炭黑",
+    "ppt.color.dark-gray": "深灰",
+    "ppt.color.blue-gray": "蓝灰"
   }
 }

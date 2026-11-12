@@ -68,9 +68,9 @@ test("RAC-2518 RAC-2519 a held Inbox compose response survives hide and same-mou
 });
 
 for (const width of [1440, 390]) {
-  test(`Inbox ${width}px: select actual material, recover failed generation and edit the persisted Pages result`, { timeout: 90_000 }, async t => {
+  test(`BHI-03 BHI-04 Inbox ${width}px: recover generation and open the persisted Pages result from history`, { timeout: 90_000 }, async t => {
     let calls = 0;
-    const browser = await openGoalBrowser(t, true, undefined, async prompt => {
+    const browser = await openGoalBrowser(t, "seeded", undefined, async prompt => {
       calls++; assert.match(prompt, /仅阅读研究摘要，尚未核对全文/);
       if (calls === 1) throw new Error("测试模型暂时不可用，材料已保留");
       return "本次观察来自研究摘要，全文仍待核对。[材料 1]";
@@ -84,16 +84,21 @@ for (const width of [1440, 390]) {
     const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/observations", research_source: "summary" }).source;
     const item = feed.ingestItem({ source, externalId: "pages-ui-material", title: "产品研究摘要", summary: "仅阅读研究摘要，尚未核对全文", occurredAt: new Date().toISOString(), attention: false }).item;
     const entry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
+    const inboxRow = `[data-inbox-row][data-inbox-entry-id="${entry.entry_id}"]`;
+    const composeTrigger = '[data-inbox-compose-open=""]';
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-    const openInbox = async () => {
+    const showInbox = async () => {
       await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=inbox` }, sessionId));
       await waitFor("document.querySelector('[data-plugin-id=inbox]')");
       if (await evaluate("document.body.dataset.desktopSurface") !== "inbox") {
         await click('[data-plugin-strip] [data-plugin-id=inbox]');
       }
       await waitFor("document.body.dataset.desktopSurface === 'inbox'");
-      await inbox.click('[data-inbox-compose-open=""]');
+    };
+    const openInbox = async () => {
+      await showInbox();
+      await inbox.click(composeTrigger);
       await inbox.waitFor("document.querySelector('[data-inbox-compose]').open");
     };
     await openInbox();
@@ -123,6 +128,25 @@ for (const width of [1440, 390]) {
       assert.equal(pages.get(record.document_id!, projectId!).title, "人工补充后的研究草稿");
       assert.match(JSON.stringify(pages.get(record.document_id!, projectId!).body), new RegExp(`/projects/${projectId}/`));
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+      await showInbox();
+      await inbox.click(inboxRow);
+      await inbox.click("[data-inbox-detail]:not([hidden]) [data-inbox-action=done]");
+      await inbox.waitFor(`document.querySelector('[data-inbox-stage-group=history] ${inboxRow}')`);
+      assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "done");
+      assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-stage-group=active] [data-inbox-row]')"), null);
+      const historySummary = "[data-inbox-stage-group=history] summary";
+      await inbox.click(historySummary);
+      assert.ok(await inbox.evaluate(`(() => {
+        const history = document.querySelector(${JSON.stringify(historySummary)}).parentElement;
+        const trigger = document.querySelector(${JSON.stringify(composeTrigger)});
+        const group = history.getBoundingClientRect(), button = trigger.getBoundingClientRect();
+        return !history.open && history.nextElementSibling === trigger && button.left === group.left && button.width < group.width;
+      })()`), "the compact trigger remains reachable beside collapsed history");
+      await inbox.click(composeTrigger);
+      await inbox.click(`[data-inbox-compose-results] [data-inbox-compose-request="${failed.request_id}"] button`);
+      await waitFor("document.body.dataset.desktopSurface === 'pages'");
+      await child.waitFor("document.querySelector('[data-pages-title]')?.value === '人工补充后的研究草稿'");
+      assert.equal(calls, 2, "opening a document from history makes no generation");
       const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
       await writeFile(new URL(`inbox-pages-actions-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
     } finally { pages.close(); }

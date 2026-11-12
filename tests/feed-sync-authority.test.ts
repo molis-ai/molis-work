@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_ACTION_PERMISSIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
@@ -17,7 +18,8 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
+import { bindLocalFeedSourceAccount, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, seedLocalFeedSourceAccount } from "./fixtures/feed-library.js";
+import { withIntegrationHome } from "./fixtures/integration-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS] };
 const code = (expected: string) => (error: unknown) => !!error && typeof error === "object" && "code" in error && error.code === expected;
@@ -187,8 +189,24 @@ for (const mode of ["disabled", "paused", "reconfigured"] as const) {
   });
 }
 
-for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-provider-failure", "scheduled-revoked"] as const) {
-  test(`account connector ${mode}: Listener must stop before raw delivery, Signal, Feed and cursor writes, then recover without duplicates`, { timeout: 15_000 }, async t => {
+test("BFR-01 a binding for a different Feed source cannot authorize this source's provider", async () => {
+  await withIntegrationHome(async ({ directory, store }) => {
+    const db = store().db, feed = createLocalFeedApplication(db);
+    const source = feed.sources.upsert(accountSourceRecord("github", { status: "active" }));
+    const other = feed.sources.upsert(accountSourceRecord("github", { source_id: "github-account-other", status: "active" }));
+    seedLocalFeedSourceAccount(directory, other);
+    let asked = false;
+    const sync = createLocalFeedConnectorSync(db, DEMO_PROJECT_ID, directory, () => {
+      asked = true;
+      throw new Error("Unbound source reached the provider");
+    }, feed);
+    await assert.rejects(sync.sync(source.source_id, { idempotencyKey: "unbound-record" }), code("feed.connector_failed"));
+    assert.equal(asked, false);
+  });
+});
+
+for (const mode of ["revoked", "paused", "cancelled", "disconnected", "rebound", "revoked-provider-failure", "scheduled-revoked"] as const) {
+  test(`BFR-01 BFR-02 account connector ${mode}: Listener must stop before raw delivery, Signal, Feed and cursor writes, then recover without duplicates`, { timeout: 15_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "feed-account-authority-")), database = join(home, "project.sqlite");
     seedDemoBoard(database);
     const store = new LocalProjectDatabase(database), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
@@ -199,10 +217,21 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
       return { ok: true, mode: "live", items: [{ externalId: "issue-1", title: "One authorized issue", summary: "Provider evidence", kind: "issue", priority: "medium", tags: ["github"], attention: false }], cursor: { position: "after-one" } };
     } };
     const feed = createLocalFeedApplication(store.db);
-    const connectorSync = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, () => provider, feed, home);
-    const sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000), home);
+    const bindings: IntegrationBinding[] = [];
+    const connectorSync = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, home, (_integration, binding) => {
+      bindings.push(binding);
+      return provider;
+    }, feed);
+    const sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
     const account = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Fixture account", token: "fixture-account-token" }));
-    const source = feed.sources.upsert(accountSourceRecord("github", { status: "active", credential_ref: account.credential_ref, config: { connection_id: account.connection_id } }));
+    const source = feed.sources.upsert(accountSourceRecord("github", { status: "active" }));
+    bindLocalFeedSourceAccount(home, source, account.connection_id);
+    const selectReplacement = () => {
+      const replacement = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Restored account", token: "fixture-restored-token" }));
+      bindLocalFeedSourceAccount(home, source, null);
+      bindLocalFeedSourceAccount(home, source, replacement.connection_id);
+      return replacement;
+    };
     if (mode === "scheduled-revoked") sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     const signals = new SignalsModule(fromBetterSqlite(store.db)), actions = new ActionService();
     const dispose = actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: DEMO_PROJECT_ID }, definitions: FEED_SOURCE_ACTIONS,
@@ -216,36 +245,39 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
     try {
       const input = { source_id: source.source_id, idempotency_key: "account-authority-1" };
       const pending = mode === "scheduled-revoked" ? actions.invoke(context, feedSourceActions.tick, {}) : actions.invoke({ ...context, signal: controller.signal }, feedSourceActions.sync, input);
-      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : code(mode === "paused" ? "feed.source_paused" : mode === "disconnected" ? "feed.source_connection_changed" : "actions.revoked"));
+      const changesConnection = mode === "disconnected" || mode === "rebound";
+      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : code(mode === "paused" ? "feed.source_paused" : changesConnection ? "feed.source_connection_changed" : "actions.revoked"));
       await enteredOrFailure(entered.promise, pending);
+      assert.deepEqual(bindings, [{ source_id: source.source_id, connection_id: account.connection_id, credential_ref: account.credential_ref, config: {} }]);
+      let recoveryAccount = account;
       if (mode === "revoked" || mode === "revoked-provider-failure" || mode === "scheduled-revoked") allowed = false;
       if (mode === "paused") sources.setEnabled(source.source_id, false);
       if (mode === "cancelled") controller.abort();
       if (mode === "disconnected") withConnectorConnections(home, rows => rows.disconnect(account.connection_id));
+      if (mode === "rebound") {
+        recoveryAccount = selectReplacement();
+        assert.equal(withConnectorConnections(home, rows => rows.state(rows.require(account.connection_id))), "connected", "only the record binding changed");
+      }
       const before = snapshot(); release.resolve(); await rejected;
       assert.deepEqual(snapshot(), before, "even interrupted-run and failure-Inbox bookkeeping may not write after refusal");
       assert.equal(requests, 1);
       assert.equal((store.db.prepare("SELECT lease_owner FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id) as { lease_owner: string | null }).lease_owner, null, "the owned lease is released even after refusal");
       allowed = true; fails = false;
-      let recoverySource: string = source.source_id;
       if (mode === "paused") sources.setEnabled(source.source_id, true);
-      if (mode === "disconnected") {
-        const replacement = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Restored account", token: "fixture-restored-token" }));
-        // The person binds another account to the same source (T-121: the account is the platform's binding, never a field Feed writes);
-        // this local arrangement stands for that binding. The source keeps its identity.
-        feed.sources.upsert({ ...feed.sources.get(DEMO_PROJECT_ID, source.source_id), credential_ref: replacement.credential_ref, config: { connection_id: replacement.connection_id } });
-        recoverySource = source.source_id;
-      }
-      const retry = { ...input, source_id: recoverySource };
+      if (mode === "disconnected") recoveryAccount = selectReplacement();
       if (mode === "scheduled-revoked") {
         assert.equal((await actions.invoke(context, feedSourceActions.tick, {})).completed, 1, "the scheduler accepts the account metadata written by its own authorized sync");
-      } else assert.equal((await actions.invoke(context, feedSourceActions.sync, retry)).run.outcome, "completed");
-      assert.equal(signals.query.list(DEMO_PROJECT_ID, recoverySource).length, 1);
-      assert.equal(snapshot().feed.feed_items.filter(item => item.source_id === recoverySource).length, 1);
-      assert.deepEqual(feed.sources.get(DEMO_PROJECT_ID, recoverySource).cursor, { position: "after-one" });
+      } else assert.equal((await actions.invoke(context, feedSourceActions.sync, input)).run.outcome, "completed");
+      assert.deepEqual(bindings.at(-1), { source_id: source.source_id, connection_id: recoveryAccount.connection_id, credential_ref: recoveryAccount.credential_ref, config: {} });
+      assert.equal(signals.query.list(DEMO_PROJECT_ID, source.source_id).length, 1);
+      assert.equal(snapshot().feed.feed_items.filter(item => item.source_id === source.source_id).length, 1);
+      const recovered = feed.sources.get(DEMO_PROJECT_ID, source.source_id);
+      assert.deepEqual(recovered.cursor, { position: "after-one" });
+      assert.equal(recovered.credential_ref, null);
+      assert.equal(JSON.stringify(recovered.config).includes(recoveryAccount.connection_id), false);
       const calls = requests;
       if (mode === "scheduled-revoked") assert.equal((await actions.invoke(context, feedSourceActions.tick, {})).due, 0);
-      else assert.equal((await actions.invoke(context, feedSourceActions.sync, retry)).replayed, true);
+      else assert.equal((await actions.invoke(context, feedSourceActions.sync, input)).replayed, true);
       assert.equal(requests, calls);
     } finally { release.resolve(); dispose(); store.close(); await rm(home, { recursive: true, force: true }); }
   });

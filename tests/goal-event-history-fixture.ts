@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 
-export const goalEventHistoryKinds = ["legacy", "mixed", "approved", "approved-completed"] as const;
+export const goalEventHistoryKinds = ["imported", "mixed", "approved", "approved-completed"] as const;
 export type GoalEventHistoryKind = (typeof goalEventHistoryKinds)[number];
 
 /**

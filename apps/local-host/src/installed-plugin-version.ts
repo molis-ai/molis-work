@@ -53,7 +53,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
     if (earlier) {
       try {
         const original = c.definition(earlier, earlierApproval ?? earlier.permissions);
-        const state = await withSurfaceRestoration(original.manifest, record, c.projectId, c.platform.runtime, {
+        const state = await withSurfaceRestoration(original.manifest, record, c.project_id, c.platform.runtime, {
           ownsMoved: () => same(adopted, false) && c.trusted(adopted),
           ownsRestored: () => same(record, false) && c.trusted(record),
         }, () => c.platform.rollback(pluginId, original));

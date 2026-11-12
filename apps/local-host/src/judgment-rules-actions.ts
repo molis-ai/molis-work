@@ -2,7 +2,7 @@ import { FUNCTIONS_PROVIDER_ID, functionsActionProvider, publishedFunctionProvid
 import { sceneConfigurationActions, retainActionAuthority, ActionError, type ActionRegistryPort, type ActionCallContext, type ActionClient, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
-import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
+import { functionsConnectionSnapshot, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 
 type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };
@@ -19,7 +19,7 @@ export class SystemFunctionsActions {
     this.ports = {
       read: this.read,
       run: async operation => operation(this.service()),
-      credentialAvailable: () => functionsCredentialConfigured(home, options), connectionId: () => functionsConnectionId(home, options),
+      credentialAvailable: () => functionsCredentialConfigured(home, options), connectionStatus: () => functionsConnectionSnapshot(home, options),
       validateRecommendations: async (record, caller) => {
         const references = Object.values(record.action_map ?? {});
         if (!references.length) return;

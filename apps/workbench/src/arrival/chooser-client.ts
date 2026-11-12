@@ -264,8 +264,16 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     else if (event.key === 'Enter') { event.preventDefault(); enterSelected(row.dataset.id); return; }
     if (next >= 0) { event.preventDefault(); pick(rows[next].dataset.id, { focus: true }); }
   });
+  // The personal search's program arrives on the first press of its button (chooser-search.ts): read it when a key comes.
+  const personalSearch = () => globalThis.__CHOOSER_SEARCH__;
   document.addEventListener('keydown', (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); search.focus(); search.select(); return; }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      // The filter keeps ⌘K even with the search dialog open: it closes, and focus comes here rather than back to its button.
+      if (personalSearch()?.isOpen()) personalSearch().close(search);
+      search.focus(); search.select(); return;
+    }
+    if (personalSearch()?.isOpen()) { personalSearch().handleKeyboard(event); return; }
     const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
     if (event.key === 'Enter' && !typing && !event.defaultPrevented && !event.isComposing && !document.querySelector('dialog[open], [popover]:popover-open') && !document.activeElement?.closest?.('button, a, [role="option"], summary')) {
       event.preventDefault(); enterSelected();

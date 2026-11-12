@@ -172,7 +172,7 @@ test("S-ui-text-page FSS-09 the Coding page cannot borrow a restarted embedded G
   const projection = (await first.json()).owners.find((item: { owner: string }) => item.owner === "io.molis.work.git");
   assert.deepEqual(projection.embedded, [old, another]);
   assert.deepEqual(projection.pages, []);
-  assert.equal(projection.packs[0].messages["git.commit.submit"], "Commit…");
+  assert.equal(projection.packs[0].messages["git.commit.plain"], "Commit");
   await platform.runtime.stop(git.install_id);
   await platform.supervisor.restart("io.molis.work.git");
   assert.equal(platform.supervisor.state("io.molis.work.git")?.status, "running");

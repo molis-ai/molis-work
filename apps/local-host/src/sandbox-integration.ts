@@ -21,6 +21,12 @@ import { staleInstallation } from './installed-plugin-host.js';
 import { lastUsedLocale } from './ui-locale-memory.js';
 import { sandboxTextPacks } from './ui-text-provider.js';
 import { activeLocale } from './web-locale.js';
+import { projectInstalledPermissions } from './installed-permission-projection.js';
+import { PLUGIN_CONNECTIONS_PERMISSION } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+
+/** A source with an account, while the person has its integration's `connections:use` switched off (BL-701): refused before the Host hands out the connection. */
+const refuseConnections = (): never => { throw new ActionError('actions.forbidden', '这个集成插件通过账号发请求的权限没有开启，可以在插件设置里打开', { details: { permissions: [PLUGIN_CONNECTIONS_PERMISSION] } }); };
 
 export const sandboxIntegrationErrors = defineErrorCodes('host', { integration_pull_invalid: 'upstream', integration_source_invalid: 'invalid' });
 
@@ -104,7 +110,7 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
   let runner: Promise<SandboxRunner> | undefined;
   /** The instance started last; `stop()` marks it withdrawn before anything else, so its calls stop counting as current at once. */
   let instance: { withdrawn: boolean } | undefined;
-  return {
+  const definition: PluginDefinition = {
     manifest,
     execution: 'sandbox',
     async start(context) {
@@ -140,7 +146,8 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
             throw error;
           }
         },
-        connections: (binding, control) => createCallConnectionsClient(host.connections,
+        connections: (binding, control) => binding.connection_id !== null && !context.grants.includes(PLUGIN_CONNECTIONS_PERMISSION)
+          ? refuseConnections() : createCallConnectionsClient(host.connections,
           { plugin_id: release.pluginId, install_id: context.install_id, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
           SANDBOX_INTEGRATION_SOURCE_SLOT, { signal: control.signal,
             current: () => { control.current(); live(); }, beforeEffect: async () => { await control.beforeEffect(); control.current(); live(); } }) });
@@ -151,6 +158,8 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
       const current = runner; runner = undefined; await current?.then(item => item.stop(), () => undefined);
     },
   };
+  projectInstalledPermissions(definition, release);
+  return definition;
 }
 
 /** `ok: true` with its items and cursor and nothing of a failure, or `ok: false` with its failure and message and no items. */

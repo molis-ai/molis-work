@@ -37,6 +37,8 @@ import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallRegistry } from "./surface-installation.js";
+import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
+import type { PluginRetainedItem, PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -150,27 +152,33 @@ export class HomePluginHost {
     });
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
-  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {},
-    control?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<void> {
-    const change = async (assertOpen?: () => void) => {
+  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {},
+    control?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<readonly PluginRetainedItem[]> {
+    const change = async (assertOpen?: () => void): Promise<readonly PluginRetainedItem[]> => {
       const assertCurrent = () => {
         assertOpen?.();
+        input.assertCurrent?.();
         control?.signal?.throwIfAborted();
         requireSynchronous(control?.assert_authority_current?.());
       };
       await control?.beforeEffect?.();
       assertCurrent();
-      const installed = this.installed, record = installed?.recordFor(pluginId, action === "uninstall");
-      if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
-      // A revoked publisher's package is still the person's to take off.
-      const release = installed.packageOf(pluginId, action === "uninstall");
+      const installed = this.installed;
+      if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+      // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read; the row is found and checked there.
+      if (action === "uninstall") { const retained = await installed.uninstall(pluginId, { ...input, assertCurrent }); await installed.refreshPublicActions(); return retained; }
+      const record = installed.recordFor(pluginId);
+      if (!record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+      // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one.
+      const release = installed.packageOf(pluginId);
       if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
       await installed.lifecycle(action, release, { ...input, assertCurrent });
       await installed.refreshPublicActions();
+      return [];
     };
     if (action !== "disable") return this.installationScope.run(change);
     await this.ready();
-    await change();
+    return change();
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
@@ -195,8 +203,13 @@ export class HomePluginHost {
         await this.options.projectActions(projectId, pluginId);
       } : undefined }) : undefined;
   }
-  /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
-  packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
+  /**
+   * Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it: the Host's sentence, or
+   * (`"code"`) the reason's own code, what the installed list hands the page (BL-915).
+   */
+  packageError(pluginId: string, as: "message" | "code" = "message"): string | undefined {
+    return as === "code" ? this.installed?.recoveryErrors.code(pluginId) : this.installed?.recoveryErrors.get(pluginId);
+  }
   /** `started` reads what a started owner runs and none before it started or after it failed: for a read that must neither start nor wait for it. */
   installations(includeSurfaceSlots = false, started = false): Array<PluginInstanceRecord & { surface_slots?: readonly UiSlotDescriptor[] }> {
     const platform = this.platform;
@@ -302,7 +315,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, this.installationScope.catalog(), runtime, rollback),
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),

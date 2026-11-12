@@ -20,6 +20,7 @@ import { activeLocale } from '../web-locale.js';
 import { studioManifestWords, studioWordReader } from './studio-words.js';
 import { sandboxTextPacks } from '../ui-text-provider.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
+import { assertOperationGranted, grantedEffects, projectInstalledPermissions } from '../installed-permission-projection.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
@@ -93,13 +94,16 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       if (context.project_id && (approved.modelSettings?.length || approved.imageGeneration?.length)) throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
+      // The approval as this activation may use it (BL-701): an effect whose switch is off never reaches the broker.
+      const allowed = grantedEffects(approved, context.grants);
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath,
-        contract: release.design.contract, grants: approved, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });
+        contract: release.design.contract, grants: allowed, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });
       const lane = background;
       const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
         const operation = release.design.contract.operations.find(item => item.id === operationId)!;
         const effects = sandboxOperationEffects(release.design.contract, operation);
+        assertOperationGranted(effects, context.grants);
         const callContext: SandboxServiceContext = { identity, operationId, signal: control.signal ?? new AbortController().signal, projectReach: control.projectReach };
         await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
         const binding = capabilityPolicyBinding(effects, effects.capabilities?.length ? await host.capabilities?.(callContext) ?? [] : []);
@@ -116,7 +120,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const services = sandboxServicesFor(context.services, { ...host, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
-        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
+        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: allowed, services,
           identity, localePacks });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
@@ -127,7 +131,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const contribution: PluginAppContribution = {
         kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
-          let outcomeUnknown = false;
+          let outcomeUnknown = false, refused: unknown;
           try {
             const body = isRecord(request.body) ? request.body : {};
             const raw = Object.hasOwn(body, 'operation');
@@ -140,6 +144,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
             const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
             const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
+            // Before any of its code runs, whichever door it came through (BL-701).
+            try { assertOperationGranted(effects, context.grants); } catch (error) { refused = error; throw error; }
             const projectReach = executionProjectReach(request.execution);
             const callContext: SandboxServiceContext = { identity, operationId: call.operationId, signal: request.execution?.signal ?? new AbortController().signal, projectReach };
             const capabilities = dependencies.length ? await host.capabilities?.(callContext) ?? [] : [];
@@ -180,7 +186,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
               if (gone) { outcomeUnknown = true; throw failure !== error ? failure : new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
               throw failure;
             }
-          } catch (error) {
+          } catch (error) { // Only a switched-off effect (BL-701), refused before its code ran, is answered as the refusal itself.
+            if (error === refused) throw error;
             if (error instanceof ActionError && !outcomeUnknown) return actionErrorResponse(error);
             return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } };
           }
@@ -208,5 +215,6 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       await Promise.all([lane?.stop(), ...current.map(item => item.then(runner => runner.stop(), () => undefined))]); },
   };
   rememberInstalledActionSource(definition, release, host.grantedCapabilities, words);
+  projectInstalledPermissions(definition, release);
   return definition;
 }

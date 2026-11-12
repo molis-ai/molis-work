@@ -15,7 +15,7 @@ import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, ProjectPluginInstalledView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, PluginUninstallTarget, ProjectPluginInstalledView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
@@ -25,13 +25,15 @@ import { packagedRelease, type SandboxPackageStore } from './sandbox-package-sto
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
 import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
+import { isPendingUninstall } from './installed-plugin-lifecycle.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
-import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { sandboxProjectedPermissions, sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import { assertConnectorText, connectorWords } from "./connector-words.js";
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 import { assertSurfacePresentation, withSurfacePresentationCheck, type SurfaceInstallCatalog } from './surface-installation.js';
 import { readBundledPackages } from './bundled-packages.js';
+import type { PackageControlOutcome } from './uninstall-retained.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -39,7 +41,7 @@ const MAX_PREVIEWS = 16;
 
 export type ProjectPackageControl = { plugin_id: string } & (
   | { action: 'enable'; expected_installation: SurfaceInstallationRef & { scope: 'project' }; caller: ActionExecutionContext }
-  | { action: 'disable' | 'uninstall'; keep_data: boolean }
+  | { action: 'disable' | 'uninstall'; keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }
 );
 
 export interface PluginInstallPorts {
@@ -62,14 +64,14 @@ export interface PluginInstallPorts {
   /** Whether some provider offers this action in the project now: what the preview says of each of a package's `requires`. A Host without it previews no package that requires any. */
   offers?(projectId: string, reference: { capability_id: string; version: number }): boolean;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
-  control(projectId: string, input: ProjectPackageControl): Promise<string>;
+  control(projectId: string, input: ProjectPackageControl): Promise<PackageControlOutcome>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
   homeInstalled?(): Promise<InstalledPluginEntry[]>;
   homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
-  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }, caller?: ActionExecutionContext): Promise<string>;
+  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<PackageControlOutcome>;
   /** The release's folder of the packages it ships uninstalled (`bundledPackagesDirectory`); a Host without one ships none. */
   bundledDirectory?: string;
   now?(): string;
@@ -253,7 +255,7 @@ export class PluginInstallService {
     const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
+        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
         ? [{ service_id: service.service_id, title: word(service.title), origins: [...service.origins] }] : []) } : {} };
     const now = Date.now();
@@ -329,6 +331,8 @@ export class PluginInstallService {
     const inHome = runtime_scope === 'home';
     const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
     const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
+    // An uninstall whose clean-up has not finished is listed until the person retries it; nothing is installed over it meanwhile (BL-915).
+    if (present && isPendingUninstall(present.record)) throw pluginErrors.uninstall_cleanup_pending('上次卸载还没有清理完：请先在设置里重试卸载，再安装');
     if (present && present.record.publisher_signature !== key_id) {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
@@ -366,15 +370,15 @@ export class PluginInstallService {
   }
 
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
-  async control(input: ProjectPackageControl, who: { project_id: string }): Promise<string> {
-    return this.ports.control(who.project_id, input);
+  async control(input: ProjectPackageControl, who: { project_id: string }, caller?: InstallAuthority): Promise<PackageControlOutcome> {
+    return this.ports.control(who.project_id, input.action === 'enable' ? input : { ...input, assertCurrent: () => assertInstallAuthority(caller) });
   }
 
   /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
-  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, caller?: ActionExecutionContext): Promise<string> {
+  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<PackageControlOutcome> {
     const { homeControl } = this.ports;
     if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
-    return homeControl(input.plugin_id, action, { keep_data: input.keep_data }, caller);
+    return homeControl(input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {} }, caller);
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }
@@ -434,7 +438,7 @@ export class PluginInstallService {
   private views(entries: InstalledPluginEntry[]): PluginInstalledView[] {
     return installedPluginViews(entries.map(entry => {
       try { return { ...entry, requestedPermissions: this.requested(entry) }; }
-      catch (error) { return { ...entry, manifest: undefined, recoveryError: error instanceof Error ? error.message : String(error) }; }
+      catch (error) { const code = (error as { code?: unknown } | null)?.code; return { ...entry, manifest: undefined, recoveryCode: typeof code === 'string' ? code : 'plugin.package_invalid' }; }
     }), this.ports.ledger);
   }
 

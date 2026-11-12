@@ -394,7 +394,7 @@ export type ActionAvailability = {
     readonly kind?: ActionErrorKind;
 };
 
-export interface ActionCallContext extends ActionCallOrigin {
+export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
     readonly actor_id: string;
     readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
@@ -478,7 +478,7 @@ export interface ActionErrorOptions {
     readonly cause?: unknown;
 }
 
-export interface ActionExecutionContext extends ActionCallContext {
+export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
@@ -3545,6 +3545,16 @@ export declare function workExecutorRoleOf(action: {
 }): WorkExecutorRole | null;
 
 // Declarations the exports above refer to, which no entry exports itself:
+
+interface ActionDelegationSource {
+    readonly delegated_action?: Readonly<ExactActionReference & {
+        readonly direct_person_entry?: true;
+    }>;
+}
+
+interface ActionPersonEntry {
+    readonly direct_person_entry?: true;
+}
 
 type AllKeys<U> = U extends unknown ? keyof U : never;
 

@@ -46,7 +46,6 @@ export {
   mapGoalTreeProposal,
   mapGoalTreeProposalDecision,
   mapGoalTreeProposalItem,
-  parseJson as parseGovernanceJson,
 } from "./mappers.js";
 export { GovernanceEventDecisions } from "./event-decisions.js";
 export {

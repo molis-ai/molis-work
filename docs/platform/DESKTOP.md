@@ -20,7 +20,7 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 | `apps/desktop/src/shell.ts` | 识别原生 Desktop 请求并保持本地链接的 `desktop=1` 上下文 | 页面业务渲染 |
 | `apps/desktop/src/capsule-shell.ts` | Capsule 的 HTML、CSS、浏览器脚本和壳层交互 | Goal 工作状态组合 |
 | `apps/desktop/adapters/tauri/` | 窗口、菜单栏、PTY、本地 Web 服务启动与恢复 | Module 业务规则 |
-| `apps/desktop/src/adapters/sqlite-panels.ts` | 已停用的桌面面板两张表的建表语句（T-148 起没有读写，何时删随 #1633 定） | 面板记录（Goal 的工作终端由 Goals 经平台的启动终端服务开，记录在 `plugin_terminal_panels`） |
+| `apps/local-host/src/project-catalog-contract.ts` | 目录库 2→3 升级清理退役的 `goal_desktop_panels`、`goal_desktop_panel_aliases` 空表；有记录时拒绝升级并保留原库，等待明确的恢复决定 | Desktop 不再建这两张表；现行终端记录由平台 `plugin_terminal_panels` 持有 |
 | `apps/desktop/src-tauri/` | Cargo/Tauri 配置、权限和打包资源 | Desktop 业务源码 |
 
 旧 `src/desktop/` 与 `src/web/desktop-shell.ts` 已删除；caller 使用 `@molis-ai/molis-work-app-desktop`。

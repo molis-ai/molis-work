@@ -1,5 +1,6 @@
 import { defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionSlotDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
+import { PLUGIN_CONNECTION_RECORD_KEY_MAX } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineConnectorUsagesAction, defineConnectorUsagesSwitchAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput, type ConnectorUsagesSwitchInput, type ConnectorUsagesSwitchResult } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
@@ -30,9 +31,14 @@ const result = { type: "object", properties: { connection: { type: ["object", "n
 export const pluginSlotErrors = defineErrorCodes("connector.plugin_slots", { installation_missing: "not_found", slot_undeclared: "invalid", project_required: "invalid",
   usage_missing: "not_found", connection_pinned: "forbidden", switch_failed: "conflict" });
 
-/** The slots an installation in the caller's project (or the Home) declares, `null` when there is no such installation of that plugin. */
-export type PluginSlotDeclarations = (caller: ActionCallContext, install_id: string, plugin_id: string) => Promise<readonly PluginConnectionSlotDeclaration[] | null>;
-const noInstallations: PluginSlotDeclarations = async () => null;
+/** What the platform knows about the plugins and projects a slot belongs to. */
+export interface PluginSlotDirectory {
+  /** The Manifest of that plugin's installation in this project (or the Home's), `null` when neither has it. */
+  manifest(install_id: string, plugin_id: string, project_id: string | null | undefined): Promise<PluginManifest | null>;
+  /** Every project's display name by id, read in one go: a report names many uses. */
+  projectNames(): Promise<ReadonlyMap<string, string>>;
+}
+const noInstallations: PluginSlotDirectory = { manifest: async () => null, projectNames: async () => new Map() };
 
 export const connectorPluginSlotActions = {
   read: { capability_id: "connectors.plugin_slot.read", version: /* @version action.connectors.plugin_slot.read */ 1, operation: "query", action: { ...metadata,
@@ -63,10 +69,10 @@ export const connectorPluginSlotActions = {
  * An installation here that declares this slot, for this service, with this kind of binding. Only binding asks: unbinding only takes an
  * account away, so a binding left by a plugin no longer installed (or whose Manifest dropped the slot) can still be removed.
  */
-async function assertDeclared(declarations: PluginSlotDeclarations, caller: ActionCallContext, input: SlotInput & { service_id: string }, binding: "installation" | "per_record"): Promise<void> {
-  const slots = await declarations(caller, input.install_id, input.plugin_id);
-  if (!slots) throw pluginSlotErrors.installation_missing(`这里没有插件 ${input.plugin_id} 的这个安装`);
-  const declared = slots.find(item => item.slot_id === input.slot_id);
+async function assertDeclared(directory: PluginSlotDirectory, caller: ActionCallContext, input: SlotInput & { service_id: string }, binding: "installation" | "per_record"): Promise<void> {
+  const manifest = await directory.manifest(input.install_id, input.plugin_id, caller.project_id);
+  if (!manifest) throw pluginSlotErrors.installation_missing(`这里没有插件 ${input.plugin_id} 的这个安装`);
+  const declared = manifest.connections?.slots?.find(item => item.slot_id === input.slot_id);
   if (!declared || (declared.binding ?? "installation") !== binding || declared.service_id !== input.service_id) {
     throw pluginSlotErrors.slot_undeclared(`插件没有声明${binding === "per_record" ? "按记录绑定" : "按安装绑定"}、用 ${input.service_id} 的连接槽 ${input.slot_id}`);
   }
@@ -86,12 +92,12 @@ function recordScope(caller: ActionCallContext, input: RecordInput): string {
   return targetScope({ install_id: input.install_id, project_id: caller.project_id, record_key: input.record_key });
 }
 
-export function connectorPluginSlotHandlers(home: string, declarations: PluginSlotDeclarations = noInstallations): ActionHandlerBinding[] {
+export function connectorPluginSlotHandlers(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding[] {
   return [
     { capability_id: connectorPluginSlotActions.read.capability_id, version: connectorPluginSlotActions.read.version, handle: (_caller, input) => ({ connection: bound(home, input as SlotInput) }) },
     { capability_id: connectorPluginSlotActions.bind.capability_id, version: connectorPluginSlotActions.bind.version, handle: async (caller, value) => {
       const input = value as SlotInput & { service_id: string; connection_id: string | null };
-      if (input.connection_id !== null) await assertDeclared(declarations, caller, input, "installation");
+      if (input.connection_id !== null) await assertDeclared(directory, caller, input, "installation");
       await caller.beforeEffect();
       withConnectorConnections(home, store => input.connection_id === null
         ? store.unbind(pluginSlotScope(input.install_id), input.plugin_id, input.slot_id)
@@ -104,7 +110,7 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
     } },
     { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: connectorPluginSlotActions.bindRecord.version, handle: async (caller, value) => {
       const input = value as BindInput<RecordInput>, scope = recordScope(caller, input);
-      if (input.connection_id !== null) await assertDeclared(declarations, caller, input, "per_record");
+      if (input.connection_id !== null) await assertDeclared(directory, caller, input, "per_record");
       await caller.beforeEffect();
       withConnectorConnections(home, store => input.connection_id === null ? store.unbind(scope, input.plugin_id, input.slot_id)
         : store.bind({ scopeId: scope, pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
@@ -138,13 +144,30 @@ function slotUses(home: string, caller: ActionCallContext, connectionId: string)
   return { connected: found.connected, uses };
 }
 
-export function connectorPluginSlotUsagesHandler(home: string): ActionHandlerBinding {
-  return { ...connectorPluginSlotUsages, handle: (caller, value) => {
+/**
+ * A use reads as the person knows it (BL-920): the plugin's name and what the slot is for, as its Manifest says, and the project's name.
+ * Each installation's Manifest is read once however many uses it has; an id is shown only where its name cannot be read.
+ */
+export function connectorPluginSlotUsagesHandler(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding {
+  return { ...connectorPluginSlotUsages, handle: async (caller, value) => {
     const found = slotUses(home, caller, (value as ConnectorUsagesInput).connection_id);
     if (!found) return { usages: [] };
-    const usages: ConnectorUsage[] = [...found.uses.values()].map(use => ({ usage_id: use.usage_id, title: `${use.plugin_id} · ${use.slot_id}`,
-      enabled: found.connected, actions: [],
-      detail: use.project_id === undefined ? "插件这个安装发出的请求都用这个账号" : `项目 ${use.project_id} 里 ${use.scopes.length} 条记录用这个账号` }));
+    const manifests = new Map<string, Promise<PluginManifest | null>>();
+    // The project list is opened only when a use is counted per project.
+    const names = [...found.uses.values()].some(use => use.project_id !== undefined) ? directory.projectNames().catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>());
+    const manifestOf = (use: SlotUse) => {
+      const key = JSON.stringify([use.install_id, use.plugin_id, use.project_id ?? caller.project_id ?? null]);
+      const read = manifests.get(key) ?? directory.manifest(use.install_id, use.plugin_id, use.project_id ?? caller.project_id).catch(() => null);
+      manifests.set(key, read);
+      return read;
+    };
+    const usages: ConnectorUsage[] = await Promise.all([...found.uses.values()].map(async use => {
+      const manifest = await manifestOf(use);
+      const slot = manifest?.connections?.slots?.find(item => item.slot_id === use.slot_id);
+      const project = use.project_id === undefined ? undefined : (await names).get(use.project_id) ?? use.project_id;
+      return { usage_id: use.usage_id, title: `${manifest?.name ?? use.plugin_id} · ${slot?.reason ?? use.slot_id}`, enabled: found.connected, actions: [],
+        detail: project === undefined ? "插件这个安装发出的请求都用这个账号" : `项目「${project}」里 ${use.scopes.length} 条记录用这个账号` };
+    }));
     return { usages };
   } };
 }
@@ -157,7 +180,7 @@ export function connectorPluginSlotUsagesHandler(home: string): ActionHandlerBin
  */
 export const connectorPluginSlotSwitch = defineConnectorUsagesSwitchAction("connectors.plugin_slot.switch", /* @version action.connectors.plugin_slot.switch */ 1, "换用插件连接槽的账号", [CONNECTOR_MANAGEMENT_WRITE], "home");
 
-export function connectorPluginSlotSwitchHandler(home: string, declarations: PluginSlotDeclarations = noInstallations): ActionHandlerBinding {
+export function connectorPluginSlotSwitchHandler(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding {
   return { ...connectorPluginSlotSwitch, handle: async (caller, value) => {
     const input = value as ConnectorUsagesSwitchInput;
     const { to } = switchTarget(home, input.from_connection_id, input.to_connection_id);
@@ -170,7 +193,7 @@ export function connectorPluginSlotSwitchHandler(home: string, declarations: Plu
         if (!use) throw pluginSlotErrors.usage_missing("这个账号没有这处使用位置");
         if (use.project_id !== undefined && use.project_id !== caller.project_id) throw pluginSlotErrors.project_required("按记录绑定的账号要在它所在的项目里换");
         if (pinned.has(usage_id)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
-        await assertDeclared(declarations, caller, { ...use, service_id: to.service_id }, use.project_id === undefined ? "installation" : "per_record");
+        await assertDeclared(directory, caller, { ...use, service_id: to.service_id }, use.project_id === undefined ? "installation" : "per_record");
         ready.push(use);
       } catch (error) { caller.signal?.throwIfAborted(); result.refused.push({ usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }
     }

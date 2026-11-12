@@ -117,6 +117,11 @@ function createMolisWorkWebServer(
   return createBaseMolisWorkWebServer({ ...options, controlToken: WEB_TEST_CONTROL_TOKEN });
 }
 
+/** Goals' advance prompt is a POST: its body may carry the text the person's page read for the Goal (GAS-01). */
+function promptFetch(url: string, body: Record<string, unknown> = {}): Promise<Response> {
+  return webFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+}
+
 function webFetch(input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
   const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
   if (method === "GET" || method === "HEAD") return globalThis.fetch(input, init);
@@ -904,14 +909,14 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     const payload = await opened.json() as { panel_id: string; key: string; started: boolean };
     assert.equal(payload.started, true);
 
-    const prompt = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-GOAL/advance-prompt`);
+    const prompt = await promptFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-GOAL/advance-prompt`);
     assert.equal(prompt.status, 200);
     const promptBody = await prompt.json() as { prompt: string; title: string };
     assert.equal(promptBody.title, "桌面关联 Goal");
     assert.match(promptBody.prompt, /TUI-GOAL/);
     assert.doesNotMatch(promptBody.prompt, /business_logic/);
 
-    const onboardingPrompt = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-GOAL/advance-prompt?onboarding=1`);
+    const onboardingPrompt = await promptFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-GOAL/advance-prompt?onboarding=1`);
     assert.equal(onboardingPrompt.status, 200);
     const onboardingPromptBody = await onboardingPrompt.json() as { prompt: string };
     assert.match(onboardingPromptBody.prompt, /新项目的第一次 Goal 工作/);
@@ -981,7 +986,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     assert.equal(createBlocked.status, 409);
     assert.match(await createBlocked.text(), /具体的子 Goal/);
 
-    const promptBlocked = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-PARENT/advance-prompt`);
+    const promptBlocked = await promptFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-PARENT/advance-prompt`);
     assert.equal(promptBlocked.status, 409);
     assert.match(await promptBlocked.text(), /不能直接推进/);
 
@@ -1028,7 +1033,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     const completedCreateBlocked = await openGoalTerminal(origin, projectId, "TUI-PARENT", { command: "cat" });
     assert.equal(completedCreateBlocked.status, 409);
 
-    const completedPromptBlocked = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-PARENT/advance-prompt`);
+    const completedPromptBlocked = await promptFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/TUI-PARENT/advance-prompt`);
     assert.equal(completedPromptBlocked.status, 409);
 
     const completedReopenBlocked = await openGoalTerminal(origin, projectId, "TUI-PARENT", { key: "before", command: "cat" });
@@ -1071,6 +1076,7 @@ test("Goals plugin starts on the board instead of opening a Goal", () => {
 test("Feed Item actions create one bound Goal and expose its source context to Terminal", async () => {
   const fixture = await catalogFixture();
   addProjectFeedItem(fixture.project, "feed-item-test");
+  addProjectGoal(fixture.project, "PLAIN-GOAL", "没有原文的 Goal");
   const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
@@ -1164,22 +1170,40 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(promotedAgainBody.goal_id, promotedBody.goal_id);
     assert.equal(promotedAgainBody.created, false);
 
-    // The prompt is Goals' own facts and guidance only: Feed's text is not read for it (T-137, #1332 6538636605; a person's delegated
-    // read of a user-only query of another plugin has no path yet, BL-911).
-    const prompt = await (
-      await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(promotedBody.goal_id)}/advance-prompt`)
-    ).json() as { prompt: string };
-    assert.match(prompt.prompt, /用 Item 启动真实工作/);
-    assert.doesNotMatch(prompt.prompt, /<UNTRUSTED_FEED_ITEM_DATA>/);
+    // Goals reads no other plugin's text itself (T-137, #1332 6538636605): alone, the prompt is its own facts and guidance.
+    const promptUrl = `${origin}${prefix}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(promotedBody.goal_id)}/advance-prompt`;
+    const ownPrompt = await (await promptFetch(promptUrl)).json() as { prompt: string };
+    assert.match(ownPrompt.prompt, /用 Item 启动真实工作/);
+    assert.doesNotMatch(ownPrompt.prompt, /<UNTRUSTED_FEED_ITEM_DATA>/);
+    // GAS-01: the person's page reads the text Feed keeps for this Goal as the person, and the prompt binds it as untrusted
+    // data; the trusted instruction names the Goal by id alone and no secret of the item reaches the prompt.
+    const sourceResponse = await webFetch(`${origin}${prefix}/api/host/subject-context?kind=goal&id=${encodeURIComponent(promotedBody.goal_id)}`);
+    assert.equal(sourceResponse.status, 200, await sourceResponse.clone().text());
+    const source = await sourceResponse.json() as { contexts: Array<{ plugin_id: string; source_context: string }> };
+    assert.deepEqual(source.contexts.map(item => item.plugin_id), ["io.molis.work.feed"]);
+    assert.match(source.contexts[0]!.source_context, /测试来源资料/);
+    const prompt = await (await promptFetch(promptUrl, { source_contexts: source.contexts })).json() as { prompt: string };
+    assert.match(prompt.prompt, /<UNTRUSTED_FEED_ITEM_DATA>\n[\s\S]*测试来源资料[\s\S]*\n<\/UNTRUSTED_FEED_ITEM_DATA>$/u);
+    assert.match(prompt.prompt, new RegExp(`推进 Goal（id: ${promotedBody.goal_id}）`, "u"));
     assert.doesNotMatch(
       prompt.prompt,
       /runtime-secret-token|url-secret-value|material-secret-value/,
     );
+    // GAS-03: each read names one Goal, so another Goal gets none of this one's text; the route takes exactly one kind and one id.
+    const subjectContext = (query: string) => webFetch(`${origin}${prefix}/api/host/subject-context?${query}`);
+    const other = await subjectContext("kind=goal&id=PLAIN-GOAL");
+    assert.equal(other.status, 200, await other.clone().text());
+    assert.deepEqual(await other.json(), { contexts: [] });
+    const plainPrompt = await (await promptFetch(`${origin}${prefix}/api/plugins/io.molis.work.goals/goals/PLAIN-GOAL/advance-prompt`)).json() as { prompt: string };
+    assert.match(plainPrompt.prompt, /没有原文的 Goal/u);
+    assert.doesNotMatch(plainPrompt.prompt, /<UNTRUSTED_FEED_ITEM_DATA>|测试来源资料/u);
+    for (const query of ["kind=goal", `kind=goal&id=${promotedBody.goal_id}&id=PLAIN-GOAL`, `kind=goal&id=${promotedBody.goal_id}&item_id=feed-item-test`,
+      `kind=todo&id=${promotedBody.goal_id}`, `kind=goal&id=${"G".repeat(257)}`, "kind=goal&id="]) {
+      assert.equal((await subjectContext(query)).status, 400, query);
+    }
 
     // The Feed item chain is gone (BL-121 ②): the Goals route takes no `feed_item_id`.
-    const namedItemPrompt = await webFetch(
-      `${origin}${prefix}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(promotedBody.goal_id)}/advance-prompt?feed_item_id=another-item`,
-    );
+    const namedItemPrompt = await promptFetch(`${promptUrl}?feed_item_id=another-item`);
     assert.equal(namedItemPrompt.status, 400);
 
     const store = new LocalProjectDatabase(fixture.project.database_path);
@@ -1619,8 +1643,8 @@ test("RAC-2707/RAC-2709 the Feed start route is gone and advance-prompt no longe
     const retired = await webFetch(`${origin}${prefix}/api/goals/${encodeURIComponent(goalId)}/advance-prompt`);
     assert.equal(retired.status, 404, "the Host prompt route was removed by T-137");
     const promptPath = `${origin}${prefix}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/advance-prompt`;
-    const withId = await webFetch(`${promptPath}?feed_item_id=another-item`);
-    const withoutId = await webFetch(promptPath);
+    const withId = await promptFetch(`${promptPath}?feed_item_id=another-item`);
+    const withoutId = await promptFetch(promptPath);
     assert.equal(withId.status, 400, "Goals rejects the retired feed_item_id query");
     assert.equal(withoutId.status, 200);
     const { prompt } = await withoutId.json() as { prompt: string };

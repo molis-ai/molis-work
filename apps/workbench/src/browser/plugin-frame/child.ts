@@ -142,11 +142,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
     const script = document.createElement("script"); script.src = new URL(url, config.origin).href;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.could-not-load-view-retry"))); document.head.append(script);
+    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.view-code-not-fetched"))); document.head.append(script);
   });
   for (const asset of config.assets) await load(asset);
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
-  if (!factory) throw new Error(uiText.text("common.child.could-not-load-view-retry"));
+  if (!factory) throw new Error(uiText.text("common.child.view-entry-missing"));
   childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
 }

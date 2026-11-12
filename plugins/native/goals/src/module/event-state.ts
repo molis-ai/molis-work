@@ -24,9 +24,11 @@ import type {
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";
 import { requiredText } from "./event-facts-validation.js";
+import { GoalEventStateAgreement } from "./event-state-agreement.js";
+import { GoalEventConcerns } from "./event-state-concerns.js";
 import { GoalEventStateEffects } from "./event-state-effects.js";
 import { type GoalEventStateWriteDeps, mutateGoalEventState, requireOwnedWritableGoal } from "./event-state-write.js";
-import type { GoalEventStateHost } from "./event-state-host.js";
+import type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 import { currentEffectiveDecisions } from "./event-state-authorization.js";
 import { insertGoalSystemEvent } from "./event-system-insert.js";
 import { GoalEventStateRepository } from "./event-state-repository.js";
@@ -37,6 +39,8 @@ export type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.
 
 export class GoalEventState implements GoalEventStateApi {
   private readonly effects: GoalEventStateEffects;
+  private readonly concerns: GoalEventConcerns;
+  private readonly agreement: GoalEventStateAgreement;
   private readonly writes: GoalEventStateWriteDeps;
 
   constructor(
@@ -46,14 +50,19 @@ export class GoalEventState implements GoalEventStateApi {
     private readonly host: GoalEventStateHost,
   ) {
     this.writes = { context, records, host };
-    this.effects = new GoalEventStateEffects(context, facts, records, host, {
+    const core: GoalEventStateCore = {
       mutate: (input, operation, hash, write) => mutateGoalEventState(this.writes, input, operation, hash, write),
       insertSystem: this.insertSystem.bind(this),
       requireOwnedWritable: (projectId, goalId) => requireOwnedWritableGoal(this.writes, projectId, goalId),
       requireLocalScope: this.requireLocalScope.bind(this),
       assertConfigVersion: this.assertConfigVersion.bind(this),
       assertAgreementVersion: this.assertAgreementVersion.bind(this),
+    };
+    this.effects = new GoalEventStateEffects(context, records, host, core);
+    this.concerns = new GoalEventConcerns(facts, records, core, (goal, cited) => {
+      this.effects.assertReusable(goal, cited, cited.scope);
     });
+    this.agreement = new GoalEventStateAgreement(context, records, host, core);
   }
 
   isEventStateOwner(projectId: string, goalId: string): boolean {
@@ -215,7 +224,7 @@ export class GoalEventState implements GoalEventStateApi {
   }
 
   applyConcern(input: ApplyGoalConcernInput) {
-    return this.effects.applyConcern(input);
+    return this.concerns.applyConcern(input);
   }
 
   requestDecision(input: RequestGoalDecisionInput) {
@@ -234,7 +243,7 @@ export class GoalEventState implements GoalEventStateApi {
   }
 
   setAgreement(input: SetGoalEventAgreementInput) {
-    return this.effects.setAgreement(input);
+    return this.agreement.setAgreement(input);
   }
 
   submitClosure(input: SubmitGoalEventClosureInput) {

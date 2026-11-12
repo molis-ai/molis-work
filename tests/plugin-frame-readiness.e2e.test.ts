@@ -403,7 +403,7 @@ test("RAC-1490: the main path runs one guard cycle from loading to ready, and th
   ], "the deferred client owns the only cycle: guard on, drop the deferred marker, release into ready");
 });
 
-test("RAC-1490: a failed main path load releases its own guard, and retry starts one fresh cycle", { timeout: 90_000 }, async t => {
+test("RAC-1490 F-21: a failed main path load releases its own guard, says why, and retry starts one fresh cycle", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "lingguang");
   const handlers = browser.server.listeners("request");
@@ -426,6 +426,9 @@ test("RAC-1490: a failed main path load releases its own guard, and retry starts
   await browser.waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'failed' && !!document.querySelector('[data-ui-client-retry]')", 30_000);
   const first = await guardWrites(browser);
   assert.equal(clientRequests, 1);
+  // F-21: the button offers to load again; why it failed is said once, with the reason, not as a second "please retry".
+  assert.deepEqual(await browser.evaluate("(() => { const button = document.querySelector('[data-ui-client-retry]'); return [button.textContent, button.title]; })()"),
+    ["重新加载", "插件界面的程序没有从本机服务取到。"]);
   assert.deepEqual(first, [
     { attribute: "inert", oldValue: null },
     { attribute: "aria-busy", oldValue: null },

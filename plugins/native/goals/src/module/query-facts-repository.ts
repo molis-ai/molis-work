@@ -4,7 +4,8 @@ import type {
   GoalReplacementFact,
   GoalWorkEventLinkRecord,
 } from "../contract/goals.js";
-import { rowJson, rowText, type GoalsSqliteDatabase } from "./repository.js";
+import { storedJson } from "../stored-json.js";
+import { rowText, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
@@ -17,12 +18,12 @@ export class GoalQueryFactsRepository {
   }
 
   listPolicyHistory(projectId: string): GoalPolicyHistoryRecord[] {
-    return (this.db.prepare("SELECT * FROM policy_bindings WHERE project_id = ? ORDER BY created_at, policy_binding_id")
+    return (this.db.prepare("SELECT *, rowid AS stored_row FROM policy_bindings WHERE project_id = ? ORDER BY created_at, policy_binding_id")
       .all(projectId) as Row[]).map(row => ({
       policy_binding_id: rowText(row.policy_binding_id),
       goal_id: row.goal_id == null ? null : rowText(row.goal_id),
       scope: rowText(row.scope) as GoalPolicyHistoryRecord["scope"],
-      policy: rowJson(row.policy_json, {}),
+      policy: storedJson(row, "policy_bindings", "policy_json", {}),
       state: rowText(row.state) as GoalPolicyHistoryRecord["state"],
       created_by: rowText(row.created_by),
       reason: rowText(row.reason),

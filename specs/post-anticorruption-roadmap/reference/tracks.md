@@ -111,12 +111,12 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [26-5](batches/26.md#batch-26-item-5) | 插件升级 U4 与合同过渡 U5 | C1 | 是 | A、E |
 | [26-6](batches/26.md#batch-26-item-6) | 副本演练与回退 U6 | F | 是 | — |
 | [26-7](batches/26.md#batch-26-item-7) | 状态与状态机合同与词表 | C1 | 是 | D |
+| [26-8](batches/26.md#batch-26-item-8) | 状态词汇门禁与文档（原 27-6） | 统筹 | 否 | C1、D、E |
 | [27-1](batches/27.md#batch-27-item-1) | 基础交互体验债 | E | 是 | A、D |
 | [27-2](batches/27.md#batch-27-item-2) | 代码／Diff 及性能余项 | D | 是 | B |
 | [27-3](batches/27.md#batch-27-item-3) | 首批文案与帮助 | D | 是 | A、B、E |
 | [27-4](batches/27.md#batch-27-item-4) | Runtime、Goals 与沙箱余项 | C1 | 是 | E |
 | [27-5](batches/27.md#batch-27-item-5) | 宿主出口、文档门禁与各包清理 | 统筹 | 否 | — |
-| [27-6](batches/27.md#batch-27-item-6) | 状态词汇门禁与文档 | 统筹 | 否 | C1、D、E |
 | [33-1](batches/33.md#batch-33-item-1) | Coding 任务与环境恢复 | B | 是 | — |
 | [33-2](batches/33.md#batch-33-item-2) | 材料、大清单与重启接续 | F | 是 | — |
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |

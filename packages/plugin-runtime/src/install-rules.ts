@@ -127,6 +127,42 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
   return undefined;
 }
 
+/**
+ * The code an uninstall's tombstone carries until the Host's cleanup has finished (BL-915). It rides on `last_error_code`
+ * of the `uninstalled` record rather than a state of its own: the install store's shape stays as it is, and an unfinished
+ * cleanup is the failure that column already records. Its own column is BL-uninstall-pending-column.
+ */
+export const UNINSTALL_PENDING = "plugin.uninstall_cleanup_pending";
+
+/** The installation an uninstall names (BL-915): it must still be the row's, generation, version and digest alike. */
+export interface UninstallExpectation { readonly installation_generation: string; readonly version: string; readonly manifest_digest: string }
+
+/**
+ * `expected`: the installation the person's request named, checked under the lock (BL-915). `cleanup`: the Host's own clean-up, run under the same
+ * lock after the executor's; until both finish the tombstone carries `plugin.uninstall_cleanup_pending`, and a later uninstall of the same row
+ * retries them with the first data choice. A finished tombstone is answered as it is, nothing cleaned twice. Without `cleanup` an uninstall is
+ * the Runtime's alone, as before: no pending mark, and a replay runs the executor's clean-up again.
+ */
+export interface UninstallOptions {
+  readonly retain_private_data?: boolean; readonly expected?: UninstallExpectation;
+  readonly cleanup?: (record: PluginInstanceRecord) => Promise<void>; readonly assertCurrent?: () => void;
+}
+
+/**
+ * Why an uninstall of `current` is refused before anything is withdrawn (BL-915): it names an installation the row no longer holds (reinstalled,
+ * upgraded), or it retries an unfinished one with the other data choice. A retry keeps the first choice; it is not a second decision.
+ */
+export function uninstallRefusal(current: PluginInstanceRecord, options: { retain_private_data?: boolean; expected?: UninstallExpectation }): ActionError | undefined {
+  const { expected } = options;
+  if (expected && (expected.installation_generation !== current.installation_generation || expected.version !== current.version || expected.manifest_digest !== current.manifest_digest)) {
+    return pluginErrors.install_replaced("要卸载的已不是这次安装：它已经被重装或升级，请刷新后再试");
+  }
+  if (current.state === "uninstalled" && current.last_error_code === UNINSTALL_PENDING && options.retain_private_data !== undefined && options.retain_private_data !== current.retain_private_data) {
+    return pluginErrors.state_invalid(current.retain_private_data ? "上次卸载选的是保留数据，重试沿用这个选择" : "上次卸载选的是删除数据，重试沿用这个选择");
+  }
+  return undefined;
+}
+
 /** The Host supplies scope-aware declaration ownership and can reserve keys that a failed version change would restore. */
 export interface DeclarationOwners {
   (manifest: PluginManifest, installId?: string, onlySettings?: boolean): readonly DeclarationOwner[];

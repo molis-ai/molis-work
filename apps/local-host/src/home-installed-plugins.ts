@@ -13,7 +13,7 @@ import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
-import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
+import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
@@ -31,6 +31,8 @@ import { SandboxPackageStore } from './sandbox-package-store.js';
 import { sandboxedIntegrationDefinition } from './sandbox-integration.js';
 import type { SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { projectReachConsents } from './plugin-project-reach-consent.js';
+import { RecoveryErrors } from './installed-recovery-errors.js';
+import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
 export const HOME_INSTALL_SCOPE = '~home';
@@ -62,26 +64,21 @@ export interface HomeInstalledPluginsOptions {
 export type HomeInstalledPlugins = Awaited<ReturnType<typeof openHomeInstalledPlugins>>;
 
 const noBuilds = { get: () => null };
-const said = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOptions) {
   const { home, platform, integrations } = options;
   const actions: ProjectActions = { ...options.actions, project_id: null };
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
   const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
-  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
+  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new RecoveryErrors();
   let closed = false, exposureRevision = 0;
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
-  const recordFor = (pluginId: string, retryUninstall = false) => {
-    const current = records().find(item => item.plugin_id === pluginId);
-    if (current || !retryUninstall || approvedFor(pluginId) === null) return current;
-    // A failed cleanup keeps the existing approval until the same lifecycle finishes. Never choose another retired publisher/installation.
-    const retired = platform.runtime.list().filter(item => item.plugin_id === pluginId && item.publisher_trust === 'pinned'
-      && item.execution === 'sandbox' && item.state === 'uninstalled');
-    return retired.length === 1 ? retired[0] : undefined;
-  };
+  /** `retryUninstall`: also the one signed tombstone of this plugin whose uninstall has not finished its clean-up (BL-915), never another. */
+  const pendingUninstalls = () => platform.runtime.list().filter(isPendingUninstall);
+  const recordFor = (pluginId: string, retryUninstall = false) => records().find(item => item.plugin_id === pluginId)
+    ?? (retryUninstall ? onlyOne(pendingUninstalls().filter(item => item.plugin_id === pluginId)) : undefined);
   /** A package runs only while its publisher's pin stands (S-84, S-87): the ledger is asked at the start, at every effect, and before it is enabled again. */
   const standing = publisherStanding({ publishers: () => platform.consents?.publishers() ?? [] });
   /** A package is read back (and checked again) from the Home's package store the first time an installation asks for it. */
@@ -94,7 +91,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       let release = packaged.get(key);
       if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
       return release;
-    } catch (error) { recoveryErrors.set(pluginId, said(error)); return undefined; }
+    } catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
   };
   const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
@@ -193,9 +190,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
-  const lifecycle = installedLifecycle({ platform, projectId: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
+  const lifecycleContext: InstalledLifecycleContext = { platform, project_id: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
+    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } };
+  const lifecycle = installedLifecycle(lifecycleContext);
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); declared.releaseAll(); };
 
   try {
@@ -206,7 +204,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       try {
         if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
+        // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
+        if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
         assertHomePackageAllowed(release.packaged!.manifest);
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
@@ -218,15 +217,17 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      } catch (error) { recoveryErrors.set(record.plugin_id, said(error)); }
+      } catch (error) { recoveryErrors.set(record.plugin_id, error); }
     }
   } catch (error) { close(); throw error; }
 
   return {
-    lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach,
+    lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach, pendingUninstalls,
+    /** Takes a signed package's installation off from its trusted row, its package not read (BL-915). */
+    uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
     /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
-    packageOf: (pluginId: string, retryUninstall = false): InstalledRelease | undefined => {
-      const record = recordFor(pluginId, retryUninstall);
+    packageOf: (pluginId: string): InstalledRelease | undefined => {
+      const record = recordFor(pluginId);
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */

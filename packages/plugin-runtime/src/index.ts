@@ -6,7 +6,7 @@ export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
+import { UNINSTALL_PENDING, uninstallRefusal, type UninstallOptions, abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
@@ -25,7 +25,7 @@ import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
 import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
-export { holdsInstalledEdition, type DeclarationOwner, type DeclarationOwners } from "./install-rules.js";
+export { holdsInstalledEdition, UNINSTALL_PENDING, type DeclarationOwner, type DeclarationOwners, type UninstallOptions } from "./install-rules.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type {
@@ -35,6 +35,8 @@ import type {
   PluginExecutor,
   PluginInstanceRecord,
   PluginLifecycleReceipt,
+  PluginManifest,
+  PluginPermissionDeclaration,
   PluginRuntimeApi,
   PluginRuntimeRepository,
   PluginStartContext,
@@ -79,6 +81,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       consents?: PluginConsentLedger;
       /** A trusted project half's optional permissions may be bounded by its Home owner. Captures no caller identity. */
       permissionBound?(record: PluginInstanceRecord, definition: PluginDefinition): ((permission: string) => () => void) | undefined;
+      /** Optional rows the Host projects onto a sandboxed definition it built from a verified release (BL-701): counted with its Manifest's in every grant ceiling, never in its digest. */
+      permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
       actions?: PluginRuntimeActions },
@@ -131,6 +135,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const entrypoint = selectedEntrypoint(manifest, input.deployment);
     const current = this.repository.get(installId);
     if (current?.state === "uninstalled" && this.locks.busy(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
+    if (current?.state === "uninstalled" && current.last_error_code === UNINSTALL_PENDING) throw pluginErrors.uninstall_cleanup_pending("上次卸载还没有清理完：请先在设置里重试卸载，再安装");
     if (input.definition.execution === "sandbox" && input.grants === undefined) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能改变已安装插件的执行信任边界");
     if (current && current.state !== "uninstalled" && current.publisher_trust !== trust.level) throw pluginErrors.definition_conflict("不能改变已安装插件的安装信任等级");
@@ -145,7 +150,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
       if (compatibleSameVersion) {
         if (current.deployment !== input.deployment) throw pluginErrors.state_invalid("已有安装不能通过启动改变部署环境");
-        const grants = normalizeGrants(manifest, input.grants ?? current.grants);
+        const grants = normalizeGrants(grantCeiling(this.options, input.definition), input.grants ?? current.grants);
         if (!sameStrings(current.grants, grants)) {
           throw pluginErrors.state_invalid("兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
         }
@@ -164,7 +169,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.repository.save(moved);
       return this.receipt("install", moved, false);
     }
-    const grants = installationGrants(current, manifest, host, input.grants);
+    const grants = installationGrants(current, host ? manifest : grantCeiling(this.options, input.definition), host, input.grants);
     prepareInstallationData(this.executor, installId, current, manifest, host, input.discard_kept_data === true);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
@@ -266,11 +271,14 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (!rollbackCode && !compatible && !migratable) {
         throw pluginErrors.upgrade_required("目标 Manifest 未声明支持从当前安装版本升级");
       }
-      const declaredPermissions = new Set(target.permissions.map(permission => permission.permission));
-      if (input.grants === undefined && !rollbackCode && current.grants.some(permission => !declaredPermissions.has(permission))) {
+      const ceiling = grantCeiling(this.options, input.definition), declaredPermissions = new Set(ceiling.permissions.map(permission => permission.permission));
+      // A projected switch (BL-701) the target no longer asks for goes with the upgrade; a Manifest row still has to be kept.
+      const before = this.definitions.get(definitionKey(current)), projected = new Set(before ? grantCeiling(this.options, before).permissions.slice(before.manifest.permissions.length).map(row => row.permission) : []);
+      const held = current.grants.filter(permission => declaredPermissions.has(permission) || !projected.has(permission));
+      if (input.grants === undefined && !rollbackCode && held.some(permission => !declaredPermissions.has(permission))) {
         throw pluginErrors.grant_denied("升级会丢失已有授权，目标 Manifest 未保留全部 grant");
       }
-      const targetGrants = normalizeGrants(target, input.grants ?? (rollbackCode ? current.grants.filter(permission => declaredPermissions.has(permission)) : current.grants));
+      const targetGrants = normalizeGrants(ceiling, input.grants ?? (rollbackCode ? held.filter(permission => declaredPermissions.has(permission)) : held));
       assertRequiredGrants(target, targetGrants);
       const deployment = input.deployment ?? current.deployment;
       const entrypoint = selectedEntrypoint(target, deployment);
@@ -364,7 +372,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const current = requireInstall(this.repository, installId);
     assertMutable(current);
     const definition = requireDefinition(this.definitions, current);
-    const grants = normalizeGrants(definition.manifest, permissions);
+    const grants = normalizeGrants(grantCeiling(this.options, definition), permissions);
     if (sameStrings(current.grants, grants)) return this.receipt("grant", current, true);
     if (current.state === "running") {
       throw pluginErrors.state_invalid("运行中的 Plugin 必须先停止，不能静默改变 grant");
@@ -376,7 +384,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   /** The person's switch for one optional permission (PG-002, S-94); the steps are in `regrant.ts`, on the lifecycle steps this class lends. */
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt> {
-    return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => requireDefinition(this.definitions, record).manifest, save: record => this.repository.save(record), now: () => this.now(),
+    return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => grantCeiling(this.options, requireDefinition(this.definitions, record)), save: record => this.repository.save(record), now: () => this.now(),
       revoke: id => this.revokeContext(id, true), locked: (id, run) => this.locks.run(id, run), stop: id => this.stopOnce(id, true), start: id => this.startOnce(id),
       receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
   }
@@ -592,10 +600,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
   }
 
-  uninstall(
-    installId: string,
-    options: { retain_private_data?: boolean } = {},
-  ): Promise<PluginLifecycleReceipt> {
+  /** See `UninstallOptions` (BL-915). */
+  uninstall(installId: string, options: UninstallOptions = {}): Promise<PluginLifecycleReceipt> {
     const refusal = leaveRefusal(this.options.consents, this.repository.get(installId), "卸载");
     return refusal ? Promise.reject(refusal) : this.locks.run(installId, () => this.uninstallOnce(installId, options));
   }
@@ -609,13 +615,14 @@ export class PluginRuntime implements PluginRuntimeApi {
     });
   }
 
-  private async uninstallOnce(
-    installId: string,
-    options: { retain_private_data?: boolean },
-    restore?: PluginInstanceRecord,
-  ): Promise<PluginLifecycleReceipt> {
-    const current = requireInstall(this.repository, installId);
-    const replayed = current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation);
+  private async uninstallOnce(installId: string, options: UninstallOptions, restore?: PluginInstanceRecord): Promise<PluginLifecycleReceipt> {
+    const current = requireInstall(this.repository, installId), refusal = restore ? undefined : uninstallRefusal(current, options);
+    if (refusal) throw refusal;
+    options.assertCurrent?.();
+    const host = !restore && options.cleanup !== undefined; // see `UninstallOptions`
+    const pending = !restore && current.state === "uninstalled" && current.last_error_code === UNINSTALL_PENDING;
+    const replayed = current.state === "uninstalled" && !pending && (!restore || restore.installation_generation === current.installation_generation);
+    if (replayed && host) return this.receipt("uninstall", current, true);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
       const definition = requireDefinition(this.definitions, current);
       const live = this.liveContext(installId);
@@ -630,21 +637,25 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     this.revokeContext(installId);
     const at = this.now();
-    const updated = replayed ? current : restore ? cloneRecord(restore) : {
+    const updated = replayed || pending ? current : restore ? cloneRecord(restore) : {
       ...current,
       state: "uninstalled" as const,
       retain_private_data: options.retain_private_data ?? current.retain_private_data,
-      last_error_code: null,
+      last_error_code: host ? UNINSTALL_PENDING : null,
       updated_at: at,
       uninstalled_at: at,
     };
-    if (!replayed) this.repository.save(updated);
+    if (!replayed && !pending) this.repository.save(updated);
     try {
       await this.executor.uninstalled?.(updated);
+      if (!restore) { options.assertCurrent?.(); await options.cleanup?.(updated); }
     } finally {
       forgetUninstalledDefinitions(this.definitions, current);
     }
-    return this.receipt("uninstall", updated, replayed);
+    if (!host) return this.receipt("uninstall", updated, replayed);
+    const done = { ...updated, last_error_code: null, updated_at: this.now() };
+    this.repository.save(done);
+    return this.receipt("uninstall", done, false);
   }
 
   get(installId: string): PluginInstanceRecord {
@@ -779,3 +790,9 @@ export { validateSyncSections } from "./sync-sections-validation.js";
 export { privateValueReplicationJournalSql } from './private-replication-journal.js';
 
 export { inspectPluginProjectDatabaseSet } from "./project-snapshot.js";
+
+/** The Manifest as far as grants go: its own rows, then those the Host projected onto this definition (BL-701). */
+function grantCeiling(options: { permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined }, definition: PluginDefinition): PluginManifest {
+  const projected = options.permissionDeclarations?.(definitionOrigin(definition));
+  return projected?.length ? { ...definition.manifest, permissions: [...definition.manifest.permissions, ...projected] } : definition.manifest;
+}

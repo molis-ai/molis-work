@@ -205,6 +205,8 @@ test("RAC-2615-QUEUE an old source response cannot write Listener, Signal or Fee
   // Free the test Home's built-in GitHub declaration through its normal registry lifecycle, then install the real signed runner.
   await registry.disable(registry.integration("github")!.plugin_id);
   await h.install(integrationPackage(publisher, { serviceId: "github" }));
+  // The pull reaches the source account: the person switches it on in the Home's settings, off by default for a signed integration (BL-701).
+  await h.switchOn(PLUGIN_ID, "connections:use");
   const original = registry.bind.bind(registry);
   const entered = deferred(), release = deferred();
   let checks = 0;

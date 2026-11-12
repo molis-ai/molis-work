@@ -178,6 +178,8 @@ const pages: Record<string, Draw> = {
 // presentation chip (the fallback branch keeps the title button, its attributes now on two lines), and the old project home
 // (shortcuts, dates, day list, detail) is replaced by the composed home's shell (heading, read state, groups, offers, quick look);
 // the home's lost Todo rows are BL-todo-home-presentation. Those 24 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 42 match main's record.
+// After merging main f32d8f9d98, #2035 dropped the curly quotes around English input-receipt words; the 11 English records changed
+// by 5 bytes each and were re-recorded with MOLIS_WORK_GOLDEN_RECORD=1; no Chinese record moved.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

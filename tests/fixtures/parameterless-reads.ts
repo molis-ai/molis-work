@@ -25,6 +25,8 @@ export const unavailableInFixture: Record<string, string> = {
   "git.results@1": "actions.dependency_missing",
   "git.state@1": "actions.dependency_missing",
   "git.summary@1": "actions.dependency_missing",
+  // The platform materials service reads the project's folders through the workspace file read, which these fixtures do not run.
+  "materials.position@1": "actions.dependency_missing",
 };
 
 // WUA-16 / WUA-26: local and restored fixtures lack central account configuration.

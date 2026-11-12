@@ -382,6 +382,7 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
+export { adoptProjectDatabase, inspectProjectAdoption, type ProjectAdoptionReport, type ProjectLayout } from "./process-items-adoption.js";
 export { createProjectGoalContent } from "./project-goal-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.

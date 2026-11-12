@@ -1,0 +1,10 @@
+[
+  {
+    "store": "projects/*/molis-work.db",
+    "version": 2,
+    "from": "0866eff8b6d2f85b",
+    "to": "3aebf14aed859252",
+    "approved": "用户 2026-11-11 弹窗选「门禁例外」：只放行这一对结构哈希，项目库保持第 2 版，其他库不受影响",
+    "reason": "Files 退役的同版本采用（specs/batch-06-shared-tools/current-version-adoption.md）：过程项改记采用后的 process_items_adopted 日志，同名触发器切过去，原日志留作恢复证据。第 2 版旧布局不就地修补，只由显式采用程序（apps/local-host/src/process-items-adoption.ts）在隔离环境改；1→2 升级段直接升到新布局（用户 2026-11-12 定）。"
+  }
+]

@@ -68,6 +68,7 @@ export type { PluginWiringServicesInput } from "./services.js";
 export { PluginInputGraph } from "./wiring.js";
 export type { PluginArtifactReaderPort, PluginInputFailure } from "./wiring.js";
 export { MemoryPluginWiringRepository, SqlitePluginWiringRepository, PLUGIN_WIRING_SCHEMA_SQL } from "./wiring-repository.js";
+export { planWiringReassignment, reassignWiringSource, type WiringReassignmentPlan } from "./wiring-reassignment.js";
 export type { PluginWiringDatabase } from "./wiring-repository.js";
 export { PluginSupervisor } from "./supervisor.js";
 export type {

@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { goldenPathMatcher, parseStoreSchemas, SCHEMAS_FILE, storeSchemaProblems } from "../scripts/gates/store-schemas.mjs";
+import { EXCEPTIONS_FILE, goldenPathMatcher, parseStoreSchemas, SCHEMAS_FILE, storeSchemaProblems } from "../scripts/gates/store-schemas.mjs";
 
 // UPG-01 (specs/upgrade-continuity/golden-replay-design.md §5, U2-d): a library's creation statements do not change under the same version,
 // a raised version comes with its steps and with a golden Home that holds the old version. The rules are checked on in-memory trees, and
@@ -49,6 +49,20 @@ test("UPG-01 changed creation statements under the same version fail, naming the
   assert.match(found[1]!, /^UPG-01 projects\/\*\/molis-work\.db#io\.molis\.work\.todo: its creation statements changed/u);
   // The steps alone changing (a step added for a later version) is no change of the creation statements.
   assert.deepEqual(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(1, HASH, "1"), PLUGIN(), PROJECT()) }), []);
+});
+
+test("UPG-01 a same-version change passes only for the exact pair of hashes the user approved, and a malformed exception file fails", () => {
+  const approve = (rows: object[]) => JSON.stringify(rows);
+  const row = { store: "projects/*/molis-work.db", version: 1, from: HASH, to: OTHER, approved: "用户 2026-11-11 弹窗批准这一对", reason: "a same-version structure change approved one by one" };
+  const changed = table(CATALOG(), MEMORY(), PLUGIN(), PROJECT(1, OTHER));
+  assert.deepEqual(problems({ [SCHEMAS_FILE]: changed, [EXCEPTIONS_FILE]: approve([row]) }), []);
+  // Another library, another target hash, another version or a reversed pair is not the approved change.
+  for (const other of [{ ...row, store: "memory/memory.db" }, { ...row, to: "00000000000000aa" }, { ...row, version: 2 }, { ...row, from: OTHER, to: HASH }])
+    assert.match(problems({ [SCHEMAS_FILE]: changed, [EXCEPTIONS_FILE]: approve([other]) }).join("\n"), /projects\/\*\/molis-work\.db: its creation statements changed/u);
+  // The exception does not let a second library change with it.
+  assert.equal(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(1, OTHER), PLUGIN(), PROJECT(1, OTHER)), [EXCEPTIONS_FILE]: approve([row]) }).length, 1);
+  for (const broken of ["not json", approve([{ ...row, approved: "" }]), approve([{ ...row, reason: "short" }]), approve([{ ...row, extra: 1 }]), approve([{ ...row, from: "abc" }]), approve([{ ...row, to: HASH }])])
+    assert.match(problems({ [SCHEMAS_FILE]: changed, [EXCEPTIONS_FILE]: broken }).join("\n"), /same-version-exceptions\.json/u, broken);
 });
 
 test("UPG-01 a version that goes down fails", () => {

@@ -11,7 +11,7 @@ import {
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostLog } from "./host-log.js";
 import {
-  homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeStamp,
+  assertUpgradeDirectory, homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
@@ -356,6 +356,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   const lockDirectory = agentRuntimeDirectory(home);
   assertStorageOwner(lockDirectory, owner);
   const root = realpathSync(home), descriptors = homeUpgradeDescriptors();
+  assertUpgradeDirectory(root);
   recoverHomeArtifactRows(root, owner, options.expectedSpace);
   assertNoPendingArtifactRows(root, owner);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);

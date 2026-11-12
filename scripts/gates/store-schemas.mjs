@@ -49,6 +49,19 @@ export function goldenPathMatcher(store) {
   return path => expression.test(path);
 }
 
+/** Same-version structure changes the user approved one by one, each an exact pair of hashes with who approved it and why. */
+export const EXCEPTIONS_FILE = "tooling/gates/schemas/same-version-exceptions.json";
+export function parseExceptions(text) {
+  if (text === null) return { rows: [] };
+  let rows;
+  try { rows = JSON.parse(text); } catch { return { why: `${EXCEPTIONS_FILE} is not JSON` }; }
+  const hash = value => typeof value === "string" && /^[0-9a-f]{16}$/u.test(value);
+  const valid = Array.isArray(rows) && rows.every(row => row && typeof row === "object" && Object.keys(row).sort().join(",") === "approved,from,reason,store,to,version"
+    && typeof row.store === "string" && Number.isInteger(row.version) && hash(row.from) && hash(row.to) && row.from !== row.to
+    && typeof row.approved === "string" && row.approved.length >= 10 && typeof row.reason === "string" && row.reason.length >= 20);
+  return valid ? { rows } : { why: `${EXCEPTIONS_FILE}: each entry is { store, version, from, to (16-digit hashes), approved, reason }` };
+}
+
 /** Whether a golden's store entry holds `store` at `version`: the library's own version, or for `<library>#<plugin_id>` that plugin's tables. */
 export function goldenHolds(store, version) {
   const matches = goldenPathMatcher(store), plugin = store.split("#")[1];
@@ -74,11 +87,15 @@ export function storeSchemaProblems({ files, read }, readBase) {
   const base = parseStoreSchemas(baseText, `merge-base:${SCHEMAS_FILE}`);
   if (base.why) return [base.why];
   const problems = [], goldens = goldenStores({ files, read });
+  // A same-version change the user approved names its exact pair of hashes in ${EXCEPTIONS_FILE}; any other change still fails.
+  const exceptions = parseExceptions(read(EXCEPTIONS_FILE));
+  if (exceptions.why) return [exceptions.why];
+  const excepted = (store, version, from, to) => exceptions.rows.some(row => row.store === store && row.version === version && row.from === from && row.to === to);
   for (const [store, now] of head.rows) {
     const before = base.rows.get(store);
     if (!before) continue;
     if (now.version === before.version) {
-      if (now.structure !== before.structure) problems.push(`UPG-01 ${store}: its creation statements changed and its version is still ${now.version}. A Home in use keeps the old structure, so raise the version and add the step from ${now.version}, then \`pnpm schemas:update\``);
+      if (now.structure !== before.structure && !excepted(store, now.version, before.structure, now.structure)) problems.push(`UPG-01 ${store}: its creation statements changed and its version is still ${now.version}. A Home in use keeps the old structure, so raise the version and add the step from ${now.version}, then \`pnpm schemas:update\``);
       continue;
     }
     if (now.version < before.version) { problems.push(`UPG-01 ${store}: its version went down, ${before.version} → ${now.version}; a version never goes down`); continue; }

@@ -88,7 +88,8 @@
 | [prologue-mcp-strategy](../../prologue-mcp-strategy/spec.md) | 横向能力（AI 运行时） | [60](batches/60.md)、[61](batches/61.md) | 要决策：四份策略整体评审（[决定 9](decisions.md#decision-9)） |
 | [prologue-tool-strategy](../../prologue-tool-strategy/spec.md) | 横向能力（AI 运行时） | [61](batches/61.md) | 要决策：四份策略整体评审（[决定 9](decisions.md#decision-9)）；引用声明的语义一致（[决定 16](decisions.md#decision-16)） |
 | [intelligent-surfaces](../../intelligent-surfaces/spec.md) | 横向能力（呈现与组合）、产品线（工作台、助理） | [03](batches/03.md)、[05](batches/05.md)、[15](batches/15.md)、[52](batches/52.md)、[62](batches/62.md)、[63](batches/63.md)、[67](batches/67.md)、[75](batches/75.md)、[82](batches/82.md) | 要决策：呈现形态定样；负责人（沿原安排至明确交接） |
-| [work-mainline](../../work-mainline/spec.md) | 产品线（工作台）、横向能力（主线服务） | [03](batches/03.md)、[36](batches/36.md)、[37](batches/37.md)、[52](batches/52.md)、[63](batches/63.md)、[SRV-5](batches/srv-5.md) | 要决策：切换器的界面定样 |
+| [work-mainline](../../work-mainline/spec.md) | 产品线（工作台）、横向能力（主线服务） | [03](batches/03.md)、[36](batches/36.md)、[37](batches/37.md)、[52](batches/52.md)、[63](batches/63.md)、[SRV-5](batches/srv-5.md) | 要决策：切换器的界面定样（列表 2026-11-03 已定；位置 2026-11-12 改到事项线的线头） |
+| [work-line](../../work-line/spec.md) | 产品线（工作台、助理）、横向能力（主线服务的线读取与安放、呈现形态）、体验与效果 | [32](batches/32.md)、[36](batches/36.md)、[37](batches/37.md)、[52](batches/52.md)、[57](batches/57.md)、[63](batches/63.md) | 要决策：事项线的界面定样（第 32 批开工时）；三处已定项的改动用户 2026-11-12 已确认（[决定 38](decisions.md#decision-38)） |
 
 **字体、皮肤与语言分五段**（[实现方案](../../font-and-skin-system/implementation-plan.md) 第 11 节）：
 

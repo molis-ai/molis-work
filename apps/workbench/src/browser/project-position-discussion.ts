@@ -1,11 +1,12 @@
 import type { ImObjectBridge } from "@molis-ai/molis-work-im-ui";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
-import type { PositionHost, PositionMount, PositionView } from "./project-position.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { PositionMount, PositionView } from "./project-position.js";
 
 /** Translate visible, actual message parts into bounded reads; the shared view owns rendering and navigation. */
 export function mountDiscussionObjects(frame: HTMLIFrameElement,
   api: <Result>(path: string, body: unknown, signal?: AbortSignal) => Promise<Result>, mount: PositionMount,
-  visible: (root: HTMLElement) => boolean, translate: PositionHost["translate"],
+  visible: (root: HTMLElement) => boolean,
 ) {
   type Part = "message" | "quote" | "share";
   const entries = new Map<HTMLElement, { part: Part; id: string; root: HTMLElement; view: PositionView; read: boolean }[]>();
@@ -103,7 +104,7 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
   const bridge: ImObjectBridge = {
     send(path, body) {
       if (!/^\/rooms\/[A-Za-z0-9_-]+\/(?:messages|threads(?:\/[A-Za-z0-9_-]+\/messages)?)$/u.test(path) || frame.closest("[hidden]"))
-        return Promise.reject(new Error(translate("请在项目讨论中发送")));
+        return Promise.reject(new Error(uiText.text("workbench.position.send-in-discussion")));
       return api("/im/api" + path, body);
     },
     search(room, query, signal) { return api(path(room), { query }, signal); },
@@ -113,7 +114,6 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
       if (!frameId) frameId = requestAnimationFrame(() => { frameId = 0; refresh(); });
     },
     clear,
-    translate,
   };
   return { bridge, clear, invalidate() {
     defaults?.view.suspend();

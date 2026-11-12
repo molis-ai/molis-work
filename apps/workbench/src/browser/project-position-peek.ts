@@ -1,4 +1,4 @@
-import { escapeHtml as e, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, isPlacementControl, presentationWord, renderHomePeek, type HomeControl } from "./project-home-render.js";
 import { unsettledSurfaceActions } from "./unsettled-surface-actions.js";
@@ -9,13 +9,14 @@ type Prepared = { prepared: string; choices: Choice[] };
 type Result = { kind: "peek"; row: SurfaceHomeRowDisplay; offers?: Prepared } | { kind: "placement"; title: string; description: string; offers?: Prepared };
 type Selection = { key: string; original: HTMLElement; source: Record<string, unknown> };
 
-function choicesHtml(offers: Prepared | undefined, choice: Choice | undefined, say: PositionHost["translate"]) {
+/** Choice labels come from the Host already in the person's language. */
+function choicesHtml(offers: Prepared | undefined, choice: Choice | undefined) {
   if (!offers) return "";
-  if (choice) return '<div class="home-offers-controls"><strong>' + e(say(choice.label)) + "</strong>"
+  if (choice) return '<div class="home-offers-controls"><strong>' + e(choice.label) + "</strong>"
     + choice.consequence.map(word => "<small>" + e(presentationWord(word)) + "</small>").join("")
-    + renderButton({ label: say("取消"), variant: "secondary", attrs: { "data-position-offer": "cancel" } })
-    + renderButton({ label: say("确认"), variant: "primary", attrs: { "data-position-offer": "confirm" } }) + "</div>";
-  return '<div class="home-offers-controls">' + offers.choices.map(item => renderButton({ label: say(item.label), variant: "secondary",
+    + renderButton({ label: uiText.text("common.control.cancel"), variant: "secondary", attrs: { "data-position-offer": "cancel" } })
+    + renderButton({ label: uiText.text("workbench.position.confirm"), variant: "primary", attrs: { "data-position-offer": "confirm" } }) + "</div>";
+  return '<div class="home-offers-controls">' + offers.choices.map(item => renderButton({ label: item.label, variant: "secondary",
     attrs: { "data-position-offer": item.key } }) + item.consequence.map(word => "<small>" + e(presentationWord(word)) + "</small>").join("")).join("") + "</div>";
 }
 
@@ -26,7 +27,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
   lookup(key: string): HomeControl | undefined;
   navigate(click: HomeControl, trigger: HTMLElement): Promise<void>;
 }) {
-  const doc = root.ownerDocument, say = host.translate;
+  const doc = root.ownerDocument;
   let dialog: HTMLDialogElement | undefined, content: HTMLElement | undefined, footer: HTMLElement | undefined;
   let selection: Selection | undefined, pending: AbortController | undefined, prepared: Prepared | undefined, confirming: Choice | undefined;
   const peekControls = new Map<string, HomeControl>(), unsettled = unsettledSurfaceActions(doc.location.pathname + doc.location.search);
@@ -63,7 +64,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
     dialog.className = "mw-dialog home-peek";
     dialog.dataset.positionDialog = "";
     dialog.setAttribute("aria-label", presentationWord("peek"));
-    dialog.innerHTML = '<div class="mw-dialog__shell">' + homeButton("close", say("关闭")) + '<div data-position-peek></div><div data-position-offers></div></div>';
+    dialog.innerHTML = '<div class="mw-dialog__shell">' + homeButton("close", uiText.text("common.control.close")) + '<div data-position-peek></div><div data-position-offers></div></div>';
     content = dialog.querySelector<HTMLElement>("[data-position-peek]")!;
     footer = dialog.querySelector<HTMLElement>("[data-position-offers]")!;
     // The notice popover owns this dialog too. Its outside-press handler must not dismiss the source on a dialog press.
@@ -86,8 +87,8 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
   }
   function drawChoices() {
     if (!footer) return;
-    footer.innerHTML = executing || selection && unsettled.has(selection.key) ? '<p role="status">' + e(say(executing ? "正在执行…" : "到原处核对执行结果")) + "</p>"
-      : choicesHtml(prepared, confirming, say);
+    footer.innerHTML = executing || selection && unsettled.has(selection.key) ? '<p role="status">' + e(uiText.text(executing ? "workbench.position.running" : "workbench.position.unknown")) + "</p>"
+      : choicesHtml(prepared, confirming);
   }
   async function execute(open: Selection, offer: Prepared, choice: Choice) {
     const task = pending = new AbortController();
@@ -101,7 +102,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
       unsettled.clear(open.key); prepared = confirming = undefined;
       close();
       const control = ports.lookup(open.key);
-      host.receipt(control && isPlacementControl(control.target.kind) ? result.title : say("已完成") + " · " + say(result.title));
+      host.receipt(control && isPlacementControl(control.target.kind) ? result.title : uiText.text("common.presentation.done") + " · " + result.title);
       host.changed();
     } catch (error) {
       if (pending !== task || task.signal.aborted) return;
@@ -110,7 +111,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
       const code = (error as { code?: string } | null)?.code;
       if (code && code !== "actions.outcome_unknown" && code !== "actions.cancelled") {
         unsettled.clear(open.key);
-        host.receipt(say("这个对象已变化，请重新读取"));
+        host.receipt(uiText.text("workbench.position.changed"));
         host.changed();
       }
       drawChoices();
@@ -134,7 +135,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
       dialog!.setAttribute("aria-label", result.kind === "placement" ? result.title : presentationWord("peek"));
       content!.innerHTML = result.kind === "peek" ? renderHomePeek(data, result.row, peekControls)
         : '<h2>' + e(result.title) + '</h2><p>' + e(result.description) + '</p>'
-          + (!result.offers ? '<p role="status">' + e(say("暂无可用操作")) + '</p>' : '');
+          + (!result.offers ? '<p role="status">' + e(uiText.text("workbench.position.no-actions")) + '</p>' : '');
       drawChoices();
       if (!dialog!.open) dialog!.showModal();
       (refocusOpen ? content!.querySelector<HTMLElement>("[data-presentation-action]") : button())?.focus({ preventScroll: true });

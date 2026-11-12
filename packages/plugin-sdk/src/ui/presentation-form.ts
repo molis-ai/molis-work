@@ -1,7 +1,7 @@
 import type { AttentionState, FormKind, OwnedPresentationObject, PresentationField, PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { type OwnedTextRef, type TextDateStyle, UI_VIEW_HUES, type UiViewHue } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SurfaceConsequence } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { PLATFORM_TEXT_OWNER } from "../message-declarations.js";
+import { PLATFORM_TEXT_OWNER } from "./text-keys.js";
 import { presentationFormFields } from "../presentation.js";
 import { renderButton } from "./button.js";
 import { renderProgress, renderStatusMark, type MwStatusTone } from "./feedback.js";

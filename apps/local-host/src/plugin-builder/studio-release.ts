@@ -8,7 +8,6 @@ import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work
 import { parsePluginPackage, signPluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import { builderReleaseInterface } from '@molis-ai/molis-work-plugin-builder';
 import type { AgentBuilderPorts, AgentBuild, AgentRelease, AgentPublicationControl } from './agent-surface.js';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { readKeptSandboxPackage } from '../sandbox-package.js';

@@ -10,7 +10,7 @@ import { displayedRoute, homeChanged, homeOwnsView, homeReference as ref, type H
 import { offerConsequences, surfaceOfferOperation, type SurfaceOfferObject } from "./surface-offer-operation.js";
 import type { PositionChoice, PositionOfferSource } from "./surface-position-offers.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
-import { L } from "./web-locale.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export type PlacementKind = "place" | "hand_off";
 export const isPlacementKind = (kind: unknown): kind is PlacementKind => kind === "place" || kind === "hand_off";
@@ -102,7 +102,7 @@ function placementChoice(binding: PlacementBinding, choice: { project: string; n
       : actions.invoke(action("link"), { object: binding.source, project_id: choice.project }, controlFor(context, valid)));
     try { valid(); }
     catch (cause) { throw new ActionError("actions.outcome_unknown", "操作结果需要到原对象核对", { cause }); }
-    return { title: "title" in result ? L("已转成") + " · " + result.title : L("已用于项目「{project}」", { project: choice.name }), result,
+    return { title: "title" in result ? uiText.text("workbench.placement.turned-into") + " · " + result.title : uiText.text("workbench.placement.used-project-project", { project: choice.name }), result,
       ...(binding.receiver ? { request_id: request } : {}) };
   } };
 }
@@ -121,7 +121,7 @@ export async function prepareSurfacePlacement(context: SurfaceProjectContext, bo
     valid();
     const choices = receivers.map(receiver => placementChoice({ ...binding, receiver },
       { project: call.project, name: receiver.action.action.workflow_content!.title }));
-    return { title: L("交给"), description: L("原来的内容不变，新内容里记着它从哪里来"), choices };
+    return { title: uiText.text("common.presentation.hand_off"), description: uiText.text("workbench.placement.original-stays-new-item-records-where-came"), choices };
   }
   const { spaces } = await client.invoke(action("spaces"), {}, controlFor(context, valid));
   const used = new Set(description.associations.flatMap(edge => edge.type === "used_in" && edge.target.kind === "project" ? [edge.target.project_id] : []));
@@ -129,5 +129,5 @@ export async function prepareSurfacePlacement(context: SurfaceProjectContext, bo
     && space.project_id !== bound.source.project_id && !used.has(space.project_id)).slice(0, 30)
     .map(space => placementChoice(binding, { project: space.project_id, name: space.title })) : [];
   valid();
-  return { title: L("用于项目"), description: L("它仍然放在 {place}，只是和项目建立关联。", { place: description.location?.title ?? L("原来的位置") }), choices };
+  return { title: uiText.text("workbench.placement.use-project-2"), description: uiText.text("workbench.placement.stays-place-project-only-gets-link", { place: description.location?.title ?? uiText.text("workbench.placement.its-current-location") }), choices };
 }

@@ -1,4 +1,4 @@
-import { escapeHtml as e, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceDisplayCorrection, SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { surfaceCorrectionWord } from "./project-home-render.js";
 import { restoreObject, restorePosition, type CorrectionControls, type CorrectionRender } from "./project-correction-render.js";
@@ -7,7 +7,6 @@ export function createPositionCorrections(root: HTMLElement, ports: {
   send(input: SurfaceDisplayCorrection, signal: AbortSignal): Promise<unknown>;
   changed(): void;
   note(message: string): void;
-  translate(message: string): string;
   defaults?: boolean;
   headerOnly?: boolean;
 }) {
@@ -64,8 +63,8 @@ export function createPositionCorrections(root: HTMLElement, ports: {
     const label = surfaceCorrectionWord("confirm-reset");
     dialog.setAttribute("aria-label", label);
     dialog.innerHTML = '<div class="mw-dialog__shell"><h2>' + e(label) + '</h2><p>' + e(surfaceCorrectionWord("scope." + position?.kind)) + '</p>'
-      + renderButton({ label: ports.translate("取消"), variant: "secondary", attrs: { "data-position-reset": "cancel" } })
-      + renderButton({ label: ports.translate("确认"), variant: "primary", attrs: { "data-position-reset": "confirm" } }) + "</div>";
+      + renderButton({ label: uiText.text("common.control.cancel"), variant: "secondary", attrs: { "data-position-reset": "cancel" } })
+      + renderButton({ label: uiText.text("workbench.position.confirm"), variant: "primary", attrs: { "data-position-reset": "confirm" } }) + "</div>";
     (root.parentElement ?? doc.body).append(dialog);
     dialog.addEventListener("close", () => {
       dialog.remove(); if (prompt === dialog) prompt = undefined;

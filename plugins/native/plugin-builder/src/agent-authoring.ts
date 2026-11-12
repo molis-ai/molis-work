@@ -2,7 +2,7 @@ import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-
 import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
 /** Expand the author's compact vocabulary for the strict validators. Map known variants and record dropped fields;
  * never invent behavior. */
-import type { SandboxDataOperation, SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxDataOperation, SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';

@@ -114,7 +114,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         && frame.parentElement?.dataset.installedPlugin;
       if (!owns()) return null;
       const shown = () => owns() && !frame.closest("[hidden]");
-      return { translate: readText, navigationFrom() {
+      return { navigationFrom() {
         const navigate = tabWorkspace?.positionNavigationFrom(frame);
         return result => Boolean(shown() && navigate?.(result));
       }, changed() { if (shown()) positionChanged(); } };
@@ -122,7 +122,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (state.project) {
       projectPositions = globalThis.molisWorkHomeView?.createPositionViews({
         navigationFrom: source => tabWorkspace?.positionNavigationFrom(source) ?? (() => false),
-        translate: readText, changed: positionChanged, receipt: showToast,
+        changed: positionChanged, receipt: showToast,
       });
       document.addEventListener("molis-work:plugins-changed", () => projectPositions?.invalidate());
       window.addEventListener("molis:assistant-effect", () => projectPositions?.invalidate());

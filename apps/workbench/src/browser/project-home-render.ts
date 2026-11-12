@@ -1,6 +1,6 @@
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SurfaceGroup, SurfaceHomeEnable, SurfaceHomeStart, SurfaceItem, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { escapeHtml as e, icon, installUiText, PLUGIN_ICON_NAMES, renderBadge, renderButton, renderPresentationForm, renderStatusMark, say,
+import { escapeHtml as e, icon, PLUGIN_ICON_NAMES, renderBadge, renderButton, renderPresentationForm, renderStatusMark, say,
   type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { correctionHeader, correctionMenu, correctionText, objectCorrections, type CorrectionRender } from "./project-correction-render.js";
@@ -13,23 +13,11 @@ export type FramedSurfaceControl = { owner: string; subject: SurfaceItem["subjec
 export const subjectKey = (owner: string, subject: SurfaceItem["subject"]) => JSON.stringify([owner, subject.kind, subject.id]);
 const locale = () => document.documentElement.lang.startsWith("en") ? "en" : "zh";
 
-declare const MOLIS_WORK_MESSAGES: Record<string, string>;
-declare const MOLIS_WORK_MESSAGE_OWNERS: Record<string, string>;
-
-export function inHomeWords<Result>(draw: () => Result): Result {
-  // The shell already loaded these words for this document. This only supplies the SDK's renderer with that existing text context.
-  const tag = locale();
-  const release = installUiText({
-    locale: () => tag, defaultLocale: () => tag, noContext: () => "default",
-    ownerOfPrefix: prefix => prefix === "workbench" ? prefix : null,
-    message(owner, key, lang) {
-      const own = owner === "workbench" ? key.startsWith("common.") || key.startsWith("workbench.") : MOLIS_WORK_MESSAGE_OWNERS[key] === owner;
-      return lang === tag && own
-        && Object.hasOwn(MOLIS_WORK_MESSAGES, key) ? MOLIS_WORK_MESSAGES[key]! : null;
-    },
-  });
-  try { return draw(); } finally { release(); }
-}
+/**
+ * The document's text context is the one the workbench installed for this realm (`installLanguageText`); plugin owners' home words join it
+ * through the protected surface-text projection (surface-composition §14.6). Drawing never installs a second context.
+ */
+export function inHomeWords<Result>(draw: () => Result): Result { return draw(); }
 
 const home = (key: string, count?: number): string => say.text({ owner: "workbench", key: "workbench.home." + key,
   ...(count === undefined ? {} : { args: [{ name: "count", kind: "number", number: count }] }) });

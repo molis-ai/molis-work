@@ -1,4 +1,5 @@
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { homeButton, isPlacementControl, renderPositionGroup, type HomeControl } from "./project-home-render.js";
 import { reconcileSurfaceRows } from "./project-home.js";
 import { mountDiscussionObjects } from "./project-position-discussion.js";
@@ -15,7 +16,6 @@ export type ReadPosition = <Result>(body: Record<string, unknown>, signal: Abort
 export type PositionMount = (root: HTMLElement, read: ReadPosition, options: PositionOptions) => PositionView;
 export interface PositionHost {
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
-  translate(text: string, values?: Record<string, string | number>): string;
   changed(): void;
   receipt(message: string): void;
 }
@@ -32,14 +32,14 @@ export function createPositionViews(host: PositionHost) {
     let expanded = false, dirty = true, destroyed = false;
     const peek = createPositionPeek(root, read, host, { source, expanded: () => expanded, visible: () => visible(root),
       displayed: () => data, lookup: key => controls.get(key), navigate: open });
-    const corrections = createPositionCorrections(root, { defaults: options.defaults, headerOnly: options.headerOnly, translate: host.translate,
+    const corrections = createPositionCorrections(root, { defaults: options.defaults, headerOnly: options.headerOnly,
       send: (correct, signal) => read({ ...source(), correct, ...(expanded ? { expanded: true } : {}) }, signal), changed: host.changed, note: host.receipt });
     const suspend = () => { peek.scrub(); corrections.suspend(); };
     const paint = (value: SurfaceHomeDisplay, index = group) => {
       suspend();
       data = value; controls.clear();
       const { html, overflow } = renderPositionGroup(value, index, controls, undefined, corrections.rendering(value));
-      reconcileSurfaceRows(root, html + (overflow ? homeButton("expand", host.translate("另有 {count} 件", { count: overflow })) : ""), markup);
+      reconcileSurfaceRows(root, html + (overflow ? homeButton("expand", uiText.text("workbench.position.more", { count: overflow })) : ""), markup);
       corrections.afterPaint();
       void peek.refresh();
     };
@@ -103,7 +103,7 @@ export function createPositionViews(host: PositionHost) {
   }
   function discussion(frame: HTMLIFrameElement, api: Parameters<typeof mountDiscussionObjects>[1]) {
     discussionObjects?.clear();
-    discussionObjects = mountDiscussionObjects(frame, api, mount, visible, host.translate);
+    discussionObjects = mountDiscussionObjects(frame, api, mount, visible);
     return discussionObjects.bridge;
   }
   const invalidate = () => { for (const entry of mounts) entry.invalidate(); discussionObjects?.invalidate(); };

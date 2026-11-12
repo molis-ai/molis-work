@@ -113,7 +113,7 @@ export function mountHome(host: HomeHost) {
   const controls = new Map<string, HomeControl>();
   const peekControls = new Map<string, HomeControl>();
   const rowMarkup = new WeakMap<Element, string>();
-  const corrections = createPositionCorrections(groups, { translate: host.translate, note: host.receipt, changed: host.changed,
+  const corrections = createPositionCorrections(groups, { note: host.receipt, changed: host.changed,
     send: (correct, signal) => host.read("", { home_order: host.order(), correct }, signal) });
   let inspected: SurfaceHomeRowDisplay | null = null;
   let inspecting: AbortController | null = null;

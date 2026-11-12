@@ -22,7 +22,7 @@ export function renderPluginDocumentShell(input: {
     + '<script>' + CONTROL_CLIENT_SCRIPT + '</script><script src="/assets/molis-work-plugin-frame.js"></script><script>'
     + 'const root=document.querySelector("[data-work-surface]"),holder=frameElement;'
     + 'const owned=holder?.parentElement?.dataset.installedPlugin===' + literal(input.plugin_id) + ',position=()=>owned?parent.molisWorkbenchPositionFrom?.(holder):null;'
-    + 'const mounted=molisPluginFrames.mount(root,{translate:(s,args)=>position()?.translate(s,args)??s,positionNavigationFrom:()=>position()?.navigationFrom(),positionChanged:()=>position()?.changed(),mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
+    + 'const mounted=molisPluginFrames.mount(root,{translate:s=>s,positionNavigationFrom:()=>position()?.navigationFrom(),positionChanged:()=>position()?.changed(),mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
     + 'projectId:()=>'+ literal(input.project_id) + ',route:path=>' + literal(input.route_prefix) + '+path,page:()=>('+literal(input.page)+')},'+literal(pack)+')'
     + '.catch(error=>{const note=document.createElement("p");note.setAttribute("role","alert");note.textContent=error.message;document.body.append(note);return null;});'
     // Only the owning shell can select a panel, and only in this same carrier's still-current opaque frame.

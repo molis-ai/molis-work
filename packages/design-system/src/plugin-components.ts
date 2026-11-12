@@ -72,7 +72,9 @@ const PREFERENCE: Record<PluginComponentIntent, string[]> = {
   evidence: ['table', 'accordion'], schedule: ['calendar', 'table', 'directory'], feedback: ['alert'],
 };
 const componentsByKind = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
-const implementedParts = new Set(Object.values(PREFERENCE).flat());
+/** A declared object slot is placed where the page names it, never chosen for an intent (intelligent-surfaces §16). */
+const SURFACE_SLOT_PART = 'surface-slot';
+const implementedParts = new Set([...Object.values(PREFERENCE).flat(), SURFACE_SLOT_PART]);
 for (const component of PLUGIN_COMPONENTS) {
   if ((component.use === 'part') !== implementedParts.has(component.kind)) throw new Error('组件装配登记与实际实现不符：' + component.kind);
 }
@@ -190,7 +192,7 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
   return structuredClone(value) as PluginComponentPlan[];
 }
 export function pluginComponentChoices(part: PluginComponentPlan, contract: SandboxPluginContract): UiComponentSpec[] {
-  if (part.surfaceSlot) return PLUGIN_COMPONENTS.filter(item => item.kind === 'surface-slot');
+  if (part.surfaceSlot) return PLUGIN_COMPONENTS.filter(item => item.kind === SURFACE_SLOT_PART);
   const operation = contract.operations.find(item => item.id === part.read?.operationId);
   const schema = operation?.read_protocol === undefined ? operation?.output : undefined;
   const output = part.read ? pluginSchemaAt(schema ?? { type: 'null' }, part.read.outputPath) : undefined;

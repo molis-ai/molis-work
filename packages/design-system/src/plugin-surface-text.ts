@@ -1,4 +1,4 @@
-import type { SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxDataOperation, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { TextArgs, TextRef, UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
 import { ownedTextRef, say, textArgs, textKeyPrefix } from '@molis-ai/molis-work-plugin-sdk/ui';
 
@@ -41,7 +41,8 @@ export function sandboxUiTextRefs(contract: SandboxPluginContract, parts: readon
     for (const column of props.columns ?? []) refs.push(column.label, ...Object.values(column.values ?? {}));
     if (deriveFieldWords) for (const binding of [read, submit]) for (const [field, input] of Object.entries(binding?.input ?? {})) {
       if (input.source !== 'form') continue;
-      const operation = contract.operations.find(row => row.id === binding!.operationId)!;
+      // Form fields bind only ordinary operations; a platform read protocol is never a component's binding.
+      const operation = contract.operations.find((row): row is SandboxDataOperation => row.id === binding!.operationId && row.read_protocol === undefined)!;
       refs.push(...Object.values(pluginFieldWords(contract, operation.id, field, operation.input.properties![field]!, true)));
     }
   }

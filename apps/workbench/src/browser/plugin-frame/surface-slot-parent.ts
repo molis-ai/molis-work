@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import type { FramedSurfaceControl } from "../project-home-render.js";
 import type * as SurfaceRenderer from "../project-home.js";
@@ -10,7 +10,8 @@ import { positionMenuKey } from "../project-position-menu.js";
 type Rendered = { render: string; display: SurfaceHomeDisplay; controls: FramedSurfaceControl[] };
 type Activated = { preparation?: string; label?: string; consequence?: string[]; choices?: FramedSurfaceControl[]; description?: string;
   result?: { kind?: string; row?: SurfaceHomeRowDisplay; label?: string; receipt?: { title: string } } };
-const slotNotes = { unavailable: "暂时读不到", completed: "已完成", unknown: "到原处核对执行结果", changed: "这个对象已变化，请重新读取" };
+/** The slot's own status words; labels and confirmations arrive already in the person's language from the Host. */
+const slotNotes = { unavailable: "common.presentation.unreadable", completed: "common.presentation.done", unknown: "workbench.position.unknown", changed: "workbench.position.changed" } as const;
 type SlotNote = { kind: keyof typeof slotNotes; title?: string };
 type Entry = { id: number; slot_id: string; subjects: unknown; box: FrameBox | null; slot?: string; area?: FramedArea;
   read?: AbortController; operation?: AbortController; render?: Rendered; ready?: boolean; press?: string; preparation?: string;
@@ -28,7 +29,7 @@ const visibleArea = (entry: Entry, document: Document) => !document.hidden && en
 const commandControl = (entry: Entry, { owner, subject, command }: FramedSurfaceControl) =>
   command ? JSON.stringify([entry.slot_id, owner, subject.kind, subject.id, command]) : null;
 
-function drawSurfaceSlot(entry: Entry, say: FrameHost["translate"], unsettled: ReturnType<typeof unsettledSurfaceActions>,
+function drawSurfaceSlot(entry: Entry, unsettled: ReturnType<typeof unsettledSurfaceActions>,
   confirmation?: { label: string; consequence: readonly string[] }) {
   const { area, render } = entry, sdk = renderers();
   if (!area || !sdk) return;
@@ -37,25 +38,25 @@ function drawSurfaceSlot(entry: Entry, say: FrameHost["translate"], unsettled: R
   const labels = (entry.choices ?? render?.controls ?? []).flatMap(control => {
     const command = commandControl(entry, control);
     if (command && unsettled.has(command)) { unknown = true; return []; }
-    return [{ ...control, label: say(control.label) }];
+    return [control];
   });
   const content = render && (entry.peek ? sdk.renderHomePeek(render.display, entry.peek, new Map(),
     labels.filter(control => control.kind === "open" && control.subject.kind === entry.peek!.subject.kind && control.subject.id === entry.peek!.subject.id))
     : sdk.renderPositionGroup(render.display, 0, new Map(), labels, { controls: entry.corrections, recovery: render.display.object_restore_available ? entry.recovery : undefined }).html);
-  const button = (kind: string, label: string, primary = false) => '<button class="mw-btn mw-btn--' + (primary ? "primary" : "secondary") +
-    '" type="button" data-framed-control="' + kind + '">' + escapeHtml(say(label)) + "</button>";
-  const note = entry.note && (entry.note.title ?? slotNotes[entry.note.kind]);
+  const button = (kind: string, key: string, primary = false) => '<button class="mw-btn mw-btn--' + (primary ? "primary" : "secondary") +
+    '" type="button" data-framed-control="' + kind + '">' + escapeHtml(uiText.text(key)) + "</button>";
+  const note = entry.note && (entry.note.title ?? uiText.text(slotNotes[entry.note.kind]));
   const template = area.surface.ownerDocument.createElement("template");
   template.innerHTML = '<div class="surface-slot-body"><div data-framed-area-head class="surface-slot-edge"></div><div data-framed-scroll>' +
     (entry.description ? '<p>' + escapeHtml(entry.description) + '</p>' : '') + (content || "") + '</div><div data-framed-area-foot class="surface-slot-edge">' +
     (entry.correcting ? '<span>' + escapeHtml(sdk.surfaceCorrectionWord("confirm-reset")) + ' · ' + escapeHtml(sdk.surfaceCorrectionWord("scope.plugin-slot")) + '</span>'
-      + button("correction-cancel", "取消") + button("correction-confirm", "确认", true)
-      : confirmation ? '<span>' + escapeHtml(say(confirmation.label)) + '</span>' +
-      confirmation.consequence.map(word => '<small>' + escapeHtml(sdk.presentationWord(word)) + '</small>').join("") + button("cancel", "取消") + button("confirm", "确认", true)
-      : (entry.peek || entry.choices ? button("back", "返回") : "") +
-        (unknown ? '<span role="status">' + escapeHtml(say(slotNotes.unknown)) + '</span>'
+      + button("correction-cancel", "common.control.cancel") + button("correction-confirm", "workbench.position.confirm", true)
+      : confirmation ? '<span>' + escapeHtml(confirmation.label) + '</span>' +
+      confirmation.consequence.map(word => '<small>' + escapeHtml(sdk.presentationWord(word)) + '</small>').join("") + button("cancel", "common.control.cancel") + button("confirm", "workbench.position.confirm", true)
+      : (entry.peek || entry.choices ? button("back", "common.control.back") : "") +
+        (unknown ? '<span role="status">' + escapeHtml(uiText.text(slotNotes.unknown)) + '</span>'
           : entry.correctionNote ? '<span role="status">' + escapeHtml(sdk.surfaceCorrectionWord(entry.correctionNote)) + '</span>'
-          : note || entry.choices?.length === 0 ? '<span role="status">' + escapeHtml(say(note ?? "暂无可用操作")) + '</span>' : "")) + '</div></div>';
+          : note || entry.choices?.length === 0 ? '<span role="status">' + escapeHtml(note ?? uiText.text("workbench.position.no-actions")) + '</span>' : "")) + '</div></div>';
   for (const button of template.content.querySelectorAll<HTMLElement>("[data-presentation-action]")) {
     const index = labels.findIndex(control => control.key === button.dataset.presentationAction);
     const control = labels[index];
@@ -122,7 +123,7 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
     entries.delete(entry.id); forgetSlot(entry); entry.area?.close();
     if (entry.slot) void api({ intent: "close", slot: entry.slot }).catch(() => { /* The page closing releases its slots. */ });
   };
-  const draw = (entry: Entry, confirmation?: Parameters<typeof drawSurfaceSlot>[3]) => drawSurfaceSlot(entry, host.translate, unsettled, confirmation);
+  const draw = (entry: Entry, confirmation?: Parameters<typeof drawSurfaceSlot>[2]) => drawSurfaceSlot(entry, unsettled, confirmation);
   async function read(entry: Entry) {
     if (!entry.slot || !shown(entry) || entry.operation) return;
     entry.read?.abort(); const request = entry.read = new AbortController();

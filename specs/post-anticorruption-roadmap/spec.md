@@ -84,6 +84,7 @@
 | [31](reference/batches/31.md) | [SDK 窗口一](reference/batches/31.md#batch-31-item-1) |
 | [32](reference/batches/32.md) | [主对话持续接单与后台任务控制](reference/batches/32.md#batch-32-item-1) |
 |  | [逐项产物、认可、返工与复核](reference/batches/32.md#batch-32-item-2) |
+|  | [事项线第一片：外壳、线、节点卡与后台任务列表](reference/batches/32.md#batch-32-item-3) |
 | [33](reference/batches/33.md) | [Coding 任务与环境恢复](reference/batches/33.md#batch-33-item-1) |
 |  | [材料、大清单与重启接续](reference/batches/33.md#batch-33-item-2) |
 | [34](reference/batches/34.md) | [Sessions 历史实现](reference/batches/34.md#batch-34-item-1) |

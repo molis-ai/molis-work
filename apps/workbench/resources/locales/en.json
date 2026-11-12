@@ -2857,7 +2857,13 @@
     "workbench.chooser.welcome-molis-work": "Welcome to Molis Work",
     "workbench.chooser.working-late": "Working late",
     "workbench.chooser.upgrade-resumed": "The upgrade that was interrupted last time has finished",
-    "workbench.chooser.upgrade-resumed-some-unavailable": "The upgrade that was interrupted last time has finished; {count} parts are unavailable for now",
+    "workbench.chooser.upgrade-resumed-some-unavailable": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "The upgrade that was interrupted last time has finished; {count} part is unavailable for now",
+        "other": "The upgrade that was interrupted last time has finished; {count} parts are unavailable for now"
+      }
+    },
     "workbench.chooser.upgrade-resumed-open-to-see": "Open them to see why and what you can do. Everything else keeps working.",
     "workbench.client-events.choice-needs-least-two-options": "A Choice needs at least two options",
     "workbench.client-events.connect-judgment-service": "Connect judgment service",

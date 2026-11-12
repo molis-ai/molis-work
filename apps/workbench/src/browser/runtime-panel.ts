@@ -13,7 +13,8 @@ import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 interface Run { run_id: string; title: string; due_at: string; project_id: string | null; needs: string[]; waiting?: boolean;
   missed_at?: string; source: { scope_project_id: string | null; provider_id: string; surface: string; title: string } }
 interface Gap { from: string; to: string; cause: "quit" | "crash" | "sleep" }
-interface Overview { state: "running"; waiting: { network: boolean; model: boolean }; gaps: Gap[]; upcoming: Run[]; missed: Run[] }
+interface Overview { state: "running"; waiting: { network: boolean; model: boolean }; gaps: Gap[]; upcoming: Run[]; missed: Run[];
+  unavailable_sources: Array<{ project_id: string | null; provider_id: string | null; code: string }> }
 interface TauriBridge { core: { invoke(command: string, args?: Record<string, unknown>): Promise<unknown> } }
 
 const page = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest; __TAURI__?: TauriBridge; molisWorkRuntimeQuit?: () => void };
@@ -83,7 +84,9 @@ function renderCapsule(view: Overview, handled: boolean, quitting: boolean): str
     const until = Date.now() + QUIT_HOURS * 3_600_000, coming = view.upcoming.filter(run => Date.parse(run.due_at) < until);
     const shown = coming.slice(0, NEXT_SHOWN).map(run => row(run.title, run.source.title, `<span class="runtime-panel__time">${escape(when(run.due_at))}</span>`)).join("");
     const more = coming.length > NEXT_SHOWN ? `<p class="runtime-panel__more">${escape(text("more", { count: coming.length - NEXT_SHOWN }))}</p>` : "";
-    return `<div class="runtime-panel__notice" data-tone="warning" role="alertdialog" aria-labelledby="runtime-quit-title"><strong id="runtime-quit-title">${escape(text("quit-title"))}</strong><ul class="runtime-panel__rows">${shown}</ul>${more}<div class="runtime-panel__actions">${button(text("cancel"), { "data-runtime-quit": "cancel" })}${button(text("quit"), { "data-runtime-quit": "confirm" }, true)}</div></div>`;
+    // An owner that did not answer may have something due too: the list is not the whole of it, so it says so (never quits unasked).
+    const unknown = view.unavailable_sources.length ? `<p class="runtime-panel__more" data-runtime-unknown>${escape(text("quit-unknown"))}</p>` : "";
+    return `<div class="runtime-panel__notice" data-tone="warning" role="alertdialog" aria-labelledby="runtime-quit-title"><strong id="runtime-quit-title">${escape(text("quit-title"))}</strong>${shown ? `<ul class="runtime-panel__rows">${shown}</ul>` : ""}${more}${unknown}<div class="runtime-panel__actions">${button(text("cancel"), { "data-runtime-quit": "cancel" })}${button(text("quit"), { "data-runtime-quit": "confirm" }, true)}</div></div>`;
   }
   const missed = view.missed.length
     ? `<div class="runtime-panel__notice" data-tone="warning"><strong>${escape(missedTitle(view))}</strong><ul class="runtime-panel__rows">${view.missed.map(run => row(run.title, `${run.source.title} · ${when(run.due_at)}`, button(text("run-now"), decideAttrs(run, "run_now"), true) + button(text("skip"), decideAttrs(run, "skip")), run.run_id)).join("")}</ul></div>`
@@ -101,8 +104,8 @@ if (root && host) {
   let view: Overview | null = null, hadMissed = false, quitting = new URLSearchParams(location.search).get("quit") === "1", timer: ReturnType<typeof setTimeout> | null = null;
   const paint = () => {
     if (!view) return;
-    // Nothing would stop by quitting in the next day: no list to read, it quits at once.
-    if (capsule && quitting && !view.upcoming.some(run => Date.parse(run.due_at) < Date.now() + QUIT_HOURS * 3_600_000)) {
+    // Nothing would stop by quitting in the next day, and every owner answered: no list to read, it quits at once.
+    if (capsule && quitting && !view.unavailable_sources.length && !view.upcoming.some(run => Date.parse(run.due_at) < Date.now() + QUIT_HOURS * 3_600_000)) {
       page.__TAURI__?.core.invoke("runtime_quit_confirmed").catch(() => undefined);
       return;
     }

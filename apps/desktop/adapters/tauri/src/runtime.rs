@@ -181,10 +181,28 @@ pub(crate) fn keep_running(home: &Path) -> bool {
         .is_none_or(|config| config.keep_running)
 }
 
+/// The version a `config/desktop.json` says it is in, when it says one.
+#[derive(Deserialize)]
+struct VersionOnly {
+    schema_version: u32,
+}
+
 fn write_keep_running(home: &Path, keep_running: bool) -> Result<(), String> {
     use std::io::Write;
     use std::os::unix::fs::OpenOptionsExt;
     let directory = home.join("config");
+    // A newer version's file is that version's to change: refused before anything is made or written
+    // (upgrade-chain-design §2.6). A file that is not one at all is replaced.
+    if let Some(found) = std::fs::read(directory.join("desktop.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<VersionOnly>(&bytes).ok())
+        .map(|file| file.schema_version)
+        .filter(|version| *version != DESKTOP_CONFIG_VERSION)
+    {
+        return Err(format!(
+            "这项设置是另一版 Molis Work 存的（第 {found} 版），这一版不改它"
+        ));
+    }
     std::fs::create_dir_all(&directory).map_err(|error| format!("存不下这项设置：{error}"))?;
     let config = DesktopConfig {
         schema_version: DESKTOP_CONFIG_VERSION,
@@ -349,8 +367,17 @@ mod tests {
             keep_running(&home),
             "a shape this version did not write is none"
         );
+        assert!(
+            write_keep_running(&home, true).is_err(),
+            "another version's file is not overwritten"
+        );
+        assert_eq!(
+            std::fs::read_to_string(home.join("config").join("desktop.json")).unwrap(),
+            "{\"schema_version\":2,\"keep_running\":false}"
+        );
+        std::fs::write(home.join("config").join("desktop.json"), "not json").unwrap();
         write_keep_running(&home, true).unwrap();
-        assert!(keep_running(&home));
+        assert!(keep_running(&home), "a file that is not one is replaced");
         std::fs::remove_dir_all(&home).unwrap();
     }
 }

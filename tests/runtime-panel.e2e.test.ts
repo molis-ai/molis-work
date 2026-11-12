@@ -119,9 +119,17 @@ test("RES-09 RES-10 RES-11 the capsule's 运行, the quit confirmation, the Home
   // Nothing would stop in the next day: no list to read, it quits at once.
   await evaluate(`globalThis.__setOverview(${JSON.stringify({ ...OVERVIEW, missed: [], upcoming: [run("later", 30)] })}); globalThis.molisWorkRuntimeQuit()`);
   await waitFor(`${calls("runtime_quit_confirmed")}.length === 2`);
+  // An owner that did not answer may have something due: it asks, says the list is not the whole of it, and quits only on 「退出」.
+  await evaluate(`globalThis.__setOverview(${JSON.stringify({ ...OVERVIEW, missed: [], upcoming: [run("later", 30)],
+    unavailable_sources: [{ project_id: "p1", provider_id: "feed", code: "actions.output_invalid" }] })}); globalThis.molisWorkRuntimeQuit()`);
+  await waitFor(`document.querySelector('${panel} [role=alertdialog] [data-runtime-unknown]')`);
+  assert.equal(await evaluate(`document.querySelector('${panel} [data-runtime-unknown]').textContent`), await text("quit-unknown"));
+  assert.equal(await evaluate(`${calls("runtime_quit_confirmed")}.length`), 2, "not quit unasked");
+  await evaluate(`document.querySelector('${panel} [data-runtime-quit=confirm]').click()`);
+  await waitFor(`${calls("runtime_quit_confirmed")}.length === 3`);
   // Nor is a quit held up by a Host that does not answer.
   await evaluate(`globalThis.__setOverview(null); globalThis.molisWorkRuntimeQuit()`);
-  await waitFor(`${calls("runtime_quit_confirmed")}.length === 3`);
+  await waitFor(`${calls("runtime_quit_confirmed")}.length === 4`);
 
   // ---- RES-10: the Home's notice of what was missed, through the Host's routes ----
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));

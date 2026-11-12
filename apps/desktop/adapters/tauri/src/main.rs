@@ -507,6 +507,12 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
                 if service_state.shutting_down.load(Ordering::Acquire) {
                     break;
                 }
+                // Going back a version stops the Host on purpose and swaps the program under it: nothing is
+                // recovered or shown as stopped until it is done (U3 §5.4).
+                if crate::rollback::going_back() {
+                    consecutive_failures = 0;
+                    continue;
+                }
                 if web_healthy() {
                     consecutive_failures = 0;
                     continue;
@@ -1141,6 +1147,13 @@ fn bootstrap_view(failure: Option<&str>) -> String {
     )
 }
 
+/// The commands that are for a Host that is not answering (PWA-137): 「打开」 on the 「没在运行」 page, and
+/// quitting when the panel found nothing to list. Every other command needs this Home's proved Host first;
+/// these two still check who calls them (`runtime.rs`).
+fn answers_without_host(command: &str) -> bool {
+    matches!(command, "runtime_open" | "runtime_quit_confirmed")
+}
+
 fn main() {
     let app = tauri::Builder::default()
     .manage(WebServiceState::default())
@@ -1151,7 +1164,7 @@ fn main() {
     // 设置 › 运行 through `runtime_settings_*`. No page is granted the plugin's own commands (S-14).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
     .invoke_handler(|invoke| {
-      if !web_healthy() { invoke.resolver.reject("本地服务身份验证失败"); return true; }
+      if !web_healthy() && !answers_without_host(invoke.message.command()) { invoke.resolver.reject("本地服务身份验证失败"); return true; }
       let handle: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
       capsule_hide,
       capsule_resize,
@@ -1350,10 +1363,11 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
-        is_molis_work_web_url, molis_work_reload_url, normalized_capsule_height,
-        should_attempt_web_recovery, should_keep_window_on_close, should_show_main_on_reopen,
-        stop_owned_web_service, validated_molis_work_path, waits_off_main_thread, WebServiceState,
+        anchored_capsule_position, answers_without_host, capsule_menu_bar_icon, capsule_web_url,
+        desktop_molis_work_url, is_molis_work_web_url, molis_work_reload_url,
+        normalized_capsule_height, should_attempt_web_recovery, should_keep_window_on_close,
+        should_show_main_on_reopen, stop_owned_web_service, validated_molis_work_path,
+        waits_off_main_thread, WebServiceState,
     };
     use crate::native_language::builtin_language;
     use crate::web_service::{desktop_owns_web_service, Started};
@@ -1566,6 +1580,25 @@ mod tests {
 
     // RES-09: quitting asks first only when the desktop's own Host would stop and it can still say what
     // will not run; a Host the desktop did not start keeps running (#1815), one not answering lists nothing.
+    // PWA-137: with the Host not answering, the stopped page's 「打开」 and a quit with nothing to list
+    // still reach their commands (which check their caller); nothing else does.
+    #[test]
+    fn res10_only_open_and_quit_are_answered_without_a_host() {
+        assert!(answers_without_host("runtime_open"));
+        assert!(answers_without_host("runtime_quit_confirmed"));
+        for command in [
+            "runtime_overview",
+            "runtime_decide",
+            "runtime_missed_dot",
+            "runtime_settings_set",
+            "rollback_to_previous",
+            "capsule_open_main",
+            "files_open",
+        ] {
+            assert!(!answers_without_host(command), "{command}");
+        }
+    }
+
     #[test]
     fn res09_quit_asks_first_only_when_its_own_host_would_stop() {
         assert!(super::quit_needs_confirmation(true, true));

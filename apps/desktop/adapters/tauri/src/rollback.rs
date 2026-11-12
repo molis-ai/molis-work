@@ -4,6 +4,7 @@ use crate::web_service::{
 };
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
@@ -42,6 +43,27 @@ fn run_cli(cli: &Path, args: &[&str], home: &Path) -> Result<String, String> {
     })
 }
 
+static GOING_BACK: AtomicBool = AtomicBool::new(false);
+
+/// A rollback is under way: the desktop's health monitor neither restarts the Host nor shows it stopped.
+pub(crate) fn going_back() -> bool {
+    GOING_BACK.load(Ordering::Acquire)
+}
+
+/// Set for as long as it lives, however `go_back` returns.
+struct GoingBack;
+impl GoingBack {
+    fn start() -> Self {
+        GOING_BACK.store(true, Ordering::Release);
+        GoingBack
+    }
+}
+impl Drop for GoingBack {
+    fn drop(&mut self) {
+        GOING_BACK.store(false, Ordering::Release);
+    }
+}
+
 /// U3 §5.4: stop the Host, run the current program's `home rollback`, start whichever program is installed
 /// then. The current program runs it because it wrote the snapshots it puts back. A refusal or a failure
 /// starts the Host it stopped again, so the person is never left with nothing running.
@@ -50,14 +72,6 @@ fn go_back(app: &tauri::AppHandle, save_current: bool) -> Result<String, String>
     let cli = home.join("bin").join("molis-work");
     if !cli.is_file() {
         return Err("这台电脑上的 Molis Work 安装不完整，没有回到上一版。".into());
-    }
-    let state = app.state::<WebServiceState>();
-    let owned = desktop_owns_web_service(state.inner());
-    if owned {
-        stop_owned_web_service(state.inner());
-    } else {
-        // The managed service is not the desktop's to kill: it stops through its own command.
-        let _ = run_cli(&cli, &["service", "stop", "--confirm"], &home);
     }
     let mut args = vec!["home", "rollback", "--confirm", "--json"];
     let saved = save_current.then(|| {
@@ -71,12 +85,22 @@ fn go_back(app: &tauri::AppHandle, save_current: bool) -> Result<String, String>
     let saved_text = saved
         .as_ref()
         .map(|path| path.to_string_lossy().to_string());
+    // Before anything stops: a place that cannot be made leaves the Host as it was.
     if let (Some(path), Some(text)) = (saved.as_ref(), saved_text.as_ref()) {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("没有地方另存现在的数据：{error}"))?;
         }
         args.extend(["--save-current", text.as_str()]);
+    }
+    let _going_back = GoingBack::start();
+    let state = app.state::<WebServiceState>();
+    let owned = desktop_owns_web_service(state.inner());
+    if owned {
+        stop_owned_web_service(state.inner());
+    } else {
+        // The managed service is not the desktop's to kill: it stops through its own command.
+        let _ = run_cli(&cli, &["service", "stop", "--confirm"], &home);
     }
     let result = run_cli(&cli, &args, &home);
     let restarted = if owned {
@@ -105,7 +129,7 @@ pub(crate) async fn rollback_to_previous(
 
 #[cfg(test)]
 mod tests {
-    use super::{rollback_source, saved_copy_directory};
+    use super::{going_back, rollback_source, saved_copy_directory, GoingBack};
     use std::path::Path;
     use tauri::Url;
 
@@ -130,6 +154,23 @@ mod tests {
             );
         }
         assert!(!rollback_source("main", None));
+    }
+
+    // UPGR-06 / U3 §5.4: the monitor is held off for exactly as long as a rollback runs, however it returns.
+    #[test]
+    fn upgr06_the_health_monitor_is_held_off_only_while_going_back() {
+        assert!(!going_back());
+        {
+            let _held = GoingBack::start();
+            assert!(going_back());
+        }
+        assert!(!going_back());
+        let refused = || -> Result<(), String> {
+            let _held = GoingBack::start();
+            Err("refused".into())
+        };
+        assert!(refused().is_err());
+        assert!(!going_back());
     }
 
     #[test]

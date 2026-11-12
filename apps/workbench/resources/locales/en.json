@@ -7778,6 +7778,7 @@
     "workbench.runtime-panel.next": "Next",
     "workbench.runtime-panel.more": "{count} more",
     "workbench.runtime-panel.quit-title": "After quitting, these will not run",
+    "workbench.runtime-panel.quit-unknown": "Some plugins did not answer this time; what they have planned will not run after quitting either",
     "workbench.runtime-panel.cancel": "Cancel",
     "workbench.runtime-panel.quit": "Quit",
     "workbench.runtime-panel.decide-failed": "That did not go through. Try again.",

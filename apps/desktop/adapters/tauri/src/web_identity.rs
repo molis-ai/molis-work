@@ -54,22 +54,27 @@ pub(crate) fn health() -> Result<Health, String> {
 
 /// `/health` on the fixed port, ready or upgrading. Only the wait for the service tells them apart.
 pub(crate) fn answer() -> Result<Answer, String> {
+    answer_at(crate::host_port::port())
+}
+
+/// `/health` on a port not yet adopted: the address file's, proved before anything uses it.
+pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
     let token = control_token()?;
-    let address = crate::host_port::address();
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
         .map_err(|_| REFUSED.to_string())?;
-    prove(&mut stream, &token)
+    prove(&mut stream, &token, &format!("127.0.0.1:{port}"))
 }
 
 /// A socket kept for a native request: only a ready service is sent one.
 pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health, String> {
-    match prove(stream, token)? {
+    match prove(stream, token, &crate::host_port::host())? {
         Answer::Ready(health) => Ok(health),
         Answer::Upgrading => Err(REFUSED.into()),
     }
 }
 
-fn prove(stream: &mut TcpStream, token: &str) -> Result<Answer, String> {
+fn prove(stream: &mut TcpStream, token: &str, host: &str) -> Result<Answer, String> {
     let mut random = [0_u8; 32];
     File::open("/dev/urandom")
         .and_then(|mut source| source.read_exact(&mut random))
@@ -83,8 +88,7 @@ fn prove(stream: &mut TcpStream, token: &str) -> Result<Answer, String> {
         .map_err(|_| REFUSED.to_string())?;
     write!(
         stream,
-        "GET /health?challenge={challenge} HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
-        crate::host_port::host()
+        "GET /health?challenge={challenge} HTTP/1.1\r\nHost: {host}\r\nConnection: keep-alive\r\n\r\n"
     )
     .map_err(|_| REFUSED.to_string())?;
     verify_response(stream, token, &challenge).ok_or_else(|| REFUSED.into())

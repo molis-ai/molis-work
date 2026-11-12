@@ -7254,6 +7254,7 @@
     "workbench.runtime-panel.next": "接下来",
     "workbench.runtime-panel.more": "还有 {count} 件",
     "workbench.runtime-panel.quit-title": "退出后，这些不会运行",
+    "workbench.runtime-panel.quit-unknown": "有的插件这次没有回答，它们排好的事退出后也不会运行",
     "workbench.runtime-panel.cancel": "取消",
     "workbench.runtime-panel.quit": "退出",
     "workbench.runtime-panel.decide-failed": "没处理成，请再试一次",

@@ -362,9 +362,10 @@ fn install_or_reuse_healthy(
 /// The port this start looks at first: the one the Home's address file names, once the Host there
 /// proves it holds this Home's control key; otherwise 4173, as before. A file only points the way.
 fn adopt_endpoint_port(home: &Path) {
+    // Proved first, then adopted: no other thread ever reads a port nobody has proved.
     if let Some(port) = crate::host_port::endpoint_port(home) {
-        crate::host_port::set_port(port);
-        if crate::web_identity::answer().is_ok() {
+        if crate::web_identity::answer_at(port).is_ok() {
+            crate::host_port::set_port(port);
             return;
         }
     }

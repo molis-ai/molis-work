@@ -6,7 +6,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::TcpStream;
 use std::time::Duration;
 
 const REFUSED: &str = "本地服务身份验证失败";
@@ -55,7 +55,7 @@ pub(crate) fn health() -> Result<Health, String> {
 /// `/health` on the fixed port, ready or upgrading. Only the wait for the service tells them apart.
 pub(crate) fn answer() -> Result<Answer, String> {
     let token = control_token()?;
-    let address = SocketAddr::from(([127, 0, 0, 1], 4173));
+    let address = crate::host_port::address();
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
         .map_err(|_| REFUSED.to_string())?;
     prove(&mut stream, &token)
@@ -81,8 +81,12 @@ fn prove(stream: &mut TcpStream, token: &str) -> Result<Answer, String> {
     stream
         .set_write_timeout(Some(Duration::from_millis(400)))
         .map_err(|_| REFUSED.to_string())?;
-    write!(stream, "GET /health?challenge={challenge} HTTP/1.1\r\nHost: 127.0.0.1:4173\r\nConnection: keep-alive\r\n\r\n")
-        .map_err(|_| REFUSED.to_string())?;
+    write!(
+        stream,
+        "GET /health?challenge={challenge} HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
+        crate::host_port::host()
+    )
+    .map_err(|_| REFUSED.to_string())?;
     verify_response(stream, token, &challenge).ok_or_else(|| REFUSED.into())
 }
 

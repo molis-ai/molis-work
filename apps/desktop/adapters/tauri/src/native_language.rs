@@ -29,6 +29,8 @@ struct TrayWords {
     quit: String,
     quit_keep_service: String,
     restore_appearance: String,
+    stopped: String,
+    stopped_tip: String,
 }
 
 /// The finite projection accepted from the current, trusted main document.
@@ -44,13 +46,19 @@ impl NativeLanguage {
         let words = &self.words;
         valid_tag(&self.language.tag)
             && valid_tag(&self.language.html_lang)
-            && [&words.loading, &words.disconnected, &words.syncing]
-                .iter()
-                .all(|word| valid_word(word, 24))
+            && [
+                &words.loading,
+                &words.disconnected,
+                &words.syncing,
+                &words.stopped,
+            ]
+            .iter()
+            .all(|word| valid_word(word, 24))
             && [
                 &words.loading_tip,
                 &words.disconnected_tip,
                 &words.syncing_tip,
+                &words.stopped_tip,
             ]
             .iter()
             .all(|word| valid_word(word, 320))
@@ -74,6 +82,11 @@ impl NativeLanguage {
 
     pub(crate) fn synced_status(&self) -> (&str, &str) {
         (&self.words.syncing, &self.words.syncing_tip)
+    }
+
+    /// The Host is not running and the desktop could not bring it back (resident-runtime-design §4).
+    pub(crate) fn stopped_status(&self) -> (&str, &str) {
+        (&self.words.stopped, &self.words.stopped_tip)
     }
 
     /// Only a service started by the desktop quits with it.
@@ -151,6 +164,23 @@ pub(crate) fn bootstrap_view_values(failure: Option<&str>) -> serde_json::Value 
         "catalog": serde_json::from_str::<serde_json::Value>(BOOTSTRAP_VIEW).expect("compiled startup words"),
         "tokens": BOOTSTRAP_TOKENS,
         "failure": failure
+    })
+}
+
+/// The popover's 「没在运行」 page words in this language (or the default one), with the design tokens.
+pub(crate) fn stopped_view_values(tag: &str) -> serde_json::Value {
+    let catalog =
+        serde_json::from_str::<serde_json::Value>(BOOTSTRAP_VIEW).expect("compiled startup words");
+    let locales = catalog["locales"].as_array().cloned().unwrap_or_default();
+    let pick = |wanted: &str| locales.iter().find(|row| row["tag"] == wanted).cloned();
+    let row = pick(tag)
+        .or_else(|| pick(catalog["default"].as_str().unwrap_or_default()))
+        .unwrap_or_default();
+    serde_json::json!({
+        "html_lang": row["html_lang"],
+        "stopped": row["stopped"],
+        "open": row["open"],
+        "tokens": BOOTSTRAP_TOKENS
     })
 }
 

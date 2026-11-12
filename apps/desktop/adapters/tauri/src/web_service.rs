@@ -106,7 +106,10 @@ fn wait_for_owned_web(
         }
         Wait::TimedOut => {
             stop_owned_web_service(service_state);
-            Err("Molis Work Web 已启动，但 127.0.0.1:4173 尚未就绪".into())
+            Err(format!(
+                "Molis Work Web 已启动，但 {} 尚未就绪",
+                crate::host_port::host()
+            ))
         }
     }
 }
@@ -356,12 +359,36 @@ fn install_or_reuse_healthy(
     }
 }
 
+/// The port this start looks at first: the one the Home's address file names, once the Host there
+/// proves it holds this Home's control key; otherwise 4173, as before. A file only points the way.
+fn adopt_endpoint_port(home: &Path) {
+    if let Some(port) = crate::host_port::endpoint_port(home) {
+        crate::host_port::set_port(port);
+        if crate::web_identity::answer().is_ok() {
+            return;
+        }
+    }
+    crate::host_port::set_port(crate::host_port::DEFAULT_PORT);
+}
+
+/// The `--port` for a Host this desktop starts: none while 4173 is free, a spare one while something
+/// else holds it, a refusal when 4174–4199 are all taken too.
+fn start_port(occupied: impl Fn(u16) -> bool) -> Result<Option<u16>, String> {
+    if !occupied(crate::host_port::DEFAULT_PORT) {
+        return Ok(None);
+    }
+    crate::host_port::spare_port()
+        .map(Some)
+        .ok_or_else(|| "127.0.0.1 的 4173–4199 端口都被别的程序占着，Molis Work 起不来".to_string())
+}
+
 pub(crate) fn start_molis_work_web(
     resource_dir: Option<&Path>,
     service_state: &WebServiceState,
 ) -> Result<Started, String> {
     let home = molis_work_home();
     let mut bin = web_launcher(&home);
+    adopt_endpoint_port(&home);
     // Never replace the runtime while this Home is already upgrading its data.
     if matches!(crate::web_identity::answer(), Ok(Answer::Upgrading)) {
         return Ok(Started::Upgrading);
@@ -384,7 +411,8 @@ pub(crate) fn start_molis_work_web(
     if web_healthy() {
         if !web_desktop_ready() {
             eprintln!(
-        "127.0.0.1:4173 上的 Molis Work Web 不含桌面终端。请在仓库运行 pnpm install:local 后执行 molis-work service restart --confirm，再重新打开 App。"
+        "{} 上的 Molis Work Web 不含桌面终端。请在仓库运行 pnpm install:local 后执行 molis-work service restart --confirm，再重新打开 App。",
+        crate::host_port::host()
       );
         }
         return Ok(Started::Ready);
@@ -414,6 +442,12 @@ pub(crate) fn start_molis_work_web(
     command
         .args(["--home", home.to_str().unwrap_or_default()])
         .env("PATH", &path);
+    // 4173 answers, but not as this Home's Host: another program's port. This Host listens on a spare
+    // one and says so in its address file (resident-runtime-design §6).
+    if let Some(port) = start_port(crate::host_port::occupied)? {
+        crate::host_port::set_port(port);
+        command.args(["--port", &port.to_string()]);
+    }
     let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -427,6 +461,17 @@ pub(crate) fn start_molis_work_web(
 
 #[cfg(test)]
 mod embedded_runtime_version_tests {
+    // RES-07: a Host the desktop starts takes 4173 while it is free, and a spare port while another
+    // program holds it.
+    #[test]
+    fn res07_a_started_host_moves_off_4173_only_while_another_program_holds_it() {
+        assert_eq!(super::start_port(|_| false), Ok(None));
+        let spare = super::start_port(|port| port == crate::host_port::DEFAULT_PORT)
+            .unwrap()
+            .expect("a spare port");
+        assert!((4174..=4199).contains(&spare));
+    }
+
     use super::{
         embedded_version_is_upgrade, install_or_reuse_healthy, read_rollback_hold,
         sync_managed_web_service_after_upgrade, Version,

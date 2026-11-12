@@ -20,6 +20,7 @@ export const RUNTIME_PANEL_CAPSULE_STYLES = `
   .runtime-panel__status { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink-soft); font-size: 12px; }
   .runtime-panel__status i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
   .runtime-panel__status[data-tone="waiting"] i { background: var(--amber); }
+  .runtime-panel__status[data-tone="stopped"] i { background: var(--muted); }
   .runtime-panel__notice { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
   .runtime-panel__notice[data-tone="warning"] { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, var(--paper)); }
   .runtime-panel__notice[data-tone="success"] { border-color: color-mix(in srgb, var(--green) 40%, var(--line)); background: color-mix(in srgb, var(--green) 8%, var(--paper)); }

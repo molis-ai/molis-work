@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Url;
 
-const ORIGIN: &str = "http://127.0.0.1:4173";
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn account_url(path: &str, method: &str) -> Result<Url, String> {
@@ -13,7 +12,8 @@ fn account_url(path: &str, method: &str) -> Result<Url, String> {
     {
         return Err("不支持此账号请求。".into());
     }
-    let url = Url::parse(&format!("{ORIGIN}{path}")).map_err(|_| "账号地址无效。")?;
+    let url = Url::parse(&format!("{}{path}", crate::host_port::origin()))
+        .map_err(|_| "账号地址无效。")?;
     let allowed = match method {
         "GET" => url.path() == "/api/personal/status",
         "POST" => matches!(
@@ -27,7 +27,7 @@ fn account_url(path: &str, method: &str) -> Result<Url, String> {
         ),
         _ => false,
     };
-    if !allowed || url.origin().ascii_serialization() != ORIGIN {
+    if !allowed || url.origin().ascii_serialization() != crate::host_port::origin() {
         return Err("不支持此账号请求。".into());
     }
     Ok(url)
@@ -82,7 +82,7 @@ pub(crate) async fn personal_account_request(
             },
             url,
         )
-        .header("Origin", ORIGIN)
+        .header("Origin", crate::host_port::origin())
         .header("x-molis-work-native-session", native)
         .header("x-molis-work-control-token", control);
     if method == "POST" {

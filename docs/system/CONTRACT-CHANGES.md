@@ -160,6 +160,8 @@
 | `projects/catalog.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：工作目录的输入、输出两种角色取代 `is_default`，加来源链接表） | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#1→2` |
 | `projects/<project_id>/molis-work.db#goals` | 1 → 2 | 第 24 批（逐项依据合同：判断记下所核对的版本、依据与可信层级，结论记下它针对的版本；只加列，旧行按「自述」读） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#1→2` |
 | `projects/catalog.db` | 2 → 3 | 2026-11-08 日报 A 类 D0057/D0273；删除退役空表，非空拒绝并保留原库 | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#2→3` |
+| `projects/<project_id>/molis-work.db#schedule` | 1 → 2 | 第 25 批第 1 项（错过的运行：晚过宽限的任务记一行错过、照常排下一次，加错过表） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#1→2` |
+| `projects/<project_id>/molis-work.db#feed` | 1 → 2 | 第 25 批第 1 项（错过的拉取：晚过宽限的来源不拉、记错过、推到下一时刻，加错过表） | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE#1→2` |
 
 ## 4. 阶段二：起点之后，读取兼容
 

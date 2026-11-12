@@ -7263,6 +7263,11 @@
     "workbench.settings-running.launch-at-login": "登录时启动",
     "workbench.settings-running.launch-at-login-hint": "登录这台电脑后自动打开 Molis Work。",
     "workbench.settings-running.keep-running": "关掉窗口后继续运行",
-    "workbench.settings-running.keep-running-hint": "定时任务、订阅和助理的定时安排照常运行。关掉这一项，关窗口就是退出。"
+    "workbench.settings-running.keep-running-hint": "定时任务、订阅和助理的定时安排照常运行。关掉这一项，关窗口就是退出。",
+    "workbench.native-tray.stopped": "已停止",
+    "workbench.native-tray.stopped-tip": "Molis Work 没在运行",
+    "workbench.native-tray.boot-stopped": "Molis Work 没在运行",
+    "workbench.native-tray.boot-open": "打开",
+    "workbench.runtime-panel.stopped": "没在运行"
   }
 }

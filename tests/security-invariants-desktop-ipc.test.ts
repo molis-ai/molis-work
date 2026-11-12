@@ -7,6 +7,10 @@
 // a new window, a new permission such as a shell, filesystem, HTTP or updater plugin) fails here and has to be argued for in the
 // review that changes this file.
 //
+// RES-08 (specs/proactive-assistant/resident-runtime-design.md §6): the Host's port is no longer fixed. The capability files are
+// templates in `runtime-capabilities/` with `{port}` where the port goes; the shell grants them at start for the one port the Host
+// there proved (`host_port.rs`, Rust tests `res08_s14_…`), and nothing in `capabilities/` is granted statically any more.
+//
 // What it cannot show (needs a build of the shell; tracked in docs/system/SECURITY-INVARIANTS.md as open): whether a same-origin
 // iframe (a plugin frame, the plugin builder's trial) can invoke these commands, and what `csp: null` in tauri.conf.json means for
 // the pages the shell loads.
@@ -20,11 +24,12 @@ const SHELL = fileURLToPath(new URL("../apps/desktop/src-tauri/", import.meta.ur
 const MAIN_RS = fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/main.rs", import.meta.url));
 
 interface Capability { identifier: string; windows: string[]; remote?: { urls: string[] }; permissions: unknown[]; webviews?: string[]; local?: boolean; platforms?: string[] }
-const capabilities: Capability[] = readdirSync(join(SHELL, "capabilities")).filter(name => name.endsWith(".json")).sort()
-  .map(name => JSON.parse(readFileSync(join(SHELL, "capabilities", name), "utf8")) as Capability);
+const TEMPLATES = join(SHELL, "runtime-capabilities");
+const templateFiles = readdirSync(TEMPLATES).filter(name => name.endsWith(".json")).sort();
+const capabilities: Capability[] = templateFiles.map(name => JSON.parse(readFileSync(join(TEMPLATES, name), "utf8")) as Capability);
 
-/** The web host the shell loads, by its two loopback names. A port other than 4173, a scheme other than http, another host or a wildcard host is a different promise. */
-const ORIGIN_PATTERN = /^http:\/\/(?:127\.0\.0\.1|localhost):4173\/(?:[A-Za-z0-9_\-/]*\*)?$/;
+/** The web host the shell loads, by its two loopback names, on the proved port. A fixed or other port, a scheme other than http, another host or a wildcard host is a different promise. */
+const ORIGIN_PATTERN = /^http:\/\/(?:127\.0\.0\.1|localhost):\{port\}\/(?:[A-Za-z0-9_\-/]*\*)?$/;
 const PERMISSIONS = new Map<string, string[]>([
   ["default", ["allow-capsule-window", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
   ["context-directories", ["allow-context-directories"]],
@@ -32,7 +37,23 @@ const PERMISSIONS = new Map<string, string[]>([
   ["main-external-links", ["allow-open-external-url", "allow-personal-account-request"]],
   // Going back a version (U3 §5.4): one command, from 设置 › 更新 in the main window only (S-desktop-rollback-main-only).
   ["main-rollback", ["allow-rollback-to-previous"]],
+  // RES-08: the popover's 「运行」 section (its own page only) and 设置 › 运行 (the main window's page only).
+  ["capsule-runtime", ["allow-runtime-capsule"]],
+  ["main-running", ["allow-runtime-settings"]],
 ]);
+
+test("RES-08 S-14 nothing is granted statically: every grant is a template the shell fills with the proved port, and it grants each one", () => {
+  const statics = readdirSync(SHELL).includes("capabilities") ? readdirSync(join(SHELL, "capabilities")).filter(name => name.endsWith(".json")) : [];
+  assert.deepEqual(statics, [], "a file in capabilities/ would be granted for whatever port it names, before any Host proved itself");
+  const port = readFileSync(fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/host_port.rs", import.meta.url)), "utf8");
+  const included = [...port.matchAll(/include_str!\("\.\.\/\.\.\/\.\.\/src-tauri\/runtime-capabilities\/([a-z-]+\.json)"\)/g)].map(match => match[1]!).sort();
+  assert.deepEqual(included, templateFiles, "the shell grants exactly the templates");
+  assert.match(port, /template\.replace\("\{port\}", &port\.to_string\(\)\)/, "only the port is put in");
+  assert.match(port, /fn res08_s14_grants_reach_only_the_proved_port\(/, "the Rust refusal test stays");
+  const main = readFileSync(MAIN_RS, "utf8");
+  assert.match(main, /fn grant_host_capabilities\([\s\S]*?host_port::capabilities\(port\)/, "granted for the proved port");
+  assert.equal((main.match(/\.add_capability\(/g) ?? []).length, 1, "one place grants");
+});
 
 test("S-14 every capability reaches only the local web host's own origin, on named windows, with the pinned permissions", () => {
   assert.deepEqual(capabilities.map(capability => capability.identifier).sort(), [...PERMISSIONS.keys()].sort(), "a new capability file needs a line in this test");
@@ -146,11 +167,45 @@ test("S-14 the Shelf box a page reports reaches the drop wheel only through its 
   for (const name of ["s14_a_reported_shelf_box_that_is_not_a_box_is_refused", "s14_the_wheel_takes_the_shelf_tab_only_where_it_is_on_screen"]) assert.match(pure, new RegExp(`fn ${name}\\(`), `${name}: the refusal is tested`);
 });
 
+test("RES-08 RES-11 S-14 the runtime commands: the popover's own page reads, decides, marks the tray and quits; 设置 › 运行 alone changes the two switches", () => {
+  const byId = new Map(capabilities.map(capability => [capability.identifier, capability]));
+  assert.deepEqual(byId.get("capsule-runtime")!.windows, ["capsule"]);
+  assert.deepEqual(byId.get("capsule-runtime")!.remote!.urls, ["http://127.0.0.1:{port}/desktop/capsule*"]);
+  assert.deepEqual(byId.get("main-running")!.windows, ["main"]);
+  assert.deepEqual(byId.get("main-running")!.remote!.urls, ["http://127.0.0.1:{port}/settings/running*"]);
+  for (const capability of capabilities) {
+    if (!["capsule-runtime", "main-running"].includes(capability.identifier)) {
+      for (const permission of capability.permissions as string[]) assert.doesNotMatch(permission, /^allow-runtime-/, `${capability.identifier} carries ${permission}`);
+    }
+  }
+  const permission = readFileSync(join(SHELL, "permissions", "runtime.toml"), "utf8");
+  const blocks = Object.fromEntries(permission.split("[[permission]]").slice(1).map(block => [/identifier\s*=\s*"([^"]+)"/.exec(block)![1]!,
+    [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(block)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!).sort()]));
+  assert.deepEqual(blocks, { "allow-runtime-capsule": ["runtime_decide", "runtime_missed_dot", "runtime_open", "runtime_overview", "runtime_quit_confirmed"],
+    "allow-runtime-settings": ["runtime_settings_get", "runtime_settings_set"] });
+  // Each command checks its caller before it does anything, and the Rust tests pin the refusals.
+  const source = readFileSync(fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/runtime.rs", import.meta.url)), "utf8");
+  for (const command of ["runtime_overview", "runtime_decide", "runtime_missed_dot", "runtime_quit_confirmed"]) {
+    const body = source.slice(source.indexOf(`fn ${command}(`));
+    assert.ok(body.indexOf("from_capsule(&window)?") > 0 && body.indexOf("from_capsule(&window)?") < body.indexOf("\n}\n"), `${command} checks the popover's page first`);
+  }
+  for (const command of ["runtime_settings_get", "runtime_settings_set"]) {
+    const body = source.slice(source.indexOf(`fn ${command}(`));
+    assert.ok(body.indexOf("from_running_settings(&window)?") > 0 && body.indexOf("from_running_settings(&window)?") < body.indexOf("\n}\n"), `${command} checks 设置 › 运行 first`);
+  }
+  // 「打开」 is the one command of the popover's local 「没在运行」 page (the capability applies to the popover's local page too), and only there.
+  const open = source.slice(source.indexOf("fn runtime_open("));
+  assert.ok(open.indexOf("capsule_stopped_source(window.label()") > 0 && open.indexOf("capsule_stopped_source(window.label()") < open.indexOf("reopen_host("), "runtime_open checks the local page first");
+  assert.match(source, /fn res08_s14_runtime_commands_refuse_every_other_window_and_origin\(/u);
+  // The login item is changed by the shell itself; no page is granted the plugin's own commands (the forbidden list above).
+  assert.match(readFileSync(MAIN_RS, "utf8"), /tauri_plugin_autostart::init\(/u);
+});
+
 test("S-desktop-rollback-main-only going back a version is granted to the main window's update page alone, and the command checks the caller before it stops anything", () => {
   const grant = capabilities.filter(capability => (capability.permissions as string[]).includes("allow-rollback-to-previous"));
   assert.deepEqual(grant.map(capability => capability.identifier), ["main-rollback"], "no other capability carries it");
   assert.deepEqual(grant[0]!.windows, ["main"], "not the capsule, not any other window");
-  assert.deepEqual(grant[0]!.remote!.urls, ["http://127.0.0.1:4173/settings/update*"], "only the page with the confirm dialog");
+  assert.deepEqual(grant[0]!.remote!.urls, ["http://127.0.0.1:{port}/settings/update*"], "only the page with the confirm dialog");
   const permission = readFileSync(join(SHELL, "permissions", "rollback.toml"), "utf8");
   assert.match(permission, /commands\.allow = \["rollback_to_previous"\]/u, "the permission allows that one command");
   const source = readFileSync(fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/rollback.rs", import.meta.url)), "utf8");

@@ -7787,6 +7787,11 @@
     "workbench.settings-running.launch-at-login": "Open at login",
     "workbench.settings-running.launch-at-login-hint": "Open Molis Work when you log in to this computer.",
     "workbench.settings-running.keep-running": "Keep running when the window is closed",
-    "workbench.settings-running.keep-running-hint": "Scheduled tasks, feeds and timed assistant follow-ups keep running. Turn this off and closing the window quits."
+    "workbench.settings-running.keep-running-hint": "Scheduled tasks, feeds and timed assistant follow-ups keep running. Turn this off and closing the window quits.",
+    "workbench.native-tray.stopped": "Stopped",
+    "workbench.native-tray.stopped-tip": "Molis Work is not running",
+    "workbench.native-tray.boot-stopped": "Molis Work is not running",
+    "workbench.native-tray.boot-open": "Open",
+    "workbench.runtime-panel.stopped": "Not running"
   }
 }

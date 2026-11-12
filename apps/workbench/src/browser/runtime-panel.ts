@@ -115,7 +115,12 @@ if (root && host) {
   const load = async () => {
     if (timer) { clearTimeout(timer); timer = null; }
     try { view = await host.overview(); hadMissed ||= view.missed.length > 0; paint(); }
-    catch { /* the Host is not answering: the capsule's own error and the native 「没在运行」 page say so */ }
+    catch {
+      // The Host is not answering. The capsule never goes on saying it runs (PWA-137): 「没在运行」 until it answers, and a quit
+      // has nothing to list; the desktop's own 「没在运行」 page follows if it cannot bring the Host back. The Home page says nothing.
+      if (capsule && quitting) { page.__TAURI__?.core.invoke("runtime_quit_confirmed").catch(() => undefined); return; }
+      if (capsule) { view = null; body.innerHTML = `<p class="runtime-panel__status" data-tone="stopped"><i aria-hidden="true"></i>${escape(text("stopped"))}</p>`; }
+    }
     if (capsule && !document.hidden) timer = setTimeout(() => void load(), REFRESH_MS);
   };
   body.addEventListener("click", async event => {

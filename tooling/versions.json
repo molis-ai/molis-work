@@ -1051,6 +1051,7 @@
     "format.home.release.rollback": 1,
     "format.home.release.rollback_hold": 1,
     "format.home.restore.journal": 1,
+    "format.home.desktop": 1,
     "format.home.run.endpoint": 1,
     "format.home.run.presence": 1,
     "format.home.snapshot.file-body": 1,
@@ -1964,6 +1965,16 @@
       "file": "plugins/native/goals/methods/work-types/work-operate-process.md",
       "key": "method.goals.work-operate-process",
       "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "apps/desktop/adapters/tauri/src/host_port.rs",
+      "key": "format.home.run.endpoint",
+      "pattern": "(const ENDPOINT_SCHEMA_VERSION: u32 = )\\d+(;)"
+    },
+    {
+      "file": "apps/desktop/adapters/tauri/src/runtime.rs",
+      "key": "format.home.desktop",
+      "pattern": "(const DESKTOP_CONFIG_VERSION: u32 = )\\d+(;)"
     },
     {
       "file": "server/src/sync/quota.rs",

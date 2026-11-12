@@ -1044,6 +1044,7 @@
     "format.shelf.portable": 1,
     "format.sync.device": 1,
     "format.sync.document-state": 1,
+    "format.sync.process_items_recovery": 1,
     "format.sync.round": 1,
     "format.todo.portable": 1,
     "format.ui.font": 1,

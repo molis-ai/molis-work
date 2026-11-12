@@ -16,6 +16,8 @@ export interface CutoverGatePorts {
   send(route:string,body?:Buffer,method?:string,type?:string,check?:()=>void):Promise<Response>;
   request<T>(route:string,body:unknown,method:string,check:()=>void):Promise<T>;
   exclusive<T>(work:()=>Promise<T>):Promise<T>;
+  /** How far this Home has read a collection's local state: its replica cursor or the furthest deferred event. */
+  cursor(registration:SyncRegistration,lane:string):number;
 }
 
 /**
@@ -71,13 +73,29 @@ export class ProcessItemsCutoverGate {
     markSyncCutoverAdopted(this.ports.home,this.ports.spaceId,cutoverId);this.adopted=cutoverId;this.bind();
   });}
   /**
+   * The person's takeover of what a verified recovery file holds (sync-cutover.md step 5): only while this Home moves the adopted
+   * stream and has read it up to the completion head, so every line the cutover seeded has been received or held as a conflict first.
+   */
+  takeOver(captureId:string,keys?:readonly string[]){return this.ports.exclusive(async()=>{
+    await this.observe();
+    const moving=this.moving(),registration=this.registration();
+    if(!moving)throw syncError('scope',this.waiting());
+    if(!registration.takeOver)throw syncError('unsupported','过程项接管尚未接入，原件已保留');
+    if(this.ports.cursor(registration,syncCutoverLane(this.ports.spaceId,moving.cutoverId))<moving.completionHead)throw syncError('conflict','采用后的过程项尚未接齐，接齐后再接管，原件已保留');
+    this.ports.check(registration)();
+    return registration.takeOver(captureId,keys);
+  });}
+  private registration(){
+    const registration=this.ports.registrations().find(r=>syncNamespace(r.selection)===PROCESS_ITEMS_NAMESPACE);
+    if(!registration)throw syncError('unsupported','过程项同步尚未接入，原件已保留');
+    return registration;
+  }
+  /**
    * The person's cutover of process items, run from sync settings: plan, seal, seed, read back and finish on the service. A lost
    * response or restart is continued by running it again. Moving the adopted stream here is the separate `adopt` step.
    */
   cutOver(){return this.ports.exclusive(async()=>{
-    const registration=this.ports.registrations().find(r=>syncNamespace(r.selection)===PROCESS_ITEMS_NAMESPACE);
-    if(!registration)throw syncError('unsupported','过程项同步尚未接入，原件已保留');
-    const check=this.ports.check(registration);
+    const registration=this.registration(),check=this.ports.check(registration);
     const binary=async(route:string,body?:Uint8Array)=>{
       const response=await this.ports.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);
       if(!response.ok){let code:unknown;try{code=(JSON.parse(await response.text()) as {error?:unknown}).error;}catch{code=undefined;}throw new Error(syncResponseMessage(code));}

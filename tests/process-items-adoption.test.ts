@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { adoptProjectDatabase, inspectProjectAdoption, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { adoptProjectDatabase, captureProcessItemsRecovery, inspectProjectAdoption, LocalProjectDatabase, verifyProcessItemsRecovery } from "@molis-ai/molis-work-app-local-host";
 import { FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 // BSH-14-F, BSH-06 (specs/batch-06-shared-tools/current-version-adoption.md「同版本存储实施」, spec.md「项目库 v2 同版本采用与交接」): the
@@ -39,12 +40,15 @@ function toOriginalLayout(db: Db): void {
   for (const { name } of db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'process_items_adopted_replica_%'").all() as { name: string }[]) db.exec(`DROP TABLE ${name}`);
 }
 
+/** The stored body, its digest and size exactly as the owner records them (a valid fixed version, not a placeholder). */
+const content = (payload: { text: string }) => { const json = JSON.stringify(payload); return [json, `sha256:${createHash("sha256").update(json).digest("hex")}`, Buffer.byteLength(json)] as const; };
+
 function item(db: Db, projectId: string, id: string, producer: { id: string; signature: string }, versions: { type: string; schema?: number; plugin_version?: string }[]): void {
   db.prepare("INSERT INTO process_items(artifact_id,project_id,owner_actor_id,producer_plugin_id,producer_binding_signature,created_at) VALUES (?,?,?,?,?,?)")
     .run(id, projectId, "user", producer.id, producer.signature, "2026-11-01T00:00:00Z");
   versions.forEach((version, index) => db.prepare(`INSERT INTO process_item_versions(artifact_id,version,artifact_type_id,schema_version,producer_plugin_version,content_kind,payload_json,
     content_digest,size_bytes,scope,availability,lifecycle_state,supersedes_version,created_by,created_at) VALUES (?,?,?,?,?,'inline',?,?,?,'personal','available','active',?,'user',?)`)
-    .run(id, index + 1, version.type, version.schema ?? 1, version.plugin_version ?? "0.9.0", JSON.stringify({ text: `${id}@${index + 1}` }), `digest-${id}-${index + 1}`, 10,
+    .run(id, index + 1, version.type, version.schema ?? 1, version.plugin_version ?? "0.9.0", ...content({ text: `${id}@${index + 1}` }),
       index ? index : null, `2026-11-0${index + 1}T00:00:00Z`));
 }
 
@@ -77,9 +81,23 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   db.close();
   // An ordinary open refuses the old layout; it never repairs it in place.
   assert.throws(() => new LocalProjectDatabase(h.path), /结构与当前完整基线不符|SQLITE_BASELINE_TRIGGER_MISMATCH/u);
-  assert.deepEqual(inspectProjectAdoption(h.path), { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, refused: [] });
+  const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
+  const inspected = inspectProjectAdoption(h.path);
+  assert.deepEqual({ ...inspected, refused: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, refused: [] });
+  assert.match(inspected.refused.join("\n"), unsent, "lines the original journal never sent are unsettled");
+  // BSH-14-D: those lines are adopted only once a recovery file of this Home keeps them.
+  const before = await readFile(h.path);
+  const unkept = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups });
+  assert.equal(unkept.state, "refused");
+  assert.match(unkept.refused.join("\n"), unsent);
+  assert.ok((await readFile(h.path)).equals(before), "without a recovery file the library is unchanged");
+  const capture = captureProcessItemsRecovery({ home: h.directory, owner: h.owner, cutoverId: "cutover-0123456789abcdef" });
+  assert.deepEqual(capture.projects, [h.projectId]);
+  assert.equal(capture.path, join(await realpath(h.directory), "sync", "process-items-recovery", `${capture.captureId}.jsonl`));
+  assert.equal((await stat(capture.path!)).mode & 0o777, 0o600, "the recovery file is private to this account");
+  assert.ok((await readFile(h.path)).equals(before), "capturing reads the library and changes nothing");
 
-  const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups });
+  const report = adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: capture.captureId! });
   assert.equal(report.state, "adopted");
   assert.deepEqual({ ...report, backup: undefined }, { project_id: h.projectId, layout: "original", state: "adopted", items: 3, versions: 4, outputs: 2, bindings: 1, refused: [], backup: undefined });
   assert.ok(report.backup && existsSync(report.backup), "a backup is taken before the first change");
@@ -111,6 +129,7 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.deepEqual(rows(db, "SELECT key FROM process_items_adopted_replica_changes"), [{ key: JSON.stringify([h.projectId, "process_item", "files-selection"]) }]);
   assert.deepEqual(journal(db, "process_items"), originalJournal);
   db.close();
+  assert.equal(verifyProcessItemsRecovery({ home: h.directory, captureId: capture.captureId! }).projects.length, 1, "the recovery file still matches after adoption");
   // The library now opens normally, and adopting again changes nothing and takes no backup.
   new LocalProjectDatabase(h.path).close();
   assert.equal(adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups }).state, "current");
@@ -175,3 +194,48 @@ test("BSH-14-F adoption needs the Home's own storage owner and a project of that
   t.after(() => stranger.release());
   assert.throws(() => adoptProjectDatabase({ home: h.directory, owner: stranger, projectId: h.projectId, backupDirectory: h.backups }));
 });
+
+test("BSH-14-D a recovery file keeps the original journal and each line's graph; a changed journal or file, or a foreign Home, is refused", async t => {
+  const h = await home(t);
+  let db = openTestSqlite(h.path);
+  toOriginalLayout(db); filesEra(db, h.projectId);
+  const key = JSON.stringify([h.projectId, "process_item", "files-snapshot"]);
+  db.prepare("INSERT INTO process_items_replica_outbox(key,through_seq,operation) VALUES (?,?,?)").run(key, 1, JSON.stringify({ operationId: "device:1", key, base: 0, value: null }));
+  db.close();
+  const capture = captureProcessItemsRecovery({ home: h.directory, owner: h.owner, cutoverId: "cutover-0123456789abcdef" });
+  const recovery = verifyProcessItemsRecovery({ home: h.directory, captureId: capture.captureId! });
+  assert.equal(recovery.header.cutoverId, "cutover-0123456789abcdef");
+  const [project] = recovery.projects;
+  assert.ok(project && project.layout === "original");
+  assert.deepEqual(project.outbox.map(row => row.key), [key], "the frozen upload is kept exactly as stored");
+  assert.deepEqual(project.graphs.map(row => row.key), [...new Set([...project.changes.map(row => row.key), key])].sort(), "every unsettled key has its graph");
+  const snapshot = project.graphs.find(row => row.key === key)!.graph as { identity: { producer_plugin_id: string }; versions: unknown[] };
+  assert.equal(snapshot.identity.producer_plugin_id, FILES.id, "the graph is the line as this Home held it, before any conversion");
+  assert.equal(snapshot.versions.length, 2);
+
+  // An altered file is not a recovery file.
+  const text = await readFile(capture.path!, "utf8");
+  await writeFile(capture.path!, text.replace("files-snapshot@1", "files-snapshot@9"));
+  assert.throws(() => verifyProcessItemsRecovery({ home: h.directory, captureId: capture.captureId! }), /不完整或已改动/u);
+  await writeFile(capture.path!, text);
+  assert.ok(verifyProcessItemsRecovery({ home: h.directory, captureId: capture.captureId! }));
+
+  // A journal that changed after the capture is no longer what it kept: adoption refuses it and changes nothing.
+  db = openTestSqlite(h.path);
+  db.prepare("INSERT INTO process_items_replica_changes(key) VALUES (?)").run(key);
+  db.close();
+  assert.throws(() => verifyProcessItemsRecovery({ home: h.directory, captureId: capture.captureId! }), /原过程项日志在保全后变了/u);
+  const before = await readFile(h.path);
+  assert.throws(() => adoptProjectDatabase({ home: h.directory, owner: h.owner, projectId: h.projectId, backupDirectory: h.backups, recovery: capture.captureId! }), /原过程项日志在保全后变了/u);
+  assert.ok((await readFile(h.path)).equals(before));
+
+  // Another Home cannot use it, and a capture id that is not one is refused before any path is built.
+  const other = await home(t);
+  assert.throws(() => verifyProcessItemsRecovery({ home: other.directory, captureId: capture.captureId! }), /找不到这份过程项恢复件/u);
+  assert.throws(() => verifyProcessItemsRecovery({ home: h.directory, captureId: "../../etc" }), /恢复件编号无效/u);
+  // A Home with nothing unsettled captures nothing and writes no file.
+  const clean = captureProcessItemsRecovery({ home: other.directory, owner: other.owner, cutoverId: "cutover-0123456789abcdef" });
+  assert.deepEqual(clean, { captureId: null, path: null, projects: [] });
+  assert.equal(existsSync(join(other.directory, "sync")), false, "and creates no sync store either");
+});
+

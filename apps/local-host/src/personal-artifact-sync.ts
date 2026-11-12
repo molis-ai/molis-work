@@ -1,7 +1,3 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { writeProjectRoot } from '@molis-ai/molis-work-module-projects';
 import { openProjectVersionStores } from './project-version-stores.js';
 import {projectSyncCatalog} from './project-sync-catalog.js';
 import {
@@ -11,10 +7,12 @@ import {
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import { createSqliteReplica, namespacedReplicaDatabase, ensureStorageSpace, readDatabaseSpace } from '@molis-ai/molis-work-storage';
-import { partitionedReplica, type SyncRegistration, syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
+import { createSqliteReplica, namespacedReplicaDatabase, ensureStorageSpace, queueReplicaChange, readDatabaseSpace } from '@molis-ai/molis-work-storage';
+import { partitionedReplica, syncCutoverLane, type ProcessItemsTakeoverOutcome, type SyncRegistration, syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
+import { verifyProcessItemsRecovery } from './process-items-recovery.js';
 import { PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
 import { LocalProjectDatabase } from './project-database.js';
+import { readBackProcessItem } from './process-items-readback.js';
 import { ADOPTED_PROCESS_ITEMS_JOURNAL } from './project-replication-schema.js';
 import { FILES_PRODUCER, SYSTEM_PRODUCER } from './process-items-adoption.js';
 import { SYSTEM_MATERIALS_SOURCE } from '@molis-ai/molis-work-contracts/platform/project-materials';
@@ -79,18 +77,9 @@ function adoptProcessItem(spaceId: string, check: () => void, projectId: string,
   const moved = reassignPortableProcessItem(validateProcessItemReplication(payload.artifact, context), FILES_PRODUCER, SYSTEM_PRODUCER, SYSTEM_MATERIALS_SOURCE.process_items);
   if (moved.identity.artifact_id !== artifactId) throw errors.version_sync_invalid('过程项身份不匹配，原件已保留');
   assertAdoptedProducer(moved);
-  const directory = mkdtempSync(join(tmpdir(), 'molis-process-adopt-'));
-  try {
-    const store = new LocalProjectDatabase(join(directory, 'project.db'));
-    try {
-      writeProjectRoot(store.db, projectId, moved.identity.created_at);
-      const owner = createProcessItemReplication(store.db, context, { appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
-      owner.apply(moved); check();
-      const read = owner.read(artifactId);
-      if (!read) throw errors.version_sync_invalid('过程项转换后读不回，原件已保留');
-      return { project: { id: projectId, title: payload.project.title }, artifact: read };
-    } finally { store.close(); }
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  const read = readBackProcessItem(spaceId, check, projectId, moved);
+  if (!read) throw errors.version_sync_invalid('过程项转换后读不回，原件已保留');
+  return { project: { id: projectId, title: payload.project.title }, artifact: read };
 }
 
 function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding, hasGoal?: (projectId:string,goalId:string)=>boolean) {
@@ -163,6 +152,35 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
     ...(library ? {} : {
       bindLane(value: string | null) { lane = value; },
       adopt(key: string, value: unknown) { check(); const [projectId, , artifactId] = decode(key); return adoptProcessItem(spaceId, check, projectId, artifactId, value); },
+      takeOver(captureId: string, keys?: readonly string[]): ProcessItemsTakeoverOutcome[] {
+        check();
+        // The person's takeover (sync-cutover.md step 5): only from a recovery file of this Home and this cutover, checked against it now.
+        const recovery = verifyProcessItemsRecovery({ home, captureId });
+        if (recovery.header.spaceId !== spaceId || lane !== syncCutoverLane(spaceId, recovery.header.cutoverId)) throw errors.version_sync_scope('恢复件不属于本机采用的这次过程项切换，原件已保留');
+        const captured = new Set(recovery.projects.flatMap(project => project.graphs.map(graph => graph.key)));
+        if (keys?.some(key => !captured.has(key))) throw errors.version_sync_invalid('只能接管恢复件里保全的过程项，原件已保留');
+        const wanted = keys ? new Set(keys) : captured;
+        return recovery.projects.flatMap(project => {
+          const lines = project.graphs.map(graph => graph.key).filter(key => wanted.has(key));
+          if (!lines.length) return [];
+          if (!projects.has(project.projectId)) return lines.map(key => ({ key, outcome: 'kept' as const }));
+          return withProject(project.projectId, store => {
+            const db = namespacedReplicaDatabase(store.replicationDatabase, journal), context = { spaceId, projectId: project.projectId, authorize: check };
+            const owner = createProcessItemReplication(store.db, context, { appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
+            const has = (table: string, key: string) => !!db.prepare(`SELECT 1 FROM replica_${table} WHERE key=?`).get(key);
+            return lines.map(key => {
+              // A line the adopted stream holds as a conflict goes through that conflict; one it already received has nothing left to move.
+              if (has('conflicts', key)) return { key, outcome: 'conflict' as const };
+              if (has('changes', key) || has('outbox', key)) return { key, outcome: 'queued' as const };
+              if (has('heads', key)) return { key, outcome: 'same' as const };
+              // A line the stream never had is a new write of this Home's own graph; a line that no longer exists here is kept as it was.
+              if (!owner.read(decode(key)[2])) return { key, outcome: 'kept' as const };
+              queueReplicaChange(db, key); check();
+              return { key, outcome: 'queued' as const };
+            });
+          }, false);
+        });
+      },
     }),
     withReplica(run) {
       if (!library && lane === null) return run(inspection());

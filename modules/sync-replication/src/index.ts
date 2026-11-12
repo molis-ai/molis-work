@@ -9,6 +9,9 @@ import {pinSyncProtection} from './local-protection.js';
 import {ProcessItemsCutoverGate} from './cutover-gate.js';
 export {PROCESS_ITEMS_NAMESPACE,parseSyncCutover,syncCutoverLane,type SyncCutoverView} from './cutover.js';
 export type {ProcessItemsCutoverGate} from './cutover-gate.js';
+import type {ProcessItemsTakeoverOutcome} from './process-items-recovery.js';
+export {PROCESS_ITEMS_RECOVERY_FORMAT,newProcessItemsCaptureId,processItemsSyncFailureKeys,readProcessItemsRecovery,readProcessItemsSyncEvidence,writeProcessItemsRecovery,
+  type ProcessItemsRecovery,type ProcessItemsRecoveryHeader,type ProcessItemsRecoveryProject,type ProcessItemsSyncEvidence,type ProcessItemsTakeoverOutcome} from './process-items-recovery.js';
 
 export type SyncSelection = SpaceSyncPolicy['selections'][number];
 export {syncNamespace} from './namespace.js';
@@ -40,6 +43,12 @@ export interface SyncRegistration {
    * producer's line moves to its replacement, everything else as it was). Deterministic; throws to refuse the whole cutover.
    */
   adopt?(key:string,value:unknown):unknown;
+  /**
+   * The adopted process-item collection only: the person's takeover of what a verified recovery file (process-items-recovery.ts) still
+   * holds, after the adopted stream is read up to its completion head. Lines the stream never had are queued as new local writes;
+   * lines it already has, or holds as a conflict, are left to it. Returns one outcome per captured key.
+   */
+  takeOver?(captureId:string,keys?:readonly string[]):readonly ProcessItemsTakeoverOutcome[];
   prepare(event:SyncEvent,options?:{retry?:boolean}):Promise<void>;
   /** Hold owner lifecycle admission across asynchronous waits; invoke commit exactly once under that reservation. */
   withMutation?<T>(scope:SyncMutationScope,commit:()=>T):Promise<T>;
@@ -87,6 +96,7 @@ export class PersonalSync {
     this.processItems=new ProcessItemsCutoverGate({home:options.home,spaceId:options.spaceId,assert:()=>this.assert(),registrations:()=>this.registry.current(),
       check:registration=>()=>assertSyncRegistration(registration,()=>this.assert()),send:(route,body,method,type,check)=>this.send(route,body,method,type,check),
       request:(route,body,method,check)=>this.request(route,body,method,check),
+      cursor:(registration,lane)=>Math.max(registration.withReplica(r=>r.cursor()),syncItemFailures(options.home,()=>this.assert(),registration.protection).cursor(lane)),
       exclusive:async work=>{if(this.running)await this.running;await this.registry.refresh();const done=work();this.running=done.then(()=>{},()=>{});try{return await done;}finally{this.running=null;}}});
     this.history=cloudHistory({home:options.home,run:()=>this.run(),scope:namespace=>{
       const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;

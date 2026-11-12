@@ -1,10 +1,10 @@
 {
-  "reason": "第 22 批组件板补丁在源头改（docs/design/sessions-sources/README.md「给组件板的补丁」）：Status mark 字尾不被切、浅色目录行状态词补到 4.5:1、深色 Select 箭头不平铺、窄屏 Switch 点按区 44×44，加错开时长令牌 --dur-stagger。三份共用样式表各 +508 字节（规则已合并成两条 :is()，原先写四条时是 +844），Folio 皮肤表 +20 字节是新令牌。两个新部件的样式只进组件板页内，不进共用样式表。",
+  "reason": "第 22 批组件板补丁在源头改（docs/design/sessions-sources/README.md「给组件板的补丁」）：Status mark 字尾不被切、浅色目录行状态词补到 4.5:1、深色 Select 箭头不平铺、窄屏 Switch 点按区 44×44，加错开时长令牌 --dur-stagger。三份共用样式表各 +542 字节（规则已合并成两条 :is()，原先写四条时是 +844；其中 34 字节是 D 轨合审时补进浅色规则的 done、hold），Folio 皮肤表 +20 字节是新令牌。两个新部件的样式只进组件板页内，不进共用样式表。",
   "review": "第 22 批 22/catalog 子分支（D 轨），随第 22 批批 PR 评审。",
   "assets": {
-    "/assets/molis-work-settings.css": 508,
-    "/assets/molis-work-workbench.css": 508,
-    "/assets/molis-work-arrival.css": 508,
+    "/assets/molis-work-settings.css": 542,
+    "/assets/molis-work-workbench.css": 542,
+    "/assets/molis-work-arrival.css": 542,
     "/assets/ui-skin/folio-1.css": 20
   }
 }

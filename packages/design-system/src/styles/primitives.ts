@@ -1044,7 +1044,7 @@ ${BUTTON_STYLES}
   .mw-dir-row .mw-dir-row__status svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
   .mw-dir-row.is-selected .mw-dir-row__status, .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
   /* Light rows darken when hovered, pressed or selected; these tones keep their hue but take 20% ink (or ink-soft) so the word stays at 4.5:1. */
-  html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--attention, .mw-status--progress, .mw-status--blocked) { color: color-mix(in srgb, var(--status-tone) 80%, var(--ink)); } html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--quiet, .mw-status--idle) { color: var(--ink-soft); }
+  html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--attention, .mw-status--progress, .mw-status--blocked, .mw-status--done, .mw-status--hold) { color: color-mix(in srgb, var(--status-tone) 80%, var(--ink)); } html:not([data-resolved-theme="dark"]) .mw-dir-row .mw-dir-row__status:is(.mw-status--quiet, .mw-status--idle) { color: var(--ink-soft); }
   .mw-dir-row-wrap:hover { background: var(--nav-hover); } .mw-dir-row-wrap:active { background: var(--nav-press); }
   .mw-dir-row-wrap:hover .mw-dir-row,
   .mw-dir-row-wrap:active .mw-dir-row { color: var(--ink); background: transparent; }

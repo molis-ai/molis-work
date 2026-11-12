@@ -187,6 +187,8 @@
     "action.assistant.followups.list": 1,
     "action.assistant.followups.remove": 1,
     "action.assistant.methods.read": 1,
+    "action.assistant.runs.decide": 1,
+    "action.assistant.runs.overview": 1,
     "action.assistant.rules.add": 1,
     "action.assistant.rules.list": 1,
     "action.assistant.rules.remove": 1,

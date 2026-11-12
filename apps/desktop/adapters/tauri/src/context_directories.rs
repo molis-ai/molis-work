@@ -93,7 +93,7 @@ fn trusted_location(label: &str, url: &Url) -> bool {
     label == "main"
         && url.scheme() == "http"
         && matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
-        && url.port_or_known_default() == Some(4173)
+        && url.port_or_known_default() == Some(crate::host_port::port())
         && url.username().is_empty()
         && url.password().is_none()
         && url.path() == "/onboarding"
@@ -323,11 +323,12 @@ fn stage_on_host(
     const UNREACHABLE: &str = "连不上 Molis Work 服务，请稍后重试";
     let token = crate::web_identity::control_token()?;
     let mut target = Url::parse(&format!(
-        "http://127.0.0.1:4173/api/onboarding/context/{journey}/files"
+        "{}/api/onboarding/context/{journey}/files",
+        crate::host_port::origin()
     ))
     .map_err(|_| "整理轮次无效")?;
     target.query_pairs_mut().append_pair("path", &expected.path);
-    let address = std::net::SocketAddr::from(([127, 0, 0, 1], 4173));
+    let address = crate::host_port::address();
     let mut stream =
         std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(800))
             .map_err(|_| UNREACHABLE)?;
@@ -343,9 +344,11 @@ fn stage_on_host(
     );
     write!(
         stream,
-        "POST {}?{} HTTP/1.1\r\nHost: 127.0.0.1:4173\r\nOrigin: http://127.0.0.1:4173\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\nx-molis-work-control-token: {token}\r\nx-molis-work-idempotency-key: {key}\r\n\r\n",
+        "POST {}?{} HTTP/1.1\r\nHost: {}\r\nOrigin: {}\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\nx-molis-work-control-token: {token}\r\nx-molis-work-idempotency-key: {key}\r\n\r\n",
         target.path(),
         target.query().unwrap_or(""),
+        crate::host_port::host(),
+        crate::host_port::origin(),
         expected.size
     )
     .map_err(|_| UNREACHABLE)?;

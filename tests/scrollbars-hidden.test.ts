@@ -37,7 +37,7 @@ test("every product document carries the rule", () => {
     "arrival.css": renderer.renderMolisWorkArrivalStylesheet(),
     "settings.css": renderer.renderMolisWorkSettingsStylesheet(),
     "IM": IM_STYLES,
-    "capsule": runWithLocale("zh", () => renderDesktopCapsuleShell([], { translate: pageText("zh"), htmlLang: "zh-CN", languageHead: "", themeBootstrapScript: "" })),
+    "capsule": runWithLocale("zh", () => renderDesktopCapsuleShell([], { translate: pageText("zh"), htmlLang: "zh-CN", languageHead: "", themeBootstrapScript: "", runtimePanel: { html: "", styles: "" } })),
   };
   for (const [name, css] of Object.entries(documents)) assert.ok(css.includes(HIDDEN_SCROLLBAR_STYLES), `${name} hides scrollbars`);
 });

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync, statfsSync, truncateSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
-import { createServer, type Server } from "node:http";
+import { createServer, get as httpGet, type Server } from "node:http";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
@@ -75,6 +75,40 @@ test("UPG1-11: while it upgrades the port says so with a proof a client can chec
   await finished;
   assert.equal(versionOf(file), 2);
   await assert.rejects(fetch(`${url}/health`));
+});
+
+test("UPG3-05 while it upgrades the port answers the opening page and its two numbers, only to this computer", async t => {
+  const { home } = upgradeTestHome(t);
+  seedStore(home, "notes");
+  useDescriptors(t, notesDescriptor("notes"));
+  slowStep(t, 1_500);
+  const { origin, finished } = maintenance(home), url = await origin;
+  const page = await fetch(`${url}/`, { headers: { accept: "text/html" } });
+  assert.equal(page.status, 503, "the opening page is still the maintenance answer");
+  assert.match(page.headers.get("content-type") ?? "", /^text\/html\b/u);
+  const html = await page.text();
+  assert.match(html, /data-upgrade-opening/u);
+  assert.match(html, /mw-bar-status/u);
+  assert.match(html, /href="\/assets\/molis-work-arrival\.css"/u);
+  assert.doesNotMatch(html, /notes/u, "no store name reaches the page");
+  // The page loads the shared request helper, whose source names the page-session header; what must not be there is the token itself.
+  assert.doesNotMatch(html, /<meta[^>]*molis-work-page-session/u, "no page token reaches the page");
+  const css = await fetch(`${url}/assets/molis-work-arrival.css`);
+  assert.equal(css.status, 200);
+  assert.match(css.headers.get("content-type") ?? "", /^text\/css\b/u);
+  const progress = await fetch(`${url}/upgrade-progress`);
+  assert.equal(progress.status, 200);
+  const body = await progress.json() as Record<string, unknown>;
+  assert.deepEqual(Object.keys(body).sort(), ["done", "started_at", "state", "total"], "only the numbers and the state");
+  assert.deepEqual([body.done, body.total, body.state], [0, 1, "upgrading"]);
+  const foreign = await new Promise<number>((resolve, reject) => {
+    const { port } = new URL(url);
+    httpGet({ host: "127.0.0.1", port, path: "/upgrade-progress", headers: { host: "evil.example" } }, response => { response.resume(); resolve(response.statusCode ?? 0); }).on("error", reject);
+  });
+  assert.ok(foreign >= 400, `a request named for another host is refused (S-02), got ${foreign}`);
+  const crossOrigin = await fetch(`${url}/upgrade-progress`, { headers: { origin: "https://evil.example" } });
+  assert.ok(crossOrigin.status >= 400, "a page of another origin reads nothing (S-01)");
+  await finished;
 });
 
 test("UPG1-11: `/health`'s progress counts up as stores finish", async t => {

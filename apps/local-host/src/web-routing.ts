@@ -18,6 +18,27 @@ export function fixtureWebBoardOptions(options: WebServerOptions): ResolvedWebBo
   };
 }
 
+/** The Home's own pages and APIs, outside any project: they are served by the catalog index. */
+export function isCatalogIndexPath(pathname: string): boolean {
+  return (
+    pathname === "/"
+    || pathname === "/onboarding"
+    || pathname === "/health"
+    || pathname === "/api"
+    || pathname.startsWith("/api/")
+    || pathname === "/__ui/catalog"
+    || pathname === "/__ui/catalog/bar"
+    || pathname === "/__ui/catalog/conditions"
+    || pathname === "/__ui/catalog/assistant"
+    || pathname === "/__ui/catalog/navigation"
+    || pathname === "/settings"
+    || pathname.startsWith("/settings/")
+    || pathname === "/capabilities"
+    || pathname.startsWith("/capabilities/")
+    || pathname.startsWith("/desktop/")
+  );
+}
+
 /**
  * Resolving a Web request is deliberately read-only. In particular, opening a
  * project in the browser must not create, bind, or rebind a Runtime Session.
@@ -33,23 +54,7 @@ export async function resolveWebRequest(
   return withMolisWorkProjectCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
     const records = catalog.listProjects();
     const projects = records.map(projectNavigation);
-    if (
-      pathname === "/"
-      || pathname === "/onboarding"
-      || pathname === "/health"
-      || pathname === "/api"
-      || pathname.startsWith("/api/")
-      || pathname === "/__ui/catalog"
-      || pathname === "/__ui/catalog/bar"
-      || pathname === "/__ui/catalog/conditions"
-      || pathname === "/__ui/catalog/assistant"
-      || pathname === "/__ui/catalog/navigation"
-      || pathname === "/settings"
-      || pathname.startsWith("/settings/")
-      || pathname === "/capabilities"
-      || pathname.startsWith("/capabilities/")
-      || pathname.startsWith("/desktop/")
-    ) {
+    if (isCatalogIndexPath(pathname)) {
       return { kind: "catalog_index", projects };
     }
     const match = pathname.match(/^\/projects\/([^/]+)(\/.*)?$/);

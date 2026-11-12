@@ -6,9 +6,23 @@ import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
  * What the upgrade process looks after. It is declared by the owner and handed over as data, so the process names no store, plugin or driver
  * of its own (upgrade-chain-design §2.3). Only `pattern` and the version go into the fingerprint, so comparing it opens nothing.
  */
+/**
+ * Where a person meets this store when it cannot be used (U3 design §2.1): the part of the product that stops with it, and nothing else.
+ * `project` and `plugin` blocks name the project by the path; `home` is for a store every part depends on (the secrets file).
+ */
+export type UpgradeBlock =
+  | { readonly kind: "projects" }
+  | { readonly kind: "project" }
+  | { readonly kind: "plugin"; readonly plugin_id: string }
+  | { readonly kind: "setting"; readonly page: string }
+  | { readonly kind: "shelf" }
+  | { readonly kind: "home" };
+
 interface HomeUpgradeUnitDeclaration {
   /** Who answers for this store: its package directory, or a plugin's id. */
   readonly owner: string;
+  /** Where it shows when it cannot be used. Not in the fingerprint: moving a store's explanation is not an upgrade. */
+  readonly block: UpgradeBlock;
   /** Where it is, relative to the Home; a pattern when `paths` lists several files. */
   readonly pattern: string;
   /** The files behind `pattern`, read only. Without it `pattern` is the one file. */

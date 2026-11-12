@@ -193,7 +193,8 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
   assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，这个版本的 Molis Work 只认 ${supported}。目录库是更新的版本写的，没有损坏。请把 Molis Work 升级到能读它的版本；已经升级过的，运行中的 MCP 不会热刷新，请重启常驻服务并新开一个 Session。之后先确认当前任务焦点，只读调用 context_resolve，解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "storage.store_too_new",
     details: { actual_schema_version: supported + 1, supported_schema_min: supported, supported_schema_max: supported,
-      recovery: "upgrade_then_context_resolve" } });
+      // The catalog's place in its Home, relative, so a page can name the part it stops (upgrade-continuity U3 §2.2).
+      recovery: "upgrade_then_context_resolve", path: join("projects", "catalog.db") } });
   const preserved = openTestSqlite(databasePath, { readonly: true });
   try {
     assert.equal(preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(supported + 1));

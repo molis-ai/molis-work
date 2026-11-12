@@ -4,7 +4,7 @@ import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
+import { ownerUnavailableCard, refusedOwner, sendOwnerUnavailablePage, withOwnerUnavailablePage } from "./web-owner-unavailable.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import { modelRoundLocale } from "./reply-language.js";
@@ -42,7 +42,7 @@ import { declaredStageRequests } from "./project-stage-data.js";
 import { matchPageRoute } from "./page-routes.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
-import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
+import { isCatalogIndexPath, redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 import { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories } from "./plugin-directory.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
@@ -98,7 +98,7 @@ export async function handleMolisWorkWebRequest(
     if (url.pathname.startsWith("/api/kit/") && await handleKitSettingsHttp(request, response, url, localHost)) return;
     if (resolved.kind === "catalog_index") {
       const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
-      await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
+      await withOwnerUnavailablePage(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
       return;
     }
     if (resolved.kind === "project_not_found") {
@@ -106,17 +106,29 @@ export async function handleMolisWorkWebRequest(
       return;
     }
     url.pathname = resolved.pathname;
-    await withHomePluginStorePageRecovery(context, resolved.options.project?.project_id ?? null,
+    await withOwnerUnavailablePage(context, resolved.options.project?.project_id ?? null,
       () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
   };
   return readonly ? withReadOnlyPluginDirectory(serverOptions.homeDirectory, handle) : handle();
 }
 
-/** The project list, or (when it cannot be read) the chooser saying so: the chooser is the way in, and the personal space still opens. */
-async function resolveOrChooser({ request, response, url, serverOptions, composition, controlToken }: WebRequestContext): Promise<ResolvedWebRequest | null> {
+/**
+ * The project list, or (when it cannot be read) the chooser saying so: the chooser is the way in, and the personal space still opens. When
+ * the catalog is refused for its version or an upgrade (U3 design §2.4), a page in a project gets the card in its place; the Home's own pages
+ * still open with no projects, and one that needs the list meets the same refusal and the same card.
+ */
+async function resolveOrChooser(context: WebRequestContext): Promise<ResolvedWebRequest | null> {
+  const { request, response, url, serverOptions, composition, controlToken } = context;
   try {
     return await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
   } catch (error) {
+    const owner = refusedOwner(serverOptions.homeDirectory, error);
+    if (owner?.block.kind === "projects") {
+      if (url.pathname !== "/" && isCatalogIndexPath(url.pathname)) return { kind: "catalog_index", projects: [] };
+      if (request.method !== "GET" || url.pathname.includes("/api/")) throw error;
+      sendOwnerUnavailablePage(context, ownerUnavailableCard(owner, null, url.pathname + url.search, null), null);
+      return null;
+    }
     if (request.method !== "GET" || url.pathname !== "/" || !serverOptions.homeDirectory) throw error;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": composition.PAGE_CSP });
     response.end(composition.workbenchRenderer.renderMolisWorkProjectIndex([], controlToken, composition.isDesktopShellRequest(request, url),

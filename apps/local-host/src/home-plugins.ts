@@ -61,6 +61,9 @@ export class HomePluginHost {
   private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
   private unwatchArtifacts?: () => void;
   private readonly releaseRegistration: () => void;
+  /** The Home this host runs in. */
+  get homeDirectory(): string { return this.options.home; }
+
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
     settingsVersionClaims?: SettingsVersionClaims;

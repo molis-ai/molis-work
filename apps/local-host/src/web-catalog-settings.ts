@@ -1,3 +1,4 @@
+import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -45,7 +46,12 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const rules = capabilityPageMatch?.[1] === "rules";
   const capabilitySection = (rules ? "library" : capabilityPageMatch?.[1]) as CapabilitySection | undefined;
   const section = (capabilitySection === "connections" ? "connectors" : capabilitySection === "access" ? "mcp" : capabilitySection ?? settingsPageMatch![1]) as WebSettingsSection;
-  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
+  // A page that is not the project list still opens while the catalog is refused for its version (U3 §2.4), with no project to pick;
+  // a page whose own facts are in the catalog (the models) meets the same refusal and gets its card.
+  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch((error: unknown) => {
+    if (refusedOwner(serverOptions.homeDirectory, error)?.block.kind === "projects") return [];
+    throw error;
+  });
   const contextProjectId = url.searchParams.get("project");
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
@@ -123,7 +129,12 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (!(request.method === "GET" && pluginSettings && serverOptions.homeDirectory)) return false;
-  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory);
+  // A page that is not the project list still opens while the catalog is refused for its version (U3 §2.4), with no project to pick;
+  // a page whose own facts are in the catalog (the models) meets the same refusal and gets its card.
+  const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch((error: unknown) => {
+    if (refusedOwner(serverOptions.homeDirectory, error)?.block.kind === "projects") return [];
+    throw error;
+  });
   const contextProjectId = url.searchParams.get("project");
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null

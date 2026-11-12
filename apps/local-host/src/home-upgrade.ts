@@ -14,6 +14,7 @@ import {
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
+import { diagnosticId } from "./home-unavailable-owners.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {
@@ -380,6 +381,11 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
     }
   }
   const units = round.ledger?.units ?? [];
+  // One line per store that stays out of use, with the number its explanation shows (U3 design §2.3): never its path or content.
+  for (const unit of units) if (unit.state === "failed" || unit.state === "too_new") {
+    hostLog.warn("host", "home_upgrade_unit_failed", undefined, { diagnostic_id: diagnosticId(round.ledger!.run_id, unit.relative_path), owner: unit.owner,
+      state: unit.state, code: unit.error?.code ?? "storage.store_too_new", reason: unit.error?.reason ?? "too_new" });
+  }
   const everyStoreCurrent = present > 0 && unversioned === 0 && settled.length === 0 && units.every(unit => unit.state === "committed");
   if (everyStoreCurrent) {
     writeUpgradeStamp(root, identity, fingerprint);

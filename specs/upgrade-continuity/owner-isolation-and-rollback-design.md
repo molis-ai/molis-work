@@ -60,7 +60,7 @@ interface UnavailableOwner {
 
 ### 2.3 诊断号
 
-`diagnostic_id` = sha256(`run_id` + `\n` + `relative_path`) 的前 10 个十六进制字符，分两段显示（`3f9a2-c81d0`）。记录里没有这个单元（比如手工放进来一个坏库）时 `run_id` 记 `none`。
+`diagnostic_id` = `D-` 加 sha256(`run_id` + `\n` + `relative_path`) 的前 8 个十六进制字符（大写，如 `D-3F9A2C81`）：短到能念出来、写进反馈，碰撞对一个 Home 里几十个库无关紧要。记录里没有这个单元（比如手工放进来一个坏库）时 `run_id` 记 `none`。
 
 - 同一轮、同一个库，每次显示都一样；换一轮就换号。
 - 升级过程把单元记成 `failed`／`too_new` 时，宿主日志写一行 `home_upgrade_unit_failed`，带 `diagnostic_id`、主人、码与固定原因（不带路径），拿着号能在日志里找到它和同一轮里的 `cause`。号里没有路径和内容。
@@ -83,7 +83,7 @@ interface UnavailableOwner {
 
 - **插件**：平台已经把表被拒的插件实例停掉，工作台主区给「插件暂不可用」的那一格（`unavailable-plugin-stage.ts`），Dock 上这一颗已经带琥珀点（`nav-warn-dot`，`navigation-presentation.ts`）。U3 只把这一格的内容换成说明卡：宿主组装这一格时（`project-plugin-stages.ts` 的 `unavailableStage`、`home-plugin-http.ts` 的 `homeUnavailableStage`）见到拒绝是升级一类，就带上 `upgrade` 字段；带了它就不给「重新启动」（重启升不了库）。点的 `aria-label` 改成「暂不可用」。定样里的「组件板新增 Dock 点」用的就是这颗现成的点，不新造部件。
 - **其余各块**：页面请求已经在一处包着 `withHomePluginStorePageRecovery`（`web-request.ts` 的两次分派）。把它推广成 `withOwnerUnavailablePage`：接到 Home 插件库的拒绝照旧，另外接住任何库与文件的版本／升级拒绝（`isSqliteVersionRefusal` 与带版本文件的同类码），GET 页面给一张说明卡页（按 `block` 写标题，项目块保留项目名与「回到项目列表」），`/api/` 的 GET 回 `unavailable`，写操作照旧拒绝。原来的 `renderPluginStoreUnavailablePage` 改成这张页的一种情况，不留两套。
-- **项目目录**：`resolveOrChooser` 在目录库被拒时现在给一张空的项目选择页（`load_error`）。升级一类的拒绝改给说明卡；别的读取失败照旧。设置里与项目无关的几页（模型、外观、MCP）照常能开，这就是「其余照常」。
+- **项目目录**：`resolveOrChooser` 在目录库被拒时现在给一张空的项目选择页（`load_error`）。升级一类的拒绝改给说明卡；别的读取失败照旧。设置里不读目录库的几页（外观、记忆、连接、外部访问）照常能开，只是没有项目可选；模型的服务商记在目录库里，模型页给同一张卡。这就是「其余照常」。
 
 不加全局提示（11-04 定）。再加一块，只在描述符那一行写 `block`。
 
@@ -196,7 +196,7 @@ type RollbackPoint =
 | --- | --- | --- |
 | UPG3-01 | 一个平台库升级失败，只有它那一块给说明卡，别的插件、项目、设置页照常（UPG-04） | `tests/upgrade-owner-isolation.test.ts`（新） |
 | UPG3-02 | 较新的库只拒这一个，说明卡写「来自更新的版本」，库的字节没变（UPG-05） | 同上 |
-| UPG3-03 | 目录库升级失败时，项目页给整页说明卡，设置里的模型、外观页照常打开，`/api/` 读回 `unavailable`，写被拒 | 同上 |
+| UPG3-03 | 目录库升级失败时，项目页给整页说明卡，设置里的外观页照常打开，`/api/` 读回 `unavailable`，写被拒 | 同上 |
 | UPG3-04 | Dock 上那一颗带「暂不可用」点并读得出来；说明卡的诊断号同一轮不变，日志里能用它找到原因 | 同上 + 浏览器用例 `tests/browser/owner-unavailable.e2e.test.ts` |
 | UPG3-05 | 维护态答开场页和 `/upgrade-progress`，后者只有四个键，非回环 Host 被拒（UPG-19） | `tests/upgrade-maintenance.test.ts` |
 | UPG3-06 | 中断的升级接着做完后，首页出结果卡；关掉后同一轮不再出现（UPG-06） | `tests/upgrade-owner-isolation.test.ts` |

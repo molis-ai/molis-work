@@ -45,6 +45,12 @@ const HOST_SECTIONS: readonly HostSection[] = [
   { id: "diagnostics", label: "workbench.settings-sections.diagnostics", icon: "bug", group: "workbench.settings-sections.system", order: 90 },
 ];
 
+/** A host settings page's name in the person's language, for text that points at the page; undefined for an id that is no host page. */
+export function hostSettingsSectionLabel(id: string): string | undefined {
+  const section = HOST_SECTIONS.find(entry => entry.id === id);
+  return section ? uiText.text(section.label) : undefined;
+}
+
 /** Plugin pages past every host page share one group. */
 const PLUGIN_GROUP = "workbench.settings-sections.plugins";
 const HOST_ORDER_END = 100;

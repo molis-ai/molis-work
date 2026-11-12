@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { basename, dirname } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { LocalCatalogMetadata, bindDatabaseSpace, describeSqliteSchema, LocalSqliteStorage, versionRefusalAfterSignal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
@@ -74,10 +74,10 @@ export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: 
 function assertCatalogVersion(version:number,databasePath:string):void {
   const expected = CATALOG_BASELINE.version;
   if (version === expected) return;
-  const tooNew = catalogSchemaCompatibilityError(version, expected);
-  if (tooNew) throw tooNew;
   // A catalog of a Home is named by its place in it; any other file by its own name.
   const home = basename(dirname(databasePath)) === "projects" ? dirname(dirname(databasePath)) : undefined;
+  const tooNew = catalogSchemaCompatibilityError(version, expected, home ? join("projects", basename(databasePath)) : undefined);
+  if (tooNew) throw tooNew;
   throw versionRefusalAfterSignal(databasePath, Number.isInteger(version) ? version : 0, expected, home);
 }
 export function assertCatalogMetadata(metadata:{owner:string|null;version:number},databasePath:string):void {

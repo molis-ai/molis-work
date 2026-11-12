@@ -29,12 +29,12 @@ test("RAC-2685 the workbench files that name the Goals package are exactly the w
 
 test("RAC-2685 the host's route handlers match pages with the declared routes and import none of Goals' matchers", () => {
   const removed = ["resolveGoalsReadRoute", "resolveGoalsPageRoute", "matchGoalsPlanningRoute"];
-  for (const name of ["web-goals-read.ts", "web-planning.ts", "web-home-plugin-recovery.ts"]) {
+  for (const name of ["web-goals-read.ts", "web-planning.ts", "web-owner-unavailable.ts"]) {
     const text = readFileSync(new URL(`apps/local-host/src/${name}`, ROOT), "utf8");
     for (const matcher of removed) assert.equal(text.includes(matcher), false, `${name} names ${matcher}`);
     assert.equal(text.includes("GOALS_PAGE_ROUTES"), false, `${name} reads Goals' declarations instead of the Host's matcher`);
   }
   assert.match(readFileSync(new URL("apps/local-host/src/page-routes.ts", ROOT), "utf8"), /matchDeclaredPageRoute\(PLATFORM_PLUGIN_REGISTRATIONS\.map\(entry => entry\.manifest\)/u);
-  assert.equal(GOALS_PACKAGE.test(readFileSync(new URL("apps/local-host/src/web-home-plugin-recovery.ts", ROOT), "utf8")), false);
+  assert.equal(GOALS_PACKAGE.test(readFileSync(new URL("apps/local-host/src/web-owner-unavailable.ts", ROOT), "utf8")), false);
   assert.ok(goalsManifest.ui.page_routes?.length, "Goals declares its page routes in its Manifest");
 });

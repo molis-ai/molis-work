@@ -10,7 +10,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailure } from "./web-project-deletion.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { hostLog } from "./host-log.js";
-import { projectPluginMembershipForPage } from "./web-home-plugin-recovery.js";
+import { projectPluginMembershipForPage } from "./web-owner-unavailable.js";
 import type { WebServerOptions } from "./web-types.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import { hostErrors } from "./host-errors.js";

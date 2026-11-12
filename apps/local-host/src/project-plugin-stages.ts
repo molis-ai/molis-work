@@ -13,6 +13,8 @@ import type { HomePluginHost } from "./home-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
+import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
+import { describePluginTablesRefusal } from "./home-unavailable-owners.js";
 import { activeLocale, runWithRegisteredText, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { pluginViewText } from "./plugin-host-services.js";
 import { projectTextPacks } from "./ui-text-provider.js";
@@ -69,6 +71,8 @@ export interface ProjectRuntimeStageOptions {
   model(projectPluginId: string): unknown;
   /** The Home halves of dual-instance plugins; without them every stage here is its project half's, as on a page with no Home. */
   home?: HomeStageHalves;
+  /** The Home the library is in: with it, a plugin whose tables an upgrade left behind gets the upgrade card (U3 §2.4). */
+  homeDirectory?: string;
 }
 
 /**
@@ -104,7 +108,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
       }
     }
     const prepared = options.views ? options.views[key] : undefined;
-    const stage = runtimeStage(state, store, entry, contributionId, options.model, options.page_owner === pluginId, options.drawn, prepared);
+    const stage = runtimeStage(state, store, entry, contributionId, options.model, options.page_owner === pluginId, options.drawn, prepared, options.homeDirectory);
     if ("html" in stage) {
       if (stage.page) page = stage.page;
       if (stage.html) html.push(stage.html);
@@ -124,12 +128,16 @@ function stageView(state: ProjectPluginState, pluginId: string, contributionId: 
 }
 
 function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, entry: StageEntry, contributionId: string,
-  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared?: PreparedStageView | null): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
+  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean, drawn: ProjectRuntimeStageOptions["drawn"], prepared: PreparedStageView | null | undefined, homeDirectory: string | undefined): ReturnType<typeof renderStagePage> | UnavailablePluginStage {
   const pluginId = entry.manifest.plugin_id;
   const contribution = state.platform?.supervisor.contribution(pluginId);
   if (!contribution) {
     const active = state.platform?.supervisor.state(pluginId);
     const running = active?.status === "running" && active.install_id && state.platform?.runtime.get(active.install_id).state === "running";
+    const refusal = homeDirectory ? projectPluginDatabaseRefusal(store.db, pluginId) : null;
+    const upgrade = homeDirectory && refusal instanceof ActionError ? describePluginTablesRefusal(homeDirectory, pluginId, store.path, refusal) : undefined;
+    if (upgrade) return { ...unavailableStage(state, entry, refusal?.message ?? ""), restart: null,
+      upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: null, reload_href: null } };
     return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
       ?? uiText.text(active?.status === "starting" ? "workbench.project-plugin-stages.starting" : running
         ? "workbench.project-plugin-stages.plugin-running-but-has-not-provided-page" : "workbench.project-plugin-stages.plugin-not-running"));

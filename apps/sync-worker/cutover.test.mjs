@@ -160,6 +160,54 @@ test('BSH-14-C/A plan, seal, seed and finish adopt the exact old graph; the seal
   assert.equal((await a.send('/v1/quota')).body.usedBytes>usedBefore,true,'seeds are charged once the reservation is spent');
 });
 
+test('BSH-14-A/C new attachments a conversion made are reserved at begin, uploaded only under live consent, and refunded if collected',{timeout:120000},async t=>{
+  const a=await oldStream(t);const observed=await a.status(),planId=id('fresh');
+  const fresh=Buffer.alloc(4194304+33,3);fresh.write('converted large body');const ref={digest:hash(fresh),size:fresh.length};
+  const other=Buffer.from('a part no plan names');const stray={digest:hash(other),size:other.length};
+  const items=[{key:'alpha',sourceRevision:a.old.alpha,value:{owner:'system.materials',parts:[ref.digest]},attachments:[a.photo,ref]},{key:'beta',sourceRevision:a.old.beta,value:{owner:'system.materials',parts:[ref.digest]},attachments:[ref]}];
+  const seedBlob=(current,path,body)=>a.send('/v1/process-items/cutover/seed-blobs/'+path,{body:{cutoverId:planId,expectedConsentRevision:current.consentRevision,...body}});
+  const seedChunk=(current,target,data,part)=>a.f.transport('https://sync.example.test/v1/process-items/cutover/seed-blobs/chunk?'+new URLSearchParams({cutoverId:planId,consentRevision:String(current.consentRevision),digest:target.digest,part:String(part)}),{method:data?'PUT':'GET',headers:{Authorization:'Bearer alice'},...(data?{body:data}:{})});
+  // A planned new digest must have one size across the plan; an existing blob the source never held is not a usable reference.
+  let reserve=0;for(const item of items){const planned=await a.plan(planId,observed,item.key,item.sourceRevision,item.value,item.attachments);assert.equal(planned.status,200,JSON.stringify(planned.body));reserve+=planned.body.contentBytes;}
+  assert.equal((await a.plan(planId,observed,'beta',a.old.beta,items[1].value,[{...ref,size:ref.size+1}])).body.error,'SYNC_BLOB_CONFLICT');
+  assert.equal((await a.plan(planId,observed,'beta',a.old.beta,items[1].value,[a.photo])).body.error,'SYNC_BLOB_NOT_READY','another key\'s attachment is borrowed');
+  assert.equal((await seedBlob({consentRevision:1},'reserve',ref)).body.error,'SYNC_CUTOVER_SCOPE','nothing uploads before the seal');
+  const usedBefore=(await a.send('/v1/quota')).body.usedBytes;
+  let current=(await a.begin(planId,observed)).body;assert.equal(current.phase,'seeding');
+  assert.equal(current.reservedBytes,reserve+ref.size,'the frozen text plus each new digest once; the source photo costs nothing more');
+  assert.equal((await a.send('/v1/quota')).body.usedBytes,usedBefore);
+  // Only the planned digest at its planned size, under the live consent revision.
+  assert.equal((await seedBlob(current,'reserve',stray)).body.error,'SYNC_SEED_MISMATCH');
+  assert.equal((await seedBlob(current,'reserve',{...ref,size:ref.size-1})).body.error,'SYNC_SEED_MISMATCH');
+  assert.equal((await seedBlob({consentRevision:current.consentRevision+1},'reserve',ref)).body.error,'SYNC_CONSENT_REQUIRED');
+  assert.equal((await a.send('/v1/blobs/reserve',{body:{namespace:N,...ref}})).status,403,'the sealed stream has no ordinary upload');
+  assert.equal((await a.seed(current,items[1])).body.error,'SYNC_BLOB_NOT_READY','a seed waits for its new bytes');
+  const reserved=await seedBlob(current,'reserve',ref);assert.equal(reserved.status,200,JSON.stringify(reserved.body));
+  assert.equal((await a.status()).reservedBytes,reserve,'the upload spends its own reservation');
+  assert.equal((await a.send('/v1/quota')).body.usedBytes,usedBefore+ref.size);
+  // Collected before seeding ends: the bytes go back to the reservation, and a new reserve spends them again.
+  await a.f.db.prepare('DELETE FROM sync_blobs WHERE digest=?').bind(ref.digest).run();
+  assert.equal((await a.status()).reservedBytes,reserve+ref.size,'a collected planned blob refunds its reservation');
+  assert.equal((await seedBlob(current,'reserve',ref)).status,200);assert.equal((await a.status()).reservedBytes,reserve);
+  assert.equal((await seedChunk(current,ref,fresh.subarray(0,4194304),0)).status,200);
+  // A withdrawn consent stops the next part and the completion; restoring it continues the same upload.
+  assert.equal((await a.consent(current,false,true)).status,200);const paused=await a.status();
+  assert.equal((await seedChunk(paused,ref,fresh.subarray(4194304),1)).status,403);
+  assert.equal((await seedBlob(paused,'complete',{digest:ref.digest})).body.error,'SYNC_CONSENT_REQUIRED');
+  assert.equal((await a.consent(paused,true,true)).status,200);current=await a.status();
+  assert.equal((await seedChunk(current,ref,fresh.subarray(4194304),1)).status,200);
+  const status=await a.send('/v1/process-items/cutover/seed-blobs/status?'+new URLSearchParams({cutoverId:planId,consentRevision:String(current.consentRevision),digest:ref.digest}));
+  assert.equal(status.body.parts.length,2);assert.equal(status.body.ready,false);
+  assert.equal((await seedBlob(current,'complete',{digest:ref.digest})).status,200);
+  assert.ok(Buffer.from(await (await seedChunk(current,ref,null,1)).arrayBuffer()).equals(fresh.subarray(4194304)),'the uploaded part reads back while seeding');
+  for(const item of items){const result=await a.seed(current,item);assert.equal(result.status,200,JSON.stringify(result.body));}
+  current=await a.status();assert.equal(current.reservedBytes,0);
+  assert.equal((await a.send('/v1/quota')).body.usedBytes,usedBefore+reserve+ref.size,'used plus reservation stayed exact throughout');
+  current=(await a.finish(current)).body;assert.equal(current.phase,'complete');
+  assert.equal((await seedBlob(current,'reserve',ref)).body.error,'SYNC_SEED_MISMATCH','a finished plan names nothing');
+  const read=Buffer.concat([(await a.chunk(N,ref,0,planId)).bytes,(await a.chunk(N,ref,1,planId)).bytes]);assert.ok(read.equals(fresh),'the adopted stream reads its new attachment');
+});
+
 test('BSH-14-A the reservation is exact: one byte short stays open; an exact fit seals and ordinary writes cannot spend it',{timeout:120000},async t=>{
   const a=await oldStream(t);const observed=await a.status(),planId=id('quota');
   const items=[{key:'alpha',sourceRevision:a.old.alpha,value:{text:'alpha'},attachments:[a.photo]},{key:'beta',sourceRevision:a.old.beta,value:{text:'beta'},attachments:[]}];

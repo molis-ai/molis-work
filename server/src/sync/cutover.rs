@@ -51,7 +51,7 @@ fn check(
         ))
         .bind(binds)?)
 }
-const CODES: [(&str, u16); 17] = [
+const CODES: [(&str, u16); 18] = [
     ("SYNC_CUTOVER_SEALED", 409),
     ("SYNC_COLLECTION_SEALED", 409),
     ("SYNC_CUTOVER_SEEDING", 409),
@@ -65,6 +65,7 @@ const CODES: [(&str, u16); 17] = [
     ("SYNC_SEED_INCOMPLETE", 409),
     ("SYNC_ITEM_RETIRED", 409),
     ("SYNC_BLOB_NOT_READY", 409),
+    ("SYNC_BLOB_CONFLICT", 409),
     ("SYNC_QUOTA_EXCEEDED", 413),
     ("SYNC_POLICY_CONFLICT", 409),
     ("SYNC_VERSION_CONFLICT", 409),
@@ -422,6 +423,19 @@ const LIVE_HEAD: &str = "EXISTS(SELECT 1 FROM sync_heads WHERE space=? AND names
 const SELECTED: &str = "EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND p.revision=? AND n.value=?)";
 const SOURCE_HEAD: &str =
     "(SELECT COALESCE(MAX(revision),0) FROM sync_receipts WHERE space=? AND namespace=?)";
+/// A planned reference `ref` is usable when its item's own source event holds it as a ready blob of that size, or when no
+/// blob of that digest exists yet (new bytes the conversion made). Knowing another digest is never proof of holding it.
+macro_rules! usable {
+    ($source:literal) => {
+        concat!(
+            "(EXISTS(SELECT 1 FROM sync_events e,json_each(e.attachments) s JOIN sync_blobs b ON b.space=e.space AND b.digest=json_extract(s.value,'$.digest') WHERE ",
+            $source,
+            " AND json_extract(s.value,'$.digest')=json_extract(ref.value,'$.digest') AND json_extract(s.value,'$.size')=json_extract(ref.value,'$.size') AND b.size=json_extract(ref.value,'$.size') AND b.ready=1 AND b.deleting=0) OR NOT EXISTS(SELECT 1 FROM sync_blobs n WHERE n.space=? AND n.digest=json_extract(ref.value,'$.digest')))"
+        )
+    };
+}
+/// Distinct planned attachments no blob holds yet: the bytes the seed-blob routes will add.
+const ABSENT: &str = "(SELECT COALESCE(SUM(size),0) FROM (SELECT DISTINCT json_extract(ref.value,'$.digest') AS digest,json_extract(ref.value,'$.size') AS size FROM sync_cutover_items i,json_each(i.attachments) ref WHERE i.space=? AND i.plan_id=? AND NOT EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=i.space AND b.digest=json_extract(ref.value,'$.digest'))))";
 
 async fn plan_item(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
     let value = body(req).await?;
@@ -451,12 +465,15 @@ async fn plan_item(req: &mut Request, db: &D1Database, space: &str) -> ApiResult
         check(db, "SYNC_POLICY_CONFLICT", &format!("NOT {SELECTED}"), &[s(), n(policy), PUBLIC.into()])?,
         check(db, "SYNC_SOURCE_CHANGED", &format!("{SOURCE_HEAD}<>?"), &[s(), PUBLIC.into(), n(head)])?,
         check(db, "SYNC_SOURCE_CHANGED", &format!("NOT {LIVE_HEAD}"), &[s(), PUBLIC.into(), item.key.clone().into(), n(source)])?,
-        // Attachments must already belong to that exact source event and be ready; the plan never introduces bytes.
-        check(db, "SYNC_BLOB_NOT_READY", "EXISTS(SELECT 1 FROM json_each(?) ref WHERE NOT EXISTS(SELECT 1 FROM sync_events e,json_each(e.attachments) s WHERE e.space=? AND e.namespace=? AND e.key=? AND e.revision=? AND json_extract(s.value,'$.digest')=json_extract(ref.value,'$.digest') AND json_extract(s.value,'$.size')=json_extract(ref.value,'$.size')) OR NOT EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=? AND b.digest=json_extract(ref.value,'$.digest') AND b.size=json_extract(ref.value,'$.size') AND b.ready=1 AND b.deleting=0))", &[item.attachments.clone().into(), s(), PUBLIC.into(), item.key.clone().into(), n(source), s()])?,
+        // An attachment is either one the exact source event already holds, or new bytes the conversion made: those are uploaded
+        // only through the seed-blob routes, only for digests frozen here, and begin reserves room for them.
+        check(db, "SYNC_BLOB_NOT_READY", concat!("EXISTS(SELECT 1 FROM json_each(?) ref WHERE NOT ", usable!("e.space=? AND e.namespace=? AND e.key=? AND e.revision=?"), ")"), &[item.attachments.clone().into(), s(), PUBLIC.into(), item.key.clone().into(), n(source), s()])?,
         // A plan made against an older observation is replaced; a different plan for the same observation is a conflict.
         db.prepare("DELETE FROM sync_cutover_plans WHERE space=? AND plan_id<>? AND (policy_revision<>? OR source_head<>?)").bind(&[s(), plan.clone().into(), n(policy), n(head)])?,
         db.prepare("INSERT INTO sync_cutover_plans(space,plan_id,policy_revision,source_head) VALUES (?,?,?,?) ON CONFLICT(space) DO NOTHING").bind(&[s(), plan.clone().into(), n(policy), n(head)])?,
         check(db, "SYNC_PLAN_CONFLICT", "NOT EXISTS(SELECT 1 FROM sync_cutover_plans WHERE space=? AND plan_id=? AND policy_revision=? AND source_head=?)", &[s(), plan.clone().into(), n(policy), n(head)])?,
+        // One digest has one size across the whole plan, so its reservation is counted once and exactly.
+        check(db, "SYNC_BLOB_CONFLICT", "EXISTS(SELECT 1 FROM json_each(?) ref,sync_cutover_items i,json_each(i.attachments) other WHERE i.space=? AND i.plan_id=? AND i.key<>? AND json_extract(other.value,'$.digest')=json_extract(ref.value,'$.digest') AND json_extract(other.value,'$.size')<>json_extract(ref.value,'$.size'))", &[item.attachments.clone().into(), s(), plan.clone().into(), item.key.clone().into()])?,
         db.prepare("INSERT INTO sync_cutover_items(space,plan_id,key,source_revision,operation,value,attachments,fingerprint) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(space,key) DO UPDATE SET plan_id=excluded.plan_id,source_revision=excluded.source_revision,operation=excluded.operation,value=excluded.value,attachments=excluded.attachments,fingerprint=excluded.fingerprint")
             .bind(&[s(), plan.clone().into(), item.key.clone().into(), n(source), op.clone().into(), item.value.clone().into(), item.attachments.clone().into(), item.fingerprint.clone().into()])?,
     ]).await?;
@@ -528,12 +545,12 @@ async fn begin(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Val
         check(db, "SYNC_PLAN_STALE", "NOT EXISTS(SELECT 1 FROM sync_cutover_plans WHERE space=? AND plan_id=? AND policy_revision=? AND source_head=?)", &[s(), p(), n(policy), n(head)])?,
         // Exact membership: every live old head has its item at that revision, and no item names anything else.
         check(db, "SYNC_PLAN_MISMATCH", "EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=? AND h.namespace=? AND h.deleted_at IS NULL AND h.purged_at IS NULL AND NOT EXISTS(SELECT 1 FROM sync_cutover_items i WHERE i.space=h.space AND i.plan_id=? AND i.key=h.key AND i.source_revision=h.revision)) OR EXISTS(SELECT 1 FROM sync_cutover_items i WHERE i.space=? AND i.plan_id=? AND NOT EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=i.space AND h.namespace=? AND h.key=i.key AND h.revision=i.source_revision AND h.deleted_at IS NULL AND h.purged_at IS NULL))", &[s(), PUBLIC.into(), p(), s(), p(), PUBLIC.into()])?,
-        check(db, "SYNC_BLOB_NOT_READY", "EXISTS(SELECT 1 FROM sync_cutover_items i,json_each(i.attachments) ref WHERE i.space=? AND i.plan_id=? AND NOT EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=i.space AND b.digest=json_extract(ref.value,'$.digest') AND b.size=json_extract(ref.value,'$.size') AND b.ready=1 AND b.deleting=0))", &[s(), p()])?,
+        check(db, "SYNC_BLOB_NOT_READY", concat!("EXISTS(SELECT 1 FROM sync_cutover_items i,json_each(i.attachments) ref WHERE i.space=? AND i.plan_id=? AND NOT ", usable!("e.space=i.space AND e.namespace=? AND e.key=i.key AND e.revision=i.source_revision"), ")"), &[s(), p(), PUBLIC.into(), s()])?,
         check(db, "SYNC_CUTOVER_SCOPE", "EXISTS(SELECT 1 FROM sync_events WHERE space=? AND namespace=?)", &[s(), stream.clone().into()])?,
-        // Seeds reuse ready attachments the account already pays for, so the reservation is the frozen text alone.
-        check(db, "SYNC_QUOTA_EXCEEDED", "COALESCE((SELECT used_bytes FROM sync_usage WHERE space=?),0)+(SELECT COALESCE(SUM(content_bytes),0) FROM sync_cutover_items WHERE space=? AND plan_id=?)>100000000", &[s(), s(), p()])?,
-        db.prepare("INSERT INTO sync_cutovers(space,cutover_id,namespace,sealed_policy_revision,source_head,reserved_bytes,consent_revision,adopting,history_read,selected) SELECT ?,?,?,?,?,(SELECT COALESCE(SUM(content_bytes),0) FROM sync_cutover_items WHERE space=? AND plan_id=?),1,1,?,0")
-            .bind(&[s(), p(), stream.clone().into(), n(policy + 1), n(head), s(), p(), n(i64::from(history))])?,
+        // The reservation is the frozen text plus the new attachments; ready blobs the account already pays for cost nothing more.
+        check(db, "SYNC_QUOTA_EXCEEDED", &format!("COALESCE((SELECT used_bytes FROM sync_usage WHERE space=?),0)+(SELECT COALESCE(SUM(content_bytes),0) FROM sync_cutover_items WHERE space=? AND plan_id=?)+{ABSENT}>100000000"), &[s(), s(), p(), s(), p()])?,
+        db.prepare(format!("INSERT INTO sync_cutovers(space,cutover_id,namespace,sealed_policy_revision,source_head,reserved_bytes,consent_revision,adopting,history_read,selected) SELECT ?,?,?,?,?,(SELECT COALESCE(SUM(content_bytes),0) FROM sync_cutover_items WHERE space=? AND plan_id=?)+{ABSENT},1,1,?,0"))
+            .bind(&[s(), p(), stream.clone().into(), n(policy + 1), n(head), s(), p(), s(), p(), n(i64::from(history))])?,
         db.prepare("UPDATE sync_policy SET revision=?,json=?,namespaces=? WHERE space=? AND revision=?")
             .bind(&[n(policy + 1), stored.to_string().into(), serde_json::to_string(&namespaces)?.into(), s(), n(policy)])?,
         // Generations the sealed stream references stay protected until their last reference and their bytes are gone.
@@ -845,6 +862,83 @@ async fn blob(req: &Request, env: &Env, db: &D1Database, space: &str) -> ApiResu
     Ok(response)
 }
 
+/// The size a digest has in the frozen plan; a digest the plan never named is not a seed upload.
+async fn planned(db: &D1Database, space: &str, cutover: &str, digest: &str) -> ApiResult<i64> {
+    db.prepare("SELECT json_extract(a.value,'$.size') AS size FROM sync_cutover_items i,json_each(i.attachments) a WHERE i.space=? AND i.plan_id=? AND json_extract(a.value,'$.digest')=? LIMIT 1")
+        .bind(&[space.into(), cutover.into(), digest.into()])?
+        .first::<Value>(None)
+        .await?
+        .ok_or(Failure(409, "SYNC_SEED_MISMATCH"))?["size"]
+        .as_i64()
+        .ok_or(Failure(503, "INVALID_STORAGE"))
+}
+/// New attachment bytes a conversion made, uploaded into the account's ordinary blob store while the seeding runs. Each call
+/// needs the live adoption consent and a digest frozen in the plan; reserve also needs the planned size.
+async fn seed_blobs(
+    req: &mut Request,
+    env: &Env,
+    db: &D1Database,
+    space: &str,
+    path: &str,
+) -> ApiResult<Response> {
+    let bucket = env.bucket("FILES")?;
+    if path.ends_with("/status") || path.ends_with("/chunk") {
+        let input = json!({
+            "cutoverId": crate::blobs::query(req, "cutoverId")?,
+            "digest": crate::blobs::query(req, "digest")?,
+        });
+        let cutover = id(&input, "cutoverId")?;
+        let digest = crate::blobs::digest(&input)?.to_owned();
+        let consent = crate::blobs::query(req, "consentRevision")?
+            .parse::<i64>()
+            .map_err(|_| Failure(400, "INVALID_FIELD"))?;
+        sealed(db, space, &cutover).await?;
+        planned(db, space, &cutover, &digest).await?;
+        let permit = crate::blobs::Permit::Seed {
+            cutover: &cutover,
+            consent,
+        };
+        if path.ends_with("/status") {
+            require(req.method() == Method::Get, 405, "METHOD_NOT_ALLOWED")?;
+            return Ok(Response::from_json(
+                &crate::blobs::status(db, space, &digest, &permit).await?,
+            )?);
+        }
+        let part = crate::blobs::query(req, "part")?
+            .parse::<i64>()
+            .map_err(|_| Failure(400, "INVALID_PART"))?;
+        return crate::blobs::chunk(req, db, &bucket, space, &digest, part, &permit).await;
+    }
+    require(req.method() == Method::Post, 405, "METHOD_NOT_ALLOWED")?;
+    let value = body(req).await?;
+    let reserving = path.ends_with("/reserve");
+    let mut allowed = vec!["cutoverId", "expectedConsentRevision", "digest"];
+    if reserving {
+        allowed.push("size");
+    }
+    fields(&value, &allowed)?;
+    let cutover = id(&value, "cutoverId")?;
+    let digest = crate::blobs::digest(&value)?.to_owned();
+    let consent = integer(&value, "expectedConsentRevision")?;
+    sealed(db, space, &cutover).await?;
+    let size = planned(db, space, &cutover, &digest).await?;
+    let permit = crate::blobs::Permit::Seed {
+        cutover: &cutover,
+        consent,
+    };
+    let result = match path {
+        "/v1/process-items/cutover/seed-blobs/reserve" => {
+            require(integer(&value, "size")? == size, 409, "SYNC_SEED_MISMATCH")?;
+            crate::blobs::reserve(db, space, &digest, size, &permit).await?
+        }
+        "/v1/process-items/cutover/seed-blobs/complete" => {
+            crate::blobs::complete(db, &bucket, space, &digest, &permit).await?
+        }
+        _ => return Err(Failure(404, "NOT_FOUND")),
+    };
+    Ok(Response::from_json(&result)?)
+}
+
 pub(crate) async fn handle(
     req: &mut Request,
     env: &Env,
@@ -863,6 +957,9 @@ pub(crate) async fn handle(
         (Method::Post, "/v1/process-items/cutover/consent") => consent(req, db, space).await,
         (Method::Get, "/v1/process-items/cutover/history") => history(req, db, space).await,
         (Method::Get, "/v1/process-items/cutover/blob") => return blob(req, env, db, space).await,
+        (_, route) if route.starts_with("/v1/process-items/cutover/seed-blobs/") => {
+            return seed_blobs(req, env, db, space, route).await;
+        }
         _ => Err(Failure(404, "NOT_FOUND")),
     }?;
     Ok(Response::from_json(&value)?)

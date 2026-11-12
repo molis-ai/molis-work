@@ -44,9 +44,18 @@ CREATE TABLE sync_cutover_blobs (
   PRIMARY KEY(space,digest,generation)
 );
 DROP TRIGGER sync_blob_admission;
+-- reserved_bytes holds the unseeded frozen text plus every planned attachment no blob of that size holds yet. A planned blob spends
+-- its own reservation whoever uploads it, and gives it back if it is collected before the seeding ends.
 CREATE TRIGGER sync_blob_admission BEFORE INSERT ON sync_blobs BEGIN
-  SELECT CASE WHEN COALESCE((SELECT used_bytes FROM sync_usage WHERE space=NEW.space),0)+COALESCE((SELECT reserved_bytes FROM sync_cutovers WHERE space=NEW.space),0)>100000000-NEW.size
+  SELECT CASE WHEN COALESCE((SELECT used_bytes FROM sync_usage WHERE space=NEW.space),0)+COALESCE((SELECT reserved_bytes FROM sync_cutovers WHERE space=NEW.space),0)
+      -CASE WHEN EXISTS(SELECT 1 FROM sync_cutovers c JOIN sync_cutover_items i ON i.space=c.space AND i.plan_id=c.cutover_id,json_each(i.attachments) a WHERE c.space=NEW.space AND c.completed_at IS NULL AND json_extract(a.value,'$.digest')=NEW.digest AND json_extract(a.value,'$.size')=NEW.size) THEN NEW.size ELSE 0 END>100000000-NEW.size
     THEN RAISE(ABORT,'SYNC_QUOTA_EXCEEDED') END;
+END;
+CREATE TRIGGER sync_blob_planned AFTER INSERT ON sync_blobs WHEN EXISTS(SELECT 1 FROM sync_cutovers c JOIN sync_cutover_items i ON i.space=c.space AND i.plan_id=c.cutover_id,json_each(i.attachments) a WHERE c.space=NEW.space AND c.completed_at IS NULL AND json_extract(a.value,'$.digest')=NEW.digest AND json_extract(a.value,'$.size')=NEW.size) BEGIN
+  UPDATE sync_cutovers SET reserved_bytes=MAX(0,reserved_bytes-NEW.size) WHERE space=NEW.space AND completed_at IS NULL;
+END;
+CREATE TRIGGER sync_blob_refund AFTER DELETE ON sync_blobs WHEN EXISTS(SELECT 1 FROM sync_cutovers c JOIN sync_cutover_items i ON i.space=c.space AND i.plan_id=c.cutover_id,json_each(i.attachments) a WHERE c.space=OLD.space AND c.completed_at IS NULL AND json_extract(a.value,'$.digest')=OLD.digest AND json_extract(a.value,'$.size')=OLD.size) BEGIN
+  UPDATE sync_cutovers SET reserved_bytes=reserved_bytes+OLD.size WHERE space=OLD.space AND completed_at IS NULL;
 END;
 DROP TRIGGER sync_events_validate;
 -- Cutover checks run first, so a sealed or private stream always answers with its own code. A seed is an operation the seed route derives

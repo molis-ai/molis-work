@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -17,6 +17,7 @@ import {lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {GoalProjectApplication,boardSnapshot} from '../../tests/fixtures/goal-application.ts';
+import {applySql} from './testing.mjs';
 import {goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
 
 test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async t=>{
@@ -35,8 +36,8 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
   t.mock.method(globalThis,'fetch',(url,init)=>mf.dispatchFetch('http://local'+new URL(url).pathname+new URL(url).search,init));
   try{
     const db=await mf.getD1Database('DB');
-    const sql=readFileSync(new URL('../../server/migrations/sync/0001_sync.sql',import.meta.url),'utf8');
-    for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;|INSERT INTO sync_schema[\s\S]*?;/g))await db.prepare(statement).run();
+    // The Worker serves only v6 plus the same-version cutover structure, so the fixture loads both files like a fresh database.
+    for(const file of ['0001_sync.sql','0002_process_items_cutover.sql'])await applySql(db,file);
     const call=(path,token,body,method=body===undefined?'GET':'POST')=>mf.dispatchFetch('http://local'+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
     assert.equal((await call('/v1/policy','invalid')).status,401);
     assert.equal((await call('/v1/policy','wrong-app')).status,403);

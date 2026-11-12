@@ -66,7 +66,6 @@ export class AssistantRoundMaterials {
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
-    // The round is told the time in the language it will answer in (FSS-69): `format.date` reads the language of the scope it runs in.
     const local = format.date(now.toISOString(), "datetime", { time_zone: zone });
     const where = work.scope.kind === "personal" ? "个人工作（不属于任何项目，使用个人范围的能力）"
       : `项目「${(await this.ports.projectTitle?.(work.scope.project_id).catch(() => null)) ?? work.scope.project_id}」中的工作（只使用这个项目的能力与资料）`;

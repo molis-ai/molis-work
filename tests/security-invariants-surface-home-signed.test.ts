@@ -70,6 +70,13 @@ async function fixture(t: TestContext, scope: "project" | "home", delegated: rea
     return group.plugin_card;
   };
   const click = (target: unknown) => post(endpoint + "/click", { owner_plugin_id: owner, target });
+  // The form's operation calls the delegated actions: the person switches platform capabilities on in the project's settings, off by
+  // default for a signed package since batch 27 (BL-701).
+  if (delegated.length && scope === "project") {
+    const installId = (await card()).open?.installation.install_id;
+    assert.ok(installId);
+    await body(await post("/api/plugin-trust/permissions/set", { install_id: installId, permission: "capabilities:call", granted: true }));
+  }
   const open = async (navigation: Navigation) => {
     const response = await f.request(navigation.frame_path), html = await response.text();
     assert.equal(response.status, 200, html.slice(0, 420));
@@ -200,7 +207,9 @@ test("S-surface-composition SCS-11 project signed form resolves its actual edito
   assert.equal(disabled.enable?.kind, "project_installation");
   assert.deepEqual(await body(await f.click(disabled.enable)), { kind: "enabled" });
   assert.equal(records.get(record.install_id)?.state, "running");
-  await body(await f.post("/api/plugin-trust/installed/uninstall", { plugin_id: owner, keep_data: false }));
+  const live = records.get(record.install_id)!;
+  await body(await f.post("/api/plugin-trust/installed/uninstall", { plugin_id: owner, keep_data: false,
+    target: { install_id: live.install_id, installation_generation: live.installation_generation, version: live.version, manifest_digest: live.manifest_digest } }));
   assert.equal((await f.description()).groups.some(group => group.owner_plugin_id === owner), false);
   await refuseChanged(await f.request(navigation.frame_path));
   await f.install();

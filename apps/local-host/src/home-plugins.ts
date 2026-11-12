@@ -36,7 +36,7 @@ import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
-import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallRegistry } from "./surface-installation.js";
+import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallCatalog, type SurfaceInstallRegistry } from "./surface-installation.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 import type { PluginRetainedItem, PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
@@ -67,15 +67,8 @@ export class HomePluginHost {
   private releaseProjectOwners?: () => void;
   private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
   private unwatchArtifacts?: () => void;
-  readonly installationScope = createHomeInstallationScope({
-    ready: () => this.ready(),
-    current: () => !!this.installed && !this.closed && !this.options.ownerClosing?.(),
-    catalog: () => {
-      if (!this.db || this.closed) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
-      return { projectId: null, home: this.options.home, db: this.db, registry: this.options.registry,
-        pending: [...this.options.entries.map(entry => entry.manifest), ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest)] };
-    },
-  });
+  readonly installationScope = createHomeInstallationScope({ ready: () => this.ready(),
+    current: () => !!this.installed && !this.closed && !this.options.ownerClosing?.(), catalog: () => homeInstallCatalog(this.closed ? undefined : this.db, this.options) });
   /** Stage projection may observe the live platform without awaiting or starting the Home. */
   readonly surfacePlatform = (): HomePluginPlatform | undefined => this.closed ? undefined : this.platform;
   private readonly releaseRegistration: () => void;
@@ -356,6 +349,14 @@ export class HomePluginHost {
         } } });
     return platform;
   }
+}
+
+/** What a Home install is checked against: the Host's own plugins and fixtures as they start, over the Home's installed records. */
+function homeInstallCatalog(db: ReturnType<typeof openHomePluginStore>["db"] | undefined,
+  options: { home: string; registry: SurfaceInstallRegistry; entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[] }): SurfaceInstallCatalog {
+  if (!db) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
+  return { projectId: null, home: options.home, db, registry: options.registry,
+    pending: [...options.entries.map(entry => entry.manifest), ...pluginFixtureEntries(options.fixtures ?? []).map(entry => entry.definition.manifest)] };
 }
 
 /** Each installation with the object slots its running views declare (surface-composition §14), read off the live supervisor. */

@@ -106,6 +106,15 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
   peek.addEventListener("close", onClose);
 }
 
+/** A replaced or dropped response ends its own word grants; a newer one keeps its own. */
+function releaseHomeText(host: HomeHost, old: SurfaceHomeDisplay | null) {
+  const text = old?.surface_text?.map(item => item.ref);
+  if (text?.length) void host.read("", { release_text: text }, new AbortController().signal).catch(() => undefined);
+}
+/** The grants differ on every read; what is shown does not have to. */
+const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) =>
+  !!a && JSON.stringify({ ...a, surface_text: undefined }) === JSON.stringify({ ...b, surface_text: undefined });
+
 export function mountHome(host: HomeHost) {
   const surface = document.querySelector<HTMLElement>('[data-work-surface="home"]');
   if (!surface) return null;
@@ -144,12 +153,7 @@ export function mountHome(host: HomeHost) {
     closePeek(); placement.close(false); needsRead = true;
     if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); }
   };
-  /** A replaced or dropped response ends its own word grants; a newer one keeps its own. */
-  const releaseText = (old: SurfaceHomeDisplay | null) => {
-    const text = old?.surface_text?.map(item => item.ref);
-    if (text?.length) void host.read("", { release_text: text }, new AbortController().signal).catch(() => undefined);
-  };
-  const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) => !!a && JSON.stringify({ ...a, surface_text: undefined }) === JSON.stringify({ ...b, surface_text: undefined });
+  const releaseText = (old: SurfaceHomeDisplay | null) => releaseHomeText(host, old);
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
 
   async function sync(invalidate = false) {

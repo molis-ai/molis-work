@@ -80,7 +80,7 @@ export function openProjectPersonContext(host: MolisWorkLocalHost, reference: Lo
   const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
   const metadata = host.inspectActionMetadata(caller, reference);
   return { metadata, inspect: () => host.inspectActionMetadata(caller, reference), caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
-    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.startedInstallations() ?? []) };
+    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.installations(false, true) ?? []) };
 }
 
 function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,

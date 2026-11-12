@@ -197,16 +197,16 @@ export class HomePluginHost {
   }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
-  installations(includeSurfaceSlots = false): Array<PluginInstanceRecord & { surface_slots?: readonly UiSlotDescriptor[] }> {
+  /** `started` reads what a started owner runs and none before it started or after it failed: for a read that must neither start nor wait for it. */
+  installations(includeSurfaceSlots = false, started = false): Array<PluginInstanceRecord & { surface_slots?: readonly UiSlotDescriptor[] }> {
     const platform = this.platform;
     if (!platform) {
+      if (started) return [];
       if (this.startFailure !== undefined) throw this.startFailure;
       throw new ActionError("actions.plugin_unavailable", this.closed ? "Home 插件宿主已关闭" : "Home 插件正在启动，请稍候", { kind: "unavailable" });
     }
     return includeSurfaceSlots ? withSurfaceSlots(platform, platform.runtime.list()) : platform.runtime.list();
   }
-  /** What a started Home owner runs, and none before it started or after it failed: for a read that must neither start nor wait for it. */
-  startedInstallations(includeSurfaceSlots = false) { return this.platform ? this.installations(includeSurfaceSlots) : []; }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest

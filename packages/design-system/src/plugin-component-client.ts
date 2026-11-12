@@ -16,7 +16,6 @@ import { pcPart, pcSubmit } from './plugin-component-part.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[]; deriveFieldWords?: boolean }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
   mountSurfaceSlot?: UiPageView<HTMLElement>['surfaceSlot'];
-  translate?(text: string): string;
   /** The inspect button's label (the studio passes it translated). */
   inspectLabel?: string;
   /** Observe only accepted query results, with the same request/selection ordering as the rendered view. */

@@ -128,7 +128,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
   const halves = currentHomeStageHalves(home);
   const entries = [
     ...installedPluginEntries(store.db).map(item => ({ ...item, scope: "project" as const })),
-    ...(home?.startedInstallations() ?? []).filter(record => record.state !== "uninstalled").map(record =>
+    ...(home?.installations(false, true) ?? []).filter(record => record.state !== "uninstalled").map(record =>
       ({ record, manifest: home?.manifest(record.plugin_id), scope: "home" as const })),
   ];
   const rows = entries.flatMap(({ record, manifest, scope }) => {

@@ -214,7 +214,7 @@ export function pcQuery(c: State & Kit & Rel & Rec & Det & Ctl & Out) {
       }
     }
     catch (error) { if (live(part, generation) && ticket === part.query) {
-      const message = slot ? options.translate?.('暂时读不到这个对象') ?? '暂时读不到这个对象' : error instanceof Error ? error.message : 'Unknown read error';
+      const message = slot ? t.text("common.presentation.unreadable") : error instanceof Error ? error.message : 'Unknown read error';
       part.output.replaceChildren();
       report(part, 'error', slot ? message : t.text("common.generated.read-failed", { message })); part.feedback.dataset.pcRead = '';
       const retry = make('button', t.text("common.generated.retry"), 'mw-btn mw-btn--secondary mw-btn--sm'); retry.type = 'button'; retry.dataset.pcRetry = part.node.id;

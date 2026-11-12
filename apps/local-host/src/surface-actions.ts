@@ -50,7 +50,7 @@ async function surfacePlugins(ports: SurfaceHostPorts, current: () => void): Pro
     return surfacePlugin(record, "project", manifest, slots);
   });
   const home = ports.home();
-  const homeEntries = home?.startedInstallations(true).filter(record => record.state !== "uninstalled")
+  const homeEntries = home?.installations(true, true).filter(record => record.state !== "uninstalled")
     .map(record => surfacePlugin(record, "home", home.manifest(record.plugin_id), record.surface_slots ?? [])) ?? [];
   return [...projectEntries, ...homeEntries];
 }

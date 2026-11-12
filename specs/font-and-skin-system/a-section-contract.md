@@ -837,7 +837,7 @@ A 段写了 `ui.locales` 的沙箱包被拒绝，**要有专门的拒绝，由 T
 | 字族、字重、字距 | 7 | 0 | `typeface.ts:52-54` | 字体方案 |
 | `--r-*` 等收尾 | 17 | 1（`press-shade`） | `styles/craft-finish-bar.ts:8-25` | 皮肤 15，规格锁定 2（`sheet-inset`、`code-tab`） |
 
-合计：皮肤 176（分明暗 114，共用 62），字体方案 8，规格锁定 10。
+合计：皮肤 176（分明暗 114，共用 62），字体方案 8，规格锁定 10。第 22 批在共用里加了错开时长 `dur-stagger`（60ms），共用变成 63；冻结的 194 个名字不变，测试把后加的名字单独列出（`tests/ui-baseline.test.ts` 的 `LATER`）。
 
 - `styles/skins.ts` 是 tray、pill 的差量（主会话说 35 个，我数到 37 个名字，多的是覆盖基线的如 `--r-dialog`），第 16 批删，不进基线。
 - 另有 2 个 `:root` 令牌不在 194 里：`--arrival-titlebar-h`（布局）、`--ease-settle`（别名 `var(--ease-spring)`）。留在结构样式。

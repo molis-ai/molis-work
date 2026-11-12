@@ -133,7 +133,6 @@
     "alchemist.client-views.coverage-gaps": "来源缺口",
     "alchemist.client-views.create-goal-project-idea-decision-its-source": "在本项目建一个 Goal，这个想法和决定作为它的来源",
     "alchemist.client-views.current-direction": "当前方向",
-    "alchemist.client-views.decided": "已决定",
     "alchemist.client-views.demand-inference": "需求推断",
     "alchemist.client-views.disable": "停用",
     "alchemist.client-views.disabled": "已停用",

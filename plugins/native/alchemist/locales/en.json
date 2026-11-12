@@ -133,7 +133,6 @@
     "alchemist.client-views.coverage-gaps": "Coverage gaps",
     "alchemist.client-views.create-goal-project-idea-decision-its-source": "Create a Goal in this project with this idea and decision as its source",
     "alchemist.client-views.current-direction": "Current direction",
-    "alchemist.client-views.decided": "Decided",
     "alchemist.client-views.demand-inference": "Demand inference",
     "alchemist.client-views.disable": "Disable",
     "alchemist.client-views.disabled": "Disabled",

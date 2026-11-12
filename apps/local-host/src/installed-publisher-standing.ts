@@ -1,8 +1,9 @@
-import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import { consentRevision } from './consent-revision.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { repeatingFailure } from './host-log.js';
+import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 /** What a person is told about an installation whose publisher they took back. */
 export const PUBLISHER_REVOKED_MESSAGE = '这个插件的发布者已被你撤销信任：它不再运行，数据还在，可以卸载';
@@ -34,12 +35,12 @@ export function publisherStanding(ledger: Pick<PluginConsentLedger, 'publishers'
  * when the project is next asked about its plugins. Each project does its own: an installation is already denied at its next effect.
  */
 export function publisherStops(c: { standing: ReturnType<typeof publisherStanding>; platform: Pick<PluginPlatform, 'supervisor' | 'runtime'>;
-  recoveryErrors: Map<string, string>; withdraw(pluginId: string): void; records(): PluginInstanceRecord[] }) {
+  recoveryErrors: RecoveryErrors; withdraw(pluginId: string): void; records(): PluginInstanceRecord[] }) {
   const suspend = async (record: PluginInstanceRecord) => {
-    c.recoveryErrors.set(record.plugin_id, PUBLISHER_REVOKED_MESSAGE);
+    c.recoveryErrors.set(record.plugin_id, pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE));
     c.withdraw(record.plugin_id); c.platform.supervisor.revoke(record.plugin_id);
     try { if (record.state === 'running') await c.platform.runtime.stop(record.install_id); }
-    catch (error) { c.recoveryErrors.set(record.plugin_id, PUBLISHER_REVOKED_MESSAGE + '（停用没有完成：' + (error instanceof Error ? error.message : String(error)) + '）'); }
+    catch (error) { c.recoveryErrors.set(record.plugin_id, pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE + '（停用没有完成：' + (error instanceof Error ? error.message : String(error)) + '）')); }
   };
   let reconciledAt = consentRevision();
   const reconcile = async () => {

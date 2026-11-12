@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { PluginImageGenerationClient, PluginModelClient, PluginModelConfigurationInput, PluginModelConfigurationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SANDBOX_IMAGE_LIMITS, type SandboxEffects, type SandboxJson, type SandboxOperationContract, type SandboxPluginContract, type SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, assertContract, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
+import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, SandboxImageHolder, assertContract, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
 
 // BL-491 (PG-017; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60): a sandboxed package reaches its model settings and the person's image
 // connections through the broker. What is asserted here is the broker's half: the declared and approved effect, a command for anything that changes or spends,
@@ -93,17 +93,23 @@ test("BL-491 RAC-2632 image bind, unbind and generate need a command, the declar
   assert.deepEqual(calls.slice(before), ["bind", "unbind"]);
 });
 
-test("BL-491 RAC-2633 an image result is bounded: at most the contract's count and bytes cross the channel as base64, and nothing is cut", async () => {
+test("BL-491 RAC-2633 an image result is bounded: at most the contract's count and bytes cross the channel, held for the call and read in parts inside its share, and nothing is cut", async () => {
+  // BL-918 moved the bytes out of the generate answer: it carries sizes, and each part is at most `part_bytes` (B27-IMG-01..04 in tests/security-invariants-sandbox-image-ranges.test.ts).
   const { services, setBytes } = imageRig(), command = operation("command", IMAGES), b = broker(IMAGES, services);
-  setBytes(SANDBOX_IMAGE_LIMITS.max_bytes);
-  const fits = await call(b, command, "imageGeneration.generate", [request]) as { images: Array<{ base64: string; mime: string }>; revision: string };
-  assert.equal(Buffer.from(fits.images[0]!.base64, "base64").byteLength, SANDBOX_IMAGE_LIMITS.max_bytes);
-  assert.ok(Buffer.byteLength(JSON.stringify(fits)) <= DEFAULT_SANDBOX_LIMITS.messageBytes / 2, "the largest allowed result is inside the channel's share");
-  setBytes(SANDBOX_IMAGE_LIMITS.max_bytes + 1);
-  await assert.rejects(call(b, command, "imageGeneration.generate", [request]), code("sandbox.response_too_large"));
+  const held = (holder: SandboxImageHolder) => b.invoke(command, new AbortController().signal, "imageGeneration.generate", [request], undefined, undefined, undefined, undefined, holder);
+  setBytes(SANDBOX_IMAGE_LIMITS.max_image_bytes);
+  const holder = new SandboxImageHolder(new AbortController().signal);
+  const fits = await held(holder) as { result_id: string; images: Array<{ byte_length: number; mime: string }>; revision: string };
+  assert.deepEqual(fits.images, [{ byte_length: SANDBOX_IMAGE_LIMITS.max_image_bytes, mime: "image/png" }]);
+  assert.ok(Buffer.byteLength(JSON.stringify(fits)) < 1024, "the generate answer carries sizes, not bytes");
+  const part = await b.invoke(command, new AbortController().signal, "imageGeneration.readRange", [{ result_id: fits.result_id, image_index: 0, offset: 0, length: SANDBOX_IMAGE_LIMITS.part_bytes }], undefined, undefined, undefined, undefined, holder) as { byte_length: number; data_base64: string };
+  assert.equal(part.byte_length, SANDBOX_IMAGE_LIMITS.part_bytes);
+  assert.ok(Buffer.byteLength(JSON.stringify(part)) <= DEFAULT_SANDBOX_LIMITS.messageBytes / 2, "the largest part is inside the channel's share");
+  setBytes(SANDBOX_IMAGE_LIMITS.max_image_bytes + 1);
+  await assert.rejects(held(new SandboxImageHolder(new AbortController().signal)), code("sandbox.response_too_large"));
   const many = sandboxServicesFor({ storage, imageGeneration: { connections: () => [], inspect: () => ({ connection_id: null, available: false, has_key: false, revision: "r" }), bind: async () => {}, unbind: async () => {},
     generate: async () => ({ images: Array.from({ length: SANDBOX_IMAGE_LIMITS.max_images + 1 }, () => ({ bytes: new Uint8Array(1) })), revision: "r" }) } });
-  await assert.rejects(call(broker(IMAGES, many), command, "imageGeneration.generate", [request]), code("sandbox.response_too_large"));
+  await assert.rejects(broker(IMAGES, many).invoke(command, new AbortController().signal, "imageGeneration.generate", [request], undefined, undefined, undefined, undefined, new SandboxImageHolder(new AbortController().signal)), code("sandbox.response_too_large"));
 });
 
 test("BL-491 RAC-2627 a contract cannot ask for what the broker would never give: new effect values, a query that changes, an address-less generate", () => {

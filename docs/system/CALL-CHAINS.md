@@ -288,7 +288,8 @@
 | 连接器：按认证方式的通用路由和连接库管理（`/api/settings/connectors/connections`、`.../authorizations/<id>`、`.../methods/…`） | `apps/local-host/src/web-connector-connections.ts`、`apps/local-host/src/web-connector-methods.ts`、`apps/local-host/src/web-connector-api-methods.ts` | 连接库是宿主的（`apps/local-host/src/connector-connection-store.ts`），不属于某个 provider | 连接库管理成为动作或设置面时再议；此前保持 |
 | 判断服务的账号连接：`POST /api/functions/settings`（选择或清除 Functions 绑定的 TypeSafe 连接，另有 `GET` 读状态） | `apps/local-host/src/judgment-rules-http.ts` 调 `bindTypeSafeConnection`、`unbindTypeSafeConnection`（`apps/local-host/src/typesafe-connection.ts`），绑定写在 Home 的连接库里（范围 `home`，插件位 `functions`，槽 `typesafe`）；页面是 `apps/workbench/src/judgment-rules/settings-client.ts`（设置 › 服务连接） | 选哪个账号给判断服务用是本人的决定；连接库是宿主的，与上一行的通用连接路由同源 | 与上一行相同：连接库管理成为动作或设置面时再议；此前保持 |
 | 提示词：`POST /api/agent-definitions/prompt`（保存）、`POST /api/agent-definitions/prompt/reset`（恢复默认）；设置 › 提示词 | `apps/local-host/src/agent-definitions/agent-definitions-http.ts` 直接调 `AgentDefinitions.save`、`reset`（`apps/local-host/src/agent-definitions/agent-definitions.ts`），页面是 `apps/workbench/src/settings-prompts.ts`；库是 Home 的 `agent-definitions` 存储（`AGENT_DEFINITIONS_STORE`） | 改的是模型指令的登记册，一个 Home 一份，不属于任何插件；带 `expected_revision` 防冲突并记历史；页面写明改文字不改变角色能做什么，权限由 Host 在代码里执行。让助理、Agent、MCP 能调它，等于让它们改自己的指令 | 需要代用户改提示词的入口出现，或提示词成为各插件设置面的一部分时；在此之前不进动作目录 |
-| 设置 › 助理：`POST /api/assistant/capabilities`（助理能用哪些动作、哪些每次确认）、`POST /api/assistant/rules` 与 `/rules/remove`（不打扰与暂停提醒的规则）、`POST /api/assistant/budget`（每日用量上限）。另有 `POST /api/assistant/memory-prefs` 与 `/memories` 仍挂着，今天 `apps/workbench/src` 里没有页面调用它们（设置 › 记忆走 `/api/memory/*`；记忆系统规格 `specs/archive/memory-system/spec.md` 写明保留这些路径并内部转发） | `apps/local-host/src/assistant/assistant-http.ts` 直接调 `AssistantService`（`saveRule`、`saveBudget`、`saveMemoryPrefs` 等）和 `AssistantStore`，页面是 `apps/workbench/src/settings-assistant.ts`；库是 Home 的助理库（`ASSISTANT_STORE_NAME`，`apps/local-host/src/assistant/assistant-store.ts`） | 这几项约束助理自己：能用什么、花多少、何时不打扰。必须是本人在本机页面上的决定，助理不能给自己放宽 | 改成只对 `user` 受众开放、目录里对其他受众不可见的系统动作时才改（与对外接入授权同条件）；`memory-prefs` 与 `/memories` 两条在确认没有别的调用方后，随助理 HTTP 的下次整理删除 |
+| 设置 › 助理：`POST /api/assistant/capabilities`（能用哪些动作、哪些每次确认）、`POST /api/assistant/budget`（每日用量上限）。另有 `POST /api/assistant/memory-prefs` 与 `/memories`，现行设置 › 记忆走 `/api/memory/*` | `apps/local-host/src/assistant/assistant-http.ts` 由本人上下文调用助理存储与预算。旧记忆路径转 Memory owner。页面在 `apps/workbench/src/settings-assistant.ts` | 能力授权和用量约束由本人决定。旧记忆路径的去留由原规格管理 | 授权和预算成为只对 `user` 开放的动作时再接。旧记忆路径按 `specs/archive/memory-system/spec.md` 保留，确认无其它调用方后再删 |
+| 设置 › 助理：`POST /api/assistant/rules`、`/rules/remove` | 同一 HTTP 入口直接调 `AssistantFollowUps`，另有 `apps/local-host/src/assistant/assistant-rule-actions.ts` 的 `assistant.rules.add`／`assistant.rules.remove` 走现有写入动作和确认 | 规则由助理的 Home 存储持有。页面可按原 ID 修改，现有 `add` 动作只添加 | 接入时核对编辑与添加的区别，保持各入口的本人决策和现有确认边界 |
 | 侧栏浏览器的站点授权：`POST /api/browser/sites`（允许、拦截或忘记某个网站）、`POST /api/browser/assistant`（助理能否使用侧栏浏览器） | `apps/local-host/src/browser/browser-http.ts`，数据在 `{home}/browser/sites.json`（`BrowserSiteDecisions`，`apps/local-host/src/browser/browser-surfaces.ts`） | 这是助理在侧栏浏览器里用哪些网站的授权，与对外接入授权同类：必须是本人的决定，助理不能给自己授权 | 与对外接入授权一行相同 |
 | Runtime 插件的运维：`POST /api/plugins/<插件 id>/restart`、`/release-quarantine`、`/upgrade`，`POST /api/plugins/runtime/events/recover` | `apps/local-host/src/project-plugin-http.ts`（`handleProjectPluginHttp`，不认识任何插件）把请求交给 `apps/local-host/src/plugin-route-operations.ts` 的 `dispatchRuntimePluginRoute`（不认识任何插件：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；属于某个插件或项目输入图的部分经钩子由调用方给），它调 `PluginSupervisor.restart` 与 `PluginSupervisor.upgrade`（`packages/plugin-runtime/src/supervisor.ts`，经 `apps/local-host/src/plugin-platform.ts` 的平台对象）；`apps/local-host/src/plugin-event-http.ts`（`handlePluginEventHttp`）调 `PluginEventBus.recover`（`packages/plugin-runtime/src/events.ts`） | 重启、解除隔离和升级是人对已装插件的运维决定（升级换版本、解除隔离让被隔离的插件重新运行）；`recover` 是人对「结果未知」的事件投递选择重试或跳过。都要求 POST 确认，处理器在 Host 的监督器与事件总线里，不属于某个插件 | 插件运维成为只对 `user` 受众开放的系统动作（升级与重启带预览、确认配对），或助理需要代用户升级插件时；在此之前保持 |
 | typed 能力注册表 | 已删除：`packages/kernel/src/index.ts`（`CapabilityRegistry`）只收带 `action` 的定义，`apps/local-host/src/local-host.ts` 只有 `registerAction` 一个登记口 | 已定（N-12，决定 1）对外只走动作；`agent.*`（`packages/contracts/src/services/agent-host.ts`）、调度与工作区的宿主能力先后转成动作，R8「删 typed 通道」删掉了 `HostCapabilityDefinition`、`register` / `registerCapability` 与插件的 `services.capabilities`，门禁（`typedCapabilities`）数字为 0 且不许再加；`services.model`（W3-06 E）是插件服务（`PluginHostServices.model`），不经注册表 | Goals 的十四个 typed 桥已删除（PR-5/8）；注册表里没有 typed 条目由 `tests/typed-registry-inventory.test.ts` 核对（PR-9）。工作区读只剩动作 id（W2-09），Files、Git、Coding 经 `capabilities.consumes` 与 `workspace:read` 调它（见 [PLUGIN-PLATFORM §3](../platform/PLUGIN-PLATFORM.md)「插件调用宿主动作」） |
@@ -296,6 +297,43 @@
 
 
 通用 OAuth 回调仍由平台按 state 处理声明，不把授权执行代码搬进插件；Gmail 既有回调与 Notion 的 localhost 别名按原声明保留。通用连接管理 HTTP 与 R2/R3 分别登记，不因本片删除其它管理入口。
+
+#### 10.1.1 B9 接入记录
+
+按 2026-11-01 的决定逐组接入。首次引导整理旅程、Agent 审批与助理面板三组的写入已在第 27 批改成动作（设计稿 `specs/visual-ui-experience/work-items/batch27-http-write-actions/spec.md`）：每个 POST 是动作目录里的一个 `system` 动作，受众只有 `user`，处理器第一步是页面的入口门（`apps/local-host/src/web-entry-actions.ts` 的 `webEntryDoor`，S-page-entry-actions）：路由每次请求签发一个凭据，只有本人经这扇门、在这次请求里的调用才服务，Agent、MCP、工作流和插件够不到。HTTP 只剩传输：读请求、把路径里的标识和请求体交给动作、把结果写回（含助理的「画好再给页面」）。这些路径仍由 `apps/local-host/src/web-server.ts` 的本机请求检查保护。动作调用的就是原来 HTTP 调用的主人方法，参数相同，主人的行为与「接入时保留」的各项不变。
+
+| 组 | 动作 | 主人 |
+| --- | --- | --- |
+| 首次引导整理旅程（`apps/local-host/src/web-context-onboarding.ts`，`/api/onboarding/context` 与 `/<id>/files`、`selection`、`start`、`reopen`、`draft`、`adopt`） | `onboarding.context.create`、`stage_file`、`select`、`start`、`reopen`、`draft`、`adopt`（`apps/local-host/src/context-onboarding-actions.ts`）。原文件仍从请求流式写入暂存，请求流跟着入口凭据走，不进动作输入 | 旅程状态 `apps/local-host/src/context-onboarding-store.ts`，读写流程 `apps/local-host/src/context-onboarding-service.ts` |
+| Agent 审批（`apps/local-host/src/agent-review-http.ts`，`POST /api/agent/reviews/decide`、`/recovery`） | `agent.reviews.decide`、`agent.reviews.recover`。项目归属、插件页的页面授权核对、桌面持有轮次的自批等待期都在处理器里，HTTP 的状态码与错误体不变 | `horizontal/agent-host/src/reviews.ts`，执行与恢复归原操作的主人 |
+| 助理面板（`apps/local-host/src/assistant/assistant-http.ts`，相对 `/api/assistant`：`send`、`cards`、`attachments`、`notices`、`followups/remove`，`works/<id>/` 下的 `control`、`draft`、`rename`、`mode`、`take-back`、`undo/<undo>`、`budget`、`results`、`handover`、`recovery`、`archive`、`reviews/<review>`、`answer`、`question-draft`、`cards/<card>/run`、`dismiss`、`redo`） | `assistant.panel.*`，每个路径一个（`assistantPanelActions`）。两条记忆建议 `memory-candidates/<candidate>/accept`、`discard` 不另起动作，走 Memory 现有的 `memory.candidates.accept`、`discard`，面板带上它看到的版本（`expected_version`） | 助理服务 `apps/local-host/src/assistant/assistant-service.ts`；实际运行归 Agent Host 或执行方插件，记忆归 Memory |
+
+已经走动作的不变：原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 走 `assistant.threads.*`，从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`；`GET`／`POST /works/<id>/cards/<card>/connection` 走 `connectors.authorization.read`／`connectors.authorization.cancel`。助理的设置写入（`capabilities`、`memories`、`memory-prefs`、`rules`、`budget`）见上表。
+
+读取仍是 HTTP。读的时候会做的恢复与结算登记如下，归各自主人，不是本人的新决定：
+
+| 路径 | 主人和实际效果 | 保留 |
+| --- | --- | --- |
+| 引导 `GET /api/onboarding/context/<id>`、`GET /<id>/text/<sha256>` | 两个读取路径都经 `readContextJourney`。Gmail 授权过期，或重启后原读取、采用作业已失去持有者时，整理旅程会保存恢复状态 | 按写入盘点恢复步骤；材料正文只由本轮已登记的引用读取 |
+| `GET /api/agent/reviews`、`GET /api/agent/reviews/recovery` | 读取前的 `reviews.refresh` 由各执行方恢复原回执。Git 执行方首次恢复时可取消重启前已证实未派发的操作 | 区分历史回执恢复与本人新决定。查询、恢复和主动核对均沿原执行权，已有动作不会因查看再次派发 |
+| 助理 `GET /works`、`GET /notices` | 助理根据已有轮次和主人状态生成或结算通知。通知读取还处理已被原插件处置的事项 | 查询前的回执归并分列，保留用户的已看、略过和未决状态 |
+| 助理 `GET /usage` | 助理从已完成轮次的真实回执补记用量 | 同一轮只入账一次，未结束的轮次留到完成后 |
+| 助理 `GET /memories`、`GET /memory-candidates` | Memory 读正式记录与候选时可结算过期候选 | 沿原作用域和已到期条件结算 |
+| 助理 `GET /works/<id>`、`GET /works/<id>/wait` | 助理读工作时会核对并收起已过期或改版的卡、补记该工作用量。Memory 可结算这个工作的过期建议 | 回执与收尾效果分列。等待连接只是这份工作视图的传输，断开停止等待 |
+| 助理 `GET /related` | 与 `assistant.works.related` 共用对象关联投影。为列出每项相关工作的结果，会走上行的工作读取与收尾 | 复用原投影与工作权限，保留实际回执效果 |
+
+##### 插件创作台
+
+创作台入口为 `apps/local-host/src/plugin-builder/agent-surface.ts`，前四行路径相对于 `/api/plugin-builder/studio`。构建和发布记录由 `plugins/native/plugin-builder/src/agent-workflow.ts` 与它的存储持有。旧 `/secrets` 独立写路由已在 `9247de39a` 移除，必要的密钥由人随安装或升级授权交给 `apps/local-host/src/installed-plugin-lifecycle.ts`，密钥值在宿主的封存存储内。
+
+| 路径 | 主人和实际效果 | 接入时保留 |
+| --- | --- | --- |
+| `POST /settings` | 创作台的项目私有存储保存已配置模型的提供方与模型标识 | 选择须匹配现有模型目录 |
+| `POST /builds` | 创作台创建构建记录并启动设计作业 | 固定项目、现有模型检查与任务归属 |
+| `POST /builds/<id>/action` | 创作台处理范围、选择、意见、组件、检查、暂停、续跑、撤销和删除。启用依赖插件交项目目录，发布交创作台发布流程，安装、升级、回滚、启停和卸载交现有插件生命周期 | 区分草稿、项目登记和安装效果。保持所见 revision、同一构建的执行令牌、权限确认、安装失败回滚和密钥封存 |
+| `POST /builds/<id>/call` | 按界面组件的 `read` 或 `submit` 绑定，把操作交给创作台试用或验收沙箱 | 构建、试用身份、操作声明与取消沿现行核对 |
+| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/46.md#batch-46-item-1) |
+| 首次读取创作台 | `ensureStudio` 初次打开时，创作台初始化会恢复已持久化的构建，先把旧活动阶段标记暂停，再从原检查点续跑 | 把初始化恢复与普通状态、预览、下载及事件流分开盘点，避免一次读取另起一轮恢复 |
 
 ### 10.2 已定要修的偏离
 
@@ -306,11 +344,9 @@
 
 **登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层（宿主不再直接读它的表，见 W2-06）。
 
-**还没有逐条盘点的只走 HTTP 的写入**：下面几组不是宿主设置，是各个功能自己的传输层，没有列进 10.1，也没有检查过它们是否应该是动作；不要把它们当作已经审过。是否登记、登记进哪一张表，还没有定。
-- 助理面板自己的路由：`/api/assistant/` 下除设置页用的几条以外的写入（发送、卡片、附件、通知处理 `notices`、取消跟进 `followups/remove`、记忆建议的认可与放弃 `memory-candidates/…`、工作里的操作），在 `apps/local-host/src/assistant/assistant-http.ts`。链 3 只写了发送这一条。
-- 插件创作台自己的 HTTP：`apps/local-host/src/plugin-builder/agent-surface.ts` 的 `handleAgentStudioHttp`，路径在 `/api/plugin-builder/studio/` 下，含保存密钥 `POST …/secrets`、`…/settings`、新建构建 `…/builds`、构建里的 `…/action`、`…/call`。
-- 首次引导里的整理旅程 `/api/onboarding/context/…`（`apps/local-host/src/web-context-onboarding.ts`）。
-- Agent 审批 `POST /api/agent/reviews/decide`、`/api/agent/reviews/recovery`（`apps/local-host/src/agent-review-http.ts`）和首页的 `POST /api/home/…`（`apps/local-host/src/home-dock-http.ts`）。
+**首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的六个 POST 路径都经现行 `system.home` 动作。事项列表、打开位置、动作选项与准备分别调用 `home.events.read`、`home.events.open`、`home.actions.choices`、`home.actions.prepare` 的查询。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
+
+B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组属于用户批过的构建期例外，随 BL-377 重做。
 
 ## 11. 横切链（2026-11-11 补）
 

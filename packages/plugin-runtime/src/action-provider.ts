@@ -1,7 +1,7 @@
-import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginActionAvailability } from "./action-availability.js";
-import { pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
+import { currentPluginInvocation, pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
 import { pluginCallbackContext, withoutIssuedIdentity } from "./callback-context.js";
 
@@ -48,16 +48,17 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       // returning is one way it passes its last authority check (`PluginActionScope.checked`).
       return { ...h, handle: (context, input) => {
         const begun = reservePluginInvocationPlace();
-        const checked = { passed: false };
+        const checked = { passed: false }, source = entrySource(context, definition, providerId);
         const run = (readable?: readonly string[]) => {
           state.capturePermissions(definition.action.permissions);
-          const view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}), ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}) }, before = view.beforeEffect;
+          const view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}), ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}),
+            ...(source?.direct_person_entry ? { direct_person_entry: true as const } : {}) }, before = view.beforeEffect;
           return h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input);
         };
         // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-74).
         const reaches = projectReach && definition.action.project_reach === "person" && context.audience === "user"
           && state.record()?.grants.includes(PROJECT_REACH_PERMISSION) === true;
-        return runInPluginAction({ install_id: installId, installation_generation, activation: instance, definition, caller: context, checked, begun }, () => {
+        return runInPluginAction({ install_id: installId, installation_generation, activation: instance, definition, caller: context, checked, begun, ...(source ? { source } : {}) }, () => {
           state.capturePermissions(definition.action.permissions);
           return reaches ? projectReach(manifest, context).then(run) : run();
         });
@@ -78,4 +79,17 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       return { available: true };
     },
   };
+}
+
+/**
+ * What this handler runs, from the dispatcher's own record of the call (`current_action`) and only when it names this very registration
+ * (BL-803); and whether the call entered here as the person's own: the person's audience, not handed in through another plugin's
+ * directory, not a scene's run, and no plugin action, job or scene running around it (asked of the Runtime's scope, never of the call).
+ * The person's request a plugin's route forwards to its own action has none around it; a plugin action calling its own other action has.
+ */
+function entrySource(context: ActionExecutionContext, definition: ActionDefinition, providerId: string) {
+  const ran = context.current_action;
+  if (!ran || ran.capability_id !== definition.capability_id || ran.version !== definition.version || ran.provider_id !== providerId) return undefined;
+  const person = context.audience === "user" && context.delegated_by === undefined && context.scene_binding === undefined && currentPluginInvocation() === undefined;
+  return Object.freeze({ capability_id: ran.capability_id, version: ran.version, provider_id: ran.provider_id, ...(person ? { direct_person_entry: true as const } : {}) });
 }

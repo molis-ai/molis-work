@@ -1,5 +1,6 @@
 import type { GoalWorkEventJudgment } from "../contract/goals.js";
-import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
+import { storedJson } from "../stored-json.js";
+import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
@@ -67,14 +68,14 @@ export class GoalWorkEventRecords {
 
   getWorkEvent(projectId: string, goalId: string, eventId: string): StoredWorkEvent | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_work_events WHERE event_id = ? AND project_id = ? AND goal_id = ?
+      SELECT *, rowid AS stored_row FROM goal_work_events WHERE event_id = ? AND project_id = ? AND goal_id = ?
     `).get(eventId, projectId, goalId) as Row | undefined;
     return row ? mapWorkEvent(row) : null;
   }
 
   getIntentCreatedEvent(projectId: string, goalId: string): StoredWorkEvent | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_work_events
+      SELECT *, rowid AS stored_row FROM goal_work_events
       WHERE project_id = ? AND goal_id = ? AND kind = 'system'
         AND json_extract(payload_json, '$.operation') = 'intent_created'
       ORDER BY journal_seq ASC
@@ -85,7 +86,7 @@ export class GoalWorkEventRecords {
 
   listWorkEvents(projectId: string, goalId: string, afterCursor: number, limit: number): StoredWorkEvent[] {
     return (this.db.prepare(`
-      SELECT * FROM goal_work_events
+      SELECT *, rowid AS stored_row FROM goal_work_events
       WHERE project_id = ? AND goal_id = ? AND journal_seq > ?
       ORDER BY journal_seq ASC
       LIMIT ?
@@ -95,14 +96,14 @@ export class GoalWorkEventRecords {
   listLatestWorkEvents(projectId: string, goalId: string, beforeCursor: number | null, limit: number): StoredWorkEvent[] {
     if (beforeCursor == null) {
       return (this.db.prepare(`
-        SELECT * FROM goal_work_events
+        SELECT *, rowid AS stored_row FROM goal_work_events
         WHERE project_id = ? AND goal_id = ?
         ORDER BY journal_seq DESC
         LIMIT ?
       `).all(projectId, goalId, limit) as Row[]).map(mapWorkEvent);
     }
     return (this.db.prepare(`
-      SELECT * FROM goal_work_events
+      SELECT *, rowid AS stored_row FROM goal_work_events
       WHERE project_id = ? AND goal_id = ? AND journal_seq < ?
       ORDER BY journal_seq DESC
       LIMIT ?
@@ -113,7 +114,7 @@ export class GoalWorkEventRecords {
 
   listLatestReportEvents(projectId: string, goalId: string, limit: number): StoredWorkEvent[] {
     return (this.db.prepare(`
-      SELECT * FROM goal_work_events
+      SELECT *, rowid AS stored_row FROM goal_work_events
       WHERE project_id = ? AND goal_id = ? AND kind = 'report'
       ORDER BY journal_seq DESC
       LIMIT ?
@@ -122,7 +123,7 @@ export class GoalWorkEventRecords {
 
   listJudgments(eventId: string): GoalWorkEventJudgment[] {
     return (this.db.prepare(`
-      SELECT requirement_id, verdict, basis_json, tier, gap FROM goal_work_event_judgments
+      SELECT requirement_id, verdict, basis_json, tier, gap, rowid AS stored_row FROM goal_work_event_judgments
       WHERE event_id = ? ORDER BY requirement_id
     `).all(eventId) as Row[]).map(mapJudgment);
   }
@@ -148,7 +149,7 @@ export class GoalWorkEventRecords {
 
   getWorkEventByCursor(projectId: string, goalId: string, cursor: number): StoredWorkEvent | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_work_events WHERE project_id = ? AND goal_id = ? AND journal_seq = ?
+      SELECT *, rowid AS stored_row FROM goal_work_events WHERE project_id = ? AND goal_id = ? AND journal_seq = ?
     `).get(projectId, goalId, cursor) as Row | undefined;
     return row ? mapWorkEvent(row) : null;
   }
@@ -161,7 +162,7 @@ export class GoalWorkEventRecords {
     journal_seq: number;
   }> {
     return (this.db.prepare(`
-      SELECT j.requirement_id, j.verdict, j.basis_json, j.tier, j.gap, e.event_id, e.actor_id, e.actor_kind, e.received_at, e.journal_seq
+      SELECT j.requirement_id, j.verdict, j.basis_json, j.tier, j.gap, j.rowid AS stored_row, e.event_id, e.actor_id, e.actor_kind, e.received_at, e.journal_seq
       FROM goal_work_event_judgments j
       JOIN goal_work_events e ON e.event_id = j.event_id
       WHERE e.project_id = ? AND e.goal_id = ? AND e.kind = 'report'
@@ -186,7 +187,7 @@ function mapWorkEvent(row: Row): StoredWorkEvent {
     type_id: row.type_id == null ? null : rowText(row.type_id),
     type_version: row.type_version == null ? null : Number(row.type_version),
     title: rowText(row.title),
-    payload: rowJson(row.payload_json, {}),
+    payload: storedJson(row, "goal_work_events", "payload_json", {}),
     actor_id: rowText(row.actor_id),
     actor_kind: nullableActorKind(row.actor_kind),
     received_at: rowText(row.received_at),
@@ -204,7 +205,7 @@ function mapJudgment(row: Row): GoalWorkEventJudgment {
   return {
     requirement_id: rowText(row.requirement_id),
     verdict: rowText(row.verdict) as GoalWorkEventJudgment["verdict"],
-    basis: typeof row.basis_json === "string" ? JSON.parse(row.basis_json) as GoalWorkEventJudgment["basis"] : null,
+    basis: storedJson<GoalWorkEventJudgment["basis"]>(row, "goal_work_event_judgments", "basis_json", null),
     tier: rowText(row.tier) as GoalWorkEventJudgment["tier"],
     gap: typeof row.gap === "string" ? row.gap as GoalWorkEventJudgment["gap"] : null,
   };

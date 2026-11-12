@@ -626,3 +626,31 @@ test("the report flags hybrid plugins and prints the new numbers", () => {
   git("checkout", "-q", "-f", "main");
   git("clean", "-fdq");
 });
+
+// B27G-07 (R4, report only): the Host entry's width is what it makes importable, resolved through every star, alias and namespace.
+test("B27G-07 the Host entry width counts names a star reaches two files away, aliases and namespace members; a merged name or a move does not grow it", async () => {
+  const { measureHostEntryWidth, hostEntryWidthSummary } = await import("../scripts/gates/host-entry-exports.mjs");
+  const scratch = mkdtempSync(path.join(tmpdir(), "molis-host-width-"));
+  try {
+    const BASE: Record<string, string> = {
+      "apps/local-host/src/index.ts": 'export * from "./a.js";\nexport { two as second } from "./b.js";\nexport * as tools from "./tools.js";\n',
+      "apps/local-host/src/a.ts": 'export * from "./deep.js";\nexport const one = 1;\nexport interface One { n: number }\n',
+      "apps/local-host/src/deep.ts": "export const deep = 1;\nexport default 9;\n",
+      "apps/local-host/src/b.ts": "export const two = 2;\n",
+      "apps/local-host/src/tools.ts": "export const hammer = 1;\n",
+    };
+    const width = (files: Record<string, string>) => measureHostEntryWidth({ files: Object.keys(files), read: (file: string) => files[file] ?? null }, scratch)!;
+    const base = width(BASE);
+    // one, One (a type and a value would be one name; here One is only a type), deep, second, tools; a star never carries default.
+    assert.deepEqual(base, { names: 5, namespaces: { tools: 1 } });
+    assert.equal(width({ ...BASE, "apps/local-host/src/deep.ts": BASE["apps/local-host/src/deep.ts"]! + "export const deeper = 2;\n" }).names, 6, "a new export two files under a star");
+    assert.equal(width({ ...BASE, "apps/local-host/src/index.ts": BASE["apps/local-host/src/index.ts"]! + 'export { two as third } from "./b.js";\n' }).names, 6, "a new alias");
+    assert.deepEqual(width({ ...BASE, "apps/local-host/src/tools.ts": "export const hammer = 1;\nexport const saw = 2;\n" }).namespaces, { tools: 2 }, "a new namespace member");
+    assert.equal(width({ ...BASE, "apps/local-host/src/a.ts": BASE["apps/local-host/src/a.ts"]! + "export const One = 1;\n" }).names, 5, "a value with a type's name is the same name");
+    const moved = { ...BASE, "apps/local-host/src/a.ts": 'export * from "./deep.js";\nexport * from "./one.js";\n', "apps/local-host/src/one.ts": "export const one = 1;\nexport interface One { n: number }\n" };
+    assert.equal(width(moved).names, 5, "moving an implementation is not growth");
+    assert.equal(width({ ...BASE, "apps/local-host/src/b.ts": "export const two = 2;\nexport const unused = 3;\n" }).names, 5, "a name the entry does not re-export");
+    assert.match(hostEntryWidthSummary(width({ ...BASE, "apps/local-host/src/deep.ts": "export const deep = 1;\nexport const deeper = 2;\n" }), base), /report only\) 5 names, 1 namespaces \(1 members\) → 6 names, 1 namespaces \(1 members\) \(\+1 names\)/);
+    assert.equal(measureHostEntryWidth({ files: [], read: () => null }, scratch), null, "a root without the Host has no width");
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});

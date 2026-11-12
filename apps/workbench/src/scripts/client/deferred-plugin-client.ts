@@ -6,7 +6,7 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: readText } = host;
-  const failure = () => globalThis.t.text("workbench.deferred-plugin-client.could-not-load-view-retry");
+  // Each failure says what went wrong (F-21); the toast carries it, and the button on the surface only offers to load it again.
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap(), invalidations = new WeakMap();
   const scope = host.scope;
@@ -22,10 +22,10 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (error) { script.remove(); scripts.delete(url); reject(error); } else resolve();
       };
       const abort = () => finish(scope.signal.reason);
-      const timer = scope.timeout(() => finish(new Error(failure())), 10_000);
+      const timer = scope.timeout(() => finish(new Error(globalThis.t.text('common.parent.view-not-ready'))), 10_000);
       scope.signal.addEventListener('abort', abort, { once: true });
       script.onload = () => finish();
-      script.onerror = () => finish(new Error(failure()));
+      script.onerror = () => finish(new Error(globalThis.t.text('common.child.view-code-not-fetched')));
       document.head.append(script);
     });
     scripts.set(url, waiting); return waiting;
@@ -57,7 +57,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
           await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
           if (!root.isConnected || scope.signal.aborted) return;
           const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
-          if (!factory) throw new Error(failure());
+          if (!factory) throw new Error(globalThis.t.text('common.child.view-entry-missing'));
           factory({ ...host, root });
         }
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
@@ -70,7 +70,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         settle(root, 'failed'); mounting.delete(root);
         const notice = document.createElement('div'); notice.style.cssText = 'position:absolute;right:12px;top:12px;z-index:30';
         const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--ghost';
-        retry.textContent = failure(); retry.dataset.uiClientRetry = 'true';
+        retry.textContent = globalThis.t.text('workbench.deferred-plugin-client.reload'); retry.title = error?.message || ''; retry.dataset.uiClientRetry = 'true';
         retry.onclick = () => { notice.remove(); void prepare(root); }; notice.append(retry); root.prepend(notice);
         host.showToast?.(error.message, true);
       }

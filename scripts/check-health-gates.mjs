@@ -55,6 +55,8 @@ import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { goldenHomeProblems } from "./gates/golden-homes.mjs";
+import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } from "./gates/host-lines.mjs";
+import { hostEntryWidthSummary, measureHostEntryWidth } from "./gates/host-entry-exports.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
 import { storeSchemaProblems } from "./gates/store-schemas.mjs";
@@ -157,14 +159,23 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
+const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
-const workingTree = () => ({
-  files: git(["-c", "core.quotepath=off", "ls-files", "-z"]).split("\0").filter(Boolean),
-  read: (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } },
-});
+const workingTree = () => {
+  // Share Host source reads between the gate measurements and the line report.
+  const hostTexts = new Map();
+  const readText = (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } };
+  return {
+    files: git(["-c", "core.quotepath=off", "ls-files", "-z"]).split("\0").filter(Boolean),
+    read(file) {
+      if (!hostLinesWantText(file)) return readText(file);
+      if (!hostTexts.has(file)) hostTexts.set(file, readText(file));
+      return hostTexts.get(file);
+    },
+  };
+};
 const commitTree = (commit) => {
   const files = git(["ls-tree", "-r", "-z", "--name-only", commit]).split("\0").filter(Boolean);
   const paths = files.filter(needsText);
@@ -470,7 +481,8 @@ if (mergeBase && !(report && flags.has("--json"))) {
     console.log(`- ${change}: ${unit}: ${change === "added" ? "(not registered)" : JSON.stringify(before)} → ${JSON.stringify(after)}`);
   }
 }
-const head = measureAll(workingTree());
+const headSnapshot = workingTree();
+const head = measureAll(headSnapshot);
 const renames = new Map();
 let reference;
 if (mergeBase) {
@@ -479,6 +491,12 @@ if (mergeBase) {
   const fields = git(["diff", "-M", "-l", "5000", "--name-status", "--diff-filter=R", "-z", mergeBase]).split("\0");
   fields.forEach((field, index) => { if (/^R\d*$/.test(field)) renames.set(fields[index + 1], fields[index + 2]); });
 } else if (!update && !report) reference = committedBaseline();
+
+// A2 is informational and is kept out of the metrics that determine admission or write the local baseline.
+const hostLines = reportHostLines(headSnapshot, baseSnapshot, renames);
+if (!report) console.log(hostLineSummary(hostLines));
+// R4: the Host entry's importable names, at the merge-base and now; report only until the batch's combined head is read (decision 37 ③).
+if (!report) console.log(hostEntryWidthSummary(measureHostEntryWidth(headSnapshot, root), baseSnapshot ? measureHostEntryWidth(baseSnapshot, root) : null));
 
 // ---- the guards ------------------------------------------------------------------------------------------------------
 const notes = [];
@@ -529,19 +547,27 @@ const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges }, null, 2));
-    process.exit(0);
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges, hostLines }, null, 2));
+  } else {
+    const env = { top: options.top ? Number(options.top) : undefined };
+    console.log(`Health report: working tree${mergeBase ? ` against ${against}` : ""}; limits ${JSON.stringify(limits)}`);
+    console.log("\n" + [hostLineSummary(hostLines), ...hostLineDetails(hostLines, env.top)].join("\n"));
+    for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
+    const problems = specProblems();
+    console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
+    const api = apiSnapshots();
+    console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
+    const docProblems = docGateProblems(workingTree());
+    console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
+    console.log(`\n${specCoverageLine(workingTree())}`); // report only, never a gate here (scripts/check-spec-coverage.mjs)
   }
-  const env = { top: options.top ? Number(options.top) : undefined };
-  console.log(`Health report: working tree${mergeBase ? ` against ${against}` : ""}; limits ${JSON.stringify(limits)}`);
-  for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
-  const problems = specProblems();
-  console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
-  const api = apiSnapshots();
-  console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
-  const docProblems = docGateProblems(workingTree());
-  console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
-  console.log(`\n${specCoverageLine(workingTree())}`); // report only, never a gate here (scripts/check-spec-coverage.mjs)
+  // When stdout is a pipe, queued report data can outlive a synchronous exit.
+  await new Promise((resolve, reject) => {
+    process.stdout.write("", (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
   process.exit(0);
 }
 

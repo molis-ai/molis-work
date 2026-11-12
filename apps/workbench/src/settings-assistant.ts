@@ -14,7 +14,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       <form class="assistant-rule-form" data-assistant-rule-quiet>
         <strong>${uiText("workbench.settings-assistant.stay-quiet-these-places")}</strong>
         <div class="assistant-rule-surfaces" data-assistant-rule-surfaces></div>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-turn-fails")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${uiText("workbench.settings-assistant.still-notify-failed-here")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${uiText("workbench.settings-assistant.still-tell-me-when-i-need-decide")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="reminder" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-reminder-i-set-comes")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-service-connection-needs-me")}</label>
@@ -25,7 +25,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
         <select class="mw-input" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
           <option value="30">${uiText("workbench.settings-assistant.value-30-minutes")}</option><option value="60" selected>${uiText("workbench.settings-assistant.value-1-hour")}</option><option value="day">${uiText("workbench.settings-assistant.until-end-today")}</option>
         </select>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-turn-fails")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${uiText("workbench.settings-assistant.still-notify-failed-paused")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-service-connection-needs-me")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${uiText("workbench.settings-assistant.pause")}</button>
       </form>
@@ -42,7 +42,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       <p class="settings-muted">${uiText("workbench.settings-assistant.cap-no-new-turn-starts-what-ran-stays")}</p>
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>
     </section>
-    <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
+    <section class="settings-section" aria-labelledby="assistant-memory-title" data-assistant-memory>
       <h2 id="assistant-memory-title">${uiText("workbench.settings-assistant.memory")}</h2>
       <p class="settings-muted">${uiText("workbench.settings-assistant.assistant-uses-platform-memory-preferences-habits-under-personal")}</p>
       <p class="settings-muted" data-assistant-memory-summary>${uiText("workbench.settings-assistant.loading")}</p>
@@ -120,7 +120,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         meta.append(el("span", "prompt-tag", EFFECT[row.effect] ? globalThis.t.text(EFFECT[row.effect]) : row.effect));
         const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = row.enabled;
         const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
-        toggle.setAttribute("aria-label", globalThis.t.text(row.enabled ? "workbench.settings-assistant.disable-capability" : "workbench.settings-assistant.enable-capability", { title: row.title }));
+        toggle.setAttribute("aria-label", row.title);
         toggle.addEventListener("change", async () => {
           toggle.disabled = true;
           try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }

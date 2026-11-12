@@ -47,17 +47,17 @@ export function installedPluginManifest(db: PluginRuntimeDatabase, install_id: s
 }
 
 /**
- * The connection slots an installation declares, for binding a `per_record` slot (S-71 provisional): the caller's project's installation
- * of that plugin, else the Home's; `null` when neither has it.
+ * The Manifest of that plugin's installation in a project, else the Home's, for what its connection slots declare (S-71 provisional);
+ * `null` when neither has it.
  */
-export async function installedConnectionSlots<Reference>(install_id: string, plugin_id: string,
+export async function installedPluginManifestFor<Reference>(install_id: string, plugin_id: string,
   home: { installation(id: string): PluginInstanceRecord | null; manifest(id: string): PluginManifest | undefined } | undefined,
   inProject: (reference: Reference) => Promise<{ record: PluginInstanceRecord; manifest: PluginManifest } | null>, reference: Reference | undefined) {
   const installed = reference === undefined ? null : await inProject(reference);
   const homeRecord = installed ? null : home?.installation(install_id);
   const manifest = installed ? installed.record.plugin_id === plugin_id ? installed.manifest : undefined
     : homeRecord?.install_id === install_id && homeRecord.plugin_id === plugin_id ? home?.manifest(plugin_id) : undefined;
-  return manifest ? manifest.connections?.slots ?? [] : null;
+  return manifest ?? null;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { storageErrors } from "./errors.js";
+import { storedJson } from "../stored-json.js";
 import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
@@ -9,25 +9,6 @@ export type GovernanceRow = Record<string, unknown>;
 
 export function json(value: unknown): string {
   return JSON.stringify(value ?? null);
-}
-
-const unreadableStoredJson = Symbol("unreadable-stored-json");
-const unreadableStoredJsonMessage = "Goals 存的一条记录读不出来（JSON 已损坏），读取已停止，没有按空值处理";
-
-/** Goals' strict read: a stored value that is not JSON is reported as `unreadableStoredJson`, not silently
- * replaced by the fallback (the SDK's shared `parseJson` is the forgiving read other owners use). */
-export function parseJson<T>(value: unknown, fallback: T): T {
-  if (value == null) return fallback;
-  let parsed: unknown = unreadableStoredJson;
-  if (typeof value === "string" && value.length > 0) {
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      // The stored text is not JSON; it is reported as unreadable below.
-    }
-  }
-  if (parsed === unreadableStoredJson) throw storageErrors.record_unreadable(unreadableStoredJsonMessage);
-  return parsed as T;
 }
 
 export function text(value: unknown): string {
@@ -52,7 +33,7 @@ export function mapGoalTreeProposalDecision(row: GovernanceRow): GoalTreeProposa
     runtime_actor_id: optionalText(row.runtime_actor_id), conversation_ref: text(row.conversation_ref),
     message_ref: text(row.message_ref), reason: text(row.reason),
     revision_proposal_id: optionalText(row.revision_proposal_id),
-    materialized_objects: parseJson(row.materialized_objects_json, []), created_at: text(row.created_at),
+    materialized_objects: storedJson(row, "goal_tree_proposal_decisions", "materialized_objects_json", []), created_at: text(row.created_at),
   };
 }
 
@@ -64,14 +45,14 @@ export function mapGoalTreeProposalItem(
     item_id: text(row.item_id), proposal_id: text(row.proposal_id), project_id: text(row.project_id),
     ordinal: number(row.ordinal), kind: text(row.kind) as GoalTreeProposalItemRecord["kind"],
     operation: text(row.operation) as GoalTreeProposalItemRecord["operation"],
-    payload: parseJson(row.payload_json, {}), source_refs: parseJson(row.source_refs_json, []),
-    reason: text(row.reason), explanation: parseJson(row.explanation_json, null),
-    confidence: number(row.confidence), affected_objects: parseJson(row.affected_objects_json, []),
-    baseline_versions: parseJson(row.baseline_versions_json, []),
+    payload: storedJson(row, "goal_tree_proposal_items", "payload_json", {}), source_refs: storedJson(row, "goal_tree_proposal_items", "source_refs_json", []),
+    reason: text(row.reason), explanation: storedJson(row, "goal_tree_proposal_items", "explanation_json", null),
+    confidence: number(row.confidence), affected_objects: storedJson(row, "goal_tree_proposal_items", "affected_objects_json", []),
+    baseline_versions: storedJson(row, "goal_tree_proposal_items", "baseline_versions_json", []),
     requires_user_confirmation: Number(row.requires_user_confirmation ?? 0) === 1,
     state: text(row.state) as GoalTreeProposalItemRecord["state"],
-    conflict: parseJson(row.conflict_json, null), decision,
-    materialized_objects: parseJson(row.materialized_objects_json, []),
+    conflict: storedJson(row, "goal_tree_proposal_items", "conflict_json", null), decision,
+    materialized_objects: storedJson(row, "goal_tree_proposal_items", "materialized_objects_json", []),
     revision_proposal_id: optionalText(row.revision_proposal_id),
     supersedes_item_id: optionalText(row.supersedes_item_id),
     created_at: text(row.created_at), updated_at: text(row.updated_at),
@@ -90,7 +71,7 @@ export function mapGoalTreeProposal(
     state: text(row.state) as GoalTreeProposalRecord["state"], version: number(row.version),
     supersedes_proposal_id: optionalText(row.supersedes_proposal_id),
     base_event_cursor: number(row.base_event_cursor), summary: text(row.summary),
-    narrative: parseJson(row.narrative_json, null), decision: parseJson(row.decision_json, null),
+    narrative: storedJson(row, "goal_tree_proposals", "narrative_json", null), decision: storedJson(row, "goal_tree_proposals", "decision_json", null),
     created_at: text(row.created_at), updated_at: text(row.updated_at),
     decided_at: optionalText(row.decided_at), items, decisions,
   };

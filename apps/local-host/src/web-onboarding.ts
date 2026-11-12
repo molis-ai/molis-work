@@ -38,7 +38,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       // Each provider by its own authority (PG-008): Pages and Todo by their installations' grants, the Host's by what the person holds.
       return bindLocalWebActions(localHost, reference, ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], original_file ? { original_file } : {});
-    }, homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+    }, homeActions: (_home, signal) => bindLocalWebActions(localHost, undefined, ["todo:read", "todo:write", "model:invoke"], { signal }) }, localHost)(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;

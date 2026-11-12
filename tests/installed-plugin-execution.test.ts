@@ -59,7 +59,8 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
   const firstRouteFinished = gate();
   let firstRouteBody: unknown;
   try {
-    const report = await platform.start([{ definition, grants: ['storage:private'] }]);
+    // The operation calls a platform capability, so the installation holds that switch (BL-701).
+    const report = await platform.start([{ definition, grants: ['storage:private', 'capabilities:call'] }]);
     assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
     const installed = platform.runtime.list().find(item => item.plugin_id === contract.pluginId)!, installId = installed.install_id;
     const register = () => exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) => {
@@ -287,7 +288,7 @@ for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an inst
   const count = () => Number((store.db.prepare('SELECT count(*) AS n FROM sbxtables_notes').get() as { n: number }).n);
   let withdraw = () => {};
   try {
-    const report = await platform.start([{ definition, grants: ['storage:private', tables.read_permission, tables.write_permission] }]);
+    const report = await platform.start([{ definition, grants: ['storage:private', 'capabilities:call', tables.read_permission, tables.write_permission] }]);
     assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
     assert.equal(count(), 0, 'its tables are made when it starts');
     const installed = platform.runtime.list().find(item => item.plugin_id === contract.pluginId)!, installId = installed.install_id;

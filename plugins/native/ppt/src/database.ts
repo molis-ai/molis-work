@@ -1,9 +1,6 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-/**
- * The presentation store's one current schema (repository-anti-corruption §4.1): new stores are created from it,
- * existing ones must already be at its version. Columns keep the order existing stores have them in.
- */
+/** The PPT baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const PPT_SCHEMA = `
   CREATE TABLE presentations (
     id TEXT PRIMARY KEY,

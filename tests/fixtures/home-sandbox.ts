@@ -61,6 +61,11 @@ export async function fixture(t: TestContext, options: { completeText?: HostComp
   };
   return { home, reference, install, store, ledger: new HomeConsentLedger(home), open,
     get host() { return host; },
+    /** What the person switches on in the Home's settings: a package's sites, secrets, platform capabilities and background start off (BL-701). */
+    async switchOn(pluginId: string, ...permissions: string[]) {
+      const platform = await host.homePlugins!.ready(), installId = host.homePlugins!.installation(pluginId)!.install_id;
+      for (const permission of permissions) await platform.runtime.regrant(installId, permission, true);
+    },
     async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText, pluginFixtures: options.pluginFixtures }); await open(); await host.homePlugins!.ready(); return host; },
     homeClient: () => host.homeActionClient(), projectClient: () => host.actionClient(reference), homeCaller: (): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] }),
     projectCaller: (): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: DEMO_PROJECT_ID, permissions: [] }) };

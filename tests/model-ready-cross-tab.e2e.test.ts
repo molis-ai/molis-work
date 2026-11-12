@@ -128,7 +128,7 @@ test("the materials screen that waits for a model offers the way on once the oth
     connect: Boolean(document.querySelector('[data-ob-view=materials] [data-action=model]')), button: document.querySelector('[data-action=retry]')?.textContent || '' })`);
   assert.match(before.text, /连接文字模型后，可以回来继续整理/);
   assert.equal(before.connect, true);
-  assert.match(before.button, /已连接，继续整理/);
+  assert.equal(before.button.trim(), "连好后继续整理");
   await evaluate("window.__sameDocument = 'never reloaded'");
 
   const tab = await openTab(browser, `${origin}/settings/models`);

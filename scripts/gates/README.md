@@ -16,11 +16,11 @@
 | 规则 | 模块 | 失败时说什么 | 怎么办 |
 | --- | --- | --- | --- |
 | 活文档里没有断链 | `doc-links.mjs` | `broken link: <文件>:<行>: link … points at …` | 改链接；文件已删就写成不带链接的文字并说明去向。`archive/`、`node_modules/`、`.impeccable/`、`dist/` 与根目录允许名单之外的条目（`outputs/`、`.zcode/`）不查；围栏代码块与行内代码里的不算链接；`http:`、`mailto:` 等外链不查；指向 `.md` 的 `#锚点` 按 GitHub 规则对标题查 |
-| `skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径与动作 id 存在 | `doc-citations.mjs` | `bad citation: … points at …` / `… is not an id the code defines` | 改文档；确属有意（计划中的文件、插件工程内的相对路径）写进 `tooling/gates/doc-citation-exceptions.json`，带理由，不再需要时门禁会要求删掉 |
+| `skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md`、`docs/system/EXTENSION-POINTS.md` 引用的路径与动作 id 存在 | `doc-citations.mjs` | `bad citation: … points at …` / `… is not an id the code defines` | 改文档；确属有意（计划中的文件、插件工程内的相对路径）写进 `tooling/gates/doc-citation-exceptions.json`，带理由，不再需要时门禁会要求删掉 |
 | `specs/README.md` 索引与根目录分类 | `spec-index.mjs` | `spec index: …` | 根目录的 spec 目录都要在索引里出现一次：状态句以「状态：现行规范」开头的列在「现行规范」，其余在「在做的」；索引里不列归档的；`specs/` 根只放 `README.md`、`BACKLOG.md`、`archive/` 与 spec 目录 |
 | BACKLOG 没有完成行 | `backlog-rows.mjs` | `BACKLOG: … says it is done` | 做完就删行，在提交说明里写编号；编号不复用 |
 | BACKLOG 行形状不对 | `backlog-rows.mjs` | `<文件>:<行>: BL-… has n columns; a row has 8` / `… has no source` / `… has no owner` / `… has priority "…", which is not 高, 中 or 低` | 每行正好 8 列（单元格里用反斜杠转义的竖线不分列），来源、优先级、负责人不能空，优先级只写高、中、低。完成行在转义的竖线处分开、不分开各看一遍，所以「说明、转义竖线、已完成」这样的格子也算完成行 |
-| 安全不变量文档里的测试存在 | `security-invariants.mjs` | `security invariants: docs/system/SECURITY-INVARIANTS.md:行: S-NN names …` | `docs/system/SECURITY-INVARIANTS.md` 的每一行（`\| S-NN \|`）至少点名一个测试；点名的测试文件存在、每一个「标题片段」（一个文件后可连写几个，每个都查）确在文件里；「CI 里跑」一列的文件被根 `package.json` 的 `test:security` / `test:contracts` 或 `ci.yml` 跑到；每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改文档；新增不变量测试就加一行 |
+| 安全不变量文档里的测试存在 | `security-invariants.mjs` | `security invariants: docs/system/security-invariants/S-NN.md:行: S-NN lists <测试文件> in the <CI 或 local> column without a non-blank test title fragment` 等 | 每份独立记录至少点名一个测试。CI 和本机两列中，每次引用的测试文件都须存在且带至少一个非空白「标题片段」。一个文件后可连写几个片段，逐个在该文件中核对。「CI 里跑」一列的文件被根 `package.json` 的 `test:security` / `test:contracts`、`ci.yml` 跑到，或是 Verify 产品子集（`tests/ci-product-subset.txt`，按其运行器的同一读法）里列着、不在 `tests/quarantine.json` 的用例；子集清单或隔离表本身有错时不算。每个 `tests/security-invariants-*.test.ts` 与 `*.e2e.test.ts` 都被某一行点名。「代码位置」一列反引号里的 `.ts` 路径必须是从仓库根写起的已跟踪文件（`path.ts` 或 `path.ts:12`，行号不查），报记录、行与原文；上游来源用链接，历史用文字。改了测试名或搬了文件就改对应记录，新增不变量测试时补对应记录。 |
 | 根目录只放允许名单里的 | `root-entries.mjs` + `tooling/gates/root-allowlist.json` | `tracked files at the repository root outside the allow-list in <名>` | 放到合适的目录；确要放在根目录，把名字和理由写进允许名单。名单里的名字不在根目录了要删。名单之外的现存条目只许变少 |
 | `.impeccable/` 文件数只许减少 | `impeccable-files.mjs` | `tracked files under .impeccable in <组> n → m` | 评审截图默认写进被忽略的 `.impeccable/qa/review/`；原地覆盖已有图不改数量；删掉没有现行 spec、文档或测试引用的评审组 |
 | `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `contract placeholder: descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。没有基线，出现一个就失败（W2-01 已删掉原来的六个）。要用就放类型进去，不用就别加；`platform/kernel`、`platform/testing` 是描述符，但有包把它们声明为自己的合同入口，不算占位 |
@@ -136,7 +136,7 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 处理器输入上的 `as`（`handlerInputCasts`）和定义处手写的输入类型（`handwrittenActionInputs`）。N22 迁移期间按文件、对照 merge-base 只许减少，N22-G 开绝对门禁时删掉（路线书决定 29）。它们读代码，不属于文档类，所以直接挂在入口的 `METRICS` 上（三行：import、注释、push），不经 `doc-gates.mjs`。口径和看不到的写法在 [tooling/gates/README.md](../../tooling/gates/README.md#按文件计数只许减少的项) 的那两行；用例是 `tests/health-gates-action-input-counts.test.ts`，CI 的 `tests/health-gates-*.test.ts` 那一步跑。
 
-删的时候删这个模块、入口那三行、这一节、那两行、`AGENTS.md` 那一条和这个测试文件。
+删的时候删这个模块、入口那三行、这一节、那两行和这个测试文件。
 
 ## 怎么加一条规则
 

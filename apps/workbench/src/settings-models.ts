@@ -427,7 +427,7 @@ function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettings
     ${badges}
     <span class="model-row-spacer"></span>
     <label class="model-row-flag">${uiText("workbench.settings-models.image-input")}<select class="mw-select" data-model-vision>
-      <option value="">${uiText("workbench.settings-models.not-declared")}</option>
+      <option value="">${uiText("workbench.settings-models.vision-unsure")}</option>
       <option value="true"${model.vision === true ? " selected" : ""}>${uiText("workbench.settings-models.can-read-images")}</option>
       <option value="false"${model.vision === false ? " selected" : ""}>${uiText("workbench.settings-models.cannot-read-images")}</option>
     </select></label>

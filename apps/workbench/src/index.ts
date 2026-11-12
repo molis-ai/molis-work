@@ -92,6 +92,7 @@ export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 export { renderMolisWorkKitClientScript } from "./settings-kit.js";
+export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 

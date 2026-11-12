@@ -76,7 +76,8 @@ export function publishedFunctionAction(record: JudgmentRuleRecord): ActionDefin
 
 export interface FunctionsActionPorts {
   credentialAvailable(): boolean;
-  connectionId?(): string | null;
+  /** A fresh Host snapshot shared by every row of one connection-usage query. */
+  connectionStatus?(): { connection_id: string | null; available: boolean };
   validatePublication?(record: JudgmentRuleRecord, caller: ActionCallContext): Promise<import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference | void>;
   validateRecommendations?(record: JudgmentRuleRecord, caller: ActionCallContext): Promise<void>;
   read<T>(operation: (service: FunctionsService) => T): T;
@@ -89,9 +90,13 @@ const credentialAvailability = (ports: FunctionsActionPorts) => ports.credential
 export function functionsActionProvider(ports: FunctionsActionPorts): ActionProviderRegistration {
   return { provider, definitions: [...Object.values(functionsActions), ...Object.values(functionAuthoringActions)], handlers: [
     ...functionAuthoringHandlers(ports),
-    { ...functionsActions.connectionUsages, handle: (_caller, input) => ({ usages: ports.connectionId?.() === (input as { connection_id: string }).connection_id
-      ? ports.read(service => service.listPublished()).map(record => ({ usage_id: record.function_key, title: record.name, detail: `判断模型：${record.model}`, enabled: ports.credentialAvailable(),
-        actions: [{ action: { capability_id: `${PUBLISHED_FUNCTION_PREFIX}${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) : [] }) },
+    { ...functionsActions.connectionUsages, handle: (_caller, input) => {
+      const connection = ports.connectionStatus?.();
+      if (!connection || connection.connection_id !== (input as { connection_id: string }).connection_id) return { usages: [] };
+      return { usages: ports.read(service => service.listPublished()).map(record => ({ usage_id: record.function_key, title: record.name,
+        detail: `判断模型：${record.model}`, enabled: connection.available,
+        actions: [{ action: { capability_id: `${PUBLISHED_FUNCTION_PREFIX}${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) };
+    } },
     { ...functionsActions.list, handle: () => ports.read(service => ({ functions: service.listPublished() })) },
     { ...functionsActions.describe, handle: (_caller, input) => ports.read(service => ({ function: service.describePublished((input as { function_key: string }).function_key) })) },
     { ...functionsActions.invoke, availability: () => credentialAvailability(ports), handle: (caller, input) => {

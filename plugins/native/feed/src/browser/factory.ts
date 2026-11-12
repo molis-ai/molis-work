@@ -60,7 +60,15 @@ export function feedClient(host: FeedHost): void {
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
       reading++;
-      const html = await host.view.readDocument({ ...(host.mount?.surface === "workbench" ? { input: stage.queryInput() } : {}), signal: page.signal() }).finally(() => reading--); check();
+      const html = await host.view.readDocument({ ...(host.mount?.surface === "workbench" ? { input: stage.queryInput() } : {}), signal: page.signal() }).catch(error => {
+        check();
+        const reason = molisWorkRequest.text(error);
+        if (!reason) throw error;
+        // The failure itself, with the new sentence in front: its own code, status and callId keep its diagnostic ID button.
+        if (error instanceof Error) error.message = uiText.text("feed.factory.list-refresh-failed-input-kept") + " " + reason;
+        throw error;
+      }).finally(() => reading--);
+      check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
       // A notice that reads back what is already drawn (the poll after this page's own save) leaves the page alone:
       // redrawing it would only swap out the controls in use and the result a person was just shown.

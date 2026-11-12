@@ -11,7 +11,6 @@ import { isMaterialFailure, materialErrors, materialFailure } from "./material-t
 import { MATERIAL_EXTENSIONS } from "@molis-ai/molis-work-plugin-sdk";
 const run = promisify(execFile);
 export const materialMediaExtensions = new Set<string>(MATERIAL_EXTENSIONS.media);
-export const materialImageExtensions = new Set<string>(MATERIAL_EXTENSIONS.image);
 /** Trusted Host configuration. These paths must never come from an Action input. */
 export interface NativeMaterialOptions {
   helperPath?: string; whisperHelperPath?: string; platform?: NodeJS.Platform;

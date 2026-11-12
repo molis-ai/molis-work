@@ -46,9 +46,8 @@ export function renderWriteCheckersSection(_L: Say): string {
       field(uiText.text("workbench.write-checkers-section.file-extensions"), uiText.text("workbench.write-checkers-section.separate-spaces-commas"), { name: "applies_to", required: true, placeholder: ".js .mjs", attrs: text }),
       field(uiText.text("workbench.write-checkers-section.run-folder"), uiText.text("workbench.write-checkers-section.path-relative-workspace-root-leave-empty-root"), { name: "cwd", placeholder: ".", attrs: text }),
       field(uiText.text("workbench.write-checkers-section.time-limit-seconds"), uiText.text("workbench.write-checkers-section.value-1-60-seconds-leave-empty-30"), { name: "timeout_seconds", type: "number", placeholder: "30", attrs: { min: 1, max: 60, step: "0.001" } }),
-      `<p class="form-error" data-wc="error" role="alert" hidden></p>`,
     ].join(""),
-    footer: `${cancel()}${renderButton({ variant: "primary", size: "md", type: "submit", label: uiText.text("common.control.save") })}`,
+    footer: `<p class="form-error" data-wc="error" role="alert" hidden></p>${cancel()}${renderButton({ variant: "primary", size: "md", type: "submit", label: uiText.text("common.control.save") })}`,
   });
   return `<section class="settings-section" data-say="${say}" data-write-checkers><h2>${uiText("workbench.write-checkers-section.after-write-checks")}</h2><p class="mw-field__hint">${uiText("workbench.write-checkers-section.after-agent-writes-file-first-checker-here-that")}</p><div data-wc="list"></div><p data-wc="status" role="status" aria-live="polite"></p>${editor}${group}${row}${remove}</section>`;
 }

@@ -157,7 +157,7 @@ export function createGoalsPlugin(): PluginDefinition {
         : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
           window.read(() => personal.within(packs, () => handle(caller, input, prepared)));
       const prepare = before.get(binding.capability_id);
-      return { ...binding, handle: async (caller, input) => { await ready; const prepared = await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs, prepared)); } };
+      return { ...binding, handle: async (caller, input) => { await ready; const prepared = await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs, prepared), caller); } };
     };
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,

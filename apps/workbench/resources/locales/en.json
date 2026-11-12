@@ -5312,7 +5312,7 @@
     "workbench.project-home.some-items-need-attention": "Some items need attention.",
     "workbench.project-home.start-something-new-pick-up-where-left-off": "Start something new, or pick up where you left off.",
     "workbench.project-home.today": "Today",
-    "workbench.project-home.today-s-events": "Today’s events",
+    "workbench.project-home.today-s-events": "Events for this day",
     "workbench.project-home.today-s-work": "Today’s work",
     "workbench.project-home.website-url": "Website URL",
     "workbench.project-home.week-and-date": "{week}, {date}",
@@ -7813,6 +7813,63 @@
     "workbench.assistant-threads.partial-content": "partial content",
     "workbench.home-event-actions.catalog-unavailable": "Home items: the project’s plugin list could not be read",
     "workbench.home-event-actions.could-not-read-items": "The items could not be read right now",
-    "workbench.home-event-actions.source-unavailable": "the source is no longer available"
+    "workbench.home-event-actions.source-unavailable": "the source is no longer available",
+    "workbench.agent-review.entry-refused": "Reviews accept only your own actions at the review entry",
+    "workbench.context-onboarding.entry-refused": "The setup journey accepts only your own actions on the first-run page",
+    "workbench.assistant-http.entry-refused": "The assistant panel accepts only your own actions in the panel",
+    "workbench.chooser.search-personal": "Search personal content",
+    "workbench.immersive-shell.search-personal": "Search personal content",
+    "common.child.view-code-not-fetched": "The plugin view’s code could not be fetched from the local service.",
+    "common.child.view-entry-missing": "The plugin view’s code has no entry point. Reinstall or update the plugin, then try again.",
+    "common.parent.view-not-ready": "The plugin view was not ready within 10 seconds.",
+    "workbench.call-row.unknown-operation": "Unrecognized action",
+    "workbench.call-row.technical-details": "Technical details",
+    "workbench.deferred-plugin-client.reload": "Reload",
+    "workbench.frame-container.drop-content-unreadable": "Couldn’t read what can be added here. Try again.",
+    "workbench.project-home.no-items-today": "No items today",
+    "workbench.project-home.no-items-day": "No items on this date",
+    "workbench.project-home.n-items-today": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} item today",
+        "other": "{n} items today"
+      }
+    },
+    "workbench.project-home.n-items-day": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} item on this date",
+        "other": "{n} items on this date"
+      }
+    },
+    "workbench.settings-directory.page-missing": "No such settings page",
+    "workbench.settings-directory.page-missing-detail": "The settings page in the address doesn’t exist. It may be mistyped or moved.",
+    "workbench.settings-directory.back-to-settings": "Back to settings",
+    "workbench.home-model-settings.settings-could-not-load-input-preserved": "Settings could not load. Your input is preserved.",
+    "workbench.settings-models.vision-unsure": "Unsure (send images anyway)",
+    "workbench.side-panel-files.content": "Content",
+    "workbench.side-panel-files.cannot-preview-here": "This item cannot be previewed in the side panel.",
+    "workbench.settings-assistant.still-notify-failed-here": "In these places, still notify me if an Assistant turn fails",
+    "workbench.settings-assistant.still-notify-failed-paused": "While paused, still notify me if an Assistant turn fails",
+    "workbench.context-onboarding.continue-after-connecting": "Continue after connecting",
+    "workbench.context-onboarding.project-name-required": "Enter a project name",
+    "workbench.global-search.search-personal": "Search personal content",
+    "workbench.settings-plugins.library": "Its library",
+    "workbench.settings-plugins.files-saved": "Files it saved",
+    "workbench.settings-plugins.network-credentials-used": "Network credentials it used",
+    "workbench.settings-plugins.account-connections": "Account connections",
+    "workbench.settings-plugins.task-permissions-given": "Task permissions given to it",
+    "workbench.settings-plugins.judgment-rules-brought": "Judgment rules it brought",
+    "workbench.settings-plugins.couldn-t-confirm-plugin-s-so-left": "Couldn’t confirm it was this plugin’s, so it was left in place",
+    "workbench.settings-plugins.same-plugin-elsewhere-another-project-personal-space": "The same plugin elsewhere (another project or your personal space) still uses it",
+    "workbench.settings-plugins.some-data-couldn-t-read-check-whether": "Some data couldn’t be read to check whether it’s still in use, so it was kept",
+    "workbench.settings-plugins.uninstall-didn-t-finish": "The uninstall didn’t finish",
+    "workbench.settings-plugins.last-uninstall-keeping-data-did-not-finish": "The last uninstall (keeping data) did not finish cleaning up; you can retry it",
+    "workbench.settings-plugins.last-uninstall-deleting-data-did-not-finish": "The last uninstall (deleting data) did not finish cleaning up; you can retry it",
+    "workbench.settings-plugins.retry-uninstall": "Retry uninstall",
+    "workbench.settings-plugins.package-plugin-installed-missing-only-uninstalled": "The package this plugin was installed from is missing; it can only be uninstalled",
+    "workbench.settings-plugins.plugin-uninstalled-count-left-place": "{plugin} is uninstalled · {count} left in place",
+    "workbench.settings-plugins.everything-else-deleted": "Everything else was deleted.",
+    "workbench.settings-plugins.also-personal-space-project-s-content-here": "Also in your personal space: this project’s content is here; your personal content is under “Plugins in your personal space” below"
   }
 }

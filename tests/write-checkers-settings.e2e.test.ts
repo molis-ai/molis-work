@@ -200,3 +200,107 @@ test("PA-40 PA-43 settings remain readable in Chinese/English, light/dark, and w
     }
   }
 });
+
+test("QA-029: a real two-tab conflict and invalid program leave the complete error beside usable actions", { timeout: 180_000 }, async t => {
+  const f = await fixture(t);
+  await f.create("Syntax check");
+  const second = await f.openPage();
+  const url = `${f.origin}${f.prefix}/?desktop=1`;
+  const edit = `${row("node")} [data-act=edit]`;
+  const cancel = `${editor} footer [data-dialog-close]`;
+  const alert = `${editor} [data-wc=error]`;
+  const field = (name: string) => `${editor} [name=${name}]`;
+  const value = (name: string) => f.evaluate<string>(`document.querySelector('${field(name)}').value`);
+  const shots = new URL("../.impeccable/qa/review/batch27-write-checkers/", import.meta.url);
+  await mkdir(shots, { recursive: true });
+  const shown = () => f.waitFor(`document.querySelector('${editor}').open && !document.querySelector('${alert}').hidden && !document.querySelector('${submit}').disabled && document.querySelector('${alert}').textContent.trim()`);
+  const snapshot = async (name: string) => {
+    const image = await f.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, f.sessionId);
+    await writeFile(new URL(`${name}.png`, shots), Buffer.from(image.data, "base64"));
+    return f.evaluate(`(() => {
+      const alert = document.querySelector('${alert}');
+      const text = document.createRange();
+      text.selectNodeContents(alert);
+      const fullyHit = (node, box) => box.width > 0 && box.height > 0
+        && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight
+        && [box.top + 1, box.bottom - 1].every(y => node.contains(document.elementFromPoint((box.left + box.right) / 2, y)));
+      return {
+        error: fullyHit(alert, alert.getBoundingClientRect()) && [...text.getClientRects()].every(box => fullyHit(alert, box)),
+        save: (() => { const node = document.querySelector('${submit}'); return fullyHit(node, node.getBoundingClientRect()); })(),
+        cancel: (() => { const node = document.querySelector('${cancel}'); return fullyHit(node, node.getBoundingClientRect()); })(),
+      };
+    })()`);
+  };
+  const sizes = [[1440, 900], [1024, 768], [390, 844]] as const;
+  const responsive = sizes.flatMap(([width, height]) => ["zh", "en"].flatMap(locale =>
+    ["light", "dark"].map(theme => ({ width, height, locale, theme }))));
+  for (const { width, height, locale, theme } of [...responsive,
+    { width: 1440, height: 640, locale: "zh", theme: "light" },
+    { width: 1024, height: 600, locale: "en", theme: "dark" },
+    { width: 390, height: 500, locale: "en", theme: "dark" },
+  ]) {
+    const variant = `${width}x${height}-${locale}-${theme}`;
+    await t.test(variant, async () => {
+      await f.command("Page.bringToFront", {}, f.sessionId);
+      await f.command("Network.setCookie", { name: "molis_work_locale", value: locale, url: f.origin, path: "/" }, f.sessionId);
+      await f.evaluate(`localStorage.setItem('molis-work:theme', '${theme}')`);
+      await f.setViewport(width, height);
+      await f.navigate(() => f.command("Page.navigate", { url }, f.sessionId));
+      await f.click(".navigator-project-settings");
+      await f.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
+      await f.waitFor(`document.querySelector('${edit}')?.getClientRects().length`);
+      assert.equal(await f.evaluate("document.documentElement.dataset.resolvedTheme"), theme);
+      const before = (await f.lists())[0]!;
+      await f.click(edit);
+      await f.fields({ display_name: "My unsaved checker", args: "--check --title \"Keep this input\" {file}", timeout_seconds: "5.25" });
+
+      await second.command("Page.bringToFront");
+      await second.viewport(width, height);
+      await second.command("Page.navigate", { url: `${f.origin}${f.prefix}/settings/workspaces` });
+      await second.wait(`document.querySelector('${edit}')?.getClientRects().length`);
+      await second.click(edit);
+      const winner = `Checker saved in the other tab ${before.version + 1}`;
+      await second.fill(field("display_name"), winner);
+      await second.click(submit);
+      await second.wait(`!document.querySelector('${editor}').open`);
+      const latest = (await f.lists())[0]!;
+      assert.equal(latest.version, before.version + 1);
+      assert.equal(latest.checkers[0]?.display_name, winner);
+
+      await f.command("Page.bringToFront", {}, f.sessionId);
+      await f.click(submit);
+      await shown();
+      assert.match(await f.evaluate<string>(`document.querySelector('${alert}').textContent`), locale === "en" ? /changed elsewhere and have been reloaded/ : /已重新读取/);
+      const conflict = await snapshot(`${variant}-conflict`);
+      assert.deepEqual(await Promise.all([value("display_name"), value("args"), value("timeout_seconds")]), ["My unsaved checker", "--check --title \"Keep this input\" {file}", "5.25"]);
+      assert.deepEqual(await f.lists(), [latest]);
+      await f.click(cancel);
+      await f.focus(edit);
+      await f.click(edit);
+      assert.equal(await value("display_name"), winner);
+
+      const longName = "Check the syntax of every changed source file before submitting the patch";
+      const invalidProgram = "/tmp/not-a-program-name";
+      await f.fields({ display_name: longName, executable: invalidProgram, timeout_seconds: "5.25" });
+      await f.click(submit);
+      await shown();
+      assert.match(await f.evaluate<string>(`document.querySelector('${alert}').textContent`), /PATH/);
+      const invalid = await snapshot(`${variant}-invalid`);
+      assert.deepEqual(await Promise.all([value("display_name"), value("executable"), value("timeout_seconds")]), [longName, invalidProgram, "5.25"]);
+      assert.deepEqual(await f.lists(), [latest]);
+      await f.fields({ executable: "node" });
+      await f.focus(submit);
+      const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
+      await f.command("Input.dispatchKeyEvent", { ...enter, type: "keyDown", text: "\r", unmodifiedText: "\r" }, f.sessionId);
+      await f.command("Input.dispatchKeyEvent", { ...enter, type: "keyUp" }, f.sessionId);
+      const saved = await f.saved();
+      assert.equal(saved.version, latest.version + 1);
+      assert.equal(saved.checkers[0]?.display_name, longName);
+      assert.equal(saved.checkers[0]?.timeout_ms, 5250);
+      await f.focus(edit);
+      assert.deepEqual({ conflict, invalid }, {
+        conflict: { error: true, save: true, cancel: true }, invalid: { error: true, save: true, cancel: true },
+      }, "error text and both actions are fully visible without scrolling");
+    });
+  }
+});

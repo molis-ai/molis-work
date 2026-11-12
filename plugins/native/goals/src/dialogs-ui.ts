@@ -69,7 +69,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
           <p class="relation-preview" id="dependency-relation-preview" data-dependency-preview>${uiText("goals.dialogs-ui.preview-there-no-execution-prerequisite-goal-can-move")}</p>
         </fieldset>
         <section class="create-more-group">
-          <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${uiText("goals.dialogs-ui.optional")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${uiText("goals.dialogs-ui.example-goal-authoring")}"></label><label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.priority")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
+          <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${uiText("goals.dialogs-ui.optional")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${uiText("goals.dialogs-ui.generated-if-empty")}"></label><label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.priority")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
         </section>
         </details>
         <p class="form-error mw-alert mw-alert--danger" data-create-error role="alert" hidden></p>

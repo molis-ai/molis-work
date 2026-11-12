@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // FSS-BG-01–05. Real read-only HTTP samples on the merge-base and candidate builds, with no absolute limits.
-import { appendFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { isMainScript } from "../script-paths.mjs";
 import { LOCALES, withFirstScreenHost } from "../first-screen/host.mjs";
@@ -28,6 +31,27 @@ export async function measureFirstScreen(root, rows, signal) {
     }
     return pages;
   });
+}
+
+/**
+ * One build's measurement in a child process of its own, run by this checker (the candidate's) against that build's root. A build's
+ * Host installs process-wide state as it starts (the UI text context, one per build), so two builds seeded in one process refuse
+ * each other: the second build's plugins would fail to start and its sample project could not be made.
+ */
+export async function measureFirstScreenApart(root, rows, signal, { execPath = process.execPath, script = import.meta.filename } = {}) {
+  signal.throwIfAborted();
+  // The pages go to a file, not stdout: what the Host and its build print on the way stays the child's own output.
+  const folder = mkdtempSync(join(tmpdir(), "molis-first-screen-rows-")), rowsFile = join(folder, "rows.json"), pagesFile = join(folder, "pages.json");
+  try {
+    writeFileSync(rowsFile, JSON.stringify(rows));
+    const child = spawn(execPath, [script, "--measure", rowsFile, "--pages", pagesFile, "--root", root], { stdio: ["ignore", "inherit", "pipe"], signal, killSignal: "SIGTERM" });
+    const err = [];
+    child.stderr.on("data", chunk => err.push(chunk));
+    const [code, ended] = await once(child, "close");
+    signal.throwIfAborted();
+    if (code !== 0) throw new Error(`${root}: first-screen measurement exited ${code ?? ended}${err.length ? `\n${Buffer.concat(err).toString().trim()}` : ""}`);
+    return JSON.parse(readFileSync(pagesFile, "utf8"));
+  } finally { rmSync(folder, { recursive: true, force: true }); }
 }
 
 function entryApprovals(records, page, locale, measured) {
@@ -94,10 +118,18 @@ export function firstScreenProblems(base, candidate, current, previous) {
 async function main(signal) {
   const { values } = parseArgs({ options: {
     base: { type: "string", default: "origin/main" }, root: { type: "string" },
-    report: { type: "boolean" }, json: { type: "boolean" },
+    report: { type: "boolean" }, json: { type: "boolean" }, measure: { type: "string" }, pages: { type: "string" },
   } });
   if (values.json && !values.report) throw new Error("--json goes with --report");
   const root = values.root ? resolve(values.root) : resolve(import.meta.dirname, "../..");
+  if (values.measure) {
+    // A child of measureFirstScreenApart: one build, its rows from the parent, the pages as JSON in the file it names.
+    if (!values.pages) throw new Error("--measure goes with --pages");
+    const pages = await measureFirstScreen(root, JSON.parse(readFileSync(values.measure, "utf8")), signal);
+    signal.throwIfAborted();
+    writeFileSync(values.pages, JSON.stringify(pages));
+    return;
+  }
   const rows = readManifest(root);
   if (values.report) {
     const pages = await measureFirstScreen(root, currentRows(rows), signal);
@@ -112,10 +144,10 @@ async function main(signal) {
   const allowances = allowanceFiles(root, sha);
   const { base, manifests } = await withBuiltBaseline(root, sha, signal, async checkout => {
     const manifests = comparisonRows(readManifest(checkout, { optional: true }), rows);
-    const base = await measureFirstScreen(checkout, manifests.base, signal);
+    const base = await measureFirstScreenApart(checkout, manifests.base, signal);
     return { base, manifests };
   }, { build: "build", offline: process.env.CI !== "true" });
-  const candidate = await measureFirstScreen(root, manifests.candidate, signal);
+  const candidate = await measureFirstScreenApart(root, manifests.candidate, signal);
   signal.throwIfAborted();
   const result = firstScreenProblems(base, candidate, allowances.current, allowances.previous);
   const lines = [`First-screen budgets against ${sha} (isolated Host builds)`];

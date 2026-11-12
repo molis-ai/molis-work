@@ -161,7 +161,13 @@ export class PluginTerminalPanels {
 }
 
 function record(row: Record<string, unknown>): PluginTerminalPanelRecord {
-  const args: unknown = JSON.parse(String(row.launch_args));
+  const storedArgs = String(row.launch_args);
+  let args: unknown;
+  try {
+    args = JSON.parse(storedArgs);
+  } catch {
+    args = null;
+  }
   if (!Array.isArray(args) || !args.every(arg => typeof arg === "string")) throw new ActionError("actions.execution_failed", "终端面板的启动参数记录无效");
   return {
     panel_id: String(row.panel_id), install_id: String(row.install_id), project_id: row.project_id == null ? null : String(row.project_id),

@@ -19,7 +19,6 @@
     "git.branch.switch-to": "Switch to",
     "git.branch.toggle": "Branches…",
     "git.commit.draft": "Draft from what’s staged",
-    "git.commit.empty-index": "Nothing is staged. Stage the files to commit first.",
     "git.commit.handed": "The commit message from this Coding turn is in. Check or edit it, then commit.",
     "git.commit.label": "Commit message",
     "git.commit.merge": "Finish the merge commit…",
@@ -35,7 +34,6 @@
         "other": "Commit {count} staged files…"
       }
     },
-    "git.commit.submit": "Commit…",
     "git.conflict.abort": "Abandon the merge…",
     "git.conflict.all-resolved": "All conflicts are resolved. Write a commit message and commit to finish the merge.",
     "git.conflict.at": "Conflict {index} (line {line})",
@@ -225,7 +223,6 @@
       }
     },
     "git.pull.no-upstream": "No remote tracking branch",
-    "git.push.button": "Push…",
     "git.push.count": {
       "plural_arg": "count",
       "forms": {
@@ -233,8 +230,7 @@
         "other": "Push {count} commits…"
       }
     },
-    "git.push.synced": "In sync with the remote",
-    "git.push.upstream": "Push and create the remote branch…",
+    "git.push.upstream": "Push and track this branch…",
     "git.result.checked": "; checked: {who} · {when}; because: {why}",
     "git.result.checked-none": "Checked: didn’t happen",
     "git.result.choice-label": "Choose a finished Git operation",
@@ -256,7 +252,6 @@
     "git.stage.empty-title": "See the workspace’s changes",
     "git.stage.manage": "Inputs and output settings",
     "git.sync.no-remote": "No remote",
-    "git.sync.unpushed": "Not pushed to a remote yet",
     "git.upstream.ahead": "{upstream}: {ahead} ahead",
     "git.upstream.behind": "{upstream}: {behind} behind",
     "git.upstream.both": "{upstream}: {ahead} ahead · {behind} behind",

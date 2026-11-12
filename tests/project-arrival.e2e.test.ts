@@ -7,6 +7,7 @@ import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-a
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 import { renderMolisWorkProjectIndex } from "./workbench-renderer-fixture.js";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 
 // The project chooser in a real browser (specs/archive/project-arrival-flow): the directory on the desk, the brief on the sheet,
 // one bar below. These follow a person through it — what is preselected, what the keys do, what an empty search or an
@@ -226,6 +227,79 @@ test("search narrows the directory, ⌘K reaches it from anywhere, and nothing f
   assert.equal(await evaluate("location.pathname"), "/onboarding");
   assert.equal(await evaluate("new URLSearchParams(location.search).get('name')"), "foot不存在的");
   assert.equal(await evaluate("new URLSearchParams(location.search).get('mode')"), "new-project");
+});
+
+test("BCS-01 BCS-02 BCS-03: the chooser searches the person's own content in the workbench's dialog; Escape returns to its button, ⌘K to the filter, and a hit opens in the personal space without opening the project in view", { timeout: 120_000 }, async t => {
+  const chooser = await openChooser(t);
+  if (!chooser) return;
+  const { evaluate, waitFor, navigate, click, press, view, open, settled, command, sessionId, homeDirectory, others } = chooser;
+  const store = openCogniaStore(homeDirectory);
+  try { store.createMaterial({ title: "个人知识：鲸落", body: "鲸落是深海生态的重要养分来源" }); } finally { store.close(); }
+  await view(1440);
+  await open("/");
+  await settled();
+  // BCS-01: the button sits under the project filter, as wide as it.
+  const box = (selector: string) => evaluate<{ top: number; bottom: number; width: number; height: number }>(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { top: r.top, bottom: r.bottom, width: r.width, height: r.height }; })()`);
+  const [filter, button] = [await box(".chooser-search"), await box(".chooser-personal-search")];
+  assert.ok(button.top >= filter.bottom, `under the filter: ${JSON.stringify({ filter, button })}`);
+  assert.ok(Math.abs(button.width - filter.width) <= 1, "as wide as the filter");
+  assert.equal(await evaluate("document.querySelector('.chooser-personal-search').textContent.trim()"), "搜索个人内容");
+  // The filter and the project in view stay as they were while the dialog comes and goes.
+  await click("#chooser-q");
+  await command("Input.insertText", { text: "foot" }, sessionId);
+  await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(others[2])}`);
+  await settled();
+  // The search's program is not in the list's document, read on every visit: it comes on the first press of the button, and a fetch
+  // that fails says so under it and leaves the next press to try again (user 2026-11-12).
+  assert.equal(await evaluate("Boolean(globalThis.__CHOOSER_SEARCH__) || [...document.scripts].some(script => script.src.endsWith('/assets/molis-work-chooser-search.js'))"), false,
+    "nothing of the search's program before the first press");
+  await command("Network.enable", {}, sessionId);
+  await command("Network.setBlockedURLs", { urls: ["*/assets/molis-work-chooser-search.js"] }, sessionId);
+  try {
+    await click(".chooser-personal-search");
+    await waitFor("!document.querySelector('[data-chooser-search-error]').hidden && !document.querySelector('.chooser-personal-search').hasAttribute('aria-busy')");
+    assert.equal(await evaluate("document.querySelector('[data-chooser-search-error]').textContent"), "暂时搜不了，稍后再试");
+    assert.equal(await evaluate("document.querySelector('[data-global-search-dialog]').open"), false);
+  } finally { await command("Network.setBlockedURLs", { urls: [] }, sessionId); }
+  await click(".chooser-personal-search");
+  await waitFor("document.querySelector('[data-global-search-dialog]').open && document.activeElement === document.querySelector('[data-global-search]')");
+  assert.equal(await evaluate("document.querySelector('[data-chooser-search-error]').hidden"), true, "the retry clears the failure");
+  assert.equal(await evaluate("document.querySelector('[data-global-search-dialog]').getAttribute('aria-label')"), "搜索个人内容");
+  assert.equal(await evaluate("document.querySelector('[data-global-search-scopes]')"), null, "the person's own content is the one scope");
+  assert.equal(await evaluate("document.querySelector('[data-global-search-status]').textContent"), "搜索个人内容");
+  await press("Escape");
+  await waitFor("!document.querySelector('[data-global-search-dialog]').open && document.activeElement === document.querySelector('.chooser-personal-search')");
+  assert.equal(await evaluate("document.getElementById('chooser-q').value"), "foot");
+  assert.equal(await evaluate(selected), others[2]);
+  // BCS-03: ⌘K belongs to the filter, even with the dialog open; the late close does not take focus back to the button.
+  await click(".chooser-personal-search");
+  await waitFor("document.querySelector('[data-global-search-dialog]').open");
+  await press("k", 4);
+  await waitFor("!document.querySelector('[data-global-search-dialog]').open");
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.equal(await evaluate("document.activeElement.id"), "chooser-q");
+  // BCS-02: a personal hit, found from here, opens in the personal space; the project in view is not opened.
+  await click(".chooser-personal-search");
+  await waitFor("document.querySelector('[data-global-search-dialog]').open");
+  await command("Input.insertText", { text: "深海生态" }, sessionId);
+  await waitFor("[...document.querySelectorAll('[data-global-search-hit]')].some(hit => hit.textContent.includes('个人知识：鲸落'))", 20_000);
+  assert.equal(await evaluate(selected), others[2], "searching does not change the project in view");
+  // A typed Enter (a key with its character), which submits the dialog's form as a person's would.
+  await navigate(() => command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" }, sessionId));
+  assert.match(await evaluate<string>("location.pathname"), /^\/projects\/personal\//);
+  const memory = JSON.parse(readFileSync(join(homeDirectory, PROJECT_ARRIVAL_RELATIVE_PATH), "utf8")) as { projects: Record<string, { last_opened_at?: string | null }> };
+  assert.ok(!memory.projects[others[2]!]?.last_opened_at, "the project in view was only previewed");
+});
+
+test("BCS-01: on a phone the personal search keeps its words and a 44px target", { timeout: 60_000 }, async t => {
+  const chooser = await openChooser(t);
+  if (!chooser) return;
+  const { evaluate, view, open, settled } = chooser;
+  await view(390, 844);
+  await open("/");
+  await settled();
+  assert.ok(await evaluate<number>("document.querySelector('.chooser-personal-search').getBoundingClientRect().height") >= 44);
+  assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.chooser-personal-search [data-slot=button-label]')).display"), "none", "the words stay");
 });
 
 test("Escape clears a search and brings the directory back", { timeout: 60_000 }, async t => {

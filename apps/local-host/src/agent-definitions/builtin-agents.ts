@@ -19,6 +19,8 @@ export function builtinAgents(): BuiltinAgent[] {
 function sourceOf(ownerId: string): AgentDefinitionSource {
   const system = SYSTEM_INSTRUCTION_SOURCES[ownerId];
   if (system) return { kind: "system", ...system };
+  // A platform owner shown as a plugin named by its id is an internal word in the settings (F-01): every one has a title here.
+  if (ownerId.startsWith("system:")) throw new Error(`${ownerId} has no entry in SYSTEM_INSTRUCTION_SOURCES`);
   const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === ownerId)?.manifest;
   return { kind: "plugin", plugin_id: ownerId, plugin_version: manifest?.version ?? "", title: manifest?.name ?? ownerId };
 }

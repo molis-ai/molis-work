@@ -1,10 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { shortCallId } from "@molis-ai/molis-work-ui-host";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 
 /**
- * One finished call as the settings pages show it: the Host's call log row, less what no page shows. The log keeps no input and no result,
- * and a message only for a command that ran and failed, so there is nothing here to hide.
+ * One finished call as the settings pages show it. The Host keeps a message only for a command that ran and failed.
  */
 export interface CallRowView {
   at: string;
@@ -14,6 +13,8 @@ export interface CallRowView {
   matched_call_id?: string;
   capability_id: string;
   version: number;
+  /** `unknown` when the call ran against no definition this project can see; its title is then only the id it asked for. */
+  operation: "command" | "query" | "unknown";
   title: string;
   provider_title: string;
   actor_id: string;
@@ -51,10 +52,16 @@ function renderCallIdButton(id: string, { escapeHtml: e }: CallText): string {
 export function renderCallRow(row: CallRowView, p: CallText, where?: { label: string; href?: string }): string {
   const { readText, escapeHtml: e } = p;
   const at = row.last_at ?? row.at;
-  return `<article data-call-row><header><strong>${e(row.title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${uiText(row.refused ? "workbench.call-row.not-run" : row.ok ? "workbench.call-row.succeeded" : "workbench.call-row.failed")}</span></header>`
-    + `<p>${e(row.provider_title)} · ${callerLabel(row, readText)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
+  const localTime = (value: string) => Number.isNaN(Date.parse(value)) ? value : format.date(value, "datetime-with-seconds");
+  const title = row.operation === "unknown" ? uiText.text("workbench.call-row.unknown-operation") : row.title;
+  const source = row.provider_title ? e(row.provider_title) + " · " : "";
+  const actor = row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : "";
+  return `<article data-call-row><header><strong>${e(title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${uiText(row.refused ? "workbench.call-row.not-run" : row.ok ? "workbench.call-row.succeeded" : "workbench.call-row.failed")}</span></header>`
+    + `<p>${source}${e(callerLabel(row, readText))} · <time datetime="${e(at)}">${e(localTime(at))}</time></p>`
+    + (row.count && row.count > 1 ? `<p>${uiText("workbench.call-row.same-result-count-count-row-first", { count: row.count, at: localTime(row.at) })}</p>` : "")
+    + (!row.ok && !row.refused && row.message ? `<p>${uiText("workbench.call-row.reason-failure")}${uiText("common.punctuation.label-separator")}${e(row.message)}</p>` : "")
     + `<p>${renderCallIdButton(row.matched_call_id ?? row.call_id, p)}</p>`
     + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${uiText("workbench.call-row.view-call-history")}</a>` : ""}</p>` : "")
-    + `<time datetime="${e(at)}">${e(at)}</time>${row.count && row.count > 1 ? `<p>${uiText("workbench.call-row.same-result-count-count-row-first", { count: row.count, at: row.at })}</p>` : ""}`
-    + `${row.ok || !(row.message ?? row.code) ? "" : `<p>${uiText(row.message ? "workbench.call-row.reason-failure" : "workbench.call-row.error-code")}${uiText("common.punctuation.label-separator")}${e(row.message ?? row.code ?? "")}</p>`}</article>`;
+    + `<details class="capability-contract"><summary>${uiText("workbench.call-row.technical-details")}</summary><p><code>${e(row.capability_id)}@${row.version}</code>${actor}</p>`
+    + (!row.ok && row.code ? `<p>${uiText("workbench.call-row.error-code")}${uiText("common.punctuation.label-separator")}${e(row.code)}</p>` : "") + "</details></article>";
 }

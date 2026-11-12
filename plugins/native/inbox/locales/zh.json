@@ -50,7 +50,6 @@
     "inbox.projection.working": "处理中",
     "inbox.ui.back-inbox-list": "返回 Inbox 列表",
     "inbox.ui.close": "关闭",
-    "inbox.ui.configure-judgment-rule": "配置判断规则",
     "inbox.ui.continue-later": "稍后继续",
     "inbox.ui.create-document": "整理成文稿",
     "inbox.ui.current-state": "当前状态",
@@ -87,13 +86,15 @@
     "inbox.ui.source-source-needs-attention": "来源「{source}」需要处理",
     "inbox.ui.suggested-action-choose-whether-proceed": "建议：{action}，由你确认执行",
     "inbox.ui.suggested-next-step": "下一步建议",
-    "inbox.ui.update-suggestions-first-20-open-items": "更新前 20 条待处理建议",
     "inbox.ui.verify-first": "先核查",
     "inbox.ui.view-original-message": "查看原消息",
     "inbox.ui.why-entered-inbox": "为什么进入 Inbox",
     "inbox.ui.write-materials-pages": "整理材料到 Pages",
     "inbox.capability-library.inbox-pages-generate-v1.title": "整理成文稿",
     "inbox.read-group.inbox.description": "Inbox 里待处理的事项与它们的内容",
-    "inbox.read-group.inbox.title": "来信"
+    "inbox.read-group.inbox.title": "来信",
+    "inbox.client.list-refresh-failed-input-kept": "列表更新失败，当前输入已保留。",
+    "inbox.ui.configure-judgment-rule": "配置判断规则",
+    "inbox.ui.update-suggestions-first-20-open-items": "更新前 20 条待处理建议"
   }
 }

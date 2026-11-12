@@ -120,6 +120,11 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   await browser.waitFor("document.querySelector('[data-browser-approval]').textContent.includes('review-A')", 15_000);
   await armResponse(browser, "grant-A", "/api/browser/sites", "POST");
   await browser.click("[data-browser-action=approve-site]"); await waitHeld(browser, "grant-A");
+  // BBA-02: repeat the click and try the other choice while the same review's site save is in flight.
+  await browser.click("[data-browser-action=approve-site]");
+  await browser.click("[data-browser-action=reject]");
+  assert.deepEqual(await browser.evaluate("window.__auditRequests.filter(row=>row.method==='POST'&&(row.path.endsWith('/api/browser/sites')||row.path.endsWith('/api/agent/reviews/decide'))).map(row=>row.path)"), ["/api/browser/sites"]);
+  assert.equal(queue.receipt("review-A")?.status, "pending");
   // The original operation settles through another legitimate Host entry while its site's response is delayed.
   await queue.respond({ review_id: "review-A", decision: "reject", actor_id: "web-user" });
   queue.request(review(browser, "review-B", b.origin));
@@ -174,4 +179,36 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   assert.equal(queue.receipt("save-rejected")?.status, "pending");
   assert.equal(await browser.evaluate("window.__auditRequests.filter(row=>row.path.endsWith('/api/agent/reviews/decide')).length"), 0);
   assert.deepEqual((await (await fetch(browser.origin + "/api/browser/sites")).json()).sites, []);
+});
+
+test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices reachable and a rejection returns focus", { timeout: 90_000 }, async t => {
+  const browser = await openAuditBrowser(t); if (!browser) return;
+  const a = await site(t, "Narrow review"), queue = queueOf(browser);
+  const id = "narrow-review";
+  queue.request(review(browser, id, a.origin));
+  queue.registerDecisionHandler(id, async input => queue.decide(input));
+  await browser.setViewport(740, 900);
+  await browser.reloadPage();
+  await observedSideBrowser(t, browser, a.origin + "/");
+  await browser.waitFor("!document.querySelector('[data-browser-approval]').hidden", 15_000);
+  await browser.click("[data-browser-action=give]");
+  await browser.waitFor("document.querySelector('[data-step-offer]')");
+  await browser.click("[data-step-offer]");
+  await browser.waitFor("document.querySelector('.workbench-bar [data-assistant-panel]:not([hidden])') && document.querySelector('[data-side-tab=browser][aria-selected=true]')");
+  const reachable = await browser.evaluate(`(() => {
+    const selectors = ['[data-browser-action=approve-once]', '[data-browser-action=approve-site]',
+      '[data-browser-action=reject]', '[data-browser-action=sites]', '[data-assistant-panel-close]'];
+    return selectors.map(selector => {
+      const target = document.querySelector(selector), box = target.getBoundingClientRect();
+      return [.1,.5,.9].flatMap(x => [.1,.5,.9].map(y => target.contains(document.elementFromPoint(box.left + x*box.width, box.top + y*box.height)))).filter(Boolean).length;
+    });
+  })()`);
+  assert.deepEqual(reachable, [9, 9, 9, 9, 9], "all three browser choices, site settings and Assistant minimise are physically reachable");
+  await browser.click("[data-browser-action=reject]");
+  await browser.waitFor("document.querySelector('[data-browser-approval]').hidden");
+  assert.equal(await browser.evaluate("document.activeElement.dataset.sideTab"), "browser");
+  const bodies = await browser.evaluate<string[]>("window.__auditRequests.filter(row=>row.path.endsWith('/api/agent/reviews/decide')).map(row=>row.body)");
+  assert.deepEqual(bodies.map(body => JSON.parse(body)), [{ review_id: id, decision: "reject" }]);
+  assert.equal(queue.receipt(id)?.status, "rejected");
+  assert.equal(a.effects(), 0);
 });

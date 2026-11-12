@@ -112,7 +112,7 @@ export function assertSurfacePresentation(candidate: PluginManifest, catalog: Su
   pending.delete(candidate.plugin_id);
   const declared = [...pending.values()].flatMap(manifest => (manifest.actions ?? []).filter(action => action.action.scope === scope));
   const problems = validatePresentationDeclaration(candidate, presentationCatalog([...system, ...installed, ...declared, ...(candidate.actions ?? [])], true));
-  if (problems.length) throw pluginErrors.declaration_invalid(problems.join("；"));
+  if (problems.length) throw pluginErrors.declaration_invalid(problems.join("\n"));
 }
 
 export function withSurfacePresentationCheck<Result>(candidate: PluginManifest, catalog: SurfaceInstallCatalog, operation: () => Promise<Result>): Promise<Result> {

@@ -404,7 +404,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       staleElsewhere = false; load().catch(fail);
     };
     document.addEventListener("molis-work:memory-changed", reloadIfIdle, { signal: listening.signal });
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reloadIfIdle(); }, { signal: listening.signal });
+    // Another tab's changes send no event here: back after a while away, read once; a quick glance at another tab reads nothing.
+    let hiddenAt = 0;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (staleElsewhere || (hiddenAt && Date.now() - hiddenAt >= 30_000)) reloadIfIdle();
+    }, { signal: listening.signal });
     root.addEventListener("focusin", () => { if (staleElsewhere) reloadIfIdle(); });
 
     function paintNavigation() {
@@ -565,6 +570,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const origin = el("details", "memory-origin"); origin.append(el("summary", "", globalThis.t.text("workbench.settings-memory.provenance")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
+        // A long-term memory learned in this session is shown here but belongs to its own page: the session cannot change it.
+        if (sessionMode && item.classification?.lifecycle !== "session") {
+          const elsewhere = el("a", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text(item.scope === "project" ? "workbench.settings-memory.manage-in-project" : "workbench.settings-memory.manage-in-personal"));
+          elsewhere.href = item.scope === "project" ? "/projects/" + encodeURIComponent(item.owner) + "/settings/memory" : "/settings/memory";
+          elsewhere.dataset.memoryManageElsewhere = "";
+          actions.append(elsewhere); row.append(copy, actions); list.append(row);
+          return;
+        }
         const edit = button(globalThis.t.text("workbench.settings-memory.edit"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.edit") + "：" + item.text);
         edit.addEventListener("click", () => {
           const editor = itemEditor(item, change);

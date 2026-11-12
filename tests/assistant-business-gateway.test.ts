@@ -1563,7 +1563,7 @@ test("RAC-61/62: an unreadable work keeps its job waiting, storage recovery fini
 
 // Seen 2026-11-13: with input allowed to be any JSON value, models sent a positional array (["kb36be7e"]); the refusal then read as
 // "not authorized", and the confirmation card showed the retry key and raw field names.
-test("a capability's input is an object with named fields; a shape refusal reads as invalid input; the card leaves out bookkeeping and raw keys", async () => {
+test("a capability's input is an object with named fields; a shape refusal reads as invalid input; the card leaves out only bookkeeping", async () => {
   const { pack, declare, parameterBranches } = prologueActionGateway({ client: { discover: async () => [], offer: async () => ({ offer_id: "o" }) }, operate: true } as never);
   for (const name of ["read-capability", "change-capability", "change-reversible", "suggest-action"]) {
     const registered = pack.tools.find(one => one.registration.name === name)!.registration.parameters as { properties: { input: { type?: unknown } } };
@@ -1582,7 +1582,24 @@ test("a capability's input is an object with named fields; a shape refusal reads
   assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: ["会后发纪要"] }) ?? "",
     /^Invalid input, not a permission problem; nothing ran\. .*you sent array/);
   assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write" }) ?? "", /^Invalid input, not a permission problem/);
-  // The card: the person's fields under names they read; the retry key, the confirmation flag and an unnamed field stay in 完整参数 only.
-  assert.deepEqual(readableInput({ type: "object", properties: { text: { type: "string", title: "内容" }, idempotency_key: { type: "string" }, user_confirmed: { type: "boolean" }, x_ref_9: { type: "string" } } },
-    { text: "会后发纪要", idempotency_key: "k-1", user_confirmed: true, x_ref_9: "abc" }), [{ label: "内容", value: "会后发纪要" }]);
+  // The card: the retry key and the confirmation flag stay in 完整参数 only; every other field is on the card, an unnamed one under its own key,
+  // so what the person approves is never hidden (user 2026-11-13, for every plugin's actions).
+  const card = readableInput({ type: "object", properties: { text: { type: "string", title: "内容" }, idempotency_key: { type: "string" }, user_confirmed: { type: "boolean" }, x_ref_9: { type: "string" } } },
+    { text: "会后发纪要", idempotency_key: "k-1", user_confirmed: true, x_ref_9: "abc" });
+  assert.deepEqual(card.map(field => field.value), ["会后发纪要", "abc"]);
+  assert.equal(card[0]!.label, "内容");
+  assert.equal(card.some(field => /idempotency|confirmed/.test(field.label)), false);
+});
+
+test("list-memories is a lookup with a ceiling: a large memory stops early and says how many were left out (BL-1076 review)", async () => {
+  const memories = Array.from({ length: 120 }, (_, index) => ({ memory_id: `m${index}`, scope: "personal" as const, text: `第 ${index} 条：${"周报用要点列表".repeat(10)}` }));
+  const { executors } = prologueActionGateway({ client: { discover: async () => [], memory: { list: async () => memories } }, operate: true } as never);
+  const out = JSON.parse(String(await executors["list-memories"]!({ args: {} } as never))) as { memories: typeof memories; more?: number; note?: string };
+  assert.ok(out.memories.length > 0 && out.memories.length <= 40, "at most 40 are listed");
+  assert.ok(out.memories.reduce((sum, memory) => sum + memory.text.length, 0) <= 6_000, "and no more than 6,000 characters of their text");
+  assert.equal(out.more, memories.length - out.memories.length);
+  assert.match(out.note ?? "", /还有 \d+ 条没有列出/);
+  const few = JSON.parse(String(await prologueActionGateway({ client: { discover: async () => [], memory: { list: async () => memories.slice(0, 3) } }, operate: true } as never)
+    .executors["list-memories"]!({ args: {} } as never))) as { memories: unknown[]; more?: number };
+  assert.equal(few.memories.length, 3); assert.equal(few.more, undefined, "a short list says nothing more");
 });

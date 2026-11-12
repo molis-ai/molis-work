@@ -24,13 +24,6 @@ export interface EndingRound {
 }
 
 /**
- * Said beside the owner's instructions, whatever they were edited to: a draft the person asked for (weekly-report bullets reading
- * “已初步确定…”) is the content handed to them, and reading it as the Assistant saying it saved something held normal rounds (2026-11-13).
- */
-const REQUESTED_CONTENT = "request 是用户这一轮的原话（宿主记的）。用户要助理起草、整理、列出或写出的内容，是交给用户的正文：正文里写着“已确定”“已完成”“已保存”之类，说的是正文里的事，不是助理说自己这一轮做成了什么，不要抄进 changed、kept、forgot 或 button。\n"
-  + "request is the person's own words this round (recorded by the Host). Content they asked the assistant to draft, tidy, list or write is the text handed to them: wording inside it such as \"decided\", \"done\" or \"saved\" is about its subject, not the assistant saying it did something this round; never copy it into changed, kept, forgot or button.";
-
-/**
  * The instructions the round's owner registered (the person's version), the model the round runs with, its key already
  * exchanged for the runtime's, and the round's own pre-dispatch check.
  */
@@ -58,7 +51,7 @@ export async function reviewEnding(runtime: Runtime, model: ReviewModel, round: 
       const session = await runtime.sessions.create({ ephemeral: true });
       try {
         const run = await session.startRun({ protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef: model.credentialRef,
-          messages: [{ role: "system", text: `${model.instructions}\n\n${REQUESTED_CONTENT}` }, { role: "user", text: fencedMaterials(data, boundary) }], timeoutMs: REVIEW_TIMEOUT_MS,
+          messages: [{ role: "system", text: model.instructions }, { role: "user", text: fencedMaterials(data, boundary) }], timeoutMs: REVIEW_TIMEOUT_MS,
           params: { maxOutputTokens: 1024 } });
         const result = await collectRun(run, { signal, maxTextChars: 8000, maxEvents: 10_000 });
         return result.state === "completed" ? result.text : "";

@@ -5,7 +5,7 @@ import type { MemoryCaller } from "./service.js";
 import type { Located } from "./scope-commands.js";
 import { newMemoryClassification } from "./classification.js";
 import { fromEntryMeta } from "./facts.js";
-import { automaticMemoryHold } from "./policy.js";
+import { automaticMemoryHold, CANDIDATE_TTL_MS } from "./policy.js";
 import { quotedFrom, theirWords } from "./spoken.js";
 import { looksLikeInstruction, sameWords } from "./text.js";
 import { memoryErrors } from "./errors.js";
@@ -17,7 +17,6 @@ export interface FormationSnapshot {
   pending: Array<{ note: MemoryCandidateRecord; entry: MemoryBackendCandidate }>;
 }
 export type FormationSlot = NonNullable<MemoryFormationInput["slots"]>[number];
-const WAITING_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** Pending review context is not formal recall: apply the App's current scene and private namespace boundary. */
 export function formationPending(caller: MemoryCaller, entry: MemoryBackendCandidate): boolean {
@@ -33,7 +32,7 @@ export function formationSlots(caller: MemoryCaller, snapshot: FormationSnapshot
   const slots: FormationSlot[] = [];
   for (const place of snapshot.places) for (const kind of place.kinds) for (let index = 0; index < 3; index += 1) {
     slots.push({ id: `new:${place.scope}:${kind}:${index}`, scope: place.scope, owner: place.owner, origin: "建议 · extraction",
-      meta: { ...newMemoryClassification(caller, null), kind, source: "accepted", expires_at_ms: Date.parse(at) + WAITING_MS } });
+      meta: { ...newMemoryClassification(caller, null), kind, source: "accepted", expires_at_ms: Date.parse(at) + CANDIDATE_TTL_MS } });
   }
   for (const located of snapshot.existing) {
     // Unclassified memories remain readable, but are not silently assigned a new class by an automatic correction.
@@ -45,7 +44,7 @@ export function formationSlots(caller: MemoryCaller, snapshot: FormationSnapshot
         meta: { kind, source: "accepted", classification: meta.classification,
           ...(meta.namespace ? { namespace: meta.namespace } : {}), ...(meta.session_ref ? { session_ref: meta.session_ref } : {}),
           ...(meta.applies_when ? { applies_when: meta.applies_when } : {}),
-          expires_at_ms: Math.min(meta.expires_at_ms ?? Infinity, Date.parse(at) + WAITING_MS) },
+          expires_at_ms: Math.min(meta.expires_at_ms ?? Infinity, Date.parse(at) + CANDIDATE_TTL_MS) },
         replacement: { memory_id: located.entry.memory_id, expected_version: located.entry.version } });
     }
   }

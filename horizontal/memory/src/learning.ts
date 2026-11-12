@@ -10,6 +10,7 @@ import { callerClassAllowed, callerClassReadPossible } from "./class-restriction
 import { newMemoryClassification } from "./classification.js";
 import { consumerAccess, formationAllowed } from "./prefs.js";
 import { sameText } from "./text.js";
+import { CANDIDATE_TTL_MS } from "./policy.js";
 
 export interface MemoryProposal {
   text: string;
@@ -40,9 +41,7 @@ interface LearningPorts {
   bindFormationSources?(refs: readonly AgentMemorySourceRef[]): void | Promise<void>;
   isForgotten: MemoryService["isForgotten"];
 }
-/** A suggestion left alone this long has gone quietly (the service's candidate TTL). */
 const TWIN_WAITING = "同样的建议已经在等你认可";
-const PENDING_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const DO_NOT_REMEMBER = /(?:不要|别|不用|无需|不必)(?:帮我)?(?:记|记住|记下|记录)(?!得)|(?:don['’]?t|do not|never) (?:remember|save|store)/i;
 const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|都要|都用|都别|都不|别再|不要再|下次|下回|记住|习惯|偏好|喜欢|讨厌|统一|规范|约定|规定|改成|应该|不对|always|never|from now on|every time|prefer|going forward|next time/i;
 
@@ -183,7 +182,7 @@ export class MemoryLearning {
         const record = saved ?? formedRecord(caller, slot, entry, snapshot, sources, input.said);
         // Another work already suggested the same thing and it is still waiting: unless this one adds an independent original (repeated), one suggestion is enough.
         const twin = !saved && entry.state === "pending" && record.basis !== "repeated" ? this.ports.ledger.candidates(caller.actor_id).find(note => note.scope === slot.scope && note.owner === slot.owner
-          && note.state === "pending" && note.kind === record.kind && sameText(note.text, entry.text) && Date.parse(note.created_at) > Date.now() - PENDING_TTL_MS
+          && note.state === "pending" && note.kind === record.kind && sameText(note.text, entry.text) && Date.parse(note.created_at) > Date.now() - CANDIDATE_TTL_MS
           && !this.ports.isForgotten(note.scope, note.owner, "memory-candidate", note.candidate_id)) : undefined;
         if (twin) {
           // The App does not register it (the SDK's own copy is left to its 14-day expiry: a learning caller may not decline a suggestion).

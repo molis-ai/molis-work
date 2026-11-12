@@ -276,6 +276,34 @@ test("Coding's real Session-memory entry isolates scopes and other memories, con
   assert.equal(f.requests.length, models, "management, classification and archive never start another model request");
 });
 
+// BL-1076 review (2026-11-13): a long-term memory learned in this session is listed on the session page, but the session cannot change it:
+// its row is read-only and links to the page it lives on. The Host's side (which long-term memories count as learned here) is in
+// tests/memory-session-clear.test.ts; here the session page's answer marks one row long-term, the way that answer arrives.
+test("a long-term memory learned in this Session is read-only on the Session page and links to its own memory page", { timeout: 120_000 }, async t => {
+  const registerChrome = closeChromeBeforeHost(t);
+  const f = await product(t), own = await codingWork(f, "学到长期记忆的会话");
+  const learned = await write(f, own, "project", "此会话学到：评审先列风险"), local = await write(f, own, "project", "此会话内：先跑单测");
+  const j = await browserFor(t, f, registerChrome);
+  await j.page.command("Page.enable"); await j.page.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const original = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await original(...args), url = String(args[0] && args[0].url || args[0]);
+      if (!/\\/api\\/memory\\/sessions\\/[^?]+\\/(?:overview|page)\\?/.test(url) || !response.ok) return response;
+      const body = await response.clone().json();
+      for (const item of body.items || []) if (item.memory_id === ${JSON.stringify(learned.memory_id)}) item.classification = { ...item.classification, lifecycle: "long-term" };
+      return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
+    };
+  })()` });
+  await openCoding(j, own);
+  assert.deepEqual(await ids(j.page), [learned, local].map(one => one.memory_id).sort());
+  const link = await j.page.evaluate<{ text: string; href: string } | null>(`(() => { const a = document.querySelector('${row(learned.memory_id)} [data-memory-manage-elsewhere]');
+    return a ? { text: a.textContent, href: a.getAttribute('href') } : null; })()`);
+  assert.deepEqual(link, { text: "在项目记忆里管理", href: "/projects/" + encodeURIComponent(f.project.project_id) + "/settings/memory" });
+  assert.equal(await j.page.evaluate(`document.querySelectorAll('${row(learned.memory_id)} .memory-actions button, ${row(learned.memory_id)} .memory-more').length`), 0,
+    "no edit, switch-off or ⋯ on a memory the session cannot change");
+  assert.equal(await j.page.evaluate(`Boolean(document.querySelector('${row(local.memory_id)} .memory-actions button[aria-label^=修改]'))`), true, "the session's own memory keeps its actions");
+});
+
 // MEM-08/17/28/29: the page project is navigation only; the selected Assistant work keeps its actual project or personal target.
 test("Assistant's real entry follows project B from project A and retains personal and other-Session isolation", { timeout: 120_000 }, async t => {
   const registerChrome = closeChromeBeforeHost(t);

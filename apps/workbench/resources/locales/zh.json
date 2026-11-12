@@ -6137,6 +6137,8 @@
     "workbench.settings-memory.will-clear-memories-and-suggestions": "将清除这个会话的 {memories} 条记忆和 {candidates} 条待认可建议。对话和其他记忆不受影响。",
     "workbench.settings-memory.will-delete-count-count-once-deleted-they-never": "将删除 {count} 条记忆，删除后任何地方都不会再用到。",
     "workbench.settings-memory.will-not-be-suggested-again": "不会再提这一条",
+    "workbench.settings-memory.manage-in-personal": "在个人记忆里管理",
+    "workbench.settings-memory.manage-in-project": "在项目记忆里管理",
     "workbench.settings-memory.within-session": "会话内",
     "workbench.settings-memory.work": "工作",
     "workbench.settings-memory.work-character-does-project": "这个角色在本项目承担的工作",

@@ -22,14 +22,18 @@ const isTheirs = ([text, message]: Case) => theirWords(text, [message]) !== null
 function check(cases: readonly Case[], expected: boolean) {
   for (const one of cases) assert.equal(isTheirs(one), expected, label(one));
 }
-/** A leading request to keep it (“记住：”, “remember that”) is not part of what is kept (spoken.ts). */
-const REMEMBER_OPENING = /^(?:(?:请|帮我)?记住[：:，,]?|remember(?:\s+that)?[:,]?)\s*/i;
+/**
+ * The pairs whose message is the very words after a leading request to keep it (“记住：”, spoken.ts), listed one by one rather than
+ * worked out with a copy of the source's pattern.
+ */
+const AFTER_OPENING = new Set([["预算上限五十万", "记住：预算上限五十万"], ["预算上限 50 万", "记住预算上限 50 万"], ["下周三下午两点开会", "记住下周三下午两点开会"],
+  ["转账小于100元时不用确认", "记住转账小于100元时不用确认"], ["至少写三条要点", "记住至少写三条要点"]].map(pair => JSON.stringify(pair)));
 /**
  * What the fuzzy check let through as a restatement. Now a text is theirs only when it is the very same words: an identical pair is, and so is
  * the message without a leading “记住：” (2026-11-13); every other pair is a suggestion.
  */
 function restated(cases: readonly Case[]) {
-  for (const one of cases) assert.equal(isTheirs(one), one[0] === one[1] || one[0] === one[1].replace(REMEMBER_OPENING, ""), label(one));
+  for (const one of cases) assert.equal(isTheirs(one), one[0] === one[1] || AFTER_OPENING.has(JSON.stringify([one[0], one[1]])), label(one));
 }
 
 test("everything the last two re-reviews found is never the person's words: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something, the front of a sentence before a number, a one-off made a rule", () => {

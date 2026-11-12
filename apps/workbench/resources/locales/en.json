@@ -6619,6 +6619,8 @@
       }
     },
     "workbench.settings-memory.will-not-be-suggested-again": "It will not be suggested again",
+    "workbench.settings-memory.manage-in-personal": "Manage in personal memory",
+    "workbench.settings-memory.manage-in-project": "Manage in project memory",
     "workbench.settings-memory.within-session": "Within the session",
     "workbench.settings-memory.work": "Work",
     "workbench.settings-memory.work-character-does-project": "work this Character does in this project",

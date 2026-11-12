@@ -50,7 +50,21 @@ test("BL-1076 a personal memory moves into a project picked on the personal page
   const directory = await mkdtemp(join(tmpdir(), "memory-walkthrough-move-")), browser = await ChromeHarness.start(directory, { executable });
   try {
     const page = await browser.page(); await page.viewport(1440, 1000);
+    // 最近变动 lists what happened without the person's own hand: here the memory was kept in a work. The Host's records say so
+    // through the change's `work`, which this page's answer gains on the way in; whether a change is `moved_to` stays the Host's own.
+    await page.command("Page.enable"); await page.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+      const original = window.fetch;
+      window.fetch = async (...args) => {
+        const response = await original(...args), url = String(args[0] && args[0].url || args[0]);
+        if (!/\\/api\\/memory\\/(?:overview|page)\\?/.test(url) || !response.ok) return response;
+        const body = await response.clone().json();
+        for (const change of body.changes || []) if (change.memory_id === ${JSON.stringify(moving.memory_id)}) change.work = { work_id: "work-walkthrough", title: "整理周报" };
+        return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
+      };
+    })()` });
     await open(page, env.origin + "/settings/memory");
+    const changesText = () => page.evaluate<string>(`document.querySelector('${root} [data-memory-changes]')?.textContent ?? ''`);
+    assert.match(await changesText(), /这个项目的页面文案用简体中文/, "the change from the work is listed with its text before the move");
     await page.click(row(moving.memory_id) + " summary[aria-label^=更多操作]");
     await page.evaluate(`[...document.querySelectorAll('${row(moving.memory_id)} .memory-menu button')].find(button => button.textContent === '改为项目记忆').dataset.walkthroughMove = ''`);
     await page.click("[data-walkthrough-move]");
@@ -62,10 +76,10 @@ test("BL-1076 a personal memory moves into a project picked on the personal page
     await ready(page);
     assert.equal((await texts(client, "personal")).includes(moving.text), false, "it left personal memory");
     assert.equal((await texts(client, "project")).includes(moving.text), true, "it is the chosen project's memory now");
-    // A person's own change on this page is not repeated under 最近变动 (only the Assistant's and works' changes are), so the
-    // page it left never calls the moved memory deleted. A memory kept in a work and moved later reads 「已移到项目记忆」 there:
-    // the change carries `moved_to` (tests/memory-service.test.ts) and the row names where it went.
-    assert.equal(String(await page.evaluate(`document.querySelector('${root} [data-memory-changes]')?.textContent ?? ''`)).includes("这条后来被删除了"), false);
+    // The page it left keeps the work's change, now without the text and saying where the memory went; it never calls it deleted.
+    await page.wait(`(document.querySelector('${root} [data-memory-changes]')?.textContent ?? '').includes('已移到项目记忆')`);
+    assert.equal((await changesText()).includes("这个项目的页面文案用简体中文"), false, "the moved memory's text is not kept on the page it left");
+    assert.equal((await changesText()).includes("这条后来被删除了"), false);
 
     // Something else (the Assistant) keeps a memory while the page is open: the page shows it without pressing reload.
     const later = (await client.invoke(memoryActions.write, { scope: "personal", text: "周报用要点列表，每条一句", kind: "preference" })).memory!;

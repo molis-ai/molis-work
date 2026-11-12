@@ -11,9 +11,9 @@ import { memoryErrors } from "./errors.js";
 import { learnedInSession, memorySources, type MemorySourceSession } from "./session-links.js";
 
 export const MEMORY_SESSION_CLEAR_PREFIX = "memory-session-clear:";
-/** The long-term memories and waiting suggestions learned in the session, fixed at preview; removed through the ordinary paths. */
+/** The long-term memories and waiting suggestions learned in the session, fixed at preview; removed through the ordinary paths. Same format version as the exact plan. */
 const LINKED_PREFIX = "memory-session-learned:";
-interface LinkedPlan { binding: MemorySessionBinding; memories: MemoryLinkedTarget[]; candidates: Array<{ scope: MemoryScope; owner: string; candidate_id: string; version: number }> }
+interface LinkedPlan { version: /* @version format.memory.session-clear-plan */ 1; binding: MemorySessionBinding; memories: MemoryLinkedTarget[]; candidates: Array<{ scope: MemoryScope; owner: string; candidate_id: string; version: number }> }
 export interface MemoryLinkedTarget { scope: MemoryScope; owner: string; memory_id: string; version: number }
 interface Group { scope: MemoryScope; owner: string; operation_id: string;
   memories: Array<{ memory_id: string; version: number }>; candidates: Array<{ candidate_id: string; version: number }> }
@@ -70,8 +70,8 @@ export class MemorySessionClear {
     dismissLearned?(caller: MemoryCaller, target: LinkedPlan["candidates"][number]): Promise<void> }) {}
 
   /** What was learned from this session but kept long-term (or still waiting): it is the session's to clear too. */
-  private async learned(caller: MemoryCaller, scopes: readonly { scope: MemoryScope; owner: string }[]): Promise<Omit<LinkedPlan, "binding">> {
-    const out: Omit<LinkedPlan, "binding"> = { memories: [], candidates: [] };
+  private async learned(caller: MemoryCaller, scopes: readonly { scope: MemoryScope; owner: string }[]): Promise<Omit<LinkedPlan, "binding" | "version">> {
+    const out: Omit<LinkedPlan, "binding" | "version"> = { memories: [], candidates: [] };
     if (!this.ports.sourceSession || !this.ports.removeLearned || !this.ports.dismissLearned) return out;
     const plain: MemoryCaller = { ...caller, memory_session: undefined };
     for (const where of scopes) {
@@ -153,7 +153,7 @@ export class MemorySessionClear {
       candidate_count: targets.filter(item => item.kind === "memory-candidate").length + learned.candidates.length };
     if (!targets.length && !learned.memories.length && !learned.candidates.length) return { preview_id: null, memory_count: 0, candidate_count: 0 };
     if (learned.memories.length || learned.candidates.length)
-      this.ports.ledger.setMarker(caller.actor_id, LINKED_PREFIX + preview_id, { binding: structuredClone(binding), ...learned } satisfies LinkedPlan, this.ports.now().toISOString());
+      this.ports.ledger.setMarker(caller.actor_id, LINKED_PREFIX + preview_id, { version: /* @version format.memory.session-clear-plan */ 1, binding: structuredClone(binding), ...learned } satisfies LinkedPlan, this.ports.now().toISOString());
     if (!targets.length) return { preview_id, ...counts };
     targets.sort(order);
     const groups: Group[] = [];
@@ -178,6 +178,7 @@ export class MemorySessionClear {
   }
   async apply(caller: MemoryCaller, preview_id: string): Promise<MemorySessionClearResult> {
     const binding = this.binding(caller), body = id(preview_id) ? this.ports.ledger.marker(caller.actor_id, LINKED_PREFIX + preview_id)?.body as LinkedPlan | undefined : undefined;
+    if (body && body.version !== /* @version format.memory.session-clear-plan */ 1) throw memoryErrors.conflict("这份预览的格式已过期，请重新预览");
     if (body && !isDeepStrictEqual(body.binding, binding)) throw memoryErrors.forbidden("这份预览不属于当前业务会话");
     const exact = !body || this.ports.ledger.marker(caller.actor_id, MEMORY_SESSION_CLEAR_PREFIX + preview_id) ? await this.applyExact(caller, preview_id) : { complete: true, items: [] };
     if (!body) return exact;

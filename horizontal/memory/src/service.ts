@@ -61,7 +61,7 @@ import { MemoryManagementPages, type MemoryPageLimits } from "./management-pages
 import { MemoryMoves } from "./moves.js";
 import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
-import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
+import { assertFormationFacts, automaticMemoryHold, CANDIDATE_TTL_MS, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
@@ -144,7 +144,6 @@ interface MemoryCommitInput {
 
 /** Interface signals: at least this many, from at least this many different occasions, before a candidate is made. */
 export const SIGNAL_THRESHOLD = { count: 3, distinct: 2 } as const;
-const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const PENDING_PER_WORK = 3;
 /** What Prologue's `redactText` puts where a credential was. */
 const REDACTED_CREDENTIAL = "[redacted]";
@@ -827,22 +826,35 @@ export class MemoryService {
       this.ports.ledger.saveCandidate(kept);
     });
     // The same suggestion made again by another work (two runs, two identical candidates) is settled into what was just kept, not left waiting.
+    // The ledger names the twins without a backend read; only when there are some is the backend listed, once before and once after settling them.
+    const twinOf = (one: MemoryCandidateRecord) => one.candidate_id !== candidateId && one.state === "pending" && one.scope === record.scope && one.owner === record.owner
+      && one.kind === record.kind && isDeepStrictEqual(one.applies, record.applies) && (sameText(one.text, record.text) || sameText(one.text, text));
     let current = located.entry;
-    for (const twin of (await this.candidateRecords(holder, record.scope, record.owner)).filter(one => one.candidate_id !== candidateId && one.state === "pending"
-      && one.kind === record.kind && isDeepStrictEqual(one.applies, record.applies) && (sameText(one.text, record.text) || sameText(one.text, text)))) {
-      const mark = this.operations.begin(caller, `accept-twin:${twin.candidate_id}`, { kind: "settleInto", scope: record.scope, owner: record.owner,
-        candidate_id: twin.candidate_id, memory_id: current.memory_id, expected_version: current.version, candidate_expected_version: twin.version });
-      const entry = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: twin.candidate_id,
-        candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
-        target: { memory_id: current.memory_id, expected_version: mark.expected_version!, change: { text: current.text, meta: current.meta } }, by: { by: "person" } });
-      const settled = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === twin.candidate_id);
-      this.ports.ledger.transaction(() => {
-        this.operations.committed(caller, mark, { memory_id: entry.memory_id, candidate_id: twin.candidate_id, version: entry.version });
-        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
-          snapshot: { origin: entry.origin, meta: entry.meta }, change: "merged", by: "person", at });
-        this.ports.ledger.saveCandidate({ ...twin, version: settled?.version ?? twin.version, state: "accepted", memory_id: entry.memory_id });
-      });
-      current = entry;
+    if (this.ports.ledger.candidates(caller.actor_id).some(twinOf)) {
+      const settledTwins: Array<{ twin: MemoryCandidateRecord; mark: ReturnType<MemoryOperations["begin"]>; entry: MemoryBackendEntry }> = [];
+      // What settled is recorded even if a later twin fails; an in-doubt one stays an open operation, as any other.
+      try {
+        for (const twin of (await this.candidateRecords(holder, record.scope, record.owner)).filter(twinOf)) {
+          const mark = this.operations.begin(caller, `accept-twin:${twin.candidate_id}`, { kind: "settleInto", scope: record.scope, owner: record.owner,
+            candidate_id: twin.candidate_id, memory_id: current.memory_id, expected_version: current.version, candidate_expected_version: twin.version });
+          current = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: twin.candidate_id,
+            candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
+            target: { memory_id: current.memory_id, expected_version: mark.expected_version!, change: { text: current.text, meta: current.meta } }, by: { by: "person" } });
+          settledTwins.push({ twin, mark, entry: current });
+        }
+      } finally {
+        if (settledTwins.length) {
+          const versions = new Map((await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).map(item => [item.candidate_id, item.version]));
+          this.ports.ledger.transaction(() => {
+            for (const { twin, mark, entry } of settledTwins) {
+              this.operations.committed(caller, mark, { memory_id: entry.memory_id, candidate_id: twin.candidate_id, version: entry.version });
+              this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
+                snapshot: { origin: entry.origin, meta: entry.meta }, change: "merged", by: "person", at });
+              this.ports.ledger.saveCandidate({ ...twin, version: versions.get(twin.candidate_id) ?? twin.version, state: "accepted", memory_id: entry.memory_id });
+            }
+          });
+        }
+      }
     }
     return { candidate: candidateView(kept), memory: this.scopeCommands.item({ ...located, entry: current }) };
   }

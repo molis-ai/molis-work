@@ -1246,7 +1246,7 @@
     "prompt.assistant-base": 5,
     "prompt.assistant-compaction": 1,
     "prompt.assistant-delegated": 2,
-    "prompt.assistant-ending-review": 1,
+    "prompt.assistant-ending-review": 2,
     "prompt.assistant-thread": 2,
     "prompt.assistant-work": 3,
     "prompt.choose.capability": 2,

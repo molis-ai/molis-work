@@ -1,5 +1,5 @@
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { FONT_STACK, HIDDEN_SCROLLBAR_STYLES, renderShellTokens, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
+import { HIDDEN_SCROLLBAR_STYLES, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
 
 export interface CapsuleProjectNavigation {
   project_id: string;
@@ -11,6 +11,18 @@ export interface CapsuleShellEnvironment {
   htmlLang: string;
   languageHead: string;
   themeBootstrapScript: string;
+  /**
+   * The Home's formal appearance projection for this page (the same `WorkbenchAppearance` the workbench pages get): the environment
+   * snapshot, the selected skin/font/mono scopes and the shared appearance sheet when the selection is not the Soft Workbench baseline.
+   * Absent where no appearance is wired (diagnostics, throwaway hosts): the capsule then draws the baseline alone.
+   */
+  appearanceHead?: string;
+  /**
+   * The formal Soft Workbench baseline the capsule's own layout starts from: the design-system skin scope rendered by the same
+   * `renderSkinScope(BASELINE_SKIN, true)` the workbench foundation uses. Selected skins override it through their more specific
+   * `html[data-ui-skin=…]` scope; the capsule itself keeps no palette of its own.
+   */
+  baselineStyles?: string;
 }
 
 
@@ -18,24 +30,14 @@ function safeJson(value: unknown): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 
-/** The menu-bar capsule speaks the workbench language: the same shell tokens, type, graphite and copper. */
+/** The menu-bar capsule's own layout only; every colour and type value comes from the appearance projection (`baselineStyles` plus the selected sheet). */
 export const CAPSULE_STYLES = `
   :root {
     color-scheme: light;
-    ${renderShellTokens("light")}
-    --paper-raised: var(--paper);
-    --surface: var(--desk);
-    --surface-hover: var(--nav-hover);
-    --accent-hover: var(--accent-strong);
-    --font: ${FONT_STACK};
     --capsule-anchor-x: 210px;
     --capsule-height: 476px;
   }
-  html[data-resolved-theme="dark"] {
-    color-scheme: dark;
-    ${renderShellTokens("dark")}
-    --surface: var(--desk);
-  }
+  html[data-resolved-theme="dark"] { color-scheme: dark; }
   * { box-sizing: border-box; }
   html { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
   body { width: 420px; height: var(--capsule-height); margin: 0; overflow: hidden; padding: 8px 0 0; background: transparent; color: var(--ink); font: 13px/1.45 var(--font); letter-spacing: -.006em; }
@@ -55,7 +57,7 @@ export const CAPSULE_STYLES = `
     width: 100%; height: 100%; overflow: hidden; border: 1px solid var(--line-strong);
     border-radius: 8px; background: var(--paper); box-shadow: var(--shadow);
   }
-  .capsule__head { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .capsule__head { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--desk); }
   .capsule__project-wrap { position: relative; display: flex; align-items: center; min-width: 0; max-width: 230px; }
   .capsule__project-mark { position: relative; flex: 0 0 auto; width: 18px; height: 18px; margin-right: 8px; border: 1.5px solid var(--accent); border-radius: 50%; }
   .capsule__project-mark::after { content: ""; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); }
@@ -84,8 +86,8 @@ export const CAPSULE_STYLES = `
   .capsule__goal-row { border-bottom: 1px solid var(--line); }
   .capsule__goal-row:last-child { border-bottom: 0; }
   .capsule__goal-summary { width: 100%; min-width: 0; border: 0; padding: 12px 12px 12px; background: transparent; color: inherit; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; cursor: pointer; }
-  .capsule__goal-summary:hover { background: var(--surface); }
-  .capsule__goal-summary[aria-expanded="true"] { background: var(--surface); }
+  .capsule__goal-summary:hover { background: var(--desk); }
+  .capsule__goal-summary[aria-expanded="true"] { background: var(--desk); }
   .capsule__goal-title { min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
   .capsule__goal-summary[aria-expanded="true"] .capsule__goal-title { overflow: visible; text-overflow: clip; white-space: normal; }
   .capsule__goal-state { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -101,7 +103,7 @@ export const CAPSULE_STYLES = `
   .capsule__goal-next span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .capsule__chevron { align-self: center; width: 7px; height: 7px; margin-right: 4px; border-right: 1.5px solid var(--faint); border-bottom: 1.5px solid var(--faint); transform: rotate(45deg); transition: transform 130ms var(--ease-quint); }
   .capsule__goal-summary[aria-expanded="true"] .capsule__chevron { transform: rotate(225deg) translate(-1px, -1px); }
-  .capsule__goal-details { padding: 0 12px 12px; background: var(--surface); }
+  .capsule__goal-details { padding: 0 12px 12px; background: var(--desk); }
   .capsule__why { margin: 0; padding: 12px 0 8px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
   .capsule__why strong { margin-right: 4px; color: var(--ink); font-size: 11px; }
   .capsule__facts { margin: 0; }
@@ -120,10 +122,10 @@ export const CAPSULE_STYLES = `
   .capsule__loading strong { color: var(--ink); font-size: 13px; }
   .capsule__loading span { max-width: 30ch; font-size: 12px; line-height: 1.5; }
   .capsule__spinner { width: 20px; height: 20px; margin-bottom: 4px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: 50%; animation: capsule-spin 640ms var(--ease-quint) infinite; }
-  .capsule__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+  .capsule__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--line); background: var(--desk); }
   .capsule__hint { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
   .capsule__buttons { display: flex; gap: 8px; }
-  .capsule__button { height: 31px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 12px; background: var(--paper-raised); color: var(--ink-soft); font-size: 12px; font-weight: 400; cursor: pointer; transition: background 130ms var(--ease-quint), border-color 130ms var(--ease-quint), color 130ms var(--ease-quint), transform 130ms var(--ease-quint); }
+  .capsule__button { height: 31px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 12px; background: var(--paper); color: var(--ink-soft); font-size: 12px; font-weight: 400; cursor: pointer; transition: background 130ms var(--ease-quint), border-color 130ms var(--ease-quint), color 130ms var(--ease-quint), transform 130ms var(--ease-quint); }
   .capsule__button:hover { border-color: var(--faint); background: var(--nav-hover); color: var(--ink); }
   .capsule__button:active { transform: translateY(1px); }
   .capsule__button--primary { border-color: var(--action); background: var(--action); color: var(--action-ink); }
@@ -132,7 +134,7 @@ export const CAPSULE_STYLES = `
   .capsule__error::before { content: "!"; display: block; width: 28px; height: 28px; margin: 0 auto; border: 1px solid currentColor; border-radius: 50%; font-weight: 400; line-height: 26px; }
   .capsule__error strong { color: var(--ink); font-size: 13px; }
   .capsule__error span { max-width: 32ch; }
-  .capsule__retry { min-height: 30px; margin-top: 4px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 12px; background: var(--paper-raised); color: var(--ink-soft); font-size: 12px; font-weight: 400; cursor: pointer; }
+  .capsule__retry { min-height: 30px; margin-top: 4px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 12px; background: var(--paper); color: var(--ink-soft); font-size: 12px; font-weight: 400; cursor: pointer; }
   .capsule__retry:hover { border-color: var(--faint); background: var(--nav-hover); color: var(--ink); }
   .capsule-shell[data-error="true"] .capsule > :not(.capsule__error) { display: none; }
   .capsule-shell[data-error="true"] .capsule__error { display: grid; }
@@ -607,7 +609,8 @@ export function renderDesktopCapsuleShell(
   environment: CapsuleShellEnvironment,
 ): string {
   const options = projectOptions(projects);
-  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title>${environment.languageHead}<script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
+  // Light/dark still follow the device through the theme bootstrap; the Home's appearance projection decides skin and type.
+  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title>${environment.languageHead}<script>${environment.themeBootstrapScript}</script>${environment.appearanceHead ?? ""}<style>${environment.baselineStyles ?? ""}${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
     <i class="capsule__arrow" aria-hidden="true"></i>
     <section class="capsule">
       <header class="capsule__head">

@@ -84,3 +84,7 @@ Coding 的「代码调查」「独立评审」「独立实现」子角色按 [�
 | `role.designer` | 未写升版 | **1**（未变） | 角色自身版本化声明无差异 |
 
 **事实与待决：** 上表原写「方法与固定提示词仅在本批实际新增英文正文或改变版本化内容时升到 2」，实际 assistant-base 4／designer 3 是因版本化正文在本批内多次改变而逐次升版；是否属用户 2026-11-08 批准的「限定范围」、是否回退，待用户决定（16.md「合后审计整改」待决⑤）。新增 `prompt.coding.auto-skill-catalog` 来自 #2030，不在本表候选，需用户一并追认或补批准记录。
+
+## 实际升幅与用户追认（2026-11-11 合后审计）
+
+第 16 批最终 `tooling/versions.json` 的实际升幅为：`prompt.assistant-base` 1→4、`prompt.plugin-builder.designer` 1→3，并新增 `prompt.coding.auto-skill-catalog`（1，来自 #2030 的 Coding 自动技能目录接入）。原因是版本化正文在 C 段实现期间按内容变更分几次升版（每次内容变化升一版），与候选表「只升到 2」是预设估计不同；没有降版、没有绕过版本门禁。用户 2026-11-11 在合后审计整改中追认上述实际升幅（见 [16.md 合后审计整改](../post-anticorruption-roadmap/reference/batches/16.md#合后审计整改fix16-audit-followups)）。

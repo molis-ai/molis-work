@@ -10,6 +10,8 @@ import { actionEffect, type ActionDefinition } from "@molis-ai/molis-work-contra
 import type { PluginJobControl, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTaskGrantActions, TASK_GRANT_SUBJECT_KEY_PATTERN, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { assertPageWords } from "./fixtures/page-text.js";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
@@ -89,10 +91,9 @@ test("PWA-148 the reminders query returns this project's reminders only, never a
 
 test("PWA-148 every group's words have their English in the plugin's own translations", () => {
   for (const [name, manifest] of Object.entries(MANIFESTS)) {
-    const english = manifest.ui?.translations ?? {};
-    for (const group of manifest.read_groups ?? []) {
-      for (const words of [group.title, group.description]) assert.ok(english[words]?.trim(), `${name}: 「${words}」 has its English`);
-    }
+    const prefix = textKeyPrefix(manifest.plugin_id);
+    assertPageWords(name, (manifest.read_groups ?? []).flatMap(group =>
+      ["title", "description"].map(field => `${prefix}.read-group.${group.group_id}.${field}`)));
   }
 });
 

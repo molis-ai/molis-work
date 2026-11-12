@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -6,7 +7,6 @@ import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
-import { L } from "./web-locale.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailure } from "./web-project-deletion.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
@@ -28,7 +28,7 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
   const body = await readBody(request);
   const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
   if (!displayName) {
-    sendJson(response, 400, { error: L("项目名称不能为空") });
+    sendJson(response, 400, { error: uiText.text("workbench.project-settings.project-name-cannot-be-empty") });
     return;
   }
   try {
@@ -62,7 +62,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       const body = await readBody(request);
       const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
       if (body.user_confirmed !== true || !displayName) {
-        sendJson(response, 400, { error: L("请确认并填写项目名称") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-settings.confirm-enter-project-name") });
         return true;
       }
       try {
@@ -84,14 +84,14 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         ? body.action
         : null;
       if (!action || body.user_confirmed !== true) {
-        sendJson(response, 400, { error: L("请明确确认要创建、重建或删除演示数据") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-settings.confirm-that-want-create-rebuild-delete-demo-data") });
         return true;
       }
       if (action === "remove") {
         try {
           const removed = await removeDemoThroughService(withMolisWorkProjectCatalog, homeDirectory, deletionPorts);
-          if (removed) sendJson(response, 200, { ...removed, message: L("可重建 demo 已删除；用户项目未修改") });
-          else sendJson(response, 404, { error: L("示例项目已经不存在") });
+          if (removed) sendJson(response, 200, { ...removed, message: uiText.text("workbench.project-settings.regenerable-demo-deleted-user-projects-were-not-changed") });
+          else sendJson(response, 404, { error: uiText.text("workbench.project-settings.demo-project-no-longer-exists") });
         } catch (error) {
           sendDeletionFailure(response, error);
         }
@@ -105,12 +105,12 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         try { await demoSamples?.(); }
         catch (error) {
           hostLog.warn("projects", "demo_sample_failed", error, { action, project_id: result.project.project_id });
-          warning = L("Shelf 示例未能恢复，请在 Shelf 中查看后重试。");
+          warning = uiText.text("workbench.project-settings.shelf-sample-could-not-be-restored-check-shelf");
         }
         sendJson(response, 200, {
           ...result, project: settingsProject(result.project), ...(warning ? { warning } : {}),
-          message: action === "reset" ? L("示例项目已重建；用户项目未修改")
-            : result.status === "existing" ? L("示例项目已经存在") : L("示例项目已创建"),
+          message: action === "reset" ? uiText.text("workbench.project-settings.demo-project-rebuilt-user-projects-were-not-changed")
+            : result.status === "existing" ? uiText.text("workbench.project-settings.demo-project-already-exists") : uiText.text("workbench.project-settings.demo-project-created"),
         });
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
@@ -147,13 +147,14 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
   if (!pluginMatch || (request.method !== "POST" && request.method !== "DELETE")) return false;
   const sessionCurrent = captureWebSessionAuthority();
   const abort = new AbortController();
-  const disconnected = () => { if (!response.writableFinished) abort.abort(new ActionError("actions.cancelled", "调用连接已断开")); };
+  const disconnected = () => { if (!response.writableFinished) abort.abort(new ActionError("actions.cancelled", uiText.text("workbench.project-settings.connection-disconnected"))); };
   response.once("close", disconnected);
   try {
     if (response.destroyed) disconnected();
     sessionCurrent();
     abort.signal.throwIfAborted();
     const body = await readBody(request);
+<<<<<<< HEAD
     // The transport owns `enabled` (POST enables, DELETE removes): a client value is not an input, and the old envelope refused
     // every field but `plugin_id`/`expected_revision`. The action schema alone would accept `enabled`, so refuse it here.
     if (body !== null && typeof body === "object" && Object.hasOwn(body, "enabled")) throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
@@ -163,9 +164,19 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     try { projectId = decodeURIComponent(pluginMatch[1]); }
     catch { throw hostErrors.request_path_invalid("项目地址无效"); }
     const membership = await setProjectPlugin(projectId, candidate, abort.signal, sessionCurrent);
+=======
+    const pluginId = typeof body?.plugin_id === "string" ? body.plugin_id.trim() : "";
+    if (!pluginId || typeof body.expected_revision !== "string" || Object.keys(body).some(key => key !== "plugin_id" && key !== "expected_revision")) {
+      throw new ActionError("actions.input_invalid", uiText.text("workbench.project-settings.invalid-plugin-membership"));
+    }
+    let projectId: string;
+    try { projectId = decodeURIComponent(pluginMatch[1]); }
+    catch { throw hostErrors.request_path_invalid(uiText.text("workbench.project-settings.invalid-project-address")); }
+    const membership = await setProjectPlugin(projectId, { plugin_id: pluginId, enabled: request.method === "POST", expected_revision: body.expected_revision }, abort.signal, sessionCurrent);
+>>>>>>> origin/main
     sendJson(response, 200, { project_id: projectId, ...membership });
   } catch (error) {
-    const failure = actionErrorResponse(error, { translate: L });
+    const failure = actionErrorResponse(error);
     sendJson(response, failure.status, failure.body);
   } finally { response.off("close", disconnected); }
   return true;

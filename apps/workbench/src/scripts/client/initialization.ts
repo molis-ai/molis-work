@@ -31,7 +31,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
 
     immersiveNavigation = (${IMMERSIVE_NAVIGATION_FACTORY_SCRIPT})({
       workspace, treePane, documentPane, getSelected: () => selected, getState: () => state,
-      getSurface: () => activeDesktopSurface, translate: L,
+      getSurface: () => activeDesktopSurface, translate: readText,
       setDirectory: (...args) => setDesktopDirectory(...args),
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
       setDirectoryCollapsed: (...args) => setDirectoryCollapsed(...args),
@@ -41,7 +41,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     // Adding a plugin to the project or taking it away changes the page in place (the switcher's buttons and the market's both).
     const pluginMembership = (${PLUGIN_MEMBERSHIP_FACTORY_SCRIPT})({
-      route, translate: L, projectId: state.project?.project_id, saveUiState, showToast,
+      route, translate: readText, projectId: state.project?.project_id, saveUiState, showToast,
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       trackSurface: (node) => { if (!desktopWorkSurfaces.includes(node)) desktopWorkSurfaces.push(node); },
       untrackSurface: (node) => { const at = desktopWorkSurfaces.indexOf(node); if (at >= 0) desktopWorkSurfaces.splice(at, 1); },
@@ -55,14 +55,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
       mountPluginClient, membership: pluginMembership,
-      route, translate: L, projectId: state.project?.project_id,
+      route, translate: readText, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       saveUiState, setMobileView,
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
-    (${NAVIGATION_PRESENTATION_SCRIPT})(L);
-    (${DOCK_SCRIPT})(L, state.project?.project_id, {
+    (${NAVIGATION_PRESENTATION_SCRIPT})(readText);
+    (${DOCK_SCRIPT})(readText, state.project?.project_id, {
       membership: pluginMembership,
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
@@ -72,15 +72,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
     if (!document.body.hasAttribute('data-pane-embedded')) globalThis.molisWorkBarColumn?.();
-    (${ATTENTION_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id,
+    (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
+    (${SIDE_FILES_FACTORY_SCRIPT})({ readText, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
       ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
-      translate: L, itemTabs,
+      translate: readText, itemTabs,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -94,7 +94,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       expandDirectory: (id) => setPluginSectionExpanded(id),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
-      getState: () => state, translate: L, route,
+      getState: () => state, translate: readText, route,
       api,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -110,31 +110,31 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
     // A reference field searches this project through search.references (T2); a pick is <kind> <id> for the SDK's questionAnswer.
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
-    const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
+    const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.initialization.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(readText);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
       paneMessages,
       openView: (root, selection) => tabWorkspace?.openView(root, selection),
       invalidateView: root => tabWorkspace?.invalidateView(root),
       openBehind: (...args) => tabWorkspace?.openBehind(...args),
-      mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
+      mountPluginClient, interaction, receipts, scope: boardLifetime, translate: readText, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
-    assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
+    assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
-    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
+    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
-    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(), itemTabs,
+    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: readText, route, headers: () => molisWorkControlHeaders(), itemTabs,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     ${SYNC_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
-      translate: L,
+      translate: readText,
       setDirectory: (...args) => setDesktopDirectory(...args),
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       closeCover: () => tabWorkspace?.closeCover?.(),
@@ -335,13 +335,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
     // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
-    if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
+    if (askedSurface && desktopWorkSurfaces.some(surface => surface.dataset.workSurface === askedSurface)) {
       const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
       setTimeout(() => { const entry = [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface); if (entry) openSurfaceEntry(askedSurface, entry); }, 0);
     }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {
-      showToast(L("找不到这个页面：{path}").replace("{path}", missingPage), true);
+      showToast(globalThis.t.text("workbench.initialization.page-does-not-exist-path").replace("{path}", missingPage), true);
       const cleaned = new URL(location.href); cleaned.searchParams.delete("missing");
       history.replaceState(history.state, "", cleaned);
     }
@@ -360,14 +360,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       referenceRequest?.abort();
       const request = new AbortController(); referenceRequest = request;
       const body = referenceDialog.querySelector("[data-project-reference-body]");
-      referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || L("项目内引用");
+      referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || globalThis.t.text("workbench.initialization.project-reference");
       referenceDialog.querySelector("[data-project-reference-download]").href = url;
-      body.textContent = L("正在读取…");
+      body.textContent = globalThis.t.text("workbench.initialization.loading");
       if (!referenceDialog.open) referenceDialog.showModal();
       try {
-        const text=await molisWorkRequest(url,{as:"text",signal:request.signal,fallback:L("项目内引用无法打开")});
+        const text=await molisWorkRequest(url,{as:"text",signal:request.signal,fallback:globalThis.t.text("workbench.initialization.project-reference-could-not-be-opened")});
         if (referenceRequest === request && referenceDialog.open) body.textContent = text;
-      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
+      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,globalThis.t.text("workbench.initialization.project-reference-could-not-be-opened")); }
     });
     const restartWorkspace = document.querySelector("[data-tab-workspace]");
     document.addEventListener("click", async (event) => {
@@ -380,7 +380,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         || parent?.closest("[data-work-surface]") || holder?.parentElement !== restartWorkspace
         || !holder?.matches("[data-surface-pool], [data-tab-panes], [data-tab-exclusive]")) return;
       button.disabled = true;
-      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
+      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: globalThis.t.text("workbench.initialization.couldn-t-change-plugin-state") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
     if (goalData) {

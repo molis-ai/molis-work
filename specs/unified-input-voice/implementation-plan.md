@@ -285,7 +285,7 @@ K0 与 K1 改不同的文件，并行；K0 由 C 轨排在 02 交接与 05② C-
 
 1. **草稿存本机浏览器存储**，加主人适配（3.4）；已有主人存储的入口（助理、Coding 的服务端会话草稿）经 `draft.adapter` 接原存储，不改成浏览器存储（统筹 11-04 补定）。键名不带版本；删项目、卸载插件后清掉对应的键（UIC-10）；存储读写失败时就地提示、字不丢（UIC-11）。
 2. **新建的组件文件归 A 独占**：`packages/design-system/src/composer*.ts`、`packages/plugin-sdk/src/ui/composer.ts`，已写进[轨道表](../post-anticorruption-roadmap/reference/tracks.md#section-5) A 行；D 已有文件里的导出行由 D 评审。
-3. **K6 接在第 11 批之后、第 16 批 C 段窗口之前**，按插件拆给 E，键位一起改；写在[第 11 批](../post-anticorruption-roadmap/reference/batches/11.md)。
+3. **K6 接在第 11 批之后**，按插件拆给 E，键位一起改；写在[第 11 批](../post-anticorruption-roadmap/reference/batches/11.md)。用户 2026-11-11 决定第 16 批先用现有入口完成切换，K6 另行接入。
 4. **K2 与 K3 一起落**，净增长按 10 KB 以内打算；落地实测仍超过 10 KB 时，带上字节数问用户（红线），现在不问。
 
 安全编号：S-108 暂归第 18 批，S-109 暂归第 10 批，落地时按表顺延。

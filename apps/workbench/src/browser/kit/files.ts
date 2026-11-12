@@ -4,7 +4,7 @@ import type { KitPack, KitPackFile, PluginPackageExport } from "@molis-ai/molis-
 import { renderMenuGroup, renderMenuItem, type NowMenu } from "@molis-ai/molis-work-design-system/capability-pack";
 import { renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { icon, renderAlert, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { act, badge, button, english, esc, goTo, itemsOf, KIND_GLYPH, KIND_WORD, L, note, post, section, sourceTitle, type Kit } from "./common.js";
+import { act, badge, button, esc, goTo, itemsOf, KIND_GLYPH, KIND_WORD, readText, note, post, section, sourceTitle, type Kit } from "./common.js";
 
 // 「导出这个包」 and 「导入」 (contract-design §4.9, §5): a pack leaves as one file whose parts each go back their own owner's way — a
 // content package as signed, to the plugin install review; the person's prompt edits, previewed and applied row by row; and
@@ -20,14 +20,14 @@ export function exportMenu(kit: Kit, pack: KitPack): NowMenu | undefined {
   if (pack.state.kind === "uninstalled") return undefined;
   const edits = editedPrompts(kit, pack).length;
   const items = pack.kind === "characters"
-    ? [renderMenuItem({ label: L("只导出引用"), description: L("你的角色只导出引用：名字和版本，不带写法"), iconName: "link", id: "kit-export-refs", attrs: act("export", "references") })]
+    ? [renderMenuItem({ label: readText("workbench.kit.references-only"), description: readText("workbench.kit.roles-reference-only"), iconName: "link", id: "kit-export-refs", attrs: act("export", "references") })]
     : [
-      renderMenuItem({ label: L("整个包"), description: L(pack.export.package ? "内容包原样带签名，加上你的提示词改写和引用；导回时各部分走各自的路" : "你的提示词改写，加上角色、工具和 MCP 的引用；插件本身不随文件走"),
+      renderMenuItem({ label: readText("workbench.kit.whole-kit"), description: readText(pack.export.package ? "workbench.kit.export-content-package" : "workbench.kit.export-data-only"),
         iconName: "package", id: "kit-export-whole", attrs: act("export", "whole") }),
-      ...(edits ? [renderMenuItem({ label: L("只导出你的提示词改写（{n}）", { n: edits }), description: L("存成你自己的数据文件，导回时逐条确认"), iconName: "text", id: "kit-export-prompts", attrs: act("export", "prompts") })] : []),
-      renderMenuItem({ label: L("只导出引用"), description: L("只带名字和版本，不带配置、地址和凭据"), iconName: "link", id: "kit-export-refs", attrs: act("export", "references") }),
+      ...(edits ? [renderMenuItem({ label: readText("workbench.kit.export-edits", { n: edits }), description: readText("workbench.kit.export-edits-description"), iconName: "text", id: "kit-export-prompts", attrs: act("export", "prompts") })] : []),
+      renderMenuItem({ label: readText("workbench.kit.references-only"), description: readText("workbench.kit.reference-data"), iconName: "link", id: "kit-export-refs", attrs: act("export", "references") }),
     ];
-  return { id: "kit-export-menu", label: L("导出这个包"), icon: "download", items: renderMenuGroup({ label: L("导出「{p}」", { p: pack.name }), items: items.join("") }) };
+  return { id: "kit-export-menu", label: readText("workbench.kit.export-kit"), icon: "download", items: renderMenuGroup({ label: readText("workbench.kit.export-kit-title", { p: pack.name }), items: items.join("") }) };
 }
 
 const editedPrompts = (kit: Kit, pack: KitPack) => itemsOf(kit, pack).filter((entry): entry is Extract<KitEntry, { kind: "prompt" }> => entry.kind === "prompt" && entry.prompt.edited);
@@ -66,8 +66,8 @@ export interface Importing { file: KitPackFile; name: string; preview?: { previe
 
 export async function readKitFile(project: string, chosen: File): Promise<Importing> {
   let file: KitPackFile;
-  try { file = JSON.parse(await chosen.text()) as KitPackFile; } catch { throw new Error(L("这个文件不是能力包")); }
-  if (file?.format !== "molis.kit-pack" || !Array.isArray(file.references)) throw new Error(L("这个文件不是能力包"));
+  try { file = JSON.parse(await chosen.text()) as KitPackFile; } catch { throw new Error(readText("workbench.kit.invalid-file")); }
+  if (file?.format !== "molis.kit-pack" || !Array.isArray(file.references)) throw new Error(readText("workbench.kit.invalid-file"));
   const preview = file.prompt_overrides?.overrides.length ? await post<Importing["preview"]>(project, "prompt-overrides/preview", { file: file.prompt_overrides }) : undefined;
   return { file, name: chosen.name, preview, picked: new Set(preview?.rows.filter(row => row.status === "applicable").map(row => row.row_id)) };
 }
@@ -82,10 +82,10 @@ export function handPackage(importing: Importing): boolean {
   try { sessionStorage.setItem(HANDED_PACKAGE_KEY, importing.file.package!.content); return true; } catch { return false; }
 }
 
-const DIFF_WORDS = { insert: "新增", delete: "删除", same: "不变", reveal: "再显示 {count} 行", identical: "两边一样", coarse: "只比到段落", partial: "只显示改动的部分",
-  mismatch: "两边不是同一份", created: "这里还没有这段提示词", removed: "删掉了", comment_before: "第 {number} 行", comment_after: "第 {number} 行" };
+const DIFF_WORDS = { insert: "workbench.settings-web-service.add", delete: "common.control.delete", same: "workbench.kit.diff-same", reveal: "workbench.kit.diff-reveal", identical: "workbench.kit.diff-identical", coarse: "workbench.kit.diff-coarse", partial: "workbench.kit.diff-partial",
+  mismatch: "workbench.kit.diff-mismatch", created: "workbench.kit.diff-created", removed: "workbench.kit.diff-removed", comment_before: "workbench.kit.diff-comment-line", comment_after: "workbench.kit.diff-comment-line" };
 const diff = (view: DiffView) => renderDiff({ view, sides: false, fold_context: 3, labels: DIFF_WORDS,
-  primitives: { escape: esc, icon: name => icon(name as Parameters<typeof icon>[0]), text: (text, values) => L(String(text), values as Record<string, string | number>) } });
+  primitives: { escape: esc, icon: name => icon(name as Parameters<typeof icon>[0]), text: (text, values) => readText(String(text), values as Record<string, string | number>) } });
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const here = (kit: Kit, ref: KitPackFile["references"][number]) => kit.catalog.entries.some(entry => entry.kind === ref.kind
@@ -96,33 +96,33 @@ export function importPanel(kit: Kit, project: string, importing: Importing): st
   const { file } = importing;
   const head = (title: string) => `<header class="kit-import__head"><h2 id="kit-import-title" tabindex="-1">${esc(title)}</h2>`;
   if (importing.done !== undefined) {
-    const n = importing.done, applied = L(n === 0 ? "没有套用提示词改写。" : n === 1 ? "1 条提示词改写已套用，从下一轮生效。" : "{n} 条提示词改写已套用，从下一轮生效。", { n });
-    const body = file.package ? `${applied}${english() ? " " : ""}${L("内容包「{p}」在插件的安装确认里等你看过再装。", { p: file.pack.name })}` : applied;
-    return `<section class="kit-import" aria-labelledby="kit-import-title">${head(L("导入完成"))}</header>${renderAlert({ title: file.pack.name, body, tone: "success", state: "done", role: "status" })}
-      <footer class="kit-import__foot">${file.package ? button(L("去看安装确认"), { icon: "arrow", attrs: act("import-package") }) : ""}${button(L("完成"), { variant: "primary", size: "md", attrs: act("import-close") })}</footer></section>`;
+    const n = importing.done, applied = (n === 0 ? readText("workbench.kit.no-edits-applied") : readText("workbench.kit.import-edits-applied", { n }));
+    const body = file.package ? readText("workbench.kit.applied-with-package", { applied, package: readText("workbench.kit.waiting-review", { p: file.pack.name }) }) : applied;
+    return `<section class="kit-import" aria-labelledby="kit-import-title">${head(readText("workbench.kit.import-done"))}</header>${renderAlert({ title: file.pack.name, body, tone: "success", state: "done", role: "status" })}
+      <footer class="kit-import__foot">${file.package ? button(readText("workbench.kit.open-review"), { icon: "arrow", attrs: act("import-package") }) : ""}${button(readText("workbench.computer-record.completed"), { variant: "primary", size: "md", attrs: act("import-close") })}</footer></section>`;
   }
   const refs = file.references.map(ref => {
     const found = here(kit, ref), categories = ref.needs?.connector_categories ?? [];
-    const state = found ? renderStatusMark({ label: L("这里有"), tone: "idle", state: "ready" }) : renderStatusMark({ label: L("这里没有，用不了"), tone: "hold", state: "unavailable" });
-    const fix = !found && categories.length ? goTo(L("去连接"), "/capabilities/connections" + (project ? "?project=" + encodeURIComponent(project) : "")) : "";
-    return `<li class="mw-item"><span class="mw-mark" aria-hidden="true">${icon(KIND_GLYPH[ref.kind])}</span><span><strong>${esc(ref.name)}</strong><small>${esc(L(KIND_WORD[ref.kind]))} · ${esc(ref.source_title)}</small></span><span class="mw-item__end">${state}${fix}</span></li>`;
+    const state = found ? renderStatusMark({ label: readText("workbench.kit.reference-present"), tone: "idle", state: "ready" }) : renderStatusMark({ label: readText("workbench.kit.reference-missing"), tone: "hold", state: "unavailable" });
+    const fix = !found && categories.length ? goTo(readText("workbench.catalog-skill-packs.connect"), "/capabilities/connections" + (project ? "?project=" + encodeURIComponent(project) : "")) : "";
+    return `<li class="mw-item"><span class="mw-mark" aria-hidden="true">${icon(KIND_GLYPH[ref.kind])}</span><span><strong>${esc(ref.name)}</strong><small>${esc(readText(KIND_WORD[ref.kind]))} · ${esc(ref.source_title)}</small></span><span class="mw-item__end">${state}${fix}</span></li>`;
   }).join("");
   const rows = (importing.preview?.rows ?? []).map(row => {
-    const status = row.status === "applicable" ? badge(L("基于第 {base} 版，这里也是第 {here} 版", { base: row.base_version, here: row.default_version ?? row.base_version }), "success")
-      : row.status === "same" ? badge(L("和这里现在的一样"))
-      : row.status === "prompt_missing" ? badge(L("这里没有这段提示词：不套用"), "warning")
-      : badge(L("基于第 {base} 版，这里已是第 {here} 版：版本对不上，不套用", { base: row.base_version, here: row.default_version ?? "?" }), "warning");
-    const pick = row.status === "applicable" ? `<label class="mw-check-row"><input type="checkbox" data-kit-pick="${esc(row.row_id)}"${importing.picked.has(row.row_id) ? " checked" : ""}><span>${esc(L("套用：{n}", { n: row.title }))}</span></label>` : "";
-    const more = row.status === "applicable" ? `<details class="mw-collapsible" data-slot="collapsible"><summary>${esc(L("看改了什么"))}</summary><div class="mw-collapsible__body">${diff(row.diff)}</div></details>` : "";
+    const status = row.status === "applicable" ? badge(readText("workbench.kit.same-default", { base: row.base_version, here: row.default_version ?? row.base_version }), "success")
+      : row.status === "same" ? badge(readText("workbench.kit.same-content"))
+      : row.status === "prompt_missing" ? badge(readText("workbench.kit.prompt-unavailable"), "warning")
+      : badge(readText("workbench.kit.base-mismatch", { base: row.base_version, here: row.default_version ?? "?" }), "warning");
+    const pick = row.status === "applicable" ? `<label class="mw-check-row"><input type="checkbox" data-kit-pick="${esc(row.row_id)}"${importing.picked.has(row.row_id) ? " checked" : ""}><span>${esc(readText("workbench.kit.apply-prompt", { n: row.title }))}</span></label>` : "";
+    const more = row.status === "applicable" ? `<details class="mw-collapsible" data-slot="collapsible"><summary>${esc(readText("workbench.kit.show-prompt-diff"))}</summary><div class="mw-collapsible__body">${diff(row.diff)}</div></details>` : "";
     return `<li class="kit-card${row.status === "applicable" ? "" : " is-muted"}"><div class="kit-card__head"><span class="mw-mark" aria-hidden="true">${icon("text")}</span><span><strong>${esc(row.title)}</strong><small>${esc(row.owner_id)}</small></span></div>${status}${pick}${more}</li>`;
   }).join("");
   const count = importing.picked.size;
-  return `<section class="kit-import" aria-labelledby="kit-import-title">${head(L("导入一个能力包"))}
-      <p class="kit-file">${icon("package")}<span><strong>${esc(L("文件里是能力包「{p}」", { p: file.pack.name }))}</strong><small>${esc(importing.name)}</small></span></p></header>
-    ${section(L("引用（{n}）", { n: file.references.length }), note(L("角色、工具和 MCP 只带名字和版本，不带配置、地址和凭据。")) + (refs ? `<ul class="mw-items">${refs}</ul>` : note(L("没有引用"))))}
-    ${rows ? section(L("提示词改写（{n}）", { n: importing.preview!.rows.length }), note(L("逐条看过再套用。套用后从下一轮生效，随时可以在「提示词」里恢复默认。装任何包都不会改提示词，只有这里你点了才会。")) + `<ul class="kit-cards">${rows}</ul>`) : ""}
-    ${file.package ? section(L("内容包"), `<p class="kit-line">${icon("package")}<span>${esc(`${file.package.plugin_id} · ${file.package.version}`)}</span></p>${note(L("内容包原样带着签名，走插件的安装确认：看过它要的权限再装。"))}`) : ""}
-    <footer class="kit-import__foot">${button(L("取消"), { variant: "ghost", size: "md", attrs: act("import-close") })}${importing.preview
-      ? button(L(count === 0 ? "选要套用的改写" : count === 1 ? "套用 1 条改写" : "套用 {n} 条改写", { n: count }), { variant: "primary", size: "md", disabled: !count, attrs: act("import-apply") })
-      : button(L(file.package ? "接着去看安装确认" : "完成"), { variant: "primary", size: "md", attrs: act(file.package ? "import-package" : "import-close") })}</footer></section>`;
+  return `<section class="kit-import" aria-labelledby="kit-import-title">${head(readText("workbench.kit.import-title"))}
+      <p class="kit-file">${icon("package")}<span><strong>${esc(readText("workbench.kit.file-kit", { p: file.pack.name }))}</strong><small>${esc(importing.name)}</small></span></p></header>
+    ${section(readText("workbench.kit.reference-count", { n: file.references.length }), note(readText("workbench.kit.reference-disclaimer")) + (refs ? `<ul class="mw-items">${refs}</ul>` : note(readText("workbench.kit.no-references"))))}
+    ${rows ? section(readText("workbench.kit.edit-count", { n: importing.preview!.rows.length }), note(readText("workbench.kit.import-edit-explanation")) + `<ul class="kit-cards">${rows}</ul>`) : ""}
+    ${file.package ? section(readText("workbench.kit.content-package"), `<p class="kit-line">${icon("package")}<span>${esc(`${file.package.plugin_id} · ${file.package.version}`)}</span></p>${note(readText("workbench.kit.review-content-package"))}`) : ""}
+    <footer class="kit-import__foot">${button(readText("common.control.cancel"), { variant: "ghost", size: "md", attrs: act("import-close") })}${importing.preview
+      ? button(count === 0 ? readText("workbench.kit.pick-edits") : readText("workbench.kit.import-apply-edits", { n: count }), { variant: "primary", size: "md", disabled: !count, attrs: act("import-apply") })
+      : button(readText(file.package ? "workbench.kit.continue-install" : "workbench.computer-record.completed"), { variant: "primary", size: "md", attrs: act(file.package ? "import-package" : "import-close") })}</footer></section>`;
 }

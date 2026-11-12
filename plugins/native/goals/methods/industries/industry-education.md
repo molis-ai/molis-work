@@ -1,6 +1,6 @@
 ---
 method_id: industry-education
-version: 1
+version: 2
 kind: industry
 name: "教育"
 summary: "围绕学习目标、学习活动、反馈评估和教学角色建立可验证的学习闭环。"

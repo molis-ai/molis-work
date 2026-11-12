@@ -86,7 +86,7 @@
 | 没有标记的当前版本 | 属性、变量、类字段、解构默认值、枚举成员里名字像版本的（`version`、`*_version`、`*Version`、`*VERSION`、`format`、`schema`、`v`、`protocol`，引号键也算）取数字或像版本的字符串；赋值、相等比较、`switch/case`、`{enum:[…]}`、`{const:…}`、`z.literal(…)`、三元与 `??` 的值；名为 version 的参数的默认值。0 表示「还没有」，不算 |
 | 字符串里的版本 | 任何字符串和模板字符串按形状认：`.vN`、`-vN`、`_vN`、`/vN`、`@N`、整串的 `/N`；没有前缀名单；模板拼出来再看；字符串里的 `PRAGMA user_version = N` 和脚本文本也看。MCP 工具命名空间 `molis_work_v1_` 这一个字面量前缀不算版本：只放过前缀本身，名字其余部分照样读（`molis_work_v1_x_v2` 会报），不是按字段放行 |
 | 借用别人的条目 | 只有 `action`、`event`、`format`、`type`、`artifact`、`manifest`、`host`、`protocol`、`product` 种类和 `sync.protocol` 可跨包共用，其他种类被第二个包用就失败。共用种类里的裸数字要放在叫得出自己是版本的名字上；`format.<插件>.*` 别的插件不许用 |
-| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`prompt.*`、`role.*`、`manifest.schema`、`host.api` 在表里必须是 1 |
+| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`manifest.schema`、`host.api` 在表里必须是 1。日常检查按登记的当前版本核对提示词、角色和方法。显式检查统一起点时，这些内容仍须是第 1 版 |
 | 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
 | 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
 | 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |
@@ -173,20 +173,11 @@
 
 ## 界面翻译（`scripts/gates/translations.mjs`）
 
-翻译门禁在 `pnpm health:check` 里，CI 的 Health gates 步骤带 `--base` 跑它；它扫源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试与构建产物），认翻译调用里的中文字面量。规则细节、稳定键方案与迁移步骤见 `apps/workbench/README.md` 的「界面文字」一节，这里只记这个门禁的边界。
-
-| 项 | 结果 |
-| --- | --- |
-| 缺英文（翻译调用里的中文字面量，在所有词典里都没有） | 失败；头上必须为零 |
-| 词典没接上（某本 `*_EN` 没被 `src/i18n/en.ts` 的 `EN` 引用） | 失败；头上必须为零 |
-| 冲突（同一句中文有两条译文不同的条目） | CI 对照 merge-base 实测，`translationConflicts` 只许减少；本地快查仅作加速 |
-| 无用键（词典里的键，源码里没有字面量出现） | 只报告，不挡 |
-
-**看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
+随 `pnpm health:check` 检查源码与声明的词包，无须先构建。可静态识别的键必须在对应主人的默认语言与英文中存在；未声明文件、主人不符、重复键、参数不一致、已撤掉的翻译入口都失败。跨主人只能读平台公开的 `common.*`，平台代画则沿已验证的生产者来源。动态计算的键及未找到字面量的词条报告，不把静态扫描当运行证明。见 [工作台界面文字](../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 
-共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/archive/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块；登记的 `settingsStylesheet` 不拆、整张进设置与工作台两张共用表，所以它的规则块全部加进该插件的数（T-115）。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有框架，登记的 `stylesheet` 与 `settingsStylesheet` 整张在共用表里；数的仍是一直数的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个常量（PG-060 起由登记带进共用表，不再由 `page-assets.ts` 直接拼）。现在冻结五个插件：Coding 9、Feed 234、Form 6、Goals 321、插件创作台 5 —— Coding/Form 是注册里声明共用的属性/类规则，创作台是宿主预览页画的 `as-preview-page`/`pb-surface`，Feed/Goals 没有框架、由外壳画。
+共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/archive/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块；登记的 `settingsStylesheet` 不拆、整张进设置与工作台两张共用表，所以它的规则块全部加进该插件的数（T-115）。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有框架，登记的 `stylesheet` 与 `settingsStylesheet` 整张在共用表里；数的仍是一直数的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个常量（PG-060 起由登记带进共用表，不再由 `page-assets.ts` 直接拼）。现行冻结值见 `tooling/gates/plugin-styles.json`。Coding 和 Form 的共用规则来自注册声明，创作台的 `as-preview-page` 和 `pb-surface` 由宿主预览页绘制，Goals 由外壳绘制。
 
 - 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> }, prefixes: { "<project_plugin_id>": [<prefix>] } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
 - 前缀：预算里的每个插件前缀集合须与构建的 `stylesheetPrefixes` 相等，新增声明不能漏记，记过的前缀只许增加。第一次拆分只用当前声明，与生产 `splitOf` 相同；只在共享余量计数时用每个插件的「reference 记的 ∪ 当前预算记的 ∪ 构建声明的」，头部数组不能覆盖历史数组。余量不增长时，`--update` 允许新增并记录前缀，即使插件仍有正计数；删除声明和预算前缀会被拒绝，回到共享表的规则也仍可计数。

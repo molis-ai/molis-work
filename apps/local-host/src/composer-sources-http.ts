@@ -1,14 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, isSubjectReader, type ActionProvider, type ActionSubject, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, isSubjectReader, type ActionSubject, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_TYPE, composerErrors, type ComposerPickInput, type ComposerPickOutput } from "@molis-ai/molis-work-contracts/platform/composer";
 import { composerDraftInner, parseComposerDraftKey } from "@molis-ai/molis-work-design-system";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { installedPluginManifest } from "./plugin-installation-directory.js";
-import { pluginInstallRecords } from "./plugin-install-records.js";
-import type { MolisWorkLocalHost } from "./project-host.js";
-import { pageLocale } from "./web-locale.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
 /**
@@ -23,36 +17,7 @@ import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./we
  * - The call carries the request's abort: a page that moved on (a newer query, the menu closed) closes the request, so a pick not
  *   started yet is not run and one under way gets the cancellation on its `caller.signal` (N42–N56: a late pick costs nothing).
  */
-/** The plugin words a source's name may be written in, by the language the page is in (a provider's manifest `ui.translations`). */
-export type ComposerSourceWords = (provider: ActionProvider) => Readonly<Record<string, string>> | undefined;
-
-/**
- * The English names of this page's plugins, read once per request: the Home's installations and, with a project, the project's
- * (the same manifests the plugin directory shows). Only the page's language matters; the source's own title is a plugin word and
- * follows the plugin's `ui.translations`, as `SearchSourceKind.title` does (specs/unified-input-voice/implementation-plan.md §3.3).
- * A Host that is not ready (its Home plugin host starting or closing, a project closing between the two reads) leaves the page's
- * names as declared rather than failing the menu: the words are a translation, not a reason to refuse the sources.
- */
-export async function composerSourceWords(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined): Promise<ComposerSourceWords> {
-  if (pageLocale() !== "en") return () => undefined;
-  try {
-    const words = new Map<string, Readonly<Record<string, string>>>();
-    const keep = (manifest: PluginManifest | undefined): void => {
-      if (manifest?.ui?.translations) words.set(manifest.plugin_id, manifest.ui.translations);
-    };
-    for (const record of localHost.homePlugins?.installations() ?? []) keep(localHost.homePlugins?.manifest(record.plugin_id));
-    if (reference) await localHost.withProject(reference, runtime => {
-      for (const record of pluginInstallRecords(runtime.store.db).list()) keep(installedPluginManifest(runtime.store.db, record.install_id)?.manifest);
-    });
-    return provider => provider.plugin_id ? words.get(provider.plugin_id) : undefined;
-  } catch { return () => undefined; }
-}
-
-/**
- * `words` is read only when the page lists sources: a pick carries no names and must not pay for (or fail on) the manifests.
- * It is a thunk so the route can hand it over without awaiting anything before the handler answers the request.
- */
-export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient, words?: () => Promise<ComposerSourceWords>): Promise<boolean> {
+export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient): Promise<boolean> {
   if (url.pathname !== "/api/composer/sources" && url.pathname !== "/api/composer/pick") return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const left = new AbortController();
@@ -64,13 +29,8 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
     const layer = body.layer === "plain" ? "plain" : "ai";
     const directory = await client.discover(), listed = directory.filter((view) => isSource(view, layer));
     if (url.pathname === "/api/composer/sources") {
-      // A source's provider and its own name are plugin words: in an English page they follow that plugin's `ui.translations`,
-      // else stay as declared. The picked items' titles are the person's own content and are never translated. A Host whose
-      // manifests cannot be read right now falls back to the declared words (composerSourceWords handles that).
-      const lookup = words ? await words().catch(() => undefined) : undefined;
-      const word = (provider: ActionProvider, text: string) => pageLocale() === "en" ? lookup?.(provider)?.[text] ?? text : text;
       sendJson(response, 200, { sources: listed.map((view) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
-        provider: word(view.provider, view.provider.title), title: word(view.provider, view.action.composer_source!.title) })) });
+        provider: view.provider.title, title: view.action.composer_source!.title })) });
       return true;
     }
     const view = listed.find((one) => one.capability_id === body.capability_id && one.version === body.version && one.provider.provider_id === body.provider_id);

@@ -3,7 +3,7 @@ import { bindMcp } from "./mcp.js";
 
 /**
  * The bundle's entry for the settings pages (standalone, and embedded in a project's settings). The wrapper in
- * src/settings-client.ts puts the plugin's route in front of it as `CODING_SETTINGS_API`; `L` is the page's own translator.
+ * src/settings-client.ts puts the plugin's route in front of it as `CODING_SETTINGS_API`.
  * Binds Coding's MCP server list. Skills are the shared catalog's, managed in the AI settings (batch 09, 9-4).
  */
 function bind(scope: ParentNode) {

@@ -1,11 +1,12 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * Settings › 诊断 › “助理与执行服务”: the execution runtime's own account of its assembly, and the Assistant's latest
  * rounds with the exact identities and versions they ran with. For developers; the conversation never shows these.
  */
-export function renderAgentDiagnostics({ L }: { L(text: string): string }): string {
+export function renderAgentDiagnostics({ }: { readText(text: string): string }): string {
   return `<details class="settings-section prompt-diagnostics" id="agent-diagnostics" data-agent-diagnostics>
-      <summary><strong>${L("助理与执行服务")}</strong><span class="settings-muted">${L("执行服务实际装配了什么、本机缺哪些能力、有没有没记下来的运行记录；助理最近几轮各自用的模型、角色、提示词版本、带上的资料和失败的步骤。")}</span></summary>
-      <div data-agent-diagnostics-body><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
+      <summary><strong>${uiText("workbench.settings-agent-diagnostics.assistant-execution-service")}</strong><span class="settings-muted">${uiText("workbench.settings-agent-diagnostics.what-execution-service-actually-assembled-which-local-capabiliti")}</span></summary>
+      <div data-agent-diagnostics-body><p class="settings-muted mw-loading">${uiText("workbench.settings-agent-diagnostics.loading")}</p></div>
     </details>`;
 }
 
@@ -15,56 +16,56 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
   const root = container.matches?.("[data-agent-diagnostics]") ? container : container.querySelector?.("[data-agent-diagnostics]");
   if (!root || root.dataset.agentDiagnosticsBound) return;
   root.dataset.agentDiagnosticsBound = "1";
-  const L = globalThis.L || ((text) => text);
+  const readText = globalThis.t.text;
   const body = root.querySelector("[data-agent-diagnostics-body]");
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   // An identifier, shown exactly and breakable so a long one never widens the page.
   const code = (text) => { const node = el("code", "", String(text)); node.style.wordBreak = "break-all"; return node; };
   const line = (...parts) => { const node = el("span", "settings-muted"); parts.forEach((part) => node.append(typeof part === "string" ? document.createTextNode(part) : part)); return node; };
   const issue = (text, level) => el("li", "prompt-diagnostics-issue prompt-diagnostics-issue--" + (level || "warning"), text);
-  const SLOT = { ready: "就绪", disabled: "已关闭", unavailable: "不可用" };
-  const HOST = { absent: "没有", unavailable: "不可用", undetermined: "探不出来，按没有处理" };
-  const PHASE = { starting: "开始中", running: "进行中", "awaiting-review": "等你确认", "awaiting-input": "等你回答", paused: "已暂停", compacting: "整理上下文中",
-    completed: "完成", failed: "失败", cancelled: "已取消", stopped: "已停止", "reconcile-required": "结果待核对", unknown: "运行时里读不到" };
+  const SLOT = { ready: "workbench.settings-agent-diagnostics.ready", disabled: "workbench.settings-agent-diagnostics.switched-off", unavailable: "workbench.settings-agent-diagnostics.unavailable" };
+  const HOST = { absent: "workbench.settings-agent-diagnostics.none-2", unavailable: "workbench.settings-agent-diagnostics.unavailable", undetermined: "workbench.settings-agent-diagnostics.couldn-t-be-determined-treated-none" };
+  const PHASE = { starting: "workbench.settings-agent-diagnostics.starting", running: "workbench.settings-agent-diagnostics.progress", "awaiting-review": "workbench.settings-agent-diagnostics.needs-approval", "awaiting-input": "workbench.settings-agent-diagnostics.needs-answer", paused: "workbench.settings-agent-diagnostics.paused", compacting: "workbench.settings-agent-diagnostics.compacting-context",
+    completed: "common.control.done", failed: "workbench.settings-agent-diagnostics.failed", cancelled: "workbench.settings-agent-diagnostics.cancelled", stopped: "workbench.settings-agent-diagnostics.stopped", "reconcile-required": "workbench.settings-agent-diagnostics.review-outcome", unknown: "workbench.settings-agent-diagnostics.not-readable-runtime" };
   const PHASE_RING = { starting:"running",running:"running","awaiting-review":"approval","awaiting-input":"answer",paused:"paused",compacting:"running",completed:"round-ended",failed:"failed",cancelled:"cancelled",stopped:"stopped","reconcile-required":"verify",unknown:"verify" };
-  const MATERIAL = { selection: "选中内容", object: "对象", text: "文字", file: "文件", image: "图片", capability: "指定能力", method: "方法" };
-  const LAYER = { base: "产品约束", role: "角色", project: "项目", task: "任务" };
-  const time = (iso) => { const date = new Date(iso); return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(iso || ""); };
+  const MATERIAL = { selection: "workbench.settings-agent-diagnostics.selection", object: "workbench.settings-agent-diagnostics.object", text: "workbench.settings-agent-diagnostics.text", file: "workbench.settings-agent-diagnostics.file", image: "workbench.settings-agent-diagnostics.images", capability: "workbench.settings-agent-diagnostics.specified-capability", method: "workbench.settings-agent-diagnostics.method" };
+  const LAYER = { base: "workbench.settings-agent-diagnostics.product-rules", role: "workbench.settings-agent-diagnostics.role", project: "workbench.settings-agent-diagnostics.project", task: "workbench.settings-agent-diagnostics.task" };
+  const time = (iso) => { const date = new Date(iso); return Number.isFinite(date.getTime()) ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "datetime-with-seconds" } }) : String(iso || ""); };
 
   const runtimePart = (runtime) => {
     const section = el("section");
-    section.append(el("h3", "prompt-diagnostics-heading", L("执行服务")));
-    if (!runtime) { section.append(el("p", "settings-muted", L("当前执行服务没有提供装配记录。"))); return section; }
+    section.append(el("h3", "prompt-diagnostics-heading", globalThis.t.text("workbench.settings-agent-diagnostics.execution-service")));
+    if (!runtime) { section.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-agent-diagnostics.current-execution-service-provided-no-assembly-record"))); return section; }
     const list = el("ul", "prompt-diagnostics-list");
     const head = el("li", "prompt-diagnostics-owner");
-    head.append(el("strong", "", runtime.app.app_id + " " + runtime.app.app_version), line(L("状态") + " " + runtime.state + " · " + L("装配指纹") + " ", code(runtime.fingerprint)));
+    head.append(el("strong", "", runtime.app.app_id + " " + runtime.app.app_version), line(globalThis.t.text("workbench.settings-agent-diagnostics.status") + " " + runtime.state + " · " + globalThis.t.text("workbench.settings-agent-diagnostics.assembly-fingerprint") + " ", code(runtime.fingerprint)));
     list.append(head);
     const slots = el("li", "prompt-diagnostics-owner");
-    slots.append(el("strong", "", L("装配槽")));
+    slots.append(el("strong", "", globalThis.t.text("workbench.settings-agent-diagnostics.assembly-slots")));
     const slotList = el("ul", "prompt-diagnostics-issues");
     runtime.slots.forEach((slot) => {
-      const words = slot.slot + "：" + L(SLOT[slot.state] || slot.state) + (slot.implementation ? " · " + slot.implementation + (slot.version ? " " + slot.version : "") : "")
-        + (slot.fallback ? " · " + L("用的是回退实现") : "") + (slot.why ? " · " + slot.why : "");
+      const words = slot.slot + "：" + globalThis.t.text(SLOT[slot.state] || slot.state) + (slot.implementation ? " · " + slot.implementation + (slot.version ? " " + slot.version : "") : "")
+        + (slot.fallback ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.using-fallback-implementation") : "") + (slot.why ? " · " + slot.why : "");
       const status = issue(words, slot.state === "ready" ? "info" : "warning"); status.dataset.mwState = slot.state; slotList.append(status);
     });
     slots.append(slotList);
     list.append(slots);
     const host = el("li", "prompt-diagnostics-owner");
-    host.append(el("strong", "", L("本机能力")), line(L("已具备") + "：" + (runtime.host.effective.join("、") || L("无"))));
+    host.append(el("strong", "", globalThis.t.text("workbench.settings-agent-diagnostics.local-capabilities")), line(globalThis.t.text("workbench.settings-agent-diagnostics.present") + "：" + (runtime.host.effective.join("、") || globalThis.t.text("workbench.settings-agent-diagnostics.none"))));
     if (runtime.host.not_present.length) {
       const missing = el("ul", "prompt-diagnostics-issues");
-      runtime.host.not_present.forEach((item) => missing.append(issue(item.capability + "：" + L(HOST[item.state] || item.state)
-        + (runtime.host.requested.includes(item.capability) ? " · " + L("应用要求了它") : ""), runtime.host.requested.includes(item.capability) ? "warning" : "info")));
+      runtime.host.not_present.forEach((item) => missing.append(issue(item.capability + "：" + globalThis.t.text(HOST[item.state] || item.state)
+        + (runtime.host.requested.includes(item.capability) ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.requested-app") : ""), runtime.host.requested.includes(item.capability) ? "warning" : "info")));
       host.append(missing);
     }
     list.append(host);
     const ledger = el("li", "prompt-diagnostics-owner");
-    ledger.append(el("strong", "", L("没记下来的运行记录")));
-    if (!runtime.ledger_failures.length) ledger.append(line(L("没有：重启后每一轮都能回放。")));
+    ledger.append(el("strong", "", globalThis.t.text("workbench.settings-agent-diagnostics.runs-that-weren-t-recorded")));
+    if (!runtime.ledger_failures.length) ledger.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.none-every-turn-can-be-replayed-after-restart")));
     else {
       const failures = el("ul", "prompt-diagnostics-issues");
       runtime.ledger_failures.forEach((entry) => failures.append(issue(entry.kind + " #" + entry.seq + (entry.code ? " · " + entry.code : "") + (entry.detail ? " · " + entry.detail : ""))));
-      ledger.append(line(L("这些运行在重启后回放不出来。")), failures);
+      ledger.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.these-runs-can-t-be-replayed-after-restart")), failures);
     }
     list.append(ledger);
     section.append(list);
@@ -73,30 +74,30 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
 
   const roundItem = (round) => {
     const item = el("li", "prompt-diagnostics-owner");
-    const status = line(L(PHASE[round.phase] || round.phase) + (round.stop_reason ? " · " + round.stop_reason : "")); status.dataset.mwState = PHASE_RING[round.phase] || "verify";
-    item.append(el("strong", "", (round.work_title || L("（已删除的工作）")) + " · " + time(round.started_at)),
+    const status = line(globalThis.t.text(PHASE[round.phase] || round.phase) + (round.stop_reason ? " · " + round.stop_reason : "")); status.dataset.mwState = PHASE_RING[round.phase] || "verify";
+    item.append(el("strong", "", (round.work_title || globalThis.t.text("workbench.settings-agent-diagnostics.deleted-work")) + " · " + time(round.started_at)),
       status,
-      line(L("运行") + " ", code(round.run_id), " · " + L("会话") + " ", code(round.session_id || "—"), " · " + L("工作") + " ", code(round.work_id),
-        round.project_id ? " · " + L("项目") + " " : "", round.project_id ? code(round.project_id) : ""));
+      line(globalThis.t.text("workbench.settings-agent-diagnostics.runtime") + " ", code(round.run_id), " · " + globalThis.t.text("workbench.settings-agent-diagnostics.session") + " ", code(round.session_id || "—"), " · " + globalThis.t.text("workbench.settings-agent-diagnostics.work") + " ", code(round.work_id),
+        round.project_id ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.project") + " " : "", round.project_id ? code(round.project_id) : ""));
     const frozen = round.frozen;
     if (frozen) {
-      item.append(line(L("模型") + " ", code(frozen.model_id), " · " + L("角色") + " ", code(frozen.role.id + " v" + frozen.role.version), " · " + L("执行") + " " + frozen.execution
+      item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.model") + " ", code(frozen.model_id), " · " + globalThis.t.text("workbench.settings-agent-diagnostics.role") + " ", code(frozen.role.id + " v" + frozen.role.version), " · " + globalThis.t.text("workbench.settings-agent-diagnostics.execute") + " " + frozen.execution
         + (frozen.character ? " · Character " + frozen.character.title + "（" + frozen.character.artifact_id + " v" + frozen.character.version + "）" : "")
-        + (frozen.history === "digest" ? " · " + L("前文用摘要") : "") + (frozen.thinking ? " · " + L("思考") + " " + frozen.thinking : "")));
-      if (frozen.prompts.length) item.append(line(L("提示词") + "：" + frozen.prompts.map((prompt) => prompt.prompt_id + " v" + prompt.version + "（" + L(LAYER[prompt.layer] || prompt.layer)
-        + (prompt.user_revision !== undefined ? "，" + L("你的版本") + " #" + prompt.user_revision : "") + "）").join("、")));
-    } else item.append(line(L("运行时里已读不到这一轮开跑时的记录。")));
-    if (round.materials.length) item.append(line(L("资料") + "：" + round.materials.map((material) => material.title + "（" + L(MATERIAL[material.kind] || material.kind) + "，"
-      + (material.explicit ? L("你加的") : L("页面带来的")) + (material.draft ? "，" + L("未保存的修改") : "")
+        + (frozen.history === "digest" ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.earlier-turns-summarized") : "") + (frozen.thinking ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.thinking") + " " + frozen.thinking : "")));
+      if (frozen.prompts.length) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.prompts") + "：" + frozen.prompts.map((prompt) => prompt.prompt_id + " v" + prompt.version + "（" + globalThis.t.text(LAYER[prompt.layer] || prompt.layer)
+        + (prompt.user_revision !== undefined ? "，" + globalThis.t.text("workbench.settings-agent-diagnostics.version") + " #" + prompt.user_revision : "") + "）").join("、")));
+    } else item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.runtime-no-longer-holds-record-when-turn-started")));
+    if (round.materials.length) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.materials") + "：" + round.materials.map((material) => material.title + "（" + globalThis.t.text(MATERIAL[material.kind] || material.kind) + "，"
+      + (material.explicit ? globalThis.t.text("workbench.settings-agent-diagnostics.added") : globalThis.t.text("workbench.settings-agent-diagnostics.page")) + (material.draft ? "，" + globalThis.t.text("workbench.settings-agent-diagnostics.unsaved-edits") : "")
       + (material.object ? "，" + material.object.kind + ":" + material.object.id + (material.object.version !== undefined && material.object.version !== null ? "@" + material.object.version : "") : "")
       + (material.capability ? "，" + material.capability.capability_id + " v" + material.capability.version : "") + (material.method ? "，" + (material.method.kind === "skill" ? material.method.ref.skill_id + " v" + material.method.ref.version : material.method.method_id) : "") + "）").join("、")));
-    if (round.usage) item.append(line(L("用量") + "：" + L("输入") + " " + round.usage.input.toLocaleString() + " · " + L("输出") + " " + round.usage.output.toLocaleString()
-      + (round.usage.cached_input ? " · " + L("缓存读取") + " " + round.usage.cached_input.toLocaleString() : "")));
+    if (round.usage) item.append(line(globalThis.t.text("workbench.settings-agent-diagnostics.usage") + "：" + globalThis.t.text("workbench.settings-agent-diagnostics.inputs") + " " + round.usage.input.toLocaleString() + " · " + globalThis.t.text("workbench.settings-agent-diagnostics.output") + " " + round.usage.output.toLocaleString()
+      + (round.usage.cached_input ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.cached-reads") + " " + round.usage.cached_input.toLocaleString() : "")));
     if (round.failures.length) {
       const failures = el("ul", "prompt-diagnostics-issues");
       // The runtime's summary often opens with the tool's name again: shown once. Its own words follow when the summary
       // alone only names a generic code: the developer needs which rule refused the call, not just its error kind.
-      round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + L("结果未知") : "") + "："
+      round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + globalThis.t.text("workbench.settings-agent-diagnostics.outcome-unknown") : "") + "："
         + (failure.summary.startsWith(failure.tool + " · ") ? failure.summary.slice(failure.tool.length + 3) : failure.summary)
         + (failure.detail && !failure.summary.includes(failure.detail) ? " · " + failure.detail : ""))));
       item.append(failures);
@@ -110,8 +111,8 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
     try {
       const data = await molisWorkRequest("/api/assistant/diagnostics");
       const rounds = el("section");
-      rounds.append(el("h3", "prompt-diagnostics-heading", L("助理最近几轮")));
-      if (!data.rounds.length) rounds.append(el("p", "settings-muted", L("最近 7 天没有助理的轮次。")));
+      rounds.append(el("h3", "prompt-diagnostics-heading", globalThis.t.text("workbench.settings-agent-diagnostics.recent-assistant-turns")));
+      if (!data.rounds.length) rounds.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-agent-diagnostics.no-assistant-turns-last-7-days")));
       else { const list = el("ul", "prompt-diagnostics-list"); data.rounds.forEach((round) => list.append(roundItem(round))); rounds.append(list); }
       body.replaceChildren(runtimePart(data.runtime), rounds);
     } catch (failure) { delete root.dataset.loaded; const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); body.replaceChildren(note); }

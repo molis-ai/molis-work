@@ -2,10 +2,10 @@
 export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
   const executorOffer = (id) => executors.find((one) => one.plugin_id === id && !one.problem) || null;
   const executorsHere = () => Boolean(project && executors.some((one) => !one.problem));
-  const executorChoices = () => [{ id: "assistant", label: "助理", hint: "个人工作助理，使用你已授权的能力" }].concat(executors.filter((one) => !one.problem)
-    .map((one) => ({ id: one.plugin_id, label: one.title, hint: "在这个项目里由它自己的 Agent 执行，补充和回答照常在这里发" })));
+  const executorChoices = () => [{ id: "assistant", label: readText("workbench.assistant-choosers.default-assistant"), hint: readText("workbench.assistant-choosers.assistant-hint") }].concat(executors.filter((one) => !one.problem)
+    .map((one) => ({ id: one.plugin_id, label: one.title, hint: readText("workbench.assistant-choosers.plugin-executor-hint") })));
   const modeOffer = () => { const work = getWork(); return executorOffer(work ? work.executor.kind === "plugin" ? work.executor.plugin_id : "" : nextExec); };
-  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: L(mode.title) }));
+  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: mode.title, mode: true }));
   /** A new plugin work's first round, or an open work's next one: the session's own setting, the same one its page shows. */
   async function applyMode(id) {
     const work = getWork();

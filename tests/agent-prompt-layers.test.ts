@@ -1,3 +1,4 @@
+import { pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
@@ -12,11 +13,12 @@ import {
   type AgentPromptText,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { CODING_MESSAGES, codingAgentManifest, codingPrompts, projectCodingIdentity, renderCodingIdentity } from "@molis-ai/molis-work-plugin-coding";
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { codingAgentManifest, codingPrompts, projectCodingIdentity, renderCodingIdentity as drawCodingIdentity } from "@molis-ai/molis-work-plugin-coding";
+
+const renderCodingIdentity: typeof drawCodingIdentity = (...args) => withPageText("zh", ["coding"], () => drawCodingIdentity(...args));
 
 // Coding's renderers word stable keys; the page words them through the shipped table (the default language, Chinese, here).
-const zh = (key: string, values: Record<string, string | number> = {}) => fillMessage((CODING_MESSAGES as Record<string, { zh: string }>)[key]?.zh ?? key, values);
+const zh = pageText("zh", "coding");
 import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 

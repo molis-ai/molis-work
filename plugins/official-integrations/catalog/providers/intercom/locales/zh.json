@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.intercom",
+  "locale": "zh",
+  "messages": {
+    "intercom.connection.auth-help": "Intercom access token。只读 me 与会话。",
+    "intercom.connection.inbound": "Feed 拉客户对话",
+    "intercom.connection.summary": "客户对话。",
+    "intercom.connection.token-label": "Intercom Access Token",
+    "intercom.guide.mcp-connected-note": "官方 MCP 当前仅支持美国托管的工作区。",
+    "intercom.guide.mcp-link": "查看 Intercom 官方 MCP",
+    "intercom.guide.mcp-note": "官方 MCP 当前仅支持美国托管的工作区；Molis Work 尚未接入。",
+    "intercom.guide.oauth-link": "查看 Intercom OAuth",
+    "intercom.guide.token-note": "仅连接自己的 Private App；公共应用应按官方要求使用 OAuth。",
+    "intercom.oauth.note": "Intercom 应用要求已注册的 HTTPS 回调；可在下方填写回调并粘贴授权返回地址。",
+    "intercom.setup.open-intercom-developer-hub": "打开 Intercom Developer Hub"
+  }
+}

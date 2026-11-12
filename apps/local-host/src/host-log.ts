@@ -98,7 +98,7 @@ const failingListeners = new WeakSet<object>();
  * Tells every listener of `of` (a store's changes, a desk's frames): one that throws does not stop the others or the code that
  * told them, and is written as `<area>.listener_failed` when it starts failing, and again only once it has worked since.
  */
-export function eachListener<L extends object>(area: string, of: string, listeners: Iterable<L>, tell: (listener: L) => void): void {
+export function eachListener<readText extends object>(area: string, of: string, listeners: Iterable<readText>, tell: (listener: readText) => void): void {
   for (const listener of listeners) {
     try { tell(listener); failingListeners.delete(listener); }
     catch (error) {

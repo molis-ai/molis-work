@@ -1,6 +1,10 @@
 // PA-22: base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
-import test from "node:test";
+import nodeTest from "node:test";
+import { installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+
+installHostUiText();
+const test = (name: string, run: () => void | Promise<void>) => nodeTest(name, () => runWithLocale("zh", run));
 
 import {
   isDecidable,

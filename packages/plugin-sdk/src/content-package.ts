@@ -19,6 +19,8 @@ import { inspectPluginLocales, pluginLocaleFilePaths } from "./ui/plugin-locales
 export interface ContentPackage {
   manifest: PluginManifest;
   skills: PackagedSkillBody[];
+  /** Exact checked package bytes decoded as UTF-8, keyed by their declared paths. */
+  locale_files?: Readonly<Record<string, string>>;
   blueprint?: {
     default: Blueprint;
     others: readonly { locale: string; blueprint: Blueprint }[];
@@ -58,11 +60,11 @@ export function parseContentPackage(payload: unknown): ContentPackage {
   problems.push(...skills.problems);
   const expected = new Set([CONTENT_PACKAGE_FILES.manifest, ...skills.paths, ...pluginLocaleFilePaths(manifest)]);
   const blueprint = readBlueprintPack(manifest, files, expected, problems);
-  inspectLocaleFiles(manifest, files, problems);
+  const localeFiles = inspectLocaleFiles(manifest, files, problems);
   for (const path of files.keys()) if (!expected.has(path)) problems.push({ path, reason: "声明里没有这个文件" });
   if (manifestBytes && !isDeepStrictEqual(jsonOf(manifestBytes), JSON.parse(JSON.stringify(written)))) problems.push({ path: CONTENT_PACKAGE_FILES.manifest, reason: "与包的 Manifest 不一致" });
   if (problems.length) refuseDeclarations(problems);
-  return { manifest, skills: skills.bodies, ...(blueprint ? { blueprint } : {}) };
+  return { manifest, skills: skills.bodies, ...(blueprint ? { blueprint } : {}), ...(localeFiles.size ? { locale_files: Object.fromEntries(localeFiles) } : {}) };
 }
 
 function readBlueprintPack(manifest: PluginManifest, files: ReadonlyMap<string, Buffer>, expected: Set<string>,
@@ -83,13 +85,14 @@ function readBlueprintPack(manifest: PluginManifest, files: ReadonlyMap<string, 
   return blueprintProblems.length === 0 ? { default: original as Blueprint, others: others as readonly { locale: string; blueprint: Blueprint }[] } : undefined;
 }
 
-function inspectLocaleFiles(manifest: PluginManifest, files: ReadonlyMap<string, Buffer>, problems: PluginDeclarationProblem[]): void {
-  const undecodable = new Set<string>();
+function inspectLocaleFiles(manifest: PluginManifest, files: ReadonlyMap<string, Buffer>, problems: PluginDeclarationProblem[]): ReadonlyMap<string, string> {
+  const undecodable = new Set<string>(), texts = new Map<string, string>();
   const localeProblems = inspectPluginLocales(manifest, path => {
     const bytes = files.get(path);
     if (!bytes) return null;
     const decoded = utf8Of(bytes);
     if (decoded === null) undecodable.add(path);
+    else texts.set(path, decoded);
     return decoded;
   });
   for (const problem of localeProblems) {
@@ -99,6 +102,7 @@ function inspectLocaleFiles(manifest: PluginManifest, files: ReadonlyMap<string,
       reason: undecodable.has(problem.file) ? "语言文件必须是有效的 UTF-8 文字" : `${problem.reason}。 ${problem.fix}`,
     });
   }
+  return texts;
 }
 
 /** The package's files by path, within the package limits; a file that cannot be one is a problem, not a stop. */

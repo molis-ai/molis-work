@@ -11,8 +11,6 @@ import { pptContentActions } from "./content-actions.js";
 import { pptSync } from "./replication.js";
 import { PPT_DATABASE } from "./database.js";
 
-import { PPT_MESSAGES } from "./messages.js";
-import { PPT_EN } from "./en.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
 const PPT_BODY_BYTES = 1_000_000;
@@ -24,7 +22,7 @@ export const pptManifest: PluginManifest = {
   sync: pptSync,
   version: /* @version product.release */ "0.1.0",
   name: "PPT",
-  summary: "写大纲，放映或导出 PowerPoint。",
+  summary: "写大纲，放映或导出 PowerPoint。", summary_text: { key: "ppt.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -52,18 +50,16 @@ export const pptManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: ["pages.content.read", "pages.content.list"] },
   artifacts: {
-    produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿",
+    produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿", title_text: { key: "ppt.artifacts.type-title" },
       preview: { capability_id: "ppt.artifacts.preview", version: /* @version action.ppt.artifacts.preview */ 1 }, pin: { capability_id: "ppt.artifacts.pin", version: /* @version action.ppt.artifacts.pin */ 1 },
       compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 }, continue: { capability_id: "ppt.artifacts.continue", version: /* @version action.ppt.artifacts.continue */ 1 } }],
     consumes: [],
   },
-  ui: {
-    messages: PPT_MESSAGES,
-    translations: PPT_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", hue: "red", order: 59, group: "make",
-        creates: { station: "ppt", title: "演示稿" } },
+        creates: { station: "ppt", title: "演示稿", title_text: { key: "ppt.create.kind-title" } } },
     ],
   },
 };

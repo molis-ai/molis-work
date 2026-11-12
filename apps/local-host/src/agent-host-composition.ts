@@ -36,11 +36,10 @@ import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescripto
 import { resolveConfiguredHome } from "./product-home.js";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
+import { modelRoundLocale, replyLanguage } from "./reply-language.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
 import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-round-skills.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
-import { replyLanguage } from "./reply-language.js";
-import { lastUsedLocale } from "./ui-locale-memory.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -287,6 +286,7 @@ async function startAuthority(
   subject?: string,
 ): Promise<AgentStartAuthority> {
   const { localHost, homeDirectory } = options;
+  const locale = currentCallLocale(caller) ?? modelRoundLocale(homeDirectory);
   // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
@@ -302,6 +302,7 @@ async function startAuthority(
   const callId = currentCallId() ?? newCallId();
   return {
     call_id: callId,
+    reply_language: replyLanguage(locale),
     ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).
@@ -316,13 +317,11 @@ async function startAuthority(
     // named are read as the person who named them. The named list is the one the Host bound to this call, never anything in its input.
     ...(caller && record ? { skill_source: ownSkillSource(record), skillCatalog: roundSkillCatalog({ client: localHost.actionClient(reference),
       plugin: { actor_id: caller.actor_id, actor_kind: "user", project_id: runtime.project_id, audience: "plugin", permissions: [...record.grants],
-        host_plugin: caller, plugin_install_id: caller.install_id, call_id: callId },
+        host_plugin: caller, plugin_install_id: caller.install_id, call_id: callId, locale },
       ...(named?.named.from === "host" ? { delegated: { refs: named.named.refs, person: { actor_id: named.person.actor_id, actor_kind: "user" as const,
-        project_id: runtime.project_id, audience: "user" as const, permissions: [SKILLS_READ_PERMISSION], call_id: callId } } } : {}),
+        project_id: runtime.project_id, audience: "user" as const, permissions: [SKILLS_READ_PERMISSION], call_id: callId, locale } } } : {}),
       named: named?.named.refs ?? [] }) } : {}),
     mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
-    // The language of the call this round starts in (the page's, or the one the Host settled for its delegation), else the one last used.
-    reply_language: replyLanguage(currentCallLocale(caller) ?? lastUsedLocale(homeDirectory ?? resolveConfiguredHome())),
     actions: async (runtimeId, validate, session, skillRound) => {
       // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
       // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
@@ -334,7 +333,7 @@ async function startAuthority(
       // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6).
       const current = async (signal?: AbortSignal, action?: ExactActionReference) => {
         const authorized = await authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-          project_id: runtime.project_id, audience: "agent", permissions: [], ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
+          project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
           ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
             caller?.assertActive(); signal?.throwIfAborted();
             if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");

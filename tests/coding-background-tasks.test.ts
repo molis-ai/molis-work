@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { EN } from "@molis-ai/molis-work-app-workbench";
-import { homeAggregatePorts, homeBackgroundTasks, LocalProjectDatabase, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
+import { homeAggregatePorts, homeBackgroundTasks, LOCALE_COOKIE, LocalProjectDatabase, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
 import { HOME_BACKGROUND_TASKS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as codingPackage from "@molis-ai/molis-work-plugin-coding";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
@@ -92,9 +91,9 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   assert.deepEqual(rows.map(row => row.project_id), [...Array(7).fill(alpha.project_id), ...Array(3).fill(beta.project_id)]);
   assert.equal(rows[0]!.title, "a4 的任务");
   assert.deepEqual(Object.fromEntries(rows.map(row => [row.id, row.standing])), {
-    a4: [{ text: "本轮已结束" }, { text: "你负责 {n} 步", count: 1 }], a9: [{ text: "本轮已结束" }], a8: [{ text: "挂起等待" }],
-    a7: [{ text: "等你回答" }, { text: "没人认领 {n} 步", count: 3 }], a6: [{ text: "已暂停" }], a3: [{ text: "等你审查" }],
-    a1: [{ text: "进行中" }, { text: "{n} 步在子任务手上", count: 2 }], b4: [{ text: "进行中" }], b1: [{ text: "服务重启前没有结束，打开后核对" }], b2: [{ text: "需要核对" }],
+    a4: [{ text: "本轮已结束" }, { text: "你负责 1 步" }], a9: [{ text: "本轮已结束" }], a8: [{ text: "挂起等待" }],
+    a7: [{ text: "等你回答" }, { text: "没人认领 3 步" }], a6: [{ text: "已暂停" }], a3: [{ text: "等你审查" }],
+    a1: [{ text: "进行中" }, { text: "2 步在子任务手上" }], b4: [{ text: "进行中" }], b1: [{ text: "服务重启前没有结束，打开后核对" }], b2: [{ text: "需要核对" }],
   });
   assert.equal(rows.filter(row => row.waiting).length, 6, "the button counts the sessions that wait on the person");
 
@@ -110,8 +109,16 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
     assert.match(command.stop_url.slice(`/projects/${command.project}/api/plugins/${CODING_ID}`.length), /^\/sessions\/[^/]+\/background\/[^/]+\/stop$/, "a path the Manifest's route takes");
   }
 
-  // W5-01-CODING-50: the page translates each sentence by the words Coding sent, so each one has an English entry.
-  for (const text of new Set(rows.flatMap(row => row.standing.map(phrase => phrase.text)))) assert.ok(EN[text] && EN[text] !== text, `English for "${text}"`);
+  // W5-01-CODING-50: Coding answers the same read in the selected language, including the plural forms.
+  const english = await fetch(home.origin + "/api/attention", { headers: { cookie: LOCALE_COOKIE + "=en", accept: "application/json" } });
+  assert.equal(english.status, 200);
+  const localized: HomeBackgroundTaskRow[] = (await english.json()).background_tasks;
+  assert.deepEqual(localized.map(({ standing: _standing, ...row }) => row), rows.map(({ standing: _standing, ...row }) => row));
+  assert.deepEqual(Object.fromEntries(localized.map(row => [row.id, row.standing.map(({ text }) => text)])), {
+    a4: ["The round ended", "1 step with you"], a9: ["The round ended"], a8: ["Queued"],
+    a7: ["Waiting for your answer", "3 unclaimed steps"], a6: ["Paused"], a3: ["Waiting for your review"],
+    a1: ["In progress", "2 steps with subtasks"], b4: ["In progress"], b1: ["This did not finish before the service restarted. Open it to check."], b2: ["Needs checking"],
+  });
 });
 
 test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: a round recorded as running is still running, not cut off", { timeout: 90_000 }, async t => {

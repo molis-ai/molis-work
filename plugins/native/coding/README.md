@@ -40,7 +40,7 @@ Coding 不按类型解析材料，也没有输入端口。运行中的这一轮�
 
 ## 当前执行入口
 
-会话输入区可以选择方法、MCP 工具与只读资料来源，并固定下一轮使用的版本。只读资料可用于讨论/评审，外部工具仍走宿主逐笔审查。模型和凭据、工作区授权、连接与执行账各归现有宿主能力；具体已验证路径和未完成部分以需求书 §0 为准。
+会话输入区可以选择技能、MCP 工具与只读资料来源，并固定下一轮使用的版本。只读资料可用于讨论/评审，外部工具仍走宿主逐笔审查。模型和凭据、工作区授权、连接与执行账各归现有宿主能力。具体已验证路径和未完成部分见需求书 §0。
 
 **报告保留步骤评价。** 新保存的执行报告同时固定原计划完成条件、原步骤图与模型回报，以及保存时的用户评价。返工、未评价和过期评价分别显示；图或计划不可读不阻止保留已有答复，但明确无法判断。后续评价不改写固定报告，需回原任务查看当前评价；旧报告不回填，单步通过也不代表 Goal 验收。
 
@@ -85,7 +85,7 @@ Coding 通过原项目内容目录声明“编码会话与草稿”集合，元�
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
   - 页面上模型的文字由 Coding 自己画成富文本（PG-062，PG062-05～07）：`src/rich-html.ts` 的 `codingPageHtml` 用 SDK 的 `renderRichText` 给一轮的发言、子任务的结果和报告加 `html`，只加在路由答给自己页面的回答上，并在一轮的指纹算完之后；模型、工作流、MCP 直接调同一个动作只拿到文字。接续摘要那一轮的开场由页面按文字画，不再画一遍；回答开头照抄的压缩标签（`[retained …]`、`[historical …]`）不画。宿主不再替 Coding 画这些，浏览器包里也没有解析器。
   - 页面里给伙伴插件留的两个槽（PG-036 C9，RAC-433～439、449）：`CODING_COMPANION_DIRECTORY_SLOT`（目录里）与 `CODING_COMPANION_RESULT_SLOT`（结果区），在页面描述符的 `slots` 里声明，接受 `declarative-html`。Manifest `ui.embedded_plugins` 里的插件（Files、Git）用 `target_slot_id` 指向它们的 surface 填进来，宿主按 `embedded_plugins` 的次序拼成 `model.nested[slot_id]`，Coding 不 import 它们，宿主也不点名。伙伴没在跑或它的 surface 出错，该槽为空，Coding 页照常画；Diff、Text Stats 只画自己的舞台，不进槽。
-  - 变更阅读器和子任务的合并预览也由 Coding 自己画（PG-062，PG062-09）：`src/change-html.ts` 的 `codingChangeHtml` 在同一个路由入口上，用 SDK `/diff-view` 的 `compareChange`、`renderDiff` 给变更集的回答加 `html`、复制补丁用的 `patch`（`unifiedPatch`）、`view_mode` 与 `net_groups`（净改动只在恰好如此时提供，`codingNetChange`），给 `coding.read-integration` 与 `coding.read-worktree-integration`（会话在宿主工作树里跑过的一轮，从写手对话框那一行「整合回主工作区」打开）的每个文本文件加 `diff_html`。阅读器的词是 Coding 自己的（`src/change-messages.ts`，并进 `CODING_MESSAGES`，经 `codingText` 按调用方的语言取），说法与 Diff 的同一处相同；每个标签用哪个键列在 `change-html.ts` 的 `LABELS`。宿主不再画这两处（`coding-surface.ts` 已在 PG-036 C9 删除）。
+  - 变更阅读器和子任务的合并预览也由 Coding 自己画（PG-062，PG062-09）：`src/change-html.ts` 的 `codingChangeHtml` 在同一个路由入口上，用 SDK `/diff-view` 的 `compareChange`、`renderDiff` 给变更集的回答加 `html`、复制补丁用的 `patch`（`unifiedPatch`）、`view_mode` 与 `net_groups`（净改动只在恰好如此时提供，`codingNetChange`），给 `coding.read-integration` 与 `coding.read-worktree-integration`（会话在宿主工作树里跑过的一轮，从写手对话框那一行「整合回主工作区」打开）的每个文本文件加 `diff_html`。阅读器的词是 Coding 自己的（`coding.change.*`，经自己的 [中文](locales/zh.json)和[英文](locales/en.json)词包按调用上下文取），说法与 Diff 的同一处相同；每个标签用哪个键列在 `change-html.ts` 的 `LABELS`。宿主不再画这两处（`coding-surface.ts` 已在 PG-036 C9 删除）。
   - 一轮的问题卡、建议卡与输入框上方的下一步行由 Coding 向平台要（PG-062，PG062-11～13）：`src/interaction-html.ts` 的 `codingInteractionHtml` 在同一个路由入口上，经 `context.services.interaction` 给每一轮的问题加 `html`（`questionHtml`，可重答）、给每张卡加 `html`（先用 SDK 的 `actionCardView` 变成人读样子，再 `cardHtml`）、给这一轮加 `next_html`（`nextStepsHtml`：问题与卡，一轮结束后最近跑完的那张卡的结果，再接 `src/next-steps.ts` 的 `codingFollowUps`）。后续步骤的词是 Coding 自己的（`coding.round.check-continue`、`coding.round.reconcile`、`coding.round.changes`、`coding.round.changed-files`）；平台按页面的语言画其余部分。动作的直接调用方（模型、工作流、MCP）拿不到这些 html，宿主也不再加料。
   - 执行入口的输入都走平台服务与公开动作，宿主不替它递（specs/coding-plugin §H，W5-01-CODING-23–31；PG-047、PG-086、PG-091、V-13）：
     - 模型：Manifest 声明 `model:read`（必需）与 `model:invoke`（可选）。可选的模型是 `context.services.model.choices()`，选定的模型用 `availability(selection)` 核对；`complete()` 在这里不可用（一轮的模型请求归 Agent 运行时）。`model:invoke` 只管两处显式起草：提交说明与历史摘要经平台动作 `agent.draft-text`（`src/drafts.ts` 的 `codingDraft`，经 `services.actions`）；关掉它，提交说明的路由答 `plugin.grant_denied`，历史摘要退回 Coding 按记录整理的那一份（PG-035）。全仓库只有这一个模型表来源（V-13），`models.ts` 的 `codingModels` 是唯一读取处。

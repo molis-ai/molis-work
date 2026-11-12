@@ -8,6 +8,7 @@ import { resolvePluginActivation } from '@molis-ai/molis-work-plugin-runtime';
 
 import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { acceptPresentation, presentationTask } from '../plugins/native/plugin-builder/dist/agent-presentation.js';
+import { chinesePagePacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 test('presentation references all parts exactly once and cannot acquire operations or scripts', () => {
   assert.equal(validatePluginPresentation(readingPresentation, readingNodes, readingContract), readingPresentation);
@@ -32,7 +33,7 @@ test('installation requires the versioned renderer; legacy releases still activa
   assert.deepEqual(resolvePluginActivation({ manifests: [sandboxedPluginDefinition(legacy, {}, []).manifest] }).order, [readingContract.pluginId]);
 });
 
-test('new UI composition cannot hide a selected record action behind a second reading mode; historical layouts still load', () => {
+test('new UI composition cannot hide a selected record action behind a second reading mode; historical layouts still load', () => withPagePacks("zh", chinesePagePacks(), () => {
   const contract = structuredClone(readingContract), parts = readingNodes.map(({ kind: _kind, ...plan }) => structuredClone(plan));
   contract.operations.push({ id: 'notes.read', kind: 'query', input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
     output: { type: 'object', properties: { title: { type: 'string' }, text: { type: 'string' } } }, effects: {}, examples: [], errors: [] });
@@ -53,4 +54,4 @@ test('new UI composition cannot hide a selected record action behind a second re
   const metadata = structuredClone(design); delete metadata.parts.find(part => part.id === 'reader')!.props.textField;
   presentation.parts.notes!.detail = true;
   assert.doesNotThrow(() => acceptPresentation(JSON.stringify(answer), metadata), 'metadata and ordinary record commands can coexist with collection detail');
-});
+}));

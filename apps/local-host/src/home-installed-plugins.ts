@@ -8,7 +8,7 @@ import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifec
  */
 import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { CallConnectionsPort, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import type { CallConnectionsPort, PluginLocaleReader, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
@@ -17,7 +17,7 @@ import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from '
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
@@ -39,7 +39,7 @@ export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatfor
 
 /** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
 export interface HomeIntegrationsPort {
-  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean, reader?: PluginLocaleReader | null): Promise<boolean>;
   detach(pluginId: string): Promise<void>;
 }
 
@@ -70,7 +70,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
   const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
-  let closed = false, exposureRevision = 0, catalogPending: Promise<CatalogCapability[]> | undefined;
+  let closed = false, exposureRevision = 0;
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
@@ -105,25 +105,21 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     }
   };
   const reach = platform.consents ? projectReachConsents({ ledger: platform.consents, records, releaseFor, assertInstalled }) : undefined;
-  const catalog = (): Promise<CatalogCapability[]> => {
-    if (catalogPending) return catalogPending;
-    catalogPending = (async () => {
-      // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-      let snapshot: CatalogCapability[], revision: number;
-      for (;;) {
-        revision = exposureRevision;
-        try { snapshot = await capabilityCatalog(actions, options.actorId); }
-        catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
-        if (isClosed()) return [];
-        if (revision !== exposureRevision) continue;
-        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-        let changed = false;
-        for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-        if (!changed) return snapshot;
-      }
-    })().finally(() => { catalogPending = undefined; });
-    return catalogPending;
-  };
+  const catalog = installedCapabilityCatalog(home, async () => {
+    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
+    let snapshot: CatalogCapability[], revision: number;
+    for (;;) {
+      revision = exposureRevision;
+      try { snapshot = await capabilityCatalog(actions, options.actorId); }
+      catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
+      if (isClosed()) return [];
+      if (revision !== exposureRevision) continue;
+      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
+      let changed = false;
+      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
+      if (!changed) return snapshot;
+    }
+  });
   const resolveCall = async (context: SandboxServiceContext) => {
     context.signal.throwIfAborted(); assertInstalled(context.identity);
     if (context.projectReach) reach?.captureCall(context.projectReach, context.identity);
@@ -164,8 +160,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
     granted: identity => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor }) });
   const integrations = options.integrations;
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, earlier: () => [],
-    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { connections: integrations.connections, assertLive }) } : {} });
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, earlier: () => [],
+    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });
   // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
   const attached = new Map<string, symbol>();
   let registry: ReturnType<NonNullable<typeof integrations>['registry']> | undefined;
@@ -179,14 +175,15 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     changed: () => { exposureRevision++; }, catalog });
   const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
     if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);
-    const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
+    const pluginId = release.pluginId, record = recordFor(pluginId), installId = record?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
-    const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
+    const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.state === 'running' && now.install_id === installId
+      && now.installation_generation === record?.installation_generation && now.version === release.packaged!.manifest.version && now.publisher_signature === release.packaged!.manifest.publisher.signature; };
     if (!active() || !installId) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
-    const token = Symbol(); attached.set(pluginId, token);
+    const prior = attached.get(pluginId), token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
-    const forget = () => { if (attached.get(pluginId) === token) attached.delete(pluginId); };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
+    const forget = () => { if (attached.get(pluginId) === token) { if (prior) attached.set(pluginId, prior); else attached.delete(pluginId); } };
+    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live, release.packaged.localePacks)) forget(); }
     catch (error) { forget(); throw error; }
   };
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {

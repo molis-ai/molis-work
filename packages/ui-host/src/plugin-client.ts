@@ -8,6 +8,8 @@ export interface PluginUiViews {
   invalidate(): void;
   /** False from the moment this activation stops, before its `stop` hook runs. */
   active(): boolean;
+  /** Runs the contribution with this exact activation's text context. */
+  draw?(render: () => string): string;
 }
 
 /** Host owns disposal; Plugin code receives only client. */
@@ -37,7 +39,11 @@ export function createPluginUiClient(host: UiHostApi, context: PluginStartContex
         if (!manifest.ui.contributions.includes(descriptor.contribution_id)) {
           throw uiHostErrors.plugin_denied("只能注册 Manifest 声明的自身 UI contribution");
         }
-        host.register<TModel>(ownedContribution({ descriptor, render(request) { authorize(); return contribution.render(request); } }, context.plugin_id));
+        host.register<TModel>(ownedContribution({ descriptor, render(request) {
+          authorize();
+          const draw = () => contribution.render(request);
+          return views.draw ? views.draw(draw) : draw();
+        } }, context.plugin_id));
         registrations.add(descriptor.contribution_id);
       },
       unregister(contributionId) {

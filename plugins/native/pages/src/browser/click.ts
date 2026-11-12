@@ -9,11 +9,12 @@ import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
 import type { DocumentAnswer } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Hit = (selector: string) => HTMLElement | null;
 
 /** The menus, the folders and the ways to make a document: true when the click was one of them. */
 async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boolean> {
-  const { L } = page;
   if (hit("[data-pages-more]")) {
     stop(event);
     closeMove(page);
@@ -61,7 +62,7 @@ async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boole
     stop(event);
     const folder = page.folders.find((item) => item.id === folderRename.dataset.pagesFolderRename);
     if (!folder) return true;
-    const title = await askName(page, L("pages.folder.name"), folder.title, (name) => page.api("POST", "/folders/" + encodeURIComponent(folder.id), { title: name }));
+    const title = await askName(page, uiText.text("pages.folder.name"), folder.title, (name) => page.api("POST", "/folders/" + encodeURIComponent(folder.id), { title: name }));
     if (title == null) return true;
     await loadList(page);
     return true;
@@ -70,7 +71,7 @@ async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boole
   if (folderDelete) {
     stop(event);
     const id = folderDelete.dataset.pagesFolderDelete!;
-    const ok = await ask(page, L("pages.folder.delete-confirm"), L("pages.action.delete"), async () => {
+    const ok = await ask(page, uiText.text("pages.folder.delete-confirm"), uiText.text("pages.action.delete"), async () => {
       if (page.sel?.folder_id === id) await saveOpen(page, page.sel.id);
       await page.api("POST", "/folders/" + encodeURIComponent(id) + "/delete", {});
     });
@@ -93,7 +94,7 @@ async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boole
   }
   if (hit("[data-pages-new-folder]")) {
     closeCreate(page);
-    const title = await askName(page, L("pages.folder.name"), "", (name) => page.api("POST", "/folders", { title: name }));
+    const title = await askName(page, uiText.text("pages.folder.name"), "", (name) => page.api("POST", "/folders", { title: name }));
     if (title == null) return true;
     await loadList(page);
     return true;
@@ -108,7 +109,6 @@ async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boole
 
 /** The document list and the open document's controls. */
 async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Promise<void> {
-  const { L } = page;
   const listedArtifact = hit("[data-pages-artifact]");
   if (listedArtifact) {
     await publishPage(page, listedArtifact.dataset.pagesArtifact!);
@@ -177,7 +177,7 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
   if (hit("[data-pages-delete]") && page.sel) {
     closeMore(page);
     const id = page.sel.id;
-    const ok = await ask(page, L("pages.doc.delete-confirm"), L("pages.action.delete"), () => page.api("POST", pageTail(id, "/delete"), {}));
+    const ok = await ask(page, uiText.text("pages.doc.delete-confirm"), uiText.text("pages.action.delete"), () => page.api("POST", pageTail(id, "/delete"), {}));
     if (!ok) return;
     closeEditor(page);
     await loadList(page);
@@ -186,7 +186,7 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
 
 /** One handler for every click in the workbench: the first control it finds under the pointer decides. */
 export function bindClick(page: PagesPage) {
-  const { bench, L } = page;
+  const { bench } = page;
   bench.addEventListener("click", async (event) => {
     const target = event.target as HTMLElement;
     const hit = (selector: string) => target.closest<HTMLElement>(selector);
@@ -198,7 +198,7 @@ export function bindClick(page: PagesPage) {
       if (await menuClick(page, event, hit)) return;
       await documentClick(page, event, hit);
     } catch (error) {
-      noteFailure(page, error, L("pages.error.request"));
+      noteFailure(page, error, uiText.text("pages.error.request"));
     }
   });
 }

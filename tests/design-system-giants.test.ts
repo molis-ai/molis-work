@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
+import { fileURLToPath } from "node:url";
+import { buildSync } from "esbuild";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { CRAFT_FINISH_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, PRIMITIVE_CATALOG_IDS, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
@@ -9,7 +12,7 @@ import { CRAFT_FINISH_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, PRIMITIVE_
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("RAC-370 the component board lists every primitive's section once and carries the bundled demo script", () => {
-  const board = renderPrimitiveCatalog();
+  const board = withPageText("zh", [], renderPrimitiveCatalog);
   const sections = [...board.matchAll(/<section class="mw-catalog__section" id="([^"]+)"/g)].map((match) => match[1]!);
   assert.equal(new Set(sections).size, sections.length, "a section id appears twice");
   for (const id of PRIMITIVE_CATALOG_IDS) assert.match(board, new RegExp(`data-primitive="${id}"`), `the board lost the ${id} specimen`);
@@ -43,10 +46,15 @@ test("RAC-371 the finish layer's rules are one cascade cut between rules, not in
 test("RAC-372 the generated-plugin renderer is sent to the page as one factory made of its layers", () => {
   const factory = (0, eval)(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT) as unknown;
   assert.equal(typeof factory, "function");
-  for (const layer of ["pcKit", "pcRelations", "pcRecords", "pcDetail", "pcControls", "pcOutput", "pcQuery", "pcSubmit", "pcPart", "pcLifecycle"]) {
-    assert.match(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, new RegExp(`function ${layer}\\(`), `${layer} is not in the script`);
+  const { outputFiles, metafile } = buildSync({ absWorkingDir: fileURLToPath(new URL("../packages/design-system/", import.meta.url)),
+    entryPoints: ["src/plugin-component-client.ts"], bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", globalName: "client",
+    banner: { js: "(options) => {" }, footer: { js: "return client.createPluginComponentClient(options);}" }, write: false, metafile: true });
+  assert.equal(outputFiles[0]!.text.trim(), PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, "the served factory is the built entry");
+  const [output] = Object.values(metafile.outputs);
+  for (const layer of ["kit", "records", "controls", "output", "part", "client"]) {
+    assert.ok(output?.inputs[`src/plugin-component-${layer}.ts`]?.bytesInOutput, `${layer} contributes to the same factory`);
   }
-  // A layer is sent as source, so it may reach only its arguments and the DOM: no module-level import survives in the text.
+  // The shipped factory is self-contained; no module-level import survives in the text.
   assert.doesNotMatch(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, /\bimport\b|\brequire\(/);
-  assert.equal(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT.startsWith("((present)=>{"), true);
+  assert.equal(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT.startsWith("(options) => {"), true);
 });

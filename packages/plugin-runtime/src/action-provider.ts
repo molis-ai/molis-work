@@ -57,7 +57,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
         // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-74).
         const reaches = projectReach && definition.action.project_reach === "person" && context.audience === "user"
           && state.record()?.grants.includes(PROJECT_REACH_PERMISSION) === true;
-        return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked, begun }, () => {
+        return runInPluginAction({ install_id: installId, installation_generation, activation: instance, definition, caller: context, checked, begun }, () => {
           state.capturePermissions(definition.action.permissions);
           return reaches ? projectReach(manifest, context).then(run) : run();
         });

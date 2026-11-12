@@ -1,4 +1,5 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderLanguageHead } from "./language-resource.js";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
 export const WORKBENCH_UI_SLOTS = {
@@ -31,7 +32,7 @@ export const NO_FAVICON_LINK = '<link rel="icon" href="data:,">';
 export const ACCOUNT_REGISTRATION_BODY = ' inert data-account-registering';
 
 /** Stable document shell, shared by native and installed app surfaces. */
-export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
+export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest, { languageScript = true }: { languageScript?: boolean } = {}): string {
   return `${request.preamble_html ?? ''}<!doctype html>
 <html lang="${escapeHtml(request.lang)}">
 <head>
@@ -40,6 +41,7 @@ export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest)
   ${NO_FAVICON_LINK}
   ${request.head_before_title_html ?? ''}
   <title>${escapeHtml(request.title)}</title>
+  ${languageScript ? renderLanguageHead(request.lang) : ''}
   ${request.head_html ?? ''}
 </head>
   <body${renderAttributes(request.body_attributes)}>
@@ -50,11 +52,11 @@ ${request.body_html}
 
 /** Compose the document's initial account-registration barrier at its shell owner. */
 export function createWorkbenchDocumentRenderer(accountRegistration = false): typeof renderWorkbenchDocument {
-  return request => renderWorkbenchDocument({
+  return (request, options) => renderWorkbenchDocument({
     ...request,
     body_attributes: {
       ...request.body_attributes,
       ...(accountRegistration ? { inert: true, 'data-account-registering': true } : {}),
     },
-  });
+  }, options);
 }

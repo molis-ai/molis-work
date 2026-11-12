@@ -70,7 +70,7 @@ pnpm --filter @molis-ai/molis-work-plugin-feed build
 已有行为示例与回归：[feed-native-plugin.test.ts](../../../tests/feed-native-plugin.test.ts)、[feed-goal-promotion.test.ts](../../../tests/feed-goal-promotion.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-promotion.test.ts
+node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-promotion.test.ts tests/feed-goal-promotion-authority.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -90,7 +90,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
   - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
   - 连同本地历史删除来源时，只删没有任何项目的 Material 或拉取收据引用的加密正文；数不清引用（有项目库读不出来）就一律保留。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts tests/feed-source-actions.test.ts tests/feed-inbox-scene-runtime.test.ts tests/feed-inbox-schedule-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-goal-promotion-authority.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts tests/feed-source-actions.test.ts tests/feed-inbox-scene-runtime.test.ts tests/feed-inbox-schedule-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

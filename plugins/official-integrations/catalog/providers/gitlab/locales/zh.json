@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.gitlab",
+  "locale": "zh",
+  "messages": {
+    "gitlab.connection.auth-help": "GitLab PAT，需要 read_api 或 read_user。默认 gitlab.com。",
+    "gitlab.connection.inbound": "Feed 拉 Issue 与 MR",
+    "gitlab.connection.summary": "仓库、Issue 与 MR。",
+    "gitlab.connection.token-label": "GitLab Personal Access Token",
+    "gitlab.guide.cli-link": "查看 GitLab CLI 登录",
+    "gitlab.guide.mcp-connected-note": "GitLab 官方 MCP 处于 Beta。",
+    "gitlab.guide.mcp-link": "查看 GitLab 官方 MCP",
+    "gitlab.guide.mcp-note": "GitLab 官方 MCP 处于 Beta；Molis Work 尚未接入。",
+    "gitlab.guide.oauth-link": "查看 GitLab OAuth 应用",
+    "gitlab.guide.token-note": "创建具备 read_api 或 read_user 权限的 PAT。",
+    "gitlab.setup.create-gitlab-personal-access-token": "创建 GitLab Personal Access Token"
+  }
+}

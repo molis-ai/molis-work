@@ -4,6 +4,8 @@ import { undoOf } from "./page.js";
 import { applyLabel, choiceFor, keptDecisions } from "./review-choices.js";
 import type { ApplyPayload, CandidateDecision, ItemPayload, RevertPayload, TodoPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 const code = (error: unknown) => (error as { code?: string }).code;
 
 /** Applies decisions to a batch of organizing candidates and says what was done. */
@@ -18,7 +20,7 @@ async function decide(page: TodoPage, batch: TodoBatch, decisions: CandidateDeci
 type Command = (page: TodoPage, button: HTMLButtonElement) => Promise<boolean>;
 
 const listControls: Command = async (page, button) => {
-  const { state, el, L } = page;
+  const { state, el } = page;
   const data = button.dataset;
   if (button.matches("[data-todo-view]")) { state.view = data.todoView ?? "today"; state.picked.clear(); await page.load(); return true; }
   if (button.matches("[data-todo-scope]")) { state.everything = !state.everything; await page.load(); return true; }
@@ -47,7 +49,7 @@ const listControls: Command = async (page, button) => {
     await page.load();
     if (state.selected && payload.removed_ids.includes(state.selected.id)) await page.closeDetail();
     else if (state.selected) await page.openDetail(state.selected.id, true);
-    page.showNote(L("todo.note.undone"));
+    page.showNote(uiText.text("todo.note.undone"));
     return true;
   }
   if (button.matches("[data-todo-done]")) {
@@ -60,14 +62,14 @@ const listControls: Command = async (page, button) => {
 };
 
 const reviewControls: Command = async (page, button) => {
-  const { state, L } = page;
+  const { state } = page;
   const data = button.dataset;
   const candidateId = data.todoCandidateIgnore || data.todoCandidateEditToggle || data.todoCandidateSuggest || data.candidate;
   const owner = candidateId ? page.candidateOf(candidateId) : null;
   if (owner && candidateId) {
     const { batch, candidate } = owner;
     const choice = choiceFor(page, candidate);
-    if (data.todoCandidateIgnore) { await decide(page, batch, [{ candidate_id: candidateId, action: "ignore" }], L("todo.note.ignored-one", { title: candidate.title })); return true; }
+    if (data.todoCandidateIgnore) { await decide(page, batch, [{ candidate_id: candidateId, action: "ignore" }], uiText.text("todo.note.ignored-one", { title: candidate.title })); return true; }
     if (data.todoCandidateEditToggle) { choice.editing = !choice.editing; page.renderReview(); return true; }
     if (data.todoCandidateSuggest) { choice.edits.planned_date = candidate.suggested_date; page.renderReview(); return true; }
     if (data.todoCandidatePlacement) { choice.edits.placement = data.todoCandidatePlacement; page.renderReview(); return true; }
@@ -78,20 +80,20 @@ const reviewControls: Command = async (page, button) => {
   if (data.todoCloseBatch) {
     await page.request("POST", `/organize/${encodeURIComponent(batch.batch_id)}/close`, {});
     await page.load();
-    page.showNote(L("todo.note.put-away", { title: batch.title }));
+    page.showNote(uiText.text("todo.note.put-away", { title: batch.title }));
     return true;
   }
   if (data.todoIgnoreRest) {
     const rest = batch.candidates.filter((candidate) => !candidate.decision && !choiceFor(page, candidate).picked);
-    await decide(page, batch, rest.map((candidate) => ({ candidate_id: candidate.candidate_id, action: "ignore" })), L("todo.note.ignored-many", { count: rest.length }));
+    await decide(page, batch, rest.map((candidate) => ({ candidate_id: candidate.candidate_id, action: "ignore" })), uiText.text("todo.note.ignored-many", { count: rest.length }));
     return true;
   }
-  await decide(page, batch, keptDecisions(page, batch), L("todo.note.processed", { what: applyLabel(page, batch) }));
+  await decide(page, batch, keptDecisions(page, batch), uiText.text("todo.note.processed", { what: applyLabel(page, batch) }));
   return true;
 };
 
 const reminderControls: Command = async (page, button) => {
-  const { state, L } = page;
+  const { state } = page;
   const data = button.dataset;
   const reminder = state.reminders.find((entry) => [data.todoReminderDone, data.todoReminderAck, data.todoReminderClose, data.todoReminderLater].includes(entry.item.id));
   if (!reminder) return false;
@@ -103,27 +105,27 @@ const reminderControls: Command = async (page, button) => {
   const payload = await page.post<ItemPayload>(item, "", { remind_at: remindAt });
   await page.load();
   if (state.selected && state.selected.id === item.id) await page.openDetail(item.id, true);
-  page.showNote(remindAt ? L("todo.note.remind-again", { time: page.timeLabel(remindAt), title: item.title }) : L("todo.note.remind-off", { title: item.title }), { undo: undoOf(payload) });
+  page.showNote(remindAt ? uiText.text("todo.note.remind-again", { time: page.timeLabel(remindAt), title: item.title }) : uiText.text("todo.note.remind-off", { title: item.title }), { undo: undoOf(payload) });
   return true;
 };
 
 const batchControls: Command = async (page, button) => {
-  const { state, L } = page;
+  const { state } = page;
   const data = button.dataset;
   if (button.matches("[data-todo-batch-action]")) {
     const action = data.todoBatchAction;
     if (action === "clear") { state.picked.clear(); page.renderList(); return true; }
-    if (action === "done") await page.runBatch({ status: "done" }, (count) => L("todo.note.batch-done", { count }));
-    if (action === "shift") await page.runBatch({ shift_days: 1 }, (count) => L("todo.note.batch-shift", { count }));
-    if (action === "today") await page.runBatch({ planned_date: state.today }, (count) => L("todo.note.batch-today", { count }));
-    if (action === "unplan") await page.runBatch({ planned_date: null }, (count) => L("todo.note.batch-unplan", { count }));
-    if (action === "archive") await page.runBatch({ archive: true }, (count) => L("todo.note.batch-archive", { count }));
+    if (action === "done") await page.runBatch({ status: "done" }, (count) => uiText.text("todo.note.batch-done", { count }));
+    if (action === "shift") await page.runBatch({ shift_days: 1 }, (count) => uiText.text("todo.note.batch-shift", { count }));
+    if (action === "today") await page.runBatch({ planned_date: state.today }, (count) => uiText.text("todo.note.batch-today", { count }));
+    if (action === "unplan") await page.runBatch({ planned_date: null }, (count) => uiText.text("todo.note.batch-unplan", { count }));
+    if (action === "archive") await page.runBatch({ archive: true }, (count) => uiText.text("todo.note.batch-archive", { count }));
     return true;
   }
   if (button.matches("[data-todo-batch-placement]")) {
     closeMenu(button);
     const place = data.todoBatchPlacement ?? "";
-    await page.runBatch({ placement: place }, (count) => L("todo.note.batch-moved-to", { count }) + page.placeName(place));
+    await page.runBatch({ placement: place }, (count) => uiText.text("todo.note.batch-moved-to", { count }) + page.placeName(place));
     return true;
   }
   return false;
@@ -151,7 +153,7 @@ const detailControls: Command = async (page, button) => {
 };
 
 const editorControls: Command = async (page, button) => {
-  const { state, L } = page;
+  const { state } = page;
   const data = button.dataset;
   const current = state.selected;
   if (!current) return false;
@@ -160,19 +162,19 @@ const editorControls: Command = async (page, button) => {
     const payload = await page.post<ItemPayload>(current, "", { placement: data.todoPlacement });
     await page.load();
     await page.openDetail(payload.item.id);
-    page.showNote(L("todo.note.moved-to") + page.placeName(data.todoPlacement ?? ""), { undo: undoOf(payload) });
+    page.showNote(uiText.text("todo.note.moved-to") + page.placeName(data.todoPlacement ?? ""), { undo: undoOf(payload) });
     return true;
   }
   if (button.matches("[data-todo-revert]")) {
     const payload = await page.request<RevertPayload>("POST", "/revert", { change_id: data.todoRevert });
     await page.load();
-    if (payload.removed_ids.includes(current.id)) { await page.closeDetail(); page.showNote(L("todo.note.create-undone")); }
-    else { await page.openDetail(current.id); page.showNote(L("todo.note.undone")); }
+    if (payload.removed_ids.includes(current.id)) { await page.closeDetail(); page.showNote(uiText.text("todo.note.create-undone")); }
+    else { await page.openDetail(current.id); page.showNote(uiText.text("todo.note.undone")); }
     return true;
   }
   if (button.matches("[data-todo-link-add]")) {
     const target = page.$<HTMLSelectElement>("[data-todo-link-target]").value;
-    if (!target) { page.detailHint(L("todo.link.pick-first"), true); return true; }
+    if (!target) { page.detailHint(uiText.text("todo.link.pick-first"), true); return true; }
     const other = state.linkPool.find((entry) => entry.id === target);
     await page.post(current, "/link", { add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: page.$<HTMLSelectElement>("[data-todo-link-relation]").value } });
     await page.openDetail(current.id);
@@ -184,13 +186,13 @@ const editorControls: Command = async (page, button) => {
     const payload = await page.post<ItemPayload>(current, "/archive", { archived: !current.archived_at });
     await page.load();
     await page.openDetail(payload.item.id);
-    page.showNote(payload.item.archived_at ? L("todo.note.archived") : L("todo.note.restored"), { undo: undoOf(payload) });
+    page.showNote(payload.item.archived_at ? uiText.text("todo.note.archived") : uiText.text("todo.note.restored"), { undo: undoOf(payload) });
     return true;
   }
   if (button.matches("[data-todo-reload]")) {
     if (state.saving) await state.saving.catch(() => undefined);
     closeMenu(button);
-    if (state.dirtyKeys.size && !(await page.ask(L("todo.confirm.reload"), L("todo.action.reload")))) return true;
+    if (state.dirtyKeys.size && !(await page.ask(uiText.text("todo.confirm.reload"), uiText.text("todo.action.reload")))) return true;
     state.dirtyKeys = new Set();
     await page.openDetail(current.id);
     return true;
@@ -198,7 +200,7 @@ const editorControls: Command = async (page, button) => {
   if (button.matches("[data-todo-delete]")) {
     closeMenu(button);
     const title = current.title;
-    const confirmed = await page.ask(L("todo.confirm.delete", { title }), L("todo.action.delete"), async () => {
+    const confirmed = await page.ask(uiText.text("todo.confirm.delete", { title }), uiText.text("todo.action.delete"), async () => {
       clearTimeout(state.saveTimer);
       state.saveTimer = 0;
       if (state.saving) await state.saving.catch(() => undefined);
@@ -210,7 +212,7 @@ const editorControls: Command = async (page, button) => {
     state.dirtyKeys = new Set();
     await page.closeDetail();
     await page.load();
-    page.showNote(L("todo.note.deleted", { title }));
+    page.showNote(uiText.text("todo.note.deleted", { title }));
     return true;
   }
   return false;
@@ -220,12 +222,11 @@ const CHAIN: Command[] = [listControls, reviewControls, reminderControls, detail
 
 /** One click on a button of the page. Anything but reload and delete first saves what is being typed. */
 export async function runCommand(page: TodoPage, button: HTMLButtonElement): Promise<void> {
-  const { L } = page;
   try {
     if (!button.matches("[data-todo-reload],[data-todo-delete]")) await page.flush();
     for (const command of CHAIN) if (await command(page, button)) return;
   } catch (error) {
-    const message = (error as Error).message || L("todo.error.request");
+    const message = (error as Error).message || uiText.text("todo.error.request");
     if (page.state.selected && button.closest("[data-todo-stage-workspace]")) page.detailHint(message, true);
     else page.showNote(message, { error: true });
     if (code(error) === "todo.conflict") void page.load().catch(() => undefined);

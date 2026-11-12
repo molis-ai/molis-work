@@ -1,13 +1,15 @@
 import type { FormRecord } from "../contract.js";
 import type { FormClientHost, FormRequest, Translate } from "./types.js";
 
+const uiText = globalThis.t;
+
 /** What the model answered: either it needs a few things first, or the form with its new questions. */
 type DraftAnswer = { status: "needs_input"; interaction: { interaction_id: string; html?: string } } | { status: "done"; form: FormRecord };
 
 interface DraftPorts {
   readonly host: FormClientHost;
   readonly request: FormRequest;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly ask: HTMLElement;
   readonly prompt: HTMLTextAreaElement | HTMLInputElement;
   readonly button: HTMLButtonElement;
@@ -24,7 +26,7 @@ interface DraftPorts {
  * longer busy, which brings the card into view, and an earlier try's error is taken back (QA-002). Field problems come back
  * beside their fields, worded by the Host; the person's picks stay in the card, which is inert while a request is out.
  */
-export function formDraft({ host, request, L, ask, prompt, button, form, done, note }: DraftPorts) {
+export function formDraft({ host, request, ask, prompt, button, form, done, note }: DraftPorts) {
   let bound: ReturnType<NonNullable<FormClientHost["interaction"]>> | null = null;
   const close = () => { if (bound) bound.destroy(); bound = null; ask.replaceChildren(); ask.hidden = true; };
   const send = async (extra: Record<string, unknown>) => {
@@ -47,7 +49,7 @@ export function formDraft({ host, request, L, ask, prompt, button, form, done, n
     close();
     const template = document.createElement("template"); template.innerHTML = interaction.html || "";
     const card = template.content.firstElementChild;
-    if (!(card instanceof HTMLElement)) { note(L("form.ai.cannot-draw"), true); return; }
+    if (!(card instanceof HTMLElement)) { note(uiText.text("form.ai.cannot-draw"), true); return; }
     ask.append(card); ask.hidden = false; note("", false);
     const client = host.interaction(card, { onSubmit: () => send({ interaction: { interaction_id: interaction.interaction_id, values: client.read() } }) });
     bound = client;

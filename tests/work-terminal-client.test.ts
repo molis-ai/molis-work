@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pagePack, pageText } from "./fixtures/page-text.js";
 
 function installGlobals(t: TestContext, values: Record<string, unknown>) {
   for (const [key, value] of Object.entries(values)) {
@@ -34,7 +36,7 @@ test("Terminal channel authenticates once, shares in-flight connect, routes data
   const disconnected: string[] = [];
   let reconnects = 0;
   const connection = createTerminalConnection({
-    controlToken: () => "control-token", url: () => "ws://localhost/pty", text: (s) => s,
+    controlToken: () => "control-token", url: () => "ws://localhost/pty", text: pageText("zh"),
     onMessage: (m) => messages.push(m), onDisconnected: (e) => disconnected.push(e.message),
     reconnect: async () => { reconnects += 1; },
   });
@@ -66,7 +68,7 @@ test("Closed authentication handshake rejects pending connect and allows a fresh
   BrowserSocket.instances = [];
   installGlobals(t, { WebSocket: BrowserSocket });
   const connection = createTerminalConnection({
-    controlToken: () => "token", url: () => "ws://localhost/pty", text: (s) => s,
+    controlToken: () => "token", url: () => "ws://localhost/pty", text: pageText("zh"),
     onMessage() {}, onDisconnected() {}, reconnect: async () => {},
   });
   const first = connection.connect();
@@ -87,6 +89,7 @@ function listedPanel(goalId: string, running = true) {
 }
 
 function panelsFixture(t: TestContext) {
+  t.after(installTextForTest({ locale: "zh", packs: [pagePack("workbench", "zh")] }));
   BrowserSocket.instances = [];
   const state = { goal: "goal-a", parent: false };
   const sessions = new Map<string, { hasOutput: boolean; recentOutput: string; lastOutputAt: number;
@@ -129,7 +132,7 @@ function panelsFixture(t: TestContext) {
     screens: screen as unknown as TerminalPanelsOptions["screens"],
     goalId: () => state.goal, parentReadOnly: () => state.parent, parentReadOnlyMessage: () => "parent read-only",
     canControlPanel: (panel): panel is PanelRecord => Boolean(panel && !state.parent && panel.goal_id === state.goal),
-    text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
+    text: pageText("zh"), errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
     terminalsRoute: () => "/api/plugins/goals-owner/goals/:goalId/terminals", request,
     controlToken: () => "token", setStatus(text, kind) { statuses.push({ text, kind }); }, setMenuOpen() {}, renderTabs() {},
     showTerminal: (id) => shown.push(id),

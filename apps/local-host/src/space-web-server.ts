@@ -26,6 +26,7 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { acquireUpgradedHomeOwner, closeHostResourceSteps, ensureHomeStorageOwner, retainInitializationCleanup } from './home-storage-lifetime.js';
 import { trackHostListener } from './host-endpoints.js';
 import { serviceProcessId } from './web-runtime-settings.js';
+import { installHostUiText } from './ui-text-provider.js';
 
 interface Surface {
   home:string; space:StorageSpace; token:string; server:SpaceWebSurface;
@@ -302,6 +303,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   renderSameOriginEntry():string;
   asset(request:IncomingMessage,response:ServerResponse,url:URL):boolean;
 }):http.Server {
+  installHostUiText();
   let server:http.Server;
   const sessions = new WebSessions(resolveConfiguredHome(options.homeDirectory));
   // The installation login response must survive retirement of the previous business Home.

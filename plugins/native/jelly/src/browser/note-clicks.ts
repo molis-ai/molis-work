@@ -9,6 +9,8 @@ import { civil } from "./util.js";
 import { command } from "./workspace.js";
 import type { JellyPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 type Click = (page: JellyPage, target: HTMLElement) => void;
 const data = (target: HTMLElement, name: string): string => target.getAttribute(name) ?? "";
 const dismissRecovery = (page: JellyPage): void => { page.root.querySelector(".jelly-draft-recovery")?.remove(); };
@@ -26,7 +28,7 @@ function recoverDraft(page: JellyPage): void {
 }
 
 function deleteBlock(page: JellyPage, id: string): void {
-  if (hasTaskLink(page, id)) { showNote(page, page.L("jelly.block.unlink-first-delete"), true); return; }
+  if (hasTaskLink(page, id)) { showNote(page, uiText.text("jelly.block.unlink-first-delete"), true); return; }
   page.draftBlocks = collectBlocks(page);
   const index = page.draftBlocks.findIndex((entry) => entry.id === id);
   if (index < 0) return;

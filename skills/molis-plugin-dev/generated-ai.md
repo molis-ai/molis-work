@@ -1,6 +1,6 @@
 # 生成插件：AI 经 Prologue
 
-本章供创作台的设计和代码 Agent 直接挂载，是 molis-prologue-ai 在生成插件沙箱中的适用规则。完整 Native/Host 开发规则见相邻 Skill `molis-prologue-ai/SKILL.md`，生成插件不自行构造 Runtime。
+本章供创作台的设计和代码 Agent 直接挂载，是 molis-prologue-ai 在生成插件沙箱中的适用规则。完整 Native/Host 开发规则见相邻 Skill `molis-prologue-ai/SKILL.md`，平台给出 Runtime 和本轮语言。
 
 ## 设计时
 

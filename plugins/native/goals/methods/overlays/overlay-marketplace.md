@@ -1,6 +1,6 @@
 ---
 method_id: overlay-marketplace
-version: 1
+version: 2
 kind: overlay
 name: "双边市场"
 summary: "为连接供需双方的平台叠加流动性、匹配、信任、治理和利益平衡约束。"

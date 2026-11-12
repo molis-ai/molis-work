@@ -216,7 +216,7 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
     assert.ok(Date.now() < end, `the round ends: ${edited.runs[0]?.phase}`); await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.deepEqual(edited.runs.map(run => run.ref.run_id), [second.run_id]);
-  assert.deepEqual(edited.runs[0]!.frozen.skills.map(skill => [skill.ref.skill_id, skill.ref.version]), [["coding-review-change", 1]]);
+  assert.deepEqual(edited.runs[0]!.frozen.skills.map(skill => [skill.ref.skill_id, skill.ref.version]), [["coding-review-change", 2]]);
 
   // W5-01-CODING-81: a start that is refused leaves the session as it was: nothing chosen, so the page still asks.
   const unread = await invoke<{ session_id: string }>("session.open", { title: "材料读不到" });

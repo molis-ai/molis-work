@@ -1,4 +1,5 @@
 import type { UiClientTranslate, UiPageReviews, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export type Translate = UiClientTranslate;
 
@@ -19,7 +20,6 @@ export interface DecisionOutcome { readonly workspaceId?: string | null; readonl
 /** What the Git bundle's factory gets: the page's host, or Coding's with the ports of the panel Coding mounts Git in. */
 export interface GitFactoryHost {
   readonly root?: ParentNode;
-  readonly translate: Translate;
   mountPluginClient(root: Element): GitLifetime | null;
   /** A platform path in the current project. */
   route(path: string): string;
@@ -41,7 +41,6 @@ export interface GitFactoryHost {
 /** What Git's client uses: the factory's host with the requests Git makes and the ports of the page it is mounted in. */
 export interface GitHost {
   readonly root?: ParentNode;
-  readonly translate: Translate;
   mountPluginClient(root: Element): GitLifetime | null;
   /** One request to Git's routes (a failure is an Error). */
   request(path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal): Promise<unknown>;
@@ -70,6 +69,7 @@ export interface View {
   readonly changes: readonly ListItem[];
   readonly conflicts: readonly ListItem[];
   readonly message: string;
+  readonly reason?: "directory_not_created";
 }
 
 /** A diff that was read and kept (a fixed version in the diff plugin). */
@@ -118,7 +118,7 @@ export interface SourceSummary {
 }
 export interface SummaryAnswer { readonly summary: SourceSummary | null; readonly workspace: { readonly workspace_id: string }; readonly draft?: string; readonly message?: string }
 export interface ConflictAnswer { readonly outcome: string; readonly message?: string; readonly ours: string; readonly theirs: string; readonly conflicts: number; readonly text: string }
-export interface PrSupportAnswer { readonly message: string; readonly tool: string }
+export type PrSupportAnswer = Extract<WorkspaceGitResult, { message: string }>;
 
 /** What Git hands back to the bundle that mounts it. */
 export interface GitBrowser {

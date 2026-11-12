@@ -70,6 +70,10 @@ export type SandboxHostMessage = {
     id: string;
     operationId: string;
     input: SandboxJson;
+    locale: string | null;
+} | {
+    type: 'locale-pack';
+    part: string;
 } | {
     type: 'sdk-result';
     id: string;
@@ -363,6 +367,9 @@ export interface SandboxPluginContract {
     version: 1;
     pluginId: string;
     revision: string;
+    ui?: {
+        readonly locales: PluginLocalesDeclaration;
+    };
     operations: SandboxOperationContract[];
     entities: Array<{
         id: string;
@@ -371,10 +378,10 @@ export interface SandboxPluginContract {
     }>;
     pages: Array<{
         id: string;
-        title: string;
+        title: SandboxVisibleText;
         regions: Array<{
             id: string;
-            title: string;
+            title: SandboxVisibleText;
             description?: string;
             operationIds: string[];
         }>;
@@ -410,6 +417,9 @@ export interface SandboxSchema {
 }
 
 export interface SandboxSdk {
+    readonly t: UiTextTool;
+    readonly say: UiSayTool;
+    readonly format: UiFormatTool;
     storage: {
         get(key: string): Promise<SandboxJson>;
         set(key: string, value: SandboxJson): Promise<void>;
@@ -515,6 +525,8 @@ export interface SandboxSqlStatement {
 }
 
 export type SandboxSqlValue = null | number | string;
+
+export type SandboxVisibleText = string | TextRef;
 
 export type SandboxWorkerMessage = {
     type: 'ready';

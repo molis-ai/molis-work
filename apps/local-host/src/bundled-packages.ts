@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { readKeptPackage } from './sandbox-package.js';
+import { readKeptPackage, type KeptPackage } from './sandbox-package.js';
 
 /** A signed package is at most this big, as the CLI and the install read one. */
 const MAX_PACKAGE_BYTES = 64 * 1024 * 1024;
@@ -32,6 +32,7 @@ export interface BundledPackage {
   bundle: PluginPackageBundle;
   manifest: PluginManifest;
   key_id: string;
+  localePacks: KeptPackage["localePacks"];
 }
 
 /** A file in the folder that is not a bundled package the Host takes, with the refusal reading it raised. */
@@ -56,10 +57,10 @@ export async function readBundledPackages(directory: string): Promise<{ packages
   for (const file of (await readdir(directory)).sort()) {
     try {
       const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(await readRegularFile(path.join(directory, file))) as unknown);
-      const { manifest } = readKeptPackage(bundle.payload);
+      const { manifest, localePacks } = readKeptPackage(bundle.payload);
       if (manifest.kind !== 'content') throw pluginErrors.declaration_invalid('随安装包带上的只能是只有声明的插件（kind: "content"）');
       if (file !== `${manifest.plugin_id}.json`) throw pluginErrors.package_invalid(`随包插件的文件要叫 ${manifest.plugin_id}.json`);
-      packages.push({ file, bundle, manifest, key_id });
+      packages.push({ file, bundle, manifest, key_id, localePacks });
     } catch (error) { refused.push({ file, error: refusal(error) }); }
   }
   return { packages, refused };

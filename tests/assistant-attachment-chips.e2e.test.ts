@@ -104,6 +104,7 @@ test("VUX-18 UIC-15: an added file has its own row while it is read, keeps its f
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__box') && typeof window.molisReflow === 'function'", 20_000);
   // Product pages hold motion still under automation; the neighbours' moves are what is checked here.
@@ -156,14 +157,17 @@ test("VUX-18 UIC-15: an added file has its own row while it is read, keeps its f
   // Letting go of a row: its neighbours close up from where they were. Differs from the island's strip, which ran left to right:
   // the composer stands on the bar and grows upward, so letting go of the last row brings the rows above it down into the gap.
   // Click and look in one go: under load the 250 ms move could be over before a second call looks.
-  const moved = await evaluate<{ before: number; animating: boolean; top: number; settled: number }>(`(() => {
+  const moved = await evaluate<{ before: number; animating: boolean; top: number; settled: number }>(`(async () => {
+    const box = shotChip.closest('.mw-composer__box');
+    const previous = box.getAnimations({ subtree: true }).filter(animation => Number.isFinite(animation.effect.getComputedTiming().endTime));
+    await Promise.allSettled(previous.map(animation => animation.finished));
     const before = shotChip.getBoundingClientRect().top;
     ${byKey(now[2]!.key)}.querySelector('[data-composer-remove]').click();
     const motions = shotChip.getAnimations().filter((a) => a.id === 'mw-reflow'), top = shotChip.getBoundingClientRect().top;
     motions.forEach((a) => a.finish());
     return { before, animating: motions.length > 0, top, settled: shotChip.getBoundingClientRect().top };
   })()`);
-  assert.equal(moved.animating, true, "the neighbour eases into the gap");
+  assert.equal(moved.animating, true, "the neighbour eases into the gap: " + JSON.stringify(moved));
   assert.ok(Math.abs(moved.top - moved.before) < 2, "it starts where it was seen, so it does not jump");
   assert.ok(moved.settled > moved.top + 20, "and ends where the gap was");
   assert.deepEqual((await chips()).map((chip) => chip.text), ["notes.txt", "shot.png"]);

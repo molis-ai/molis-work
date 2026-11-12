@@ -97,6 +97,8 @@ test("FSS-66, FSS-67: the look card and the specimen card are named, whole and d
   for (const lang of ["zh", "en"] as const) for (const width of WIDTHS) for (const theme of ["light", "dark"] as const) {
     await open(lang, width, theme);
     const at = `${lang} ${width}px ${theme}`;
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('.mw-catalog-top [data-theme-option]')].map(button => button.textContent.trim())"),
+      lang === "en" ? ["Light", "Dark", "System"] : ["浅色", "深色", "系统"], `${at}: the board shows readable theme labels`);
     const seen = await evaluate<Seen>(SEEN(ROLES(theme)));
     assert.deepEqual(seen.sections, SECTIONS, `${at}: every part has its section, in order`);
     if (lang === "en") assert.equal(seen.words.match(/[㐀-鿿]+/gu)?.join(" ") ?? "", "", `${at}: no Chinese is left in English`);
@@ -180,7 +182,7 @@ test("FSS-66: picking a card says which look the specimen shows, and the keyboar
   assert.deepEqual(blocked, { disabled: true, reason: "在用的外观不能移除", open: true });
 });
 
-test("FSS-68: a look changes the whole page with a fade on the move clock and curve, started at once; reduced motion and automation change it on the spot", { timeout: 120_000 }, async (t) => {
+test("FSS-68: the live look changes at once, fades the old ground on the move tokens and respects the motion guards", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   const shots = process.env.MOLIS_WORK_BOARD_SHOTS === "1" ? join(REVIEW_EVIDENCE, "14-t8b-board-appearance") : "";
@@ -194,18 +196,16 @@ test("FSS-68: a look changes the whole page with a fade on the move clock and cu
   };
   const page = () => evaluate<{ look: string | null; page: string; accent: string; rCard: string; text: string; to: boolean; back: boolean; focus: string; fade: string | undefined }>(`(() => { const root = document.documentElement, stage = document.querySelector('[data-look-fade]'), css = (p) => getComputedStyle(document.body).getPropertyValue(p).trim();
     return { look: root.getAttribute('data-look'), page: css('--page'), accent: css('--accent'), rCard: css('--r-card'), text: stage.querySelector('[data-look-fade-now]').textContent, to: stage.querySelector('[data-look-fade-to]').disabled, back: stage.querySelector('[data-look-fade-back]').disabled, focus: document.activeElement.hasAttribute('data-look-fade-back') ? 'back' : document.activeElement.hasAttribute('data-look-fade-to') ? 'to' : 'other', fade: stage.dataset.fade }; })()`);
-  // Wraps the browser's own call to see whether, when and how it is made.
-  const WATCH = `(() => { window.__fade = { called: 0, transition: null }; window.__realTransition ??= document.startViewTransition.bind(document);
-    document.startViewTransition = (callback) => { window.__fade.called++; window.__fade.transition = window.__realTransition(callback); return window.__fade.transition; }; })()`;
+  const fades = "document.getAnimations().filter(animation => animation.id === 'mw-look-fade')";
 
-  // Under automation the board holds still (html[data-craft-still], the finish layer's own sign): the page changes at once and no transition starts.
+  // The board's automation guard keeps the state change synchronous and still.
   await open();
   assert.equal(await evaluate<boolean>("document.documentElement.hasAttribute('data-craft-still')"), true, "the board is held still under automation");
-  await evaluate(WATCH);
   const before = await page();
   assert.deepEqual([before.look, before.text, before.to, before.back], [null, "正在用 Soft Workbench", false, true]);
-  const still = await evaluate<{ look: string | null; called: number; fade: string }>(`(() => { document.querySelector('[data-look-fade-to]').click(); return { look: document.documentElement.getAttribute('data-look'), called: window.__fade.called, fade: document.querySelector('[data-look-fade]').dataset.fade }; })()`);
-  assert.deepEqual(still, { look: "warm", called: 0, fade: "direct" }, "held still: changed in the same moment, nothing animated");
+  const still = await evaluate(`(() => { document.querySelector('[data-look-fade-to]').click();
+    return { look: document.documentElement.getAttribute('data-look'), running: ${fades}.length, fade: document.querySelector('[data-look-fade]').dataset.fade }; })()`);
+  assert.deepEqual(still, { look: "warm", running: 0, fade: "direct" }, "held still: changed in the same moment, nothing animated");
   const worn = await page();
   assert.deepEqual([worn.text, worn.to, worn.back, worn.focus], ["正在用 暖色草稿", true, false, "back"], "the words say it, the button that is no longer useful gives way, and the focus moves to the one that is");
   assert.notEqual(worn.page, before.page, "the whole page wears the look: its ground");
@@ -218,46 +218,81 @@ test("FSS-68: a look changes the whole page with a fade on the move clock and cu
 
   // What a person sees: the fade starts the moment the look changes and runs on the move clock and curve.
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
-  await evaluate(WATCH);
-  const faded = await evaluate<{ called: number; fade: string; changedAtReady: boolean; running: boolean; durations: number[]; pseudos: string[]; timing: string; duration: string; token: { dur: string; ease: string }; after: { look: string | null; text: string } }>(`(async () => {
+  const faded = await evaluate<{ count: number; fade: string; changedImmediately: boolean; running: boolean; duration: number; easing: string;
+    token: { dur: string; ease: string }; layer: unknown; cleaned: boolean; after: { look: string | null; text: string } }>(`(async () => {
     const root = document.documentElement, stage = document.querySelector('[data-look-fade]'), css = (p) => getComputedStyle(root).getPropertyValue(p).trim();
+    const oldGround = document.createElement('div');
+    oldGround.style.backgroundColor = css('--page');
     stage.querySelector('[data-look-fade-to]').click();
-    const transition = window.__fade.transition; let finished = false; transition.finished.then(() => { finished = true; });
-    await transition.ready;
-    const animations = document.getAnimations().filter((a) => String(a.effect?.pseudoElement ?? '').startsWith('::view-transition'));
-    const pseudo = getComputedStyle(root, '::view-transition-new(root)');
-    const result = { called: window.__fade.called, fade: stage.dataset.fade, changedAtReady: root.getAttribute('data-look') === 'warm' && stage.querySelector('[data-look-fade-now]').textContent === '正在用 暖色草稿', running: !finished,
-      durations: [...new Set(animations.map((a) => a.effect.getTiming().duration))], pseudos: [...new Set(animations.map((a) => a.effect.pseudoElement))], timing: pseudo.animationTimingFunction.replace(/\\s+/g, ''), duration: pseudo.animationDuration,
-      token: { dur: css('--dur-move'), ease: css('--ease-quint').replace(/\\s+/g, '') } };
-    await transition.finished;
-    return { ...result, after: { look: root.getAttribute('data-look'), text: stage.querySelector('[data-look-fade-now]').textContent } };
+    const animations = ${fades}, [animation] = animations, effect = animation.effect, layer = effect.target;
+    const { duration, easing } = effect.getTiming();
+    const result = { count: animations.length, fade: stage.dataset.fade,
+      changedImmediately: root.dataset.look === 'warm' && stage.querySelector('[data-look-fade-now]').textContent === '正在用 暖色草稿'
+        && document.activeElement === stage.querySelector('[data-look-fade-back]'),
+      running: animation.playState === 'running', duration, easing, token: { dur: css('--dur-move'), ease: css('--ease-quint') },
+      layer: { previousGround: layer.style.backgroundColor === oldGround.style.backgroundColor,
+        fixed: getComputedStyle(layer).position === 'fixed', pointer: getComputedStyle(layer).pointerEvents,
+        inert: layer.inert, hidden: layer.getAttribute('aria-hidden'), opacity: effect.getKeyframes().map(frame => Number(frame.opacity)) } };
+    await animation.finished;
+    return { ...result, cleaned: !layer.isConnected && ${fades}.length === 0,
+      after: { look: root.getAttribute('data-look'), text: stage.querySelector('[data-look-fade-now]').textContent } };
   })()`);
-  assert.equal(faded.called, 1, "one transition for one change");
+  assert.equal(faded.count, 1, "one fade for one change");
   assert.equal(faded.fade, "fade");
-  assert.equal(faded.changedAtReady, true, "the page and its words have already changed when the fade begins: nobody waits for it");
+  assert.equal(faded.changedImmediately, true, "the page, words and focus have changed before the fade finishes");
   assert.equal(faded.running, true, "and the fade is still running at that point");
   const ms = (value: string) => value.endsWith("ms") ? parseFloat(value) : parseFloat(value) * 1000;
-  assert.deepEqual(faded.durations, [ms(faded.token.dur)], `the fade runs for --dur-move (${faded.token.dur})`);
-  assert.equal(ms(faded.duration), ms(faded.token.dur));
+  assert.equal(faded.duration, ms(faded.token.dur), `the fade runs for --dur-move (${faded.token.dur})`);
   const curve = (value: string) => (value.match(/[\d.]+/gu) ?? []).map(Number);
-  assert.deepEqual(curve(faded.timing), curve(faded.token.ease), `on --ease-quint (${faded.timing} vs ${faded.token.ease})`);
-  assert.ok(faded.pseudos.some((p) => p.includes("::view-transition-old(root)")) && faded.pseudos.some((p) => p.includes("::view-transition-new(root)")), `the old picture gives way to the new (${faded.pseudos})`);
+  assert.deepEqual(curve(faded.easing), curve(faded.token.ease), `on --ease-quint (${faded.easing} vs ${faded.token.ease})`);
+  assert.deepEqual(faded.layer, { previousGround: true, fixed: true, pointer: "none", inert: true, hidden: "true", opacity: [0.22, 0] });
+  assert.equal(faded.cleaned, true, "the completed fade removes its layer");
   assert.deepEqual(faded.after, { look: "warm", text: "正在用 暖色草稿" });
-  // Changing again while one runs does not queue behind it: the last choice is what the page ends on.
-  const quick = await evaluate<{ look: string | null; text: string; called: number }>(`(async () => { const stage = document.querySelector('[data-look-fade]'); stage.querySelector('[data-look-fade-back]').click(); await window.__fade.transition.ready;
-    stage.querySelector('[data-look-fade-to]').click(); await window.__fade.transition.finished.catch(() => {}); await new Promise((resolve) => setTimeout(resolve, 400));
-    return { look: document.documentElement.getAttribute('data-look'), text: stage.querySelector('[data-look-fade-now]').textContent, called: window.__fade.called }; })()`);
-  assert.deepEqual(quick, { look: "warm", text: "正在用 暖色草稿", called: 3 }, "two quick changes end on the second");
+  const quick = await evaluate(`(async () => {
+    const stage = document.querySelector('[data-look-fade]'), rejected = [];
+    const failed = event => rejected.push(event.reason?.name);
+    addEventListener('unhandledrejection', failed);
+    try {
+      stage.querySelector('[data-look-fade-back]').click();
+      const [first] = ${fades}, oldLayer = first.effect.target;
+      stage.querySelector('[data-look-fade-to]').click();
+      const latest = ${fades}, [second] = latest;
+      const immediate = { look: document.documentElement.dataset.look, text: stage.querySelector('[data-look-fade-now]').textContent,
+        cancelled: first.playState === 'idle' && !oldLayer.isConnected, remaining: latest.length,
+        focus: document.activeElement.hasAttribute('data-look-fade-back'), running: second.playState === 'running' };
+      await second.finished;
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      return { ...immediate, cleaned: ${fades}.length === 0, rejected };
+    } finally { removeEventListener('unhandledrejection', failed); }
+  })()`);
+  assert.deepEqual(quick, { look: "warm", text: "正在用 暖色草稿", cancelled: true, remaining: 1, focus: true, running: true, cleaned: true, rejected: [] },
+    "the later choice takes effect at once, removes the first layer and handles its cancellation");
 
   // Reduced motion: quiet. No transition starts, the change is made in the same moment, and the state is the same.
   await open("light", true);
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
-  await evaluate(WATCH);
-  const quiet = await evaluate<{ look: string | null; called: number; fade: string; text: string; running: number }>(`(() => { document.querySelector('[data-look-fade-to]').click();
-    return { look: document.documentElement.getAttribute('data-look'), called: window.__fade.called, fade: document.querySelector('[data-look-fade]').dataset.fade, text: document.querySelector('[data-look-fade-now]').textContent,
-      running: document.getAnimations().filter((a) => String(a.effect?.pseudoElement ?? '').startsWith('::view-transition')).length }; })()`);
-  assert.deepEqual(quiet, { look: "warm", called: 0, fade: "direct", text: "正在用 暖色草稿", running: 0 }, "with reduced motion nothing fades and the state still changes");
+  const quiet = await evaluate(`(() => { document.querySelector('[data-look-fade-to]').click();
+    return { look: document.documentElement.getAttribute('data-look'), fade: document.querySelector('[data-look-fade]').dataset.fade,
+      text: document.querySelector('[data-look-fade-now]').textContent, running: ${fades}.length }; })()`);
+  assert.deepEqual(quiet, { look: "warm", fade: "direct", text: "正在用 暖色草稿", running: 0 }, "with reduced motion nothing fades and the state still changes");
   assert.equal(await evaluate<string>("getComputedStyle(document.querySelector('.mw-look-proof__canvas')).transitionDuration"), "0s", "and the canvas's own ease is off too");
+
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+  await waitFor("!matchMedia('(prefers-reduced-motion: reduce)').matches");
+  const otherDirect = await evaluate(`(() => {
+    const root = document.documentElement, stage = document.querySelector('[data-look-fade]');
+    const state = () => [root.getAttribute('data-look'), stage.dataset.fade, ${fades}.length];
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    stage.querySelector('[data-look-fade-back]').click();
+    const hidden = state();
+    delete document.hidden;
+    Object.defineProperty(root, 'animate', { value: undefined, configurable: true });
+    stage.querySelector('[data-look-fade-to]').click();
+    const unsupported = state();
+    delete root.animate;
+    return { hidden, unsupported };
+  })()`);
+  assert.deepEqual(otherDirect, { hidden: [null, "direct", 0], unsupported: ["warm", "direct", 0] });
 
   // Dark: the same page-wide change in the dark theme, measured against the dark page before it.
   await open("dark");

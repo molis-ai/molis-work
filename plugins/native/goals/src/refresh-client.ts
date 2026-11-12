@@ -1,7 +1,7 @@
 /** Goals-only refresh contribution. The Host owns fetching, interaction guards and shared state. */
 export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { treeScroll, treeFilter, documentPane, dialog,
-      readCreateDraft, refreshCreateChoices, translate: L } = host;
+      readCreateDraft, refreshCreateChoices, translate: readText } = host;
 
     const prepareGoalRefresh = (parsed, navigation, currentGoals, goalId, collectionPath) => {
       const renderedGoalId = parsed.querySelector("[data-goal-view]")?.dataset.goalView || "";
@@ -30,12 +30,12 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
               ? "/trash/goals/" + encodeURIComponent(goalId)
               : collectionPath;
         const message = movedToCurrent
-          ? L("这条 Goal 已恢复到当前 Goal，已继续打开同一条 Goal。")
+          ? globalThis.t.text("goals.refresh-client.goal-was-restored-current-goals-same-goal-remains")
           : movedToArchive
-            ? L("这条 Goal 已归档，已继续打开归档中的同一条 Goal。")
+            ? globalThis.t.text("goals.refresh-client.goal-was-archived-same-archived-goal-remains-open")
             : movedToTrash
-              ? L("这条 Goal 已移入回收站，已继续打开同一条 Goal。")
-              : L("这条 Goal 已不在当前集合，已返回列表。");
+              ? globalThis.t.text("goals.refresh-client.goal-was-moved-trash-same-goal-remains-open")
+              : globalThis.t.text("goals.refresh-client.goal-no-longer-current-collection-so-list-open");
         move = { path, message };
       }
 

@@ -51,7 +51,7 @@ test("VUX-40: a Coding route answers in the language of the page that called it"
     const delegation = (language: Record<string, string>) => request(`${coding}/sessions/${id}/delegations/missing`, "POST", { action: "accept" }, language);
     const missing = await delegation(en);
     assert.equal(missing.status, 400, JSON.stringify(missing.body));
-    assert.equal(missing.body.error, "Can't find this delegation");
+    assert.equal(missing.body.error, "Can’t find this delegation");
     assert.equal((await delegation(zh)).body.error, "找不到这个委派");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

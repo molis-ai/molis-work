@@ -29,11 +29,12 @@
   },
   "files": [
     "dist",
+    "locales",
     "README.md"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/feed-client.js",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/feed-client.js && node ../../../scripts/client-literals.mjs --factory dist/feed-client.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {

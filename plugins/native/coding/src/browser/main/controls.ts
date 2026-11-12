@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import { shut, terminal, unread } from "./composer-state.js";
 import type { Page } from "./page.js";
@@ -5,10 +6,10 @@ import { status } from "./request.js";
 
 /** Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds the whole choice it hears back for the session that asked. */
 export async function openMaterials(page: Page) {
-  const { L, lifetime } = page, { draft } = page.refs, { s } = page;
+  const { lifetime } = page, { draft } = page.refs, { s } = page;
   const id = s.current, ticket = ++s.materialTicket;
   if (document.documentElement.dataset.knowledgePicker !== "1") {
-    status(page, L("coding.material.picker-unavailable"), true);
+    status(page, uiText.text("coding.material.picker-unavailable"), true);
     return;
   }
   try {
@@ -27,10 +28,10 @@ export async function openMaterials(page: Page) {
  * open select is never closed under the person.
  */
 export function drawComposer(page: Page) {
-  const { L, q, refs, s } = page, composer = refs.composer;
+  const { readText, q, refs, s } = page, composer = refs.composer;
   if (!composer) return;
   const active = Boolean(s.lastRun && !terminal(s.lastRun.phase));
-  composer.hold(unread(page) ? L("coding.composer.reading-session") : s.sending && !s.composerSending ? L("coding.composer.busy") : null);
+  composer.hold(unread(page) ? readText("coding.composer.reading-session") : s.sending && !s.composerSending ? readText("coding.composer.busy") : null);
   composer.setRunning(active);
   const title = s.state.sessions.find(item => item.session_id === s.current)?.title ?? "";
   const drawn = JSON.stringify([s.current, s.sessionOnShow, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.scene(), counts(page)]);
@@ -54,12 +55,12 @@ export function counts(page: Page) {
 
 /** The rewind buttons of the checkpoints list are for a writable, idle session. */
 function checkpointButtons(page: Page, active: boolean) {
-  const { L, q } = page, { s } = page;
+  const { q } = page, { s } = page;
   const writable = ["edit", "execute"].includes(s.intent);
   q<HTMLButtonElement>("[data-coding-checkpoints-refresh]").disabled = !s.current || s.checkpointLoading;
   q("[data-coding-checkpoints-list]").querySelectorAll("button").forEach(button => {
     button.disabled = Boolean(!writable || active || s.sending || s.recovery || s.checkpointBusy || s.checkpointLoading);
-    button.title = !writable ? L("coding.worktrees.needs-writing") : active ? L("coding.run.wait-end") : s.checkpointBusy ? L("coding.checkpoints.busy") : "";
+    button.title = !writable ? uiText.text("coding.worktrees.needs-writing") : active ? uiText.text("coding.run.wait-end") : s.checkpointBusy ? uiText.text("coding.checkpoints.busy") : "";
   });
 }
 

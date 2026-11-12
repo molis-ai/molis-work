@@ -218,6 +218,8 @@ test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept t
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]')", 15_000);
   await b.click("[data-model-template=deepseek]");
   await b.waitFor("document.querySelector('[data-model-base-url]')");
+  assert.deepEqual(await b.evaluate("[...document.querySelectorAll('[data-model-prompt-cache] option')].map(one => [one.value, one.textContent])"),
+    [["off", "Off"], ["best-effort", "Best effort"]]);
   const draft = "https://example.invalid/unsaved-model";
   await b.evaluate(`(() => { const field = document.querySelector('[data-model-base-url]'); field.value = ${JSON.stringify(draft)}; field.dispatchEvent(new Event('input', {bubbles:true})); })()`);
   assert.deepEqual(await refuse(), { requests: [], open: true, address, draft, sameField: true }, "unsupported settings requests preserve the open settings draft");
@@ -293,6 +295,38 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
   // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
   await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");
+});
+
+test("S-ui-text-page FSS-08 a replacement document before first connection never receives the frame port", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
+  const { command, sessionId, origin, waitFor, evaluate, navigate } = browser;
+  const child = await pluginFrameBrowser(t, browser, "issues");
+  const open = (search = "") => navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues${search}` }, sessionId));
+  await open();
+  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const forged = `<!doctype html><title>Replacement frame</title><script>
+    const report = detail => parent.postMessage({ type: 'frame-handshake-test', detail }, ${JSON.stringify(origin)});
+    const attacker = new MessageChannel(); attacker.port1.onmessage = () => report('forged-port-received-config');
+    addEventListener('message', event => { if (event.data?.type === 'molis:plugin-connect') report('window-received-config'); });
+    parent.postMessage({ type: 'molis:plugin-mount', challenge: 'unverified' }, ${JSON.stringify(origin)}, [attacker.port2]);
+    addEventListener('load', () => report('replacement-loaded'));
+  </script>`;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `if (window===top) {
+    window.frameHandshakeTrace=[];
+    addEventListener('message', event => {
+      const frame = document.querySelector('iframe[data-plugin-frame=issues]');
+      if (event.source===frame?.contentWindow && event.origin==='null' && event.data?.type==='frame-handshake-test') frameHandshakeTrace.push(event.data.detail);
+    });
+    const actual = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc');
+    Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...actual, set(source) {
+      if (this.dataset.pluginFrame !== 'issues') { actual.set.call(this, source); return; }
+      this.src = URL.createObjectURL(new Blob([${JSON.stringify(forged)}], {type:'text/html'}));
+    } });
+  }` }, sessionId);
+  await open("?frame-handshake=replaced");
+  await waitFor("frameHandshakeTrace.includes('replacement-loaded')", 12_000);
+  await waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15_000);
+  assert.deepEqual(await evaluate("frameHandshakeTrace"), ["replacement-loaded"], "loading at the current frame window is insufficient to receive any config or port");
 });
 
 test("D0124 D0335 S-47 hidden plugin UI cannot navigate or open an object; visible typed requests still work", { timeout: 60_000 }, async t => {

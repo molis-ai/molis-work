@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.huggingface",
+  "locale": "zh",
+  "messages": {
+    "huggingface.connection.auth-help": "Hugging Face access token。用 whoami 后拉该用户模型。",
+    "huggingface.connection.inbound": "Feed 读取账号模型列表",
+    "huggingface.connection.summary": "模型、数据集与 Spaces。",
+    "huggingface.connection.token-label": "Hugging Face Access Token",
+    "huggingface.guide.cli-link": "查看 Hugging Face CLI",
+    "huggingface.guide.mcp-link": "查看 Hugging Face 官方 MCP",
+    "huggingface.guide.oauth-link": "查看 Hugging Face OAuth",
+    "huggingface.setup.create-hugging-face-access-token": "创建 Hugging Face Access Token"
+  }
+}

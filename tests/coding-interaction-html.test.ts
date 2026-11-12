@@ -4,12 +4,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, L, NEXT_STEP, agentQuestionHtml, assistantCardHtml, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, readText, NEXT_STEP, agentQuestionHtml, assistantCardHtml, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { CODING_NEXT_STEP, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { actionCardView, type ActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionLocale, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRunOffer, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import { pagePack } from "./fixtures/page-text.js";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -82,9 +83,9 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
       const ask = page.runs.find(entry => entry.ref.run_id === "ask")!, fixed = page.runs.find(entry => entry.ref.run_id === "fixed")!;
       // PG062-11: the question card the Assistant shows, asked again on Coding's page; the suggestion's card as the Assistant draws it.
       const [asked] = ask.awaiting_input, [card] = ask.cards;
-      assert.equal(asked!.html, runWithLocale(locale, () => agentQuestionHtml(strip(asked!) as AgentPendingQuestion, L, undefined, undefined, true)), `the question card (${locale})`);
+      assert.equal(asked!.html, runWithLocale(locale, () => agentQuestionHtml(strip(asked!) as AgentPendingQuestion, readText, undefined, undefined, true)), `the question card (${locale})`);
       assert.match(asked!.html!, /Retry &lt;i&gt;three&lt;\/i&gt;/); assert.doesNotMatch(asked!.html!, /<i>three/, "the question is escaped");
-      assert.equal(card!.html, runWithLocale(locale, () => assistantCardHtml(actionCardView(strip(card!) as ActionCard & { run_id: string }), L, undefined, false)), `the card (${locale})`);
+      assert.equal(card!.html, runWithLocale(locale, () => assistantCardHtml(actionCardView(strip(card!) as ActionCard & { run_id: string }), readText, undefined, false)), `the card (${locale})`);
       assert.match(card!.html!, /Save &lt;b&gt;this&lt;\/b&gt; note/); assert.doesNotMatch(card!.html!, /<b>this/, "the card is escaped");
       assert.deepEqual(fixed.cards, [], "a round without suggestions has no cards");
       // PG062-12: each round's row: the waiting round's question and card, the ended round's own follow-ups in Coding's words.
@@ -126,6 +127,7 @@ test("PG062-13: the Host no longer decorates Coding's answers, and a project rou
   assert.doesNotMatch(entry, /ProjectPluginRouteHooks|beforeDispatch/);
   assert.doesNotMatch(entry, /around\.afterDispatch/);
   // Coding words its own follow-ups: the workbench's dictionary no longer carries them for it.
-  const gap = readFileSync(new URL("../apps/workbench/src/i18n/renderer-gap-en.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(gap, /plugins\/native\/coding\/src\/next-steps\.ts|这一轮改过的文件/);
+  const platform = pagePack("workbench", "en").messages;
+  assert.equal(Object.hasOwn(platform, "coding.round.changed-files"), false);
+  assert.equal(pagePack("coding", "en").messages["coding.round.changed-files"], "Files this turn changed");
 });

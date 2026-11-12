@@ -3,12 +3,14 @@ import { flushEdit } from "./edit.js";
 import { post, read } from "./request.js";
 import type { ShelfPage } from "./types.js";
 
+const uiText = globalThis.t;
+
 interface MaterialAnswer { fingerprint: string; project_title: string; payload: { title: string; text: string } }
 interface SavedMaterial { reference: { version: number } }
 
 /** Saving a copy's text into the project's knowledge: reads it back in full, shows where it goes, and saves what was shown. */
 export function installMaterial(page: ShelfPage): void {
-  const { bench, lifetime, L } = page;
+  const { bench, lifetime } = page;
   const dialog = bench.querySelector<HTMLDialogElement>("[data-shelf-material-dialog]");
   const status = bench.querySelector<HTMLElement>("[data-shelf-material-status]");
   const save = bench.querySelector<HTMLButtonElement>("[data-shelf-material-save]");
@@ -23,19 +25,19 @@ export function installMaterial(page: ShelfPage): void {
     const ticket = ++page.materialTicket;
     page.materialPreview = null;
     save.disabled = true;
-    status.textContent = L("shelf.material.reading-the-full-text");
+    status.textContent = uiText.text("shelf.material.reading-the-full-text");
     body.textContent = "";
     destination.textContent = "";
     if (!dialog.open) dialog.showModal();
     try {
       await flushEdit(page);
       await page.editWrites;
-      const data = await read<MaterialAnswer>(page, "/items/" + encodeURIComponent(id) + "/project-material", L("shelf.material.could-not-read-the-material"));
+      const data = await read<MaterialAnswer>(page, "/items/" + encodeURIComponent(id) + "/project-material", uiText.text("shelf.material.could-not-read-the-material"));
       if (ticket !== page.materialTicket) return;
       page.materialPreview = { id, fingerprint: data.fingerprint };
       destination.textContent = data.project_title + " / " + data.payload.title;
       body.textContent = data.payload.text;
-      status.textContent = L("shelf.material.review-the-text-before-saving");
+      status.textContent = uiText.text("shelf.material.review-the-text-before-saving");
       save.disabled = false;
     } catch (error) {
       if (page.lifetime.alive && ticket === page.materialTicket) status.textContent = messageOf(error);
@@ -53,10 +55,10 @@ export function installMaterial(page: ShelfPage): void {
     if (!current || save.disabled) return;
     const ticket = page.materialTicket;
     save.disabled = true;
-    status.textContent = L("shelf.material.saving");
+    status.textContent = uiText.text("shelf.material.saving");
     try {
       const result = await post<SavedMaterial>(page, "/items/" + encodeURIComponent(current.id) + "/project-material", { expected_fingerprint: current.fingerprint });
-      if (ticket === page.materialTicket) status.textContent = L("shelf.material.saved-to-project-knowledge") + " · v" + result.reference.version + L("shelf.material.agents-in-the-project-can");
+      if (ticket === page.materialTicket) status.textContent = uiText.text("shelf.material.saved-to-project-knowledge") + " · v" + result.reference.version + uiText.text("shelf.material.agents-in-the-project-can");
     } catch (error) {
       if (!page.lifetime.alive || ticket !== page.materialTicket) return;
       status.textContent = messageOf(error);

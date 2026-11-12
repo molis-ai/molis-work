@@ -4,17 +4,16 @@ import { bindEngine, bindModel, bindPanelKeys, bindRuntimes } from "./bind-basic
 import { bindDropWheel, bindHotkeys, installRecorder } from "./bind-hotkeys.js";
 import { reloadPage } from "./reload.js";
 import { markOccupied, refreshSettings } from "./save.js";
-import type { HotkeyTables, SettingsPage, Translate } from "./types.js";
+import type { HotkeyTables, SettingsPage } from "./types.js";
 
 /**
  * The bundle's entry for the global settings page. The wrapper in src/settings-client.ts puts the chord tables and the plugin's
- * route in front of it; `L` is the page's own translator. Live-saves Shelf's device settings.
+ * route in front of it. The bundle uses the Workbench text context and live-saves Shelf's device settings.
  */
 declare const SHELF_HOTKEY_TABLES: HotkeyTables;
 declare const SHELF_SETTINGS_API: string;
-declare const L: Translate;
 
-const page: SettingsPage = { api: (document.body.dataset.routePrefix || "") + SHELF_SETTINGS_API, tables: SHELF_HOTKEY_TABLES, L, settings: null, recording: null };
+const page: SettingsPage = { api: (document.body.dataset.routePrefix || "") + SHELF_SETTINGS_API, tables: SHELF_HOTKEY_TABLES, settings: null, recording: null };
 
 function bind(root?: ParentNode): void {
   const scope: ParentNode = root && "querySelector" in root ? root : document;

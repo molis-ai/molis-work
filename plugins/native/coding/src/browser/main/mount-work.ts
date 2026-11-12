@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { createCodingCodePaint } from "../../code-paint-client.js";
 import { actionsClient } from "../actions.js";
@@ -17,19 +18,19 @@ import type { Page } from "./page.js";
 
 /** The split of a directory into worktrees: who works where, and which directory the next round uses. */
 function mountWriterDirectories(page: Page) {
-  const { L, host, lifetime, q, refs, s } = page;
+  const { readText, host, lifetime, q, refs, s } = page;
   refs.writerDirectories = writerDirectories({
-    lifetime, translate: L, q, api: s.ports.api, reviews: (box, parent) => host.showReviews?.(box, [], null, parent), current: () => s.current, workspace: () => s.workspaceId,
+    lifetime, translate: readText, q, api: s.ports.api, reviews: (box, parent) => host.showReviews?.(box, [], null, parent), current: () => s.current, workspace: () => s.workspaceId,
     workspaceLabel: () => s.state.workspaces.find(item => item.workspace_id === s.workspaceId)?.canonical_path || s.workspaceId, status: s.ports.status,
     assignments: () => s.configurations.get(s.current)?.writer_assignments || [],
     saveAssignments: async (owner, parent, assignments) => {
-      if (owner !== s.current || parent !== s.workspaceId) throw new Error(L("coding.error.split-changed"));
+      if (owner !== s.current || parent !== s.workspaceId) throw new Error(uiText.text("coding.error.split-changed"));
       rememberConfiguration(page);
       const previous = s.configurations.get(s.current);
       s.configurations.set(s.current, { ...previous, writer_assignments: assignments });
       try {
         await refs.draft.flush();
-        status(page, L("coding.worktrees.split-saved"));
+        status(page, uiText.text("coding.worktrees.split-saved"));
       } catch (error) {
         if (!lifetime.alive) return;
         s.configurations.set(owner, previous);
@@ -38,7 +39,7 @@ function mountWriterDirectories(page: Page) {
     },
     // The session's next rounds run in the Host's worktree of its folder; the folder, and what the embedded Files and Git show, stay as they are.
     select: async (owner, parent, worktree) => {
-      if (owner !== s.current || parent !== s.workspaceId) throw new Error(L("coding.error.worktree-changed"));
+      if (owner !== s.current || parent !== s.workspaceId) throw new Error(uiText.text("coding.error.worktree-changed"));
       const previous = s.worktree;
       s.worktree = { worktree_id: worktree.worktree_id, canonical_path: worktree.canonical_path };
       rememberConfiguration(page);
@@ -51,7 +52,7 @@ function mountWriterDirectories(page: Page) {
         throw error;
       }
       await refreshState(page);
-      status(page, L("coding.worktrees.used-next"));
+      status(page, uiText.text("coding.worktrees.used-next"));
     },
     chosen: () => s.worktree?.worktree_id,
     // Opened for the session it was asked on; the dialog reads where the session ran from the Host.
@@ -61,8 +62,8 @@ function mountWriterDirectories(page: Page) {
 
 /** Starts a round that carries out a revision of the session's plan. */
 async function executePlan(page: Page, revision: number) {
-  const { L, refs, s } = page;
-  if (s.sending || s.recovery || s.checkpointBusy || !s.current) throw new Error(L("coding.error.busy"));
+  const { readText, refs, s } = page;
+  if (s.sending || s.recovery || s.checkpointBusy || !s.current) throw new Error(readText("coding.error.busy"));
   const id = s.current, [provider_id, model_id] = JSON.parse(refs.composerModels.value() || "[]") as [string, string];
   const intent = s.intent === "parallel" ? "parallel" : "execute";
   const request = {
@@ -88,23 +89,23 @@ async function executePlan(page: Page, revision: number) {
 
 /** The plan and the review of a round's changes: each opens in the results panel, and the review's remarks go to the draft. */
 function mountReview(page: Page) {
-  const { L, input, lifetime, q, refs, root, s } = page;
+  const { readText, input, lifetime, q, refs, root, s } = page;
   refs.plans = plansClient({ ...s.ports, execute: revision => executePlan(page, revision) });
   refs.changeReview = changesetClient({
-    lifetime, translate: L, root, q, api: s.ports.api, current: () => s.current, closeReport: () => closeReport(page), returnToTask: () => returnFromChange(page),
+    lifetime, translate: readText, root, q, api: s.ports.api, current: () => s.current, closeReport: () => closeReport(page), returnToTask: () => returnFromChange(page),
     onRunOpen: () => { s.changeItem = ""; s.reportItem = ""; renderArtifacts(page); },
     appendDraft: task => refs.draft.append(s.current, text => {
       const next = text.endsWith(task) ? text : (text ? text + "\n\n" : "") + task;
-      if (next.length > 100000) throw new Error(L("coding.feedback.too-long"));
+      if (next.length > 100000) throw new Error(uiText.text("coding.feedback.too-long"));
       return next;
-    }, L("coding.feedback.still-loading")),
-    focusDraft: () => { returnFromChange(page); input.focus(); status(page, L("coding.feedback.added")); },
+    }, uiText.text("coding.feedback.still-loading")),
+    focusDraft: () => { returnFromChange(page); input.focus(); status(page, uiText.text("coding.feedback.added")); },
   });
 }
 
 /** What the round's choices are made with: the Host's actions as operation cards, and the Character. */
 function mountChoices(page: Page) {
-  const { L, host, lifetime, q, refs, s } = page;
+  const { readText, host, lifetime, q, refs, s } = page;
   s.materialTicket = 0;
   const actions = actionsClient({
     ...s.ports, selections: s.actionSelections, save: refs.draft.saveChoices, controls: () => controls(page), interaction: (node, options) => host.interaction(node, options),
@@ -113,7 +114,7 @@ function mountChoices(page: Page) {
   refs.renderCards = actions.renderCards;
   refs.openActions = actions.open;
   refs.openCharacter = characterChoice({
-    ...s.ports, lifetime, translate: L, q, selections: s.characterSelections, titles: s.characterTitles, skillSelections: s.characterSkills, save: refs.draft.saveChoices, controls: () => controls(page),
+    ...s.ports, lifetime, translate: readText, q, selections: s.characterSelections, titles: s.characterTitles, skillSelections: s.characterSkills, save: refs.draft.saveChoices, controls: () => controls(page),
   }).open;
 }
 

@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import { GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { currentLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.momentum({ translate: L, escapeHtml, icon, currentLocale,
+const renderer = goalsRenderers.momentum({ translate: t.text, escapeHtml, icon, currentLocale,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>` });
 const item = (id: string, title = id): GoalsMomentumItem => ({ goal: { goal_id: id, title, priority: 1, created_at: "2026-08-01", updated_at: "2026-09-05", fulfillment_state: "unmet", acceptance_criteria: [] },
   status: "execution_pending", work_state: "execution_pending", display_status: "continue", relations: [], reasons: [], events: [] });
@@ -25,6 +24,7 @@ test("canvas renders provider-to-consumer edges, keeps parent membership separat
   consumer.relations = [dependency, membership];
   const model = view([consumer, provider, parent], [dependency, membership]);
   const html = renderer.renderGoalMomentum(model, "APP", model.goals);
+  assert.match(html, /<path d="M 0 0 L 10 5 L 0 10 z"/);
   assert.match(html, /data-edge-from="API" data-edge-to="APP"/);
   assert.doesNotMatch(html, /data-edge-from="ROOT"|data-edge-to="ROOT"/);
   assert.match(html, /属于：Parent/);
@@ -62,12 +62,12 @@ test("canvas has an honest empty state and localizes controls without translatin
   assert.match(emptyBlock, /目标和依赖会作为节点出现在这里/);
   assert.doesNotMatch(emptyBlock, /还没有目标|data-open-create|mw-btn|<h2>|<button/);
   assert.doesNotMatch(emptyHtml, /从想要的结果开始|创建第一条 Goal/);
-  const emptyEnglish = runWithLocale("en", () => renderer.renderGoalMomentum(empty, "", []));
+  const emptyEnglish = withGoalLocale("en", () => renderer.renderGoalMomentum(empty, "", []));
   assert.match(emptyEnglish, /No Goals yet/);
   assert.match(emptyEnglish, /Goals and dependencies will appear here as nodes\./);
   const user = item("USER", "目标关系");
   const model = view([user]);
-  const html = runWithLocale("en", () => renderer.renderGoalMomentum(model, "USER", model.goals));
+  const html = withGoalLocale("en", () => renderer.renderGoalMomentum(model, "USER", model.goals));
   assert.match(html, /<strong>目标关系<\/strong>/);
   assert.doesNotMatch(html, /<h1>|Goal relationships|Arrows lead from prerequisites|Click to trace relations/);
   assert.match(html, /Open Frame/);

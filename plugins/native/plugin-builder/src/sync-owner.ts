@@ -1,3 +1,4 @@
+import {studioLocaleFiles} from './agent-ui-text.js';
 import type {PluginDistributionVerifier} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import {validateBuilderUnit} from './sync-shape.js';
 import {existsSync,lstatSync,mkdirSync,realpathSync} from 'node:fs';
@@ -60,6 +61,7 @@ function verifyReleases(value:BuilderPortableState,options:BuilderReplicationOpt
   const signed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(encoded));
   if(!encoded.equals(Buffer.from(JSON.stringify(signed))))return builderSyncInvalid();
   files.delete('signed-package.json');
+  for (const [path, body] of Object.entries(studioLocaleFiles((release.design as AgentRelease['design']).localePacks))) files.set(path, Buffer.from(body));
   options.verifyDistribution({pluginId:String(release.pluginId),version:Number(release.version),runtimeScope:distribution.runtime_scope,publisherKeyId:distribution.publisher_key_id},signed,files);
  }
  return value;

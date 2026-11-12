@@ -5,9 +5,11 @@ import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTa
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
 import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
+import type { TextRef, UiLanguageTag } from "./ui-text.js";
 import type { UiSlotDescriptor } from "./ui-slots.js";
 export * from "./ui-returns.js";
 export * from "./ui-environment.js";
+export * from "./ui-selection.js";
 export * from "./ui-files.js";
 export * from "./ui-text.js";
 export * from "./ui-state-rings.js";
@@ -318,15 +320,13 @@ export interface StageTerminalPaneModel {
 /** Existing shell drawing services, bound to this stage's owner and the current page. No execution authority. */
 export interface StagePageDrawing {
   mount: (contributionId: string, surface: string, model: unknown) => string;
-  currentLocale: () => "zh" | "en";
+  currentLocale: () => UiLanguageTag;
   listJoin: (values: readonly string[]) => string;
   formatDocumentDate: (value: string | null | undefined) => string;
   renderList: (values: string[], empty: string) => string;
   prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
   renderReference: (value: string, label?: string) => string;
-  creatableKinds: readonly { readonly station: string; readonly title: string; readonly plugin_id: string }[];
-  /** Runs synchronously in that plugin's words and supplies its translator for cross-owner text. */
-  inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
+  creatableKinds: readonly { readonly station: string; readonly title: string; readonly label?: string; readonly plugin_id: string }[];
   renderTerminalPane: (model: StageTerminalPaneModel) => string;
   renderHint: (options: { id: string; label: string; text?: string; html?: string; iconName?: string }) => string;
   withDesktopQuery: (path: string) => string;
@@ -335,7 +335,6 @@ export interface StagePageDrawing {
   document?: {
     readonly lang: string;
     readonly navigation_html: string;
-    readonly client_i18n: string;
     readonly request_client: string;
     readonly foundation_client: string;
     render(request: WorkbenchDocumentRenderRequest): string;
@@ -410,15 +409,19 @@ export interface SettingsPageModel<Data = unknown> {
 export interface UiViewCreateEntry {
   /** The `id` of a `workflow_content` station of the same Manifest whose role is `create`; `placement.create` calls it. */
   readonly station: string;
-  /** The kind's name (文档, 问卷): the button says it, and a new one is called 未命名 followed by it. */
+  /** The kind's name, also the original used if the supplying release no longer has the words. */
   readonly title: string;
+  /** Optional owned short text, resolved by the Host while projecting the supplying declaration. */
+  readonly title_text?: TextRef;
 }
 
 /** One way to start something from the project home on an empty day; choosing it opens the view's plugin. */
 export interface UiViewStartEntry {
   readonly title: string;
+  readonly title_text?: TextRef;
   /** One sentence, shown as the entry's hint. */
   readonly hint: string;
+  readonly hint_text?: TextRef;
   /** Icon name from the Host's catalog, as for the view's own `icon`; omitted means the view's icon. */
   readonly icon?: string;
 }
@@ -428,12 +431,8 @@ export interface UiViewDeclaration {
   readonly view_id: string;
   readonly slot: UiViewSlot;
   readonly title: string;
-  /**
-   * `navigator` and `island` views only: the title in the English interface (BL-636), one line of English of at most 80 characters.
-   * Left out, the English interface shows `title`; the Chinese interface always does. A view that opens nothing from the rail has
-   * no title the shell draws, so a `side`, `settings` or `stage` view that declares it is refused.
-   */
-  readonly title_en?: string;
+  /** The view's own title, never filled from the Manifest name. Without usable words, show `title`. */
+  readonly title_text?: TextRef;
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**
@@ -628,7 +627,6 @@ export interface UiPageInteraction {
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
   readonly root: Element;
   readonly scope: UiClientScope;
-  readonly translate: UiClientTranslate;
   readonly mount: UiClientMount | null;
   /** Public navigation parameters of the enclosing workbench; they grant no action or record access. */
   readonly search?: string;

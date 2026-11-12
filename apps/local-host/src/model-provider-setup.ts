@@ -1,14 +1,14 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { randomUUID } from "node:crypto";
 import type { ResolvedModelSelection } from "@molis-ai/molis-work-service-agent-host";
 import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ModelProviderInput } from "./model-provider-store.js";
 import type { ModelSettingsModel } from "@molis-ai/molis-work-app-workbench";
-import { modelProviderTemplate, modelTemplateChoices } from "./model-provider-templates.js";
+import { modelProviderTemplate, modelTemplateChoices, modelTemplateName } from "./model-provider-templates.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import { modelCheckReason, modelProviderCheckErrors } from "./model-provider-checks.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
-import { L } from "./web-locale.js";
 
 /**
  * Setting up a model provider from the settings page: the form a template starts, and the one connectivity check a save
@@ -25,7 +25,7 @@ function modelProviderDraft(templateId: string | null | undefined): { provider: 
     template_id: template?.template_id ?? null,
     provider: {
       provider_id: template ? `${template.template_id}-${randomUUID().slice(0, 8)}` : `custom-${randomUUID()}`,
-      display_name: L(template?.display_name ?? "新供应商"), base_url: template?.base_url ?? "",
+      display_name: template ? modelTemplateName(template) : uiText.text("workbench.model-provider-setup.new-provider"), base_url: template?.base_url ?? "",
       api_format: template?.api_format ?? "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off",
       models: template && models.length === 0 ? [{ model_id: "", enabled: true }] : models, created_at: "", updated_at: "",
     },
@@ -65,12 +65,12 @@ export interface ModelProviderSave {
 
 /** What a save refuses on its own, before a key is read or becomes a connection. Shared by the check and the commit. */
 function assertSaveable(catalog: MolisWorkProjectCatalog, save: ModelProviderSave) {
-  if (save.api_key && save.connection_id) throw new Error(L("请只选择已有连接，或填写新的 API Key"));
-  if (save.api_key && save.api_key.length < 8) throw new Error(L("API Key 太短"));
+  if (save.api_key && save.connection_id) throw new Error(uiText.text("workbench.model-provider-setup.choose-saved-connection-enter-new-api-key-not"));
+  if (save.api_key && save.api_key.length < 8) throw new Error(uiText.text("workbench.model-provider-setup.api-key-too-short"));
   const alreadyStored = Boolean(catalog.models.get(save.provider_id) && catalog.models.hasCredential(save.provider_id));
-  if (!save.api_key && !save.connection_id && !alreadyStored) throw new Error(L("请填写 API Key，或选择一条已保存的连接"));
+  if (!save.api_key && !save.connection_id && !alreadyStored) throw new Error(uiText.text("workbench.model-provider-setup.enter-api-key-choose-saved-connection"));
   if (save.check_connection && save.input.models?.some((model) => !model.model_id.trim())) {
-    throw new Error(L("请填写模型 ID（供应商文档里的模型名），或删掉空的一行。"));
+    throw new Error(uiText.text("workbench.model-provider-setup.enter-model-id-model-name-provider-s-documentation"));
   }
   return catalog.models.check(save.input);
 }
@@ -88,9 +88,9 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
   const enabled = record.models.filter((model) => model.enabled).map((model) => model.model_id);
   if (enabled.length === 0) {
     if (existing) return null;
-    throw new Error(L("还没有可用的模型：先添加一个模型 ID（供应商文档里的模型名）再保存。"));
+    throw new Error(uiText.text("workbench.model-provider-setup.no-model-yet-add-model-id-model-name"));
   }
-  if (!home && (save.api_key || save.connection_id)) throw new Error(L("本机连接库不可用"));
+  if (!home && (save.api_key || save.connection_id)) throw new Error(uiText.text("workbench.model-provider-setup.local-connection-store-unavailable"));
   const known = existing?.models.filter((model) => model.enabled).map((model) => model.model_id) ?? [];
   const added = enabled.find((id) => !known.includes(id));
   const { current, picked } = home ? withConnectorConnections(home, (store) => ({
@@ -106,19 +106,19 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
   let apiKey = save.api_key;
   if (!apiKey && connection && home) {
     apiKey = withConnectorConnections(home, (store) => {
-      if (store.state(connection) !== "connected") throw new Error(L("所选连接不可用"));
+      if (store.state(connection) !== "connected") throw new Error(uiText.text("workbench.model-provider-setup.chosen-connection-unavailable"));
       const pinned = store.targetOrigin(connection.connection_id), origin = new URL(record.base_url).origin;
-      if (pinned && pinned !== origin) throw new Error(L("这条连接已绑定 {pinned}；如需访问 {origin}，请新建连接", { pinned, origin }));
+      if (pinned && pinned !== origin) throw new Error(uiText.text("workbench.model-provider-setup.connection-bound-pinned-reach-origin-create-new-connection", { pinned, origin }));
       return store.resolveToken(connection.connection_id, "model-api");
     });
   }
   // A key is usable only through a connection pinned to the provider's address (the 2026-10-05 decision, 6fabc13e6): a
   // provider whose reference has no connection has no key to check with, and a Run would refuse it as well. The person
   // types the key again, which makes the connection.
-  if (!apiKey.trim()) throw new Error(L("读不到已保存的密钥，请重新填写 API Key"));
+  if (!apiKey.trim()) throw new Error(uiText.text("workbench.model-provider-setup.saved-key-could-not-be-read-enter-api"));
   const target = added ?? enabled[0];
   const model = record.models.find((entry) => entry.model_id === target);
-  if (!model) throw new Error(L("还没有可用的模型：先添加一个模型 ID（供应商文档里的模型名）再保存。"));
+  if (!model) throw new Error(uiText.text("workbench.model-provider-setup.no-model-yet-add-model-id-model-name"));
   return { provider: { ...record, credential_ref: existing?.credential_ref || "pending-check" }, model, api_key: apiKey };
 }
 
@@ -127,27 +127,27 @@ export function modelCheckProblem(raw: string): string {
   const code = /^(MODEL_[A-Z_]+)/.exec(raw)?.[1];
   const status = Number(/\((\d{3})\)/.exec(raw)?.[1] ?? 0);
   const reason = code === "MODEL_HTTP_ERROR" ? httpReason(status)
-    : code === "MODEL_NETWORK_FAILED" ? (/resolved|ENOTFOUND/i.test(raw) ? L("找不到这个地址的主机。检查 Base URL 有没有拼错，再看网络或代理。")
-      : /ECONNREFUSED/i.test(raw) ? L("连不上这个地址：对方没有在监听。检查 Base URL 和端口。") : L("连不上这个地址。检查 Base URL、网络或代理。"))
-    : code === "MODEL_RESPONSE_INVALID" || raw === "模型返回了空内容" ? L("服务有回应，但不是这个 API 格式该有的内容。检查 Base URL 和 API 格式有没有选对。")
-    : /超时/.test(raw) ? L("一直没有等到回应。检查地址和网络后重试。")
-    : L("检查没有完成（{code}）。", { code: code ?? "unknown" });
+    : code === "MODEL_NETWORK_FAILED" ? (/resolved|ENOTFOUND/i.test(raw) ? uiText.text("workbench.model-provider-setup.host-address-could-not-be-found-check-base")
+      : /ECONNREFUSED/i.test(raw) ? uiText.text("workbench.model-provider-setup.could-not-connect-nothing-listening-there-check-base") : uiText.text("workbench.model-provider-setup.could-not-connect-address-check-base-url-network"))
+    : code === "MODEL_RESPONSE_INVALID" || raw === "模型返回了空内容" ? uiText.text("workbench.model-provider-setup.service-answered-but-not-api-format-check-base")
+    : /超时/.test(raw) ? uiText.text("workbench.model-provider-setup.no-response-came-back-check-address-network-then")
+    : uiText.text("workbench.model-provider-setup.check-did-not-finish-code", { code: code ?? "unknown" });
   return reason;
 }
 
 /** What the person reads when the check before a save fails: nothing was saved, and what they typed is still there. */
 function modelCheckFailure(raw: string): string {
-  return L("连接检查没有通过，所以没有保存。{reason} 填写的内容还在，改好后可以再保存。", { reason: modelCheckProblem(raw) });
+  return uiText.text("workbench.model-provider-setup.connection-check-did-not-pass-so-nothing-was", { reason: modelCheckProblem(raw) });
 }
 
 function httpReason(status: number): string {
-  if (status === 401 || status === 403) return L("服务拒绝了这个 API Key（{status}）。检查 Key 有没有填对、是不是这个地址的 Key。", { status });
-  if (status === 404) return L("服务找不到这个地址或模型（404）。检查 Base URL 和模型 ID 有没有写对。");
-  if (status === 400 || status === 422) return L("服务不接受这次请求（{status}）。多半是模型 ID 写错了，也可能是 API 格式选得不对。", { status });
+  if (status === 401 || status === 403) return uiText.text("workbench.model-provider-setup.service-rejected-api-key-status-check-key-correct", { status });
+  if (status === 404) return uiText.text("workbench.model-provider-setup.service-could-not-find-address-model-404-check");
+  if (status === 400 || status === 422) return uiText.text("workbench.model-provider-setup.service-did-not-accept-request-status-model-id", { status });
   // The model path hands back the status only, so a throttle and an exhausted account read the same here (`model-provider-checks.ts`).
-  if (status === 429) return L("服务说请求太多或额度用完了（429）。稍后再试，或看看账户额度。");
-  if (status >= 500) return L("服务那边出错了（{status}）。稍后再试。", { status });
-  return L("服务拒绝了这次请求（{status}）。", { status });
+  if (status === 429) return uiText.text("workbench.model-provider-setup.service-says-there-too-many-requests-quota-used");
+  if (status >= 500) return uiText.text("workbench.model-provider-setup.service-had-error-status-try-again-later", { status });
+  return uiText.text("workbench.model-provider-setup.service-refused-request-status", { status });
 }
 
 /**
@@ -166,7 +166,7 @@ export async function verifyModelConnection(selection: ResolvedModelSelection): 
 export function commitModelProvider(catalog: MolisWorkProjectCatalog, home: string | undefined, save: ModelProviderSave) {
   assertSaveable(catalog, save);
   const { provider_id: providerId, input, api_key: apiKey, connection_id: requestedConnection } = save;
-  if (!home && (apiKey || requestedConnection)) throw new Error(L("本机连接库不可用"));
+  if (!home && (apiKey || requestedConnection)) throw new Error(uiText.text("workbench.model-provider-setup.local-connection-store-unavailable"));
   const hadReady = catalog.models.health().some((entry) => entry.status === "ready");
   // The key lives in a model-api connection: a typed key becomes a new one, otherwise the chosen or current one is used.
   const credentialRef = home ? withConnectorConnections(home, (store) => {
@@ -178,7 +178,7 @@ export function commitModelProvider(catalog: MolisWorkProjectCatalog, home: stri
     const current = catalog.models.get(providerId)?.credential_ref;
     const connection = requestedConnection ? store.require(requestedConnection, "model-api")
       : store.list("model-api").find((row) => row.credential_ref === current);
-    if (requestedConnection && (!connection?.credential_ref || store.state(connection) !== "connected")) throw new Error(L("所选连接不可用"));
+    if (requestedConnection && (!connection?.credential_ref || store.state(connection) !== "connected")) throw new Error(uiText.text("workbench.model-provider-setup.chosen-connection-unavailable"));
     if (connection) store.assertTarget(connection.connection_id, "model-api", input.base_url);
     return connection?.credential_ref ?? undefined;
   }) : undefined;

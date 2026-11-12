@@ -189,18 +189,25 @@ const CARRIED_BY_CODING = `(async () => {
 const popoversScript = (floor: number) => `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const notices = [
-    { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
-    { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
-    { notice_id: "t3", kind: "finished", text: "整理待办已完成", work_id: "w3" },
-    { notice_id: "t4", kind: "finished", text: "一条被规则压下的结果", work_id: "w4", held: { reason: "安静时段" } },
+    { notice_id: "t1", kind: "needs-decision", text: { original: "需要你决定发布时间" }, work_id: "w1" },
+    { notice_id: "t2", kind: "reminder", text: { original: "下午三点的评审" }, work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
+    { notice_id: "t3", kind: "finished", text: { original: "整理待办已完成" }, work_id: "w3" },
+    { notice_id: "t4", kind: "finished", text: { original: "一条被规则压下的结果" }, work_id: "w4", held: { reason: "安静时段" } },
   ];
   const real = window.fetch;
   // The notices come with the page's one attention read (W4-10): the test's notices replace the Assistant's in its answer.
   window.fetch = (input, init) => /\\/api\\/attention\\b/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
     ? real(input, init).then(response => response.json()).then(body => new Response(JSON.stringify({ ...body, notices }), { status: 200, headers: { "content-type": "application/json" } }))
     : real(input, init);
-  document.dispatchEvent(new Event("visibilitychange"));
-  await wait(400);
+  await new Promise((resolve, reject) => {
+    const listen = event => {
+      if (!event.detail?.notices?.some(notice => notice.notice_id === "t1")) return;
+      clearTimeout(timer); document.removeEventListener("molis-work:attention", listen); resolve();
+    };
+    const timer = setTimeout(() => { document.removeEventListener("molis-work:attention", listen); reject(new Error("Test notices did not reach the bell")); }, 10000);
+    document.addEventListener("molis-work:attention", listen);
+    document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  });
   const out = {};
   for (const [name, button, popover, present] of ${JSON.stringify(POPOVER_CONTENTS)}) {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.

@@ -1,5 +1,6 @@
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
+import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, UI_LOCALE_FILE } from "@molis-ai/molis-work-service-appearance";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginProjectTablesVersion } from "@molis-ai/molis-work-plugin-runtime";
 import {
@@ -11,7 +12,6 @@ import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
 import { COMPUTER_SETTINGS_FILE } from "./computer/computer-settings.js";
 import { MCP_TOOL_PREFERENCE_FILE } from "./mcp-settings-store.js";
-import { UI_LOCALE_FILE } from "./ui-locale-memory.js";
 import { MODEL_PREFERENCE_FILE } from "./model-configuration.js";
 import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
@@ -112,10 +112,11 @@ function computerRecords(home: string): readonly string[] {
 
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
+  { owner: "horizontal/appearance", pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
   { owner: "apps/local-host", pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
   { owner: "apps/local-host", pattern: join("config", "project-arrival.json"), file: PROJECT_ARRIVAL_FILE },
-  { owner: "apps/local-host", pattern: join("config", "ui-locale.json"), file: UI_LOCALE_FILE },
+  { owner: "horizontal/appearance", pattern: join("config", "ui-locale.json"), file: UI_LOCALE_FILE },
   { owner: "apps/local-host", pattern: join("browser", "sites.json"), file: BROWSER_SITES_FILE },
   { owner: "apps/local-host", pattern: join("computer", "settings.json"), file: COMPUTER_SETTINGS_FILE },
   { owner: "apps/local-host", pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },

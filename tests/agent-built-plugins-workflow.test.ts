@@ -2,22 +2,20 @@ import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-bui
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { createStudioBrowserServer, studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { studioHarnessRequests, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor, sendLocalWebJson, authorizeLocalWebRequest, HomeConsentLedger, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, runBackgroundWork, runWithLocale, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
 import childProcesses, { execFileSync, type ChildProcess } from 'node:child_process';
-import { pluginOnDemandStylesheet } from '@molis-ai/molis-work-app-workbench';
-import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
@@ -25,11 +23,12 @@ import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
-import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
+import { builderSkills } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { readyPublication } from './fixtures/studio-publishing.js';
 
+const stepKey = (step: AgentBuild['steps'][number]) => typeof step.label === 'string' ? '' : step.label.key;
 const publicationAuthority = { signal: new AbortController().signal, beforeEffect: async () => {}, assert_authority_current() {} };
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
@@ -41,12 +40,14 @@ const publicationAuthority = { signal: new AbortController().signal, beforeEffec
 interface Harness { ports: AgentBuilderPorts; requests: BuilderAgentRequest[]; implemented: Set<string>; choices: number; /** The instructions of each question Jev was asked. */ asked: string[] }
 /** Designer answers are played back in order; the code agent "implements" the operation it is given. */
 function harness(designerAnswers: string[], options: { jev?: string | Error } = {}): Harness {
+  installHostUiText();
   const requests: BuilderAgentRequest[] = [], implemented = new Set<string>();
   const state: Harness = { ports: undefined as unknown as AgentBuilderPorts, requests, implemented, choices: 0, asked: [] };
   const record = (request: BuilderAgentRequest, output: string): BuilderAgentRecord => ({ id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion,
     contractRevision: request.contractRevision, instruction: request.instruction, input: request.task, output, configuredModel: 'configured', reportedModels: ['reported'],
     phase: 'completed', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] });
   state.ports = {
+    runInLanguage: run => runBackgroundWork('zh', run),
     projectId: 'project', catalog: async () => [], models: async () => [{ provider_id: 'p', model_id: 'm', label: 'M' }],
     agent: async () => ({
       async run(request) {
@@ -99,6 +100,13 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   answer.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
   answer.design.operations[0].examples = [{ input: {}, output: { items: [] } }];
   answer.design.pages[0].parts[2].read = { op: 'notes.list', show: 'items' };
+  const words: Record<'zh' | 'en', Record<string, string>> = {
+    zh: { 'plugin/name': '共享清单', 'page/home/title': '共享清单', 'region/home/main/title': '共享清单',
+      'part/title/title': '共享清单', 'part/editor/submitLabel': '添加', 'field/notes.add/text/label': '笔记' },
+    en: { 'plugin/name': 'Shared checklist', 'page/home/title': 'Shared checklist', 'region/home/main/title': 'Shared checklist',
+      'part/title/title': 'Shared checklist', 'part/editor/submitLabel': 'Add', 'field/notes.add/text/label': 'Note' },
+  };
+  answer.design.uiText = { default: 'zh', locales: words };
   setup.configure?.(answer);
   const helper = "import type { SandboxSdk } from '@molis/plugin-sdk';\nimport { row } from './nested/index.js';\nexport async function list(sdk: SandboxSdk) { const value = await sdk.storage.get('rows'); return Array.isArray(value) ? value : []; }\nexport async function add(sdk: SandboxSdk, text: string) { await sdk.storage.set('rows', [...await list(sdk), row(text)]); return { id: 'n1' }; }\n";
   const nested = "export function row(text: string) { return { id: 'n1', text }; }\n";
@@ -139,25 +147,25 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
     } }),
   };
   const mutations = new Map<string, LocalMutationState>();
+  const web = studioHarnessRequests(f.home, project.project_id, f.token);
   const trialKeys: string[] = [], trialProbes: Promise<void>[] = [], trialProbeErrors: unknown[] = [];
   server = createStudioBrowserServer(f.home, f.token, (request, response, pageProof) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    const stylesheet = url.pathname === '/assets/molis-work-plugins/plugin-builder.css' ? pluginOnDemandStylesheet('plugin-builder') : url.pathname === '/assets/molis-work-settings.css' ? VISUAL_FOUNDATION_STYLES : undefined;
-    if (stylesheet !== undefined) { response.writeHead(200, { 'content-type': 'text/css' }); response.end(stylesheet); return; }
-    if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
-    const key = url.searchParams.get('acceptance');
-    if (key && !trialKeys.includes(key)) {
-      trialKeys.push(key);
-      if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
-    }
-    const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix!.length);
-    void pluginPagesFor(f.home).bind(request, url).then(async release => {
-      if (release) response.once('close', release);
-      if (key && url.searchParams.get('frame') === 'workbench') await setup.trialPage?.(key, url.pathname.split('/').at(-1)!, send);
-      return handleAgentStudioHttp(request, response, local, options, pageProof);
-    }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+    web.handle(request, response, url, options.routePrefix!, (local, proof) => {
+      if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
+      const key = url.searchParams.get('acceptance');
+      if (key && !trialKeys.includes(key)) {
+        trialKeys.push(key);
+        if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
+      }
+      return pluginPagesFor(f.home).bind(request, url).then(async release => {
+        if (release) response.once('close', release);
+        if (key && url.searchParams.get('frame') === 'workbench') await setup.trialPage?.(key, url.pathname.split('/').at(-1)!, send);
+        return handleAgentStudioHttp(request, response, local, options, proof);
+      }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+    });
   });
+  server.once('close', web.close);
   await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port;
   const send = async <T>(path: string, body?: unknown): Promise<T> => {
@@ -180,14 +188,14 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   await send('/builds/' + current.id + '/action', { action: 'choose', revision: current.revision, candidateId: 'quick' });
   current = await wait(current.id);
   const passed = (build: AgentBuild) => {
-    assert.equal(build.checks.global?.passed, true, JSON.stringify(build.checks.global));
+    assert.equal(build.checks.global?.passed, true, studioBuildDiagnostic(build.error) || JSON.stringify(build.checks.global));
     assert.deepEqual(build.checks.global!.gates.map(gate => [gate.id, gate.passed]), ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'].map(id => [id, true]));
     assert.equal(build.browserResult?.passed, setup.browserExecutable ? setup.browserPassed ?? true : false, JSON.stringify(build.browserResult));
     if (!setup.browserExecutable) assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
   };
   passed(current);
   await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []);
-  return { f, answer, coded, helper, nested, send, wait, passed, current, trialKeys,
+  return { f, answer, words, coded, helper, nested, send, wait, passed, current, trialKeys,
     rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
     async revise() { await send('/builds/' + current.id + '/action', { action: 'revise', revision: current.revision, message: '只调整界面' }); current = await wait(current.id); return current; },
   };
@@ -198,6 +206,8 @@ test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operatio
   const oldList = await fs.readFile(join(old, 'src/operations/0.ts'), 'utf8'), oldAdd = await fs.readFile(join(old, 'src/operations/1.ts'), 'utf8');
   await fs.chmod(join(old, 'src/index.ts'), 0o600); await fs.writeFile(join(old, 'src/index.ts'), 'throw new Error("OLD_INDEX_MUST_NOT_COPY");\n');
   f.answer.design.operations.reverse(); f.answer.design.pages[0].parts[2].props.emptyText = '新空态';
+  f.words.zh['part/notes/emptyText'] = '新空态';
+  f.words.en['part/notes/emptyText'] = 'New empty state';
   let revised = await f.revise(); f.passed(revised);
   assert.equal(f.coded.length, 2, 'a pure UI revision never invokes coder');
   const directory = f.rootFor(revised);
@@ -223,7 +233,7 @@ test('RAC-2933 real Host revision rejects shared source file and directory links
     await fs.symlink(kind === 'file' ? join(outside, 'private.ts') : outside, link);
     const before = new Set(await fs.readdir(dirname(directory)));
     const rejected = await f.revise();
-    assert.match(rejected.error ?? '', /Symbolic links are not allowed/);
+    assert.match(studioBuildDiagnostic(rejected.error) ?? '', /Symbolic links are not allowed/);
     assert.equal(f.coded.length, 2, 'unsafe reuse does not ask coder to hide the failure');
     for (const name of await fs.readdir(dirname(directory))) if (!before.has(name) && !name.endsWith('.settled')) {
       await assert.rejects(fs.lstat(join(dirname(directory), name, 'src', kind === 'file' ? 'foreign.ts' : 'foreign')), { code: 'ENOENT' });
@@ -237,7 +247,7 @@ test('RAC-2933 real Host revision rejects a non-regular shared source before rea
   const f = await revisionHelperStudio(t), directory = f.rootFor(f.current);
   execFileSync('mkfifo', [join(directory, 'src/blocked.ts')]);
   const rejected = await f.revise();
-  assert.match(rejected.error ?? '', /Build source must be a regular file: src\/blocked\.ts/);
+  assert.match(studioBuildDiagnostic(rejected.error) ?? '', /Build source must be a regular file: src\/blocked\.ts/);
   assert.equal(f.coded.length, 2, 'non-regular reuse fails without asking coder to hide it');
 });
 
@@ -266,7 +276,7 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
   try {
     const created = workflow.create('做一个随手记笔记的插件');
     let build = await until(workflow, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
-    assert.equal(build.phase, 'choosing', build.error ?? '');
+    assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(build.candidates.length, 2);
     const designerTasks = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task));
     assert.equal(designerTasks.length, 2, 'one repair round');
@@ -275,12 +285,12 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     assert.equal(designerTasks[0].repair, undefined);
     assert.match(designerTasks[1].repair.validationError, /JSON/);
     assert.match(designerTasks[1].repair.previousAnswer, /<think>/, 'the model sees exactly what it answered');
-    assert.ok(build.steps.some(step => step.action === 'repair' && /第 1 次/.test(step.label)), 'the repair round is visible');
+    assert.deepEqual(build.steps.find(step => step.action === 'repair')?.label, { key: 'plugin-builder.studio-step.repair-design', args: [{ name: 'round', kind: 'number', number: 1 }] });
     assert.equal(build.runs.filter(run => run.role === 'designer').length, 2);
 
     build = await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'board' }) as AgentBuild;
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const detailTask = JSON.parse(h.requests.filter(request => request.role === 'designer').at(-1)!.task);
     assert.equal(detailTask.mode, 'detail'); assert.equal(detailTask.proposal.id, 'board', 'only the chosen proposal is designed in full');
     assert.deepEqual(build.design!.contract.operations[1]!.effects, { storage: ['read', 'write'] }, 'a command that writes also reads its storage');
@@ -315,14 +325,16 @@ test('the designer runs the person’s edit from “Prompt 与 Character”, and
     try {
       const created = workflow.create('做一个随手记笔记的插件');
       const build = await until(workflow, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
-      assert.equal(build.phase, 'choosing', build.error ?? '');
+      assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
       const designer = h.requests.find(request => request.role === 'designer')!;
       assert.match(designer.instruction, /所有候选都用暖色。$/);
-      assert.equal(designer.promptVersion, 'designer/1+user.1');
-      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/1+user.1', 'N31: the run persists the origin label and user revision that actually ran');
+      assert.equal(designer.promptVersion, 'designer/3+user.1');
+      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/3+user.1', 'N31: the run persists the origin label and user revision that actually ran');
       assert.equal(registry.uses.list('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
       registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
-      assert.deepEqual(builderPrompts(home)('designer', BUILDER_PROMPTS.designer), BUILDER_PROMPTS.designer, 'after “恢复默认” the shipped text runs again');
+      const shipped = BUILDER_PROMPTS.designer, read = builderPrompts(home);
+      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: 'designer/3', text: shipped.text }, 'after reset the shipped Chinese text runs again');
+      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: 'designer/3', text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
     } finally { await workflow.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -335,7 +347,7 @@ test('a designer that keeps failing validation stops after three repairs with th
     const created = workflow.create('做一个笔记插件');
     const build = await until(workflow, created.id, value => value.phase === 'failed' || value.phase === 'choosing');
     assert.equal(build.phase, 'failed');
-    assert.match(build.error ?? '', /2–3 个/);
+    assert.match(studioBuildDiagnostic(build.error) ?? '', /2–3 个/);
     assert.equal(h.requests.length, 4, 'first answer plus three repairs, never more');
   } finally { await workflow.close(); }
 });
@@ -355,7 +367,7 @@ test('experience, UI and screenshot review use the registered user prompts and r
     let build = await until(workflow, id, value => value.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(build.visualResult?.status, 'reviewed');
     for (const stage of stages) {
       const version = BUILDER_PROMPTS[stage].version + '+user.1';
@@ -377,10 +389,10 @@ test('clarification is one round; asking again is sent back as a repair and the 
     let build = await until(workflow, created.id, value => value.phase === 'clarifying' || value.phase === 'failed');
     assert.equal(build.phase, 'clarifying');
     assert.equal(build.steps.find(step => step.agent === 'design' && step.action === 'design')?.status, 'waiting');
-    assert.match(build.steps.find(step => step.agent === 'design' && step.action === 'design')?.label ?? '', /回答 1 个问题/);
+    assert.deepEqual(build.steps.find(step => step.agent === 'design' && step.action === 'design')?.label, { key: 'plugin-builder.studio-step.questions', args: [{ name: 'count', kind: 'number', number: 1 }] });
     await workflow.action(created.id, { action: 'message', revision: build.revision, message: '不用分类' });
     build = await until(workflow, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
-    assert.equal(build.phase, 'choosing', build.error ?? '');
+    assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
     assert.match(JSON.parse(h.requests.at(-1)!.task).repair.validationError, /澄清/);
   } finally { await workflow.close(); }
 });
@@ -402,7 +414,7 @@ test('code-agent activity cannot grow the build record without bound', async () 
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 20_000);
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.ok(build.steps.length <= 200, `steps ${build.steps.length}`);
     assert.ok(build.steps.some(step => step.agent === 'code' && step.action === 'verify'), 'milestones survive pruning');
     assert.ok(build.steps.some(step => step.agent === 'design'), 'design milestones survive pruning');
@@ -417,11 +429,11 @@ test('a revision that only renames keeps working code and unchanged parts; the c
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const coderRuns = h.requests.filter(request => request.role === 'coder').length;
     await workflow.action(created.id, { action: 'message', revision: build.revision, message: '把名字改成随手快记' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const reviseTask = JSON.parse(h.requests.filter(request => request.role === 'designer').at(-1)!.task);
     assert.equal(reviseTask.mode, 'revise'); assert.equal(reviseTask.request, '把名字改成随手快记');
     assert.equal(reviseTask.current.title, '快记', 'the designer edits its own authoring answer');
@@ -429,7 +441,7 @@ test('a revision that only renames keeps working code and unchanged parts; the c
     assert.equal(h.requests.filter(request => request.role === 'coder').length, coderRuns, 'unchanged operations stay connected');
     assert.deepEqual([...build.connected].sort(), ['notes.add', 'notes.list']);
     assert.equal(build.history.length, 1, 'the previous design can be restored');
-    assert.ok(build.steps.some(step => step.agent === 'design' && /主线已修订/.test(step.label)));
+    assert.ok(build.steps.some(step => step.agent === 'design' && ['plugin-builder.studio-step.design-copy-revised', 'plugin-builder.studio-step.design-revised'].includes(stepKey(step))));
   } finally { await workflow.close(); }
 });
 
@@ -445,7 +457,7 @@ test('a failed acceptance case goes back to the code agent with the operations i
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(runs, 2);
     const repair = h.requests.filter(request => request.role === 'coder' && request.promptVersion.startsWith('acceptance/'));
     assert.equal(repair.length, 1);
@@ -454,7 +466,7 @@ test('a failed acceptance case goes back to the code agent with the operations i
   } finally { await workflow.close(); }
 });
 
-test('acceptance that keeps failing stops with the case and a plain reason', async () => {
+test('acceptance that keeps failing stops with the case, recovery words and the original diagnostic', async () => {
   const h = harness([PROPOSALS, detail('快记')]);
   h.ports.browserAcceptance = async () => ({ passed: false, cases: [{ id: 'add-note', passed: false, detail: 'Error: 验收等待超时\n    at check (<anonymous>:1:2)' }], at: new Date().toISOString() });
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
@@ -464,8 +476,11 @@ test('acceptance that keeps failing stops with the case and a plain reason', asy
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'failed' || value.phase === 'ready');
     assert.equal(build.phase, 'failed');
-    assert.match(build.error ?? '', /界面验收「添加后能在列表里看到」仍未通过：界面上等了 20 秒仍没有出现预期的结果/);
-    assert.doesNotMatch(build.error ?? '', /at check/);
+    assert.deepEqual(build.error, {
+      title: { key: 'plugin-builder.agent-studio.name-did-not-work-expected-trial', args: [{ name: 'name', kind: 'text', text: '添加后能在列表里看到' }] },
+      guidance: { key: 'plugin-builder.agent-studio.choose-continue-let-ai-fix-once-more-tell' },
+      detail: 'Error: 验收等待超时\n    at check (<anonymous>:1:2)',
+    });
     assert.equal(h.requests.filter(request => request.promptVersion.startsWith('acceptance/')).length, 2, 'two repair rounds, then the person decides');
   } finally { await workflow.close(); }
 });
@@ -482,12 +497,12 @@ test('an acceptance failure where the data has the text but the part does not sh
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const revise = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'revise');
     assert.match(revise?.request ?? '', /只调整这个组件的显示设置/);
     assert.match(revise?.request ?? '', /「hello」/);
     assert.equal(h.requests.filter(request => request.promptVersion.startsWith('acceptance/')).length, 0, 'no code-agent round for a display problem');
-    assert.ok(build.steps.some(step => step.label.startsWith('已按验收调整界面显示')));
+    assert.ok(build.steps.some(step => stepKey(step) === 'plugin-builder.studio-step.display-revised'));
   } finally { await workflow.close(); }
 });
 
@@ -503,7 +518,7 @@ test('an expected text on a part that reads nothing goes to the designer as a wi
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const revise = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'revise');
     assert.match(revise?.request ?? '', /prefill:组件\.字段/);
     assert.equal(h.requests.filter(request => request.promptVersion.startsWith('acceptance/')).length, 0, 'the code agent cannot wire parts together');
@@ -522,14 +537,14 @@ test('a change inside an operation that its contract cannot show still reaches t
     const before = h.requests.filter(request => request.role === 'coder').length;
     await workflow.action(created.id, { action: 'message', revision: build.revision, message: '保存时把多余的空格去掉' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const runs = h.requests.filter(request => request.role === 'coder').slice(before);
     assert.equal(runs.length, 1, 'the contract is unchanged, so only the reworked operation runs, even though its checks already pass');
     assert.deepEqual(runs[0]!.operationIds, ['notes.add']);
     assert.match(runs[0]!.promptVersion, /^revise\//);
     assert.equal(JSON.parse(runs[0]!.task).change, '保存前去掉首尾空白，并把连续空格合成一个');
     assert.equal(build.rework, undefined, 'done once connected');
-    assert.ok(build.steps.some(step => /要改代码：「添加笔记」/.test(step.label)), 'people read what the function does, not its id');
+    assert.ok(build.steps.some(step => stepKey(step) === 'plugin-builder.studio-step.design-revised' && step.detail?.includes('↳ 添加笔记')), 'people read what the function does, not its id');
   } finally { await workflow.close(); }
 });
 
@@ -546,7 +561,7 @@ test('an expectation that joins a column label to a value goes to the designer, 
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(h.requests.filter(request => request.promptVersion.startsWith('acceptance/')).length, 0, 'no code-agent round');
   } finally { await workflow.close(); }
 });
@@ -586,10 +601,12 @@ test('a design that uses a plugin the project has not enabled waits for the pers
     await workflow.action(created.id, { action: 'enable-plugins', revision: build.revision });
     assert.deepEqual(enabled, ['goals']);
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(build.pendingPlugins, undefined);
     assert.deepEqual(build.design!.contract.operations[1]!.effects.capabilities, ['goals.note'], 'the design keeps the plugin it asked for');
-    assert.match(build.steps.find(step => step.action === 'decide')!.label, /已启用「目标」/);
+    const decision = build.steps.find(step => step.action === 'decide')!;
+    assert.deepEqual(decision.label, { key: 'plugin-builder.studio-step.plugins-enabled' });
+    assert.match(decision.detail ?? '', /目标/);
     await assert.rejects(workflow.action(created.id, { action: 'enable-plugins', revision: build.revision }), /没有等待启用的插件/);
   } finally { await workflow.close(); }
 });
@@ -605,7 +622,7 @@ test('declining the plugin sends the design back to the designer without it', as
     build = await until(workflow, created.id, value => !!value.pendingPlugins?.length || value.phase === 'failed');
     await workflow.action(created.id, { action: 'skip-plugins', revision: build.revision });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual(enabled, [], 'nothing was enabled');
     const revise = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'revise');
     assert.match(revise?.request ?? '', /不要使用「目标」的能力（记录目标便笺）/);
@@ -625,11 +642,12 @@ test('capabilities are settled before the full design: Jev picks among the provi
     let build = await until(workflow, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const pick = build.steps.find(step => step.action === 'place' && step.agent === 'design');
     assert.deepEqual(pick?.selection?.candidates, ['goals.note', 'goals.progress.record'], 'only same-provider, same-kind, close alternatives; archiving is not one');
     assert.equal(pick?.selection?.source, 'jev'); assert.equal(pick?.selection?.choice, 'goals.progress.record');
-    assert.match(pick?.detail ?? '', /原本选的是 goals\.note/);
+    assert.equal(pick && stepKey(pick), 'plugin-builder.studio-step.capability-selection-changed');
+    assert.equal(pick?.detail, 'goals.note', 'the original choice is kept in the log as the exact capability id');
     assert.equal(h.asked[0], CAPABILITY_WORDS, 'the capability question comes first and uses the registered default, which reads as the workflow always said it');
     assert.ok(h.asked.length > 1 && h.asked.slice(1).every(words => words === COMPONENT_WORDS), 'the parts that follow are asked the component question');
     const detailTask = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'detail');
@@ -639,8 +657,14 @@ test('capabilities are settled before the full design: Jev picks among the provi
   } finally { await workflow.close(); }
 });
 
-test('when Jev cannot pick a capability, the designer\'s choice stands and the build goes on', async () => {
-  const h = harness([proposalsUsing('goals.note'), detailUsing('快记', 'goals.note')], { jev: new Error('Jev 不在线') });
+for (const refusal of [new Error('Jev 不在线'), 'outside-catalog <raw>', null]) test('when Jev cannot pick a capability, the designer\'s choice stands: ' + String(refusal), async () => {
+  const h = harness([proposalsUsing('goals.note'), detailUsing('快记', 'goals.note')]);
+  const choose = h.ports.choose!;
+  h.ports.choose = async question => {
+    if (!question.candidates.some(candidate => candidate.key === 'goals.note')) return choose(question);
+    if (refusal instanceof Error) throw refusal;
+    return { choice: refusal, model: 'jev-fixture', elapsedMs: 3, confidence: null };
+  };
   h.ports.catalog = async () => GOALS_CATALOG;
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
@@ -650,7 +674,8 @@ test('when Jev cannot pick a capability, the designer\'s choice stands and the b
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed' || !!value.pendingPart);
     const pick = build.steps.find(step => step.action === 'place' && step.agent === 'design');
     assert.equal(pick?.selection?.source, 'rule'); assert.equal(pick?.selection?.choice, 'goals.note');
-    assert.match(pick?.detail ?? '', /沿用主线设计的选择/);
+    assert.equal(pick && stepKey(pick), 'plugin-builder.studio-step.capability-selection-kept');
+    assert.equal(pick?.detail, refusal instanceof Error ? refusal.message : refusal ?? undefined);
   } finally { await workflow.close(); }
 });
 
@@ -671,7 +696,7 @@ test('operations are written side by side after the one that writes the data; ea
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(order[0], 'notes.add', 'the data writer goes alone first');
     assert.equal(most, 3, 'the other three are written at once');
     const coder = h.requests.filter(request => request.role === 'coder');
@@ -690,7 +715,7 @@ test('with parallel set to 1, operations are written one after another as before
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual(h.requests.filter(request => request.role === 'coder').map(request => request.operationIds![0]), ['notes.list', 'notes.add', 'notes.count', 'notes.latest']);
     assert.ok(h.requests.filter(request => request.role === 'coder').every(request => request.writable === undefined));
   } finally { await workflow.close(); }
@@ -715,11 +740,11 @@ test('after the host restarts mid-build, continuing writes only what was not con
   workflow = new AgentBuilderWorkflow(storage, h.ports);
   try {
     build = workflow.store.require(created.id);
-    assert.equal(build.phase, 'paused'); assert.match(build.error ?? '', /宿主已重启/);
+    assert.equal(build.phase, 'paused'); assert.deepEqual(build.error, { title: { key: 'plugin-builder.agent-studio.build-interrupted' }, guidance: { key: 'plugin-builder.agent-studio.build-continue-after-restart' }, detail: '' });
     const before = h.requests.filter(request => request.role === 'coder').length;
     await workflow.action(created.id, { action: 'resume', revision: build.revision });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual(h.requests.filter(request => request.role === 'coder').slice(before).map(request => request.operationIds![0]), ['notes.latest'], 'only the unfinished operation is written again');
   } finally { await workflow.close(); }
 });
@@ -742,7 +767,7 @@ test('with an image service each proposal gets one picture (never a second try);
     // The person chose from the page they saw before the pictures arrived.
     await workflow.action(created.id, { action: 'choose', revision: seen, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
   } finally { await workflow.close(); }
 
   const plain = harness([PROPOSALS]);
@@ -776,7 +801,7 @@ test('a fix for a failed acceptance case that breaks a check goes back for repai
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const repair = h.requests.filter(request => request.role === 'coder' && request.promptVersion.startsWith('repair/'));
     assert.equal(repair.length, 1); assert.match(JSON.parse(repair[0]!.task).failure.gates[0].detail, /storage: read/);
   } finally { await workflow.close(); }
@@ -798,11 +823,11 @@ test('code that needs a capability the contract does not declare goes back to th
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual(build.design!.contract.operations[1]!.effects.capabilities, ['goals.list', 'goals.progress.record']);
     const revise = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'revise');
     assert.match(revise?.request ?? '', /notes\.add 的代码需要调用能力 goals\.list/);
-    assert.ok(build.steps.some(step => step.agent === 'host' && /合同里没有声明/.test(step.label)));
+    assert.ok(build.steps.some(step => step.agent === 'host' && stepKey(step) === 'plugin-builder.studio-step.capability-needed'));
   } finally { await workflow.close(); }
 });
 
@@ -818,11 +843,11 @@ test('a query reading another plugin runs once on real data before ready; a real
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(real, 2, 'tried on real data, then again after the fix');
     const fix = h.requests.filter(request => request.role === 'coder').map(request => JSON.parse(request.task)).find(task => task.failure?.gates?.[0]?.id === 'G7');
     assert.match(fix.failure.gates[0].detail, /真实数据读取时出错：此对象尚未提供可读取的上下文/);
-    assert.ok(build.steps.some(step => step.label === '已按真实数据修正'));
+    assert.ok(build.steps.some(step => stepKey(step) === 'plugin-builder.studio-step.live-read-fixed'));
   } finally { await workflow.close(); }
 });
 
@@ -840,10 +865,10 @@ test('a dropped connection during coding is asked again and does not use up a re
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 20_000);
-    assert.equal(build.phase, 'ready', build.error ?? '');
-    assert.ok(build.steps.some(step => step.agent === 'code' && /网络中断，重新请求/.test(step.label)));
-    assert.ok(!build.steps.some(step => /这一轮没有完成/.test(step.label)), 'the dropped run is not a failed round');
-    assert.ok(!build.steps.some(step => /修正「/.test(step.label)), 'no repair round was spent on it');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
+    assert.ok(build.steps.some(step => step.agent === 'code' && stepKey(step) === 'plugin-builder.studio-step.model-retry'));
+    assert.ok(!build.steps.some(step => stepKey(step) === 'plugin-builder.studio-step.round-unfinished'), 'the dropped run is not a failed round');
+    assert.ok(!build.steps.some(step => stepKey(step) === 'plugin-builder.studio-step.repair-operation'), 'no repair round was spent on it');
   } finally { await workflow.close(); }
 });
 
@@ -863,9 +888,12 @@ test('a model that stays unreachable stops the build with a reason, without spen
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'failed' || value.phase === 'ready', 15_000);
     assert.equal(build.phase, 'failed');
-    assert.match(build.error ?? '', /连接模型持续中断.*点「继续」/);
-    assert.equal(build.steps.filter(step => /网络中断，重新请求/.test(step.label)).length, 3);
-    assert.ok(!build.steps.some(step => /修正「|这一轮没有完成/.test(step.label)), 'no repair round was spent on the outage');
+    assert.deepEqual(build.error, {
+      title: { key: 'plugin-builder.agent-studio.build-model-unreachable', args: [{ name: 'count', kind: 'number', number: 3 }] },
+      guidance: { key: 'plugin-builder.agent-studio.build-continue-after-network' }, detail: 'That host could not be resolved; nothing was sent.',
+    });
+    assert.equal(build.steps.filter(step => stepKey(step) === 'plugin-builder.studio-step.model-retry').length, 3);
+    assert.ok(!build.steps.some(step => ['plugin-builder.studio-step.repair-operation', 'plugin-builder.studio-step.round-unfinished'].includes(stepKey(step))), 'no repair round was spent on the outage');
   } finally { setModelRetryWaits([5_000, 15_000, 30_000]); await workflow.close(); }
 });
 
@@ -883,8 +911,8 @@ test('a dropped connection to the model is asked again rather than failing the d
     let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 15_000);
-    assert.equal(build.phase, 'ready', build.error ?? '');
-    assert.ok(build.steps.some(step => /网络中断，重新请求/.test(step.label)));
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
+    assert.ok(build.steps.some(step => stepKey(step) === 'plugin-builder.studio-step.model-retry'));
   } finally { await workflow.close(); }
 });
 
@@ -903,9 +931,41 @@ for (const structural of [true, false]) test('a failed visual suggestion keeps a
     if (structural) {
       assert.equal(build.browserResult?.passed, true);
       assert.equal((build.design!.presentation!.pages[0]!.layout as {gap:string}).gap, 'roomy');
-      assert.ok(build.visualResult?.issues.some(issue => issue.includes('保留通过验收')));
-    } else assert.match(build.error ?? '', /交互验收未通过/);
+      assert.ok(build.visualResult?.issues.includes('交互结果'));
+      assert.ok(build.visualResult?.issues.every(issue => !issue.includes('保留通过验收')));
+      const kept = build.steps.find(step => step.id === 'visual-review:' + build.visualResult?.revision);
+      assert.equal(kept && stepKey(kept), 'plugin-builder.studio-step.layout-kept');
+      assert.equal(kept?.detail, '交互结果');
+    } else assert.deepEqual(build.error, { title: { key: 'plugin-builder.agent-studio.build-visual-checks-failed' }, detail: '交互结果' });
     assert.equal(acceptances, 2);
+  } finally { await workflow.close(); }
+});
+
+test('FSS-36 a visual reviewer failure keeps its original diagnostic beside the fixed status', async () => {
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition()]);
+  h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
+  h.ports.inspectPresentation = async () => ({ structural: true, issues: [], images: [] });
+  const diagnostic = '原始视觉模型错误 <tag>\nraw receipt';
+  const makeAgent = h.ports.agent;
+  h.ports.agent = async (...args) => {
+    const agent = await makeAgent(...args);
+    return { ...agent, async run(request) {
+      if (request.promptVersion.startsWith('ui-review/')) throw new Error(diagnostic);
+      return agent.run(request);
+    } };
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('阅读');
+    const proposal = await until(workflow, id, build => build.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: proposal.revision, candidateId: 'quick' });
+    const build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(build.phase, 'ready');
+    assert.equal(build.visualResult?.status, 'failed');
+    assert.deepEqual(build.visualResult?.issues, [diagnostic]);
+    const review = build.steps.find(step => step.id === 'visual-review:' + build.visualResult?.revision);
+    assert.equal(review && stepKey(review), 'plugin-builder.studio-step.layout-review-interrupted');
+    assert.equal(review?.detail, diagnostic);
   } finally { await workflow.close(); }
 });
 
@@ -922,7 +982,7 @@ test('whole-page design survives Jev failure; visual revision and undo keep the 
   try {
     const { id } = workflow.create('阅读摘记'); let build = await until(workflow, id, b => b.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
-    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(build.nodes.find(n => n.id === 'editor')?.kind, 'sheet');
     assert.equal(build.steps.find(s => s.target === 'editor' && s.action === 'place')?.selection?.source, 'design');
     assert.equal(build.visualResult?.status, 'unavailable');
@@ -930,7 +990,7 @@ test('whole-page design survives Jev failure; visual revision and undo keep the 
     const original = structuredClone(build), counts = [prepared, checked, h.requests.filter(r => r.role === 'coder').length];
     await workflow.action(id, { action: 'publish', revision: build.revision }, publicationAuthority);
     await workflow.action(id, { action: 'visual', revision: workflow.store.require(id).revision, message: '收紧间距' });
-    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual([prepared, checked, h.requests.filter(r => r.role === 'coder').length], counts, 'no new backend directory, build or coder');
     assert.deepEqual(build.design!.contract, original.design!.contract);
     assert.deepEqual(build.connected, original.connected);
@@ -953,14 +1013,14 @@ test('whole-page design survives Jev failure; visual revision and undo keep the 
 test('visual model review has one repair and one confirmation; a stale cancelled visual result cannot commit', async () => {
   const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues: [finding('增大间距', 'synthetic-1'), { ...finding('需要键盘操作证据', 'synthetic-1'), scope: 'unverified' }] }), '{}', composition('normal'), JSON.stringify({ issues: [] }), composition('tight')]);
   h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
-  h.ports.skill = builderSkill;
+  h.ports.skills = builderSkills;
   const inspectedBuilds: AgentBuild[] = [];
   h.ports.inspectPresentation = async build => { inspectedBuilds.push(structuredClone(build)); return { structural: true, issues: [], images: [{ label: 'synthetic-' + inspectedBuilds.length, bytes: new Uint8Array([inspectedBuilds.length]) }] }; };
   const storage = memoryStorage(), workflow = new AgentBuilderWorkflow(storage, h.ports);
   try {
     const { id } = workflow.create('阅读'); let build = await until(workflow, id, b => b.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
-    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(inspectedBuilds.length, 2); assert.equal(build.visualResult?.status, 'reviewed');
     assert.ok(build.visualResult?.issues.some(issue => issue.includes('需要键盘操作证据')), 'deferred observations survive the confirmation review');
     const reviews = h.requests.filter(request => request.promptVersion.startsWith('ui-review/')); assert.equal(reviews.length, 2);
@@ -975,12 +1035,14 @@ test('visual model review has one repair and one confirmation; a stale cancelled
       assert.match(task.vocabulary.controls.overlayLabels, /editor.title=写一条摘记/);
       assert.match(task.vocabulary.controls.feedback, /减少动效时也清除/);
       assert.match(request.instruction, /静态图不能判断/);
-      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.review');
+      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.review.zh');
     }
     for (const request of h.requests) {
       const stage = request.role === 'coder' ? 'code' : request.promptVersion.startsWith('ui-review/') ? 'review' : JSON.parse(request.task).mode === 'compose' ? 'ui' : JSON.parse(request.task).mode === 'experience' ? 'experience' : 'design';
-      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.' + stage, 'every generation and review stage mounts its own standard');
-      if (stage !== 'code') assert.match(request.skills![0]!.body, /生成插件：体验与审美标准/);
+      const names = stage === 'design' ? ['design.1', 'design.2', 'design.3'] : [stage];
+      // FSS-74: each stage mounts its own complete ordered standards.
+      assert.deepEqual(request.skills?.map(skill => skill.id), names.map(name => 'molis-plugin-dev.' + name + '.zh'), 'every stage mounts its own ordered standard');
+      if (stage !== 'code') assert.match(request.skills!.map(skill => skill.body).join('\n'), /生成插件：体验与审美标准/);
       if (stage === 'ui' || stage === 'review') assert.equal(JSON.parse(request.task).brief, build.brief, 'original user intent reaches every visual task');
     }
     const corrections = h.requests.filter(request => request.promptVersion.startsWith('ui/') && JSON.parse(request.task).reviewSuggestions);
@@ -1028,7 +1090,7 @@ for (const passed of [true, false]) test('portable pending visual continuation r
     let build = await until(workflow, id, b => b.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase));
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     build = workflow.store.update(id, build.revision, row => {
       row.phase = 'paused'; row.pendingVisual = '保留同步来的界面调整意图';
       delete row.checks.global!.bundlePath;
@@ -1065,7 +1127,7 @@ test('experience planning reshapes parts before detail and freeze, preserving se
   const layout = JSON.parse(composition()); layout.presentation.pages[0].layout.children = [{ part: 'notes' }, { part: 'capture' }];
   layout.presentation.parts.capture = layout.presentation.parts.editor; delete layout.presentation.parts.editor;
   const h = harness([PROPOSALS, JSON.stringify(plan), JSON.stringify(full), JSON.stringify(layout)]);
-  h.ports.presentation = true; h.ports.skill = builderSkill; h.ports.selectionAvailable = () => false;
+  h.ports.presentation = true; h.ports.skills = builderSkills; h.ports.selectionAvailable = () => false;
   let preparations = 0;
   h.ports.prepareBuild = async (_before, design) => {
     preparations++;
@@ -1096,7 +1158,7 @@ test('experience planning reshapes parts before detail and freeze, preserving se
     const dropped = structuredClone(plan); dropped.pages[0].parts.shift();
     assert.throws(() => acceptExperience(JSON.stringify(dropped), original), /不能丢掉已选功能/);
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
-    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(preparations, 1); assert.deepEqual(build.candidates[0], original, 'the user-selected proposal is not overwritten');
     const detailTask = JSON.parse(h.requests.find(request => JSON.parse(request.task).mode === 'detail')!.task);
     assert.deepEqual(detailTask.proposal.pages[0].parts.map((part: any) => part.id), ['capture', 'notes']);
@@ -1105,7 +1167,7 @@ test('experience planning reshapes parts before detail and freeze, preserving se
     assert.deepEqual(uiTask.experience, build.design!.experience);
     assert.equal(uiTask.experience.scenarios[0].content, plan.scenarios[0].content);
     assert.equal(build.design!.acceptance[0]!.steps[0]!.action, 'fill');
-    assert.equal(h.requests.find(request => JSON.parse(request.task).mode === 'experience')!.skills?.[0]?.id, 'molis-plugin-dev.experience');
+    assert.equal(h.requests.find(request => JSON.parse(request.task).mode === 'experience')!.skills?.[0]?.id, 'molis-plugin-dev.experience.zh');
     assert.equal(h.requests.filter(request => JSON.parse(request.task).mode === 'experience').length, 1);
   } finally { await workflow.close(); }
 });
@@ -1130,7 +1192,7 @@ test('RAC-2930 a wrapped list returns to detail for an explicit projection befor
     let build = await until(workflow, id, value => value.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const repair = JSON.parse(h.requests[2]!.task);
     assert.equal(repair.mode, 'detail');
     assert.match(repair.repair.validationError, /read\.show.*数组字段/);
@@ -1155,7 +1217,7 @@ test('an impossible partial query example returns to the designer before any bui
   try {
     const { id } = workflow.create('快记'); let build = await until(workflow, id, value => value.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
-    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     const repair = JSON.parse(h.requests[2]!.task);
     assert.match(repair.repair.validationError, /空存储/);
     assert.equal(prepared, 1); assert.equal(h.requests.filter(request => request.promptVersion.startsWith('repair/')).length, 0);
@@ -1179,7 +1241,7 @@ test('unsupported, unlocated and uncertain review findings remain visible withou
   try {
     const { id } = workflow.create('阅读'); let build = await until(workflow, id, value => value.phase === 'choosing');
     await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
-    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.equal(inspections, 1); assert.equal(build.visualResult?.status, 'reviewed');
     assert.equal(build.visualResult?.issues.length, 5); assert.ok(build.visualResult!.issues.every(issue => issue.includes('未自动修改')));
     assert.equal(h.requests.filter(request => JSON.parse(request.task).mode === 'compose').length, 1);
@@ -1255,7 +1317,7 @@ test('the two questions the studio asks Jev are the registered defaults word for
     let build = await until(second, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
     build = await second.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'board' }) as AgentBuild;
     build = await until(second, created.id, value => value.phase === 'ready' || value.phase === 'failed');
-    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.phase, 'ready', studioBuildDiagnostic(build.error) ?? '');
     assert.deepEqual(component.asked, ['用户改过：choose.component', '用户改过：choose.component']);
   } finally { await second.close(); }
 });
@@ -1315,7 +1377,7 @@ test('through the studio surface: the studio asks Jev the question the person sa
   try {
     const created = (await send<{ build: AgentBuild }>('POST', '/builds', { brief: '做一个随手记笔记的插件' })).build;
     let build = await until(created.id, value => value.phase === 'choosing');
-    assert.equal(build.phase, 'choosing', build.error ?? '');
+    assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
     await send('POST', '/builds/' + created.id + '/action', { action: 'choose', revision: build.revision, candidateId: 'board' });
     await until(created.id, () => asked.length > 0);
     assert.ok(asked.length > 0, 'the studio put a question to Jev');
@@ -1333,15 +1395,15 @@ test('through the studio surface: the studio asks Jev the question the person sa
 test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const home = mkdtempSync(join(tmpdir(), 'builder-reset-http-')), file = join(home, 'project.db'); seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0), browserExecutable: dedicatedBuilderBrowser() };
+  const token = 'control-token', web = studioHarnessRequests(home, DEMO_PROJECT_ID, token);
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => {
+    web.handle(request, response, url, options.routePrefix, (local, proof) => pluginPagesFor(home).bind(request, url).then(release => {
       if (release) response.once('close', release);
-      if (url.pathname.startsWith(options.routePrefix + '/')) url.pathname = url.pathname.slice(options.routePrefix.length);
-      return handleAgentStudioHttp(request, response, url, options, 'control-token');
-    }).then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
+      return handleAgentStudioHttp(request, response, local, options, proof);
+    }).then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) })));
   });
+  server.once('close', web.close);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address(); assert.ok(address && typeof address === 'object'); const origin = `http://127.0.0.1:${address.port}/api/plugin-builder/studio`;
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), removed = Promise.withResolvers<void>(); let arm = false, heldPath = '', removal: Promise<void> | undefined;
@@ -1355,13 +1417,13 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
     return name === heldPath ? removal! : remove(path, settings);
   });
   const send = async <Output>(path: string, body?: object): Promise<Output> => {
-    const response = await fetch(origin + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': 'control-token' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const response = await fetch(origin + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': token }, ...(body ? { body: JSON.stringify(body) } : {}) });
     assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json() as Promise<Output>;
   };
   const read = async (id: string) => (await send<{ build: AgentBuild }>('/builds/' + id)).build;
   const reached = async (id: string, phase: AgentBuild['phase']) => {
     const deadline = Date.now() + 60_000;
-    for (;;) { const build = await read(id); if (build.phase === phase) return build; assert.notEqual(build.phase, 'failed', build.error); if (Date.now() > deadline) assert.fail('real studio phase timeout: ' + phase); await new Promise(resolve => setTimeout(resolve, 25)); }
+    for (;;) { const build = await read(id); if (build.phase === phase) return build; assert.notEqual(build.phase, 'failed', studioBuildDiagnostic(build.error) ?? ''); if (Date.now() > deadline) assert.fail('real studio phase timeout: ' + phase); await new Promise(resolve => setTimeout(resolve, 25)); }
   };
   try {
     const created = (await send<{ build: AgentBuild }>('/builds', { brief: '做一个随手记笔记的插件' })).build;
@@ -1496,22 +1558,27 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
         if (answer.design) { answer.design.operations = answer.design.operations.filter((operation: { id: string }) => operation.id !== 'notes.expand');
           answer.design.operations.find((operation: { id: string }) => operation.id === 'notes.list').effects.capabilities = ['scope.read'];
           answer.design.pages[0].parts = answer.design.pages[0].parts.filter((part: { id: string }) => part.id !== 'expand');
-          answer.design.acceptance = answer.design.acceptance.filter((item: { id: string }) => item.id !== 'expand'); record.output = JSON.stringify(answer); }
+          answer.design.acceptance = answer.design.acceptance.filter((item: { id: string }) => item.id !== 'expand');
+          for (const words of Object.values(answer.design.uiText.locales as Record<string, Record<string, string>>)) delete words['part/expand/submitLabel'];
+          record.output = JSON.stringify(answer); }
       } else if (request.operationIds?.includes('notes.list')) { const task = JSON.parse(request.task), file = join(build.directory!, task.implementation);
         await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace('  const rows =', "  await sdk.capability.call('scope.read', {});\n  const rows =")); }
       return record;
     } }; } };
   const mutations = new Map<string, LocalMutationState>();
-  const server = createStudioBrowserServer(f.home, f.token, (request, response, pageProof) => {
+  const web = studioHarnessRequests(f.home, project.project_id, f.token);
+  const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, pageProof)); return; }
-    if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
-    void pluginPagesFor(f.home).bind(request, url).then(release => { if (release) response.once('close', release);
-      const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + '/')) local.pathname = local.pathname.slice(options.routePrefix.length);
-      return handleAgentStudioHttp(request, response, local, options, pageProof);
-    }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+    web.handle(request, response, url, options.routePrefix, (local, proof, locale) => {
+      if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, proof, locale)); return; }
+      if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
+      return pluginPagesFor(f.home).bind(request, url).then(release => {
+        if (release) response.once('close', release);
+        return handleAgentStudioHttp(request, response, local, options, proof);
+      }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+    });
   });
+  server.once('close', web.close);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   cleanups.push(async () => { await releaseAgentStudio(store, project.project_id); await releaseInstalledPlugins(store, project.project_id);
     await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); });
@@ -1539,7 +1606,10 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   assert.equal((await info()).build.browserResult, undefined); assert.deepEqual((await info()).build.checks, {});
   await page.click('[data-as-action="recheck"]');
   await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='failed'`);
-  assert.match((await info()).build.error ?? '', /目标范围.*scope.read/);
+  const failure = (await info()).build.error;
+  assert.ok(failure && typeof failure !== 'string', JSON.stringify(failure));
+  assert.deepEqual(failure.title, { key: 'plugin-builder.agent-studio.build-target-capability-unavailable', args: [{ name: 'capability', kind: 'text', text: 'scope.read' }] });
+  assert.equal(failure.detail, '目标范围没有开放给插件的能力：scope.read');
   await raw.screenshot(join(screenshots, 'home-check-refused.png'));
   assert.equal((await info()).versions.length, 0); assert.equal(enabledProjectPlugins, 0); assert.equal(modelCalls, before);
   assert.equal(await fs.stat(join(f.home, 'config', 'plugin-publisher.json')).then(() => true, () => false), false);
@@ -1594,19 +1664,21 @@ test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, o
     page.parts.find((part: { id: string }) => part.id === 'editor').props.requiredText = '正文不能为空';
     page.parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = '清单还是空的';
     answer.design.pages.push({ id: 'away', title: '另页', parts: [{ id: 'offscreen', intent: 'collection', purpose: '另一页读取', props: { idField: 'id', titleField: 'text' }, read: { op: 'notes.list', show: 'items' } }] });
+    Object.assign(answer.design.uiText.locales.zh, { 'part/editor/requiredText': '正文不能为空', 'part/notes/emptyText': '清单还是空的', 'page/away/title': '另页', 'region/away/main/title': '另页' });
+    Object.assign(answer.design.uiText.locales.en, { 'part/editor/requiredText': 'Text is required', 'part/notes/emptyText': 'The checklist is still empty', 'page/away/title': 'Another page', 'region/away/main/title': 'Another page' });
     answer.design.acceptance = [
       { id: 'blocked', description: '真实必填拒绝且没有业务写入', steps: [
         'fill editor.text = ""', { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' },
-        'expect editor 正文不能为空', 'expect-not editor 已添加', 'expect notes 清单还是空的',
+        { action: 'expectWord', componentId: 'editor', word: 'requiredText' }, 'expect-not editor 已添加', { action: 'expectWord', componentId: 'notes', word: 'emptyText' },
       ] },
       { id: 'read-retry', description: '故障来自真实call，重试恢复并保草稿', steps: [
         'fill editor.text = "  保留草稿  "', { action: 'faultRead', componentId: 'notes' }, 'expect notes 读取失败',
         'expect-not notes 清单还是空的', { action: 'expectValue', componentId: 'editor', field: 'text', value: '  保留草稿  ' },
-        { action: 'retry', componentId: 'notes' }, 'expect notes 清单还是空的',
+        { action: 'retry', componentId: 'notes' }, { action: 'expectWord', componentId: 'notes', word: 'emptyText' },
         { action: 'expectValue', componentId: 'editor', field: 'text', value: '  保留草稿  ' },
       ] },
-      { id: 'unconsumed', description: '未实际读取的故障必须报错', steps: [{ action: 'faultRead', componentId: 'offscreen' }, 'expect notes 清单还是空的'] },
-      { id: 'after-failure', description: '独立例重置后无故障残留', steps: ['expect notes 清单还是空的'] },
+      { id: 'unconsumed', description: '未实际读取的故障必须报错', steps: [{ action: 'faultRead', componentId: 'offscreen' }, { action: 'expectWord', componentId: 'notes', word: 'emptyText' }] },
+      { id: 'after-failure', description: '独立例重置后无故障残留', steps: [{ action: 'expectWord', componentId: 'notes', word: 'emptyText' }] },
     ];
   } });
   assert.deepEqual(f.current.browserResult!.cases.map(row => [row.id, row.passed]), [['blocked', true], ['read-retry', true], ['unconsumed', false], ['after-failure', true]]);
@@ -1634,7 +1706,12 @@ test('RAC-2934 batch repair receives all actual failures once and isolation fail
       build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
       const repairs = h.requests.filter(request => JSON.parse(request.task).acceptanceFailures);
       assert.equal(repairs.length, blocked ? 0 : 1);
-      if (blocked) { assert.equal(batches, 1); assert.equal(build.phase, 'failed'); assert.match(build.error!, /reset refused/); }
+      if (blocked) {
+        assert.equal(batches, 1);
+        assert.equal(build.phase, 'failed');
+        assert.equal(build.error && typeof build.error === 'object' && build.error.title.key, 'plugin-builder.agent-studio.build-acceptance-blocked');
+        assert.equal(studioBuildDiagnostic(build.error), 'reset refused');
+      }
       else { assert.equal(build.phase, 'ready'); assert.deepEqual(JSON.parse(repairs[0]!.task).acceptanceFailures.map((failure: { detail: string }) => failure.detail), ['FIRST_ACTUAL_FAILURE', 'SECOND_ACTUAL_FAILURE']); }
     } finally { await workflow.close(); }
   }
@@ -1659,7 +1736,9 @@ test('RAC-2937 a held real trial call cannot write or create a runner after its 
   t.after(async () => { release.resolve(); await pending; statMock.mock.restore(); spawnMock.mock.restore(); syncBuiltinESMExports(); });
   const f = await revisionHelperStudio(t, { browserExecutable: dedicatedBuilderBrowser(), configure(answer) {
     answer.design.pages[0].parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = '清单还是空的';
-    answer.design.acceptance = ['first', 'after-reset'].map(id => ({ id, description: '独立清单保持为空', steps: ['expect notes 清单还是空的'] }));
+    answer.design.uiText.locales.zh['part/notes/emptyText'] = '清单还是空的';
+    answer.design.uiText.locales.en['part/notes/emptyText'] = 'The checklist is still empty';
+    answer.design.acceptance = ['first', 'after-reset'].map(id => ({ id, description: '独立清单保持为空', steps: [{ action: 'expectWord', componentId: 'notes', word: 'emptyText' }] }));
   }, async trialPage(key, buildId, send) {
     if (++visits === 1) {
       hold = true;

@@ -14,6 +14,7 @@ import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "../apps/local-host/cloudf
 import { oauthAuthorizationUrl, oauthClientAuth, oauthEndpoint, oauthMethodOption, oauthScope, oauthSecretRequired, resolveOAuthSettings } from "../apps/local-host/src/connector-oauth-declarations.ts";
 import { connectorProtocolSecrets } from "../apps/local-host/src/connector-protocol-store.ts";
 import { createOAuthBroker, type BrokerEnv } from "../apps/local-host/cloudflare/worker.ts";
+import { connectorDefinition, connectorText } from "./fixtures/connector-text.js";
 
 // Independent wire contracts, transcribed from the official references in
 // specs/archive/connector-experience/configuration-readiness.md; no production-derived expectations.
@@ -108,7 +109,8 @@ test("RAC-1080 the method option of every declared service is the one the platfo
   for (const [id, declaration] of Object.entries(DECLARED)) {
     const table = API_OAUTH_PROVIDERS[id]!;
     const before = { client_secret_required: !table.optionalSecret, fields: table.fields ?? [], note: table.note };
-    assert.deepEqual(JSON.parse(JSON.stringify(oauthMethodOption(declaration))), JSON.parse(JSON.stringify(before)), id);
+    const definition = connectorDefinition(id);
+    assert.deepEqual(JSON.parse(JSON.stringify(oauthMethodOption(declaration, connectorText(definition)))), JSON.parse(JSON.stringify(before)), id);
   }
 });
 for (const mode of ["direct", "broker"] as const) for (const c of contracts) test(`${mode}: ${c.id} exchange → stable account → persisted token → refresh`, async () => {

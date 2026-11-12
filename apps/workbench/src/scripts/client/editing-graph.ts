@@ -7,7 +7,7 @@ const GOALS_PAGE = pluginPageClients("goals");
 export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { updateRelationPreviews, updateAllRelationFormPreviews, handleGoalRelationChange,
       handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_PAGE.goalsRelation})({
-        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"),
+        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: globalThis.t.text,
         refreshBoard: (...args) => refreshBoard(...args),
         requireFormFacts: (...args) => requireFormFacts(...args),
         requireDecisionText: (...args) => requireDecisionText(...args),
@@ -27,8 +27,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       }
       form.querySelectorAll('[aria-invalid="true"]').forEach((control) => control.removeAttribute("aria-invalid"));
       invalid.setAttribute("aria-invalid", "true");
-      const label = invalid.closest("label")?.querySelector(":scope > span")?.textContent?.trim() || L("必填信息");
-      errorBox.textContent = L("请先补充：{label}", { label });
+      const label = invalid.closest("label")?.querySelector(":scope > span")?.textContent?.trim() || globalThis.t.text("workbench.editing-graph.required-information");
+      errorBox.textContent = globalThis.t.text("workbench.editing-graph.complete-field-first-label", { label });
       errorBox.hidden = false;
       requestAnimationFrame(() => invalid.focus());
       return true;
@@ -37,7 +37,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.dataset.mwState=error?"failed":"done";toast.classList.toggle("is-error",error);};
 
     const { handleGoalPolicySubmit } = (${GOALS_PAGE.goalsPolicy})({
-      route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"), requireFormFacts, showToast,
+      route, controlHeaders: molisWorkControlHeaders, translate: globalThis.t.text, requireFormFacts, showToast,
       refreshBoard: (...args) => refreshBoard(...args),
       showFactorReceipt: (...args) => showFactorReceipt(...args),
       humanDecisionError: (...args) => humanDecisionError(...args),
@@ -50,7 +50,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_PAGE.goalsDialogs})({
         dialog, form, route, controlHeaders: molisWorkControlHeaders,
         refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,
-        currentLocale: () => document.documentElement.lang, translate: LFor("io.molis.work.goals"),
+        currentLocale: () => document.documentElement.lang, translate: globalThis.t.text,
         clearCollectionUiState: () => sessionStorage.removeItem(storageKey),
         clearCurrentGoalUiState: () => sessionStorage.removeItem(currentGoalUiStorageKey),
         navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
@@ -106,7 +106,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
       (${GOALS_PAGE.goalsMomentum})({
-        workspace, documentCollection, route, translate: LFor("io.molis.work.goals"),
+        workspace, documentCollection, route, translate: globalThis.t.text,
         projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),
@@ -173,7 +173,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     };
 
     frameContainer = (${FRAME_CONTAINER_FACTORY_SCRIPT})({
-      translate: L, showToast,
+      translate: readText, showToast,
       frameAssets: () => deferredClients.frameAssets(),
       visible: () => boardLifetime?.visible === true,
       visibleGoals: () => visibleGoals(),
@@ -201,7 +201,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
         showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
-        translate: L,
+        translate: readText,
         getSurface: () => activeDesktopSurface,
         setWorkSurface: (...args) => setDesktopWorkSurface(...args),
         setDirectory: (...args) => setDesktopDirectory(...args),

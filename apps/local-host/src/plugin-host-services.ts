@@ -1,3 +1,4 @@
+import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
 import { savedHistoryFor } from "./saved-history-host.js";
 import { PROLOGUE_RUNTIME_ID, savedAgentHistoryView, readSavedAgentHistory } from "@molis-ai/molis-work-service-agent-host";
@@ -26,7 +27,7 @@ import {
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
-import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { outsidePluginAction, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { openPluginDatabase } from "./plugin-database.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
@@ -48,7 +49,10 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
-import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader, registerPluginText } from "@molis-ai/molis-work-ui-host";
+import type { PluginContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { runWithPluginText } from "./web-locale.js";
+import { installedLocalePacks } from "./installed-action-registration.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -73,7 +77,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   stoppedCalls: StoppedServiceCalls): HostSession {
   let active = true, stopped = false;
   const ui = createPluginUiClient(options.ui, context, definition.manifest,
-    { invalidate: () => options.invalidateView?.(context.plugin_id), active: () => active });
+    { invalidate: () => options.invalidateView?.(context.plugin_id), active: () => active, draw: draw => runWithPluginText(context, draw) });
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let projectLibrary: ReturnType<typeof openPluginProjectLibrary> | undefined;
@@ -89,7 +93,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
     refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
-    withdrawText = pluginTextFor(options, definition);
+    withdrawText = pluginTextFor(options, definition, context);
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants), permission => {
       try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
@@ -104,7 +108,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     projectLibrary = openProjectTables(options, definition, context, assertActive);
     const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive);
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
-    background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
+    background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, home: options.home?.directory, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
       ? directoryForHome(options.home.directory).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
@@ -122,12 +126,12 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
       background: background?.client, directory: directory?.client, terminal: terminal?.client,
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
-    withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
+    withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, instance: context, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
-      revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
+      revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -138,9 +142,33 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
  * The definition's words for the text tools while the session is open (specs/font-and-skin-system/a-section-contract.md §8.3): answers how to take them back.
  * Only a plugin whose code runs in this process enters `t`'s index; a sandboxed one's `t` runs in its own process, and `say` still finds its words.
  */
-export function pluginTextFor(options: Pick<PluginHostExecutorOptions, "localePacks">, definition: PluginDefinition): (() => void) | undefined {
-  const reader = options.localePacks?.(definition) ?? null;
-  return reader === null ? undefined : registerPluginText(reader, { t: definition.execution !== "sandbox" });
+export function pluginTextFor(options: Pick<PluginHostExecutorOptions, "localePacks">, definition: PluginDefinition, activation: PluginInstance): (() => void) | undefined {
+  const reader = options.localePacks?.(definition) ?? installedLocalePacks(definition);
+  if (reader === null) return undefined;
+  installHostUiText();
+  if (reader.owner !== definition.manifest.plugin_id) throw new Error("语言文件的主人与运行的插件声明不符");
+  return registerPluginText(reader, { activation, t: definition.execution !== "sandbox" && definition.manifest.kind !== "content" });
+}
+
+const producingView = new WeakMap<import("@molis-ai/molis-work-contracts/platform/ui").UiContribution, PluginInstance>();
+
+/** A platform page drawing one of these views uses the very same activation as render. */
+export function pluginViewText(view: import("@molis-ai/molis-work-contracts/platform/ui").UiContribution) {
+  const activation = producingView.get(view);
+  return activation && pluginActivationOpen(activation) ? pluginTextReader(activation) : null;
+}
+
+/** Views returned by start() have the same activation boundary as those registered through services.ui. */
+export function pluginTextViews(contribution: PluginContribution, activation: PluginInstance): PluginContribution {
+  if (contribution.kind !== "app" || !contribution.views?.length) return contribution;
+  return { ...contribution, views: contribution.views.map(view => {
+    const bound = { ...view, render(request: Parameters<typeof view.render>[0]) {
+      if (!pluginActivationOpen(activation)) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
+      return runWithPluginText(activation, () => view.render(request));
+    } };
+    producingView.set(bound, activation);
+    return bound;
+  }) };
 }
 
 /**

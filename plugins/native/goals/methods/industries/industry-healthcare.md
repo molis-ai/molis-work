@@ -1,6 +1,6 @@
 ---
 method_id: industry-healthcare
-version: 1
+version: 2
 kind: industry
 name: "医疗健康"
 summary: "围绕健康结果、临床工作流、证据、安全和专业人员责任组织工作。"

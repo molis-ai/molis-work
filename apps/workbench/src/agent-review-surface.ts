@@ -1,10 +1,9 @@
-import { renderStateRing, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText, renderStateRing, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   AgentReviewDocument,
   AgentReviewReceipt,
   AgentReviewRequest,
   AgentReviewStatus,
-  AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
@@ -18,7 +17,7 @@ import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
  * surface is the one place the decision exists.
  */
 
-const GIT_TOOL_TITLES: Record<string, string> = { "git-commit": "Git 提交", "git-branch-create": "新建分支", "git-branch-switch": "切换分支", "git-push": "推送", "git-pr-create": "建 PR" };
+const GIT_TOOL_TITLES: Record<string, string> = { "git-commit": "workbench.agent-review.git-commit", "git-branch-create": "workbench.agent-review.new-branch", "git-branch-switch": "workbench.agent-review.switch-branch", "git-push": "workbench.agent-review.push", "git-pr-create": "workbench.agent-review.create-pr" };
 
 export interface AgentReviewPrimitives {
   escape(value: unknown): string;
@@ -167,21 +166,21 @@ function readable(document: AgentReviewDocument): boolean {
 }
 
 const PHASE_MARK: Record<AgentReviewPhase, { state: StateRingState; tone: string; label: string }> = {
-  reconcile: { state: "verify", tone: "blocked", label: "结果待核对，不能重复执行" },
-  pending: { state: "approval", tone: "attention", label: "等你决定" },
-  approved: { state: "waiting", tone: "progress", label: "已批准，执行结果待确认" },
-  done: { state: "done", tone: "done", label: "已完成" },
-  failed: { state: "failed", tone: "blocked", label: "已批准，但执行未完成" },
-  rejected: { state: "cancelled", tone: "blocked", label: "已拒绝" },
-  cancelled: { state: "cancelled", tone: "idle", label: "已撤回" },
-  expired: { state: "stale", tone: "idle", label: "已过期" },
+  reconcile: { state: "verify", tone: "blocked", label: "workbench.agent-review.reconcile" },
+  pending: { state: "approval", tone: "attention", label: "workbench.agent-review.pending" },
+  approved: { state: "waiting", tone: "progress", label: "workbench.agent-review.approved-pending" },
+  done: { state: "done", tone: "done", label: "workbench.agent-review.completed" },
+  failed: { state: "failed", tone: "blocked", label: "workbench.agent-review.approved-failed" },
+  rejected: { state: "cancelled", tone: "blocked", label: "workbench.agent-review.rejected" },
+  cancelled: { state: "cancelled", tone: "idle", label: "workbench.agent-review.withdrawn" },
+  expired: { state: "stale", tone: "idle", label: "workbench.agent-review.expired" },
 };
 
 export function renderAgentReviewSurface(model: AgentReviewSurfaceModel): string {
   const { primitives: p } = model;
   if (model.rows.length === 0) {
     return `<section class="agent-review" data-agent-review>
-      <div class="mw-empty" data-agent-review-empty><span class="mw-empty__mark">${p.icon("check")}</span><p>${p.escape("没有待决定的操作")}</p></div>
+      <div class="mw-empty" data-agent-review-empty><span class="mw-empty__mark">${p.icon("check")}</span><p>${p.escape(uiText.text("workbench.agent-review.empty"))}</p></div>
     </section>`;
   }
   return `<section class="agent-review" data-agent-review>
@@ -196,27 +195,27 @@ function reviewPriority(row: AgentReviewRow): number {
 function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const phase = reviewPhase(row);
   const mark = phase === "done" && row.request.kind === "command"
-    ? { ...PHASE_MARK.done, label: "已执行" }
-    : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "已核对：原操作未发生" } : PHASE_MARK[phase];
+    ? { ...PHASE_MARK.done, label: "workbench.agent-review.executed" }
+    : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "workbench.agent-review.not-happened" } : PHASE_MARK[phase];
   const decidable = isDecidable(row);
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const document = row.request.document;
   // The heading names the thing itself, so a history list reads without opening every row.
   const label = document.kind === "text-edit" ? document.target_path
     : document.kind === "command" && readable(document) ? [document.command, ...document.args].map(shellWord).join(" ")
-    : document.kind === "git-index" ? (document.action === "stage" ? "暂存文件" : "取消暂存")
-    : document.kind === "git-integration" ? "整合子任务成果"
-    : document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行"
-    : document.kind === "tool-operation" && document.tool === "dispatch-subagent" ? "派出子任务" + (document.fields.find(field => field.label === "子任务角色") ? "：" + document.fields.find(field => field.label === "子任务角色")!.value : "")
-    : document.kind === "tool-operation" && document.tool === "steer-subagent" ? "给子任务补充要求"
+    : document.kind === "git-index" ? (document.action === "stage" ? uiText.text("workbench.agent-review.stage") : uiText.text("workbench.agent-review.unstage"))
+    : document.kind === "git-integration" ? uiText.text("workbench.agent-review.integrate")
+    : document.kind === "rewind" ? uiText.text("workbench.agent-review.rewind") : row.request.kind === "command" ? uiText.text("workbench.agent-review.execute-command")
+    : document.kind === "tool-operation" && document.tool === "dispatch-subagent" ? uiText.text("workbench.agent-review.dispatch") + (document.fields.find(field => field.label === "子任务角色") ? " · " + document.fields.find(field => field.label === "子任务角色")!.value : "")
+    : document.kind === "tool-operation" && document.tool === "steer-subagent" ? uiText.text("workbench.agent-review.steer")
     // A Git operation is named by what it does, with its own summary (branch, remote, file count) beside it.
-    : document.kind === "tool-operation" && GIT_TOOL_TITLES[document.tool] ? GIT_TOOL_TITLES[document.tool] + "：" + document.summary
-    : document.kind === "tool-operation" && document.tool === "git-worktree-create" ? "创建独立工作树" : "工具操作";
+    : document.kind === "tool-operation" && GIT_TOOL_TITLES[document.tool] ? uiText.text("workbench.agent-review.tool-with-summary", { name: uiText.text(GIT_TOOL_TITLES[document.tool]!), summary: document.summary })
+    : document.kind === "tool-operation" && document.tool === "git-worktree-create" ? uiText.text("workbench.agent-review.worktree") : uiText.text("workbench.agent-review.tool");
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
-      <span class="mw-status" data-tone="${mark.tone}">${renderStateRing({ state: mark.state })}${p.escape(mark.label)}</span>
-      <span class="${labelClass}">${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
+      <span class="mw-status" data-tone="${mark.tone}">${renderStateRing({ state: mark.state })}${p.escape(uiText.text(mark.label))}</span>
+      <span class="${labelClass}"${document.kind === "command" || document.kind === "text-edit" ? ' translate="no"' : ""}>${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
     </header>${history ? "</summary>" : ""}
     ${renderDocument(row.request.document, p)}
@@ -236,10 +235,10 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
     // A round's own proposals (edits, commands, dispatches, MCP calls) of any plugin can be refused with a reason the round receives.
-    return `${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="1" placeholder="要改哪里？写下意见后点拒绝，交回给 Agent…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
-      ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape("本会话内同样的命令不再询问")}</label>` : ""}
-      <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape("拒绝")}</button>
-      <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape("批准这一次")}</button>
+    return `${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">${uiText("workbench.agent-review.feedback")}</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="${uiText("workbench.agent-review.feedback")}" maxlength="2000" rows="1" placeholder="${uiText("workbench.agent-review.feedback-placeholder")}"></textarea><span class="mw-field__hint">${uiText("workbench.agent-review.feedback-hint")}</span></label>` : ""}<footer class="agent-review-actions">
+      ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape(uiText.text("workbench.agent-review.remember-session"))}</label>` : ""}
+      <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape(uiText.text("workbench.agent-review.reject"))}</button>
+      <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape(uiText.text("workbench.agent-review.approve-once"))}</button>
     </footer>`;
   }
   // A settled item offers no action: a decision already consumed cannot be
@@ -250,83 +249,69 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
     ${row.receipt?.decided_by === null || row.receipt?.decided_by === undefined
       ? ""
       : `<span>${p.escape(row.receipt.decided_by)}</span>`}
-    ${row.receipt?.standing_rule ? `<p class="agent-review-rule">${p.escape(`按本会话规则批准 · ${row.receipt.standing_rule.set_by} 设定于 ${p.formatDate(row.receipt.standing_rule.set_at)}`)}</p>` : note === null || note === undefined ? "" : `<p>${p.escape(note)}</p>`}
+    ${row.receipt?.standing_rule ? `<p class="agent-review-rule">${p.escape(uiText.text("workbench.agent-review.standing-rule", { actor: row.receipt.standing_rule.set_by, time: dateArg(row.receipt.standing_rule.set_at, "datetime") }))}</p>` : note === null || note === undefined ? "" : `<p>${p.escape(note)}</p>`}
     ${error === null || error === undefined ? "" : `<p class="agent-review-error">${p.escape(error)}</p>`}
     ${row.receipt?.effect_uncertain ? `<p class="agent-review-error">${p.escape(row.receipt.effect_uncertain)}</p>` : ""}
-    ${row.receipt?.effect_uncertain && row.request.kind === "git-index" ? `<button class="mw-btn" type="button" data-agent-review-inspect="${p.escape(row.request.review_id)}">核对暂存区与回执</button><div data-review-recovery></div>` : ""}
-    ${row.receipt?.reconciliation && !row.receipt.effect_uncertain ? `<p>${p.escape(row.receipt.reconciliation.actor_id)} · ${p.escape(p.formatDate(row.receipt.reconciliation.at))}</p><p>${p.escape("核对依据：" + row.receipt.reconciliation.reason)}</p>` : ""}
-    ${row.receipt?.delivery_error ? `<p class="agent-review-error">${p.escape("决定已记录，但执行方尚未确认收到：" + row.receipt.delivery_error)}</p>` : ""}
+    ${row.receipt?.effect_uncertain && row.request.kind === "git-index" ? `<button class="mw-btn" type="button" data-agent-review-inspect="${p.escape(row.request.review_id)}">${uiText("workbench.agent-review.check-index")}</button><div data-review-recovery></div>` : ""}
+    ${row.receipt?.reconciliation && !row.receipt.effect_uncertain ? `<p>${p.escape(row.receipt.reconciliation.actor_id)} · ${p.escape(p.formatDate(row.receipt.reconciliation.at))}</p><p>${p.escape(uiText.text("workbench.agent-review.evidence") + row.receipt.reconciliation.reason)}</p>` : ""}
+    ${row.receipt?.delivery_error ? `<p class="agent-review-error">${p.escape(uiText.text("workbench.agent-review.not-delivered") + row.receipt.delivery_error)}</p>` : ""}
   </footer>`;
 }
 
-export function renderAgentReviewRecovery(view: AgentReviewRecoveryView, escape: (value: string) => string): string {
-  const observation = view.observation;
-  return `<section class="agent-review-doc" aria-label="原操作结果核对" data-review-recovery-view data-review-revision="${escape(observation?.revision ?? "")}">
-    <p role="status">${escape(view.message)}</p>
-    ${observation ? `<p>${escape("当前暂存区读取于 " + observation.observed_at)}</p>${observation.files.map(file => `<details data-review-detail="${escape("recovery:" + file.path)}"><summary>${escape(file.path)} · ${escape(file.mode ?? "不存在")}</summary><pre>${escape(file.text === null ? "暂存区中不存在" : file.text || "（空文件）")}</pre></details>`).join("")}` : ""}
-    <button class="mw-btn" type="button" data-review-recheck>重新核对回执与内容</button>
-    ${view.receipt.effect_uncertain ? `<p>重新核对不会执行原操作。只有可靠依据确认未发生，才能解除这笔操作的阻塞；内容一致本身不是证明。</p>
-      <label class="mw-field"><span class="mw-field__label">确认未发生的依据</span><textarea class="mw-textarea" data-slot="textarea" data-review-recovery-reason aria-label="确认未发生的依据" maxlength="2000" rows="3" ${view.can_confirm_not_happened ? "" : "disabled"}></textarea></label>
-      <label class="mw-check-row"><input class="mw-check" type="checkbox" data-review-recovery-confirm ${view.can_confirm_not_happened ? "" : "disabled"}>我已核对原操作未发生，且并非执行后被其他操作改回</label>
-      <button class="mw-btn" type="button" data-review-confirm-not ${view.can_confirm_not_happened ? "" : "disabled"}>按未发生收口</button>` : ""}
-    <p data-review-recovery-error role="alert"></p>
-  </section>`;
-}
-
 function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives): string {
-  if (!readable(document)) return `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape("审查内容不完整，暂不能批准；原操作仍需核对。")}</p></div>`;
+  if (!readable(document)) return `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape(uiText.text("workbench.agent-review.unreadable"))}</p></div>`;
   switch (document.kind) {
     case "git-integration": return `<div class="agent-review-doc" data-agent-review-kind="git-integration">
-      <p>整合选定成果到主工作区</p><dl><dt>来源目录</dt><dd>${p.escape(document.source.directory)}</dd><dt>目标目录</dt><dd>${p.escape(document.target_directory)}</dd><dt>来源分支与基线</dt><dd>${p.escape(document.source.branch)} · ${p.escape(document.source.base_commit)}</dd></dl>
-      <p>仅修改以下文件；不暂存、不提交、不推送，保留子工作树。批准后重新核对来源与目标，变化或冲突时拒绝执行。</p>
-      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)}</p><p>文件模式：${p.escape(file.before_mode ?? "不存在")} → ${p.escape(file.after_mode ?? "不存在")}</p>
-      <details data-review-detail="${p.escape("before:" + file.path)}"><summary>主工作区修改前</summary><pre>${p.escape(file.before_text ?? "文件尚不存在")}</pre></details>
-      <p>整合后的内容</p><pre>${p.escape(file.after_text === null ? "删除此文件" : file.after_text || "（空文件）")}</pre></section>`).join("")}</div>`;
+      <p>${uiText("workbench.agent-review.integrate-workspace")}</p><dl><dt>${uiText("workbench.agent-review.source-directory")}</dt><dd>${p.escape(document.source.directory)}</dd><dt>${uiText("workbench.agent-review.destination-directory")}</dt><dd>${p.escape(document.target_directory)}</dd><dt>${uiText("workbench.agent-review.source-base")}</dt><dd>${p.escape(document.source.branch)} · ${p.escape(document.source.base_commit)}</dd></dl>
+      <p>${uiText("workbench.agent-review.integrate-boundary")}</p>
+      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)}</p><p>${uiText("workbench.agent-review.file-mode")}${p.escape(file.before_mode ?? uiText.text("workbench.agent-review.missing"))} → ${p.escape(file.after_mode ?? uiText.text("workbench.agent-review.missing"))}</p>
+      <details data-review-detail="${p.escape("before:" + file.path)}"><summary>${uiText("workbench.agent-review.workspace-before")}</summary><pre>${p.escape(file.before_text ?? uiText.text("workbench.agent-review.before-no-file"))}</pre></details>
+      <p>${uiText("workbench.agent-review.integrated-content")}</p><pre>${p.escape(file.after_text === null ? uiText.text("workbench.agent-review.delete-file") : file.after_text || uiText.text("workbench.agent-review.empty-file"))}</pre></section>`).join("")}</div>`;
     case "git-index": return `<div class="agent-review-doc" data-agent-review-kind="git-index">
-      <p>${p.escape(document.workspace_name)} · ${document.action === "stage" ? "将以下固定内容放入暂存区" : "将以下暂存项恢复为 HEAD 版本"}</p><p>只更新暂存区，磁盘文件保持原样。批准后会重新核对预览版本；内容、分支或暂存区变化时拒绝执行。</p>
+      <p>${p.escape(document.workspace_name)} · ${document.action === "stage" ? uiText.text("workbench.agent-review.stage-fixed") : uiText.text("workbench.agent-review.unstage-to-head")}</p><p>${uiText("workbench.agent-review.index-boundary")}</p>
       ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)}</p>
-        <p>文件模式：${p.escape(file.before_mode ?? "不存在")} → ${p.escape(file.after_mode ?? "不存在")}</p>
-        <details data-review-detail="${p.escape("before:" + file.path)}"><summary>审查时的暂存内容</summary><pre>${p.escape(file.before_text ?? "暂存区中不存在")}</pre></details>
-        <p>操作后的暂存内容</p><pre>${p.escape(file.after_text === null ? "从暂存区移除，磁盘文件保留" : file.after_text || "（空文件）")}</pre></section>`).join("")}</div>`;
+        <p>${uiText("workbench.agent-review.file-mode")}${p.escape(file.before_mode ?? uiText.text("workbench.agent-review.missing"))} → ${p.escape(file.after_mode ?? uiText.text("workbench.agent-review.missing"))}</p>
+        <details data-review-detail="${p.escape("before:" + file.path)}"><summary>${uiText("workbench.agent-review.index-before")}</summary><pre>${p.escape(file.before_text ?? uiText.text("workbench.agent-review.not-staged"))}</pre></details>
+        <p>${uiText("workbench.agent-review.index-after")}</p><pre>${p.escape(file.after_text === null ? uiText.text("workbench.agent-review.unstage-keep-disk") : file.after_text || uiText.text("workbench.agent-review.empty-file"))}</pre></section>`).join("")}</div>`;
     case "text-edit": {
       const diff = renderTextDiff(document.before_text, document.after_text, p);
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
-        <p class="agent-review-file"><span class="agent-review-target">${p.escape(document.target_path)}</span>${document.exists ? "" : `<span class="agent-review-tag">${p.escape("新建文件")}</span>`}<span class="agent-review-count" data-added>+${diff.added}</span><span class="agent-review-count" data-removed>−${diff.removed}</span></p>
+        <p class="agent-review-file"><span class="agent-review-target">${p.escape(document.target_path)}</span>${document.exists ? "" : `<span class="agent-review-tag">${p.escape(uiText.text("workbench.agent-review.new-file"))}</span>`}<span class="agent-review-count" data-added>+${diff.added}</span><span class="agent-review-count" data-removed>−${diff.removed}</span></p>
         ${document.workspace_path ? `<p class="agent-review-meta">${p.escape(document.workspace_path)}</p>` : ""}
-        ${document.concurrent?.length ? `<p class="agent-review-concurrent" role="note">${p.escape("另一个会话也在改这个文件：" + document.concurrent.join("、") + "。批准前先确认不会互相覆盖。")}</p>` : ""}
+        ${document.concurrent?.length ? `<p class="agent-review-concurrent" role="note">${p.escape(uiText.text("workbench.agent-review.concurrent", { sessions: document.concurrent.join(uiText.text("common.list.separator")) }))}</p>` : ""}
         ${diff.html}
-        <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前的完整内容")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
-        <details class="agent-review-after-full" data-review-detail="after"><summary>${p.escape("修改后的完整内容")}</summary><pre class="agent-review-after">${p.escape(document.after_text)}</pre></details>
+        <details class="agent-review-before" data-review-detail="before"><summary>${p.escape(uiText.text("workbench.agent-review.before-full"))}</summary><pre>${p.escape(document.before_text ?? uiText.text("workbench.agent-review.before-no-file"))}</pre></details>
+        <details class="agent-review-after-full" data-review-detail="after"><summary>${p.escape(uiText.text("workbench.agent-review.after-full"))}</summary><pre class="agent-review-after" translate="no">${p.escape(document.after_text)}</pre></details>
       </div>`;
     }
     case "command":
       return `<div class="agent-review-doc" data-agent-review-kind="command">
-        <pre class="agent-review-command"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
-        ${document.after_write_check ? `<p class="agent-review-meta" data-agent-review-check>${p.escape(`写后检查：${document.after_write_check.display_name}（配置 v${document.after_write_check.version}）`)}</p>` : ""}
-        ${leakedMarkup([document.command, ...document.args].join(" ")) ? `<p class="agent-review-warning" role="note">${p.escape("命令里混有像工具调用标记的文本（例如 </arg…>、<item>），多半是模型输出出错；这样的命令通常无法正常运行，建议拒绝并说明。")}</p>` : ""}
-        <p class="agent-review-meta">${p.escape(`在 ${document.cwd === "." ? "工作区根目录" : document.cwd} 运行 · ${document.escalate === undefined ? "执行范围未提供" : document.escalate ? "请求在沙箱外执行" : document.grants ? "超出宿主执行边界，另要下面这些" : "在宿主执行边界内"}`)}</p>
-        ${document.grants ? `<div class="agent-review-grants" role="note" data-agent-review-grants><p>${p.escape("这条命令还点名要（只批这一次，不会记住）：")}</p><ul>${document.grants.paths.map(grant => `<li><span class="agent-review-tag">${p.escape(grant.access === "write" ? "读写" : "读取")}</span> <code>${p.escape(grant.path)}</code></li>`).join("")}${document.grants.network ? `<li><span class="agent-review-tag">${p.escape("联网")}</span> ${p.escape("这条命令要访问网络")}</li>` : ""}</ul><p class="agent-review-meta">${p.escape("本机没有系统级隔离：批准后命令照常运行，这里列的是它要求的范围，不是被限制在内的范围。")}</p></div>` : ""}
-        ${document.background ? `<p class="agent-review-background" role="note">${p.escape(document.outlives_run ? "后台运行：不等它结束，这一轮结束后也继续跑，直到它自己结束或被停止；可以在会话的后台命令里随时停掉。" : "后台运行：不等它结束；这一轮结束时会一起停掉。")}</p>` : ""}
-        <details class="agent-review-bounds" data-review-detail="bounds"><summary>${p.escape("执行边界")}</summary><dl>
-          ${document.workspace_path ? `<dt>${p.escape("所属工作区")}</dt><dd>${p.escape(document.workspace_path)}</dd>` : ""}
-          <dt>${p.escape("工作目录")}</dt><dd>${p.escape(document.cwd)}</dd>
-          <dt>${p.escape("超时")}</dt><dd>${p.escape(document.background ? "后台运行不限时" : document.timeout_ms + " ms")}</dd>
-          <dt>${p.escape("继承的环境变量")}</dt><dd>${p.escape(document.env_allowlist?.join(", ") ?? "运行时未提供")}</dd>
-          <dt>${p.escape("执行范围")}</dt><dd>${p.escape(document.escalate === undefined ? "运行时未提供" : document.escalate ? "请求在沙箱外执行；批准仅适用于这一次操作" : document.grants ? "本轮宿主执行边界之外，另要上面列出的路径或网络；批准仅适用于这一次操作" : "按本轮宿主执行边界运行")}</dd>
+        <pre class="agent-review-command" translate="no"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
+        ${document.after_write_check ? `<p class="agent-review-meta" data-agent-review-check>${p.escape(uiText.text("workbench.agent-review.after-write-check", { name: document.after_write_check.display_name, version: document.after_write_check.version }))}</p>` : ""}
+        ${leakedMarkup([document.command, ...document.args].join(" ")) ? `<p class="agent-review-warning" role="note">${p.escape(uiText.text("workbench.agent-review.leaked-markup", { example: "</arg…>, <item>" }))}</p>` : ""}
+        <p class="agent-review-meta">${p.escape(uiText.text("workbench.agent-review.command-scope", { directory: document.cwd === "." ? uiText.text("workbench.agent-review.workspace-root") : document.cwd, scope: uiText.text(document.escalate === undefined ? "workbench.agent-review.scope-missing" : document.escalate ? "workbench.agent-review.outside-sandbox" : document.grants ? "workbench.agent-review.extra-scope" : "workbench.agent-review.within-scope") }))}</p>
+        ${document.grants ? `<div class="agent-review-grants" role="note" data-agent-review-grants><p>${p.escape(uiText.text("workbench.agent-review.asks-access"))}</p><ul>${document.grants.paths.map(grant => `<li><span class="agent-review-tag">${p.escape(grant.access === "write" ? uiText.text("workbench.agent-review.write") : uiText.text("workbench.agent-review.read"))}</span> <code>${p.escape(grant.path)}</code></li>`).join("")}${document.grants.network ? `<li><span class="agent-review-tag">${p.escape(uiText.text("workbench.agent-review.network"))}</span> ${p.escape(uiText.text("workbench.agent-review.requests-network"))}</li>` : ""}</ul><p class="agent-review-meta">${p.escape(uiText.text("workbench.agent-review.no-isolation"))}</p></div>` : ""}
+        ${document.background ? `<p class="agent-review-background" role="note">${p.escape(document.outlives_run ? uiText.text("workbench.agent-review.background-outlives") : uiText.text("workbench.agent-review.background-ends"))}</p>` : ""}
+        <details class="agent-review-bounds" data-review-detail="bounds"><summary>${p.escape(uiText.text("workbench.agent-review.execution-bounds"))}</summary><dl>
+          ${document.workspace_path ? `<dt>${p.escape(uiText.text("workbench.agent-review.workspace"))}</dt><dd>${p.escape(document.workspace_path)}</dd>` : ""}
+          <dt>${p.escape(uiText.text("workbench.agent-review.working-dir"))}</dt><dd>${p.escape(document.cwd)}</dd>
+          <dt>${p.escape(uiText.text("workbench.agent-review.timeout"))}</dt><dd>${p.escape(document.background ? uiText.text("workbench.agent-review.background-no-limit") : uiText.text("workbench.agent-review.timeout-ms", { milliseconds: document.timeout_ms }))}</dd>
+          <dt>${p.escape(uiText.text("workbench.agent-review.inherited-env"))}</dt><dd>${p.escape(document.env_allowlist?.join(", ") ?? uiText.text("workbench.agent-review.not-supplied"))}</dd>
+          <dt>${p.escape(uiText.text("workbench.agent-review.execution-scope"))}</dt><dd>${p.escape(document.escalate === undefined ? uiText.text("workbench.agent-review.not-supplied") : document.escalate ? uiText.text("workbench.agent-review.outside-once") : document.grants ? uiText.text("workbench.agent-review.extra-scope-once") : uiText.text("workbench.agent-review.within-turn"))}</dd>
         </dl></details>
       </div>`;
     case "tool-operation": {
       // Exact arguments stay reviewable, folded under the readable fields rather than in front of them.
       const exact = document.fields.filter(field => field.label === "本次完整参数"), readable = document.fields.filter(field => field.label !== "本次完整参数");
-      return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape("完整参数")}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
+      return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape(uiText.text("workbench.agent-review.arguments"))}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
     }
-    case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre>${p.escape(document.arguments_json)}</pre></div>`;
+    case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre translate="no">${p.escape(document.arguments_json)}</pre></div>`;
     case "rewind": return `<div class="agent-review-doc" data-agent-review-kind="rewind">
-      <p>${p.escape("回到检查点记录的修改前 · " + document.checkpoint_id)}</p>
-      <p>只回退所列文件，不撤销命令、网络或 MCP 操作；对话记录会保留。</p>
-      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)} · ${{create:"重新创建",delete:"删除",restore:"恢复内容"}[file.change]}</p>
-        <details data-review-detail="${p.escape("before:" + file.path)}"><summary>当前内容</summary><pre>${p.escape(file.before_text === null ? "文件不存在" : file.before_text === "" ? "（空文件）" : file.before_text)}</pre></details>
-        <p>回退后</p><pre>${p.escape(file.after_text === null ? "文件将不存在" : file.after_text === "" ? "（空文件）" : file.after_text)}</pre></section>`).join("")}</div>`;
+      <p>${p.escape(uiText.text("workbench.agent-review.checkpoint", { id: document.checkpoint_id }))}</p>
+      <p>${uiText("workbench.agent-review.rewind-boundary")}</p>
+      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)} · ${uiText({create:"workbench.agent-review.restore-create",delete:"workbench.agent-review.restore-delete",restore:"workbench.agent-review.restore-text"}[file.change])}</p>
+        <details data-review-detail="${p.escape("before:" + file.path)}"><summary>${uiText("workbench.agent-review.current-contents")}</summary><pre>${p.escape(file.before_text === null ? uiText.text("workbench.agent-review.file-missing") : file.before_text === "" ? uiText.text("workbench.agent-review.empty-file") : file.before_text)}</pre></details>
+        <p>${uiText("workbench.agent-review.after-rewind")}</p><pre>${p.escape(file.after_text === null ? uiText.text("workbench.agent-review.file-will-be-missing") : file.after_text === "" ? uiText.text("workbench.agent-review.empty-file") : file.after_text)}</pre></section>`).join("")}</div>`;
     default:
       // An unknown document kind is shown as its kind, never silently dropped:
       // a user must not approve something the surface refused to describe.
@@ -346,21 +331,21 @@ function renderTextDiff(before: string | null, after: string, p: AgentReviewPrim
   const diff = compareTexts(before ?? "", after);
   const rows = diff.ops.map(textDiffRow);
   const added = rows.filter(row => row.kind === "insert").length, removed = rows.filter(row => row.kind === "delete").length;
-  if (diff.identical) return { html: `<p class="agent-review-meta">${p.escape("内容没有变化")}</p>`, added, removed };
+  if (diff.identical) return { html: `<p class="agent-review-meta">${p.escape(uiText.text("workbench.agent-review.unchanged"))}</p>`, added, removed };
   const keep = new Array<boolean>(rows.length).fill(false);
   rows.forEach((row, index) => { if (row.kind !== "equal") for (let near = Math.max(0, index - DIFF_CONTEXT); near <= Math.min(rows.length - 1, index + DIFF_CONTEXT); near += 1) keep[near] = true; });
   const body: string[] = [];
   let skipped = 0, shown = 0;
-  const gap = () => { if (skipped) body.push(`<tr class="agent-review-gap"><td colspan="3">${p.escape(`⋯ ${skipped} 行未变`)}</td></tr>`); skipped = 0; };
+  const gap = () => { if (skipped) body.push(`<tr class="agent-review-gap"><td colspan="3">${p.escape(uiText.text("workbench.agent-review.unchanged-lines", { count: skipped }))}</td></tr>`); skipped = 0; };
   rows.forEach((row: TextDiffRow, index) => {
     if (!keep[index]) { skipped += 1; return; }
     gap();
     if (shown++ >= DIFF_ROW_LIMIT) return;
     const sign = row.kind === "insert" ? "+" : row.kind === "delete" ? "−" : " ";
-    body.push(`<tr data-diff="${row.kind}"><td class="agent-review-ln">${row.before_number ?? ""}</td><td class="agent-review-ln">${row.after_number ?? ""}</td><td class="agent-review-code"><span class="agent-review-sign" aria-hidden="true">${sign}</span>${p.escape(row.text)}</td></tr>`);
+    body.push(`<tr data-diff="${row.kind}"><td class="agent-review-ln">${row.before_number ?? ""}</td><td class="agent-review-ln">${row.after_number ?? ""}</td><td class="agent-review-code" translate="no"><span class="agent-review-sign" aria-hidden="true">${sign}</span>${p.escape(row.text)}</td></tr>`);
   });
   gap();
-  const more = shown > DIFF_ROW_LIMIT ? `<p class="agent-review-meta">${p.escape(`差异较长，已显示前 ${DIFF_ROW_LIMIT} 行；完整内容见下方`)}</p>` : "";
-  const coarse = diff.coarse ? `<p class="agent-review-meta">${p.escape("改动范围很大，差异按整段删除与新增显示")}</p>` : "";
-  return { html: `<div class="agent-review-diff-wrap"><table class="agent-review-diff" aria-label="${p.escape("修改差异")}"><tbody>${body.join("")}</tbody></table></div>${more}${coarse}`, added, removed };
+  const more = shown > DIFF_ROW_LIMIT ? `<p class="agent-review-meta">${p.escape(uiText.text("workbench.agent-review.diff-long", { count: DIFF_ROW_LIMIT }))}</p>` : "";
+  const coarse = diff.coarse ? `<p class="agent-review-meta">${p.escape(uiText.text("workbench.agent-review.diff-coarse"))}</p>` : "";
+  return { html: `<div class="agent-review-diff-wrap"><table class="agent-review-diff" aria-label="${p.escape(uiText.text("workbench.agent-review.diff"))}"><tbody>${body.join("")}</tbody></table></div>${more}${coarse}`, added, removed };
 }

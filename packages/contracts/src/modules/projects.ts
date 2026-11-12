@@ -1,3 +1,4 @@
+import type { TextRef } from "../platform/ui.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import { defineErrorCodes, inputSchemaFor, type ActionDefinition, type ActionMetadata, type ActionSchema } from "../platform/actions.js";
 import {
@@ -224,8 +225,8 @@ export interface CreateProjectInput {
  * platform deletes it without running the plugin's code.
  */
 export interface ProjectDataDeclaration {
-  /** What the confirmation dialog tells the person goes with the project (Chinese source text, translated when shown). */
-  readonly label: string;
+  /** What the confirmation dialog tells the person goes with the project. A reference uses the platform's words. */
+  readonly label: string | TextRef;
   /** Where this owner's step runs among the others, ascending; omitted, it runs after every numbered one, in catalog order. */
   readonly order?: number;
   /**

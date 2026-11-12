@@ -1,14 +1,116 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
+import { CODING_BOX, CODING_OPEN } from "./fixtures/coding-composer.js";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+test("FSS-35 an open Coding session keeps its draft and checkpoint seconds through both language changes", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome: seedConfiguredModels }); if (!browser?.projectId) return;
+  const child = await pluginFrameBrowser(t, browser, "coding");
+  await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
+  const original = { checkpoint_id: "cp-original", label: "原始检查点 <raw>", created_at: "2026-11-09T18:24:09.000Z", rewound_at: "2026-11-09T18:24:49.000Z",
+    origin_run_id: "original-run", directory: { canonical_path: "/tmp/原始路径" } };
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `
+    window.codingLanguageRequests = []; window.codingLanguageReplies = []; const fetchOriginal = window.fetch;
+    window.fetch = async (input, init) => {
+      const path = new URL(String(input?.url || input), location.href).pathname;
+      if (path.includes('/api/plugins/io.molis.work.coding/')) codingLanguageRequests.push([init?.method || 'GET', path]);
+      const response = await fetchOriginal(input, init);
+      if (path.includes('/api/plugins/io.molis.work.coding/')) {
+        const detail = await response.clone().json().catch(() => ({}));
+        const draft = init?.method === 'PATCH' && typeof init.body === 'string' ? JSON.parse(init.body).draft : null;
+        codingLanguageReplies.push([path, response.status, detail.code || null, detail.models?.length ?? null, draft]);
+      }
+      return path.endsWith('/checkpoints') && response.ok ? Response.json({checkpoints:[${JSON.stringify(original)}]}) : response;
+    };
+  ` }, browser.sessionId);
+  const next = `/projects/${browser.projectId}/?openPlugin=coding`;
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=en&next=" + encodeURIComponent(next) }, browser.sessionId));
+  await child.waitFor("document.querySelector('[data-coding-new]') && typeof t === 'function'");
+  await child.click("[data-coding-new]");
+  try {
+    await browser.waitFor(CODING_OPEN);
+    await child.waitFor("document.querySelector('[data-coding-checkpoints-list] time')");
+  }
+  catch (error) {
+    t.diagnostic(JSON.stringify({ requests: await browser.evaluate("codingLanguageRequests"), replies: await browser.evaluate("codingLanguageReplies"), view: await child.evaluate(`[document.querySelector('[data-coding-status]')?.textContent,
+      document.querySelector('[data-coding-checkpoints-status]')?.textContent, document.querySelector('[data-coding-workbench]').dataset.codingDetail]`) }));
+    throw error;
+  }
+  await child.click("[data-coding-results-open]");
+  const changeBundle = readFileSync(new URL("../plugins/native/coding/dist/changeset-bundle.js", import.meta.url), "utf8");
+  await child.evaluate(`(async () => {
+    window.codingLanguageRoot = document.querySelector('[data-coding-workbench]');
+    const q = selector => codingLanguageRoot.querySelector(selector), lifetime = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(codingLanguageRoot);
+    const changes = (${changeBundle})({lifetime,translate:globalThis.t.text,root:codingLanguageRoot,q,turns:q('[data-coding-turns]'),current:()=>'fixture-session',
+      closeReport:()=>{},returnToTask:()=>{},onRunOpen:()=>{},appendDraft:async()=>{},focusDraft:()=>{},status:()=>{},
+      api:async()=>({view_mode:'write',html:'',patch:'',reference:{artifact_id:'original-fixed',version:2},saved_at:Date.UTC(2026,10,9,18,24,37),
+        output:null,net_groups:[],change:{files:[]}})});
+    window.changeFixture = changes;
+    window.checkpoint = q('[data-coding-checkpoints-list] section'); window.checkpointFold = checkpoint.closest('details'); checkpointFold.open = true;
+    window.codingLanguageChanges = [];
+    document.addEventListener('molis-work:language-changed', event => { codingLanguageChanges.push(event.detail.tag); });
+  })()`);
+  const input = `document.querySelector(${JSON.stringify(CODING_BOX)})`;
+  const session = await child.evaluate<string>("document.querySelector('[data-coding-session][aria-current=true]').dataset.codingSession");
+  const draftPath = `/projects/${browser.projectId}/api/plugins/io.molis.work.coding/sessions/${encodeURIComponent(session)}`;
+  await browser.evaluate(`(() => {
+    window.codingDraft = ${input}; codingDraft.focus(); codingDraft.value = '尚未发送的草稿';
+    codingDraft.dispatchEvent(new Event('input', {bubbles:true})); codingDraft.setSelectionRange(1, 4, 'backward');
+  })()`);
+  await browser.waitFor(`codingLanguageReplies.some(([path,status,,,draft]) => path === ${JSON.stringify(draftPath)} && status === 200 && draft === '尚未发送的草稿')`);
+  assert.equal((await browser.web.get<{ draft: string }>(draftPath + "?window=1")).draft, "尚未发送的草稿");
+  assert.equal(await browser.evaluate("document.activeElement===codingDraft"), true, "the wide view keeps the draft visible beside the review panel");
+  await browser.evaluate("codingLanguageRequests.length = 0");
+  const dates = "[checkpoint.querySelector('time').textContent, checkpoint.querySelector('.coding-checkpoint-done').textContent]";
+  const accessibleName = async () => {
+    const tree = await child.frameCommand<{ nodes: Array<{ role?: { value?: string }; name?: { value?: string } }> }>("Accessibility.getFullAXTree", { frameId: await child.frameId() });
+    return tree.nodes.find(node => node.role?.value === "button" && node.name?.value?.endsWith(" " + original.checkpoint_id))?.name?.value;
+  };
+  const initial = await child.evaluate<string[]>(dates);
+  assert.match(initial[0]!, /:\d\d:09\s(?:AM|PM)/u);
+  assert.match(initial[1]!, /^Rolled back to here at .*:\d\d:49\s(?:AM|PM)/u);
+  assert.equal(await accessibleName(), `Preview the rollback again ${original.label} ${original.checkpoint_id}`);
+  const languages = [["zh", "zh-CN"], ["en", "en"]] as const;
+  const switchLanguage = async (tag: "zh" | "en", locale: "zh-CN" | "en") => {
+    const count = await child.evaluate<number>("codingLanguageChanges.length");
+    await browser.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await child.waitFor(`document.documentElement.lang === '${locale}' && codingLanguageChanges[${count}] === '${tag}'`);
+  };
+  for (const [tag, locale] of languages) {
+    await switchLanguage(tag, locale);
+    const words = await child.evaluate<string[]>(dates);
+    if (tag === "en") assert.deepEqual(words, initial);
+    else { assert.match(words[0]!, /:\d\d:09/u); assert.notEqual(words[0], initial[0]); assert.match(words[1]!, /^已于 .*:\d\d:49/u); }
+    assert.equal(await accessibleName(), `${tag === "en" ? "Preview the rollback again" : "再次预览回退"} ${original.label} ${original.checkpoint_id}`);
+    assert.deepEqual(await browser.evaluate(`[codingDraft===${input}, document.activeElement===codingDraft, codingDraft.value,
+      codingDraft.selectionStart, codingDraft.selectionEnd, codingDraft.selectionDirection]`), [true, true, "尚未发送的草稿", 1, 4, "backward"]);
+    assert.deepEqual(await child.evaluate(`[codingLanguageRoot.dataset.codingDetail,
+      checkpoint===document.querySelector('[data-coding-checkpoints-list] section'), checkpointFold.open, checkpoint.querySelector('p').textContent,
+      checkpoint.querySelector('small [translate=no]').textContent]`),
+      ["true", true, true, original.label, original.directory.canonical_path]);
+  }
+  await child.evaluate(`(async () => { await changeFixture.openFixed('fixture-round'); window.fixedChange = document.querySelector('[data-coding-change-fixed]'); })()`);
+  const fixed = await child.evaluate<string>("fixedChange.title");
+  assert.match(fixed, /^Fixed at .*:\d\d:37\s(?:AM|PM)/u);
+  for (const [tag, locale] of languages) {
+    await switchLanguage(tag, locale);
+    const title = await child.evaluate<string>("fixedChange.title");
+    if (tag === "en") assert.equal(title, fixed); else assert.match(title, /^固定于 .*:\d\d:37/u);
+    assert.deepEqual(await child.evaluate("[fixedChange===document.querySelector('[data-coding-change-fixed]'), fixedChange.getClientRects().length > 0]"), [true, true]);
+  }
+  assert.deepEqual(await browser.evaluate(`codingLanguageRequests.filter(([method, path]) => method !== 'GET' || path.endsWith('/checkpoints'))`), []);
+});
 
 // MERGEFIX-01: exercise the extracted index through the shipped Coding client and the Host's real lifetime.
 test('Coding results index follows section visibility, jumps with focus, and releases observers on unmount', { timeout: 45_000 }, async t => {
-  const browser = await openGoalBrowser(t, 'seeded'); if (!browser) return;
+  const browser = await openGoalBrowser(t, 'seeded', undefined, undefined, undefined, undefined, { prepareHome: seedConfiguredModels }); if (!browser) return;
   const { command, sessionId, navigate, origin, projectId } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "coding");
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=coding` }, sessionId));
@@ -52,7 +154,7 @@ test('Coding results index follows section visibility, jumps with focus, and rel
 
 // W2-18-CODING-LIFETIME-01: the original global effect listener must be gone after detach/remount.
 test("Coding stops hidden polling and releases every client listener before the same DOM is mounted again", { timeout: 45_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const browser = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome: seedConfiguredModels }); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "coding");
   const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
@@ -87,7 +189,7 @@ test("Coding stops hidden polling and releases every client listener before the 
     codingParent.append(codingRoot);
     const mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
     const pluginId='io.molis.work.coding';
-    window.remountCoding=()=>(${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})({root:codingRoot,mountPluginClient:mount,translate:globalThis.L,pluginId,pluginRoute:path=>codingRoot.dataset.codingPrefix+'/api/plugins/'+pluginId+path,
+    window.remountCoding=()=>(${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})({root:codingRoot,mountPluginClient:mount,translate:globalThis.t.text,pluginId,pluginRoute:path=>codingRoot.dataset.codingPrefix+'/api/plugins/'+pluginId+path,
       confirm:async()=>true,interaction:()=>{throw new Error('no card is drawn in this test');},receipts:{},workspaces:{add:async()=>({workspace_id:'none'}),select:async()=>{}},clients:{},reviews:{show:async()=>{}},openItem:()=>{},
       returns:{arrived:async()=>null,go:async()=>{throw new Error('no settings are opened in this test');}}});
     remountCoding();remountCoding();

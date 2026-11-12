@@ -7,7 +7,7 @@ import { readPagesImage } from "./editor-transient.js";
 import { pagesSchema } from "./schema.js";
 import { clipboardImage } from "./editor-paste.js";
 import type { Translate } from "./editor-types.js";
-import { t } from "./editor-view-ui.js";
+import { bindEditorWords, t } from "./editor-view-ui.js";
 
 const chromeKey = new PluginKey<{ after: number }>("pages-chrome");
 
@@ -32,7 +32,7 @@ export function chromePlugin(translate: Translate | undefined, renderOnly = fals
         if (blank) {
           widgets.push(Decoration.node(0, first.nodeSize, {
             class: "is-empty",
-            "data-placeholder": t(translate, "输入 / 插入块，或直接写"),
+            "data-placeholder": t(translate, "pages.editor.type-to-insert-a-block-or-just-write"),
           }));
         } else {
           const hint = blockPlaceholder($from);
@@ -112,9 +112,11 @@ function provisionalField(translate: Translate | undefined): HTMLElement {
   field.className = "pages-provisional";
   field.contentEditable = "true";
   field.dataset.pagesProvisional = "1";
-  field.dataset.placeholder = t(translate, "输入 / 插入块，或直接写");
   field.setAttribute("role", "textbox");
-  field.setAttribute("aria-label", t(translate, "在此输入"));
+  bindEditorWords(field, () => {
+    field.dataset.placeholder = t(translate, "pages.editor.type-to-insert-a-block-or-just-write");
+    field.setAttribute("aria-label", t(translate, "pages.editor.type-here"));
+  });
   let composing = false;
   const viewOf = (): EditorView | null => provisionalView;
   const clear = () => {
@@ -199,7 +201,7 @@ function gapWidget(index: number, translate?: Translate): HTMLElement {
   line.dataset.pagesGap = "1";
   line.dataset.after = String(index);
   line.setAttribute("role", "button");
-  line.setAttribute("aria-label", t(translate, "在此插入"));
+  bindEditorWords(line, () => line.setAttribute("aria-label", t(translate, "pages.editor.insert-here")));
   line.contentEditable = "false";
   return line;
 }

@@ -1,5 +1,5 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
-import { withPluginWords } from "./i18n.js";
 import type { PluginHomeStart } from "./plugin-catalog.js";
 
 /**
@@ -8,39 +8,38 @@ import type { PluginHomeStart } from "./plugin-catalog.js";
  * The event detail keeps one node (`data-home-detail`) that the client moves into the open row. The ways to start on an empty day are the
  * enabled plugins' declared `start` (`data-home-starts`); the client keeps no list by plugin.
  */
-export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
+export function renderProjectHome(name: string, { escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
   // Each start is its plugin's own text, so it is worded in the page's language with that plugin's words before the page gets it.
-  const worded = starts.map(({ plugin_id, ...start }) => withPluginWords(plugin_id, () => ({ ...start, title: L(start.title), hint: L(start.hint) })));
-  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(worded))}" data-work-surface-label="${L("项目首页")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${L("项目首页")}" hidden>
+  return `<section id="project-home-surface" class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(starts))}" data-work-surface-label="${uiText("workbench.project-home.project-home")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
     <div class="home-scroll" data-home-scroll>
       <header class="home-heading home-hero" data-home-hero>
         <time data-home-date></time>
       </header>
       <div class="home-layout">
-        <nav class="home-dates" aria-label="${L("日期")}">
+        <nav class="home-dates" aria-label="${uiText("workbench.project-home.date")}">
           <div class="home-dates__list" data-home-dates data-overflow-fade></div>
           <span class="home-dates__line" aria-hidden="true"></span>
-          <button class="mw-btn mw-btn--ghost mw-btn--icon-only home-today" type="button" data-home-today aria-label="${L("回到今天")}" title="${L("回到今天")}">${icon("calendar")}</button>
+          <button class="mw-btn mw-btn--ghost mw-btn--icon-only home-today" type="button" data-home-today aria-label="${uiText("workbench.project-home.back-today")}" title="${uiText("workbench.project-home.back-today")}">${icon("calendar")}</button>
         </nav>
         <section class="home-focus" data-home-focus aria-labelledby="home-focus-title" hidden></section>
-        <aside class="home-margin" aria-label="${L("手边")}">
+        <aside class="home-margin" aria-label="${uiText("workbench.project-home.hand")}">
           <section class="home-launch" aria-labelledby="home-launch-title">
-            <h2 id="home-launch-title">${L("回到手边的内容")}</h2>
+            <h2 id="home-launch-title">${uiText("workbench.project-home.back-what-s-hand")}</h2>
             <ul class="home-quick" data-home-quick></ul>
-            <ul class="home-shortcuts" data-home-shortcuts aria-label="${L("快捷方式")}"><li class="home-shortcut home-shortcut-add"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${L("添加快捷方式")}</span></button></li></ul>
+            <ul class="home-shortcuts" data-home-shortcuts aria-label="${uiText("workbench.project-home.shortcuts")}"><li class="home-shortcut home-shortcut-add"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${uiText("workbench.project-home.add-shortcut")}</span></button></li></ul>
             <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
           </section>
-          <section class="placement-related" data-placement-related aria-label="${L("关联资料")}" hidden></section>
-          <p class="home-margin-note">${icon("shield")}${L("你的节奏，你的工作空间。")}</p>
+          <section class="placement-related" data-placement-related aria-label="${uiText("workbench.project-home.linked-materials")}" hidden></section>
+          <p class="home-margin-note">${icon("shield")}${uiText("workbench.project-home.pace-workspace")}</p>
         </aside>
-        <section class="home-tl" aria-label="${L("当天的事件")}">
-          <div class="home-tl__head"><h2>${L("当天的事件")}<small data-home-list-count></small></h2><span data-home-list-stats></span></div>
+        <section class="home-tl" aria-label="${uiText("workbench.project-home.today-s-events")}">
+          <div class="home-tl__head"><h2>${uiText("workbench.project-home.today-s-events")}<small data-home-list-count></small></h2><span data-home-list-stats></span></div>
           <div class="home-tl__rows" data-home-list></div>
         </section>
       </div>
     </div>
     <div class="home-detail-holder" data-home-detail-holder hidden>
-      <aside class="home-detail" data-home-detail aria-label="${L("这件事")}">
+      <aside class="home-detail" data-home-detail aria-label="${uiText("workbench.project-home.item")}">
         <div class="home-detail__head" data-home-detail-head></div>
         <div class="home-detail__body" data-home-detail-body></div>
         <div class="home-detail__act" data-home-detail-act></div>
@@ -49,11 +48,11 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
     <template data-home-shortcut-template><li class="home-shortcut"><a class="home-shortcut-main" target="_blank" rel="noopener noreferrer" data-home-shortcut-link data-home-external><span class="home-shortcut-icon">${icon("link")}</span><span data-home-shortcut-name></span></a><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only home-shortcut-edit" data-home-shortcut-edit>${icon("more")}</button></li></template>
     <dialog class="mw-dialog home-shortcut-dialog" data-slot="dialog" data-home-shortcut-dialog aria-labelledby="home-shortcut-title">
       <form data-home-shortcut-form novalidate>
-        <header><h2 id="home-shortcut-title">${L("添加快捷方式")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-home-shortcut-cancel aria-label="${L("关闭")}">${icon("x")}</button></header>
-        <label class="mw-field"><span class="mw-field__label">${L("名称")}</span><input class="mw-input" name="shortcut_name" maxlength="32" autocomplete="off" required placeholder="${L("例如：项目文档")}"></label>
-        <label class="mw-field"><span class="mw-field__label">${L("网址")}</span><input class="mw-input" name="shortcut_url" type="url" maxlength="4096" autocomplete="off" required placeholder="https://"></label>
+        <header><h2 id="home-shortcut-title">${uiText("workbench.project-home.add-shortcut")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-home-shortcut-cancel aria-label="${uiText("common.control.close")}">${icon("x")}</button></header>
+        <label class="mw-field"><span class="mw-field__label">${uiText("workbench.project-home.name")}</span><input class="mw-input" name="shortcut_name" maxlength="32" autocomplete="off" required placeholder="${uiText("workbench.project-home.example-project-docs")}"></label>
+        <label class="mw-field"><span class="mw-field__label">${uiText("workbench.project-home.website-url")}</span><input class="mw-input" name="shortcut_url" type="url" maxlength="4096" autocomplete="off" required placeholder="https://"></label>
         <p class="home-shortcut-form-error" data-home-shortcut-form-error role="alert"></p>
-        <footer><button class="mw-btn mw-btn--danger-outline home-shortcut-remove" type="button" data-home-shortcut-remove hidden>${L("移除")}</button><button class="mw-btn mw-btn--secondary" type="button" data-home-shortcut-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary home-shortcut-save" type="submit">${L("保存")}</button></footer>
+        <footer><button class="mw-btn mw-btn--danger-outline home-shortcut-remove" type="button" data-home-shortcut-remove hidden>${uiText("workbench.project-home.remove")}</button><button class="mw-btn mw-btn--secondary" type="button" data-home-shortcut-cancel>${uiText("common.control.cancel")}</button><button class="mw-btn mw-btn--primary home-shortcut-save" type="submit">${uiText("common.control.save")}</button></footer>
       </form>
     </dialog>
   </section>`;

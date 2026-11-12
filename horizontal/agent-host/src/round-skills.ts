@@ -1,5 +1,6 @@
 import { ActionError, type ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MAX_SKILL_BODY_CHARS, type AgentManifest, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AgentRoundSkill } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SKILL_BODY_READ_MAX_REFS, type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
@@ -30,6 +31,7 @@ export interface RoundSkillsInput {
   manifest: AgentManifest;
   /** The starting plugin's own Skill bodies, as its installation registered them. */
   own: readonly AgentSkillDefinition[];
+  locale?: string;
   source: AgentSkillSource | undefined;
   catalog: AgentRoundSkillCatalog | undefined;
   consumer: ActionSkillRound["consumer"];
@@ -63,14 +65,15 @@ export async function freezeRoundSkills(input: RoundSkillsInput): Promise<AgentR
 function ownSkill(ref: SkillRef, input: RoundSkillsInput, named: boolean): AgentRoundSkill {
   const declared = input.manifest.skills!.find(skill => skill.skill_id === ref.skill_id && skill.version === ref.version)!;
   const definition = input.own.find(skill => skill.skill_id === ref.skill_id && skill.version === ref.version);
-  if (!definition?.body.trim()) throw agentErrors.capability_unavailable("这个技能版本不可用，请重新选择");
-  if (definition.body.length > MAX_SKILL_BODY_CHARS || JSON.stringify(definition.tools) !== JSON.stringify(declared.tools)) {
+  const body = definition && agentBodyIn(definition, input.locale);
+  if (!body?.trim() || !definition) throw agentErrors.capability_unavailable("这个技能版本不可用，请重新选择");
+  if (body.length > MAX_SKILL_BODY_CHARS || JSON.stringify(definition.tools) !== JSON.stringify(declared.tools)) {
     throw agentErrors.capability_unavailable("技能正文或工具声明与发布版本不一致");
   }
   if (declared.tools.some(tool => !input.hostTools.includes(tool))) {
     throw agentErrors.role_execution_exceeded(`技能“${declared.name}”需要当前执行方式未开放的工具，请更换方式或取消选择`);
   }
-  return { ref: structuredClone(ref), origin: "own", name: declared.name, tools: [...declared.tools], named, body: definition.body };
+  return { ref: structuredClone(ref), origin: "own", name: declared.name, tools: [...declared.tools], named, body };
 }
 
 async function catalogSkills(refs: readonly SkillRef[], input: RoundSkillsInput, named: ReadonlySet<string>): Promise<AgentRoundSkill[]> {

@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { PAGES_CLIENT_FACTORY_SCRIPT, PAGES_MESSAGES, PAGES_TEMPLATES, renderPagesWorkbench } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_CLIENT_FACTORY_SCRIPT, PAGES_TEMPLATES, renderPagesWorkbench } from "@molis-ai/molis-work-plugin-pages";
 
 const SRC = "plugins/native/pages/src";
 const BROWSER = join(SRC, "browser");
@@ -28,25 +29,14 @@ test("RAC-158 every word the Pages page says has a stable key with both language
     .filter(({ text }) => /\bL\((?!["'`])/u.test(text));
   assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [], "no browser code hands a word it did not choose from the table to the translator");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in PAGES_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(PAGES_MESSAGES).filter(key => !used.has(key) && !named(key)), [], "every defined key is asked for or named as a reason");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(PAGES_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
+  assertPageWords("pages", used);
   for (const template of PAGES_TEMPLATES) {
-    assert.ok(`pages.template.${template.id}.title` in PAGES_MESSAGES && `pages.template.${template.id}.summary` in PAGES_MESSAGES, `${template.id} has card words in both languages`);
+    assertPageWords("pages", [`pages.template.${template.id}.title`, `pages.template.${template.id}.summary`]);
   }
-  const html = renderPagesWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /«pages\.action\.new-doc»/u, "the server-drawn page speaks through the translator");
+  const html = withPageText("en", ["pages"], () => renderPagesWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "pages")("pages.action.new-doc")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
-
-// A key the code carries as a reason (or a label) and a later `L(...)` translates: it is named as a literal, not called.
-function named(key: string): boolean {
-  return [...browserFiles(), ...OWN_WORDS].some(file => readFileSync(file, "utf8").includes(`"${key}"`));
-}
 
 test("RAC-159 the Pages page's client is typed browser code bundled by esbuild, asks the Host only through the shared request helper and names no plugin", () => {
   for (const file of browserFiles()) {
@@ -82,6 +72,6 @@ test("RAC-916-L4 the comment side client only needs its plugin route and ships b
   const commentsBundle = readFileSync(new URL(import.meta.resolve("@molis-ai/molis-work-plugin-pages/editor")), "utf8");
   for (const key of ["pages.comments.draft-too-long", "pages.comments.saved-offer-too-long"]) {
     assert.ok(commentsBundle.includes(key), `the shipped editor/comments bundle carries ${key}`);
-    assert.ok(PAGES_MESSAGES[key as keyof typeof PAGES_MESSAGES].zh && PAGES_MESSAGES[key as keyof typeof PAGES_MESSAGES].en);
+    assertPageWords("pages", [key]);
   }
 });

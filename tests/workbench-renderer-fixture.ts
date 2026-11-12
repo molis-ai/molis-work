@@ -1,6 +1,6 @@
-import { createLocalHostWorkbenchRenderer, installHostUiText, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, currentLocale, installHostUiText, registeredBuiltinText, runWithLocale, runWithRegisteredText, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { buildFeedReaderUiModel, feedUiContribution, feedSourcePresentationId, FEED_UI_CONTRIBUTION_ID, type FeedItemRecord, type FeedSnapshot, type FeedStageData } from "@molis-ai/molis-work-plugin-feed";
+import { buildFeedReaderUiModel, feedManifest, feedUiContribution, feedSourcePresentationId, FEED_UI_CONTRIBUTION_ID, type FeedItemRecord, type FeedSnapshot, type FeedStageData } from "@molis-ai/molis-work-plugin-feed";
 import { gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
 import { rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
 export { countGoalDecisions } from "@molis-ai/molis-work-plugin-goals";
@@ -44,9 +44,11 @@ function ownerStageFacts(view: MolisWorkWebView & { feed?: FeedSnapshot; feed_so
 }
 
 export function renderPersistedFeedItemDetail(item: FeedItemRecord, routePrefix = "") {
-  const stage = renderer.stageFragmentModel("feed", { route_prefix: routePrefix, shown_plugins: ["feed"], project: null, demo: false },
-    { item, inbox_active: false, promote_available: true }, { id: item.item_id, surface: "persisted-detail" });
-  return feedUiContribution.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "persisted-detail", model: buildFeedReaderUiModel(stage) });
+  return runWithLocale(currentLocale(), () => runWithRegisteredText(registeredBuiltinText(feedManifest)!, () => {
+    const stage = renderer.stageFragmentModel("feed", { route_prefix: routePrefix, shown_plugins: ["feed"], project: null, demo: false },
+      { item, inbox_active: false, promote_available: true }, { id: item.item_id, surface: "persisted-detail" });
+    return feedUiContribution.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "persisted-detail", model: buildFeedReaderUiModel(stage) });
+  }));
 }
 export const renderFeedWorkbenchFragment = (view: MolisWorkWebView) => {
   const ready = ownerStageFacts(view);

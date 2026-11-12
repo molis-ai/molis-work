@@ -18,6 +18,7 @@
   "files": [
     "dist",
     "manifest.json",
+    "providers",
     "README.md"
   ],
   "scripts": {

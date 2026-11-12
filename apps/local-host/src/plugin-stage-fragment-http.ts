@@ -5,6 +5,7 @@ import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-a
 import { stageObjectAction, stageDataAction, stageDataInput } from "@molis-ai/molis-work-app-workbench";
 import { readRuntimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import { sendLocalWebJson } from "./web-http.js";
+import { htmlLang } from "./web-locale.js";
 
 export const PLUGIN_STAGE_PREFIX = "/api/stage/";
 
@@ -68,7 +69,7 @@ export async function handlePluginStageFragmentHttp(request: IncomingMessage, re
     const model = ports.renderer.stageFragmentModel(target.plugin, { ...ports.context, shown_plugins: showing }, data, target.object);
     owner.assertCurrent();
     const html = owner.view.render({ contribution_id: owner.view.descriptor.contribution_id, surface, model });
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-language": htmlLang(), "cache-control": "no-store", "x-content-type-options": "nosniff" });
     response.end(html);
   } catch (error) {
     const refusal = actionErrorResponse(error);

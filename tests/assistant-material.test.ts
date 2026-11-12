@@ -1,3 +1,4 @@
+import { noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -54,7 +55,7 @@ test("new material that shares a Goal with a live work raises one merged notice;
     assert.equal((await Promise.all(overlapping))[1], 0, "a look already running is not joined by another");
     const [notice] = service.notices.notices(null);
     assert.equal(notice!.kind, "material");
-    assert.match(notice!.text, /Feed 有新内容「竞品发布了 Q4 路线图」，和这项工作的目标「Q4 计划」有关/);
+    assert.match(noticeText(notice!), /Feed 有新内容「竞品发布了 Q4 路线图」，和这项工作的目标「Q4 计划」有关/);
 
     // Looked at again: the same items raise nothing; a second relevant one merges into the same notice.
     clock = new Date("2026-09-29T09:10:00.000Z");
@@ -65,7 +66,9 @@ test("new material that shares a Goal with a live work raises one merged notice;
     assert.equal(await service.notices.scanNewMaterial(), 1);
     const merged = service.notices.notices(null);
     assert.equal(merged.length, 1, "one notice per work");
-    assert.match(merged[0]!.text, /Q4 预算调整.*另有 1 条/);
+    assert.equal(merged[0]!.additional_count, 1);
+    assert.match(noticeText(merged[0]!), /Q4 预算调整.*另有 1 条/);
+    assert.match(noticeText(merged[0]!, "en"), /There is 1 more item\./u);
 
     // What the Assistant produced itself is not news to it.
     store.relations.link({ work_id: work.work_id, project_id: "project" }, "result", { kind: "feed_item", id: "e", revision: "1" }, "助理产出");

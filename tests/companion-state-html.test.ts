@@ -11,11 +11,11 @@ import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBo
 import { createDiffPlugin, DIFF_LABELS, DIFF_PLUGIN_ID, diffActions, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { createTextStatsPlugin, TEXT_STATS_PLUGIN_ID, textStatsActions, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { pageText } from "./fixtures/page-text.js";
+import { pagePack, pageText, withPageText } from "./fixtures/page-text.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // specs/archive/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
@@ -23,11 +23,13 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 
 const SOURCE = "io.molis.work.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;
 const type = { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1 };
-const snapshot = (text: string) => ({ workspace: { workspace_id: "ws", name: "Project" }, path: ["a.ts"], text });
+const snapshot = (text: string, workspaceId = "ws") => ({ workspace: { workspace_id: workspaceId, name: "Project" }, path: ["a.ts"], text });
 /** What the Host drew before: the page's translator (with the drawing Plugin's words, as it is that Plugin's surface), the design system's escape and icons. */
 const pagePrimitives = (locale: ActionLocale, ...plugins: string[]) => ({ escape: escapeHtml, text: pageText(locale, ...plugins), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
 /** The same for Diff: its sentences with values in them matched to its messages first, as the Host's Diff renderer did. */
 const diffPrimitives = (locale: ActionLocale) => ({ ...pagePrimitives(locale), text: diffPageText(locale) });
+const expectedTextStats = (view: TextStatsView, locale: ActionLocale) =>
+  withPageText(locale, ["text-stats"], () => renderTextStats({ view, primitives: pagePrimitives(locale, "text-stats") }));
 
 const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   manifest: {
@@ -42,7 +44,7 @@ const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   async start(context) { assert.ok(context.services?.outputs); source.outputs = context.services.outputs; return { kind: "app", views: [] }; },
 };
 
-type Platform = { invoke<Output>(definition: typeof diffState | typeof statsState, caller: Partial<ActionCallContext>): Promise<Output>; publish(text: string): void; pinBefore(text: string): void };
+type Platform = { invoke<Output>(definition: typeof diffState | typeof statsState, caller: Partial<ActionCallContext>): Promise<Output>; publish(text: string, workspaceId?: string): void; pinBefore(text: string): void };
 
 async function withPlatform(run: (project: Platform) => Promise<void>) {
   const directory = mkdtempSync(join(tmpdir(), "companion-state-html-")), databasePath = join(directory, "project.db");
@@ -59,9 +61,16 @@ async function withPlatform(run: (project: Platform) => Promise<void>) {
     for (const [target, port] of [[DIFF_PLUGIN_ID, "after"], [TEXT_STATS_PLUGIN_ID, "text"]] as const) platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
       target_plugin_id: target, target_port: port, source_plugin_id: SOURCE, source_port: "after", origin: "user" });
     await run({
-      invoke: async <Output>(definition: typeof diffState | typeof statsState, caller: Partial<ActionCallContext>) =>
-        await actions.client.invoke({ actor_id: ACTOR, project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read"], ...caller }, definition, {}) as Output,
-      publish: text => { source.outputs!.publish({ port: "after", content: { kind: "inline", payload: snapshot(text) } }); },
+      invoke: async <Output>(definition: typeof diffState | typeof statsState, caller: Partial<ActionCallContext>) => {
+        const owner = definition.capability_id === diffState.capability_id ? "diff" : "text-stats";
+        const locale = caller.locale ?? "zh", packs = [pagePack(owner, "zh")];
+        if (locale !== "zh") packs.push(pagePack(owner, locale));
+        const restore = installTextForTest({ locale, packs });
+        try {
+          return await actions.client.invoke({ actor_id: ACTOR, project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read"], ...caller }, definition, {}) as Output;
+        } finally { restore(); }
+      },
+      publish: (text, workspaceId) => { source.outputs!.publish({ port: "after", content: { kind: "inline", payload: snapshot(text, workspaceId) } }); },
       pinBefore: text => {
         const artifact = artifacts.commands.registerVersion({ ...pinnedArtifact("before"), project_id: DEMO_PROJECT_ID, actor_id: ACTOR, artifact_id: "before", version: 1, ...type,
           producer: { plugin_id: "io.molis.work.files", plugin_version: "1.0.0", binding_signature: "official-files-binding" },
@@ -84,10 +93,12 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
     for (const locale of ["zh", "en"] as const) {
       const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
       assert.equal(stats.view.phase, "waiting");
-      assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale, "text-stats") }));
+      assert.equal(stats.html, expectedTextStats(stats.view, locale));
       assert.match(stats.html, /mw-empty[\s\S]*#icon-hash/);
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
-      assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: diff.view, primitives: diffPrimitives(locale) }));
+      assert.equal(diff.view.message, "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异");
+      const message = locale === "en" ? "Pin a before and an after in the file reader first, and the difference shows here" : diff.view.message;
+      assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: { ...diff.view, message }, primitives: diffPrimitives(locale) }));
       assert.match(diff.html, /#icon-git-compare/);
     }
     project.pinBefore("original <b>\n"); project.publish("changed <b>\n");
@@ -98,7 +109,7 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.match(diff.html, /original &lt;b&gt;/); assert.doesNotMatch(diff.html, /original <b>/, "a line's text is escaped");
       const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
       assert.equal(stats.view.phase, "ready");
-      assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale, "text-stats") }), `text-stats.state draws the same counts the Host drew (${locale})`);
+      assert.equal(stats.html, expectedTextStats(stats.view, locale), `text-stats.state draws the same counts the Host drew (${locale})`);
       if (locale === "en") for (const html of [diff.html, stats.html]) assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), HAN, "the English page gets English words");
     }
     // Coding's, Files' and Git's pages read both through their consumer declarations, so the call reaches them as a plugin's (#1018):
@@ -110,7 +121,16 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
     }
     // No language from the page (no cookie, no Accept-Language): the plugins' Chinese, as the Host's default was.
     const plain = await project.invoke<{ view: TextStatsView; html: string }>(statsState, {});
-    assert.equal(plain.html, renderTextStats({ view: plain.view, primitives: pagePrimitives("zh", "text-stats") }));
+    assert.equal(plain.html, expectedTextStats(plain.view, "zh"));
+
+    project.publish("changed <b>\n", "another-workspace");
+    const chinese = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale: "zh" });
+    const english = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale: "en" });
+    assert.deepEqual(english.view, chinese.view, "the localized HTML does not change the comparison result");
+    assert.deepEqual([english.view.mismatch, english.view.rows, english.view.before?.workspace_id, english.view.after?.workspace_id,
+      english.view.message, english.view.recovery], [true, [], "ws", "another-workspace", "这两份快照来自不同的工作目录，没法比", "回到文件阅读区，重新固定对比前和对比后"]);
+    assert.match(chinese.html, /这两份快照来自不同的工作目录，没法比<\/strong><p>回到文件阅读区，重新固定对比前和对比后/);
+    assert.match(english.html, /These two snapshots come from different working folders and can’t be compared<\/strong><p>Go back to the file reader and pin a before and an after again/);
   });
 });
 

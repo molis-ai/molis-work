@@ -5,6 +5,7 @@ import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, Plu
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { checkedReference } from "./plugin-action-query.js";
+import { activeLocale } from "./web-locale.js";
 import { pluginActionView } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
 
@@ -27,7 +28,7 @@ export function pluginActionDependencies(context: PluginStartContext, manifest: 
     });
     check();
     const caller: ActionCallContext = { actor_id: options.pluginCaller.actor_id, project_id: scope!.caller.project_id,
-      audience: "plugin", permissions: context.grants, plugin_install_id: context.install_id,
+      audience: "plugin", permissions: context.grants, plugin_install_id: context.install_id, locale: activeLocale() ?? undefined,
       host_plugin: routedPluginCaller(options.pluginCaller, scope!.caller.project_id),
       signal: scope!.caller.signal && control?.signal ? AbortSignal.any([scope!.caller.signal, control.signal]) : control?.signal ?? scope!.caller.signal,
       query_only: pluginInvocationReadOnly(scope) || control?.query_only,

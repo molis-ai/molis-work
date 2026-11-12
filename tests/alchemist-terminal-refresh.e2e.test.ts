@@ -8,6 +8,7 @@ import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/b
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
+import { pageTextScript, withPageText } from "./fixtures/page-text.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 type Direction = { id: string; title: string; description: string };
@@ -53,11 +54,11 @@ async function terminalFixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "alchemist-terminal-refresh-")), f = alchemistFixture(home);
   f.ai.listModels = async () => [];
   const gates = new Map<string, Gate>();
-  const markup = renderAlchemistWorkbench({ primitives: {
+  const markup = withPageText("zh", ["alchemist"], () => renderAlchemistWorkbench({ primitives: {
     escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"), text: value => value,
-  } });
+  } }));
   const surface = `<!doctype html><meta charset="utf-8"><style>[hidden]{display:none!important}body{margin:0;font-family:system-ui}${ALCHEMIST_STYLES}</style>${markup}<script src="/client.js"></script>`;
-  const script = `${observeReads}\nconst mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();document.querySelector('[data-alchemist=workbench]').hidden=false;(${ALCHEMIST_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,translate:value=>value,route:()=>'/api/v1',projectId:()=> 'a'});`;
+  const script = `${pageTextScript("zh", "alchemist")}\n${observeReads}\nconst mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();document.querySelector('[data-alchemist=workbench]').hidden=false;(${ALCHEMIST_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,translate:t.text,route:()=>'/api/v1',projectId:()=> 'a'});`;
   const server = createServer(async (request, response) => {
     const path = request.url || "/";
     if (["/", "/surface", "/client.js"].includes(path)) {

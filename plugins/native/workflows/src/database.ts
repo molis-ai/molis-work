@@ -37,7 +37,7 @@ CREATE TABLE workflow_imported_instances(instance_id TEXT PRIMARY KEY, project_i
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its workflows go, the hidden
  * ones too, with every instance that ran them.
  */
-const WORKFLOWS_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "工作流程及其运行记录", order: 50, tables: [
+const WORKFLOWS_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "workflows.project-deletion.data" }, order: 50, tables: [
   { table: "workflow_imported_instances", column: "project_id" },
   { table: "workflow_editor_versions", column: "project_id" },
   { table: "instances", column: "project_id" },

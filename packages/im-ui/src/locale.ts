@@ -1,152 +1,41 @@
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
-/** D0077/D0333: IM owns its words; the Host owns the selected language. Formatting is the shared SDK's. */
-export const IM_EN: Readonly<Record<string, string>> = {
-  "写下你的想法…": "Write a message…",
-  "群聊消息": "Group message",
-  "Thread 回复": "Thread reply",
-  "新建公开话题": "New public topic",
-  "插入成员名字": "Insert a member name",
-  "消息格式": "Message formatting",
-  "发送群消息": "Send group message",
-  "发送 Thread 回复": "Send thread reply",
-  "项目讨论 · Molis Work": "Project discussion · Molis Work",
-  "历史群聊": "Past conversations",
-  "历史群聊 ": "Past conversations ",
-  "收起群聊目录": "Hide conversation list",
-  "创建群聊": "Create a group",
-  "加入群聊": "Join a group",
-  "一起，把事情说清楚": "Talk it through together",
-  "日常沟通留在主群，值得展开的讨论放进话题。所有项目成员都能看到。": "Keep everyday messages in the main group and longer discussions in topics. All project members can read them.",
-  "正在连接项目讨论…": "Connecting to project discussion…",
-  "项目主群与公开话题": "Project group and public topics",
-  "切换历史群聊": "Switch past conversations",
-  "查看项目成员": "View project members",
-  "搜索讨论": "Search discussions",
-  "邀请成员": "Invite member",
-  "收起讨论": "Minimize discussion",
-  "主群与话题": "Main group and topics",
-  "搜索消息或话题": "Search messages or topics",
-  "搜索消息或话题…": "Search messages or topics…",
-  "搜索": "Search",
-  "返回讨论": "Back to discussion",
-  "搜索结果": "Search results",
-  "主群": "Main group",
-  "回到最新消息": "Latest messages",
-  "当前话题": "Current topic",
-  "Thread 消息": "Thread messages",
-  "回到最新回复": "Latest replies",
-  "重新连接": "Reconnect",
-  "关闭": "Close",
-  "今天": "Today",
-  " 位成员 · 还没有消息": " members · No messages yet",
-  "创建群聊，或通过邀请加入。": "Create a group or join with an invitation.",
-  "项目主群 · ": "Project group · ",
-  "群聊 · ": "Group · ",
-  " 位成员": " members",
-  "发给 ": "To ",
-  "发送消息…": "Write a message…",
-  " 条回复": " replies",
-  "加载更早的消息": "Load earlier messages",
-  "引用": "Quote",
-  "展开话题": "Open topic",
-  "分享至主群": "Share to main group",
-  "还没有消息": "No messages yet",
-  "继续这个话题": "Continue this topic",
-  "发条消息，开始这里的讨论。": "Send a message to start a discussion.",
-  "回复会留在这里，所有群成员都能参与。": "Replies stay here. Every group member can participate.",
-  "所有项目成员可见": "Visible to all project members",
-  "回复 ": "Reply to ",
-  "来自群聊": "From the group",
-  "定位原消息 ": "Find original message ",
-  "查看 ": "View ",
-  " 条相关上文": " related messages",
-  "用 **文字** 标记重点；用反引号包住代码，三个反引号写代码块；用 > 开头引用一段文字。": "Use **text** for emphasis, backticks for code, three backticks for a code block, and > to quote a paragraph.",
-  "Enter 发送，Shift + Enter 换行。": "Enter sends. Shift + Enter starts a new line.",
-  "引用 ": "Quote ",
-  "取消引用": "Remove quote",
-  "先设置你的名字，再创建群聊。": "Set your name before creating a group.",
-  "成员共享消息和所有 Thread，在同一个空间里讨论。": "Members share messages and every thread in one place.",
-  "群聊名称": "Group name",
-  "例如：产品共创": "For example: Product workshop",
-  "先设置你的名字，再加入群聊。": "Set your name before joining a group.",
-  "粘贴群成员发来的邀请链接。": "Paste an invitation link from a group member.",
-  "邀请链接": "Invitation link",
-  "把讨论带回群聊": "Bring the discussion back to the group",
-  "分享到 ": "Share to ",
-  "，保留原回复和 Thread 链接。": ", keeping the original reply and thread link.",
-  "补充一句（可选）": "Add a note (optional)",
-  "例如：这次讨论的结论": "For example: What we concluded",
-  "分享到群聊": "Share to group",
-  "已分享到群聊": "Shared to group",
-  "群成员 · ": "Group members · ",
-  "创建者": "Created by",
-  "你": "You",
-  "成员": "Member",
-  "所有成员共享群聊与全部 Thread。": "Every member can read the group and all threads.",
-  "提到项目成员": "Mention a project member",
-  "插入成员名字。本版不会额外发送通知。": "Insert a member name. This version sends no extra notification.",
-  "正在发送…": "Sending…",
-  "已发送": "Sent",
-  "未能确认发送结果。原文已保留，再次发送不会重复。": "Delivery is unconfirmed. Your text is kept. Sending it again will not create a duplicate.",
-  "输入消息内容或话题名称。": "Enter message text or a topic name.",
-  "正在搜索…": "Searching…",
-  "话题": "Topic",
-  "没有找到相关消息，换个关键词试试。": "No matching messages. Try another search term.",
-  "已离线": "Offline",
-  "群聊": "Group chat",
-  "正在载入…": "Loading…",
-  "正在载入群聊…": "Loading group…",
-  "重试": "Retry",
-  "正在载入讨论…": "Loading discussion…",
-  "取消": "Cancel",
-  "连接中": "Connecting",
-  "待加入": "Not joined",
-  "你的名字": "Your name",
-  "继续": "Continue",
-  "已连接": "Connected",
-  "从一个群聊开始": "Start with a group",
-  "邀请一起工作的人，把消息、话题和讨论结果留在同一个地方。": "Invite the people you work with and keep messages, topics and conclusions together.",
-  "通过邀请加入": "Join with an invitation",
-  "未连接": "Disconnected",
-  "群聊服务暂时不可用。": "The discussion service is temporarily unavailable.",
-  "访问已失效": "Access expired",
-  "连接或群访问已失效，请重新连接。": "Your connection or group access expired. Reconnect to continue.",
-  "重连中": "Reconnecting",
-  "同步中断": "Sync interrupted",
-  "你已无法访问这个群聊。": "You no longer have access to this group.",
-  "同步暂时中断，已输入的内容会保留。": "Sync was interrupted. Your draft is kept.",
-  "重试加载更早的消息": "Retry loading earlier messages",
-  "新话题": "New topic",
-  "让一个问题有自己的讨论空间，所有项目成员都能参与。": "Give a question its own discussion space. All project members can participate.",
-  "话题名称": "Topic name",
-  "这次想聊什么？": "What would you like to discuss?",
-  "第一条消息": "First message",
-  "把问题、背景或需要的判断写在这里…": "Describe the question, context or decision needed…",
-  "留作草稿": "Keep as draft",
-  "发布话题": "Publish topic",
-  "身份连接已失效，请重新连接。已输入的内容会保留。": "Your connection expired. Reconnect to continue. Your draft is kept.",
-  "通过这个链接加入群聊后，可以查看群里的消息和全部 Thread。": "This link lets someone join the group and read its messages and all threads.",
-  "尚未确认更换结果，请重试原操作。": "The replacement is unconfirmed. Retry the original operation.",
-  "已分享的链接仍有效。原文只在生成时的页面中保留，无法重新取回；明确更换后，旧链接才会失效。": "The shared link is still valid. Its text was shown only when it was generated and cannot be retrieved again. Replacing it explicitly will invalidate the old link.",
-  "尚未生成邀请链接。生成后请复制并保存；刷新页面后无法重新取回原文。": "No invitation link has been generated. Copy and save it when it appears. It cannot be retrieved after refreshing.",
-  "重试原操作": "Retry original operation",
-  "更换邀请链接": "Replace invitation link",
-  "生成邀请链接": "Generate invitation link",
-  "复制链接": "Copy link",
-  "邀请成员 · ": "Invite members · ",
-  "正在读取邀请状态…": "Reading invitation status…",
-  "邀请已被另一项操作更换，原操作不会重新激活旧链接。": "Another operation replaced this invitation. Retrying the original operation will not reactivate the old link.",
-  "邀请链接已生成；其他旧链接不再可用": "Invitation link generated. Earlier links no longer work.",
-  "已复制": "Copied",
-  "复制失败": "Could not copy",
-  "链接已选中，请复制。": "Link selected. Copy it now.",
-  "暂时无法确认结果，请重试连接。": "The result is unconfirmed. Retry the connection.",
-  "服务返回了无法读取的响应，请重新连接。": "The service returned an unreadable response. Reconnect to continue.",
-  "暂时无法完成，请重试。": "This could not be completed. Try again.",
-  "工作台未能连接此项目，请重新打开讨论。": "The workbench could not connect this project. Reopen the discussion."
-};
-export function createImText(fill: typeof fillMessage, words: Readonly<Record<string, string>>, locale: string) {
-  return (key: string, vars?: Record<string, string | number>) => fill(locale.toLowerCase().startsWith("en") ? words[key] ?? key : key, vars);
+import { readdirSync, readFileSync } from "node:fs";
+import { LOCALE_TAG, type TextArgs, type UiFrameLanguage, type UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
+import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
+import { createTextReader, matchLocale, pluginLocaleReader, textArgs, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { IM_DEFAULT_LOCALE, IM_TEXT_OWNER, imIntlLocale, type ImLanguageProjection } from "./locale-owner.js";
+
+let words: PluginLocaleReader | undefined;
+function imWords(): PluginLocaleReader {
+  if (words) return words;
+  const registration = BASELINE_REGISTRY.resources.find(row => row.kind === "locale" && row.owner === IM_TEXT_OWNER);
+  if (!registration) throw new Error("Discussion locale directory is not registered");
+  const directory = new URL("../" + registration.path + "/", import.meta.url);
+  const available = readdirSync(directory).flatMap(file => {
+    const tag = file.endsWith(".json") ? file.slice(0, -5) : "";
+    return LOCALE_TAG.test(tag) ? [tag] : [];
+  });
+  words = pluginLocaleReader({ plugin_id: IM_TEXT_OWNER, kind: "service", ui: { locales: { default: IM_DEFAULT_LOCALE, available } } }, file => {
+    try { return readFileSync(new URL(file.slice(file.lastIndexOf("/") + 1), directory), "utf8"); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
+  })!;
+  return words;
 }
-export const imText = (key: string, vars?: Record<string, string | number>) => createImText(fillMessage, IM_EN,
-  typeof document === "undefined" ? "zh-CN" : document.documentElement?.lang ?? "zh-CN")(key, vars);
+
+function packsFor(language: UiFrameLanguage): UiLocalePack[] {
+  const reader = imWords(), fallback = reader.pack(reader.default);
+  if (!fallback) throw new Error("Cannot read the default discussion locale");
+  const compatible = reader.available.flatMap(tag => tag !== reader.default && matchLocale(language.tag, [tag], reader.default) === tag
+    ? reader.pack(tag) ?? [] : []);
+  const messages = Object.fromEntries(Object.entries(fallback.messages).filter(([key]) =>
+    !compatible.some(pack => Object.hasOwn(pack.messages, key))));
+  return [{ ...fallback, messages }, ...compatible];
+}
+
+export type ImReadText = (key: string, args?: TextArgs) => string;
+
+/** Standalone and embedded discussion read the same shipped words, including the owner's own fallback. */
+export function imPageWords(language: UiFrameLanguage): { projection: ImLanguageProjection; readText: ImReadText } {
+  const packs = packsFor(language);
+  const reader = createTextReader({ locale: language.tag, packs, intlLocale: imIntlLocale(language) });
+  return { projection: { language, packs }, readText: (key, args) => reader.text({ owner: IM_TEXT_OWNER, key, ...(args ? { args: textArgs(args) } : {}) }) };
+}

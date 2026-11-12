@@ -1,3 +1,6 @@
+import { matchLocale, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-sdk/ui';
+import { activeLocale } from './web-locale.js';
+import { skillDisplayWords } from './agent-definitions/skill-display-words.js';
 /**
  * What the install preview says about a package's Skills (specs/skill-packs/contract-design.md §4.3, §5): every Skill its Manifest's
  * `methods` declare, in the declaration's own words with its body's opening, and in an upgrade what changed against the installed
@@ -10,14 +13,15 @@ import { refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 
 /** A package's Skills as the Host reads them: the Manifest's declarations and each method's body (`SandboxAgentBody` of kind `method`). */
 export interface PackagedSkillSet {
-  readonly manifest: Pick<PluginManifest, 'methods'>;
+  readonly manifest: Pick<PluginManifest, 'methods'> & Partial<Pick<PluginManifest, 'kind'>>;
+  readonly localePacks?: PluginLocaleReader | null;
   readonly agentBodies?: readonly SandboxAgentBody[];
 }
 
-type Skill = { declaration: PluginMethodDeclaration; body: string };
+type Skill = { declaration: PluginMethodDeclaration; body: string; reader: PluginLocaleReader | null };
 
 const skillsOf = (pkg: PackagedSkillSet): Map<string, Skill> => new Map((pkg.manifest.methods ?? []).map(declaration => [declaration.skill_id,
-  { declaration, body: pkg.agentBodies?.find(item => item.kind === 'method' && item.entry_id === declaration.skill_id)?.body ?? '' }]));
+  { declaration, body: pkg.agentBodies?.find(item => item.kind === 'method' && item.entry_id === declaration.skill_id)?.body ?? '', reader: pkg.manifest.kind === 'content' ? pkg.localePacks ?? null : null }]));
 
 const resourceKey = (skill: Skill) => JSON.stringify((skill.declaration.resources ?? []).map(item => [item.path, item.sha256]).sort());
 
@@ -31,8 +35,10 @@ function changeOf(next: Skill, installed: Skill): 'body_changed' | 'resources_ch
 
 function preview(skill: Skill, change?: SkillInstallPreview['change']): SkillInstallPreview {
   const { declaration } = skill, resources = declaration.resources ?? [];
-  return { skill_id: declaration.skill_id, version: declaration.version, name: declaration.name, description: declaration.description,
-    ...(declaration.when_to_use ? { when_to_use: declaration.when_to_use } : {}), ...(declaration.when_not_to_use ? { when_not_to_use: declaration.when_not_to_use } : {}),
+  const locale = skill.reader ? matchLocale(activeLocale(), skill.reader.available, skill.reader.default) : null;
+  const words = skillDisplayWords(declaration, skill.reader, locale);
+  return { skill_id: declaration.skill_id, version: declaration.version, name: words.name, description: words.description,
+    ...(words.when_to_use ? { when_to_use: words.when_to_use } : {}), ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}),
     // Not written means it can be named (§4.2).
     applies_to: declaration.applies_to, user_invocable: declaration.user_invocable ?? true,
     ...(declaration.native_only_reason ? { native_only_reason: declaration.native_only_reason } : {}),

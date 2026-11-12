@@ -10,7 +10,7 @@
 export interface PluginReadGroupDeclaration {
   /** Stable within the plugin: lower-case letters, digits and `-`, starting with a letter. A grant keeps it. */
   readonly group_id: string;
-  /** The switch's name, in Chinese; its English comes from `ui.translations` like the rest of the Manifest's words. */
+  /** The declaring plugin's original name for the switch. */
   readonly title: string;
   /** One line saying what the group contains, shown under the switch so the person knows what they allow. */
   readonly description: string;

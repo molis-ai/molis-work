@@ -1,3 +1,4 @@
+import { inLanguagePreview } from "./web-locale.js";
 import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
@@ -33,13 +34,14 @@ import { HomeConsentLedger } from "./home-plugin-store.js";
 import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 import { pluginInstallProviderFor } from "./plugin-trust-actions.js";
 import { taskGrantActionProvider, taskGrantHostPorts } from "./task-grant-actions.js";
+import { appearanceForHome, closeHomeAppearance } from "./ui-locale-memory.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { admitProviderRules } from "./scene-rule-admission.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { ensureProjectPluginActions, prepareInstalledPlugins, withPreparedProject } from "./project-plugin-ports.js";
+import { prepareProjectActionDirectory, withPreparedProject } from "./project-plugin-ports.js";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -247,11 +249,16 @@ export class MolisWorkLocalHost {
       accountActionProvider(() => accountSessionForHost(this)),
       actionUsagesProvider(callerClient, options.homeDirectory),
       ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+<<<<<<< HEAD
       ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;
       }) : Promise.resolve(null)), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))), options.homeDirectory, this.plugins)] : []),
+=======
+      ...(options.homeDirectory ? [appearanceForHome(options.homeDirectory).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+        projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))), options.homeDirectory, this.plugins)] : []),
+>>>>>>> origin/main
     ];
     this.projectCatalogActions = registerHostPlatformProviders(this.host, platform, catalogOwner, () => this.prepareHomeActions(), this.settleAction);
     if (options.homeDirectory) {
@@ -391,17 +398,12 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
-    await ensureProjectPluginActions(this.plugins, reference);
-    caller.signal?.throwIfAborted();
-    await this.agents?.service.restoreExternalMcp(reference);
-    caller.signal?.throwIfAborted();
-    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins(this.plugins, reference, runtime));
-    caller.signal?.throwIfAborted();
+    return prepareProjectActionDirectory(this.plugins, reference, caller.signal);
   }
 
   private async prepareHomeActions(): Promise<void> {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
+    if (inLanguagePreview()) return;
     await this.homePlugins?.ready().catch(() => undefined);
     await this.homePlugins?.refreshPublicActions();
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
@@ -439,7 +441,7 @@ export class MolisWorkLocalHost {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
-        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }

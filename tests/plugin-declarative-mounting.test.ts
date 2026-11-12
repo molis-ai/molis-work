@@ -365,7 +365,9 @@ test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it a
   // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
   assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["artifacts", "goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
   // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
-  const zh = pluginTabTitles(), en = pluginTabTitles(true);
+  const { installHostUiText, runWithLocale } = await import("@molis-ai/molis-work-app-local-host");
+  installHostUiText();
+  const zh = runWithLocale("zh", () => pluginTabTitles()), en = runWithLocale("en", () => pluginTabTitles());
   assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);
   assert.deepEqual([en.lingguang, en.workflows], ["Lingguang", "Workflows"]);
 });

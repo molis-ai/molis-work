@@ -3,6 +3,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { buildSync } from "esbuild";
+import { pageText, pageTextScript } from "./fixtures/page-text.js";
 
 // specs/ai-interaction-experience S1 (AC-26), QA-002: Forms' 「AI 生成题目」 as the page runs it, bundled from its browser source
 // the way the plugin's client pack is and run here on a small DOM port. A follow-up the Host refused leaves its reason on the
@@ -39,13 +40,14 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 
 type Status = { showNote(page: object, text: string, isError: boolean, scope?: string): void; draftNote(page: object, text: string, isError: boolean): unknown };
 
-function page(replies: Array<() => Promise<unknown>>) {
+function page(replies: Array<() => Promise<unknown>>, locale: "zh" | "en" = "zh") {
   const frames: Array<() => void> = [], sent: Array<Record<string, unknown>> = [], done: Array<typeof FORM> = [];
   const cards: Array<{ card: Element; submit: () => void; focused: string[]; shown: Array<{ errors: unknown; focus: unknown }>; destroyed: boolean }> = [];
   const ask = new Element(), button = new Element(), prompt = { value: PROMPT };
   const noteLine = new NoteLine(), editor = { note: noteLine, noteScope: "" };
-  const { showNote, draftNote } = vm.runInNewContext(`${STATUS};FormStatus`, {}) as Status;
-  const { formDraft } = vm.runInNewContext(`${DRAFT};FormDraft`, { HTMLElement: Element, document: { createElement: () => new Template() }, requestAnimationFrame: (run: () => void) => frames.push(run) });
+  const context = vm.createContext({ HTMLElement: Element, document: { createElement: () => new Template(), documentElement: {} }, requestAnimationFrame: (run: () => void) => frames.push(run) });
+  const { showNote, draftNote } = vm.runInContext(`${pageTextScript(locale, "form")}\n${STATUS};FormStatus`, context) as Status;
+  const { formDraft } = vm.runInContext(`${DRAFT};FormDraft`, context);
   const draft = formDraft({
     host: { interaction: (card: Element, { onSubmit }: { onSubmit: () => void }) => {
       const bound = { card, submit: onSubmit, focused: [] as string[], shown: [] as Array<{ errors: unknown; focus: unknown }>, destroyed: false, read: () => ({ q0: ["1"], q1: ["0"] }),
@@ -55,7 +57,7 @@ function page(replies: Array<() => Promise<unknown>>) {
       return bound;
     } },
     request: async (_method: string, path: string, body: Record<string, unknown>) => { assert.equal(path, "/form-1/draft-questions"); sent.push(body); return replies.shift()!(); },
-    L: (text: string) => text, ask, prompt, button, form: () => FORM, done: async (record: typeof FORM) => { done.push(record); },
+    readText: pageText(locale, "form"), ask, prompt, button, form: () => FORM, done: async (record: typeof FORM) => { done.push(record); },
     // The same one-line port the page gives the draft (client.ts), over the note line's real code.
     note: (text: string, isError: boolean) => draftNote(editor, text, isError),
   }) as { start(): Promise<void> };
@@ -64,6 +66,18 @@ function page(replies: Array<() => Promise<unknown>>) {
     /** Something other than the draft writes on the note line (a save, a publication, another button). */
     say: (text: string, isError: boolean, scope = "") => showNote(editor, text, isError, scope) };
 }
+
+test("AC-26 the editor explains an unreadable follow-up in the page's language without adding a question", async () => {
+  for (const [locale, text] of [["zh", "这里画不出补充问题，请把要求写得更具体后重试"],
+    ["en", "These follow-up questions cannot be shown here; make the request more specific and try again"]] as const) {
+    const p = page([async () => ({ status: "needs_input", interaction: { interaction_id: "draft-2" } })], locale);
+    await p.draft.start();
+    assert.deepEqual(p.line, { text, error: true });
+    assert.equal(p.ask.hidden, true);
+    assert.equal(p.prompt.value, PROMPT);
+    assert.deepEqual(p.done, []);
+  }
+});
 
 test("AC-26, QA-002: after a refused follow-up, the retry's card takes focus and can be answered, the old error is gone, and nothing is added before the answer", async () => {
   const refused = Object.assign(new Error(REFUSED), { code: "form.invalid" });

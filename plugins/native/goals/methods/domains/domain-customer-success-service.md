@@ -1,6 +1,6 @@
 ---
 method_id: domain-customer-success-service
-version: 1
+version: 2
 kind: domain
 name: "客户成功与服务"
 summary: "从客户目标、采用阶段、支持闭环和续用证据建立可持续服务体系。"

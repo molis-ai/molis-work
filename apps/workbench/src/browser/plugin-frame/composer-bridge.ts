@@ -35,8 +35,7 @@ export interface ComposerSnapshot {
   commands: BridgedCommand[];
   mentions: boolean;
   attachments: { accept?: string } | null;
-  // No `sources`: a framed page's composer never lists sources (S-composer-source-call item 5), so the bar mounts it with
-  // `sources: false` itself; the page has nothing to report and the field used to be dropped here anyway (2026-11-11 review).
+  sources: boolean;
   /** The page's own object; its owner is always the frame's plugin, whatever the page says. */
   near: ActionSubject | null;
   voice?: string;
@@ -99,5 +98,5 @@ export interface BarReceiver {
   column(): { left: number; width: number } | null;
   readonly options: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerOptions;
   /** The bar mounted the composer on it (with the text box it uses), or let it go (null). */
-  bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle | null, field?: HTMLTextAreaElement): void;
+  bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle | null, field?: HTMLTextAreaElement, retitle?: () => void): void;
 }

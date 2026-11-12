@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.slack",
+  "locale": "zh",
+  "messages": {
+    "slack.connection.auth-help": "Slack Bot User OAuth Token。需要 channels:read 或 groups:read。",
+    "slack.connection.inbound": "Feed 读取频道列表",
+    "slack.connection.summary": "频道、消息与 Canvas。",
+    "slack.connection.token-label": "Slack Bot Token",
+    "slack.guide.mcp-connected-note": "需要符合 Slack 应用和工作区条件。",
+    "slack.guide.mcp-link": "查看 Slack 官方 MCP",
+    "slack.guide.mcp-note": "需要符合 Slack 应用和工作区条件；Molis Work 尚未接入。",
+    "slack.guide.oauth-link": "创建 Slack 应用并安装到工作区",
+    "slack.guide.token-note": "将应用安装到工作区后取得相应 Bot 或用户令牌。",
+    "slack.oauth.note": "安装应用的 Bot 授权；聊天读取仍受工作区和频道成员权限限制。",
+    "slack.setup.open-slack-app-dashboard": "打开 Slack 应用后台"
+  }
+}

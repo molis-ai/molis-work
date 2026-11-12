@@ -14,7 +14,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
   homeStores,
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, molisWorkHostProjectReference, seedDemoBoard,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, installHostUiText, molisWorkHostProjectReference, runWithLocale, seedDemoBoard,
   type HostCompleteText, type HostTextRequestOptions,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -220,6 +220,26 @@ test("a call sends the plugin's registered instruction and this call's data kept
     } finally { item.store.close(); }
   }));
 
+test("FSS-74 a direct model action uses the exact declaration's language, never words sent in the call, and keeps the person's edit", { timeout: 60_000 },
+  withDirectory(async directory => {
+    const model = standIn(), item = platformIn(directory, { current: model.complete });
+    const plugin = probe({ instructions: owner_id => [
+      defineInstructionPrompt({ owner_id, prompt_id: "summarize", version: 2, title: "摘要", purpose: "摘要", used_by: ["测试"],
+        body: "只发送声明的正文。", body_by_locale: { en: "Send the declaration's exact English body." } }),
+    ] });
+    plugin.on.ask = ({ model }) => model.complete(instructed({ ...plugin.summarize, body: "偽造正文" }, "用户原文"));
+    try {
+      await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
+      await item.invoke(plugin.ask, { locale: "en" });
+      assert.equal(model.calls.at(-1)?.prompt, "Send the declaration's exact English body.\n\n用户原文");
+      await item.invoke(plugin.ask, { locale: "zh" });
+      assert.equal(model.calls.at(-1)?.prompt, "只发送声明的正文。\n\n用户原文");
+      personEdits(directory, plugin.id, "summarize", "用户编辑不翻译");
+      await item.invoke(plugin.ask, { locale: "en" });
+      assert.equal(model.calls.at(-1)?.prompt, "用户编辑不翻译\n\n用户原文");
+    } finally { await item.platform.runtime.stop(item.installId(plugin.id)); item.store.close(); }
+  }));
+
 test("a call that breaks the rules is refused before anything is sent: a raw string, someone else's instruction, someone else's system, an instruction the plugin never registered, limits beyond the ceiling, an output that is not text or json", { timeout: 60_000 },
   withDirectory(async directory => {
     const model = standIn(), item = platformIn(directory, { current: model.complete }), plugin = probe();
@@ -385,7 +405,8 @@ test("a call is the plugin's while it runs: stopped while the model answers, the
 
 test("availability is the model's: with no model set up it says so and complete sends nothing; a stopped plugin says it is stopped; a platform with a model says it is available", { timeout: 60_000 },
   withDirectory(async directory => {
-    await withoutEnvironmentModel(async () => {
+    installHostUiText();
+    await runWithLocale("zh", () => withoutEnvironmentModel(async () => {
       const model = standIn(), injection: { current: Injection } = { current: null }, item = platformIn(directory, injection), plugin = probe();
       try {
         await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
@@ -408,7 +429,7 @@ test("availability is the model's: with no model set up it says so and complete 
         assert.equal(client.availability().available, false);
         assert.equal((client.availability() as { code: string }).code, "actions.provider_stopped");
       } finally { item.store.close(); }
-    });
+    }));
   }));
 
 test("PG047-01 S-15 model:read reads and never sends: a plugin that holds only model:read is given services.model, lists the models and asks availability, and complete() is refused before anything is sent, whether its Manifest declares model:invoke too or not",

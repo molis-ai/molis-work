@@ -46,11 +46,8 @@ export const KIT_REPORT_TIMEOUT_MS = 5_000;
 
 /** What a plugin's own reporter may report: never a Skill, a tool or a pack header (§4.6). */
 const PLUGIN_KINDS: readonly KitKind[] = ["prompt", "role", "mcp"];
-const BUILTIN: KitPackId = "system:builtin", CHARACTERS: KitPackId = "system:characters";
-const SYSTEM_PACKS = {
-  [BUILTIN]: { zh: ["Molis Work 自带", "个人助理、平台的提示词与全部 Agent 工具、对外接入的 MCP。"], en: ["Built into Molis Work", "The personal assistant, the platform's prompts, every Agent tool, and the MCP Molis Work offers."] },
-  [CHARACTERS]: { zh: ["你的角色", "你写的角色，各带自己声明的工具。"], en: ["Your characters", "The characters you wrote, each with the tools it declares."] },
-} as const;
+const BUILTIN = "system:builtin", CHARACTERS = "system:characters";
+type SystemPackWords = Readonly<Record<"system:builtin" | "system:characters", { readonly name: string; readonly description: string }>>;
 const ASSISTANT: KitRoleRef = { kind: "assistant" };
 
 type Issue = KitCatalog["issues"][number];
@@ -58,7 +55,7 @@ interface Reporter { view: ActionView; system?: KitSystemReporter; install?: { i
 interface Answer { reporter: Reporter; report?: KitReport; issue?: number }
 
 /** Gather the kit in the caller's scope through the caller's own client: one discovery, one call per reporter, in parallel. */
-export async function gatherKit(caller: ActionCallContext, client: ActionClient): Promise<KitCatalog> {
+export async function gatherKit(caller: ActionCallContext, client: ActionClient, systemWords: SystemPackWords): Promise<KitCatalog> {
   const issues: Issue[] = [];
   const issue = (view: ActionView, message: string) => issues.push({ provider_id: view.provider.provider_id, title: view.provider.title, message }) - 1;
   const reporters = (await client.discover(caller)).filter(view => view.action.input_type === KIT_REPORT_INPUT_TYPE && view.action.output_type === KIT_REPORT_OUTPUT_TYPE)
@@ -95,7 +92,7 @@ export async function gatherKit(caller: ActionCallContext, client: ActionClient)
     if (typeof stamped === "string") { issue(reporter.view, `${entry.name}：${stamped}`); return []; }
     return [stamped];
   }));
-  return assemble(caller, headers, entries, answers, issues);
+  return assemble(systemWords, headers, entries, answers, issues);
 }
 
 /** A reporter's standing: a named provider the Host registered, a plugin installation's own, or nobody that may report. */
@@ -152,11 +149,10 @@ function hostSettings(href: string): boolean {
 }
 
 /** Packs from the headers and the two system packs; entries into their packs; each pack's tools and state (§4.4, §4.6). */
-function assemble(caller: ActionCallContext, headers: ReadonlyMap<string, KitReportedPack>, entries: KitEntry[], answers: readonly Answer[], issues: Issue[]): KitCatalog {
-  const english = caller.locale === "en";
+function assemble(systemWords: SystemPackWords, headers: ReadonlyMap<string, KitReportedPack>, entries: KitEntry[], answers: readonly Answer[], issues: Issue[]): KitCatalog {
   const packs = new Map<KitPackId, KitPack>();
-  for (const [id, words] of Object.entries(SYSTEM_PACKS)) {
-    const [name, description] = english ? words.en : words.zh;
+  for (const id of [BUILTIN, CHARACTERS] as const) {
+    const { name, description } = systemWords[id];
     packs.set(id, { pack_id: id, kind: id === BUILTIN ? "builtin" : "characters", name, description, state: { kind: "active" }, roles: [], skills: [], mcp: [], tools: [],
       export: { package: false, prompt_overrides: false, references: false } });
   }

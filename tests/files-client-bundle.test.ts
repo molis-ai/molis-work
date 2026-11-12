@@ -1,10 +1,11 @@
+import { assertPageWords, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { FILES_CLIENT_FACTORY_SCRIPT, FILES_MESSAGES, renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
+import { FILES_CLIENT_FACTORY_SCRIPT, renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
 
 const SRC = "plugins/native/files/src";
 const BROWSER = join(SRC, "browser");
@@ -21,17 +22,12 @@ test("RAC-160 every word the Files page says has a stable key with both language
   // translator in one place, so a new site that forwards something else cannot hide among them.
   const forwarding = browserFiles().flatMap(file => readFileSync(file, "utf8").split("\n").map((text, index) => ({ file, line: index + 1, text })))
     .filter(({ text }) => /\bL\((?!["'`])/u.test(text));
-  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [`${join(BROWSER, "dom.ts")}: export const said = (L: Translate, text: string) => L(text);`], "one place hands words the Host wrote to the translator");
+  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [], "raw Host words do not enter a translator");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in FILES_MESSAGES)), [], "every key the page asks for is defined");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(FILES_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
+  assertPageWords("files", used);
   // The server-drawn halves speak through the translator too, with keys the table defines.
-  const drawn = renderFilesBrowserDirectory(key => `«${key}»`) + renderFilesBrowserResult(key => `«${key}»`);
-  assert.deepEqual([...drawn.matchAll(/«([^»]+)»/gu)].map(match => match[1]).filter(key => !(key in FILES_MESSAGES)), [], "every key the drawn page asks for is defined");
+  const drawn = withPageText("en", ["files"], () => renderFilesBrowserDirectory() + renderFilesBrowserResult());
+  assert.match(drawn, /data-files-refresh><span class="mw-spinner" hidden><\/span><span>Refresh<\/span>/u, "the drawn directory has its translated refresh control");
   assert.doesNotMatch(drawn, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

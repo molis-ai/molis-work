@@ -1,13 +1,15 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export type InboxHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "translate" | "pluginRoute" | "route" | "mount" | "view" | "openItem" | "openPlugin" | "showToast" | "invalidateView">;
+const uiText = globalThis.t;
+
+export type InboxHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "pluginRoute" | "route" | "mount" | "view" | "openItem" | "openPlugin" | "showToast" | "invalidateView">;
 interface ComposeDraft { entry_ids: string[]; title: string; instructions: string; request_id: string }
 interface ComposeResult extends ComposeDraft { document_id: string | null; status: string; error?: string }
 
 /** Inbox draws only its own surface. Every late result is fenced by its mount and current selection. */
 export function inboxClient(host: InboxHost): void {
-  const { root, scope, translate: L } = host;
+  const { root, scope } = host;
   const q = <T extends HTMLElement = HTMLElement>(selector: string, within: ParentNode = root) => within.querySelector<T>(selector);
   const all = <T extends HTMLElement = HTMLElement>(selector: string, within: ParentNode = root) => [...within.querySelectorAll<T>(selector)];
   const listen = (type: string, listener: EventListener) => { root.addEventListener(type, listener); scope.own(() => root.removeEventListener(type, listener)); };
@@ -30,10 +32,10 @@ export function inboxClient(host: InboxHost): void {
   const openPage = (id: string, title: string) => { q<HTMLDialogElement>("[data-inbox-compose]")?.close(); host.openItem("pages", id, title); };
   const showResult = (result: ComposeResult, area: HTMLElement) => {
     const row = document.createElement("div"), text = document.createElement("span"), button = document.createElement("button"); row.className = "inbox-compose-result"; row.dataset.inboxComposeRequest = result.request_id;
-    text.textContent = result.title + " · " + L(result.document_id ? "已生成" : result.status === "failed" ? "生成失败，可重试" : "正在处理") + (result.error ? " · " + result.error : "");
-    button.type = "button"; button.className = "mw-btn mw-btn--secondary"; button.textContent = L(result.document_id ? "在 Pages 打开" : "恢复处理"); button.disabled = composeBusy;
+    text.textContent = result.title + " · " + uiText.text(result.document_id ? "inbox.client.generated" : result.status === "failed" ? "inbox.client.generation-failed-retry-available" : "inbox.client.working") + (result.error ? " · " + result.error : "");
+    button.type = "button"; button.className = "mw-btn mw-btn--secondary"; button.textContent = uiText.text(result.document_id ? "inbox.client.open-pages" : "inbox.client.resume"); button.disabled = composeBusy;
     button.onclick = () => { if (result.document_id) openPage(result.document_id, result.title); else if (!composeBusy) { draft = { entry_ids: result.entry_ids.slice().sort(), title: result.title, instructions: result.instructions, request_id: result.request_id }; showComposer(); } }; row.append(text, button);
-    result.entry_ids.forEach(id => { const source = all("[data-inbox-row]").find(row => row.dataset.inboxEntryId === id); if (!source) return; const back = document.createElement("button"); back.type = "button"; back.className = "mw-btn mw-btn--ghost"; back.textContent = L("返回材料") + "：" + source.querySelector("strong")?.textContent; back.onclick = () => { q<HTMLDialogElement>("[data-inbox-compose]")?.close(); host.openItem("inbox", id); }; row.append(back); }); area.append(row);
+    result.entry_ids.forEach(id => { const source = all("[data-inbox-row]").find(row => row.dataset.inboxEntryId === id); if (!source) return; const back = document.createElement("button"); back.type = "button"; back.className = "mw-btn mw-btn--ghost"; back.textContent = uiText.text("inbox.client.return-material") + "：" + source.querySelector("strong")?.textContent; back.onclick = () => { q<HTMLDialogElement>("[data-inbox-compose]")?.close(); host.openItem("inbox", id); }; row.append(back); }); area.append(row);
   };
   const results = async () => {
     const check = guard(), payload = await api<{ results: ComposeResult[] }>("/pages"); check();
@@ -50,7 +52,7 @@ export function inboxClient(host: InboxHost): void {
     const check = guard(), sequence = ++refreshSequence, scroll = q("[data-inbox-list]")?.scrollTop || 0;
     const group = q("[data-inbox-row].is-selected")?.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
     const html = await host.view.readDocument({ signal: reads.signal }); check(); if (sequence !== refreshSequence) return;
-    const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(L("无法更新 Inbox 列表"));
+    const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(uiText.text("inbox.client.could-not-refresh-inbox-list"));
     // Retain the draft form and the latest evaluation message while authoritative rows refresh.
     for (const selector of ["[data-inbox-compose]", "[data-inbox-evaluate-status]"]) {
       const current = q(selector), replacement = q(selector, next); if (current && replacement) replacement.replaceWith(current);
@@ -69,6 +71,9 @@ export function inboxClient(host: InboxHost): void {
     if (!dialog.open) dialog.showModal(); const check = guard(); void results().catch(failure => { try { check(); error(failure, q("[data-inbox-compose-status]", form)); } catch { /* The composer is no longer current. */ } });
   };
   listen("molis-work:select-item", event => { const detail = (event as CustomEvent<{ itemId?: string | null; invalidate?: boolean }>).detail; if (detail?.invalidate) { if (scope.visible) void refresh().catch(failure => error(failure)); } else if (typeof detail?.itemId === "string") select(detail.itemId); else if (detail?.itemId === null) collapse(); });
+  root.ownerDocument.addEventListener("molis-work:language-changed", () => {
+    if (scope.visible) void refresh().catch(failure => error(failure));
+  }, { signal: scope.signal });
   listen("input", event => { if (event.target instanceof Element && event.target.closest("[data-inbox-compose]")) remember(); });
   listen("cancel", () => remember());
   listen("click", event => {
@@ -78,11 +83,11 @@ export function inboxClient(host: InboxHost): void {
       if (target.closest("[data-inbox-collapse]")) { collapse(); return; }
       const source = target.closest<HTMLElement>("[data-feed-task-config-open]"); if (source?.dataset.feedTaskConfigOpen) { host.openPlugin("feed", source.dataset.feedTaskConfigOpen, "settings"); return; }
       const feed = target.closest<HTMLElement>("[data-inbox-open-feed]"); if (feed?.dataset.inboxOpenFeed) { host.openItem("feed", feed.dataset.inboxOpenFeed); return; }
-      const compose = target.closest<HTMLElement>("[data-inbox-compose-open]"); if (compose) { const id = compose.dataset.inboxComposeOpen, mode = compose.dataset.inboxComposeMode; if (mode && id && !composeBusy) draft = { entry_ids: [id], request_id: "", title: L(mode === "verify" ? "待核查清单" : "材料整理"), instructions: L(mode === "verify" ? "按材料列出待核查问题、已有依据、缺失证据与可执行的核查步骤。每项标明来源，不宣称已完成核查。只输出核查清单，保持原事项待处理。" : "围绕所选材料整理一份简洁的综合工作稿，区分事实、作者自述、推断和待核查。每个主要结论标明材料编号，不把多条材料的差异抹平成共识。正文不重复标题。") }; showComposer(id); return; }
+      const compose = target.closest<HTMLElement>("[data-inbox-compose-open]"); if (compose) { const id = compose.dataset.inboxComposeOpen, mode = compose.dataset.inboxComposeMode; if (mode && id && !composeBusy) draft = { entry_ids: [id], request_id: "", title: uiText.text(mode === "verify" ? "inbox.client.verification-checklist" : "inbox.client.research-draft"), instructions: uiText.text(mode === "verify" ? "inbox.client.list-open-questions-available-evidence-missing-evidence-practica" : "inbox.client.write-concise-synthesis-selected-materials-separate-facts-author") }; showComposer(id); return; }
       if (target.closest("[data-inbox-compose-close]")) { remember(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); return; }
       const action = target.closest<HTMLButtonElement>("[data-inbox-action],[data-inbox-evaluate]");
       if (action) { if (action.disabled) return; const check = guard(); action.disabled = true; const status = q("[data-inbox-action-status]", action.closest("[data-inbox-detail]") || root) || q("[data-inbox-evaluate-status]");
-        try { const evaluate = action.hasAttribute("data-inbox-evaluate"); if (evaluate) await api("/judgment/evaluate", "POST", { entry_ids: action.dataset.inboxEvaluate ? [action.dataset.inboxEvaluate] : all('[data-inbox-row][data-inbox-status="open"],[data-inbox-row][data-inbox-status="in_progress"]').slice(0, 20).map(row => row.dataset.inboxEntryId) }); else await api("/entries/" + encodeURIComponent(action.dataset.inboxEntryId!) + "/status", "POST", { status: action.dataset.inboxAction, expected_revision: Number(action.dataset.inboxEntryRevision) }); check(); host.invalidateView(); await refresh(); if (evaluate) { const nextStatus = q("[data-inbox-evaluate-status]"); if (nextStatus) { nextStatus.textContent = L("建议已更新，请查看事项并选择下一步。"); nextStatus.closest("details")?.setAttribute("open", ""); } } }
+        try { const evaluate = action.hasAttribute("data-inbox-evaluate"); if (evaluate) await api("/judgment/evaluate", "POST", { entry_ids: action.dataset.inboxEvaluate ? [action.dataset.inboxEvaluate] : all('[data-inbox-row][data-inbox-status="open"],[data-inbox-row][data-inbox-status="in_progress"]').slice(0, 20).map(row => row.dataset.inboxEntryId) }); else await api("/entries/" + encodeURIComponent(action.dataset.inboxEntryId!) + "/status", "POST", { status: action.dataset.inboxAction, expected_revision: Number(action.dataset.inboxEntryRevision) }); check(); host.invalidateView(); await refresh(); if (evaluate) { const nextStatus = q("[data-inbox-evaluate-status]"); if (nextStatus) { nextStatus.textContent = uiText.text("inbox.client.suggestions-updated-review-each-item-choose-its-next"); nextStatus.closest("details")?.setAttribute("open", ""); } } }
         catch (failure) { try { check(); error(failure, status); } catch { /* A new entry or hidden mount owns the UI. */ } }
         finally { try { check(); action.disabled = false; } catch { /* No old-finally writes. */ } } return;
       }
@@ -91,16 +96,16 @@ export function inboxClient(host: InboxHost): void {
   });
   listen("submit", event => {
     const form = event.target instanceof HTMLFormElement ? event.target : null; if (!form?.closest("[data-inbox-compose]")) return;
-    event.preventDefault(); if (composeBusy) return; remember(); const status = q("[data-inbox-compose-status]", form); if (!draft.entry_ids.length) { if (status) status.textContent = L("请至少选择一条材料"); return; }
+    event.preventDefault(); if (composeBusy) return; remember(); const status = q("[data-inbox-compose-status]", form); if (!draft.entry_ids.length) { if (status) status.textContent = uiText.text("inbox.client.select-least-one-material"); return; }
     draft.request_id ||= "pages-" + crypto.randomUUID(); saveDraft(); const check = guard(), request = { ...draft, entry_ids: [...draft.entry_ids] }; composeBusy = true;
     const controls = all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("input,textarea,button[type=submit]", form); controls.forEach(control => control.disabled = true);
-    if (status) status.textContent = L("正在整理材料，完成后可在 Pages 中继续编辑…");
+    if (status) status.textContent = uiText.text("inbox.client.writing-materials-can-continue-editing-pages-when-ready");
     void (async () => {
-      try { const result = await api<{ document: { id: string; title: string } }>("/pages", "POST", request); check(); if (status) status.textContent = L("文稿已保存到 Pages；原事项仍待你确认处理结果。"); await results(); check(); host.invalidateView(); if (q<HTMLDialogElement>("[data-inbox-compose]")?.open) openPage(result.document.id, result.document.title); }
+      try { const result = await api<{ document: { id: string; title: string } }>("/pages", "POST", request); check(); if (status) status.textContent = uiText.text("inbox.client.saved-pages-original-inbox-items-still-await-review"); await results(); check(); host.invalidateView(); if (q<HTMLDialogElement>("[data-inbox-compose]")?.open) openPage(result.document.id, result.document.title); }
       catch (failure) { try { check(); error(failure, status); } catch { /* Keep the saved request id for explicit retry. */ } }
       finally { try { check(); composeBusy = false; controls.forEach(control => control.disabled = false); } catch { /* No late UI or draft writes. */ } }
     })();
   });
-  scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); const status = q("[data-inbox-compose-status]"); if (status) status.textContent = L("草稿已保留，可继续编辑或重试。"); } scope.frame(() => { if (scope.visible) void refresh().catch(failure => error(failure)); }); return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
+  scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); const status = q("[data-inbox-compose-status]"); if (status) status.textContent = uiText.text("inbox.client.draft-saved-can-keep-editing-retry"); } scope.frame(() => { if (scope.visible) void refresh().catch(failure => error(failure)); }); return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
   scope.own(() => reads.abort());
 }

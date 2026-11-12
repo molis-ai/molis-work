@@ -14,6 +14,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { pageText } from "./fixtures/page-text.js";
 import { INTERACTION_TEXTURE_STYLES } from "@molis-ai/molis-work-design-system";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
@@ -366,8 +367,8 @@ test("the rules page suggests options by the real page rule: destination, versio
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
-  const build = (selected: Record<string, unknown> | undefined, catalog: JudgmentRuleAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
-    rule + "\nreturn { suggestedOptions: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
+  const build = (selected: Record<string, unknown> | undefined, catalog: JudgmentRuleAuthoringCatalog) => new Function("globalThis", "L", "cat", "sel", "destKey",
+    rule + "\nreturn { suggestedOptions: hints, destOf };")({ t: { text: pageText("zh") } }, (value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
     suggestedOptions: (destinationId: string, kinds: string[]) => { option_id: string; title: string; action_ref?: { capability_id: string } }[];
     destOf: (id: string) => { option_ids: string[] } | null;
   };

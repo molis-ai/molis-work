@@ -4,6 +4,7 @@ import type { AgentSessionMessage } from "@molis-ai/molis-work-contracts/service
 import type { AgentCollaborationWait } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { delegationStateOf, delegationViewOf, isDelegation, letterBody } from "../plugins/native/coding/src/delegation-view.js";
 import { holdReason, openWait, waitViewOf, wakeBodyOf, waitingFor, type CodingWaitView } from "../plugins/native/coding/src/waits.js";
+import { chinesePagePacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 const letter = (overrides: Partial<AgentSessionMessage>): AgentSessionMessage => ({
   message_id: "m1", audience: "people", kind: "request", from_session: "rt-a", to_session: "rt-b", body: JSON.stringify({ title: "写报告", task: "整理" }),
@@ -27,7 +28,7 @@ test("the delegation view names both ends as this project's sessions and counts 
   assert.equal(isDelegation(request), true);
   assert.equal(isDelegation(reply), false);
   const sides = { codingOf: (runtime: string) => runtime === "rt-a" ? "coding-a" : null, sideOf: (id: string | null) => id && { session_id: id } };
-  const view = delegationViewOf(request, [request, reply], sides);
+  const view = withPagePacks("zh", chinesePagePacks("coding"), () => delegationViewOf(request, [request, reply], sides));
   assert.equal(view.from_session, "coding-a");
   assert.equal(view.to_session, null);
   assert.deepEqual(view.from, { session_id: "coding-a" });

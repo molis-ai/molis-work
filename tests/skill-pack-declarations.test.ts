@@ -73,11 +73,27 @@ test("SKC-01: a plugin with only declarations parses, without entrypoints, and t
   assert.deepEqual(manifest.entrypoints, []);
   assert.deepEqual(inspectContentPlugin(contentManifest()), []);
   // Identity, words in both languages, the Home scope and upgrade sources are all on the list.
-  parsePluginManifest(contentManifest({ name_en: "Meeting skills", summary: "会议用的技能", developer: true, runtime: { scope: "home" },
-    upgrade_compatibility: { compatible_from_versions: ["1.0.0"] }, ui: { contributions: [], messages: { "meeting-skills.title": { zh: "会议", en: "Meeting" } }, translations: { 会议: "Meeting" } } }));
+  parsePluginManifest(contentManifest({ name_text: { literal: "Meeting skills" }, summary: "会议用的技能", developer: true, runtime: { scope: "home" },
+    upgrade_compatibility: { compatible_from_versions: ["1.0.0"] }, ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } }));
   const read = parseContentPackage(contentPackage());
   assert.deepEqual(read.skills, [{ skill_id: SKILL, version: 1, body: BODY }]);
   assert.equal(read.manifest.plugin_id, "io.molis.work.meeting-skills");
+});
+
+test("FSS-53 SKC-03 content language files must match the signed package declarations exactly", () => {
+  const manifest = contentManifest({ ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } });
+  const entries = [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(manifest)), file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE)];
+  const pathOf = (locale: string) => "locales/" + locale + ".json";
+  const words = (locale: string, title: string, owner = String(manifest.plugin_id)) => JSON.stringify({ format_version: 1, owner, locale, messages: { "meeting-skills.title": title } });
+  const zh = words("zh", "会议 <名称>"), en = words("en", "Don't invent R&D <names>");
+  const files = [...entries, file(pathOf("zh"), zh), file(pathOf("en"), en)];
+  const read = parseContentPackage(contentPackage(manifest, files));
+  assert.deepEqual(read.locale_files, { [pathOf("zh")]: zh, [pathOf("en")]: en });
+  assert.deepEqual(read.skills, [{ skill_id: SKILL, version: 1, body: BODY }]);
+  assert.ok(refused(() => parseContentPackage(contentPackage(manifest, files.slice(0, -1)))).some(problem => problem.path === pathOf("en")));
+  assert.ok(refused(() => parseContentPackage(contentPackage(manifest, [...files, file(pathOf("de"), words("de", "Meeting"))]))).some(problem => problem.path === pathOf("de")));
+  assert.ok(refused(() => parseContentPackage(contentPackage(manifest, [...files.slice(0, -1), file(pathOf("en"), words("en", "Meeting", "io.other.meeting-skills"))]))).some(problem => problem.path === pathOf("en")));
+  for (const name of ["messages", "translations"]) assert.ok(reasons(refused(() => parsePluginManifest(contentManifest({ ui: { contributions: [], [name]: {} } })))).some(reason => reason.includes(name)));
 });
 
 test("SKC-01: a key outside the content plugin's list is refused by name, whatever else is right", () => {

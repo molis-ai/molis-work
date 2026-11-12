@@ -4,6 +4,7 @@ import vm from "node:vm";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_RECEIPTS_FACTORY_SCRIPT, ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { deliveryNote, deliveryNoteHtml, deliverySteps } from "@molis-ai/molis-work-app-local-host";
+import { pageText } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §9.2, stage 3e-2a (RCPT-375): the page side of the delivery note. The Host draws it; the receipts
 // factory places it as one record after the tray, redraws it whole only when the Host's html changed, and opens a
@@ -123,7 +124,7 @@ const worked = { work: { work_id: "w1", executor: { kind: "assistant" }, state: 
   objects: [{ relation: "result", open: { surface: "pages", id: "a" }, state: "current", subject: { kind: "page", id: "a" }, title: "周报", recorded_revision: null, current_revision: null, recorded_at: "" }],
   rounds: [{ run_id: "run-1", text: "整理周报", phase: "completed", awaiting_input: [], activity: [], materials: [], context: null, started_at: "", ended_at: null,
     turns: [{ turn_id: "t1", kind: "user", text: "再加上第三季度的数字", at: null, steer: { id: "s1", state: "read" } }] }] } as AssistantWorkView;
-const say = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+const say = pageText("zh");
 
 /** The row as the island makes it, over a conversation whose records are given. */
 function row(records: Control[]) {
@@ -131,7 +132,7 @@ function row(records: Control[]) {
   let onStep: ((index: number, button: { dataset: { ixStepId: string } }) => void) | null = null;
   const context = vm.createContext({ CSS: { escape: (value: string) => value.replace(/["\\]/g, "\\$&") } });
   const factory = vm.runInContext(`(${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})`, context) as (input: unknown) => { paint(): void };
-  factory({ row: { hidden: false, querySelector: () => null, addEventListener: () => {} }, thread: control({}, records), L: (text: string) => text, el: () => ({}),
+  factory({ row: { hidden: false, querySelector: () => null, addEventListener: () => {} }, thread: control({}, records), readText: say, el: () => ({}),
     drawn: (_row: unknown, _html: string, handlers: { onStep: typeof onStep }) => { onStep = handlers.onStep; },
     jumpTo: (record: Control) => { jumped.push(record); }, bindText: (record: Control) => { bound.push(record); },
     view: () => ({ work: { work_id: "w1" }, next_html: "<steps>", next_all_html: "<steps>" }), open: () => true, take: () => {}, other: (id: string) => { other.push(id); } }).paint();

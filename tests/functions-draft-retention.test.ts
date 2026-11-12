@@ -7,24 +7,27 @@ import test from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
+import { chinesePagePacks, pageTextForPacks, pageTextScriptForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/judgment-rules/client.ts";
 import { renderFunctionsWorkbench } from "../apps/workbench/src/judgment-rules/ui.ts";
 
+const packs = chinesePagePacks();
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;"),
-  text: (value: string) => value,
+  text: pageTextForPacks("zh", packs),
 };
 
 function pageHtml(): string {
   const embed = (source: string) => source.replace(/<\/script/gi, "<\\/script");
-  const workbench = renderFunctionsWorkbench({ primitives });
+  const workbench = withPagePacks("zh", packs, () => renderFunctionsWorkbench({ primitives }));
   return `<!doctype html><meta charset="utf-8"><body>${workbench}
 <script>
+${embed(pageTextScriptForPacks("zh", packs))}
 ${embed(MICRO_INTERACTION_CLIENT_SCRIPT)}
 var records = {
   "fn-1": { id: "fn-1", name: "旧名称", function_key: "old_key", instructions: "旧说明", status: "draft", primitive: "choice", criteria: [{ key: "yes", description: "是" }, { key: "no", description: "否" }], updated_at: "t0", scene_id: null, subject_kinds: [], scene_map: {}, samples: [], last_preview: null },
@@ -79,7 +82,7 @@ window.fetch = async (url, init) => {
 ${embed(UI_REQUEST_CLIENT_SCRIPT)}
 try {
   // The same host the standalone rules page gives it (functions/bootstrap.ts): its own document and address.
-  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, api: null, root: document,
+  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: globalThis.t.text, api: null, root: document,
     page: { address: () => new URL(location.href), replace: (next) => history.replaceState(null, "", next) } });
   window.__booted = true;
 } catch (error) {

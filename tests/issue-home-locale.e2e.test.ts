@@ -92,7 +92,7 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   await b.waitFor("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-home-model-retry]').hidden");
   assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
     // A dropped connection is said by the shared request helper, in English here (W3-10).
-    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
+    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Can’t reach the Molis Work service. Try again in a moment." });
   assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted"]);
   await b.click("[data-home-model-retry]");
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);

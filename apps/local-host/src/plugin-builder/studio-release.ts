@@ -1,3 +1,4 @@
+import { builderReleaseInterface, studioLocaleFiles, studioProblem } from "../plugin-builder-surface.js";
 import { existsSync, lstatSync, realpathSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
@@ -14,6 +15,7 @@ import { releaseVersion } from '../installed-release.js';
 import { buildSources, readPluginPrompts } from './prompts.js';
 import { readBuildFile } from './build-project.js';
 import { studioPublisherIdentity } from './publisher-identity.js';
+import { studioManifestWords } from './studio-words.js';
 
 const SIGNED = 'signed-package.json';
 const RELEASE_FILES = new Set<string>([...Object.values(SANDBOX_PACKAGE_FILES), SIGNED]);
@@ -51,7 +53,12 @@ function reclaim(directory: string, build: AgentBuild, version: number, signer: 
   const kept = readKeptSandboxPackage(bundle.payload);
   if (bundle.payload.manifest.plugin_id !== build.design!.contract.pluginId || bundle.payload.manifest.version !== releaseVersion(version)
     || bundle.payload.manifest.publisher.signature !== signer) throw new Error('未登记发行物不属于这个草稿版本，保留待检查');
-  for (const file of bundle.payload.files) if (file.path !== SANDBOX_PACKAGE_FILES.manifest && !readFileSync(join(directory, file.path)).equals(Buffer.from(file.content_base64, 'base64'))) throw new Error('发布目录与签名内容不符，保留待检查');
+  const words = studioLocaleFiles(build.design!.localePacks);
+  for (const file of bundle.payload.files) {
+    if (file.path === SANDBOX_PACKAGE_FILES.manifest) continue;
+    const original = Object.hasOwn(words, file.path) ? Buffer.from(words[file.path]!) : RELEASE_FILES.has(file.path) ? readFileSync(join(directory, file.path)) : null;
+    if (!original?.equals(Buffer.from(file.content_base64, 'base64'))) throw new Error('发布目录与签名内容不符，保留待检查');
+  }
   const original: unknown = JSON.parse(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.manifest), 'utf8'));
   if (!isDeepStrictEqual(original, { version: /* @version format.builder.build-manifest */ 1, pluginId: kept.contract.pluginId, revision: kept.contract.revision, effects: effectsFromContract(kept.contract) })) throw new Error('发布构建清单不符，保留待检查');
   control.assertCurrent();
@@ -65,7 +72,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
   return async (build, manifest, bundlePath, version, control) => {
     const run = async () => {
       await control.beforeEffect();
-      if (control.versions().some(item => item.version === version)) throw new Error('发布版本已存在');
+      if (control.versions().some(item => item.version === version)) throw studioProblem("plugin-builder.request.version-already-published", '发布版本已存在');
       const design = build.design!;
       assertContract(design.contract); validatePluginComponentNodes(build.nodes, design.parts, design.contract);
       if (design.presentation) validatePluginPresentation(design.presentation, design.parts, design.contract);
@@ -73,18 +80,19 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       control.assertCurrent();
       const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, build.directory! + '.settled', design.contract.operations.length));
       control.assertCurrent();
-      if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);
+      if (problems.length) throw studioProblem("plugin-builder.request.publication-model-fix", '发布前请先修好调用模型的写法：' + problems[0], problems[0]);
       const scope = build.runtimeScope ?? 'project';
       const originalFiles = {
         'plugin.mjs': code, 'manifest.json': JSON.stringify(manifest), 'contract.json': JSON.stringify(design.contract),
-        'interface.json': JSON.stringify({ parts: design.parts, nodes: build.nodes, acceptance: design.acceptance, presentation: design.presentation }),
+        'interface.json': JSON.stringify(builderReleaseInterface(design, build.nodes)),
         'prompts.json': JSON.stringify(prompts),
       };
       const candidate = (identity: string, compatible: string[] = []) => {
         const distributed = sandboxPluginManifest({ pluginId: design.contract.pluginId, name: design.title, version: releaseVersion(version),
+          textDeclarations: studioManifestWords(design),
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
           effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
-        const files = Object.entries({ ...originalFiles, 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
+        const files = Object.entries({ ...originalFiles, ...studioLocaleFiles(design.localePacks), 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
         return parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest: distributed, files }, signature: null, publisher_key: null });
       };
       const admitted = readKeptSandboxPackage(candidate('agent-built:' + build.id).payload);
@@ -146,6 +154,11 @@ export async function readStudioDistribution(root: string, release: AgentRelease
   if (bundle.payload.manifest.plugin_id !== release.pluginId || bundle.payload.manifest.version !== releaseVersion(release.version)
     || bundle.payload.manifest.publisher.signature !== release.distribution.publisher_key_id
     || (bundle.payload.manifest.runtime?.scope ?? 'project') !== release.distribution.runtime_scope) throw new Error('签名分发物与发布记录不符');
-  readKeptSandboxPackage(bundle.payload);
+  const kept = readKeptSandboxPackage(bundle.payload);
+  if (!isDeepStrictEqual(kept.contract, release.design.contract)) throw new Error('签名分发物与发布记录不符');
+  for (const [path, body] of Object.entries(studioLocaleFiles(release.design.localePacks))) {
+    const member = bundle.payload.files.find(file => file.path === path);
+    if (!member || !Buffer.from(member.content_base64, 'base64').equals(Buffer.from(body))) throw new Error('签名语言文件与发布记录不符');
+  }
   return bundle;
 }

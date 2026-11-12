@@ -2,16 +2,29 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import test from "node:test";
-import { createLocalHostCapsule, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import test, { mock } from "node:test";
+import { createLocalHostCapsule, installHostUiText, LocalProjectDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
-const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
-import { readGoalCapsuleMenu, eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
+import { readGoalCapsuleMenu, eventDirectoryPresentation, goalsManifest, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 const PROJECT = { project_id: "project-capsule", display_name: "胶囊测试" };
+const capsule = createLocalHostCapsule(renderDesktopCapsuleShell);
+test.before(installHostUiText);
+
+function buildCapsuleSnapshot(
+  view: Parameters<typeof capsule.buildCapsuleSnapshot>[0],
+  directory: Parameters<typeof capsule.buildCapsuleSnapshot>[1],
+  now?: Date,
+) {
+  const draw = () => runWithLocale("zh", () => capsule.buildCapsuleSnapshot(view, directory));
+  if (now === undefined) return draw();
+  // The Host reads the clock inside the Goals projection. Keep the fixture's exact event ages at that entry point.
+  mock.timers.enable({ apis: ["Date"], now });
+  try { return draw(); } finally { mock.timers.reset(); }
+}
 
 function goal(goalId: string, title: string, fulfillmentState: "unmet" | "satisfied" = "unmet"): GoalRecord {
   return {
@@ -381,7 +394,7 @@ test("capsule shows a real completion briefly, then the authoritative next actio
 });
 
 test("capsule shell is one menu-bar popover with horizontal state tabs and inline Goal details", () => {
-  const html = renderCapsuleShell([PROJECT]);
+  const html = runWithLocale("zh", () => capsule.renderCapsuleShell([PROJECT]));
   assert.match(html, /capsule-shell/);
   assert.match(html, /mw-select-picker/);
   assert.match(html, /data-mw-select-picker/);
@@ -428,7 +441,7 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /data-capsule-error-detail/);
   assert.match(html, /暂时无法确认最新状态/);
   assert.match(html, /恢复前，这里不会把旧状态当成正在进行/);
-  assert.match(html, /title: L\("连接中断"\)/);
+  assert.match(html, /title: globalThis\.t\.text\("workbench\.capsule-shell\.disconnected"\)/);
   assert.match(html, /data-capsule-retry/);
   assert.match(html, /setCapsuleHeight\(252\)/);
   assert.match(html, /setCapsuleHeight\(280\)/);
@@ -453,7 +466,10 @@ test("D0013 SYS-09 a cancelled Goal's production event projection stays Cancelle
   const goal_id = created.goal.goal_id, before = app.goalEvents.readState(project_id, goal_id);
   app.goalEvents.submitClosure({ project_id, goal_id, actor_id, actor_kind, idempotency_key: "cancel", kind: "cancel", reason: "方向改变",
     expected_config_version: before.config.version, expected_agreement_version: before.agreement.version });
-  const current = app.goalEvents.readState(project_id, goal_id), projection = eventDirectoryPresentation(current)!;
+  const current = app.goalEvents.readState(project_id, goal_id);
+  const goalsText = registeredBuiltinText(goalsManifest);
+  assert.ok(goalsText);
+  const projection = runWithLocale("zh", () => runWithRegisteredText(goalsText, () => eventDirectoryPresentation(current)))!;
   assert.equal(current.work_status, "cancelled");
   const record = boardSnapshot(store, project_id).goals.find(row => row.goal_id === goal_id)!;
   const item = { ...webGoal(record, "invalidated"), ...projection };
@@ -489,13 +505,13 @@ test("D0044 menu query returns one bounded owner summary without expanding Goal 
     assert.equal(queries.length, 1); assert.match(queries[0]!, /LIMIT 1/);
     assert.doesNotMatch(queries[0]!, /SELECT (?:[a-z]+\.)?\*|payload_json|summary_text|agreement_json/i);
     assert.ok(JSON.stringify(summary).length < 300, "205 Goals do not become a 205-row menu response");
-    const menu = createLocalHostCapsule(renderDesktopCapsuleShell).buildCapsuleMenu(PROJECT, summary);
+    const menu = runWithLocale("zh", () => capsule.buildCapsuleMenu(PROJECT, summary));
     assert.match(menu.state.menu_bar_title, /可记录.*205/);
     const cancelled = app.goalEvents.createIntent({ project_id, title: "取消的方向", actor_id: "person", actor_kind: "user", idempotency_key: "D0044:cancel" }).goal.goal_id;
     const before = app.goalEvents.readState(project_id, cancelled);
     app.goalEvents.submitClosure({ project_id, goal_id: cancelled, actor_id: "person", actor_kind: "user", idempotency_key: "D0044:close", kind: "cancel", reason: "方向改变",
       expected_config_version: before.config.version, expected_agreement_version: before.agreement.version });
-    const cancelledMenu = createLocalHostCapsule(renderDesktopCapsuleShell).buildCapsuleMenu(PROJECT, readGoalCapsuleMenu(store.db, project_id));
+    const cancelledMenu = runWithLocale("zh", () => capsule.buildCapsuleMenu(PROJECT, readGoalCapsuleMenu(store.db, project_id)));
     assert.equal(cancelledMenu.state.menu_bar_title, "已取消");
     assert.match(cancelledMenu.state.action_path, new RegExp(cancelled + "$"));
     app.initializeBoard({ project_id: "foreign", actor_id: "person", idempotency_key: "D0044:foreign" });

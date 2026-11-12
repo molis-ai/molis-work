@@ -6,25 +6,25 @@ import type { MwComposerAiLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
  * (`coding.composer.*` in messages.ts); `{name}` and the like stay in them for the composer to fill. The key glyphs follow the
  * platform: ⌘ on a Mac, Ctrl elsewhere.
  */
-export function codingComposerLabels(L: (key: string) => string, mac: boolean): MwComposerAiLabels {
+export function codingComposerLabels(readText: (key: string) => string, mac: boolean): MwComposerAiLabels {
   const keys = (text: string) => mac ? text : text.replace("⌘⇧↵", "Ctrl+Shift+↵").replace("⌘↵", "Ctrl+↵");
   return {
-    input: L("coding.composer.task-label"), send: L("coding.composer.send"), sendTitle: keys(L("coding.composer.send-title")), add: L("coding.attach.title"),
-    more: L("coding.composer.more"), files: L("coding.composer.files"), filesHint: L("coding.composer.files-hint"), dropRefused: L("coding.composer.drop-refused"),
-    commands: L("coding.slash.label"), adding: L("coding.composer.adding"), searching: L("coding.composer.searching"), nothing: L("coding.composer.nothing"), unavailable: L("coding.composer.unavailable"),
-    reading: L("coding.composer.reading"), remove: L("coding.composer.remove"), retryFile: L("coding.composer.retry-file"), blocked: L("coding.composer.blocked"),
-    restored: L("coding.composer.restored"), clear: L("coding.composer.clear"), unsaved: L("coding.composer.draft-unsaved-short"),
-    enterHint: L("coding.composer.enter-hint"), enterHintDismiss: L("coding.composer.enter-hint-dismiss"), notice: L("coding.composer.notice"),
-    sending: L("coding.composer.sending-caption"), sendingText: L("coding.composer.sending"), failed: L("coding.composer.failed"), retry: L("coding.composer.retry"),
-    unknown: L("coding.composer.unknown"), unknownText: L("coding.composer.unknown-text"), check: L("coding.composer.check"), notSent: L("coding.composer.not-sent"),
-    to: L("coding.composer.to"), stop: L("coding.run.stop"), stopTitle: L("coding.run.stop-title"), delivery: L("coding.send-mode.label"), deliveryGroup: L("coding.send-mode.group"),
+    input: readText("coding.composer.task-label"), send: readText("coding.composer.send"), sendTitle: keys(readText("coding.composer.send-title")), add: readText("coding.attach.title"),
+    more: readText("coding.composer.more"), files: readText("coding.composer.files"), filesHint: readText("coding.composer.files-hint"), dropRefused: readText("coding.composer.drop-refused"),
+    commands: readText("coding.slash.label"), adding: readText("coding.composer.adding"), searching: readText("coding.composer.searching"), nothing: readText("coding.composer.nothing"), unavailable: readText("coding.composer.unavailable"),
+    reading: readText("coding.composer.reading"), remove: readText("coding.composer.remove"), retryFile: readText("coding.composer.retry-file"), blocked: readText("coding.composer.blocked"),
+    restored: readText("coding.composer.restored"), clear: readText("coding.composer.clear"), unsaved: readText("coding.composer.draft-unsaved-short"),
+    enterHint: readText("coding.composer.enter-hint"), enterHintDismiss: readText("coding.composer.enter-hint-dismiss"), notice: readText("coding.composer.notice"),
+    sending: readText("coding.composer.sending-caption"), sendingText: readText("coding.composer.sending"), failed: readText("coding.composer.failed"), retry: readText("coding.composer.retry"),
+    unknown: readText("coding.composer.unknown"), unknownText: readText("coding.composer.unknown-text"), check: readText("coding.composer.check"), notSent: readText("coding.composer.not-sent"),
+    to: readText("coding.composer.to"), stop: readText("coding.run.stop"), stopTitle: readText("coding.run.stop-title"), delivery: readText("coding.send-mode.label"), deliveryGroup: readText("coding.send-mode.group"),
     modes: {
-      "next-boundary": { name: L("coding.send-mode.next-boundary"), title: keys(L("coding.send-mode.next-boundary-title")), description: L("coding.send-mode.next-boundary-hint") },
-      interrupt: { name: L("coding.send-mode.interrupt"), title: L("coding.send-mode.interrupt"), description: L("coding.send-mode.interrupt-hint") },
-      "after-run": { name: L("coding.send-mode.after-run"), title: keys(L("coding.send-mode.after-run-title")), description: L("coding.send-mode.after-run-hint") },
+      "next-boundary": { name: readText("coding.send-mode.next-boundary"), title: keys(readText("coding.send-mode.next-boundary-title")), description: readText("coding.send-mode.next-boundary-hint") },
+      interrupt: { name: readText("coding.send-mode.interrupt"), title: readText("coding.send-mode.interrupt"), description: readText("coding.send-mode.interrupt-hint") },
+      "after-run": { name: readText("coding.send-mode.after-run"), title: keys(readText("coding.send-mode.after-run-title")), description: readText("coding.send-mode.after-run-hint") },
     },
-    unsupported: L("coding.send-mode.unsupported"), running: L("coding.composer.running"), runningText: L("coding.composer.running-text"),
-    queued: L("coding.sent.just-ended"), replayed: L("coding.sent.again"),
+    unsupported: readText("coding.send-mode.unsupported"), running: readText("coding.composer.running"), runningText: readText("coding.composer.running-text"),
+    queued: readText("coding.sent.just-ended"), replayed: readText("coding.sent.again"),
   };
 }
 
@@ -38,9 +38,9 @@ const INTENT_WORDS: readonly (readonly [string, string, string?])[] = [
  * The ways of working as the bar's select lists them: one this session's runtime has no role for (`offered` false) is listed and
  * cannot be chosen, writing and running saying they are not there yet. The first screen offers what every runtime has.
  */
-export function codingIntentOptions(L: (key: string) => string, offered: (intent: string) => boolean): { value: string; label: string; disabled?: boolean }[] {
+export function codingIntentOptions(readText: (key: string) => string, offered: (intent: string) => boolean): { value: string; label: string; disabled?: boolean }[] {
   return INTENT_WORDS.map(([value, word, pending]) => {
     const on = offered(value);
-    return { value, label: L(!on && pending ? pending : word), ...(on ? {} : { disabled: true }) };
+    return { value, label: readText(!on && pending ? pending : word), ...(on ? {} : { disabled: true }) };
   });
 }

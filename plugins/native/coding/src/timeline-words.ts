@@ -1,16 +1,14 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
- * The words the Coding timeline reads tool calls and failures with. Like `createCodingTimeline`, it is injected into the
- * browser with `toString()` and must stay self-contained; the client hands its result to the timeline factory.
- *
- * `L` is the page's translator (`host.translate`): every phrase here is a `coding.*` key in `messages.ts`.
+ * The words the Coding timeline reads tool calls and failures with, from Coding's language files.
  */
-export function codingTimelineWords(L: (text: string, values?: Record<string, string | number>) => string) {
+export function codingTimelineWords(readText: (text: string, values?: Record<string, string | number>) => string) {
   /**
    * One kind of call: the verb its row starts with, what the live line says while it runs, and how a run of them is
    * counted in the summary — by distinct target (files, directories), by call, or not at all.
    */
   const kind = (key: string, icon: string, tally: "targets" | "calls" | "" = "calls") =>
-    ({ key, icon, tally, verb: L(`coding.call.${key}`), doing: L(`coding.call.${key}.doing`) });
+    ({ key, icon, tally, get verb() { return readText(`coding.call.${key}`); }, get doing() { return readText(`coding.call.${key}.doing`); } });
   const read = kind("read", "file", "targets"), search = kind("search", "search"), list = kind("list", "folder", "targets");
   const KIND: Record<string, ReturnType<typeof kind>> = {
     read, "read-file": read,
@@ -40,11 +38,11 @@ export function codingTimelineWords(L: (text: string, values?: Record<string, st
   };
   /** A call the timeline has no words for reads as its own name. */
   const other = (name: string): ReturnType<typeof kind> =>
-    ({ key: "other", icon: "activity", tally: "calls", verb: name, doing: L("coding.call.other.doing", { name }) });
+    ({ key: "other", icon: "activity", tally: "calls", verb: name, doing: uiText.text("coding.call.other.doing", { name }) });
   /** "读取 4 个文件" / "Files read: 4" for a run of one kind; a kind that is not counted is just its verb. */
   const tally = (entry: ReturnType<typeof kind>, count: number) => entry.tally === "" ? entry.verb
-    : L(`coding.call.${entry.key}.count`, { count, name: entry.verb });
-  const failure = (key: string) => [L(`coding.failure.${key}`), L(`coding.failure.${key}.hint`)] as const;
+    : readText(`coding.call.${entry.key}.count`, { count, name: entry.verb });
+  const failure = (key: string) => [(`coding.failure.${key}`), (`coding.failure.${key}.hint`)] as const;
   const FAILURES: Array<[RegExp, string, string]> = ([
     // The Host refused before sending (a Character disabled, a grant withdrawn): nothing reached the model.
     [/EFFECT_NOT_AUTHORIZED/, "not-authorized"],
@@ -72,10 +70,10 @@ export function codingTimelineWords(L: (text: string, values?: Record<string, st
    */
   const toolHint = (output: string): string => {
     const code = /^([A-Z][A-Z0-9_]+):/.exec(output)?.[1];
-    return code === "WORKSPACE_SECRET_DETECTED" ? L("coding.tool-hint.secret")
-      : code === "PATCH_BASE_CHANGED" || code === "WORKSPACE_NOT_OBSERVED" ? L("coding.tool-hint.stale")
-      : code === "COMMAND_DENIED" ? L("coding.tool-hint.denied")
+    return code === "WORKSPACE_SECRET_DETECTED" ? uiText.text("coding.tool-hint.secret")
+      : code === "PATCH_BASE_CHANGED" || code === "WORKSPACE_NOT_OBSERVED" ? uiText.text("coding.tool-hint.stale")
+      : code === "COMMAND_DENIED" ? uiText.text("coding.tool-hint.denied")
       : "";
   };
-  return { KIND, FAILURES, toolHint, other, tally, t: L };
+  return { KIND, FAILURES, toolHint, other, tally, t: readText };
 }

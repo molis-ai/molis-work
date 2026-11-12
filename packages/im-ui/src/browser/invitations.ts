@@ -1,5 +1,5 @@
-import { imText as L } from "../locale.js";
-import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { imFailureText } from "./error-text.js";
+import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImInviteState, ImRotateInviteInput } from "@molis-ai/molis-work-contracts/services/im";
 import type { Api, ApiError } from "./types.js";
 
@@ -26,16 +26,16 @@ export function createInvitations(o: InvitationDialog) {
     let content: string;
     if (matches && intent) {
       const url = new URL("/im", location.origin); url.searchParams.set("invite", intent.request.token);
-      content = ("<p>" + escapeImText(L("通过这个链接加入群聊后，可以查看群里的消息和全部 Thread。")) + "</p><label class=\"im-field\">" + escapeImText(L("邀请链接")) + "<input class=\"im-invite-value\" readonly value=\"") + o.escape(url.href) + '" data-invite-value></label>';
+      content = ("<p>" + escapeImText(uiText.text("im-ui.invitation.explains-access")) + "</p><label class=\"im-field\">" + escapeImText(uiText.text("im-ui.invitation.link")) + "<input class=\"im-invite-value\" readonly value=\"") + o.escape(url.href) + '" data-invite-value></label>';
     } else {
-      const hint = intent?.pending ? (L("尚未确认更换结果，请重试原操作。")) : state.token_hash
-        ? (L("已分享的链接仍有效。原文只在生成时的页面中保留，无法重新取回；明确更换后，旧链接才会失效。"))
-        : (L("尚未生成邀请链接。生成后请复制并保存；刷新页面后无法重新取回原文。"));
+      const hint = intent?.pending ? (uiText.text("im-ui.invitation.replacement-unconfirmed")) : state.token_hash
+        ? (uiText.text("im-ui.invitation.shared-link-retained"))
+        : (uiText.text("im-ui.invitation.no-link"));
       content = '<p data-invite-notice>' + hint + '</p>';
     }
-    const label = intent?.pending ? (L("重试原操作")) : state.token_hash ? (L("更换邀请链接")) : (L("生成邀请链接"));
+    const label = intent?.pending ? (uiText.text("im-ui.invitation.retry-original")) : state.token_hash ? (uiText.text("im-ui.invitation.replace")) : (uiText.text("im-ui.invitation.generate"));
     o.body.innerHTML = content + '<p class="im-form-error" data-invite-error role="alert">' + o.escape(error) + '</p><div class="im-form-actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-action="rotate-invite">' + label + '</button>'
-      + (matches ? '<button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-action="copy-invite">' + o.icon("copy") + (escapeImText(L("复制链接")) + "</button>") : "") + '</div>';
+      + (matches ? '<button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-action="copy-invite">' + o.icon("copy") + (escapeImText(uiText.text("im-ui.invitation.copy")) + "</button>") : "") + '</div>';
   }
   async function read(room: string, version: number, error = "") {
     const state = await o.api<ImInviteState>(route(room)), intent = intents.get(room);
@@ -47,10 +47,10 @@ export function createInvitations(o: InvitationDialog) {
   }
   async function open(room: string, title: string) {
     observed = null;
-    o.open((L("邀请成员 · ")) + title, ("<p role=\"status\">" + escapeImText(L("正在读取邀请状态…")) + "</p>"));
+    o.open(uiText.text("im-ui.invitation.dialog-title", { room: title }), `<p role="status">${uiText("im-ui.invitation.reading-status")}</p>`);
     const { version } = o.current();
     try { await read(room, version); }
-    catch (cause) { if (current(room, version)) o.body.innerHTML = '<p class="im-form-error">' + o.escape((cause as Error).message) + '</p>'; }
+    catch (cause) { if (current(room, version)) o.body.innerHTML = '<p class="im-form-error">' + o.escape(imFailureText(cause)) + '</p>'; }
   }
   async function rotate(button: HTMLButtonElement) {
     const { room, version } = o.current();
@@ -71,22 +71,22 @@ export function createInvitations(o: InvitationDialog) {
         if (!accepted) intents.delete(room);
       }
       if (current(room, version)) {
-        await read(room, version, accepted ? "" : (L("邀请已被另一项操作更换，原操作不会重新激活旧链接。")));
-        if (accepted && o.body.querySelector("[data-invite-value]")) o.toast((L("邀请链接已生成；其他旧链接不再可用")));
+        await read(room, version, accepted ? "" : (uiText.text("im-ui.invitation.replaced-elsewhere")));
+        if (accepted && o.body.querySelector("[data-invite-value]")) o.toast((uiText.text("im-ui.invitation.generated")));
       }
     } catch (cause) {
       const error = cause as ApiError;
       if (error.code === "im.invite.token_conflict" && intents.get(room) === intent) intents.delete(room);
       // Even a read-back failure after a committed POST can retry the same pair.
       if (intents.get(room) === intent) intent.pending = true;
-      if (current(room, version) && observed) paint(observed, false, error.message);
+      if (current(room, version) && observed) paint(observed, false, imFailureText(error));
     } finally { button.disabled = false; }
   }
   async function copy(button: HTMLButtonElement) {
     const input = o.body.querySelector<HTMLInputElement>("[data-invite-value]");
     if (!input) return;
-    if (!await window.molisCopy?.(button, input.value, { done: (L("已复制")), failed: (L("复制失败")) })) {
-      input.focus(); input.select(); o.toast((L("链接已选中，请复制。")));
+    if (!await window.molisCopy?.(button, input.value, { done: (uiText.text("im-ui.invitation.copied")), failed: (uiText.text("im-ui.invitation.copy-failed")) })) {
+      input.focus(); input.select(); o.toast((uiText.text("im-ui.invitation.link-selected")));
     }
   }
   return { open, rotate, copy };

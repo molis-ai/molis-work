@@ -16,7 +16,7 @@ export function pluginActionAvailability(instance: PluginInstance, definition: A
     beforeEffect: async () => { throw new ActionError("actions.forbidden", "可用性检查不能执行动作或写入"); } };
   try {
     check();
-    return runInPluginAction({ install_id: instance.install_id, installation_generation: instance.installation_generation, definition, caller: context },
+    return runInPluginAction({ install_id: instance.install_id, installation_generation: instance.installation_generation, activation: instance, definition, caller: context },
       () => requireSynchronous(read(pluginCallbackContext(context)), "可用性检查必须同步完成"));
   } finally { active = false; }
 }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalRecord } from "./contract/goals.js";
 import type { GoalPresentationState } from "./tree-order.js";
 import { WORK_STATE_COPY, type WorkStateExplanation } from "./goal-state-copy.js";
@@ -7,21 +8,21 @@ export interface ParentCompletionExplanation {
     meaning: string;
     tone: "progress";
 }
-export function createGoalStateExplainer(L: GoalStatusTranslate) {
+export function createGoalStateExplainer(_readText: GoalStatusTranslate) {
     function explainWorkState(state: GoalPresentationState): WorkStateExplanation {
         const copy = WORK_STATE_COPY[state];
         return {
-            label: L(copy.label),
-            meaning: L(copy.meaning),
-            nextAction: L(copy.nextAction),
-            howToContinue: L(copy.howToContinue),
+            label: uiText.text(copy.label),
+            meaning: uiText.text(copy.meaning),
+            nextAction: uiText.text(copy.nextAction),
+            howToContinue: uiText.text(copy.howToContinue),
             actionKind: copy.actionKind,
         };
     }
     function explainParentCompletion(_goal: Pick<GoalRecord, "definition_state" | "decomposition_state" | "decomposition_review" | "fulfillment_state">, completedChildren: number, totalChildren: number): ParentCompletionExplanation {
         return {
-            label: L("子 Goal 进度"),
-            meaning: L("已完成 {done} / {total} 个子 Goal。每条 Goal 按自己的当前约定收尾；子 Goal 完成不会自动完成父 Goal。", {
+            label: uiText.text("goals.goal-state-explanation.child-goal-progress"),
+            meaning: uiText.text("goals.goal-state-explanation.done-total-child-goals-complete-each-goal-closes", {
                 done: completedChildren,
                 total: totalChildren,
             }),

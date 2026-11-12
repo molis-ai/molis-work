@@ -52,14 +52,14 @@ test("RAC-1141 BL-810 the works related to an object: a related work that is gon
 
 test("RAC-1142 BL-810 settling handled notices: a notice of a work that is gone stays as it is; a work that cannot be read is written once and passed over", async t => {
   const gone = assistant(t);
-  gone.store.raiseNotice("web-user", { kind: "result", work_id: "work-deleted", work_title: "已删", text: "完成了" }, "deleted:1");
+  gone.store.raiseNotice("web-user", { kind: "result", work_id: "work-deleted", work_title: "已删", text: { original: "完成了" } }, "deleted:1");
   assert.deepEqual(await logged(async () => assert.equal(await gone.service.notices.settleHandledNotices(), 0)), [], "gone is no failure");
   const { store, service, work, breakReads, seen } = assistant(t);
   const kept = work(), other = work();
-  store.raiseNotice("web-user", { kind: "result", work_id: other.work_id, work_title: other.title, text: "完成了" }, "other:1");
+  store.raiseNotice("web-user", { kind: "result", work_id: other.work_id, work_title: other.title, text: { original: "完成了" } }, "other:1");
   await new Promise(resolve => setTimeout(resolve, 5));
   // The newer notice is looked at first: the work that cannot be read comes before the one that can.
-  store.raiseNotice("web-user", { kind: "result", work_id: kept.work_id, work_title: kept.title, text: "完成了" }, "kept:1");
+  store.raiseNotice("web-user", { kind: "result", work_id: kept.work_id, work_title: kept.title, text: { original: "完成了" } }, "kept:1");
   breakReads(0, kept.work_id);
   // Before BL-810 it passed for a deletion; now the pass carries on past it, so the other works are still looked at.
   const entries = await logged(async () => { assert.equal(await service.notices.settleHandledNotices(), 0); assert.equal(await service.notices.settleHandledNotices(), 0); });

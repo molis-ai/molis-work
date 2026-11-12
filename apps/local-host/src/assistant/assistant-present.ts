@@ -1,5 +1,6 @@
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRecoveryReport, AgentRunView, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { failedStep } from "./activity-failure.js";
 import type { AssistantActivity, AssistantRecovery, AssistantWorkState, AssistantWorkObject, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { StoredRound, StoredWork } from "./assistant-store.js";
@@ -95,17 +96,17 @@ export function describeObjects(objects: readonly AssistantWorkObject[]): string
  * and the person can let it go on.
  */
 export function stopInWords(reason: string, workBudget?: number): string {
-  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/i.test(reason)) return `到了这一轮的步数上限（${ROUND_TURNS} 步），停在这里；已完成的修改都保留。说“继续”可以接着做`;
+  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/i.test(reason)) return uiText.text("workbench.assistant-stop.turn-limit", { count: ROUND_TURNS });
   if (/MODEL_BUDGET_EXCEEDED|of its \d+ tokens|token/i.test(reason) && /budget|limit|exceed|of its \d+ tokens/i.test(reason)) {
     // A round whose work has a cap was given only what was left of it: this stop is that cap.
-    return workBudget ? `到了这项工作的用量上限（${workBudget.toLocaleString("en-US")} tokens），停在这里；已完成的修改都保留。要继续，先在“用量”里调高这项工作的上限`
-      : "到了这一轮的用量上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+    return workBudget ? uiText.text("workbench.assistant-stop.work-budget", { count: format.number(workBudget) })
+      : uiText.text("workbench.assistant-stop.turn-budget");
   }
-  if (/wall.?clock|duration|timed.?out/i.test(reason)) return "到了这一轮的时间上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+  if (/wall.?clock|duration|timed.?out/i.test(reason)) return uiText.text("workbench.assistant-stop.time-limit");
   // The model service could not be reached or answered with an error: say so, with what to check, keeping the code for reference.
-  if (/MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(reason)) return `连不上模型服务，这一轮没有完成；已完成的修改都保留。请检查网络和“模型设置”里的地址，再说“继续”（${reason.slice(0, 120)}）`;
-  if (/MODEL_AUTH|401|403|invalid.?api.?key|unauthori[sz]ed/i.test(reason)) return `模型服务拒绝了这次调用（凭据不对或没有权限）；请到“模型设置”检查密钥，再说“继续”（${reason.slice(0, 120)}）`;
-  if (/429|rate.?limit|overloaded|529/i.test(reason)) return `模型服务现在太忙，这一轮没有完成；稍等再说“继续”（${reason.slice(0, 120)}）`;
+  if (/MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(reason)) return uiText.text("workbench.assistant-stop.network") + "\n" + reason;
+  if (/MODEL_AUTH|401|403|invalid.?api.?key|unauthori[sz]ed/i.test(reason)) return uiText.text("workbench.assistant-stop.auth") + "\n" + reason;
+  if (/429|rate.?limit|overloaded|529/i.test(reason)) return uiText.text("workbench.assistant-stop.rate-limit") + "\n" + reason;
   return reason;
 }
 

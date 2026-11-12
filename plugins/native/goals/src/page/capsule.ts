@@ -1,14 +1,14 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalCapsuleMenu } from "../capsule-menu.js";
 import { WORK_STATE_COPY } from "../goal-state-copy.js";
 import { countGoalDecisions } from "../decision-groups.js";
 import type { GoalsPageView } from "./view.js";
-import type { GoalsTranslate } from "./ports.js";
 import type { CapsuleSnapshot, CapsuleGoalItem, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 import { createCapsuleItemProjection } from "./capsule-items.js";
 
 /** The Goals owner's existing capsule projection; the shell only displays its JSON. */
-export function createGoalsCapsuleProjection(L: GoalsTranslate) {
-  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
+export function createGoalsCapsuleProjection() {
+  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection();
   function buildCapsuleSnapshot(
     view: GoalsPageView,
     directory: { goal_id: string }[],
@@ -116,7 +116,7 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
       };
     }
 
-    const label = L("暂无可开始项");
+    const label = uiText.text("goals.capsule.nothing-ready");
     return {
       observed_event_cursor: view.snapshot.cursor,
       project: view.project,
@@ -124,18 +124,18 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
         kind: "empty",
         label,
         goal_id: null,
-        goal_title: L("当前没有聚焦的目标"),
+        goal_title: uiText.text("goals.capsule.no-focused-goal"),
         goal_path: projectPath(view),
-        action_label: L("打开 Molis Work"),
+        action_label: uiText.text("goals.capsule.open-molis-work"),
         action_path: projectPath(view),
         status_since: null,
-        why: L("当前没有正在执行或可以立即开始的目标"),
-        current: L("当前没有正在执行的工作"),
-        blocker: L("可能仍有前置事项、风险或目标说明需要处理"),
-        next: L("打开 Molis Work 查看哪些条件还没有满足"),
+        why: uiText.text("goals.capsule.there-no-running-immediately-actionable-goal"),
+        current: uiText.text("goals.capsule.no-work-running-right-now"),
+        blocker: uiText.text("goals.capsule.prerequisite-risk-goal-definition-may-still-need-attention"),
+        next: uiText.text("goals.capsule.open-molis-work-see-which-conditions-not-yet"),
         running_count: 0,
         additional_running: 0,
-        menu_bar_title: L("空闲"),
+        menu_bar_title: uiText.text("goals.capsule.idle"),
         menu_bar_tooltip: `${view.project.display_name} · ${label}`,
       },
       tabs: [],
@@ -146,8 +146,8 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
 
   function buildCapsuleMenu(project: { project_id: string; display_name: string }, summary: GoalCapsuleMenu) {
     const selected = summary.focus;
-    const label = selected ? L(selected.historical ? "历史记录" : WORK_STATE_COPY[selected.state].label) : L("暂无可开始项");
-    const title = selected && selected.count > 1 ? L("{label} · {count}", { label, count: selected.count }) : label;
+    const label = selected ? uiText.text(selected.historical ? "goals.capsule.history" : WORK_STATE_COPY[selected.state].label) : uiText.text("goals.capsule.nothing-ready");
+    const title = selected && selected.count > 1 ? uiText.text("goals.capsule-items.status-count", { label, count: selected.count }) : label;
     const path = "/projects/" + encodeURIComponent(project.project_id) + (selected ? "/goals/" + encodeURIComponent(selected.goal_id) : "");
     return { project, state: { menu_bar_title: title, menu_bar_tooltip: project.display_name + (selected ? " · " + selected.title : "") + " · " + title, action_path: path } };
   }

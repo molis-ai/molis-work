@@ -42,7 +42,7 @@ export const ASSISTANT_CONNECTION_PART = String.raw`  const connectionCard = (mo
     const shown = () => { if (document.hidden) return; document.removeEventListener("visibilitychange", shown); tick(); };
     const focused = () => { if (!mount.isConnected) gone(); else if (state && state.state === "pending") read(); };
     const say = (text) => { const note = mount.querySelector(".connection-need-area__note"); if (note) { note.textContent = text; note.classList.add("is-error"); } };
-    const failed = L("没有连上。这里什么都没改，可以再试一次。");
+    const failed = globalThis.t.text("workbench.assistant-connection.not-connected-nothing-changed-here-can-try-again");
     const settings = (sub, body, method) => molisWorkRequest("/api/settings/connectors/" + sub, { method: method || "POST", body, fallback: failed });
     mount.addEventListener("click", async (event) => {
       const control = event.target.closest("[data-framed-control]");
@@ -55,9 +55,9 @@ export const ASSISTANT_CONNECTION_PART = String.raw`  const connectionCard = (mo
         else if (step === "connect" && setup) {
           const started = await settings("methods/oauth/start", { service_id: setup.service_id, display_name: setup.display_name, setup_id: setup.setup_id, ...(setup.connection_id ? { connection_id: setup.connection_id } : {}) });
           const url = started.authorization_url;
-          if (!isConnectionLoginUrl(url)) throw new Error(L("服务返回的授权地址无效，请重试。"));
+          if (!isConnectionLoginUrl(url)) throw new Error(globalThis.t.text("workbench.assistant-connection.service-returned-invalid-authorization-address-please-retry"));
           if (external) await external(url); else if (popup && !popup.closed) popup.location.replace(url);
-          else { say(L("浏览器拦截了新窗口，允许弹出后再点一次连接。")); return; }
+          else { say(globalThis.t.text("workbench.assistant-connection.browser-blocked-new-window-allow-pop-ups-then")); return; }
           await read();
         } else if (step === "save" && setup) {
           const input = mount.querySelector(KEY), token = input ? input.value.trim() : "";

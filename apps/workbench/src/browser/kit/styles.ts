@@ -2,10 +2,11 @@ import { CAPABILITY_PACK_STYLES } from "@molis-ai/molis-work-design-system/capab
 
 // The 「能力包」 page's own placement, on tokens only (docs/design/capability-pack/pack.css, the decided prototype), after the board's
 // eight parts. It comes with the page's program and is added once, so no other page carries it.
+// The list beside a pack needs more than a settings page's 760px column.
+// 08's Skill detail and import from this computer, as they sit on this page.
+// An icon and its words stay on one line; the words wrap under themselves (an upgrade's line in English).
 const PAGE_STYLES = `
-/* The list beside a pack needs more than a settings page's 760px column. */
 :is(body.project-preferences-page, .settings-stage) .settings-content > .settings-document.kit-settings, body.immersive-workbench .settings-stage .settings-document.kit-settings, .settings-document.kit-settings { width: 100%; max-width: 1100px; }
-/* 08's Skill detail and import from this computer, as they sit on this page. */
 .kit-settings .mw-items { padding: 0; list-style: none; }
 .kit-settings .mw-facts dd { white-space: pre-wrap; }
 .kit-settings .mw-radio-group { display: grid; gap: 10px; border: 0; margin: 0; padding: 0; }
@@ -42,7 +43,6 @@ const PAGE_STYLES = `
 .kit-note { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .kit-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
 .kit-line > svg { color: var(--muted); }
-/* An icon and its words stay on one line; the words wrap under themselves (an upgrade's line in English). */
 .kit-line > span { flex: 1 1 0; min-width: 0; }
 .kit-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .kit-places.mw-items { box-shadow: none; padding: 0; gap: 4px; background: transparent; }

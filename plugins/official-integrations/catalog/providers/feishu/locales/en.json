@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.feishu",
+  "locale": "en",
+  "messages": {
+    "feishu.connection.auth-help": "Use a custom organization app with credentials in app_id:app_secret format. To import document content, grant read access and share the document with the app. Wiki links also require wiki read access. Feed requires im access to read chats.",
+    "feishu.connection.inbound": "Feed reads chats; Artifacts imports documents",
+    "feishu.connection.summary": "Messages, documents and calendars.",
+    "feishu.connection.title": "Feishu",
+    "feishu.connection.token-label": "Feishu app credentials",
+    "feishu.guide.cli-link": "Install and configure the official Feishu CLI",
+    "feishu.guide.cli-note": "Start sign-in with the official CLI from the app and use the approved read-only permissions of the user.",
+    "feishu.guide.mcp-link": "View the official Feishu MCP",
+    "feishu.guide.oauth-link": "View Feishu user authentication",
+    "feishu.guide.oauth-note": "The provider supports OAuth for users. Molis Work currently authorizes users through the Feishu CLI.",
+    "feishu.guide.token-note": "For a custom organization app, use app_id:app_secret with the tenant app identity.",
+    "feishu.setup.install-and-configure-the-official-feishu-cli": "Install and configure the official Feishu CLI",
+    "feishu.setup.open-feishu-open-platform": "Open Feishu Open Platform"
+  }
+}

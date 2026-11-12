@@ -1,5 +1,6 @@
 import { admitFiles, admitFolderEntry, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
+import { fillConfirm } from "./confirm.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { closest } from "./dom.js";
 import { copySelection, shelveClipboard } from "./clips.js";
@@ -7,9 +8,12 @@ import { stopEdit } from "./edit.js";
 import { isConcealed, matchesPanelKey, stageBusy } from "./model.js";
 import { showProblem } from "./panes.js";
 import { post } from "./request.js";
+import { retitleRun } from "./run.js";
 import { selectClip, selectItem } from "./select.js";
 import { applySnapshot, load } from "./snapshot.js";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 const INPUTS = "input, textarea, [contenteditable=true]";
 
@@ -57,7 +61,7 @@ async function pasteIntoShelf(page: ShelfPage, event: Event): Promise<void> {
     const admitted = await post<SnapshotAnswer>(page, "/items", { text });
     applySnapshot(page, admitted.snapshot, admitted.item?.item_id);
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 
@@ -92,7 +96,7 @@ async function deleteSelection(page: ShelfPage): Promise<void> {
       applySnapshot(page, (await post<SnapshotAnswer>(page, "/items/" + encodeURIComponent(page.selected.item_id) + "/hide")).snapshot);
     }
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 
@@ -163,6 +167,10 @@ export function installDocument(page: ShelfPage): void {
 /** Messages other pages leave for this one: open an item, a notice for the hint, a refresh. */
 export function installPageEvents(page: ShelfPage): void {
   const { lifetime, bench } = page;
+  lifetime.listen(document, "molis-work:language-changed", () => {
+    if (page.stage.classList.contains("is-confirm")) fillConfirm(page);
+    if (page.stage.classList.contains("is-run")) retitleRun(page);
+  });
   if (typeof ResizeObserver === "function") {
     lifetime.observe(new ResizeObserver((entries) => {
       for (const entry of entries) page.stage.classList.toggle("is-narrow", entry.contentRect.width < 640);

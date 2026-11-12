@@ -1,3 +1,4 @@
+import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
@@ -9,7 +10,8 @@ import type {
   AgentPromptText,
   AgentSkillDefinition,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { ActionLocale, ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/actions";
 import { freezeRoundSkills, type AgentRoundSkillCatalog, type AgentSkillSource } from "./round-skills.js";
 import type {
   AgentActionClient,
@@ -34,6 +36,7 @@ import {
 } from "./run-start.js";
 
 export { AgentReviewQueue } from "./reviews.js";
+export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
 export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
@@ -190,7 +193,7 @@ export interface AgentStartAuthority {
    * carries a language, so a Plugin cannot set it. The words are composed with the role's prompts, and the language is written into the
    * round's frozen record (`frozen.reply_locale`), so the record names both.
    */
-  reply_language?: { locale: ActionLocale; prompt: AgentPromptText };
+  reply_language?: { locale: UiLanguageTag; prompt: AgentPromptText };
   /**
    * The platform memory for this run, recalled by the Host for this consumer (the switches and scopes are the Host's).
    * Absent or null: the run is given no memory.
@@ -208,7 +211,7 @@ export interface AgentStartAuthority {
  */
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
-  effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+  effective(ownerId: string, prompt: AgentPromptText, locale?: string): AgentPromptText;
 }
 
 export class AgentHost implements AgentHostApi {
@@ -317,10 +320,12 @@ export class AgentHost implements AgentHostApi {
     request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
-    if (this.#prompts && authority.prompts?.length) {
-      const resolve = this.#prompts;
-      authority = { ...authority, prompts: authority.prompts.map(prompt => resolve.effective(request.plugin_id, prompt)) };
-    }
+    const locale = authority.reply_language?.locale, resolve = this.#prompts;
+    const promptAuthority = { manifest: authority.manifest, project_prompts: authority.project_prompts,
+      reply_language: authority.reply_language, prompts: authority.prompts?.map(({ body_by_locale, ...prompt }) => {
+        const declaration = { ...prompt, ...(body_by_locale ? { body_by_locale } : {}) };
+        return resolve ? resolve.effective(request.plugin_id, declaration, locale) : { ...prompt, body: agentBodyIn(declaration, locale) };
+      }) };
     const adapter = this.adapter(runtimeId);
     const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);
     const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
@@ -338,7 +343,7 @@ export class AgentHost implements AgentHostApi {
     // receives exactly what it is allowed to run instead of resolving it itself.
     // The round's Skills, in one catalog read (§3.4); who reads them is the round's consumer, set by its role's workspace (§2.3).
     const skills = await freezeRoundSkills({ selected: request.skills ?? [], manifest: authority.manifest, own: authority.skills ?? [],
-      source: authority.skill_source, catalog: authority.skillCatalog, consumer: workspace === "required" ? "coding" : "agent", hostTools,
+      locale: authority.reply_language?.locale, source: authority.skill_source, catalog: authority.skillCatalog, consumer: workspace === "required" ? "coding" : "agent", hostTools,
       unsupported: adapter.descriptor.capabilities.skills === "unsupported" });
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
@@ -350,12 +355,12 @@ export class AgentHost implements AgentHostApi {
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));
-    const { compaction, endingReview } = frozenSidePrompts(adapter, authority);
-    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, authority, hostTools, worktrees);
+    const { compaction, endingReview } = frozenSidePrompts(adapter, promptAuthority);
+    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, promptAuthority, hostTools, worktrees);
     const directories = runDirectoriesOf(authority, place);
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
-    const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
+    const prompts = composeRolePrompts(role, promptAuthority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     await beforeStart();

@@ -182,6 +182,7 @@ tests/context-owner-isolation.test.ts
 tests/feed-assistant-context.test.ts
 tests/feed-connectors.test.ts
 tests/feed-contract.test.ts
+tests/feed-goal-promotion-authority.test.ts
 tests/feed-goal-promotion.test.ts
 tests/feed-goal-query.test.ts
 tests/feed-inbox-pages-loop.test.ts

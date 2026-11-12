@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.canva",
+  "locale": "zh",
+  "messages": {
+    "canva.connection.auth-help": "Canva 没有 PAT。推荐在上方使用自己的 Connect App 完成 OAuth；已有访问令牌也可粘贴，到期后需要更新。",
+    "canva.connection.inbound": "Feed 读取设计列表",
+    "canva.connection.summary": "设计与导出。",
+    "canva.connection.token-label": "Canva 访问令牌",
+    "canva.guide.mcp-link": "查看 Canva 官方 MCP",
+    "canva.guide.oauth-link": "查看 Canva Connect OAuth",
+    "canva.guide.token-note": "Canva 没有 PAT；可在自己的 OAuth 应用取得访问令牌后粘贴，到期需更新。",
+    "canva.setup.open-canva-developer-platform": "打开 Canva 开发者平台"
+  }
+}

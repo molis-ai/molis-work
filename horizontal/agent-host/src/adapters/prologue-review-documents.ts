@@ -6,6 +6,8 @@ import { agentActionToolName } from "./prologue-action-tools.js";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import { mcpConnectionId } from "./prologue-mcp.js";
 import { allowDesktopAppForRound, desktopActionCard, type PrologueSurfaces } from "./prologue-surfaces.js";
+import { presentReview, presentToolReview, reviewField, reviewText, type ReviewWord } from "../review-presentation.js";
+import { surfaceActionWords } from "./prologue-surface-review-words.js";
 import type { createProjectWork } from "./prologue-project-work.js";
 import { readResource, readResourceText, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
@@ -48,14 +50,17 @@ async function subagentCard(deps: ReviewDeps, pending: Pending, effect: Effect, 
   const roleKey = typeof args.character === "string" ? args.character.split("@")[0] : "";
   const role = attempt.subagent_roles?.find(([key]) => key === roleKey)?.[1];
   const root = typeof args.workspace === "string" ? attempt.subagent_roots?.find(entry => entry.id === args.workspace) : undefined;
+  const dispatch = subject.name === "dispatch-subagent", separate = Boolean(attempt.subagent_roots?.length);
   const readable = [
-    ...(role ? [{ label: "子任务角色", value: role.name }] : []),
-    ...(typeof args.instruction === "string" ? [{ label: subject.name === "dispatch-subagent" ? "分工" : "补充要求", value: args.instruction }] : typeof args.text === "string" ? [{ label: "补充要求", value: args.text }] : []),
-    ...(Array.isArray(args.tools) ? [{ label: "可用工具", value: args.tools.join("、") }] : []),
-    ...(root ? [{ label: "工作目录", value: root.path }] : []),
+    ...(role ? [reviewField("子任务角色", role.name, "subtask-role")] : []),
+    ...(typeof args.instruction === "string" ? [reviewField(dispatch ? "分工" : "补充要求", args.instruction, dispatch ? "assignment" : "additional-instructions")]
+      : typeof args.text === "string" ? [reviewField("补充要求", args.text, "additional-instructions")] : []),
+    ...(Array.isArray(args.tools) ? [reviewField("可用工具", args.tools.join("、"), "available-tools")] : []),
+    ...(root ? [reviewField("工作目录", root.path, "working-directory")] : []),
   ];
-  return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
-    fields: [...readable, { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+  return presentToolReview({ kind: "tool-operation", tool: subject.name, summary: dispatch ? (separate ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求" },
+    [...readable, reviewField("本次完整参数", JSON.stringify(args, null, 2), "exact-arguments")],
+    [reviewText(dispatch ? (separate ? "dispatch-separate" : "dispatch-read-only") : "steer-subtask")]);
 }
 
 /** An action on the side panel's browser or the desktop: on which site or app, what, and which file. */
@@ -65,12 +70,15 @@ async function surfaceCard(deps: ReviewDeps, pending: Pending, effect: Effect, s
   const label = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
   const typed = subject.action === "text" && effect.proposal.reviewRef ? await readResourceText(deps.runtime, effect.proposal.reviewRef).catch(() => undefined) : undefined;
   if (subject.surface === "desktop") return desktopActionCard(surfaceHost, pending.origin?.session ?? "", subject.action, subject.scope, label, typed, effect.proposal.kind);
-  const detail = surfaceHost ? await surfaceHost.describe(pending.origin?.session ?? "", subject.action, label, typed) : label;
+  const detail = surfaceHost ? await surfaceHost.describe(pending.origin?.session ?? "", subject.action, label, typed) : { raw: label, words: [label] };
   const verbs: Record<string, string> = { pointer: "点击页面", key: "按键", text: "输入文字", navigate: "打开网址", wait: "等待页面", upload: "向网站上传本机文件", download: "把文件存到本机" };
-  const where = subject.scope === "about:blank" ? "空白页" : subject.scope;
-  return { kind: "tool-operation", tool: "surface-act", summary: `在 ${where} ${verbs[subject.action] ?? subject.action}`,
-    fields: [{ label: "网站", value: where }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
-      ...(subject.action === "upload" ? [{ label: "注意", value: "上传会把这个文件发送给该网站，确认前请核对文件" }] : [])] };
+  const blank = subject.scope === "about:blank", where = blank ? "空白页" : subject.scope;
+  const site = blank ? reviewText("surface.blank-page") : where, action = surfaceActionWords(verbs, subject.action, "browser");
+  return presentToolReview({ kind: "tool-operation", tool: "surface-act", summary: `在 ${where} ${verbs[subject.action] ?? subject.action}` }, [
+    reviewField("网站", where, "site", { value: [site] }), reviewField("动作", verbs[subject.action] ?? subject.action, "action", { value: action }),
+    reviewField("详情", detail.raw, "detail", { value: detail.words }),
+    ...(subject.action === "upload" ? [reviewField("注意", "上传会把这个文件发送给该网站，确认前请核对文件", "warning", { value: [reviewText("surface.site-upload-warning")] })] : []),
+  ], [reviewText("surface.on-site"), " ", site, " · ", ...action]);
 }
 
 /** Stopping a background command has no review resource of its own: the card names the command it stops. */
@@ -80,9 +88,12 @@ function commandStopCard(deps: ReviewDeps, pending: Pending, effect: Effect, sub
   const handle = args && typeof args === "object" && typeof args.handle === "string" ? args.handle : "";
   const task = handle ? deps.runtime.background.get(handle) : undefined;
   deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-  return { kind: "tool-operation", tool: subject.name, summary: task ? "停止一条后台命令" : "停止一条命令",
-    fields: [{ label: "命令", value: task?.summary ?? handle }, ...(task ? [{ label: "现在", value: task.state === "running" ? "还在运行" : task.state }] : []),
-      { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+  return presentToolReview({ kind: "tool-operation", tool: subject.name, summary: task ? "停止一条后台命令" : "停止一条命令" }, [
+    reviewField("命令", task?.summary ?? handle, "command", { format: "sh" }),
+    ...(task ? [reviewField("现在", task.state === "running" ? "还在运行" : task.state, "current-state",
+      task.state === "running" ? { value: [reviewText("value.still-running")] } : {})] : []),
+    reviewField("本次完整参数", JSON.stringify(args, null, 2), "exact-arguments"),
+  ], [reviewText(task ? "stop-background" : "stop-command")]);
 }
 
 /** A change through the business gateway, a catalog action, or an MCP call: the card from the round's frozen tools. */
@@ -93,8 +104,7 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     const gateway = deps.state.gatewayRuns.get(pending.origin!.session!);
     if (!attempt?.frozen.action_gateway || !gateway) throw new Error("这项修改不属于本轮的能力网关，不能批准");
     deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-    const readable = await gatewayReview(gateway, subject.input);
-    return { kind: "tool-operation", tool: subject.name, summary: readable.summary, fields: readable.fields };
+    return gatewayReview(gateway, subject.input);
   }
   if (subject.name.startsWith("molis-action-")) {
     if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
@@ -103,9 +113,10 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     if (!selected) throw new Error("Action is outside this run's frozen tools");
     const args = jsonObject(subject.input, "Invalid action arguments");
     deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-    return { kind: "tool-operation", tool: subject.name, summary: deps.runtime.tools.get(subject.name)?.description ?? selected.capability_id,
-      fields: [{ label: "Capability", value: selected.capability_id }, { label: "Version", value: String(selected.version) },
-        { label: "Provider", value: selected.provider_id }, { label: "Arguments", value: JSON.stringify(args, null, 2) }] };
+    return presentToolReview({ kind: "tool-operation", tool: subject.name, summary: deps.runtime.tools.get(subject.name)?.description ?? selected.capability_id }, [
+      reviewField("Capability", selected.capability_id, "capability"), reviewField("Version", String(selected.version), "version"),
+      reviewField("Provider", selected.provider_id, "provider"), reviewField("Arguments", JSON.stringify(args, null, 2), "arguments"),
+    ]);
   }
   if (subject.name.startsWith("mcp:")) {
     if (typeof subject.input !== "string") throw new Error("MCP 原始参数不可读，不能批准");
@@ -149,15 +160,22 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, effect: Effect,
   // A file this round writes joins its work's scope; other work under way that covers it is named on the card.
   const work = pending.origin?.run ? deps.state.runWork.get(pending.origin.run) : undefined;
   let concurrent: string[] = [];
+  const concurrencyWords: ReviewWord[] = [];
   if (work) {
     void deps.projectWork.touch(work.project, work.id, review.path).catch(() => undefined);
     try {
       const seen = await deps.projectWork.read(work.project, { session_id: work.session.id, directory: work.directory, paths: [review.path] });
-      concurrent = seen.overlaps.map(overlap => `会话「${overlap.work.title.slice(0, 40)}」（${overlap.work.state === "running" ? "进行中" : "等待开始"}）`);
+      concurrent = seen.overlaps.map(({ work }) => {
+        const title = work.title.slice(0, 40), running = work.state === "running";
+        if (concurrencyWords.length) concurrencyWords.push({ owner: "workbench", key: "common.list.separator" });
+        concurrencyWords.push(reviewText(running ? "overlap-running" : "overlap-waiting", { title }));
+        return `会话「${title}」（${running ? "进行中" : "等待开始"}）`;
+      });
     } catch { /* the card still shows the change itself */ }
   }
-  return { kind: "text-edit", ...(childDirectory ? { workspace_path: childDirectory } : {}), target_path: review.path, exists: review.baseExists,
-    before_text: review.baseExists ? review.baseText : null, after_text: review.nextText, ...(concurrent.length ? { concurrent } : {}) };
+  return presentReview({ kind: "text-edit", ...(childDirectory ? { workspace_path: childDirectory } : {}), target_path: review.path, exists: review.baseExists,
+    before_text: review.baseExists ? review.baseText : null, after_text: review.nextText, ...(concurrent.length ? { concurrent } : {}) },
+  { concurrent: concurrencyWords });
 }
 
 /** The pending port the approval bridge uses: read, whether it can be answered now, answer, and the card to show. */

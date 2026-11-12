@@ -1,6 +1,6 @@
 ---
 method_id: industry-enterprise-saas
-version: 1
+version: 2
 kind: industry
 name: "企业 SaaS"
 summary: "围绕采购、管理、使用、集成和续用角色建立可治理的组织级产品闭环。"

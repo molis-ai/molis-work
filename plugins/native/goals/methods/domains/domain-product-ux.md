@@ -1,6 +1,6 @@
 ---
 method_id: domain-product-ux
-version: 1
+version: 2
 kind: domain
 name: "产品与 UX"
 summary: "从用户目标和关键动线验证产品行为，再扩展完整体验。"

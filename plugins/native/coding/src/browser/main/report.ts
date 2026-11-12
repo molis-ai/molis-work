@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { errorMessage } from "../dom.js";
 import { enrichCode } from "./code.js";
@@ -19,7 +20,7 @@ export function closeReport(page: Page, restoreFocus = false) {
 
 /** Whether the saved report is the session's output, and the way to make it so. */
 export async function loadReportOutput(page: Page, id: string, runId: string, ticket: number) {
-  const { L, lifetime, q } = page, { s } = page;
+  const { lifetime, q } = page, { s } = page;
   if (ticket !== s.reportTicket || id !== s.current) return;
   const button = q<HTMLButtonElement>("[data-coding-report-output]"), message = q("[data-coding-report-output-status]");
   button.disabled = true;
@@ -28,16 +29,16 @@ export async function loadReportOutput(page: Page, id: string, runId: string, ti
     const value = await api<ReportOutput>(page, sessionPath(id, runId) + "/report/output");
     if (ticket !== s.reportTicket || id !== s.current) return;
     s.reportOutput = value;
-    button.textContent = value.selected ? L("coding.report.is-output") : L("coding.report.set-output");
+    button.textContent = value.selected ? uiText.text("coding.report.is-output") : uiText.text("coding.report.set-output");
     button.disabled = value.selected;
     message.hidden = false;
-    message.textContent = value.selected ? L("coding.report.output-on") : L("coding.report.output-off");
+    message.textContent = value.selected ? uiText.text("coding.report.output-on") : uiText.text("coding.report.output-off");
   } catch (error) {
     if (!lifetime.alive) return;
     if (ticket === s.reportTicket && id === s.current) {
       message.hidden = false;
-      message.textContent = L("coding.report.output-failed", { reason: errorMessage(error) });
-      button.textContent = L("coding.report.output-retry");
+      message.textContent = uiText.text("coding.report.output-failed", { reason: errorMessage(error) });
+      button.textContent = uiText.text("coding.report.output-retry");
       button.disabled = false;
     }
   }
@@ -45,7 +46,7 @@ export async function loadReportOutput(page: Page, id: string, runId: string, ti
 
 /** The report reader's buttons before its text is read. */
 function openReader(page: Page, save: boolean) {
-  const { L, q, turns } = page, { s } = page;
+  const { q, turns } = page, { s } = page;
   if (!s.reportRun) s.dialogueOffset = turns.scrollTop;
   turns.hidden = true;
   q("[data-coding-report-reader]").hidden = false;
@@ -56,16 +57,16 @@ function openReader(page: Page, save: boolean) {
   s.reportOutput = null;
   q("[data-coding-report-output]").hidden = true;
   q("[data-coding-report-output-status]").hidden = true;
-  q("[data-coding-report-status]").textContent = save ? L("coding.report.saving") : L("coding.report.loading");
+  q("[data-coding-report-status]").textContent = save ? uiText.text("coding.report.saving") : uiText.text("coding.report.loading");
   if (!save) q("[data-coding-report-body]").replaceChildren();
 }
 
 /** The report's text and what can be done with it, once read. */
 function drawReport(page: Page, result: ReportRead, save: boolean, id: string, runId: string, ticket: number) {
-  const { L, q } = page;
+  const { q } = page;
   setContentHtml(q("[data-coding-report-body]"), result.html);
   enrichCode(page, q("[data-coding-report-body]"));
-  q("[data-coding-report-status]").textContent = result.reference ? L("coding.report.saved", { version: result.reference.version, at: result.saved_at ?? "" }) : L("coding.report.unsaved");
+  q("[data-coding-report-status]").textContent = result.reference ? uiText.text("coding.report.saved", { version: result.reference.version, at: result.saved_at ?? "" }) : uiText.text("coding.report.unsaved");
   q<HTMLButtonElement>("[data-coding-report-save]").disabled = Boolean(result.reference);
   q("[data-coding-report-save]").hidden = Boolean(result.reference);
   q("[data-coding-report-progress]").hidden = !(result.reference && result.report.goal && !result.report.goal_source_error);

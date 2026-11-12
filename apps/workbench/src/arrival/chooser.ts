@@ -1,4 +1,4 @@
-import { renderButton, renderDirectoryHeading, renderDirectoryRow, renderEmpty, renderKbd } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderDirectoryHeading, renderDirectoryRow, renderEmpty, renderKbd } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   COMPOSER_LOADER_CLIENT_SCRIPT,
@@ -31,13 +31,13 @@ export interface ChooserArrival {
 const PERSONAL = "personal";
 
 export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
-  const { L, escapeHtml, icon } = p;
+  const { readText, escapeHtml, icon } = p;
   const shell = createArrivalShell(p);
-  const brief = createWorkbenchProjectBriefRenderer({ L, escapeHtml, dateTimeLocale: p.dateTimeLocale });
+  const brief = createWorkbenchProjectBriefRenderer({ readText, escapeHtml, dateTimeLocale: p.dateTimeLocale });
 
   const greeting = (now: Date) => {
     const hour = now.getHours();
-    return hour < 5 ? L("夜深了") : hour < 11 ? L("早上好") : hour < 13 ? L("中午好") : hour < 18 ? L("下午好") : L("晚上好");
+    return hour < 5 ? uiText.text("workbench.chooser.working-late") : hour < 11 ? uiText.text("workbench.chooser.good-morning") : hour < 13 ? uiText.text("workbench.chooser.good-midday") : hour < 18 ? uiText.text("workbench.chooser.good-afternoon") : uiText.text("workbench.chooser.good-evening");
   };
 
   const mark = (entry: { project_id: string; display_name: string }) =>
@@ -50,10 +50,10 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     arrival: ChooserArrival = { now: new Date().toISOString(), last_project_id: null, opened: {} },
   ): string {
     const href = (path: string) => shell.href(desktopShell, path);
-    const time = createBriefTime({ L, dateTimeLocale: p.dateTimeLocale }, arrival.now);
+    const time = createBriefTime({ readText, dateTimeLocale: p.dateTimeLocale }, arrival.now);
     const now = new Date(arrival.now);
     // The personal space is a location, not a project: it is always offered first and made when first opened.
-    const personal = { project_id: PERSONAL, display_name: L("个人空间"), data_class: "user" as const };
+    const personal = { project_id: PERSONAL, display_name: uiText.text("workbench.chooser.personal-space"), data_class: "user" as const };
     const projects = allProjects.filter(project => project.project_id !== PERSONAL);
     // Most recently opened first; projects never opened here keep the catalog's order after them.
     const ordered = projects.map((project, index) => ({ project, index, at: arrival.opened[project.project_id] ?? "" }))
@@ -76,20 +76,20 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const projectRows = ordered.map(project => {
       const opened = arrival.opened[project.project_id];
       const demo = project.data_class === "regenerable_demo";
-      const caption = [demo ? L("演示数据") : "", opened ? time.ago(opened) : L("还没打开过")].filter(Boolean).join(" · ");
+      const caption = [demo ? uiText.text("workbench.chooser.demo-data") : "", opened ? time.ago(opened) : uiText.text("workbench.chooser.not-opened-yet")].filter(Boolean).join(" · ");
       return row(project, caption);
     }).join("");
-    const failed = `<div class="mw-empty mw-empty--error chooser-error" role="alert"><span class="mw-empty__mark">${icon("circle-alert")}</span><h2>${L("项目列表暂时读不到")}</h2><p>${L("本机的项目目录没有响应。个人空间不受影响，可以先在那里工作。")}</p>${renderButton({ variant: "secondary", size: "md", icon: "refresh", label: L("重试"), attrs: { "data-act": "reload" } })}</div>`;
-    const rows = `${renderDirectoryHeading(L("个人"))}${row(personal, L("不属于任何项目的资料和工作"))}${arrival.load_error ? failed : projectRows ? `${renderDirectoryHeading(L("项目 · 按最近打开"))}${projectRows}` : ""}`;
+    const failed = `<div class="mw-empty mw-empty--error chooser-error" role="alert"><span class="mw-empty__mark">${icon("circle-alert")}</span><h2>${uiText("workbench.chooser.can-t-read-project-list-right-now")}</h2><p>${uiText("workbench.chooser.project-directory-computer-didn-t-answer-personal-space")}</p>${renderButton({ variant: "secondary", size: "md", icon: "refresh", label: uiText.text("common.control.retry"), attrs: { "data-act": "reload" } })}</div>`;
+    const rows = `${renderDirectoryHeading(uiText.text("workbench.chooser.personal"))}${row(personal, uiText.text("workbench.chooser.materials-work-that-belong-no-project"))}${arrival.load_error ? failed : projectRows ? `${renderDirectoryHeading(uiText.text("workbench.chooser.projects-most-recently-opened-first"))}${projectRows}` : ""}`;
 
     const entry = last ?? personal;
     const subtitle = last && arrival.opened[last.project_id]
-      ? L("上次在 {name} · {when}", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : L("欢迎来到 Molis Work");
+      ? uiText.text("workbench.chooser.last-name-when", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : uiText.text("workbench.chooser.welcome-molis-work");
     const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>
-      <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
-      <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${L("个人空间与项目")}">${rows}</div>
-      <p class="chooser-none" data-chooser-none hidden role="status">${L("没有匹配的项目")}</p>
-      <p class="chooser-foot">${icon("folder")}<span>${L("项目和文档保存在这台电脑。")}</span></p>`;
+      <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${uiText("workbench.chooser.search-projects")}" aria-label="${uiText("workbench.chooser.search-projects")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
+      <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${uiText("workbench.chooser.personal-space-projects")}">${rows}</div>
+      <p class="chooser-none" data-chooser-none hidden role="status">${uiText("workbench.chooser.no-matching-projects")}</p>
+      <p class="chooser-foot">${icon("folder")}<span>${uiText("workbench.chooser.projects-documents-saved-computer")}</span></p>`;
 
     // The right-hand sheet starts with what is known (the name); the brief arrives from the Host a moment after.
     const detail = projects.length || selected !== PERSONAL
@@ -97,36 +97,35 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       : brief.renderProjectBriefLoading(personal.display_name, PERSONAL);
     const stage = `<main class="arrival-stage" id="stage"><div class="stage-split chooser" data-view="chooser" data-selected="${escapeHtml(selected)}" data-projects="${projects.length}">
       <aside class="stage-side chooser-list" id="chooser-list">${list}</aside>
-      <section class="stage-sheet chooser-detail" id="chooser-detail" role="region" aria-label="${L("项目简介")}" aria-live="polite" tabindex="0" data-scroll>${detail}</section>
+      <section class="stage-sheet chooser-detail" id="chooser-detail" role="region" aria-label="${uiText("workbench.chooser.project-brief")}" aria-live="polite" tabindex="0" data-scroll>${detail}</section>
     </div></main>`;
 
     const personalSelected = selected === PERSONAL;
-    const context = renderBarContext({ mark: mark(entry), title: entry.display_name, caption: L("预览中 · 回车进入") });
-    const enter = `<a class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" data-act="enter" href="${entryPath(selected)}" aria-keyshortcuts="Enter"><span data-slot="button-label">${personalSelected ? L("进入个人空间") : L("进入项目")}</span><kbd class="mw-btn__key" aria-hidden="true">↵</kbd></a>`;
-    const create = `<a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" data-act="new" aria-label="${L("新建项目")}" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${L("新建项目")}</span></a>`;
-    const bar = shell.bar({ kind: "chooser", start: context, center: renderAssistantDock({ L, icon }), end: `${create}${enter}` });
+    const context = renderBarContext({ mark: mark(entry), title: entry.display_name, caption: uiText.text("workbench.chooser.previewing-enter-open") });
+    const enter = `<a class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" data-act="enter" href="${entryPath(selected)}" aria-keyshortcuts="Enter"><span data-slot="button-label">${personalSelected ? uiText("workbench.chooser.open-personal-space") : uiText("workbench.chooser.open-project")}</span><kbd class="mw-btn__key" aria-hidden="true">↵</kbd></a>`;
+    const create = `<a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" data-act="new" aria-label="${uiText("workbench.chooser.new-project")}" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${uiText("workbench.chooser.new-project")}</span></a>`;
+    const bar = shell.bar({ kind: "chooser", start: context, center: renderAssistantDock({ readText, icon }), end: `${create}${enter}` });
 
     // Fragments the chooser cannot make without the person's words: what to say when nothing matches, and when nothing exists yet.
-    const none = renderEmpty({ icon: "search", title: L("没有叫「{q}」的项目"), body: L("换个关键词，或者就用它开始一个新项目。不属于任何项目的事，也可以先放进个人空间。"),
-      action: `<div class="brief-none__actions">${renderButton({ variant: "secondary", size: "lg", icon: "x", label: L("清除搜索"), attrs: { "data-act": "clear-search" } })}${renderButton({ variant: "primary", size: "lg", icon: "plus", label: L("新建「{q}」"), attrs: { "data-act": "new-named" } })}</div>` });
-    const nobody = renderEmpty({ icon: "folder", title: L("从一个真实项目开始"), body: L("带入正在做的文件、网页或聊天记录，整理成项目；也可以空白开始。个人空间随时可用。"),
-      action: `<div class="brief-none__actions"><a class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${L("带入材料新建")}</span></a><a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" href="${href("/onboarding?mode=new-project&start=blank")}"><span data-slot="button-label">${L("空白开始")}</span></a></div>` });
+    const none = renderEmpty({ icon: "search", title: uiText.text("workbench.chooser.no-project-called-q"), body: uiText.text("workbench.chooser.try-another-word-start-new-project-anything-that"),
+      action: `<div class="brief-none__actions">${renderButton({ variant: "secondary", size: "lg", icon: "x", label: uiText.text("workbench.chooser.clear-search"), attrs: { "data-act": "clear-search" } })}${renderButton({ variant: "primary", size: "lg", icon: "plus", label: uiText.text("workbench.chooser.new-q"), attrs: { "data-act": "new-named" } })}</div>` });
+    const nobody = renderEmpty({ icon: "folder", title: uiText.text("workbench.chooser.start-real-project"), body: uiText.text("workbench.chooser.bring-files-pages-chats-working-sort-them-into"),
+      action: `<div class="brief-none__actions"><a class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${uiText("workbench.chooser.new-materials")}</span></a><a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" href="${href("/onboarding?mode=new-project&start=blank")}"><span data-slot="button-label">${uiText("workbench.chooser.start-blank")}</span></a></div>` });
     const templates = `<template data-tpl="loading">${brief.renderProjectBriefLoading("{name}", "{id}")}</template>
       <template data-tpl="error">${brief.renderProjectBriefError("{name}", "{id}", "")}</template>
       <template data-tpl="none"><article class="mw-brief brief-none">${none}</article></template>
       <template data-tpl="nobody"><article class="mw-brief brief-none">${nobody}</article></template>`;
     const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null, loadError: Boolean(arrival.load_error) })
       .replaceAll("<", "\\u003c");
-    // The Dock's composer is the platform's (`molisComposer`): the chooser has no workbench client, so it carries the small loader, which fetches the shared program (`/assets/molis-work-composer.js`) on the first mount.
-    const scripts = `${p.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}
+    const scripts = `${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}
 // The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
 const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };
-(${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, projectId: null, openItem: () => {} });
-globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
-  placeholder: project => project && project.title ? globalThis.L("问问「{name}」的进展，或交给助理一项工作…", { name: project.title }) : globalThis.L("在个人空间里，让助理做点什么…") });
+(${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, projectId: null, openItem: () => {} });
+globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
+  placeholder: project => project && project.title ? globalThis.t.text("workbench.chooser.ask-about-name-give-assistant-task", { name: project.title }) : globalThis.t.text("workbench.chooser.ask-assistant-do-something-personal-space") });
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
-      title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
+      title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,
       after: `${templates}<script type="application/json" id="arrival-data">${data}</script>`,
       scripts,

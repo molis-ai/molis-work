@@ -7,6 +7,7 @@ import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
+import { modelRoundLocale } from "./reply-language.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
@@ -14,6 +15,7 @@ import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
+import { readArtifactDisplayFor } from "./artifact-display-words.js";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -23,13 +25,14 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, ProjectScheduleRuntime, ResolvedWebRequest } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { t as uiText, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import fs from "node:fs";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
@@ -83,14 +86,14 @@ export async function handleMolisWorkWebRequest(
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
     if (await homePluginsRoute.handle(context)) return;
     // The personal space always exists for the person; it is made the first time anyone opens it.
-    if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
+    if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined) {
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
     }
     const resolved = await resolveOrChooser(context);
     if (!resolved || redirectFunctionsPage(request.method, response, url, resolved)) return;
     // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
-      && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
+      && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations), modelRoundLocale(serverOptions.homeDirectory))) return;
     if (url.pathname.startsWith("/api/skills/") && await handleSkillSettingsHttp(request, response, url, localHost)) return;
     if (url.pathname.startsWith("/api/kit/") && await handleKitSettingsHttp(request, response, url, localHost)) return;
     if (resolved.kind === "catalog_index") {
@@ -99,7 +102,7 @@ export async function handleMolisWorkWebRequest(
       return;
     }
     if (resolved.kind === "project_not_found") {
-      sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") });
+      sendJson(response, 404, { error: uiText.text("workbench.request.that-molis-work-project-was-not-found") });
       return;
     }
     url.pathname = resolved.pathname;
@@ -124,7 +127,7 @@ async function resolveOrChooser({ request, response, url, serverOptions, composi
 
 /** Home plugin HTTP keeps its Home caller and the same instance; under a project's prefix its routes run in that project, checked here. */
 const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", handle: context =>
-  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context),context.composition.accountRegistration) };
+  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context), context.composition.accountRegistration, context.composition.appearance) };
 
 /** A project request before its runtime opens; the last entry opens it and runs PROJECT_RUNTIME_ROUTES there. */
 const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
@@ -148,6 +151,10 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {
+    const preview = context.request.headers[UI_LANGUAGE_PREVIEW_HEADER] !== undefined;
+    if (preview && !context.localHost.projects().some(project => project.storage_key === context.hostReference.storage_key && project.state === "ready")) {
+      sendJson(context.response, 409, { error: t.text("workbench.language.project-closed") }); return true;
+    }
     await context.localHost.withProject(context.hostReference, runtime =>
       dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)));
     return true;
@@ -163,7 +170,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const pluginServices = projectPluginServices(context);
   const pluginPorts: ProjectPluginSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
-  const withoutView = { ...context, store, homeActions, goalActions, pluginServices, pluginPorts };
+  const withoutView = { ...context, store, homeActions, goalActions, pluginServices, pluginPorts, readArtifactDisplay: readArtifactDisplayFor({ store, localHost, hostReference }) };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
@@ -181,7 +188,8 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     const stage_request = declaredStageRequests(view.shown_plugins ?? [], pageMatch);
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
-    const prepared = await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
+    const plugins = await ensureProjectPlugins(pluginPorts);
+    const prepared = await readRuntimeStageData(plugins, view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
@@ -226,7 +234,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: async ({ request, response, url, options, goalActions, composition, readWebView, goalsHere }) => {
   if (request.method !== "GET" || url.pathname !== "/api/capsule") return false;
   if (!options.project) {
-    sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
+    sendJson(response, 400, { error: uiText.text("workbench.request.choose-molis-work-project-first") });
     return true;
   }
   // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.
@@ -243,7 +251,7 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
 /** Goals' and 成果's own HTTP and pages; the Goal page is tried last, before the 404. */
 const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "project-reference", handle: context => handleLocalProjectReferenceHttp(context.request, context.response, context.url, asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalsHere }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalsHere, readArtifactDisplay }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -252,11 +260,12 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
     goalsAvailable: goalsHere,
+    readArtifactDisplay,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     projectWebView(context, true), context.controlToken, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay, context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
 
@@ -272,7 +281,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...planningRoutes,
   ...projectProbeRoutes,
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },
   agentReviewsRoute,
   boardRoute,
   ...directoryRoutes,

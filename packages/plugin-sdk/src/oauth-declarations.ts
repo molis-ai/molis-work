@@ -41,14 +41,14 @@ type Settings = ReadonlyMap<string, Record<string, unknown>>;
 interface Scope { readonly id: string; readonly service: ConnectorRequestService | undefined; readonly account: readonly string[]; readonly settings: Settings }
 
 /** The problems of one `oauth` method; a bare `{ kind: "oauth" }` has its whole flow missing. */
-export function oauthMethodProblems(id: string, method: Record<string, unknown>): string[] {
+export function oauthMethodProblems(id: string, method: Record<string, unknown>, word: (value: unknown, optionalEmpty?: boolean) => boolean): string[] {
   const where = `连接服务 ${id} 的 oauth 接入方式`;
   if (Object.keys(method).length === 1) return [`${where}要把授权流程写成数据（grant、token_url、scopes、identity 等），不能只写 kind`];
   const unknown = Object.keys(method).filter(field => !METHOD_FIELDS.has(field));
   if (unknown.length > 0) return [`${where}不认这些字段：${unknown.join("、")}`];
   const service = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, id) ? CONNECTOR_REQUEST_SERVICES[id] : undefined;
   const problems: string[] = [];
-  const settings = settingMap(where, method.settings, service, problems);
+  const settings = settingMap(where, method.settings, service, problems, word);
   const account = Object.hasOwn(CONNECTOR_ACCOUNT_ORIGINS, id) ? CONNECTOR_ACCOUNT_ORIGINS[id]! : [];
   const scope: Scope = { id, service, account, settings };
   problems.push(...grantProblems(where, method));
@@ -75,7 +75,7 @@ export function oauthMethodProblems(id: string, method: Record<string, unknown>)
     problems.push(`${where}所在的服务经网关访问，要在 context 里留下 cloud_id`);
   }
   if (method.quirks !== undefined) problems.push(...quirkProblems(where, method.quirks));
-  if (method.note !== undefined && !text(method.note)) problems.push(`${where}的 note 必须是非空文字`);
+  if (method.note !== undefined && !word(method.note)) problems.push(`${where}的 note 必须是非空文字`);
   return problems;
 }
 
@@ -93,7 +93,7 @@ function grantProblems(where: string, method: Record<string, unknown>): string[]
   return problems;
 }
 
-function settingMap(where: string, value: unknown, service: ConnectorRequestService | undefined, problems: string[]): Settings {
+function settingMap(where: string, value: unknown, service: ConnectorRequestService | undefined, problems: string[], word: (input: unknown, optionalEmpty?: boolean) => boolean): Settings {
   const settings = new Map<string, Record<string, unknown>>();
   if (value === undefined) return settings;
   if (!Array.isArray(value)) { problems.push(`${where}的 settings 必须是数组`); return settings; }
@@ -104,8 +104,9 @@ function settingMap(where: string, value: unknown, service: ConnectorRequestServ
     settings.set(setting.key, setting);
     const unknown = Object.keys(setting).filter(field => !SETTING_FIELDS.has(field));
     if (unknown.length > 0) problems.push(`${at}不认这些字段：${unknown.join("、")}`);
-    if (!text(setting.label)) problems.push(`${at}要写 label`);
-    for (const field of ["placeholder", "default"] as const) if (setting[field] !== undefined && typeof setting[field] !== "string") problems.push(`${at}的 ${field} 必须是文字`);
+    if (!word(setting.label)) problems.push(`${at}要写 label`);
+    if (setting.placeholder !== undefined && !word(setting.placeholder, true)) problems.push(`${at}的 placeholder 必须是文字`);
+    if (setting.default !== undefined && typeof setting.default !== "string") problems.push(`${at}的 default 必须是文字`);
     if (typeof setting.default === "string" && setting.default.trim() !== "") problems.push(...defaultProblems(at, setting, setting.default.trim(), service));
     if (setting.required !== undefined && typeof setting.required !== "boolean") problems.push(`${at}的 required 必须是 true 或 false`);
     if (!(OAUTH_SETTING_USES as readonly unknown[]).includes(setting.use)) problems.push(`${at}的 use 必须是 ${OAUTH_SETTING_USES.join("、")} 之一`);

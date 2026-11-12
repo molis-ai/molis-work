@@ -91,7 +91,7 @@ test("user settings left nav is grouped single-line categories", () => {
   assert.doesNotMatch(html, /只影响当前设备<\/small>/);
   assert.match(html, /id="settings-title">界面与语言/);
   assert.match(html, /class="mw-hint"/);
-  assert.match(html, /更改即时生效，保存在当前设备。/);
+  assert.match(html, /主题、密度和终端配色保存在当前设备。/);
   assert.doesNotMatch(html, /class="settings-footnote"/);
   assert.doesNotMatch(html, /class="settings-body"/);
 });

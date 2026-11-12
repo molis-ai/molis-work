@@ -1,6 +1,4 @@
-import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { fillMessage } from "./message-text.js";
 import { alignSplitRows, compareTexts, textDiffRow } from "./text-diff.js";
 import { hunkRows, parseUnifiedDiff } from "./unified-diff.js";
 
@@ -132,37 +130,11 @@ export function compareHunks<Group extends string>(group: Group | null, sides: D
   };
 }
 
-export type DiffViewMessages = Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-export type DiffViewText = (value: string, values?: Record<string, string | number>) => string;
-
-/**
- * The `text` a comparison is drawn with, from the caller's own table of messages in both languages. A key with values is its
- * message filled in. A sentence the producer wrote — the view's message, recovery and metadata changes — comes as written:
- * sentences with a value in them (a path, a count, the sentences `parseUnifiedDiff` refuses with) are written once, in Chinese,
- * by whoever found the fact, and an Agent reads them as written, so each such sentence has a template among `templates`; this
- * finds which template it is and says it again in `locale` with the same values. Anything else is its own key, or itself when
- * the table has no such key. A page with a translator of its own passes it as `say`: the table then only gives the templates.
- */
-export function diffViewText(messages: DiffViewMessages, locale: ActionLocale = "zh", templates: readonly string[] = [],
-  say: DiffViewText = (key, values) => fillMessage(messages[key]?.[locale] ?? key, values)): DiffViewText {
-  const patterns = templates.map((key) => {
-    const names: string[] = [];
-    const source = (messages[key]?.zh ?? key).replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\{(\w+)\}/g, (_all, name: string) => { names.push(name); return "([\\s\\S]+?)"; });
-    return { key, names, pattern: new RegExp(`^${source}$`, "u") };
-  });
-  return (value, values) => {
-    if (values !== undefined) return say(value, values);
-    for (const { key, names, pattern } of patterns) {
-      const found = pattern.exec(value);
-      if (found) return say(key, Object.fromEntries(names.map((name, index) => [name, found[index + 1]!])));
-    }
-    return say(value);
-  };
-}
+export type DiffViewText = (key: string, values?: Record<string, string | number>) => string;
 
 export interface DiffViewPrimitives {
   escape(value: unknown): string;
-  /** The page's translator: it words the caller's `labels`, and the view's sentences as written (`diffViewText`). */
+  /** The page's translator: it words the caller's `labels`; the view's text is already from its producer. */
   text: DiffViewText;
   icon(name: string): string;
 }
@@ -223,7 +195,7 @@ export function renderDiff(model: DiffViewModel): string {
       + `<span class="mw-diff-source">${escape(p.text(labels.after, { path: view.after.path, version: view.after.content_version }))}</span>`
       + `<span class="mw-diff-source">${escape(p.text(labels.pinned, { workspace: view.after.workspace_name }))}</span></header>`;
   const notices = [
-    ...(view.metadata_changes ?? []).map((change) => p.text(change)),
+    ...(view.metadata_changes ?? []),
     view.mismatch ? p.text(labels.mismatch) : "",
     view.partial ? p.text(labels.partial) : "",
     view.coarse ? p.text(labels.coarse) : "",
@@ -238,8 +210,8 @@ export function renderDiff(model: DiffViewModel): string {
     // The shared empty block: the plugin's glyph, what is missing, and what to do about it. With nothing before it the block
     // is the page's whole content, so the stage centres it like any plugin's empty list.
     const state = `data-phase="${escape(view.phase)}" data-group="${escape(view.group ?? "none")}"`;
-    const empty = (attributes: string) => `<div class="mw-empty"${attributes}><span class="mw-empty__mark">${model.primitives.icon("git-compare")}</span><strong>${escape(p.text(view.message))}</strong>`
-      + `${view.recovery === undefined ? "" : `<p>${escape(p.text(view.recovery))}</p>`}</div>`;
+    const empty = (attributes: string) => `<div class="mw-empty"${attributes}><span class="mw-empty__mark">${model.primitives.icon("git-compare")}</span><strong>${escape(view.message)}</strong>`
+      + `${view.recovery === undefined ? "" : `<p>${escape(view.recovery)}</p>`}</div>`;
     const files = renderFileList(model);
     return header === "" && noticeHtml === "" && files === ""
       ? empty(` ${state}`)

@@ -1,6 +1,7 @@
 // RAC-2363: current-format business history behavior remains covered without any maintenance chain.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withPageText } from "./fixtures/page-text.js";
 import {
   listGoalDocumentHistory,
   mapJournalHistoryItems,
@@ -65,7 +66,7 @@ test("history merges event work with the journal's records, keeps original IDs a
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-  const body = renderHistoryItemBody(merged.find((item) => item.original_id === "j-1")!, { journal: created }, { translate: (value: string) => value, escapeHtml });
+  const body = withPageText("zh", ["goals"], () => renderHistoryItemBody(merged.find((item) => item.original_id === "j-1")!, { journal: created }, { translate: (value: string) => value, escapeHtml }));
   assert.match(body, /<h2>建立目标<\/h2>/);
   assert.match(body, /<code>g<\/code>/);
 });

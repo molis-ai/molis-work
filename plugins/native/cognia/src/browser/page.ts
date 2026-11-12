@@ -1,12 +1,12 @@
-import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cogniaApi } from "./request.js";
-import type { CogniaApi, CogniaClientHost, Draft, Flow, Material, Preview, Receipt, Translate, Workspace } from "./types.js";
+import type { CogniaApi, CogniaClientHost, Draft, Flow, Material, Preview, Receipt, Workspace } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The page's state and the few things every part of it needs. The parts (list, reader, dialog, actions) each own their DOM. */
 export interface CogniaPage {
   readonly host: CogniaClientHost;
   readonly root: HTMLElement;
-  readonly L: Translate;
   readonly api: CogniaApi;
   readonly dialog: HTMLDialogElement;
   readonly form: HTMLFormElement;
@@ -41,7 +41,7 @@ export function cogniaPage(host: CogniaClientHost, root: HTMLElement): CogniaPag
     return node;
   };
   return {
-    host, root, L: host.translate, api: cogniaApi(host),
+    host, root, api: cogniaApi(host),
     dialog: part<HTMLDialogElement>("[data-cognia-dialog]"), form: part<HTMLFormElement>("[data-cognia-form]"),
     content: part("[data-cognia-dialog-content]"), submit: part<HTMLButtonElement>("[data-cognia-submit]"),
     state: { materials: [], domains: [], sources: [], drafts: [], ai_available: false, ai_runtime: null, ai_unavailable_reason: null },
@@ -59,18 +59,18 @@ export function q<T extends HTMLElement = HTMLElement>(page: CogniaPage, selecto
 export const maybe = (page: CogniaPage, selector: string): HTMLElement | null => page.root.querySelector<HTMLElement>(selector);
 
 /** The words for a key, safe to put into markup. */
-export const tx = (page: CogniaPage, key: string): string => esc(page.L(key));
+export const tx = (_page: CogniaPage, key: string): string => uiText(key);
 
 export function notice(page: CogniaPage, message: string): void {
   const el = q(page, "[data-cognia-notice]");
   el.hidden = !message;
   const text = el.querySelector("span");
-  if (text) text.textContent = message ? page.L(message) : "";
+  if (text) text.textContent = message;
 }
 export function fail(page: CogniaPage, message: string): void {
   const el = q(page, "[data-cognia-error]");
   el.hidden = !message;
-  el.textContent = message ? page.L(message) : "";
+  el.textContent = message;
 }
 
 export const filterValue = (page: CogniaPage, name: "search" | "domain" | "source"): string => q<HTMLInputElement>(page, `[data-cognia-${name}]`).value;

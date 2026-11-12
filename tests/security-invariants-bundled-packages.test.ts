@@ -1,3 +1,4 @@
+import { installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -9,6 +10,7 @@ import test from "node:test";
 import ts from "typescript";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { packBundledContent, runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, bundledPackagesDirectory, homeAgentDefinitions,
@@ -68,15 +70,25 @@ test("08-10 SKP-01 S-bundled-packages a bundled pack is listed with who signed i
     const s = service(b.folder, b.home);
     const list = await s.install.bundled();
     assert.deepEqual(list.refused, []);
-    assert.deepEqual(list.plugins.map(item => [item.plugin_id, item.version, item.name, item.name_en, item.runtime_scope, item.publisher.publisher_id, item.publisher.key_id, item.publisher.pinned_label, item.publisher.revoked]),
-      [[PLUGIN_ID, "1.0.0", "设计与无障碍", "Design and accessibility", "home", "molis-work", b.publisher.identity, null, false]]);
+    assert.deepEqual(list.plugins.map(item => [item.plugin_id, item.version, item.name, item.runtime_scope, item.publisher.publisher_id, item.publisher.key_id, item.publisher.pinned_label, item.publisher.revoked]),
+      [[PLUGIN_ID, "1.0.0", "设计与无障碍", "home", "molis-work", b.publisher.identity, null, false]]);
     assert.ok(list.plugins[0]!.summary);
+    installHostUiText();
+    const english = await runWithLocale("en", () => s.install.bundled());
+    assert.equal(english.plugins[0]?.name, "Design and accessibility");
+    assert.match(english.plugins[0]?.summary ?? "", /^Five Skills for design critique/);
     s.nothingWritten();
 
     const preview = await s.install.preview({ bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }, who);
     assert.deepEqual([preview.runtime_scope, preview.preview.trust, preview.preview.publisher_pinned, preview.publisher.pinned_label], ["home", "pinned", false, null],
       "the same trust as any signed package; the release pins nobody");
     assert.deepEqual(preview.skills?.map(skill => [skill.skill_id, skill.state]), SKILLS.map(id => [id, "off"]), "installing enables nothing");
+    const englishPreview = await runWithLocale("en", () => s.install.preview({ bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }, who));
+    assert.equal(englishPreview.name, "Design and accessibility");
+    const review = englishPreview.skills?.find(skill => skill.skill_id === "accessibility-review");
+    assert.match(review?.description ?? "", /^Review a page, component, design or piece of interface code/);
+    assert.equal(review?.argument_hint, "<要审查的页面、组件、截图或代码>");
+    assert.match(review?.excerpt ?? "", /无障碍审查/);
     s.nothingWritten();
     await assert.rejects(s.install.confirm({ preview_id: preview.preview_id, consent: true }, who), refused("plugin.publisher_untrusted"), "the person must trust the publisher first");
     s.nothingWritten();
@@ -197,6 +209,12 @@ test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design a
     await client.invoke(person, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Molis Work（测试密钥）" });
     assert.deepEqual(await homeInstalled(), ["running"]);
     assert.deepEqual(ours(), SKILLS, "installed and enabled: its Skills are registered from the verified package");
+    const catalog = await client.invoke({ ...person, locale: "en", permissions: SKILLS_PERMISSIONS }, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] };
+    const installedReview = catalog.skills.find(skill => skill.pack.plugin_id === PLUGIN_ID && skill.ref.skill_id === "accessibility-review");
+    assert.equal(installedReview?.pack.title, "Design and accessibility");
+    assert.match(installedReview?.description ?? "", /^Review a page, component, design or piece of interface code/);
+    assert.equal(installedReview?.argument_hint, "<要审查的页面、组件、截图或代码>");
+    assert.match(installedReview?.excerpt ?? "", /无障碍审查/);
 
     await b.tamper();
     const after = await client.invoke(person, ref(pluginInstallActions.bundled), {}) as BundledPluginList;

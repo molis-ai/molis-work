@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.text-stats",
+  "locale": "en",
+  "messages": {
+    "text-stats.directory.summary": "Count words, bytes, and lines in a saved file version.",
+    "text-stats.count.bytes": "UTF-8 bytes",
+    "text-stats.count.characters": "Characters",
+    "text-stats.count.lines": "Lines",
+    "text-stats.empty.waiting-detail": "Counts the text snapshot pinned as before in Files. Pin again to update; changes on disk don’t rewrite what was saved.",
+    "text-stats.error.unreadable": "Couldn’t read the file workspace",
+    "text-stats.stage.add-files": "Add Files from the plugin market",
+    "text-stats.stage.open-files": "Open Files",
+    "text-stats.stage.reading": "Reading the pinned versions…",
+    "text-stats.stage.refresh": "Refresh",
+    "text-stats.stage.retry": ". Select Refresh to try again.",
+    "text-stats.empty.waiting": "Pin a file snapshot to see text statistics for that version",
+    "text-stats.empty.unavailable": "The captured snapshot is no longer available",
+    "text-stats.empty.recapture": "Capture it again or choose another input in Sources"
+  }
+}

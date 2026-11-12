@@ -24,6 +24,7 @@ import {
 import { catalogOAuthMethod, catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
+import { chinesePagePacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 // W5-11 slice 1 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): the `oauth` method a plugin declares as
 // data, the SDK's shape check (any problem fails the whole Manifest) and the Host's one interpreter as pure functions. Nothing here sends
@@ -148,7 +149,9 @@ test("RAC-1081 endpoints are held to the endpoint rule, not to the request table
   }))));
 });
 
-const resolved = (serviceId: string, declaration: PluginOAuthMethodDeclaration, raw: Record<string, string> = {}) => resolveOAuthSettings(serviceId, declaration, raw);
+const packs = chinesePagePacks();
+const resolved = (serviceId: string, declaration: PluginOAuthMethodDeclaration, raw: Record<string, string> = {}) =>
+  withPagePacks("zh", packs, () => resolveOAuthSettings(serviceId, declaration, raw));
 
 test("RAC-1082 the tenant is checked against the table's domain after the template is filled in", () => {
   assert.equal(oauthTenantOrigin("salesforce", "https://acme.my.salesforce.com"), "https://acme.my.salesforce.com");

@@ -3,13 +3,13 @@ import test from "node:test";
 import type { AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentQueuedInput, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantActivity, AssistantWorkObject, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { EN } from "@molis-ai/molis-work-app-workbench";
+import { pagePack, pageText } from "./fixtures/page-text.js";
 import { assistantOutcomeSteps, assistantStepRow, deliveryNote, deliveryNoteHtml, deliverySteps, drawAssistantReply, isOpenable } from "@molis-ai/molis-work-app-local-host";
 
 // specs/ai-input-receipts §9.2, stage 3e-2a: the work's delivery note. The Host draws it from the records the view already
 // carries: the runtime's ledger for the person's supplements, the AI's own statement kept apart, the round's activity, the
 // sub-tasks, the `result` edges and the session's queue. `say` stands in for the request's translation.
-const say = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+const say = pageText("zh");
 
 const steer = (id: string, state: AgentTurnSteer["state"], extra: Partial<AgentTurnSteer> = {}): AgentTurnSteer => ({ id, state, ...extra });
 const turn = (id: string, text: string, steered?: AgentTurnSteer, kind: AgentTurnView["kind"] = "user"): AgentTurnView => ({ turn_id: id, kind, text, at: null, ...(steered ? { steer: steered } : {}) });
@@ -251,15 +251,16 @@ test("RCPT-374: every line of the note has its English, and what is new is writt
   deliveryNoteHtml(deliveryNote({ ...wide, rounds: [{ ...wide.rounds[0]!, phase: "completed" }], work: { ...wide.work, state: "needs-check" } })!, recording);
   deliveryNoteHtml(deliveryNote({ ...wide, queued_inputs: [] })!, recording);
   deliverySteps(wide, recording); deliverySteps({ ...wide, rounds: [{ ...wide.rounds[0]!, phase: "completed" }] }, recording);
-  const missing = [...new Set(asked)].filter(key => EN[key] === undefined);
+  const words = pagePack("workbench", "en").messages;
+  const missing = [...new Set(asked)].filter(key => !Object.hasOwn(words, key));
   assert.deepEqual(missing, [], "each Chinese line has an English one");
-  const written = ["截至最近一轮：最近一轮已结束", "截至最近一轮：最近一轮失败", "截至最近一轮：已停止", "做了什么", "这项工作做出的结果", "还差什么", "为它问的问题：", "AI 报告的步骤：", "改动：", "子任务：", "读不到的结果：", "排在队里：",
-    "没有排队", "Molis 写的", "别的会话写的", "看交付说明", "这项工作的补充和结果"];
+  const written = ["workbench.assistant-delivery.latest-turn-has-ended", "workbench.assistant-delivery.latest-turn-failed", "workbench.assistant-delivery.latest-turn-was-stopped", "workbench.assistant-delivery.what-was-done", "workbench.assistant-delivery.what-work-made", "workbench.assistant-delivery.what-still-missing", "workbench.assistant-delivery.question-about", "workbench.assistant-delivery.step-ai-reports", "workbench.assistant-delivery.change", "workbench.assistant-delivery.sub-task", "workbench.assistant-delivery.result-that-can-t-be-read", "workbench.assistant-delivery.waiting-queue",
+    "workbench.assistant-delivery.nothing-waiting-queue", "workbench.assistant-delivery.written-molis", "workbench.assistant-delivery.written-another-session", "workbench.assistant-delivery.see-delivery-note", "workbench.assistant-delivery.what-was-added-work-what-came"];
   for (const key of written) {
     assert.ok(asked.includes(key), `the note uses ${key}`);
-    assert.match(EN[key]!, /^[A-Z]/, `${key}: starts a sentence`);
-    assert.doesNotMatch(EN[key]!, /[一-鿿]/, `${key}: no Chinese left in it`);
+    assert.match(String(words[key]), /^[A-Z]/, `${key}: starts a sentence`);
+    assert.doesNotMatch(String(words[key]), /[一-鿿]/, `${key}: no Chinese left in it`);
   }
-  for (const key of written.slice(0, 3)) assert.doesNotMatch(EN[key]!, /\b(?:followed|completed|took effect)\b/i, "no claim the ledger cannot vouch for");
-  assert.equal(EN["没有排队"], "Nothing is waiting in the queue.");
+  for (const key of written.slice(0, 3)) assert.doesNotMatch(String(words[key]), /\b(?:followed|completed|took effect)\b/i, "no claim the ledger cannot vouch for");
+  assert.equal(words["workbench.assistant-delivery.nothing-waiting-queue"], "Nothing is waiting in the queue.");
 });

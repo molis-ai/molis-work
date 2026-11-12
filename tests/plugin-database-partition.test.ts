@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { captureHostLog, type HostLogEntry, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, type HostLogEntry, installHostUiText, ownerLabel, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -42,15 +42,19 @@ test("PART-03 PG-024 a partitioned library's data of a project is the platform's
   const unowned = partitionHome(t, [probeEntry({ project_data: undefined })]);
   await unowned.ready();
   const step = unowned.hooks.owners().find(owner => owner.id === PROBE_ID);
-  assert.deepEqual(step && { label: step.label, label_values: step.label_values, words_of: step.words_of },
-    { label: "{name} 在这个项目里的数据", label_values: { name: PROBE }, words_of: PROBE_ID });
+  assert.ok(step);
+  installHostUiText();
+  assert.deepEqual(step.label, { key: "workbench.project-deletion.partition" });
+  assert.equal(runWithLocale("zh", () => ownerLabel(step)), `${PROBE} 在这个项目里的数据`);
+  assert.equal(runWithLocale("en", () => ownerLabel(step)), `Data of ${PROBE} in this project`);
 
   // The deletion's owners come from the platform's registration list as well (project-deleted-owners.ts; W5-02 PR-B), with no Host running.
   const elsewhere = mkdtempSync(join(tmpdir(), "plugin-partition-owners-"));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
   const offline = projectDeletedHooksFor(elsewhere), shipped = offline.owners().find(owner => owner.id === PROBE);
-  assert.deepEqual(shipped && { label: shipped.label, label_values: shipped.label_values, words_of: shipped.words_of },
-    { label: "{name} 在这个项目里的数据", label_values: { name: PROBE }, words_of: PROBE_ID });
+  assert.ok(shipped);
+  assert.deepEqual(shipped.label, step.label);
+  assert.equal(runWithLocale("en", () => ownerLabel(shipped)), runWithLocale("en", () => ownerLabel(step)));
   mkdirSync(partitionDirectory(elsewhere, "p1"), { recursive: true }); writeFileSync(partitionFile(elsewhere, "p1"), "");
   mkdirSync(partitionDirectory(elsewhere, "p2"), { recursive: true }); writeFileSync(partitionFile(elsewhere, "p2"), "");
   assert.equal(await offline.clear(PROBE, "p1"), true);

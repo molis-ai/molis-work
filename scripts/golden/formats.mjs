@@ -41,8 +41,9 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "format.browser.site-decisions": { file: "browser/sites.json", field: "version" },
   "format.computer.settings": { file: "computer/settings.json", field: "version" },
   "format.computer.record": { file: "computer/records/*/record.json", field: "version" },
-  "format.model.preference": { file: "jelly/preferences.json", field: "schema_version" },
+  "format.ui.appearance-state": { file: "interface/state.json", field: "schema_version" },
   "format.ui.last-locale": { file: "config/ui-locale.json", field: "schema_version" },
+  "format.model.preference": { file: "jelly/preferences.json", field: "schema_version" },
   "format.home.installation": { absent: "config/installation.json is written by the installer, and a golden Home is made by running a Host, not by installing one" },
   "database.search.text-index": { absent: "search/ is a rebuildable index the snapshot leaves out (upgrade-chain-design §2.3); its first raise is the user's call" },
 });

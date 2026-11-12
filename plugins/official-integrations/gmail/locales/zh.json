@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.gmail",
+  "locale": "zh",
+  "messages": {
+    "gmail.connection.inbound": "Feed 只读收信",
+    "gmail.connection.outbound": "出站动作未兑现：当前只读收信，不发送邮件。",
+    "gmail.connection.send-mail": "发送邮件",
+    "gmail.connection.summary": "本机账号。Feed 只读收信。",
+    "gmail.guide.mcp-connected-note": "Google Workspace 开发者预览资格必需。",
+    "gmail.guide.mcp-link": "查看 Gmail 官方 MCP（开发者预览）",
+    "gmail.guide.mcp-note": "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。",
+    "gmail.guide.oauth-link": "创建 Google OAuth 客户端",
+    "gmail.guide.oauth-note": "应用内支持 Gmail 只读 OAuth；需要自己的 Google Cloud 客户端和本机回调配置。",
+    "gmail.guide.token-note": "在 OAuth Playground 获取 gmail.readonly 用户访问令牌后可粘贴；到期后需更新。",
+    "gmail.setup.create-oauth-client": "创建 OAuth 客户端",
+    "gmail.setup.enable-the-gmail-api": "启用 Gmail API",
+    "gmail.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 拿令牌"
+  }
+}

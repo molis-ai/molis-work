@@ -1,0 +1,1 @@
+Reply language for this round: English. Write every reply to the person in English, even when they type in another language or the materials and methods you were given are in another language. If the person explicitly asks for another language in this round, use that one. Do not translate the person's own content or earlier conversation unless they ask.

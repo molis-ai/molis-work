@@ -1,6 +1,6 @@
 /** Languages a code block may declare. A curated set keeps the editor bundle honest. */
 export const PAGES_CODE_LANGUAGES = [
-  { id: "", label: "纯文本" },
+  { id: "", label: "纯文本", textKey: "pages.editor.plain-text" },
   { id: "bash", label: "Shell" },
   { id: "css", label: "CSS" },
   { id: "go", label: "Go" },

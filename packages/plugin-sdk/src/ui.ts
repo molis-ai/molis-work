@@ -21,9 +21,14 @@ export * from "./ui/layout.js";
 export * from "./ui/process-fold.js";
 export * from "./ui/text.js";
 export * from "./ui/text-ref.js";
-export * from "./ui/message-format.js";
+export { formatDate, formatMessage, formatNumber, type MessageFormatOptions } from "./ui/message-format.js";
 export * from "./ui/locale-pack.js";
-export * from "./ui/plugin-locales.js";
+export { directoryPackProblems } from "./ui/directory-words.js";
+export * from "./ui/language-catalog.js";
+export {
+  assertPluginLocales, inspectPluginLocales, refuseLocaleProblems, pluginLocaleFilePath, pluginLocaleFilePaths,
+  pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader,
+} from "./ui/plugin-locales.js";
 export * from "./ui/text-reader.js";
 export * from "./ui/strict-json.js";
 export * from "./ui/appearance-files.js";

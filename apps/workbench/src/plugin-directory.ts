@@ -1,38 +1,9 @@
-import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { DirectoryView, PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
-/**
- * What the shell reads of one plugin that runs in the project (W5-06 余项 2, BL-388, BL-542): the declarations of its Manifest
- * that place it, and nothing else. Built-in and installed-at-run-time plugins have this one shape. The Host takes it from the
- * Manifests its Runtimes run, once per page read; it also satisfies the view registry's Manifest subset, so the rail, the
- * create buttons and the project home's starts read it the way they read any Manifest.
- */
-export interface PluginDirectoryEntry {
-  /** The shell's key for the plugin: a built-in's project key, else the key the Host gave its surface. Safe in an attribute. */
-  readonly id: string;
-  readonly plugin_id: string;
-  readonly name: string;
-  /** The English interface's name for it (the Manifest's `name_en`): drawn only where the shell draws `name` itself. */
-  readonly name_en?: string;
-  /** Whether the project's plugin list chooses it (a built-in). Otherwise it is in the project because it runs there. */
-  readonly chosen: boolean;
-  /**
-   * Trusted marks the Host sets from its own registry of built-ins (W5-02 B1), never from a Manifest a package brings: the plugin
-   * holds the person's data across projects (`personal`), runs in the Home's Runtime (`home`, from the registration's own Manifest),
-   * is on in every project and cannot be turned off (`always_on`), and the project keys it is shown and chosen together with
-   * (`companions`). Absent means not marked. Only a `chosen` entry carries them, except `personal` and `home`, which the Host also
-   * sets on a package installed in the Home (07-1 S4b, 口径 9); the page uses them to draw and to pre-tick, and the Host's own
-   * registry decides what a submitted list means.
-   */
-  readonly personal?: true;
-  readonly home?: true;
-  readonly always_on?: true;
-  readonly companions?: readonly string[];
-  readonly ui: { readonly views: readonly UiViewDeclaration[] };
-}
-
-export type PluginDirectory = readonly PluginDirectoryEntry[];
+export type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 
 const MAX_ENTRIES = 200, MAX_VIEWS = 32, MAX_COMPANIONS = 32;
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -47,27 +18,26 @@ function line(value: unknown, max: number): string | null {
 
 const key = (value: unknown): string | null => typeof value === "string" && KEY.test(value) ? value : null;
 
-function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>, chosen: boolean): UiViewDeclaration | null {
+function sanitizeView(view: DirectoryView, icons: ReadonlySet<string>, chosen: boolean): DirectoryView | null {
   const viewId = key(view.view_id), title = line(view.title, 80);
-  // A view that opens nothing from the rail has no title the shell draws, so its English is not kept.
-  const titleEn = view.slot === "navigator" || view.slot === "island" ? line(view.title_en, 80) : null;
   if (!viewId || !title || !(UI_VIEW_SLOTS as readonly string[]).includes(view.slot)) return null;
   const known = (name: unknown) => typeof name === "string" && icons.has(name) ? name : undefined;
   const station = view.creates ? key(view.creates.station) : null, createTitle = view.creates ? line(view.creates.title, 40) : null;
+  const createLabel = line(view.creates?.label, 40);
   const startTitle = view.start ? line(view.start.title, 80) : null, hint = view.start ? line(view.start.hint, 200) : null;
   const icon = known(view.icon), startIcon = known(view.start?.icon);
   return {
     view_id: viewId, slot: view.slot, title,
-    ...(titleEn ? { title_en: titleEn } : {}),
     ...(icon ? { icon } : {}),
     ...(view.accepts_objects === true ? { accepts_objects: true } : {}),
+    ...(view.slot === "side" && view.context_binding === "focused-object" ? { context_binding: view.context_binding } : {}),
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
     ...(view.group && (UI_VIEW_GROUPS as readonly string[]).includes(view.group) ? { group: view.group } : {}),
     ...(view.hue && (UI_VIEW_HUES as readonly string[]).includes(view.hue) ? { hue: view.hue } : {}),
     // The backbone, the extend entries and the Dock's default pins are the Host's to give: a plugin installed at run time is none of them.
     ...(chosen && view.slot === "navigator" && view.rail && (UI_VIEW_RAILS as readonly string[]).includes(view.rail) ? { rail: view.rail } : {}),
     ...(chosen && view.slot === "navigator" && view.pinned_default === true ? { pinned_default: true as const } : {}),
-    ...(station && createTitle ? { creates: { station, title: createTitle } } : {}),
+    ...(station && createTitle ? { creates: { station, title: createTitle, ...(createLabel ? { label: createLabel } : {}) } } : {}),
     ...(startTitle && hint ? { start: { title: startTitle, hint, ...(startIcon ? { icon: startIcon } : {}) } } : {}),
   };
 }
@@ -83,12 +53,12 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
   const seen = new Set<string>();
   const entries: PluginDirectoryEntry[] = [];
   for (const entry of directory.slice(0, MAX_ENTRIES)) {
-    const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80), nameEn = line(entry.name_en, 80);
+    const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80), summary = line(entry.summary, 120);
     if (!id || !pluginId || !name || seen.has(id)) continue;
     seen.add(id);
     const chosen = entry.chosen === true;
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, ...(nameEn ? { name_en: nameEn } : {}), chosen,
+    entries.push({ id, plugin_id: pluginId, name, ...(summary ? { summary } : {}), chosen,
       ...(chosen ? trustedMarks(entry) : homeMarks(entry)), ui: { views } });
   }
   return entries;
@@ -154,7 +124,23 @@ export function clientPluginDirectory(directory: PluginDirectory, offered: reado
   }))];
 }
 
-/** The directory element the page's scripts read once at start (`data-plugin-directory`). */
+/** Placement facts are separate from the publisher's display words. */
 export function renderPluginDirectoryData(directory: PluginDirectory, offered: readonly string[] = []): string {
   return `<script type="application/json" data-plugin-directory>${scriptJson(clientPluginDirectory(directory, offered))}</script>`;
+}
+
+/** The shell's selected display words are data, never executable script or a reader selector. */
+export function renderPluginTabTitlesData(titles: Readonly<Record<string, string>>): string {
+  return `<script type="application/json" id="workbench-plugin-titles" data-ui-language-model>${scriptJson(titles)}</script>`;
+}
+
+type ScriptDocument = { querySelector(selector: string): { textContent: string | null } | null };
+
+/** Deliberately serializable with the browser script factories. */
+export function readClientPluginDirectory(doc: ScriptDocument | null): ClientDirectoryEntry[] {
+  return JSON.parse(doc?.querySelector("script[data-plugin-directory]")?.textContent || "[]");
+}
+
+export function readClientPluginTitles(doc: ScriptDocument): Record<string, string> {
+  return JSON.parse(doc.querySelector("#workbench-plugin-titles")?.textContent || "{}");
 }

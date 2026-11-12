@@ -107,7 +107,10 @@ const view = (provider_id: string): ActionView => ({ capability_id: `${provider_
 async function gather(answers: Record<string, KitReport>): Promise<KitCatalog> {
   const all: Record<string, KitReport> = { "plugin-install": { entries: [], packs: [{ source: PLUGIN_SOURCE, description: "", status: "enabled" }] }, ...answers };
   const client = { discover: async () => Object.keys(all).map(view), invoke: async (_caller: ActionCallContext, ref: { provider_id?: string }) => all[ref.provider_id!] } as never;
-  return gatherKit({ actor_id: "web-user", project_id: "p", audience: "user", permissions: [] }, client);
+  return gatherKit({ actor_id: "web-user", project_id: "p", audience: "user", permissions: [] }, client, {
+    "system:builtin": { name: "Molis Work 自带", description: "个人助理、平台的提示词与全部 Agent 工具、对外接入的 MCP。" },
+    "system:characters": { name: "你的角色", description: "你写的角色，各带自己声明的工具。" },
+  });
 }
 
 test("S-kit-catalog 7: a named system provider that gives a source or pack outside its row, or a pack no header has, is dropped and listed", async () => {
@@ -136,9 +139,10 @@ test("S-kit-catalog 9: listing the project's MCP reads the library's safe view a
     credential: "none", health: "connected", tools: [{ server: "srv", tool: "search", version: "1", configuration_version: 2, server_label: "Docs", description: "找文档" }], resources: [] } }],
   list: never("list"), save: never("save"), control: never("control"), validate: never("validate"), validateSources: never("validateSources"), tools: never("tools"), call: never("call"),
   live: () => true } as never;
-  const installations = async () => [{ record: { plugin_id: "io.molis.work.coding", install_id: "i9" }, manifest: { name: "Coding" }, scope: "project" }] as never;
+  const installations = async () => [{ record: { plugin_id: "io.molis.work.coding", install_id: "i9" }, manifest: { name: "Coding" }, scope: "project", readLocalePacks: () => null }] as never;
   const report = await agentMcpKitEntries(library, installations, { actor_id: "web-user", project_id: "p", audience: "user", permissions: [] });
   assert.deepEqual(report.entries.map(entry => [entry.kind === "mcp" && entry.ref.part, entry.pack]), [["server", "plugin:i9"], ["tool", "plugin:i9"]]);
+  assert.equal(report.entries[1]?.description, "找文档");
   assert.deepEqual(counted, []);
 });
 

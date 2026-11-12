@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 export type DecisionEventKind = "goalTree";
 
 const HANDLED_DECISION_EVENT_TYPES: Record<DecisionEventKind, ReadonlySet<string>> = {
@@ -10,7 +11,7 @@ export interface GoalsDecisionPresentationPrimitives {
 }
 
 /** Shared decision explanations and markup, with host-owned translation and escaping. */
-export function createGoalsDecisionPresentation({ translate: L, escapeHtml }: GoalsDecisionPresentationPrimitives) {
+export function createGoalsDecisionPresentation({ escapeHtml }: GoalsDecisionPresentationPrimitives) {
 function renderNewDecisionBadge(
   createdAt: string,
   view: { events: Array<{ object_id: string; type: string; at: string }> },
@@ -24,7 +25,7 @@ function renderNewDecisionBadge(
   if (alreadyHandled) return "";
   const latestHandled = view.events.find((event) => handledTypes.has(event.type));
   return latestHandled && createdAt >= latestHandled.at
-    ? `<span class="decision-new" title="${L("这是最近一次处理后新生成的事项")}">${L("新事项")}</span>`
+    ? `<span class="decision-new" title="${uiText("goals.decision-common-ui.item-was-created-after-most-recent-decision")}">${uiText("goals.decision-common-ui.new")}</span>`
     : "";
 }
 
@@ -36,9 +37,9 @@ function renderDecisionGuidance(options: {
   consequences: Array<{ choice: string; effect: string }>;
 }): string {
   return `<div class="decision-guidance">
-    <section><h4>${L("为什么现在要决定")}</h4><p>${escapeHtml(options.whyNow)}</p></section>
-    <section class="decision-recommendation${options.recommendation ? " has-recommendation" : ""}"><h4>${L("建议")}</h4><strong>${escapeHtml(options.recommendation ?? L("现在没有足够依据给出可靠建议"))}</strong><p>${escapeHtml(options.recommendation ? options.recommendationBasis ?? "" : options.insufficient)}</p></section>
-    <section class="decision-consequences"><h4>${L("选完会发生什么")}</h4><dl>${options.consequences.map((item) => `<div><dt>${escapeHtml(item.choice)}</dt><dd>${escapeHtml(item.effect)}</dd></div>`).join("")}</dl></section>
+    <section><h4>${uiText("goals.decision-common-ui.why-decide-now")}</h4><p>${escapeHtml(options.whyNow)}</p></section>
+    <section class="decision-recommendation${options.recommendation ? " has-recommendation" : ""}"><h4>${uiText("goals.decision-common-ui.suggested")}</h4><strong>${escapeHtml(options.recommendation ?? uiText.text("goals.decision-common-ui.there-not-enough-evidence-reliable-recommendation"))}</strong><p>${escapeHtml(options.recommendation ? options.recommendationBasis ?? "" : options.insufficient)}</p></section>
+    <section class="decision-consequences"><h4>${uiText("goals.decision-common-ui.what-happens-after-choose")}</h4><dl>${options.consequences.map((item) => `<div><dt>${escapeHtml(item.choice)}</dt><dd>${escapeHtml(item.effect)}</dd></div>`).join("")}</dl></section>
   </div>`;
 }
 
@@ -51,7 +52,7 @@ function renderDecisionScenario(options: {
   rejectLabel: string;
   rejectEffect: string;
 }): string {
-  const title = options.title ?? L("放到当前方案里看");
+  const title = options.title ?? uiText.text("goals.decision-common-ui.proposal");
   const context = options.contextLabel && options.contextEffect
     ? `<div><dt>${escapeHtml(options.contextLabel)}</dt><dd>${escapeHtml(options.contextEffect)}</dd></div>`
     : "";
@@ -66,7 +67,7 @@ function renderDecisionScenario(options: {
 }
 
 function proposedGoalNextStage(): string {
-  return L("随后可在 Goal 中记录进展；完成前仍需满足约定的要求和依赖。");
+  return uiText.text("goals.decision-common-ui.can-then-record-progress-goal-its-agreed-requirements");
 }
 
   return { renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage };

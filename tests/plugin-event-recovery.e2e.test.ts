@@ -28,7 +28,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   assert.ok(source && subscriber);
   const event = repository.append({ event_id: `browser-event-${randomUUID()}`, project_id: projectId!,
     source_plugin_id: source.plugin_id, source_install_id: source.install_id, event_type_id: CODING_FILE_CHANGED_EVENT,
-    type_version: 1, payload: { project_id: projectId, path: ["example.txt"] }, correlation_id: null, occurred_at: new Date().toISOString() });
+    type_version: 1, payload: { project_id: projectId, path: ["example.txt"] }, correlation_id: null, occurred_at: "2026-11-08T20:15:37Z" });
   // A real persisted interrupted delivery, as left by a Host crash, with no fake HTTP responses on the happy path.
   const cursor = { revision: randomUUID(), project_id: projectId!, subscriber_plugin_id: subscriber.plugin_id,
     subscriber_install_id: subscriber.install_id, subscriber_generation: subscriber.installation_generation!,
@@ -70,6 +70,18 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await click('[data-plugin-event-open]');
   await waitFor("document.querySelector('[data-plugin-event-dialog]').open");
   assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] input:checked')"), null, "retry is never preselected");
+  await evaluate(`(()=>{const dialog=document.querySelector('[data-plugin-event-dialog]'),draft=dialog.querySelector('textarea');
+    draft.value='核对原文';draft.focus();draft.setSelectionRange(1,3);
+    window.eventTimes={dialog,draft,row:document.querySelector('[data-plugin-events-list] time'),stamp:dialog.querySelector('time')};})()`);
+  for (const [tag, lang, locale] of [["en", "en", "en-US"], ["zh", "zh-CN", "zh-CN"]]) {
+    await evaluate(`(()=>{const link=document.createElement('a');link.href='#';link.dataset.uiLanguage=${JSON.stringify(tag)};document.body.append(link);link.click();link.remove();})()`);
+    await waitFor(`document.documentElement.lang===${JSON.stringify(lang)} && eventTimes.stamp?.textContent===new Date(eventTimes.stamp.dateTime).toLocaleString(${JSON.stringify(locale)})`);
+    assert.deepEqual(await evaluate(`(()=>{const {dialog,draft,row,stamp}=eventTimes;
+      return [dialog.open,draft===document.activeElement,draft.value,draft.selectionStart,draft.selectionEnd,
+        row===document.querySelector('[data-plugin-events-list] time'),stamp===dialog.querySelector('time'),row.textContent===stamp.textContent,stamp.dateTime];})()`),
+    [true, true, "核对原文", 1, 3, true, true, true, event.occurred_at]);
+    assert.deepEqual(repository.resolutions(projectId!), []);
+  }
   await click('[data-plugin-event-cancel]');
   assert.equal(repository.listCursors(projectId!).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.revision, cursor.revision);
 
@@ -119,4 +131,6 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   assert.equal(history[0]!.actor_id, "web-user"); assert.equal(history[0]!.event_id, event.event_id);
   assert.equal(repository.listCursors(projectId!).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.delivered_sequence, event.sequence);
   assert.equal(await evaluate("document.querySelector('[data-plugin-events-history]').hidden"), false);
+  assert.equal(await evaluate(`(()=>{const stamp=document.querySelector('[data-plugin-events-history-list] time');
+    return stamp.textContent===new Date(${JSON.stringify(history[0]!.resolved_at)}).toLocaleString('zh-CN');})()`), true);
 });

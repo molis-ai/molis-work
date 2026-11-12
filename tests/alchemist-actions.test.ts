@@ -1,10 +1,11 @@
+import { pageText } from "./fixtures/page-text.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_EN, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_CLIENT_FACTORY_SCRIPT, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
 
@@ -267,8 +268,8 @@ test("RAC-2723: a lens job refused for material over the prompt's data position 
   assert.equal(lens.run?.errorCode, "alchemist.prompt_too_long", "the page reads the material-too-long reason, not the generic runtime failure");
   assert.equal(lens.run?.jobId, run.jobId);
   // The page renders the reason: this code has its own sentence (and its English pair), so deleting the branch or the dictionary line fails here.
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /alchemist\.prompt_too_long/u, "the page knows this code");
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /材料太长，请减少材料或缩短任务后重试。/u, "and shows the material-too-long sentence for it");
-  assert.ok(ALCHEMIST_EN["材料太长，请减少材料或缩短任务后重试。"], "the sentence has its English line");
-  assert.match(ALCHEMIST_EN["材料太长，请减少材料或缩短任务后重试。"] ?? "", /Too much material/u, "the English says the material is too long");
+  const tooLong = "alchemist.client-views.too-much-material-remove-material-shorten-task-retry";
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /errorCode==='alchemist\.prompt_too_long'\?[^?]*tx\("alchemist\.client-views\.too-much-material-remove-material-shorten-task-retry"\)/u, "the page picks this sentence for the refusal");
+  assert.equal(pageText("zh", "alchemist")(tooLong), "材料太长，请减少材料或缩短任务后重试。");
+  assert.match(pageText("en", "alchemist")(tooLong), /Too much material/u, "the English says the material is too long");
 });

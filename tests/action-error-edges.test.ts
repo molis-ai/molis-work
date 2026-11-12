@@ -24,6 +24,7 @@ import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
+import { pageText } from "./fixtures/page-text.js";
 
 // specs/archive/repository-anti-corruption W3-02-A. Todo's failures used to be a class of their own (`TodoError extends Error`: a code on a plain Error, not an
 // ActionError), so a Host edge that branches on `instanceof ActionError` answered them as "some other error". Todo raises ActionErrors now (`todoErrors`).
@@ -125,15 +126,19 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
 }
 
 /** The placement service over a Todo-only action client, with an in-memory ledger. */
-function placementOver(t: { after(fn: () => void): void }, client: ActionClient): PlacementService {
+function placementOver(t: { after(fn: () => void): void }, client: ActionClient, language: "zh" | "en" = "zh"): PlacementService {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   const titles = new Map<string, string>();
   return new PlacementService({
     ledger: createContextLedger(ledgerDatabase(db), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id }),
     spaces: async () => [{ project_id: "personal", title: "个人空间", kind: "personal" }, { project_id: "q4", title: "Q4 新版发布", kind: "project" }],
-    scope: async projectId => ({ client, caller: { actor_id: "web-user", project_id: projectId, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["q4"] } }),
+    scope: async projectId => {
+      if (projectId === "removed") throw new ActionError("placement.project_missing", "Project missing");
+      return { client, caller: { actor_id: "web-user", project_id: projectId, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["q4"] } };
+    },
     titles: { get: (kind, id) => titles.get(`${kind}:${id}`) ?? null, set: (kind, id, title) => { titles.set(`${kind}:${id}`, title); } },
+    text: pageText(language),
   });
 }
 const todoRef = (id: string) => ({ kind: "todo_item", id, project_id: null });
@@ -154,10 +159,17 @@ test("placement: a Todo that is gone or archived reads as 原对象已删除 (th
   await person.invoke(todoActions.archive, { id: archived.id, expected_revision: done.revision, archived: true });
   const removed = (await person.invoke(todoActions.create, { title: "删掉的事" })).item;
   await person.invoke(todoActions.remove, { id: removed.id });
-  for (const gone of [archived, removed]) {
-    const described = await placement.describe(todoRef(gone.id));
-    assert.deepEqual([described.state, described.reason], ["missing", "原对象已删除"], gone.title);
-    await assert.rejects(placement.move(todoRef(gone.id), "q4"), { code: "placement.missing", message: "原对象已删除" }, gone.title);
+  for (const [reader, itemReason, projectReason] of [
+    [placement, "原对象已删除", "所在的项目已删除"],
+    [placementOver(t, service, "en"), "The original was deleted", "The project that held it was deleted"],
+  ] as const) {
+    for (const gone of [archived, removed]) {
+      const described = await reader.describe(todoRef(gone.id));
+      assert.deepEqual([described.state, described.reason], ["missing", itemReason], gone.title);
+      await assert.rejects(reader.move(todoRef(gone.id), "q4"), { code: "placement.missing", message: itemReason }, gone.title);
+    }
+    const fromRemovedProject = await reader.describe({ ...todoRef(live.id), project_id: "removed" });
+    assert.deepEqual([fromRemovedProject.state, fromRemovedProject.reason, fromRemovedProject.location], ["missing", projectReason, null]);
   }
 });
 

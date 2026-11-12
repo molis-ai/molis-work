@@ -6,11 +6,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HomeConsentLedger, readStudioDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, readStudioDistribution, verifySyncPluginDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
-import { builderPrivateValueReplicationOwner } from '@molis-ai/molis-work-plugin-builder';
+import { builderPrivateValueReplicationOwner, freezeStudioUi, parseModelJson, type AgentBuild, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { readyPublication, publicationAuthority } from './fixtures/studio-publishing.js';
+import { prepareStudioNoteWords, studioBilingualAnswer, studioBilingualNotes, studioBilingualLiteralNotes, literalStudioExcerpt, studioTestLanguages } from './fixtures/studio-bilingual.js';
+import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
 import { fixture, mac, operate, operationsOf, person, ref, refused } from './fixtures/home-sandbox.js';
 
 const identityPath = (home: string) => join(home, 'config', 'plugin-publisher.json');
@@ -40,6 +42,97 @@ test('SDK-1 PUB-1 the real workflow publishes complete signed bytes, preserves B
   assert.doesNotMatch(JSON.stringify(bundle), /PRIVATE KEY|secret_ref|signing-key/);
   assert.ok(!JSON.stringify(bundle).includes(home));
   assert.equal(readdirSync(release.directory).length, 6);
+});
+
+test('FSS-20 FSS-74 Studio freezes only complete, bound locale files and preserves original v1 draft and release semantics', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'molis-studio-words-'));
+  const h = readyPublication(home, 'author', 'project');
+  t.after(async () => { await h.workflow.close(); await rm(home, { recursive: true, force: true }); });
+  const design = () => prepareStudioNoteWords(structuredClone(h.build.design!));
+  const initial = studioBilingualAnswer();
+  assert.throws(() => freezeStudioUi(design(), { ...initial, default: 'xx' }, studioTestLanguages), /allowed default/);
+  assert.throws(() => freezeStudioUi(design(), { ...initial, locales: { zh: initial.locales.zh } }, studioTestLanguages), /languages must be/);
+  assert.throws(() => freezeStudioUi(design(), { ...initial, locales: { ...initial.locales, en: { ...initial.locales.en, 'part/unknown/title': 'Unknown' } } }, studioTestLanguages), /extra part\/unknown/);
+  const html = studioBilingualAnswer(); html.locales.en['plugin/name'] = '<b>wrong</b>';
+  assert.throws(() => freezeStudioUi(design(), html, studioTestLanguages), /locales\/en.json/);
+  const param = studioBilingualAnswer(); param.locales.en['part/title/title'] = '{alien}';
+  assert.throws(() => freezeStudioUi(design(), param, studioTestLanguages), /must use these parameters/);
+  assert.throws(() => parseModelJson('{"design":{"uiText":{"locales":{"zh":{"plugin/name":"One","plugin/name":"Two"}}}}}', true), /Duplicate design field/);
+  assert.throws(() => parseModelJson('{"design":{"uiText":{"locales":{"zh":{"constructor":"Forbidden"}}}}}', true), /constructor/);
+  const frozen = studioBilingualNotes(structuredClone(h.build.design!));
+  const ref = frozen.parts.find(part => part.id === 'title')!.props.title;
+  const later = studioBilingualAnswer(); later.locales.en['part/title/title'] = 'My excerpts';
+  assert.deepEqual(freezeStudioUi(design(), later, studioTestLanguages, frozen.contract.ui!.locales).parts.find(part => part.id === 'title')!.props.title, ref);
+  assert.throws(() => freezeStudioUi(design(), { ...initial, default: 'en' }, studioTestLanguages, frozen.contract.ui!.locales), /allowed default/);
+
+  const current = h.workflow.store.update(h.build.id, h.build.revision, value => {
+    value.design = frozen;
+    value.history.push({ design: structuredClone(frozen), nodes: [], connected: [] });
+  });
+  const key = 'plugin-builder:agent-built:v1', raw = h.storage.get(key)!;
+  assert.equal(JSON.parse(raw).format, 1);
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, value => { delete value.history[0]!.design!.localePacks; }), { code: 'plugin_builder.store_invalid' });
+  assert.equal(h.storage.get(key), raw, 'rejected history cannot reach CAS');
+  const invalidWords = (candidate: AgentBuild, history: boolean) => {
+    const design = (history ? candidate.history[0]!.design : candidate.design)!;
+    const ref = design.parts.find(part => part.id === 'title')!.props.title!;
+    assert.ok(typeof ref !== 'string' && 'key' in ref);
+    for (const pack of design.localePacks!) Object.assign(pack.messages, { [ref.key]: 'Same unbound {missing}' });
+  };
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, candidate => invalidWords(candidate, false)), { code: 'plugin_builder.store_invalid' });
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, candidate => invalidWords(candidate, true)), { code: 'plugin_builder.store_invalid' });
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, candidate => {
+    const [heading, , editor] = candidate.design!.parts;
+    const label = editor!.props.submitLabel!;
+    heading!.props.title = label;
+  }), { code: 'plugin_builder.store_invalid' });
+  assert.equal(h.storage.get(key), raw, 'every refusal retains the original current design and history');
+});
+
+test('FSS-38 FSS-74 Studio downloads the complete original signing payload and rejects mismatched synchronized words', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'molis-studio-word-release-'));
+  const h = readyPublication(home, 'author', 'project', studioBilingualLiteralNotes);
+  t.after(async () => { await h.workflow.close(); await rm(home, { recursive: true, force: true }); });
+  const release = await h.publish(), bundle = await readStudioDistribution(h.root, release);
+  assert.equal(verifyPluginPackageSignature(bundle).key_id, release.distribution!.publisher_key_id);
+  assert.deepEqual(bundle.payload.manifest.ui.locales, { default: 'zh', available: ['zh', 'en'] });
+  assert.deepEqual(bundle.payload.files.filter(file => file.path.startsWith('locales/')).map(file => file.path).sort(), ['locales/en.json', 'locales/zh.json']);
+  const iface = Buffer.from(bundle.payload.files.find(file => file.path === 'interface.json')!.content_base64, 'base64').toString();
+  assert.doesNotMatch(iface, /读书摘记|Save excerpt|Visibility/);
+  const owner = builderPrivateValueReplicationOwner({ home, verifyDistribution: verifySyncPluginDistribution });
+  const saved = JSON.parse(h.storage.get('plugin-builder:agent-built:v1')!);
+  const portable = owner.project(saved, 'author', h.build.id) as { format: number; builds: AgentBuild[]; releases: AgentRelease[] };
+  assert.equal(portable.format, 1);
+  owner.validate(portable, 'author', h.build.id);
+  assert.deepEqual(saved.builds[0].design.contract.pages[0].title, { literal: literalStudioExcerpt });
+  assert.deepEqual(portable.builds[0]!.design!.parts.find(part => part.id === 'title')!.props.description, { literal: literalStudioExcerpt });
+  assert.deepEqual(portable.releases[0]!.design.contract.pages[0]!.regions[0]!.title, { literal: literalStudioExcerpt });
+  assert.ok(!JSON.stringify(portable.builds[0]!.design!.localePacks).includes(literalStudioExcerpt), 'literal is not copied to either pack');
+  const missing = structuredClone(portable);
+  delete missing.builds[0]!.design!.localePacks;
+  assert.throws(() => owner.validate(missing, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const unlabelled = structuredClone(portable), fieldKey = pluginTextSlotKey(release.pluginId, pluginTextSlot('field', 'notes.add', 'text', 'label'));
+  for (const pack of unlabelled.builds[0]!.design!.localePacks!) Reflect.deleteProperty(pack.messages, fieldKey);
+  assert.throws(() => owner.validate(unlabelled, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const unbound = structuredClone(portable);
+  const unboundTitle = unbound.builds[0]!.design!.parts.find(part => part.id === 'title')!.props.title!;
+  assert.ok(typeof unboundTitle !== 'string' && 'key' in unboundTitle);
+  for (const pack of unbound.builds[0]!.design!.localePacks!) Object.assign(pack.messages, { [unboundTitle.key]: 'Same unbound {missing}' });
+  assert.throws(() => owner.validate(unbound, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const swapped = structuredClone(portable);
+  const [heading, , editor] = swapped.builds[0]!.design!.parts;
+  heading!.props.title = editor!.props.submitLabel;
+  assert.throws(() => owner.validate(swapped, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const wrong = structuredClone(portable);
+  const en = wrong.releases[0]!.design.localePacks!.find(pack => pack.locale === 'en')!;
+  const label = wrong.releases[0]!.design.parts.find(part => part.id === 'title')!.props.title!;
+  assert.ok(typeof label !== 'string' && 'key' in label);
+  Object.assign(en.messages, { [label.key]: 'Different signed words' });
+  assert.throws(() => owner.validate(wrong, 'author', h.build.id), /签名分发物与发布记录不符/);
+  const forged = structuredClone(portable);
+  Object.assign(forged.releases[0]!.design.localePacks![0]!, { owner: 'io.molis.work.other' });
+  assert.throws(() => owner.validate(forged, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  assert.deepEqual(await readStudioDistribution(h.root, release), bundle, 'rejected projections did not alter the signed archive');
 });
 
 test('SCOPE-1 undo after a scope round trip cannot restore publishable stale checks', async t => {

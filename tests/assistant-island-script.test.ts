@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { pageText } from "./fixtures/page-text.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { assistantWorkFixture } from "./fixtures/assistant-browser-contract.js";
 import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED, loginOpens } from "./fixtures/connection-login-urls.js";
@@ -47,9 +47,9 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
 // ("Viewing：Notes") puts a full-width colon in English. The object the bottom bar says it is looking at is such a sentence.
 test("what the bottom bar is looking at is one translated sentence, with the object's name as a parameter", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看"\)/, "no word-plus-colon glue for the page's object");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
-  assert.equal(L("正在看：{title}", { title: "需求说明" }), "正在看：需求说明");
-  assert.equal(runWithLocale("en", () => L("正在看：{title}", { title: "Notes" })), "Viewing: Notes", "English keeps its own colon");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /readText\("workbench\.assistant-materials\.viewing-title", \{ title: name \}\)/);
+  assert.equal(pageText("zh")("workbench.assistant-materials.viewing-title", { title: "需求说明" }), "正在看：需求说明");
+  assert.equal(pageText("en")("workbench.assistant-materials.viewing-title", { title: "Notes" }), "Viewing: Notes", "English keeps its own colon");
   // The strip names it with that sentence, never with its prefix cut off by a pattern. (The 「材料」 button's short name is gone with
   // the button: the strip took its place, context-program §21.2 point 1.)
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /replace\(\/\^正在看/);
@@ -158,7 +158,7 @@ test("D0007: served Assistant response fixtures compile against the owning publi
 test("D0007 D0009: the served usage client reads empty, running and failed responses and never reuses an older round's model or tokens", async () => {
   const { assistantViewFixtures } = await import("./fixtures/assistant-browser-contract.js");
   const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("const usagePane = (") + "const usagePane = (".length;
-  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf(")({ L, el, progress, api, toast:", start);
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf(")({ readText, el, progress, api, toast:", start);
   assert.ok(start > 0 && end > start, "execute the usage factory actually embedded in the served Assistant client");
   const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end);
   class Node {
@@ -168,10 +168,10 @@ test("D0007 D0009: the served usage client reads empty, running and failed respo
     replaceChildren(...values: Array<Node | string>) { this.children = values; }
     text(): string { return this.children.map(value => typeof value === "string" ? value : value.text()).join(" "); }
   }
-  const create = new Function(`return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)();
+  const create = new Function("globalThis", `return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)({ t: { text: pageText("zh") } });
   for (const [name, view] of Object.entries(assistantViewFixtures)) {
     const box = new Node();
-    const client = create({ L: (text: string) => text, el: (_tag: string, _class: string, text?: string) => { const node = new Node(); if (text) node.append(text); return node; },
+    const client = create({ readText: pageText("zh"), el: (_tag: string, _class: string, text?: string) => { const node = new Node(); if (text) node.append(text); return node; },
       progress: () => new Node(), box: () => box, current: () => JSON.parse(JSON.stringify(view)) });
     client.paint(view.work);
     assert.equal(box.hidden, name === "empty");

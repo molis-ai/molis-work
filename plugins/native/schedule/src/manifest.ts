@@ -8,8 +8,6 @@ import { SCHEDULE_PROJECT_DATABASE } from "./database.js";
 import { REMINDER_ACTIONS } from "./reminder-actions.js";
 import { SCHEDULE_OPERATION_ACTIONS } from "./operation-actions.js";
 import { SCHEDULE_RECONCILE_JOB, scheduleWakeupActions } from "./background-actions.js";
-import { SCHEDULE_MESSAGES } from "./messages.js";
-import { SCHEDULE_EN } from "./en.js";
 import { SCHEDULE_TASK_GRANT_ACTIONS } from "./task-grants.js";
 export { SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 
@@ -23,7 +21,7 @@ export const scheduleManifest: PluginManifest = {
   plugin_id: SCHEDULE_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Schedule",
-  summary: "定时跑对话任务，也替插件准时提醒。",
+  summary: "定时跑对话任务，也替插件准时提醒。", summary_text: { key: "schedule.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-schedule-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -71,9 +69,7 @@ export const scheduleManifest: PluginManifest = {
   agent: scheduleAgentManifest,
   sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: /* @version sync.collection.schedule.conversation_tasks */ 1, requires: [] }] },
   databases: { project: SCHEDULE_PROJECT_DATABASE },
-  ui: {
-    messages: SCHEDULE_MESSAGES,
-    translations: SCHEDULE_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", hue: "yellow", order: 35, group: "advance",

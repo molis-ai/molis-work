@@ -1,3 +1,4 @@
+import type { SkillDisplayWords } from "./skill-display-words.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -14,6 +15,7 @@ import type { KitReport } from "@molis-ai/molis-work-contracts/platform/kit-repo
 export interface CatalogSkill {
   ref: SkillRef;
   declaration: PluginMethodDeclaration;
+  display?: SkillDisplayWords;
   body: string;
   pack: SkillCatalogEntry["pack"];
   availability: SkillAvailability;
@@ -56,8 +58,9 @@ const listable = (skill: CatalogSkill, caller: ActionCallContext, appliesTo: Ski
 
 function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCatalogEntry {
   const d = skill.declaration, resources = d.resources ?? [];
-  return { ref: skill.ref, name: d.name, description: d.description, applies_to: d.applies_to,
-    ...(d.when_to_use ? { when_to_use: d.when_to_use } : {}), ...(d.when_not_to_use ? { when_not_to_use: d.when_not_to_use } : {}),
+  const words = skill.display ?? d;
+  return { ref: skill.ref, name: words.name, description: words.description, applies_to: d.applies_to,
+    ...(words.when_to_use ? { when_to_use: words.when_to_use } : {}), ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}),
     ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}), user_invocable: d.user_invocable ?? true, tools: [...d.tools],
     resources: resources.map(({ path, role, bytes }) => ({ path, role, bytes })), connector_categories: [...d.connector_categories ?? []],
     runs_scripts: resources.some(resource => resource.role === "script"), excerpt: Array.from(skill.body).slice(0, SKILL_EXCERPT_CHARS).join(""),
@@ -99,7 +102,7 @@ export class SkillCatalog {
       const byKey = new Map(skills.map(skill => [settingKey(skill.ref.install_id, skill.ref.skill_id), skill]));
       return { results: refs.map(ref => {
         const key = settingKey(ref.install_id, ref.skill_id), skill = byKey.get(key), reason = this.refusal(skill, ref, caller, settings.get(key));
-        return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: skill!.declaration.name, body: skill!.body };
+        return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: (skill!.display ?? skill!.declaration).name, body: skill!.body };
       }) };
     });
   }

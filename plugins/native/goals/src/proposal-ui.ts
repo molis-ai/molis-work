@@ -1,24 +1,25 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { goalTreeProposalNeedsDecision } from "./decision-groups.js";
-import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
+import { goalRelationLabel } from "./relation-presentation.js";
 import { createGoalsDecisionPresentation } from "./decision-common-ui.js";
 import { createGoalsProposalPresentation } from "./proposal-presentation.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
 
 function renderProposalList(primitives: GoalsProposalUiPrimitives, proposals: readonly GoalTreeProposalRecord[], view: GoalsProposalView): string {
-  const { translate: L, escapeHtml } = primitives;
+  const { escapeHtml } = primitives;
   const { renderGoalTreeProposalDecision } = createProposalRenderer(primitives);
   const pending = proposals.filter(goalTreeProposalNeedsDecision);
-  return pending.length ? `<section data-goal-proposals aria-label="${L("需要你决定")}"><h2>${L("需要你决定")}</h2>${pending.map(proposal =>
+  return pending.length ? `<section data-goal-proposals aria-label="${uiText("goals.proposal-ui.needs-decision")}"><h2>${uiText("goals.proposal-ui.needs-decision")}</h2>${pending.map(proposal =>
     `<details class="decision-details" id="${escapeHtml(proposal.proposal_id)}" data-persist-open="${escapeHtml(proposal.proposal_id)}" data-goal-proposal-entry><summary>${escapeHtml(proposal.summary)}</summary>${renderGoalTreeProposalDecision(proposal, view)}</details>`).join("")}</section>` : "";
 }
 
 export const GOALS_PROPOSAL_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.proposal";
 function createProposalRenderer(primitives: GoalsProposalUiPrimitives) {
-const { translate: L, escapeHtml, icon } = primitives;
+const { translate: readText, escapeHtml, icon } = primitives;
 const { renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage } = createGoalsDecisionPresentation(primitives);
-const { proposedGoalName, goalTreeRelationPayloads, goalTreeProposalItemCopy } = createGoalsProposalPresentation(L);
+const { proposedGoalName, goalTreeRelationPayloads, goalTreeProposalItemCopy } = createGoalsProposalPresentation(readText);
 function goalTreeRelationScenario(
   item: GoalTreeProposalRecord["items"][number],
   view: GoalsProposalView,
@@ -33,18 +34,18 @@ function goalTreeRelationScenario(
   const type = String(relation.type ?? "");
   if (type === "part_of") {
     if (subjectGoalId && fromGoalId === subjectGoalId) {
-      return L("它会成为「{parent}」的子 Goal。", { parent: to });
+      return uiText.text("goals.proposal-ui.becomes-child-parent", { parent: to });
     }
-    return L("Goal「{child}」会成为「{parent}」的子 Goal。", { child: from, parent: to });
+    return uiText.text("goals.proposal-ui.goal-child-becomes-child-parent", { child: from, parent: to });
   }
   if (type === "depends_on") {
     if (subjectGoalId && fromGoalId === subjectGoalId) {
-      return L("它会等待「{dependency}」先完成。", { dependency: to });
+      return uiText.text("goals.proposal-ui.waits-dependency-finish-first", { dependency: to });
     }
-    return L("Goal「{goal}」会等待「{dependency}」先完成。", { goal: from, dependency: to });
+    return uiText.text("goals.proposal-ui.goal-goal-waits-dependency-finish-first", { goal: from, dependency: to });
   }
-  const relationLabel = L(RELATION_LABELS[type]?.out ?? "建立关系");
-  return L("Goal「{from}」和「{to}」会建立“{relation}”关系。", { from, to, relation: relationLabel });
+  const relationLabel = goalRelationLabel(type, "out") ?? uiText.text("goals.proposal-ui.create-relation");
+  return uiText.text("goals.proposal-ui.goal-get-relation-relationship", { from, to, relation: relationLabel });
 }
 
 function renderGoalTreeProposalScenario(
@@ -60,17 +61,17 @@ function renderGoalTreeProposalScenario(
     : proposedGoalName(relationItem ? goalTreeRelationPayloads(relationItem.payload)[0]?.from_goal_id : proposal.root_goal_id, view, proposal);
   const goalId = goal ? String(goal.goal_id ?? "") : "";
   const goalEffect = goalItem
-    ? L("会新增 Goal「{title}」。", { title: goalTitle })
-    : L("会按方案更新 Goal「{title}」的关系。", { title: goalTitle });
+    ? uiText.text("goals.proposal-ui.goal-title-added", { title: goalTitle })
+    : uiText.text("goals.proposal-ui.goal-title-has-its-relationships-updated-proposed", { title: goalTitle });
   const relationEffect = relationItem
     ? goalTreeRelationScenario(relationItem, view, proposal, goalId)
-    : L("本次不会自动改变 Goal「{title}」与其他 Goal 的归属或依赖。", { title: goalTitle });
-  const nextStage = goal ? proposedGoalNextStage() : L("现有 Goal 是否能开始，仍由各自的状态和前置条件决定。");
+    : uiText.text("goals.proposal-ui.proposal-does-not-automatically-change-goal-title-ownership", { title: goalTitle });
+  const nextStage = goal ? proposedGoalNextStage() : uiText.text("goals.proposal-ui.whether-existing-goals-can-start-still-depends-their");
   return renderDecisionScenario({
-    confirmLabel: L("如果采用"),
+    confirmLabel: uiText.text("goals.proposal-ui.if-apply"),
     confirmEffect: `${goalEffect}${relationEffect}${nextStage}`,
-    rejectLabel: L("如果退回"),
-    rejectEffect: L("不会写入上面这些 Goal 和关系变化；当前 Goal Tree 保持不变。"),
+    rejectLabel: uiText.text("goals.proposal-ui.if-send-back"),
+    rejectEffect: uiText.text("goals.proposal-ui.none-goal-relationship-changes-above-written-current-goal"),
   });
 }
 
@@ -80,8 +81,8 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
   for (const item of undecidedItems) {
     const persistedConflict = item.state === "conflict"
       ? [{
-          message: String(item.conflict?.message ?? L("这份方案仍有不能安全写入的内容，需要修正后再确认。")),
-          recovery: String(item.conflict?.recovery ?? L("当前 Goal Tree 不会改变；Runtime 会根据你的意见重新整理方案。")),
+          message: String(item.conflict?.message ?? uiText.text("goals.proposal-ui.some-parts-proposal-still-cannot-be-written-safely")),
+          recovery: String(item.conflict?.recovery ?? uiText.text("goals.proposal-ui.current-goal-tree-stays-unchanged-runtime-will-revise")),
         }]
       : [];
     if (persistedConflict.length) issuesByItem.set(item.item_id, persistedConflict);
@@ -96,7 +97,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     item.kind === "goal" && String(item.payload.goal_id ?? "") === String(proposal.root_goal_id ?? ""),
   ) ?? proposal.items.find((item) => item.kind === "goal");
   const contractPayload = contractItem ? contractItem.payload : null;
-  const proposedTitle = String(contractPayload?.title ?? findGoalView(view, proposal.root_goal_id)?.goal.title ?? L("这份 Goal 方案"));
+  const proposedTitle = String(contractPayload?.title ?? findGoalView(view, proposal.root_goal_id)?.goal.title ?? uiText.text("goals.proposal-ui.goal-plan"));
   const proposedOutcome = String(contractPayload?.outcome ?? proposal.summary).trim();
   const requirements = Array.isArray(contractPayload?.requirements)
     ? contractPayload.requirements as Array<Record<string, unknown>>
@@ -108,7 +109,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     const title = semanticItemCopies.get(item.item_id)?.title ?? "";
     const issues = issuesByItem.get(item.item_id) ?? (item.state === "conflict"
       ? [{
-          message: String(item.conflict?.message ?? L("这份方案仍有不能安全写入的内容，需要修正后再确认。")),
+          message: String(item.conflict?.message ?? uiText.text("goals.proposal-ui.some-parts-proposal-still-cannot-be-written-safely")),
           recovery: "",
         }]
       : []);
@@ -119,14 +120,14 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
   }))].join("\n");
   const narrative = proposal.narrative;
   const narrativeSummary = narrative
-    ? `<section class="goal-tree-proposal-narrative" aria-label="${L("变更说明")}">
-        <h4>${L("这次变更主要解决什么？")}</h4>
+    ? `<section class="goal-tree-proposal-narrative" aria-label="${uiText("goals.proposal-ui.change-note")}">
+        <h4>${uiText("goals.proposal-ui.what-problem-does-change-set-solve")}</h4>
         <dl>
-          <div><dt>${L("为什么现在改")}</dt><dd>${escapeHtml(narrative.why_now)}</dd></div>
-          <div><dt>${L("原目标哪里不再成立")}</dt><dd>${escapeHtml(narrative.problem)}</dd></div>
-          <div><dt>${L("变更后的主链路")}</dt><dd><ol>${narrative.main_path.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol></dd></div>
-          <div><dt>${L("预期效果")}</dt><dd>${escapeHtml(narrative.expected_effect)}</dd></div>
-          <div><dt>${L("本次不改变")}</dt><dd>${narrative.non_goals.length ? `<ul>${narrative.non_goals.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : L("没有额外非目标")}</dd></div>
+          <div><dt>${uiText("goals.proposal-ui.why-change-now")}</dt><dd>${escapeHtml(narrative.why_now)}</dd></div>
+          <div><dt>${uiText("goals.proposal-ui.what-no-longer-works-current-goal-tree")}</dt><dd>${escapeHtml(narrative.problem)}</dd></div>
+          <div><dt>${uiText("goals.proposal-ui.main-path-after-change")}</dt><dd><ol>${narrative.main_path.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol></dd></div>
+          <div><dt>${uiText("goals.proposal-ui.expected-effect")}</dt><dd>${escapeHtml(narrative.expected_effect)}</dd></div>
+          <div><dt>${uiText("goals.proposal-ui.what-change-does-not-alter")}</dt><dd>${narrative.non_goals.length ? `<ul>${narrative.non_goals.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : uiText("goals.proposal-ui.no-additional-non-goals")}</dd></div>
         </dl>
       </section>`
     : "";
@@ -136,66 +137,66 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     const dependencyLabels = (explanation?.depends_on_item_ids ?? []).map((itemId) =>
       semanticItemCopies.get(itemId)?.title ?? itemId);
     const semanticExplanation = `<dl class="goal-tree-proposal-item-explanation">
-      <div><dt>${L("主要解决")}</dt><dd>${escapeHtml(explanation?.problem ?? item.reason)}</dd></div>
-      ${explanation ? `<div><dt>${L("会改变什么")}</dt><dd>${escapeHtml(explanation.expected_effect)}</dd></div>
-      <div><dt>${L("明确不改变")}</dt><dd>${explanation.non_goals.length ? escapeHtml(explanation.non_goals.join(L("；"))) : L("没有额外边界")}</dd></div>
-      <div><dt>${L("关联变更")}</dt><dd>${dependencyLabels.length ? escapeHtml(dependencyLabels.join(L("；"))) : L("可独立理解，无前置 change")}</dd></div>` : ""}
+      <div><dt>${uiText("goals.proposal-ui.problem-addressed")}</dt><dd>${escapeHtml(explanation?.problem ?? item.reason)}</dd></div>
+      ${explanation ? `<div><dt>${uiText("goals.proposal-ui.what-changes")}</dt><dd>${escapeHtml(explanation.expected_effect)}</dd></div>
+      <div><dt>${uiText("goals.proposal-ui.what-stays-unchanged")}</dt><dd>${explanation.non_goals.length ? escapeHtml(explanation.non_goals.join("；")) : uiText("goals.proposal-ui.no-additional-boundary")}</dd></div>
+      <div><dt>${uiText("goals.proposal-ui.related-changes")}</dt><dd>${dependencyLabels.length ? escapeHtml(dependencyLabels.join("；")) : uiText("goals.proposal-ui.can-be-understood-independently-no-prerequisite-change")}</dd></div>` : ""}
     </dl>`;
     const issueCopy = issuesByItem.get(item.item_id) ?? [];
     const blocked = item.state === "conflict" || issueCopy.length > 0;
     return `<li class="goal-tree-proposal-item${item.state === "conflict" ? " is-conflict" : ""}${issueCopy.length ? " is-invalid" : ""}">
       <input type="hidden" name="item_id" value="${escapeHtml(item.item_id)}">
-      <span>${icon(blocked ? "blocked" : "check")}</span><div><strong>${escapeHtml(copy.title)}</strong><small>${escapeHtml(copy.detail)}</small>${semanticExplanation}${copy.facts.length ? `<ul class="goal-tree-proposal-item-facts">${copy.facts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join("")}</ul>` : ""}${issueCopy.length ? `<div class="goal-tree-proposal-item-error"><strong>${L("这项现在不能采用")}</strong>${issueCopy.map((issue) => `<p>${escapeHtml(issue.message)} ${escapeHtml(issue.recovery)}</p>`).join("")}</div>` : ""}</div>
+      <span>${icon(blocked ? "blocked" : "check")}</span><div><strong>${escapeHtml(copy.title)}</strong><small>${escapeHtml(copy.detail)}</small>${semanticExplanation}${copy.facts.length ? `<ul class="goal-tree-proposal-item-facts">${copy.facts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join("")}</ul>` : ""}${issueCopy.length ? `<div class="goal-tree-proposal-item-error"><strong>${uiText("goals.proposal-ui.item-cannot-be-applied-yet")}</strong>${issueCopy.map((issue) => `<p>${escapeHtml(issue.message)} ${escapeHtml(issue.recovery)}</p>`).join("")}</div>` : ""}</div>
     </li>`;
   };
   const itemRows = undecidedItems.map(renderItemRow).join("");
   const problemRows = problemItems.map(renderItemRow).join("");
   const otherRows = otherItems.map(renderItemRow).join("");
   const conflictMessage = conflictCount
-    ? `<p class="goal-tree-proposal-conflict" role="status">${L("其中 {count} 项已经和当前 Molis Work 状态不一致。请退回方案，让 Runtime 按最新状态重新整理。", { count: conflictCount })}</p>`
+    ? `<p class="goal-tree-proposal-conflict" role="status">${uiText("goals.proposal-ui.count-item-s-no-longer-match-current-molis", { count: conflictCount })}</p>`
     : "";
-  const invalidHeading = L("这份方案有 {count} 项内容需要修正", { count: invalidItemCount });
-  const invalidSummary = L("当前有内容不满足 Molis Work 的写入规则，修正前不会写入 Goal Tree。");
-  const invalidWhy = L("这份方案仍有不能安全写入的内容，需要修正后再确认。");
-  const invalidBasis = L("当前有 {count} 项内容无法写入；退回不会改变现有 Goal Tree。", { count: invalidItemCount });
+  const invalidHeading = uiText.text("goals.proposal-ui.proposal-has-count-item-s-that-need-correction", { count: invalidItemCount });
+  const invalidSummary = uiText.text("goals.proposal-ui.some-content-does-not-meet-molis-work-s");
+  const invalidWhy = uiText.text("goals.proposal-ui.some-parts-proposal-still-cannot-be-written-safely");
+  const invalidBasis = uiText.text("goals.proposal-ui.count-item-s-cannot-be-written-sending-proposal", { count: invalidItemCount });
   const invalidMessage = invalidItemCount
-    ? `<section class="goal-tree-proposal-readiness" role="alert"><div>${icon("blocked")}</div><div><h4>${L("这份方案暂时不能采用")}</h4><p>${invalidSummary}</p><strong>${L("你现在需要做：点击“退回修正”。退回理由已按下方问题预填，可以直接提交，也可以改写。")}</strong></div></section>`
+    ? `<section class="goal-tree-proposal-readiness" role="alert"><div>${icon("blocked")}</div><div><h4>${uiText("goals.proposal-ui.proposal-cannot-be-applied-yet")}</h4><p>${invalidSummary}</p><strong>${uiText("goals.proposal-ui.what-do-now-select-return-correction-return-reason")}</strong></div></section>`
     : "";
   return `<form class="decision-record goal-tree-proposal-decision" data-goal-tree-decision-form data-live-form="goal-tree-${escapeHtml(proposal.proposal_id)}" data-goal-tree-proposal-id="${escapeHtml(proposal.proposal_id)}" data-has-system-issues="${problemCount ? "true" : "false"}" novalidate>
-    <header class="decision-record-heading"><span class="decision-kind">${icon("tree")} ${L("目标说明")}${renderNewDecisionBadge(proposal.created_at, view, "goalTree", proposal.proposal_id)}</span><details class="decision-record-tech"><summary>${L("记录信息")}</summary><small>${L("方案版本 {version}", { version: proposal.version })} · ${escapeHtml(proposal.proposal_id)}</small></details></header>
-    <div class="decision-record-body"><h3>${invalidItemCount ? invalidHeading : L("这份 Goal 方案要采用，还是退回修改？")}</h3><p>${invalidItemCount ? L("方案中的其他内容仍可查看，但当前不能写入 Goal Tree。请先退回，让 Runtime 修正后重新提交。") : L("Runtime 已经把目标、完成条件和关系变化整理成一份方案。采用后这些内容才会进入 Goal Tree；退回则保持当前内容不变。")}</p>
-      <div class="goal-tree-proposal-summary"><small>${L("准备确认的 Goal")}</small><strong>${escapeHtml(proposedTitle)}</strong><p>${escapeHtml(proposedOutcome)}</p></div>
+    <header class="decision-record-heading"><span class="decision-kind">${icon("tree")} ${uiText("goals.proposal-ui.goal-summary")}${renderNewDecisionBadge(proposal.created_at, view, "goalTree", proposal.proposal_id)}</span><details class="decision-record-tech"><summary>${uiText("goals.proposal-ui.record-details")}</summary><small>${uiText("goals.proposal-ui.plan-version-version", { version: proposal.version })} · ${escapeHtml(proposal.proposal_id)}</small></details></header>
+    <div class="decision-record-body"><h3>${invalidItemCount ? invalidHeading : uiText("goals.proposal-ui.use-goal-plan-send-back-changes")}</h3><p>${invalidItemCount ? uiText("goals.proposal-ui.can-still-review-rest-proposal-but-cannot-be") : uiText("goals.proposal-ui.runtime-has-organized-goal-completion-conditions-relationship-ch")}</p>
+      <div class="goal-tree-proposal-summary"><small>${uiText("goals.proposal-ui.goal-ready-approval")}</small><strong>${escapeHtml(proposedTitle)}</strong><p>${escapeHtml(proposedOutcome)}</p></div>
       ${narrativeSummary}
       ${invalidMessage}
       ${renderDecisionGuidance({
         whyNow: invalidItemCount
           ? invalidWhy
-          : L("目标已经整理完，现在只差你确认这份方案是否准确。"),
-        recommendation: invalidItemCount ? L("退回修正") : null,
+          : uiText.text("goals.proposal-ui.goal-fully-organized-remaining-step-confirm-that-plan"),
+        recommendation: invalidItemCount ? uiText.text("goals.proposal-ui.return-correction") : null,
         recommendationBasis: invalidItemCount ? invalidBasis : undefined,
-        insufficient: L("方案是否符合你的真实意图，需要由你判断。"),
+        insufficient: uiText.text("goals.proposal-ui.only-can-decide-whether-plan-matches-intent"),
         consequences: invalidItemCount
           ? [
-              { choice: L("退回修正"), effect: L("当前 Goal Tree 保持不变；退回理由已预填下方问题，你可以直接采用或改写后再提交。") },
-              { choice: L("采用整份方案（当前不可用）"), effect: L("方案修正前，系统不会写入任何变化。") },
+              { choice: uiText.text("goals.proposal-ui.return-correction"), effect: uiText.text("goals.proposal-ui.current-goal-tree-stays-unchanged-rejection-reason-prefilled") },
+              { choice: uiText.text("goals.proposal-ui.apply-full-proposal-currently-unavailable"), effect: uiText.text("goals.proposal-ui.system-will-not-write-any-changes-until-proposal") },
             ]
           : [
-              { choice: L("采用整份方案"), effect: L("下面列出的目标和关系变化会一起生效，Goal 会进入相应的下一阶段。") },
-              { choice: L("退回修改"), effect: L("当前 Goal Tree 不会改变；Runtime 会根据你的意见重新整理方案。") },
+              { choice: uiText.text("goals.proposal-ui.use-whole-plan"), effect: uiText.text("goals.proposal-ui.listed-goal-relationship-changes-take-effect-together-goal") },
+              { choice: uiText.text("goals.proposal-ui.send-back-changes"), effect: uiText.text("goals.proposal-ui.current-goal-tree-stays-unchanged-runtime-will-revise") },
             ],
       })}${renderGoalTreeProposalScenario(proposal, view, undecidedItems)}
     </div>
     ${problemCount
-      ? `<details class="decision-details goal-tree-proposal-changes" open><summary><span>${L("先处理这 {count} 项", { count: problemCount })}<small>${L("需要你选择或让 Runtime 补全")}</small></span>${icon("chevron-down")}</summary><ol>${problemRows}</ol>${conflictMessage}</details>${otherItems.length ? `<details class="decision-details goal-tree-proposal-changes"><summary><span>${L("查看其余 {count} 项变化", { count: otherItems.length })}<small>${L("这些内容当前不需要你操作")}</small></span>${icon("chevron-down")}</summary><ol>${otherRows}</ol></details>` : ""}`
-      : `<details class="decision-details goal-tree-proposal-changes"><summary><span>${L("查看采用后的 {count} 项变化", { count: undecidedItems.length })}<small>${L("展开查看每项变化")}</small></span>${icon("chevron-down")}</summary><ol>${itemRows}</ol></details>`}
-    ${requirements.length ? `<details class="decision-details"><summary>${L("查看完成要求")}${icon("chevron-down")}</summary><div class="goal-tree-proposal-details">
-      <section class="goal-tree-proposal-acceptance"><h4>${L("完成要求")}</h4><ol>${requirements.map((requirement) => `<li><strong>${escapeHtml(requirement.statement)}</strong>${requirement.human_decision_required ? `<small>${L("需要用户验收")}</small>` : ""}</li>`).join("")}</ol></section>
+      ? `<details class="decision-details goal-tree-proposal-changes" open><summary><span>${uiText("goals.proposal-ui.handle-these-count-item-s-first", { count: problemCount })}<small>${uiText("goals.proposal-ui.choose-option-have-runtime-complete-item")}</small></span>${icon("chevron-down")}</summary><ol>${problemRows}</ol>${conflictMessage}</details>${otherItems.length ? `<details class="decision-details goal-tree-proposal-changes"><summary><span>${uiText("goals.proposal-ui.view-other-count-change-s", { count: otherItems.length })}<small>${uiText("goals.proposal-ui.no-action-needed-these-items-right-now")}</small></span>${icon("chevron-down")}</summary><ol>${otherRows}</ol></details>` : ""}`
+      : `<details class="decision-details goal-tree-proposal-changes"><summary><span>${uiText("goals.proposal-ui.view-count-count-will-apply", { count: undecidedItems.length })}<small>${uiText("goals.proposal-ui.expand-review-each-change")}</small></span>${icon("chevron-down")}</summary><ol>${itemRows}</ol></details>`}
+    ${requirements.length ? `<details class="decision-details"><summary>${uiText("goals.proposal-ui.view-completion-requirements")}${icon("chevron-down")}</summary><div class="goal-tree-proposal-details">
+      <section class="goal-tree-proposal-acceptance"><h4>${uiText("goals.proposal-ui.completion-requirement")}</h4><ol>${requirements.map((requirement) => `<li><strong>${escapeHtml(requirement.statement)}</strong>${requirement.human_decision_required ? `<small>${uiText("goals.proposal-ui.needs-user-acceptance")}</small>` : ""}</li>`).join("")}</ol></section>
     </div></details>` : ""}
     ${problemCount
-      ? `<label class="decision-reason"><span>${L("决定理由或修改意见")}（${L("必填")}）</span><textarea name="reason" rows="3" required placeholder="${L("已按下方问题预填，可以直接采用，也可以改写")}">${escapeHtml(prefilledRejectReason)}</textarea></label>`
-      : `<label class="decision-reason"><span>${L("决定理由或修改意见")}（${L("必填")}）</span><textarea name="reason" rows="3" required placeholder="${L("采用时说明为什么方案准确；退回时写清需要修改什么")}"></textarea></label>`}
+      ? `<label class="decision-reason"><span>${uiText("goals.proposal-ui.decision-reason-revision-note")}（${uiText("goals.proposal-ui.required")}）</span><textarea name="reason" rows="3" required placeholder="${uiText("goals.proposal-ui.prefilled-issues-below-submit-rewrite")}">${escapeHtml(prefilledRejectReason)}</textarea></label>`
+      : `<label class="decision-reason"><span>${uiText("goals.proposal-ui.decision-reason-revision-note")}（${uiText("goals.proposal-ui.required")}）</span><textarea name="reason" rows="3" required placeholder="${uiText("goals.proposal-ui.when-using-say-why-plan-accurate-when-sending")}"></textarea></label>`}
     <p class="form-error" data-decision-error role="alert" hidden></p>
-    <footer class="decision-actions"><button type="submit" name="decision" value="reject">${problemCount ? L("退回修正") : L("退回修改")}</button><button class="mw-btn mw-btn--primary" type="submit" name="decision" value="confirm"${problemCount || !actionableItems.length ? ` disabled aria-disabled="true"` : ""}>${invalidItemCount ? L("先修正方案") : conflictCount ? L("先更新冲突项") : L("采用整份方案")}</button></footer>
+    <footer class="decision-actions"><button type="submit" name="decision" value="reject">${problemCount ? uiText("goals.proposal-ui.return-correction") : uiText("goals.proposal-ui.send-back-changes")}</button><button class="mw-btn mw-btn--primary" type="submit" name="decision" value="confirm"${problemCount || !actionableItems.length ? ` disabled aria-disabled="true"` : ""}>${invalidItemCount ? uiText("goals.proposal-ui.correct-proposal-first") : conflictCount ? uiText("goals.proposal-ui.update-conflicting-items-first") : uiText("goals.proposal-ui.use-whole-plan")}</button></footer>
   </form>`;
 }
 return { renderGoalTreeProposalDecision, renderGoalTreeProposalList: (proposals: readonly GoalTreeProposalRecord[], view: GoalsProposalView) => renderProposalList(primitives, proposals, view) };

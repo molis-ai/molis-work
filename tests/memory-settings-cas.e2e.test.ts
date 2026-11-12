@@ -5,13 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, createLocalWebAssets, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
 
-const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGuidanceSettings, renderMolisWorkSettingsStylesheet } = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+installHostUiText();
+const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+const assets = createLocalWebAssets({ renderer, ptyClientFilePath: () => "/unused" });
 
 // Production renderer + browser client + request helper over real HTTP. The server is a protocol fixture,
 // not a substitute for the Service/SDK authority and CAS tests, and never starts a Home or calls a model.
@@ -34,12 +36,13 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     counts: { waiting_for_human: 0, executing: 0, execution_blocked: 0, execution_pending: 0, satisfied: 0, invalidated: 0, trashed: 0, archived: 0 },
     input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   };
-  const html = renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, [], "", false, section);
-  const guidanceHtml = guidanceFlow ? renderMolisWorkProjectGuidanceSettings(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, []) : html;
+  const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
+  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, [], "", false, section));
+  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance, [])) : html;
   const server = createServer(async (request, response) => {
     requests.push({ method: request.method ?? "GET", url: request.url ?? "/" }); visits.push(request.url ?? "/");
     const path = new URL(request.url!, "http://local").pathname;
-    if (path.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderMolisWorkSettingsStylesheet()); return; }
+    if (runWithLocale("zh", () => assets.serveWorkbenchAsset(request, response, path))) return;
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
     if (!path.includes("/api/memory/") && !path.includes("/api/contextual/") && !(section === "plugins" && ["/api/plugin-trust/", "/api/settings/plugin-permissions/", "/api/settings/plugin-project-reach/"].some(prefix => path.includes(prefix)))) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(guidanceFlow && path.endsWith("/settings/guidance") ? guidanceHtml : html); return; }
     response.setHeader("content-type", "application/json");
@@ -344,6 +347,7 @@ test("D0225 memory promotion navigates with only an opaque reference, fills an u
   await f.page.click("[data-promote-guidance]"); await navigation;
   await f.page.wait("document.querySelector('[data-guidance-form] [name=content]')?.value.startsWith('PRIVATE_DRAFT_')");
   assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form] [name=content]').value"), text);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form] [name=reason]').value"), "由项目记忆升级为项目说明");
   assert.equal(await f.page.evaluate("location.search"), "", "one-time reference is removed from browser history");
   const target = f.requests.find(request => request.method === "GET" && request.url.startsWith("/projects/project/settings/guidance"));
   assert.ok(target);

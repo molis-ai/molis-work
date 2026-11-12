@@ -1,8 +1,8 @@
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
-// These scripts run in the Host page, where the page-wide `L` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
+// These scripts run in the Host page, where the page-wide `readText` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
 export const PROJECT_RULES_CLIENT_SCRIPT = `
   (() => {
-    const L = (key, vars) => LF("io.molis.work.goals", key, vars);
+    const readText = globalThis.t.text;
     const bind = (root = document) => {
     const scope = root && root.querySelector ? root : document;
     // Only the project's rules page: a Goal's own rules form in the same document belongs to the Goal's script.
@@ -48,7 +48,7 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
       form.setAttribute("aria-busy", "true");
       const enabledControls = [...form.querySelectorAll("button, input, select, textarea")].filter(control => !control.disabled);
       enabledControls.forEach(control => { control.disabled = true; });
-      submit.textContent = L("正在保存…");
+      submit.textContent = globalThis.t.text("goals.project-policy-client.saving");
       errorBox.hidden = true;
       try {
         await molisWorkRequest(routePrefix + "${GOALS_PLUGIN_API}/policy-bindings", {
@@ -59,12 +59,12 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
             scope: "project_default",
             policy: { human_approval: values.has("human_approval") },
           },
-          fallback: L("项目默认工作规则保存失败"),
+          fallback: globalThis.t.text("goals.project-policy-client.could-not-save-project-default-work-rules"),
         });
         sessionStorage.setItem(receiptKey, JSON.stringify({
-          title: L("项目工作规则已保存"),
-          detail: L("这个项目的共同规则已更新：用户确认“{human}”。之后收尾的 Goal 会采用这条规则。", {
-            human: values.has("human_approval") ? L("需要") : L("不需要"),
+          title: globalThis.t.text("goals.project-policy-client.project-work-rules-saved"),
+          detail: globalThis.t.text("goals.project-policy-client.project-s-rule-was-updated-user-confirmation-human", {
+            human: values.has("human_approval") ? globalThis.t.text("goals.project-policy-client.required") : globalThis.t.text("goals.project-policy-client.not-required"),
           }),
         }));
         if (form.closest("[data-goal-work-rules]") && globalThis.molisWorkOpenGoalWorkRules) {
@@ -73,7 +73,7 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
         }
         location.reload();
       } catch (error) {
-        errorBox.textContent = error instanceof TypeError || error?.code === "ui_host.outcome_unknown" ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目默认工作规则保存失败，请检查输入后重试");
+        errorBox.textContent = error instanceof TypeError || error?.code === "ui_host.outcome_unknown" ? globalThis.t.text("goals.project-policy-client.could-not-reach-local-service-input-kept-please") : error.message || globalThis.t.text("goals.project-policy-client.could-not-save-project-default-work-rules-check");
         errorBox.hidden = false;
         saving = false;
         form.removeAttribute("aria-busy");

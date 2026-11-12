@@ -5,20 +5,23 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { withPageText } from "./fixtures/page-text.js";
 
 import { DatabaseSync } from "node:sqlite";
 import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
 import { AgentReviewQueue, createPrologueNodeAdapter, prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
-import { renderModelSettingsDocument, type ModelSettingsPrimitives } from "@molis-ai/molis-work-app-workbench";
+import { renderModelSettingsDocument as drawModelSettingsDocument, type ModelSettingsPrimitives } from "@molis-ai/molis-work-app-workbench";
 
 /**
  * 思考档是用户对每个供应商的选择：多花用量和时间，所以没选过就是关着，关着时请求里一个字段都没有；
  * 只有 Anthropic 格式有这个字段，别的格式在保存时就说清楚；开着时每一轮记下这一点，请求里带上它。
  */
 
+const renderModelSettingsDocument: typeof drawModelSettingsDocument = (...args) => withPageText("zh", [], () => drawModelSettingsDocument(...args));
+
 const p: ModelSettingsPrimitives = {
-  L: (text) => text,
+  readText: value => value,
   escape: (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
 };

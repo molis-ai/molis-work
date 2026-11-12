@@ -10,6 +10,7 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
 import { hostLog } from "../host-log.js";
+import type { WebLocale } from "../web-locale.js";
 import { assistantErrors } from "./assistant-errors.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
@@ -49,7 +50,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   confirmAlways?: () => ReadonlySet<string>,
   /** Told the moment a change is really handed to its owner (a stopped round's step that never was reads as not run). */
   dispatched?: (view: ActionView) => void,
-  pageContext?: () => ActionCallContext["page_context"],
+  pageContext?: () => ActionCallContext["page_context"], locale?: WebLocale,
   /** The Skills the person named for this round (its materials): the round's frozen list, so a `manual` one can be read. */
   roundSkills: readonly SkillRef[] = []): AgentStartAuthority {
   const reference = work.project_ref;
@@ -58,7 +59,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   const callId = currentCallId() ?? newCallId();
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`, call_id: callId,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [],
-    page_context: pageContext?.(), ...(signal ? { signal } : {}),
+    page_context: pageContext?.(), ...(locale ? { locale } : {}), ...(signal ? { signal } : {}),
     // This round's Skill reads are the Assistant's (`skill_round`, specs/capability-pack/contract-design.md §2.3): the catalog lets
     // through the Skills `applies_to: assistant` and those the person named, and refuses the rest. Host-written, never from input.
     skill_round: { consumer: "assistant", named: roundSkills } });

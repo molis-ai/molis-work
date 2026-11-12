@@ -40,7 +40,7 @@ const collections = [
     note: "Can be restored any time", detail: "A finished Goal can be archived from the top of its document. Historical facts are not deleted.",
     zhLabel: "已归档", zhTitle: "已归档 Goal · Molis Work", zhNote: "可随时恢复" },
   // The existing Host EN entry for 回收站 is "In trash"; Host words retain priority over the plugin's short label.
-  { name: "trash", trash: true, label: "In trash", pageTitle: "Trash · Molis Work", emptyTitle: "Trash is empty",
+  { name: "trash", trash: true, label: "Trash", pageTitle: "Trash · Molis Work", emptyTitle: "Trash is empty",
     note: "Recoverable; history and relation handling stay", detail: "Goals in trash can be restored here. They will not clutter the everyday Goal Tree.",
     zhLabel: "回收站", zhTitle: "回收站 · Molis Work", zhNote: "可恢复；历史与关联处理记录会保留" },
 ] as const;

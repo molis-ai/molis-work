@@ -34,6 +34,14 @@
       "load": "tool"
     },
     {
+      "id": "locale.im-ui",
+      "kind": "locale",
+      "owner": "im-ui",
+      "package": "@molis-ai/molis-work-im-ui",
+      "path": "resources/locales",
+      "load": "tool"
+    },
+    {
       "id": "font.inter-latin-variable",
       "kind": "font",
       "owner": "design-system",
@@ -54,6 +62,173 @@
       "route": "/assets/noto-sans-sc-400.woff2",
       "sha256": "eb385eca10dd39caff881c38338aefccecfaec6b42cc016fbe81434e388d6c3a",
       "license": {"spdx": "OFL-1.1", "source": "https://fontsource.org/fonts/noto-sans-sc", "notice_path": "fonts/README.md"}
+    },
+    {
+      "id": "skin.folio",
+      "kind": "skin",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/skins/folio.json",
+      "load": "startup"
+    },
+    {
+      "id": "font-scheme.folio-rounded",
+      "kind": "font-scheme",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/fonts/folio-rounded.json",
+      "load": "startup"
+    },
+    {
+      "id": "font-scheme.system-menlo",
+      "kind": "font-scheme",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/fonts/system-menlo.json",
+      "load": "startup"
+    },
+    {
+      "id": "font-scheme.relaxed-reading",
+      "kind": "font-scheme",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/fonts/relaxed-reading.json",
+      "load": "startup"
+    },
+    {
+      "id": "font.folio-nunito-latin",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-nunito-latin.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-nunito-latin.woff2",
+      "sha256": "ba344451eab25b217a165363b1982048a5e5830a0daf36577973955a04cac793",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://www.npmjs.com/package/@fontsource-variable/nunito/v/5.3.0",
+        "notice_path": "fonts/OFL-Nunito.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-400-tail",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-400-tail.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-400-tail.woff2",
+      "sha256": "010b7acee7c39ee5bb753c07bf4ced5cd40419fbd948ff3cb571725a5a917aa9",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-400-common",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-400-common.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-400-common.woff2",
+      "sha256": "450cc6a0db165083f533b64b1da8aee06f902dca12688328d6951c0a8138d368",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-500-tail",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-500-tail.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-500-tail.woff2",
+      "sha256": "600b024db2669de0dc9165b9de7d426650d3aa1e6d4a50cf2a3a2b1bdcf04343",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-500-common",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-500-common.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-500-common.woff2",
+      "sha256": "ba26159d3ff7c5d28886abbbf57dc90b74fec14e747a61d34a7089d2f5764309",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-600-tail",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-600-tail.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-600-tail.woff2",
+      "sha256": "3afba06e3fad63556925915bd77e1e8b700350f2ec8494956193633140c37c13",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-600-common",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-600-common.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-600-common.woff2",
+      "sha256": "c46eb26e6d40e7d867f00141f442158141aa1ea1ae653d9240c71cfa1e02e28c",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-700-tail",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-700-tail.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-700-tail.woff2",
+      "sha256": "68fb461411416f2c686e2d7f6678ec5bb5add3e9bf5b7a3d65a75a244f50204a",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
+    },
+    {
+      "id": "font.folio-rounded-700-common",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/folio-rounded-700-common.woff2",
+      "load": "on-select",
+      "route": "/assets/folio-rounded-700-common.woff2",
+      "sha256": "e75f19c699927d53b6841b396e17018d64f45d8f18eded7c949cc3d0a121857f",
+      "license": {
+        "spdx": "OFL-1.1",
+        "source": "https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910",
+        "notice_path": "fonts/OFL-RHR.txt"
+      }
     }
   ]
 }

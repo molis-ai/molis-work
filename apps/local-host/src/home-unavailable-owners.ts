@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { relative } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { readRollbackPoint } from "./installer/home-rollback.js";
 import { readUpgradeLedger, readUpgradeNotice, removeUpgradeNotice, type UpgradeNotice } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, type UpgradeBlock } from "./home-upgrade-stores.js";
 
@@ -106,4 +107,14 @@ export function upgradeNoticeFor(home: string): UpgradeNotice | undefined {
 /** The person closed it: gone for that round, and only that one. */
 export function dismissUpgradeNotice(home: string, runId: string): boolean {
   return removeUpgradeNotice(realpathSync(home), runId);
+}
+
+/**
+ * Where the card's 「回到上一版」 leads (§2.5): 设置 › 更新, which holds the one confirm dialog. Only a failed upgrade goes back, and only
+ * when there is a version kept to go back to; read only, no store opened.
+ */
+export function rollbackHrefFor(home: string, reason: UnavailableReason | "unreadable"): string | null {
+  if (reason !== "upgrade_failed") return null;
+  try { return readRollbackPoint(home).available ? "/settings/update" : null; }
+  catch { return null; /* A Home whose kept point cannot be read has no way back to offer; the card still says what is wrong. */ }
 }

@@ -13,6 +13,7 @@ mod external_links;
 mod native_language;
 mod page_files;
 mod personal_session;
+mod rollback;
 mod runtime_env;
 mod selected_file;
 #[cfg(target_os = "macos")]
@@ -971,6 +972,7 @@ fn main() {
       context_directories::context_directory_forget,
       context_directories::context_directory_preview,
       personal_session::personal_account_request,
+      rollback::rollback_to_previous,
       context_directories::context_directory_stage,
       shelf_surface_changed,
       files_drag_out,

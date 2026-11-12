@@ -105,6 +105,7 @@ export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugi
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderOwnerUnavailablePage } from "./owner-unavailable.js";
 export { renderOwnerUnavailableCard, type OwnerUnavailableCard, type OwnerUnavailableReason } from "./owner-unavailable-card.js";
+export { renderUpdateSettings, type SettingsRollbackPoint, type SettingsUpdateView } from "./settings-update.js";
 export { hostSettingsSectionLabel } from "./settings-sections.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";

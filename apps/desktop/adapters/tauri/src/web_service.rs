@@ -466,7 +466,7 @@ mod embedded_runtime_version_tests {
     }
 
     #[test]
-    fn upgr04_a_home_that_went_back_is_not_updated_again_to_the_version_it_left() {
+    fn upgr05_a_home_that_went_back_is_not_updated_again_to_the_version_it_left() {
         let old = Version::parse("0.1.4").unwrap();
         let left = Version::parse("0.1.5").unwrap();
         let newer = Version::parse("0.1.6").unwrap();

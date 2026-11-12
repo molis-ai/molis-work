@@ -1,3 +1,4 @@
+import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
 import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
@@ -40,7 +41,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|kit|memory|mcp|connectors|projects|diagnostics|sync)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|kit|memory|mcp|connectors|projects|diagnostics|update|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
@@ -116,6 +117,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
     projects,
     web_service: await webService.detect(),
+    ...(section === "update" && serverOptions.homeDirectory ? { update: settingsUpdateView(serverOptions.homeDirectory) } : {}),
     diagnostics: composition.installationDiagnostics(projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
@@ -189,4 +191,10 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+/** 设置 › 更新 (U3 §5.4): read only, no store opened. */
+function settingsUpdateView(home: string) {
+  const held = readRollbackHold(home);
+  return { point: readRollbackPoint(home), held: held ? { held_version: held.held_version, rolled_back_from: held.rolled_back_from.version } : null };
 }

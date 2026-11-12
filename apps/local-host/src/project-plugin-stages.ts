@@ -14,7 +14,7 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
-import { describePluginTablesRefusal } from "./home-unavailable-owners.js";
+import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { activeLocale, runWithRegisteredText, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { pluginViewText } from "./plugin-host-services.js";
 import { projectTextPacks } from "./ui-text-provider.js";
@@ -137,7 +137,7 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const refusal = homeDirectory ? projectPluginDatabaseRefusal(store.db, pluginId) : null;
     const upgrade = homeDirectory && refusal instanceof ActionError ? describePluginTablesRefusal(homeDirectory, pluginId, store.path, refusal) : undefined;
     if (upgrade) return { ...unavailableStage(state, entry, refusal?.message ?? ""), restart: null,
-      upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: null, reload_href: null } };
+      upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: homeDirectory ? rollbackHrefFor(homeDirectory, upgrade.reason) : null, reload_href: null } };
     return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
       ?? uiText.text(active?.status === "starting" ? "workbench.project-plugin-stages.starting" : running
         ? "workbench.project-plugin-stages.plugin-running-but-has-not-provided-page" : "workbench.project-plugin-stages.plugin-not-running"));

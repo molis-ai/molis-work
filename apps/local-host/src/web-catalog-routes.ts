@@ -1,3 +1,4 @@
+import { liftRollbackHold } from "./installer/home-rollback.js";
 import { hostErrors } from "./host-errors.js";
 import { dismissUpgradeNotice, upgradeNoticeFor } from "./home-unavailable-owners.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -150,6 +151,12 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     const body = await readLocalWebBody(request) as { run_id?: unknown } | null;
     if (typeof body?.run_id !== "string") throw hostErrors.upgrade_notice_invalid("关闭这条提示要带上它说的那一轮（run_id）");
     sendJson(response, 200, { dismissed: dismissUpgradeNotice(serverOptions.homeDirectory, body.run_id) });
+    return true;
+  } },
+  // U3 §5.3: the person puts the version they went back from on again; the desktop installs it on its next start.
+  { id: "update-hold", handle: async ({ request, response, url, serverOptions }) => {
+    if (!(request.method === "POST" && url.pathname === "/api/update/hold/lift" && serverOptions.homeDirectory)) return false;
+    sendJson(response, 200, { lifted: await liftRollbackHold(serverOptions.homeDirectory) });
     return true;
   } },
   { id: "project-index", handle: ({ request, response, url, serverOptions, projects, controlToken, composition }) => {

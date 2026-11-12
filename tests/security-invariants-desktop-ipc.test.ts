@@ -30,6 +30,8 @@ const PERMISSIONS = new Map<string, string[]>([
   ["context-directories", ["allow-context-directories"]],
   // Personal login was added by this branch: fixed loopback account routes only, not a general HTTP bridge.
   ["main-external-links", ["allow-open-external-url", "allow-personal-account-request"]],
+  // Going back a version (U3 §5.4): one command, from 设置 › 更新 in the main window only (S-desktop-rollback-main-only).
+  ["main-rollback", ["allow-rollback-to-previous"]],
 ]);
 
 test("S-14 every capability reaches only the local web host's own origin, on named windows, with the pinned permissions", () => {
@@ -142,4 +144,18 @@ test("S-14 the Shelf box a page reports reaches the drop wheel only through its 
   assert.match(wheel, /\*shown = drop_wheel::reported_panel\(panel\);/, "what is stored is what the check keeps");
   assert.match(wheel, /fn over_shelf_panel\([\s\S]*?drop_wheel::over_reported_panel\(/, "the hit test is the checked one");
   for (const name of ["s14_a_reported_shelf_box_that_is_not_a_box_is_refused", "s14_the_wheel_takes_the_shelf_tab_only_where_it_is_on_screen"]) assert.match(pure, new RegExp(`fn ${name}\\(`), `${name}: the refusal is tested`);
+});
+
+test("S-desktop-rollback-main-only going back a version is granted to the main window's update page alone, and the command checks the caller before it stops anything", () => {
+  const grant = capabilities.filter(capability => (capability.permissions as string[]).includes("allow-rollback-to-previous"));
+  assert.deepEqual(grant.map(capability => capability.identifier), ["main-rollback"], "no other capability carries it");
+  assert.deepEqual(grant[0]!.windows, ["main"], "not the capsule, not any other window");
+  assert.deepEqual(grant[0]!.remote!.urls, ["http://127.0.0.1:4173/settings/update*"], "only the page with the confirm dialog");
+  const permission = readFileSync(join(SHELL, "permissions", "rollback.toml"), "utf8");
+  assert.match(permission, /commands\.allow = \["rollback_to_previous"\]/u, "the permission allows that one command");
+  const source = readFileSync(fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/rollback.rs", import.meta.url)), "utf8");
+  const command = source.slice(source.indexOf("pub(crate) async fn rollback_to_previous"));
+  const checked = command.indexOf("rollback_source(window.label()"), stopped = command.indexOf("go_back(");
+  assert.ok(checked > 0 && checked < stopped, "the window and its address are checked before the Host is stopped");
+  assert.match(source, /fn s_desktop_rollback_main_only_refuses_every_other_window_and_origin/u, "the Rust refusal test stays");
 });

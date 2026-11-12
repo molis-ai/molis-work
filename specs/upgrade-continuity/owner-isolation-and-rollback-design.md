@@ -181,9 +181,9 @@ type RollbackPoint =
 | 说明卡、插件格的说明、页面恢复 | `apps/workbench/src/`（新 `owner-unavailable.ts`，`plugin-store-unavailable.ts` 并入）、`unavailable-plugin-stage.ts`、`apps/local-host/src/web-request.ts`、`web-home-plugin-recovery.ts`（改名 `web-owner-unavailable.ts`）、`project-plugin-stages.ts`、`home-plugin-http.ts` | D（界面）、宿主枢纽 |
 | 开场页、`/upgrade-progress` | `apps/local-host/src/upgrade-maintenance.ts` | C1 |
 | 结果卡、`notice.json` | `apps/local-host/src/home-upgrade-ledger.ts`、首页 | C1、D |
-| 回退点、`home rollback`、保留上一版、hold | `apps/local-host/src/installer/`（`home.ts`、`home-release.ts`、新 `home-rollback.ts`）、`apps/cli` | F（安装器） |
-| 桌面：`rollback_to_previous`、hold、开场导航 | `apps/desktop/adapters/tauri/src/web_service.rs`、`main.rs`、`capabilities/*.json` | F |
-| 设置 › 更新（当前版本、回到上一版；演练与「重启以更新」第 26 批） | `apps/workbench/src/settings-update.ts`（新） | D |
+| 回退点、`home rollback`、保留上一版、hold；卸载认得回退点与 hold | `apps/local-host/src/installer/`（`home.ts`、新 `home-rollback.ts`、`uninstall-files.ts`）、`apps/local-host/src/cli-home.ts`；放回快照 `home-upgrade.ts` 的 `putBackUpgradeRound`、`packages/storage/src/upgrade-snapshot.ts` 的 `upgradeSnapshotListed` | F（安装器） |
+| 桌面：`rollback_to_previous`、hold、开场导航 | 新 `apps/desktop/adapters/tauri/src/rollback.rs`、`web_service.rs`、`main.rs`、`capabilities/main-rollback.json`、`permissions/rollback.toml` | F |
+| 设置 › 更新（当前版本、回到上一版、停在上一版时「重新装上」；演练与「重启以更新」第 26 批） | `apps/workbench/src/settings-update.ts`（新）、`settings-sections.ts`；宿主 `web-catalog-settings.ts`、`web-catalog-routes.ts`（`POST /api/update/hold/lift`） | D |
 
 不新增动作、Manifest 字段或公开合同：`block` 和不可用表都是宿主内部；`home rollback` 是 CLI 命令；桌面命令走 Tauri。三个新带版本文件（`upgrade/notice.json`、`rollback.json`、`rollback-hold.json`）登记进 `tooling/versions.json`，走 `verify-release-versions` 的核对。
 
@@ -210,4 +210,6 @@ type RollbackPoint =
 | UPGR-04 | `--save-current` 失败时什么都不动；放回中途失败时程序不换，再跑一次接着做 | 同上 |
 | UPGR-05 | 有 hold 时桌面不把同一版新运行时装回去；内置的更新时照常装并删 hold | `apps/desktop` Rust 单元测试 |
 | UPGR-06 | `rollback_to_previous` 只接受主窗口本机主文档，别的来源被拒 | `apps/desktop` Rust 单元测试（`S-desktop-rollback-main-only`） |
+| UPGR-08 | 说明卡的「回到上一版」只在升级失败且有回退点时出现，指向设置 › 更新；设置 › 更新在桌面给按钮与确认框（另存默认勾上）、在浏览器给命令，回不去时说原因，停在上一版时给「重新装上」 | `tests/home-rollback.test.ts` |
+| UPGR-09 | 卸载把回退点和 hold 当作安装器自己的文件一起删，读不了的就停下不删 | 同上 |
 | UPGR-07 | [人工] 在隔离 Home 里装两个构建（后一个改了库结构），从说明卡和设置 › 更新各回退一次，勾与不勾另存各一次 | 实操记录 |

@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { hostSettingsSectionLabel, renderOwnerUnavailablePage, type OwnerUnavailableCard } from "@molis-ai/molis-work-app-workbench";
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
-import { describeUnavailable, diagnosticId, upgradeRefusal, type UnavailableOwner } from "./home-unavailable-owners.js";
+import { describeUnavailable, diagnosticId, rollbackHrefFor, upgradeRefusal, type UnavailableOwner } from "./home-unavailable-owners.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -37,7 +37,7 @@ function partTitle(owner: UnavailableOwner, project: { display_name: string } | 
 
 /**
  * The card for a store an open refused, when it is one of this Home's (U3 design §2.2); otherwise nothing, and the caller lets the error go
- * on as it is. `rollback_href` is filled by the rollback point once there is one to go back to (item 3).
+ * on as it is. `rollbackHref` is 设置 › 更新 when a failed upgrade has a version to go back to (`rollbackHrefFor`).
  */
 export function ownerUnavailableCard(owner: UnavailableOwner, project: { display_name: string } | null, reloadHref: string, rollbackHref: string | null): OwnerUnavailableCard {
   return { title: partTitle(owner, project), reason: owner.reason, diagnostic_id: owner.diagnostic_id, rollback_href: rollbackHref, reload_href: reloadHref };
@@ -71,7 +71,7 @@ export async function withOwnerUnavailablePage(context: WebRequestContext, proje
     const projection = selectedId && owner?.block.kind !== "projects" ? await composition.withCatalog({ homeDirectory: home }, catalog => ({
       project: catalog.getProject(selectedId), membership: ledger ? catalog.storedProjectPluginMembership(selectedId) : undefined,
     })) : { project: null, membership: ledger ? { plugins: [], hidden: [] } : undefined };
-    const card: OwnerUnavailableCard = owner && !ledger ? ownerUnavailableCard(owner, projection.project, reloadHref, null)
+    const card: OwnerUnavailableCard = owner && !ledger ? ownerUnavailableCard(owner, projection.project, reloadHref, rollbackHrefFor(home, owner.reason))
       : { title: uiText.text("workbench.owner-unavailable.block.home-plugin-ledger"), reason: owner?.reason ?? "unreadable",
         diagnostic_id: owner?.diagnostic_id ?? diagnosticId("none", "home-plugin-runtime"), rollback_href: null, reload_href: reloadHref };
     sendOwnerUnavailablePage(context, card, projection.project, projection.membership);

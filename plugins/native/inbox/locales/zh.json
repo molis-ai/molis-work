@@ -88,6 +88,8 @@
     "inbox.capability-library.inbox-pages-generate-v1.title": "整理成文稿",
     "inbox.read-group.inbox.description": "Inbox 里待处理的事项与它们的内容",
     "inbox.read-group.inbox.title": "来信",
-    "inbox.client.list-refresh-failed-input-kept": "列表更新失败，当前输入已保留。"
+    "inbox.client.list-refresh-failed-input-kept": "列表更新失败，当前输入已保留。",
+    "inbox.ui.configure-judgment-rule": "配置判断规则",
+    "inbox.ui.update-suggestions-first-20-open-items": "更新前 20 条待处理建议"
   }
 }

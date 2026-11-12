@@ -88,6 +88,8 @@
     "inbox.capability-library.inbox-pages-generate-v1.title": "Create a document",
     "inbox.read-group.inbox.description": "Items waiting in the Inbox and what they contain",
     "inbox.read-group.inbox.title": "Inbox",
-    "inbox.client.list-refresh-failed-input-kept": "Could not refresh the list. Your input is preserved."
+    "inbox.client.list-refresh-failed-input-kept": "Could not refresh the list. Your input is preserved.",
+    "inbox.ui.configure-judgment-rule": "Configure judgment rule",
+    "inbox.ui.update-suggestions-first-20-open-items": "Update suggestions for the first 20 open items"
   }
 }

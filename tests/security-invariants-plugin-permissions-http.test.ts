@@ -11,7 +11,7 @@ import { homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 // own instance have the same switch behind the Host settings door (BL-700); RAC-959 the page lists them and sends their switch to that door.
 
 const SET = "/api/plugin-trust/permissions/set";
-const HOME_ROWS = /^draw\(\$\("home"\), globalThis\.t\.text\("workbench\.settings-plugins\.no-plugins-personal-space"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m;
+const HOME_ROWS = /^draw\(\$\("home"\), readText\("workbench\.settings-plugins\.no-plugins-personal-space"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m;
 interface Overview { plugins: PluginInstalledView[] }
 const timeout = 90_000;
 
@@ -102,7 +102,7 @@ test("RAC-951 RAC-952 the 插件 page gives each requested optional permission a
   assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");
   assert.match(script, /!view\.granted && item\.permissions\.includes\(view\.permission\)/, "a job is paused by a permission that is off");
-  assert.match(script, /off\.length \? globalThis\.t\.text\("workbench\.settings-plugins\.paused-permissions-switched-off", \{ permissions: off\.join\("、"\) \}\) : ""/, "the paused message names exactly the missing grants");
+  assert.match(script, /off\.length \? readText\("workbench\.settings-plugins\.paused-permissions-switched-off", \{ permissions: off\.join\("、"\) \}\) : ""/, "the paused message names exactly the missing grants");
 });
 
 const HOME_SET = "/api/settings/plugin-permissions/set";
@@ -212,8 +212,9 @@ test("RAC-2606 the 插件 page sends a Home row's switch-off, switch-on and unin
   assert.match(script, /body\.append\(controls\(plugin, revoked, act\)\)/, "the row hands its act to the buttons");
   // Revocation comes from the Host's trusted publisher pins, independently of the installation's recovery code.
   assert.match(script, /^const revoked = new Set\(data\.publishers\.filter\(\(pin\) => pin\.revoked_at\)\.map\(\(pin\) => pin\.key_id\)\);$/m);
-  const revoked = 'if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", globalThis.t.text("workbench.settings-plugins.trust-its-publisher-was-revoked-no-longer-runs")));';
-  const recovery = 'else if (plugin.recovery_error) body.append(el("span", "settings-form-error", globalThis.t.text("workbench.settings-plugins.could-not-start-error", { error: readText(({ "plugin.publisher_revoked": "workbench.settings-plugins.publisher-revoked", "plugin.manifest_version_invalid": "workbench.settings-plugins.platform-version-mismatch" })[plugin.recovery_error] ?? "workbench.settings-plugins.retry-start") })));';
+  const revoked = 'if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", readText("workbench.settings-plugins.trust-its-publisher-was-revoked-no-longer-runs")));';
+  // BL-915: a package that is gone says it can only be uninstalled.
+  const recovery = 'else if (plugin.recovery_error) body.append(el("span", "settings-form-error", readText("workbench.settings-plugins.could-not-start-error", { error: readText(plugin.recovery_error === "plugin.publisher_revoked" ? "workbench.settings-plugins.publisher-revoked" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "workbench.settings-plugins.platform-version-mismatch" : plugin.recovery_error === "plugin.package_missing" ? "workbench.settings-plugins.package-plugin-installed-missing-only-uninstalled" : "workbench.settings-plugins.retry-start") })));';
   assert.ok(script.includes(`${revoked}\n${recovery}`), "the revoked sentence wins, and recovery uses the stable code or the retry message");
   // The page's script carries the shared workbench code too, which writes markup elsewhere; this program is the one that draws the rows: from its binder (found by the flag only it sets) to the end of its closure.
   const begin = script.lastIndexOf("const bind = (root) => {", script.indexOf("root.dataset.pluginTrustBound"));

@@ -248,7 +248,8 @@ test("MEM-06 vector with no fallback, or a fallback for another reason only, is 
 
 // MEM-32: a skip scene does no automatic recall and puts no memory in the final Context; the person's explicit recall
 // still reads it; a Coding Run never receives an entry classified for the Assistant; and a preference is not pinned into
-// every Run (it arrives only when recall selects it). The explicit-only HTTP entry under the manual preset is
+// every Run: a preference recall selects does arrive (the positive control), one it does not select stays out, and the
+// recipe pins nothing. The explicit-only HTTP entry under the manual preset is
 // memory-presets.test.ts "manual recall is explicit only…".
 test("MEM-32 skip Runs carry no memory in the final HTTP Context, explicit recall still reads, Coding never gets Assistant entries, preferences are not pinned", { timeout: 40_000 }, async () => {
   const rig = await runRig();
@@ -256,7 +257,8 @@ test("MEM-32 skip Runs carry no memory in the final HTTP Context, explicit recal
     const coded = await rig.save("Release checklist: CODING_ONLY", { classification: { scenes: ["coding"], lifecycle: "long-term" } });
     await rig.save("Release checklist: ASSISTANT_ONLY", { classification: { scenes: ["assistant"], lifecycle: "long-term" } });
     await rig.save("Indentation: PREFERENCE_ONLY", { kind: "preference", classification: { scenes: ["coding"], lifecycle: "long-term" } });
-    const markers = /CODING_ONLY|ASSISTANT_ONLY|PREFERENCE_ONLY/;
+    const matching = await rig.save("Release checklist: PREFERENCE_MATCH", { kind: "preference", classification: { scenes: ["coding"], lifecycle: "long-term" } });
+    const markers = /CODING_ONLY|ASSISTANT_ONLY|PREFERENCE_ONLY|PREFERENCE_MATCH/;
     const skipped = await rig.service.forRun({ ...caller, work: { work_id: "skip", title: "Release" } }, { query: "Release checklist" }, { skip: true });
     assert.ok(skipped); assert.equal(skipped.skip, true); assert.equal(skipped.task, false); assert.deepEqual(skipped.pinned, []);
     const quiet = await rig.start(skipped);
@@ -276,16 +278,18 @@ test("MEM-32 skip Runs carry no memory in the final HTTP Context, explicit recal
     assert.equal(rig.requests.length, 2);
     assert.match(rig.requests[1]!, /CODING_ONLY/);
     assert.doesNotMatch(rig.requests[1]!, /ASSISTANT_ONLY/, "the Coding scene never receives an Assistant entry");
+    assert.match(rig.requests[1]!, /PREFERENCE_MATCH/, "a preference recall selects does reach the Context, so the next line is not vacuous");
     assert.doesNotMatch(rig.requests[1]!, /PREFERENCE_ONLY/, "a preference the recall did not select stays out of the Context");
-    assert.deepEqual(view.memory_recalled?.injected, [{ memory_id: coded.memory_id, version: coded.version }]);
+    assert.deepEqual(view.memory_recalled?.injected.map(one => one.memory_id).sort(), [coded.memory_id, matching.memory_id].sort());
   } finally { await rig.close(); }
 });
 
-// MEM-25: one entry classified for two scenes is the same reference in both, with no copied body; another App on the same
-// storage, holding the same-named classes, sees and writes nothing under Molis's authority; Molis's own classes are
-// unchanged when it reopens. The SDK half (each App's own taxonomy, kinds the SDK does not rewrite, isolation by App id)
-// is Prologue packages/sdk/test/memory-access.live.test.ts "并行场景视图固定身份；分类跨重启保存且不同 App 隔离".
-test("MEM-25 two scenes share one reference without copies, and another App on the same storage sees and writes nothing", { timeout: 40_000 }, async () => {
+// MEM-25: one entry classified for two scenes is the same reference in both, with no copied body; Molis's own authority
+// refuses an App that is not Molis on the same storage (it answers no for any other App id, so this part proves Molis's
+// gate, not the SDK's isolation); Molis's classes are unchanged when it reopens. The SDK's own cross-App isolation, each
+// App's own taxonomy and kinds the SDK does not rewrite, is Prologue packages/sdk/test/memory-access.live.test.ts
+// "并行场景视图固定身份；分类跨重启保存且不同 App 隔离" (an App with another taxonomy and its own permissive authority).
+test("MEM-25 two scenes share one reference without copies, and Molis's authority refuses another App on the same storage", { timeout: 40_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-two-apps-"));
   try {
     const owner = acquireStorageOwner(join(home, "agent-runtime"));
@@ -306,7 +310,7 @@ test("MEM-25 two scenes share one reference without copies, and another App on t
     } finally { await molis.close(); }
     const other = await runRig({ home, appId: "io.example.notes" });
     try {
-      assert.deepEqual(await other.backend.withCaller(person).list("project", project), [], "another App sees nothing");
+      assert.deepEqual(await other.backend.withCaller(person).list("project", project), [], "Molis's authority shows another App nothing");
       await assert.rejects(other.save("Release checklist: OTHER_APP", { classification: { scenes: ["coding"], lifecycle: "long-term" } }), { code: "MEMORY_SCOPE_DENIED" });
     } finally { await other.close(); }
     const again = await runRig({ home });

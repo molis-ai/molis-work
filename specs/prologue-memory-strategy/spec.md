@@ -219,9 +219,9 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - MEM-06：没装向量后端时，向量召回不配回退、或回退只配给别的原因，运行时在组装时就被拒，不会悄悄改用关键词；运行中失败不回退、伪造引用被拒是 SDK 槽合同，用例在 Prologue `memory-recaller.live.test.ts`（`tests/prologue-memory-run-context.test.ts`）。
   - MEM-07：同一个回执号从选中走到最终 Context；选中、没选上、裁剪后实际发出的分开记，事件里带的正文到不了投影（`tests/prologue-memory-receipts.test.ts`）。
   - MEM-21：候选等过 14 天后不能接受，同样的话再出现一次也不会把它晋升成正式记忆（`tests/memory-promotion.test.ts`）。
-  - MEM-25：一条同时分给 Coding 与助理的记忆，两边读到的是同一个引用、不复制；同一份存储上的另一个 App 看不到、也写不进；Molis 重开后分类不变。各 App 自带分类、SDK 不改写，是 Prologue `memory-access.live.test.ts` 的用例（`tests/prologue-memory-run-context.test.ts`）。
+  - MEM-25：一条同时分给 Coding 与助理的记忆，两边读到的是同一个引用、不复制；Molis 重开后分类不变（`tests/prologue-memory-run-context.test.ts`）。同一份存储上的另一个 App 看不到、写不进，这一段只证明 Molis 自己的 Authority（它对别的 App 一律答否）；SDK 的跨 App 隔离、各 App 自带分类、SDK 不改写，证据是 Prologue `memory-access.live.test.ts`（另一套分类、放行它自己的 App 读不到、用自己的类型写入）。评审台复审时指出，已改用例名与说明。
   - MEM-29：任务召回、Run 配方和本人列表都不延长短期记忆的期限、不改版本；到期那一刻就退出召回，不用等清理（`tests/memory-renewal.test.ts`）。
-  - MEM-32：跳过的 Run 只记一次「跳过」、不试任何算法，最终发给模型的 Context 里没有记忆；本人的明确召回照常能读；Coding 的 Run 拿不到只分给助理的记忆；偏好不常驻，召回没选上就不进 Context（`tests/prologue-memory-run-context.test.ts`）。
+  - MEM-32：跳过的 Run 只记一次「跳过」、不试任何算法，最终发给模型的 Context 里没有记忆；本人的明确召回照常能读；Coding 的 Run 拿不到只分给助理的记忆；偏好不常驻：召回选中的偏好进 Context（正对照，评审台复审时要求补），没选上的不进（`tests/prologue-memory-run-context.test.ts`）。
   - 另在已有的相关用例上补了编号注释（MEM-21、MEM-29、MEM-32）。MEM-21 与 MEM-32 的新用例各做过一次反向检查：把条件改反（期限前一分钟、助理记忆改成 Coding）后用例失败。
 - **记录过时。** `docs/system/CONTRACT-CHANGES.md`、`docs/system/HOME-DATA.md` 开头写的恢复日志 schema 2 与「无旧库迁移」改成 schema 1 与已登记的 1 → 2 升级段；本 spec 状态句、BL-1071、BL-1072 改到现状；补上本节之前的开工前检查。
 

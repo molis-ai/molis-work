@@ -169,13 +169,13 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       const list = el("ul", "prompt-diagnostics-list");
       data.contributions.forEach((item) => {
         const row = el("li", "prompt-diagnostics-owner");
-        const facts = [globalThis.t.text("workbench.settings-assistant.capabilities") + " " + item.actions + "（" + globalThis.t.text("workbench.settings-assistant.read") + " " + item.reads + " · " + globalThis.t.text("workbench.settings-assistant.change") + " " + item.changes + "）",
-          item.readable_kinds.length ? globalThis.t.text("workbench.settings-assistant.readable-objects") + "：" + item.readable_kinds.join("、") : globalThis.t.text("workbench.settings-assistant.objects-cannot-be-read-back"),
+        const facts = [globalThis.t.text("workbench.settings-assistant.capabilities") + " " + item.actions + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.read") + " " + item.reads + " · " + globalThis.t.text("workbench.settings-assistant.change") + " " + item.changes }),
+          item.readable_kinds.length ? globalThis.t.text("workbench.settings-assistant.readable-objects") + globalThis.t.text("common.punctuation.label-separator") + item.readable_kinds.join(globalThis.t.text("common.list.separator")) : globalThis.t.text("workbench.settings-assistant.objects-cannot-be-read-back"),
           item.changes ? globalThis.t.text("workbench.settings-assistant.linked-changes") + " " + item.linked_changes + "/" + item.changes : "", item.searchable ? globalThis.t.text("workbench.settings-assistant.search") : ""].filter(Boolean).join(" · ");
         row.append(el("strong", "", item.title), el("span", "settings-muted", facts));
         if (item.gaps.length) {
           const gaps = el("ul", "prompt-diagnostics-issues");
-          item.gaps.forEach((gap) => gaps.append(el("li", "prompt-diagnostics-issue prompt-diagnostics-issue--warning", globalThis.t.text(AREA[gap.area] || gap.area) + "：" + gap.text)));
+          item.gaps.forEach((gap) => gaps.append(el("li", "prompt-diagnostics-issue prompt-diagnostics-issue--warning", globalThis.t.text(AREA[gap.area] || gap.area) + globalThis.t.text("common.punctuation.label-separator") + gap.text)));
           row.append(gaps);
         }
         list.append(row);
@@ -197,9 +197,9 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     surfacesBox.replaceChildren();
     pages.forEach(({ page_id: id, label: name }) => { pageNames[id] = name; const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + name)); surfacesBox.append(label); });
   };
-  const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
-    + (rule.except.length ? "；" + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join("、") + globalThis.t.text("workbench.settings-assistant.still-notify") : "")
-    + (rule.until ? "；" + globalThis.t.text("workbench.settings-assistant.until") + " " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: rule.until, style: "datetime-with-seconds" } }) : "");
+  const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
+    + (rule.except.length ? globalThis.t.text("common.punctuation.semicolon") + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.still-notify") : "")
+    + (rule.until ? globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-assistant.until") + " " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: rule.until, style: "datetime-with-seconds" } }) : "");
   const paintRules = (rules) => {
     rulesList.replaceChildren();
     if (!rules.length) { rulesList.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-assistant.no-rules-yet-when-something-needs-assistant-shows"))); return; }
@@ -230,7 +230,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     event.preventDefault();
     const form = event.currentTarget, surfaces = [...form.querySelectorAll("[data-assistant-rule-surface]")].filter((box) => box.checked).map((box) => box.value);
     const except = exceptOf(form);
-    const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => surfaceName(id)).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? "，" + except.map((kind) => globalThis.t.text(KIND[kind])).join("、") + globalThis.t.text("workbench.settings-assistant.excepted") : "");
+    const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? globalThis.t.text("common.punctuation.clause-separator") + except.map((kind) => globalThis.t.text(KIND[kind])).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.excepted") : "");
     run(() => rulesApi("/rules", { rule: { kind: "quiet", surfaces, except, label } }));
   });
   root.querySelector("[data-assistant-rule-pause]").addEventListener("submit", (event) => {
@@ -265,8 +265,8 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const budgetError = root.querySelector("[data-assistant-budget-error]");
   const paintUsage = (usage) => {
     const used = usage.today.input + usage.today.output;
-    usageLine.textContent = globalThis.t.text("workbench.settings-assistant.assistant-used-today") + " " + used.toLocaleString() + " tokens（" + globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + "，" + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
-      + (usage.today.cached_input ? "，" + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + usage.today.cached_input.toLocaleString() : "") + "，" + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") + "）"
+    usageLine.textContent = globalThis.t.text("workbench.settings-assistant.assistant-used-today") + " " + used.toLocaleString() + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
+      + (usage.today.cached_input ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + usage.today.cached_input.toLocaleString() : "") + globalThis.t.text("common.punctuation.clause-separator") + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") })
       + (usage.daily_tokens ? " · " + globalThis.t.text("workbench.settings-assistant.cap") + " " + usage.daily_tokens.toLocaleString() : " · " + globalThis.t.text("workbench.settings-assistant.no-cap"));
     if (document.activeElement !== budgetInput) budgetInput.value = usage.daily_tokens ? String(usage.daily_tokens) : "";
   };
@@ -294,7 +294,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       const list = el("ul", "prompt-list");
       forbidden.forEach((app) => {
         const item = el("li", "prompt-row");
-        item.append(el("span", "", (app.name || app.bundle_id) + "（" + app.bundle_id + "）"));
+        item.append(el("span", "", (app.name || app.bundle_id) + globalThis.t.text("common.punctuation.in-parens", { value: app.bundle_id })));
         const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-assistant.remove"));
         remove.type = "button";
         remove.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
@@ -309,7 +309,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         const data = await computerApi("/permissions");
         if (!data.permissions) { permsEl.textContent = data.problem ? globalThis.t.text("workbench.settings-assistant.computer-helper") + data.problem : globalThis.t.text("workbench.settings-assistant.computer-helper-not-ready-yet"); return; }
         const missing = Object.keys(data.permissions).filter((key) => !data.permissions[key]).map((key) => PERM[key] || key);
-        permsEl.textContent = missing.length ? globalThis.t.text("workbench.settings-assistant.still-missing-system-permissions") + missing.join("、") + globalThis.t.text("workbench.settings-assistant.grant-them-side-panels-computer-tab") : globalThis.t.text("workbench.settings-assistant.all-system-permissions-granted");
+        permsEl.textContent = missing.length ? globalThis.t.text("workbench.settings-assistant.still-missing-system-permissions") + missing.join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.grant-them-side-panels-computer-tab") : globalThis.t.text("workbench.settings-assistant.all-system-permissions-granted");
       } catch (failure) { molisWorkRequest.show(permsEl,failure); }
     };
     const runComputer = async (work) => { computerError.hidden = true; try { await work(); } catch (failure) { molisWorkRequest.show(computerError,failure); computerError.hidden = false; } };

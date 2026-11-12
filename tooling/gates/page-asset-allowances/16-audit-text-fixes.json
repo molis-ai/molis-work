@@ -1,0 +1,20 @@
+{
+  "reason": "第 16 批合后审计修复：英文界面不再拼中文标点/半句（FSS-39），新增平台共用标点键与整句消息、补充 fallback 与显示映射，页面脚本取词增量。只按同一测量器相对 206884b447 的逐资源实测差额放行。",
+  "review": "fix/16-audit-followups 合后审计整改；2026-11-12 用仓库同一测量器（隔离构建 206884b447 与候选）实测，逐资源增量均小于 10 KB；见 PR 说明与 /private/tmp/audit16/REPORT.md。",
+  "assets": {
+    "/assets/molis-work-kit.js": 28,
+    "/assets/molis-work-plugin-frame.js": 513,
+    "/assets/molis-work-plugins/characters.js": 74,
+    "/assets/molis-work-workbench.js": 3361,
+    "/assets/molis-work-plugins/plugin-builder.js": 200,
+    "/assets/molis-work-plugins/feed.js": 1,
+    "/assets/molis-work-plugins/inbox.js": 45,
+    "/assets/molis-work-plugins/shelf.js": 95,
+    "/assets/molis-work-plugins/pages.js": 36,
+    "/assets/molis-work-plugins/form.js": 121,
+    "/assets/molis-work-plugins/todo.js": 173,
+    "/assets/molis-work-plugins/alchemist.js": 184,
+    "/assets/molis-work-plugins/workflows.js": 120,
+    "/assets/molis-work-plugins/coding.js": 268
+  }
+}

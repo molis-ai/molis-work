@@ -4,7 +4,7 @@ import { ASSISTANT_PROCESS_FACTORY_SCRIPT, ASSISTANT_RETRY_FACTORY_SCRIPT } from
 export const ASSISTANT_SIDE_KIT_PART = String.raw`  const sideText = globalThis.t.text;
   // Short on the card; the versions behind it are in its title.
   const objectState = (object) => object.state === "changed" ? sideText("workbench.assistant-side-kit.changed-since") : object.state === "missing" ? sideText("workbench.assistant-side-kit.no-longer-exists") : object.state === "unavailable" ? sideText("workbench.assistant-side-kit.cannot-be-read-now")
-    : object.state === "moved" ? (object.moved_to ? sideText("workbench.assistant-side-kit.moved") + "「" + object.moved_to.title + "」" : sideText("workbench.assistant-side-kit.another-project")) : "";
+    : object.state === "moved" ? (object.moved_to ? sideText("workbench.assistant-side-kit.moved-named", { title: object.moved_to.title }) : sideText("workbench.assistant-side-kit.another-project")) : "";
   const objectDetail = (object) => object.state === "changed" ? sideText("workbench.assistant-side-kit.work-recorded-version") + " " + object.recorded_revision + " · " + sideText("workbench.assistant-side-kit.now-version") + " " + object.current_revision
     : object.current_revision ? sideText("workbench.assistant-side-kit.version") + " " + object.current_revision : "";
   /* The side pane speaks in the page's own glyphs, rendered once into a template, so every kind of thing has a face. */
@@ -32,7 +32,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  const sideText = globalThis.
     const btnEl = el("button", "assistant-side-action" + (quiet ? " is-quiet" : "") + (variant ? " is-" + variant : "")); btnEl.type = "button";
     if (icon) btnEl.append(glyph(icon));
     btnEl.append(document.createTextNode(label));
-    btnEl.setAttribute("aria-label", label + "：" + name);
+    btnEl.setAttribute("aria-label", sideText("workbench.assistant-side-kit.action-named", { label, name }));
     btnEl.addEventListener("click", async (event) => {
       event.stopPropagation();
       btnEl.disabled = true; btnEl.setAttribute("aria-busy", "true");
@@ -47,7 +47,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  const sideText = globalThis.
     const text = el("div", "assistant-item-text");
     if (open) {
       const name = el("button", "assistant-item-title", title); name.type = "button";
-      name.setAttribute("aria-label", (openLabel || sideText("common.control.open")) + "：" + title);
+      name.setAttribute("aria-label", sideText("workbench.assistant-side-kit.action-named", { label: openLabel || sideText("common.control.open"), name: title }));
       name.addEventListener("click", () => { void open(); });
       text.append(name);
     } else text.append(el("span", "assistant-item-title", title));

@@ -44,7 +44,7 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     const step = el("button", "mw-ix-step"); step.type = "button"; step.dataset.stepOffer = ""; step.dataset.secondary = "";
     const reply = Boolean(offer.message.thread && offer.message.source.plugin_id && offer.message.object);
     step.title = reply ? globalThis.t.text("workbench.assistant-step-row.assistant-reads-content-comment-thread-posts-its-reply") : offer.message.text + (offer.unconfirmed ? "\n" + globalThis.t.text("workbench.assistant-step-row.not-confirmed-something-just-asked-there-put-input") : "");
-    step.append(el("span", "", (reply ? globalThis.t.text("workbench.assistant-step-row.ask-assistant-reply-source") : offer.unconfirmed ? globalThis.t.text("workbench.assistant-step-row.source-wants-hand-over") : globalThis.t.text("workbench.assistant-step-row.suggested-source")).replace("{source}", offer.message.source.title)));
+    step.append(el("span", "", globalThis.t.text(reply ? "workbench.assistant-step-row.ask-assistant-reply-source" : offer.unconfirmed ? "workbench.assistant-step-row.source-wants-hand-over" : "workbench.assistant-step-row.suggested-source", { source: offer.message.source.title })));
     step.addEventListener("click", () => { const taken = offer.message; offer = offerNode = null; step.remove(); paint(); if (reply) input.reply(taken); else input.take(taken); });
     return step;
   };

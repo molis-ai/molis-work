@@ -32,7 +32,7 @@ function add({ view, row, group }: Tools, label: string, icon: string, action: (
   const button = el("button", "", "mw-btn mw-btn--ghost mw-btn--icon-only");
   button.type = "button";
   button.title = label;
-  button.setAttribute("aria-label", label + "：" + row.title);
+  button.setAttribute("aria-label", label + uiText.text("common.punctuation.label-separator") + row.title);
   button.innerHTML = svg(icon);
   view.ports.lifetime.listen(button, "click", event => {
     event.stopPropagation();

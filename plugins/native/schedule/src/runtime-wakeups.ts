@@ -6,6 +6,7 @@ import type { ScheduleRuntime } from "./runtime-actions.js";
 import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_REMINDER_WAKEUP, SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
 import { roundRole, type ScheduleTaskGrants } from "./task-grants.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { handleScheduleTaskWakeup, type ScheduledTaskRunner } from "./wakeup.js";
 import { composeScheduledTaskPrompt, parseScheduledAgentReply } from "./reply.js";
 import { deliverScheduleReminder } from "./reminders.js";
@@ -55,7 +56,7 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   const owners = scheduleInstallations(services.installations!, observed, views);
   if (input.capability_id === SCHEDULE_REMINDER_WAKEUP) return runtime.write(caller.beforeEffect, () => deliverScheduleReminder(runtime.db, input, control, {
     currentInstallation: reminder => owners.matches(reminder.pluginId, reminder.installationId, reminder.installationGeneration),
-    deliver: (reminder, dueAt) => runtime.notify({ key: reminder.id + ":" + dueAt, title: notificationTitle(reminder.pluginTitle + "：" + reminder.text),
+    deliver: (reminder, dueAt) => runtime.notify({ key: reminder.id + ":" + dueAt, title: notificationTitle(uiText.text("schedule.notification.reminder-title", { plugin: reminder.pluginTitle, text: reminder.text })),
       summary: reminder.text, body: reminder.text, open_plugin_id: reminder.pluginId }),
   }));
   if (input.capability_id !== SCHEDULE_OPERATION_WAKEUP) throw new ActionError("actions.forbidden", "未知的定时唤醒");
@@ -85,7 +86,9 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
       } };
     },
     deliver: (run, dueAt, outcome, text) => runtime.notify({ key: run.id + ":" + dueAt,
-      title: notificationTitle(run.pluginTitle + "：" + (outcome.state === "succeeded" ? ([...text.replace(/\s+/g, " ").trim()].slice(0, 80).join("") || run.operationTitle) : [...run.operationTitle].slice(0, 40).join("") + "没有完成")),
-      summary: [...text].slice(0, 280).join(""), body: text || "操作已结束", open_plugin_id: run.pluginId }),
+      title: notificationTitle(outcome.state === "succeeded"
+        ? uiText.text("schedule.notification.operation-succeeded", { plugin: run.pluginTitle, title: [...text.replace(/\s+/g, " ").trim()].slice(0, 80).join("") || run.operationTitle })
+        : uiText.text("schedule.notification.operation-failed", { plugin: run.pluginTitle, title: [...run.operationTitle].slice(0, 40).join("") })),
+      summary: [...text].slice(0, 280).join(""), body: text || uiText.text("schedule.notification.operation-ended"), open_plugin_id: run.pluginId }),
   });
 }

@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { DEFAULT_SESSION_TITLE } from "./session-title.js";
 import { CODING_SETTINGS_STYLES } from "./settings-styles.js";
 import { codingUsageSummary } from "./usage.js";
 import { CODING_SESSION_MARKS } from "./session-marks.js";
@@ -164,10 +165,10 @@ export function renderCodingDirectory(model: CodingUiModel): string {
  * takes over.
  */
 export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPrimitives): string {
-  const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id);
+  const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id), shown = entry.title === DEFAULT_SESSION_TITLE ? uiText.text("coding.session.new-title") : entry.title;
   return `<a class="mw-dir-row mw-dir-row--meta coding-session-row" href="#session-${p.escape(encodeURIComponent(entry.session_id))}" data-coding-session="${id}" aria-current="false">`
     + `<span class="mw-dir-row__icon">${p.icon(CODING_DIRECTORY_FACES[0].icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">`
-    + `<strong class="coding-session-title" title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
+    + `<strong class="coding-session-title" title="${p.escape(shown)}">${p.escape(shown)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
     + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}">${p.escape(uiText.text(mark.label))}</small></span></a>`;
 }
 

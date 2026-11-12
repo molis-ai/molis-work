@@ -158,7 +158,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(document.activeElement!==address)address.value=state.url||'';
     $('[data-browser-lock]').hidden=!state.secure;$('[data-browser-identity]').hidden=state.secure;
     $('[data-browser-address-field]').title=state.origin?(state.secure?globalThis.t.text("workbench.side-panel-browser.secure-connection")+' · ':globalThis.t.text("workbench.side-panel-browser.connection-not-encrypted")+' · ')+state.origin:'';
-    view.setAttribute('aria-label',state.title||state.origin?globalThis.t.text("workbench.side-panel-browser.web-page")+'：'+(state.title||state.origin):globalThis.t.text("workbench.side-panel-browser.web-page"));
+    view.setAttribute('aria-label',state.title||state.origin?globalThis.t.text("workbench.side-panel-browser.web-page")+globalThis.t.text("common.punctuation.label-separator")+(state.title||state.origin):globalThis.t.text("workbench.side-panel-browser.web-page"));
     // What covers the page: a problem that leaves nothing to show, or the start page.
     const fault=state.problem;
     const blank=!state.url&&!state.loading;

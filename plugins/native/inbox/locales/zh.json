@@ -4,6 +4,11 @@
   "locale": "zh",
   "messages": {
     "inbox.directory.summary": "只看需要你介入的事项。",
+    "inbox.judgment.capability-bound": "已绑定判断能力",
+    "inbox.judgment.rule-unbound": "尚未绑定规则",
+    "inbox.judgment.paused": "已暂停",
+    "inbox.judgment.unavailable": "当前不可用",
+    "inbox.judgment.no-scene-access": "当前无权使用此场景",
     "inbox.client.could-not-refresh-inbox-list": "无法更新 Inbox 列表",
     "inbox.client.draft-saved-can-keep-editing-retry": "草稿已保留，可继续编辑或重试。",
     "inbox.client.generated": "已生成",

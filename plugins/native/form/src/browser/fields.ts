@@ -84,7 +84,7 @@ export const buildFields = (readText: Translate, container: Element, questions: 
   questions.forEach((question) => {
     const field = make("div", "form-field");
     const title = document.createElement(["singleChoice", "multiChoice", "rating"].includes(question.type) ? "span" : "label");
-    title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + uiText.text("form.question.required") + "）" : "");
+    title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.required ? uiText.text("form.question.title-required", { title: question.title }) : question.title;
     field.setAttribute("role", ["singleChoice", "rating"].includes(question.type) ? "radiogroup" : "group"); field.setAttribute("aria-labelledby", title.id);
     if (field.getAttribute("role") === "radiogroup") field.setAttribute("aria-required", String(question.required)); field.append(title);
     field.append(answerField(question));

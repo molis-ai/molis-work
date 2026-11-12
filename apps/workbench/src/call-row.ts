@@ -56,5 +56,5 @@ export function renderCallRow(row: CallRowView, p: CallText, where?: { label: st
     + `<p>${renderCallIdButton(row.matched_call_id ?? row.call_id, p)}</p>`
     + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${uiText("workbench.call-row.view-call-history")}</a>` : ""}</p>` : "")
     + `<time datetime="${e(at)}">${e(at)}</time>${row.count && row.count > 1 ? `<p>${uiText("workbench.call-row.same-result-count-count-row-first", { count: row.count, at: row.at })}</p>` : ""}`
-    + `${row.ok || !(row.message ?? row.code) ? "" : `<p>${uiText(row.message ? "workbench.call-row.reason-failure" : "workbench.call-row.error-code")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`;
+    + `${row.ok || !(row.message ?? row.code) ? "" : `<p>${uiText(row.message ? "workbench.call-row.reason-failure" : "workbench.call-row.error-code")}${uiText("common.punctuation.label-separator")}${e(row.message ?? row.code ?? "")}</p>`}</article>`;
 }

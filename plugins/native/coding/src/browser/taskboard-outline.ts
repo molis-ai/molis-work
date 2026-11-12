@@ -35,7 +35,7 @@ export function drawOutlineRow(readText: Translate, targets: Map<string, BoardTa
   node.append(state);
   if (row.label) node.append(el("span", row.label, "coding-board-key"));
   node.append(el("strong", row.title));
-  node.setAttribute("aria-label", row.label ? row.label + " " + row.title + "：" + label : row.title + "：" + label);
+  node.setAttribute("aria-label", row.label ? row.label + " " + row.title + uiText.text("common.punctuation.label-separator") + label : row.title + uiText.text("common.punctuation.label-separator") + label);
   if (row.progress && row.children.length) node.append(el("span", row.progress.done + "/" + row.progress.total, "coding-outline-count"));
   if (row.executor) node.append(drawAvatar(readText, row.executor));
   targets.set(row.key, row.target);

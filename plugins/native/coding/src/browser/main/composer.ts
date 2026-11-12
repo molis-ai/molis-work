@@ -91,7 +91,7 @@ export async function recoverAndContinue(page: Page, runId: string) {
       root.dataset.codingResults = "true";
       s.recoveryKey = "";
       void readRecovery(page);
-      status(page, uiText.text("coding.run.blocked", { reason: report.blockers.length ? report.blockers.join("；") : (blocked || entry)?.blockers?.join("；") || uiText.text("coding.run.unknown-operations") }), true);
+      status(page, uiText.text("coding.run.blocked", { reason: report.blockers.length ? report.blockers.join(uiText.text("common.punctuation.semicolon")) : (blocked || entry)?.blockers?.join(uiText.text("common.punctuation.semicolon")) || uiText.text("coding.run.unknown-operations") }), true);
       return;
     }
     for (const run of [...report.runs.filter(item => item.subagent), entry]) await api(page, sessionPath(id, run.run_id) + "/recover", "POST", { expected_version: run.version });

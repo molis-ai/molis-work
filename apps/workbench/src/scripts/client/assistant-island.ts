@@ -210,7 +210,7 @@ ${ASSISTANT_SIDE_KIT_PART}
       });
       suggestions.forEach((candidate) => {
         const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
-        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: readText(candidate.held ? "workbench.assistant-island.asked-me-remember" : "workbench.assistant-island.remember") + "：" + candidate.text, detail: candidate.held,
+        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: readText(candidate.held ? "workbench.assistant-island.asked-me-remember-named" : "workbench.assistant-island.remember-named", { text: candidate.text }), detail: candidate.held,
           sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
           actions: [sideAct(readText("workbench.assistant-island.keep"), candidate.text, settle("/accept"), false, "primary"), sideAct(readText("workbench.assistant-island.no-thanks"), candidate.text, settle("/discard"), false, "secondary")] }));
       });
@@ -240,7 +240,7 @@ ${ASSISTANT_SIDE_PATH_PART}
       const UNDO = { available: "workbench.assistant-island.can-be-undone", undone: "workbench.assistant-island.undone", failed: "workbench.assistant-island.could-not-undo" };
       const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
-        title: change.title, sub: readText(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
+        title: change.title, sub: change.detail ? readText("workbench.assistant-island.change-named", { label: readText(UNDO[change.state] || change.state), detail: change.detail }) : readText(UNDO[change.state] || change.state), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(readText("workbench.assistant-island.undo"), change.title, async () => {
           view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {});
           // Taken back: the owner's page rereads, as it did when the change was made.
@@ -253,7 +253,7 @@ ${ASSISTANT_SIDE_PATH_PART}
         tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: readText(JOB[job.state] || job.state) }));
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "workbench.assistant-island.waiting-its-result-will-not-be-sent-again", completed: "workbench.assistant-island.finished-after-stop", failed: "workbench.assistant-island.failed-after-stop", "not-run": "workbench.assistant-island.had-not-started-nothing-done" };
-      const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: readText(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
+      const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: change.detail ? readText("workbench.assistant-island.change-named", { label: readText(SETTLED[change.state] || change.state), detail: change.detail }) : readText(SETTLED[change.state] || change.state) }));
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
       const KEPT = { kept: "", auto_kept: "workbench.assistant-island.kept-its-own", replaced: "workbench.assistant-island.replaced-older-one", auto_replaced: "workbench.assistant-island.replaced-older-one-its-own", merged: "workbench.assistant-island.merged-older-one", edited: "workbench.assistant-island.edited",
@@ -356,7 +356,7 @@ ${ASSISTANT_STRIP_PART}
           if (offer && offer.modes.length) rows.push(...metaRow(readText("workbench.assistant-island.mode"), segmented(readText("workbench.assistant-island.mode-next-turn-same-setting-plugin-s-own"), modeRows(offer), work.executor.mode || offer.default_mode, (id) => void applyMode(id))));
         } else if (allowsCharacter() && hasChoices) {
           rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), characterPicker()));
-        } else rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), document.createTextNode(chosen ? readText("workbench.assistant-island.role") + "：" + chosen.title : readText("workbench.assistant-island.assistant"))));
+        } else rows.push(...metaRow(readText("workbench.assistant-island.who-will-do"), document.createTextNode(chosen ? readText("workbench.assistant-island.role-named", { title: chosen.title }) : readText("workbench.assistant-island.assistant"))));
         // The same work can change hands between rounds: to a plugin in its project, and back to the Assistant.
         const toPlugins = work.executor.kind === "assistant" && work.scope.kind === "project" ? executors.filter((one) => !one.problem) : [];
         if (!isLive(work.state) && (toPlugins.length || work.executor.kind === "plugin")) {

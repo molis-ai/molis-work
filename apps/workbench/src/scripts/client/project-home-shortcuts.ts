@@ -37,10 +37,10 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: readText, proj
       const row = template.content.firstElementChild.cloneNode(true);
       row.dataset.shortcutId = item.id;
       const link = row.querySelector("[data-home-shortcut-link]");
-      link.href = item.url; link.setAttribute("aria-label", globalThis.t.text("workbench.project-home-shortcuts.open-shortcut-name").replace("{name}", item.name));
+      link.href = item.url; link.setAttribute("aria-label", globalThis.t.text("workbench.project-home-shortcuts.open-shortcut-name", { name: item.name }));
       row.querySelector("[data-home-shortcut-name]").textContent = item.name;
       const edit = row.querySelector("[data-home-shortcut-edit]");
-      edit.setAttribute("aria-label", globalThis.t.text("workbench.project-home-shortcuts.edit-shortcut-name").replace("{name}", item.name));
+      edit.setAttribute("aria-label", globalThis.t.text("workbench.project-home-shortcuts.edit-shortcut-name", { name: item.name }));
       edit.addEventListener("click", () => openEditor(item.id));
       list.insertBefore(row, add.closest("li"));
     }

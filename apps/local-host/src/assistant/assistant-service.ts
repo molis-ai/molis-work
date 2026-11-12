@@ -8,6 +8,7 @@ import { AssistantFollowUps } from "./assistant-followups.js";
 import type { AgentDelegation } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runBackgroundWork } from "../web-locale.js";
+import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { cardView } from "./assistant-card-view.js";
@@ -94,7 +95,7 @@ export class AssistantService {
       ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
       host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work), schedule: () => this.notices.schedule(),
-      send: (work, text, request_id, stillCurrent) => this.hostStarted(() => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent)) });
+      send: (work, words, request_id, stillCurrent) => this.hostStarted(() => this.send({ work_id: work.work_id, text: say.text(words), request_id }, {}, "host", stillCurrent)) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.reads.stateFor(host, work), latestRun: (host, work) => this.reads.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.reads.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),

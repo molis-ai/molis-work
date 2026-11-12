@@ -556,6 +556,7 @@
     "goals.event-history-body.no-template-used": "未采用模板",
     "goals.event-history-body.not-filled": "未填写",
     "goals.event-history-body.not-yet-met": "尚未达到",
+    "goals.event-history-body.open-fixed-artifact": "打开固定成果",
     "goals.event-history-body.ordinary-new-writes-enter-event-service": "普通新写入进入事件服务。",
     "goals.event-history-body.original-completion-facts-stay-new-round-work-starts": "原完成事实保留，并开启新一轮工作。",
     "goals.event-history-body.original-text-currently-unreadable-record-still-keeps-original": "原文当前不可读。记录仍保留原 ID 和来源。",

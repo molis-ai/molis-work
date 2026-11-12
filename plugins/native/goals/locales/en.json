@@ -556,6 +556,7 @@
     "goals.event-history-body.no-template-used": "No template used",
     "goals.event-history-body.not-filled": "Not filled in",
     "goals.event-history-body.not-yet-met": "Not yet met",
+    "goals.event-history-body.open-fixed-artifact": "Open fixed result",
     "goals.event-history-body.ordinary-new-writes-enter-event-service": "Ordinary new writes enter the event service.",
     "goals.event-history-body.original-completion-facts-stay-new-round-work-starts": "The original completion facts stay, and a new round of work starts.",
     "goals.event-history-body.original-text-currently-unreadable-record-still-keeps-original": "The original text is currently unreadable. The record still keeps the original ID and source.",

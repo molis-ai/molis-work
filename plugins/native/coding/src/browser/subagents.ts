@@ -62,7 +62,7 @@ const draftKey = (id: string) => "coding-subagent-feedback:" + location.pathname
 const edits = (child: Child) => [...new Set((child.activity || []).filter(item => WRITES.includes(item.name) && item.state === "completed" && item.target).map(item => item.target as string))];
 
 /** Subtasks of one role look alike; the directory each worked in tells them apart. */
-const heading = (panel: Panel, child: Child) => (panel.ports.roleName(child.role_id) || child.role_name) + (child.workspace_path ? "（" + child.workspace_path.split("/").pop() + "）" : "");
+const heading = (panel: Panel, child: Child) => (panel.ports.roleName(child.role_id) || child.role_name) + (child.workspace_path ? uiText.text("common.punctuation.in-parens", { value: child.workspace_path.split("/").pop() ?? "" }) : "");
 
 const resultBox = (child: Child) => {
   const body = el("div");
@@ -86,7 +86,7 @@ const column = (panel: Panel, child: Child) => {
   box.className = "coding-compare-column";
   box.append(el("h4", heading(panel, child)), el("p", panel.states[child.state] || child.state));
   const files = edits(child);
-  box.append(el("p", files.length ? uiText.text("coding.sub.files", { files: files.join(uiText.text("coding.list.joiner")) }) : uiText.text("coding.sub.no-files")));
+  box.append(el("p", files.length ? uiText.text("coding.sub.files", { files: files.join(uiText.text("common.list.separator")) }) : uiText.text("coding.sub.no-files")));
   const tokens = child.usage?.tokens;
   if (tokens) box.append(el("p", uiText.text("coding.sub.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) })));
   if (child.result) box.append(resultBox(child));
@@ -139,7 +139,7 @@ const assignment = (_panel: Panel, child: Child, opened: ReadonlySet<string | un
   box.className = "coding-material";
   box.dataset.child = child.subagent_id + ":assignment";
   box.open = opened.has(box.dataset.child);
-  box.append(el("summary", uiText.text("coding.sub.assignment")), el("p", child.task), el("p", uiText.text("coding.sub.workspace", { path: child.workspace_path || uiText.text("coding.sub.unknown") })), el("p", uiText.text("coding.sub.tools", { tools: (child.host_tools || []).join(uiText.text("coding.list.joiner")) })));
+  box.append(el("summary", uiText.text("coding.sub.assignment")), el("p", child.task), el("p", uiText.text("coding.sub.workspace", { path: child.workspace_path || uiText.text("coding.sub.unknown") })), el("p", uiText.text("coding.sub.tools", { tools: (child.host_tools || []).join(uiText.text("common.list.separator")) })));
   return box;
 };
 

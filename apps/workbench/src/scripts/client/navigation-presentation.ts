@@ -61,7 +61,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   const current = dock.querySelector('[data-plugin-picker-current]');
   // The switcher is its glyph alone: its name says what the work area shows, so a screen reader hears where it is.
   const nameSwitcher = (names) => {
-    const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now").replace('{now}', names.join(globalThis.t.text("common.list.separator")));
+    const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now", { now: names.join(globalThis.t.text("common.list.separator")) });
     if (pickerToggle && pickerToggle.getAttribute('aria-label') !== label) pickerToggle.setAttribute('aria-label', label);
   };
   const setPicker = (open) => {
@@ -266,13 +266,15 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     if (toggle.dataset.state === 'available') { stopAsking(); void host.membership?.change(id, 'add'); return; }
     if (asking && asking.tile === tile) { stopAsking(); void host.membership?.change(id, 'remove'); return; }
     stopAsking();
-    const list = (tile.dataset.dependents || '').split('|').filter(Boolean).join('、');
-    const message = list ? globalThis.t.text("workbench.navigation-presentation.press-again-remove-also-removes-list").replace('{list}', list) : globalThis.t.text("workbench.navigation-presentation.press-again-remove");
+    const list = (tile.dataset.dependents || '').split('|').filter(Boolean).join(globalThis.t.text("common.list.separator"));
+    const message = list ? globalThis.t.text("workbench.navigation-presentation.press-again-remove-also-removes-list", { list }) : globalThis.t.text("workbench.navigation-presentation.press-again-remove");
     tile.querySelector('.plugin-rail-confirm').textContent = message;
     const title = toggle.getAttribute('title');
     toggle.setAttribute('title', message);
     const label = toggle.getAttribute('aria-label') || '';
-    const sure = globalThis.t.text("workbench.navigation-presentation.confirm-removal") + label.slice(label.indexOf('：'));
+    // The tile's operations group carries the Plugin's own name (immersive-shell marks it); nothing is sliced out of a label.
+    const name = tile.querySelector('.plugin-rail-ops')?.getAttribute('aria-label') || nameOf(id);
+    const sure = globalThis.t.text("workbench.navigation-presentation.confirm-removal-named", { name });
     toggle.setAttribute('aria-label', sure);
     const words = toggle.querySelector('.mw-sr-only'); if (words) words.textContent = sure;
     tile.classList.add('is-confirming');

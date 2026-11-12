@@ -67,7 +67,7 @@ export async function admitFiles(page: ShelfPage, files: readonly File[]): Promi
     if (lastId) applySnapshot(page, page.snapshot, lastId);
   }
   if (!refused.length) return;
-  const list = refused.map((entry) => entry.file.name + "（" + entry.reason + "）").join("；");
+  const list = refused.map((entry) => uiText.text("shelf.admit.file-reason", { name: entry.file.name, reason: entry.reason })).join(uiText.text("common.list.separator"));
   throw Object.assign(new Error(uiText.text("shelf.admit.done-added-count-could-not", { done: added, count: refused.length, list })), { retryFiles: refused.map((entry) => entry.file) });
 }
 

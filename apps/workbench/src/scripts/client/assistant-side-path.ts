@@ -22,7 +22,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
         item.append(dot, el("p", "assistant-step-label", label), ...content);
         line.append(item);
       };
-      if (parent) step("flag", "", globalThis.t.text("workbench.assistant-side-path.delegated"), card({ icon: "workflow", title: parent.title, sub: globalThis.t.text("workbench.assistant-side-path.acceptance") + "：" + parent.acceptance, open: () => switchTo(parent.work_id) }));
+      if (parent) step("flag", "", globalThis.t.text("workbench.assistant-side-path.delegated"), card({ icon: "workflow", title: parent.title, sub: globalThis.t.text("workbench.assistant-side-path.acceptance-named", { value: parent.acceptance }), open: () => switchTo(parent.work_id) }));
       objects.filter((o) => o.relation === "origin").forEach((o) => step("flag", "", globalThis.t.text("workbench.assistant-side-path.start"), objectCard(o)));
       if (work && !objects.some((o) => o.relation === "origin") && work.origin && (work.origin.title || work.origin.surface)) {
         // The page is named as it names itself; its id is never shown, and the same name is not said twice.
@@ -41,7 +41,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
           const mark = el("span", "assistant-subtask-mark" + (item.state === "done" ? " is-done" : waiting ? " is-attention" : ""));
           mark.append(spinner(item.state === "done" ? "done" : waiting ? (work.state === "needs-check" ? "verify" : work.state === "waiting-review" ? "approval" : "answer") : cur ? (work.state === "running" ? "running" : work.state === "paused" ? "paused" : "doing") : item.state === "abandoned" ? "cancelled" : "idle"));
           if (waiting) {
-            const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", next.label + "：" + item.text);
+            const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-path.action-named", { label: next.label, name: item.text }));
             name.addEventListener("click", () => next.run());
             row.append(mark, name, el("span", "assistant-subtask-state", next.label));
           } else row.append(mark, el("span", "assistant-subtask-name", item.text), el("span", "assistant-subtask-state", cur ? globalThis.t.text("workbench.assistant-side-path.hand") : item.state === "abandoned" ? globalThis.t.text("workbench.assistant-side-path.set-aside") : ""));
@@ -58,7 +58,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
           const tone = child.taken_back ? "" : child.state === "completed" ? "done" : WAITING.has(child.state) ? "attention" : child.state === "failed" ? "blocked" : "";
           const mark = el("span", "assistant-subtask-mark" + (tone ? " is-" + tone : ""));
           mark.append(spinner(ringState(child.state)));
-          const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("common.control.open") + "：" + child.title);
+          const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-path.open-named", { title: child.title }));
           name.addEventListener("click", () => switchTo(child.work_id));
           row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? globalThis.t.text("workbench.assistant-side-path.taken-back") : stateLabel(child.state)) + (child.follow_ups ? " · " + globalThis.t.text("workbench.assistant-side-path.follow-ups") + " " + child.follow_ups : "")));
           /* Stop one sub-task from here, without opening it; what it already did stays. */
@@ -96,7 +96,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
       const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
       const stepsDone = steps.filter((item) => item.state === "done").length;
       paintBlock(node, globalThis.t.text("workbench.assistant-side-path.path"), "workflow", line.children.length ? line : null,
-        steps.length ? globalThis.t.text("workbench.assistant-side-path.steps") + " " + stepsDone + "/" + steps.length : children.length ? globalThis.t.text("workbench.assistant-side-path.sub-task") + " " + done + "/" + children.length : "",
+        steps.length ? globalThis.t.text("workbench.assistant-side-path.steps-count", { done: stepsDone, total: steps.length }) : children.length ? globalThis.t.text("workbench.assistant-side-path.sub-task-count", { done, total: children.length }) : "",
         children.some((child) => WAITING.has(child.state) && !child.taken_back) || (steps.some((item) => item.state === "in-progress") && waitsOn(work)));
     });
   };`;

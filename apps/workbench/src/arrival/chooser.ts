@@ -26,6 +26,8 @@ export interface ChooserArrival {
   opened: Readonly<Record<string, string>>;
   /** The project list could not be read: the chooser says so where the list would be, and the personal space still opens. */
   load_error?: boolean;
+  /** An upgrade a start was interrupted in, finished by a later one (upgrade-continuity U3 §3): said once, until it is closed. */
+  upgrade_notice?: { readonly run_id: string; readonly unavailable: number };
 }
 
 const PERSONAL = "personal";
@@ -80,7 +82,11 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       return row(project, caption);
     }).join("");
     const failed = `<div class="mw-empty mw-empty--error chooser-error" role="alert"><span class="mw-empty__mark">${icon("circle-alert")}</span><h2>${uiText("workbench.chooser.can-t-read-project-list-right-now")}</h2><p>${uiText("workbench.chooser.project-directory-computer-didn-t-answer-personal-space")}</p>${renderButton({ variant: "secondary", size: "md", icon: "refresh", label: uiText.text("common.control.retry"), attrs: { "data-act": "reload" } })}</div>`;
-    const rows = `${renderDirectoryHeading(uiText.text("workbench.chooser.personal"))}${row(personal, uiText.text("workbench.chooser.materials-work-that-belong-no-project"))}${arrival.load_error ? failed : projectRows ? `${renderDirectoryHeading(uiText.text("workbench.chooser.projects-most-recently-opened-first"))}${projectRows}` : ""}`;
+    const notice = arrival.upgrade_notice;
+    const resumed = notice ? `<div class="mw-alert mw-alert--${notice.unavailable > 0 ? "warning" : "success"}" data-slot="alert" role="status" data-upgrade-notice data-run-id="${escapeHtml(notice.run_id)}"><strong>${escapeHtml(notice.unavailable > 0
+      ? uiText.text("workbench.chooser.upgrade-resumed-some-unavailable", { count: notice.unavailable }) : uiText.text("workbench.chooser.upgrade-resumed"))}</strong>${notice.unavailable > 0
+      ? `<p>${escapeHtml(uiText.text("workbench.chooser.upgrade-resumed-open-to-see"))}</p>` : ""}<div class="mw-alert__actions">${renderButton({ variant: "ghost", size: "sm", label: uiText.text("common.control.close"), attrs: { "data-act": "dismiss-upgrade-notice" } })}</div></div>` : "";
+    const rows = `${resumed}${renderDirectoryHeading(uiText.text("workbench.chooser.personal"))}${row(personal, uiText.text("workbench.chooser.materials-work-that-belong-no-project"))}${arrival.load_error ? failed : projectRows ? `${renderDirectoryHeading(uiText.text("workbench.chooser.projects-most-recently-opened-first"))}${projectRows}` : ""}`;
 
     const entry = last ?? personal;
     const subtitle = last && arrival.opened[last.project_id]

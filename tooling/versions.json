@@ -1048,6 +1048,7 @@
     "format.home.snapshot.manifest": 1,
     "format.home.uninstall.receipt": 1,
     "format.home.upgrade.ledger": 1,
+    "format.home.upgrade.notice": 1,
     "format.home.upgrade.snapshot": 1,
     "format.home.upgrade.state": 1,
     "format.images.portable": 1,

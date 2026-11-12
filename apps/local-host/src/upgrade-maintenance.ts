@@ -11,6 +11,12 @@ import { WEB_CONTROL_TOKEN_RELATIVE_PATH, sendWebHealth } from "./web-control-to
 import { refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { installHostUiText } from "./ui-text-provider.js";
+import { renderMolisWorkArrivalStylesheet, renderUpgradeOpeningPage } from "@molis-ai/molis-work-app-workbench";
+import { htmlLang } from "./web-locale.js";
+import { tightenServedCss } from "./served-page-text.js";
+
+/** The opening page runs its own few lines and reads its own numbers; nothing else, from nowhere else. */
+const OPENING_CSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; frame-ancestors 'none'";
 
 /** Which Homes a start has to bring up to date before it can serve. The root Home always comes first when it is among them (§5.2: one large account must not hold it back). */
 export interface HomeUpgradePlan {
@@ -99,14 +105,30 @@ export interface UpgradeMaintenanceOptions {
 export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onListening }: UpgradeMaintenanceOptions): Promise<void> {
   installHostUiText();
   const started_at = Date.now(), token = readExistingControlToken(home);
-  let done = 0;
+  let done = 0, finished = false, arrivalStylesheet: string | undefined;
   const answer = (request: IncomingMessage, response: ServerResponse) => {
     if (refuseForeignRequest(request, response)) return;
     if (foreignOrigin(request.headers.origin)) { refuseLocalWebRequest(response); return; }
     const url = new URL(request.url ?? "/", "http://localhost");
+    const progress = { done, total: Math.max(done, plan.total), started_at };
     if (request.method === "GET" && url.pathname === "/health") {
-      const payload = { status: "upgrading", process_id: process.pid, service_process_id: serviceProcessId(), upgrade: { done, total: Math.max(done, plan.total), started_at } };
+      const payload = { status: "upgrading", process_id: process.pid, service_process_id: serviceProcessId(), upgrade: progress };
       sendWebHealth(response, 503, payload, token ?? "", token === undefined ? null : url.searchParams.get("challenge"));
+      return;
+    }
+    // U3 §4: the two numbers the opening page reads, and nothing else; the same as `/health`'s, without its proof.
+    if (request.method === "GET" && url.pathname === "/upgrade-progress") {
+      sendLocalWebJson(response, 200, { ...progress, state: finished ? "done" : "upgrading" });
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/assets/molis-work-arrival.css") {
+      response.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+      response.end(arrivalStylesheet ??= tightenServedCss(renderMolisWorkArrivalStylesheet()));
+      return;
+    }
+    if (request.method === "GET" && /\btext\/html\b/u.test(request.headers.accept ?? "")) {
+      response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "1", "content-security-policy": OPENING_CSP });
+      response.end(renderUpgradeOpeningPage(htmlLang()));
       return;
     }
     response.setHeader("retry-after", "1");
@@ -126,7 +148,7 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
       const worker = new Worker(workerEntry ?? new URL("./upgrade-maintenance-worker.js", import.meta.url), { workerData: { homes: plan.homes } });
       worker.on("message", (message: UpgradeMaintenanceMessage) => { if (message.kind === "unit") done += 1; });
       worker.once("error", error => { hostLog.warn("host", "home_upgrade_maintenance_thread_failed", error); });
-      worker.once("exit", () => resolve());
+      worker.once("exit", () => { finished = true; resolve(); });
     });
   } finally {
     await new Promise<void>(resolve => {

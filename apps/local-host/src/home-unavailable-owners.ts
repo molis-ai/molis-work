@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { relative } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readUpgradeLedger } from "./home-upgrade-ledger.js";
+import { readUpgradeLedger, readUpgradeNotice, removeUpgradeNotice, type UpgradeNotice } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, type UpgradeBlock } from "./home-upgrade-stores.js";
 
 /** Why a part of the product cannot be used after an upgrade (U3 design §2.4). Each has its own sentence and its own ways out. */
@@ -95,4 +95,15 @@ export function describePluginTablesRefusal(home: string, pluginId: string, libr
     }
   } catch { /* A record that cannot be read gives no round to name; the refusal itself still says what is wrong. */ }
   return { block: { kind: "plugin", plugin_id: pluginId }, project_id: library ? projectOf(path) : null, reason, diagnostic_id: diagnosticId(runId, path) };
+}
+
+/** The notice the home page shows once an interrupted upgrade is finished (§3), if there is one for the round the record is at. */
+export function upgradeNoticeFor(home: string): UpgradeNotice | undefined {
+  try { return readUpgradeNotice(realpathSync(home)); }
+  catch { return undefined; }
+}
+
+/** The person closed it: gone for that round, and only that one. */
+export function dismissUpgradeNotice(home: string, runId: string): boolean {
+  return removeUpgradeNotice(realpathSync(home), runId);
 }

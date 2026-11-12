@@ -95,8 +95,9 @@ interface UnavailableOwner {
 
 升级过程启动时发现记录里有未完成的单元（`unfinishedUnit`）就接着做（U1 已实现）。U3 只加显示：
 
-- 接着做的这一轮，宿主在内存里记 `resumed: true`；做完后首页顶部一张卡（`mw-alert`）：全部成功是「上次没做完的升级已经接着做完」（success）；有失败的是「上次没做完的升级已经接着做完，其中 n 块暂不可用」（warning），点开就是那几块的说明卡。
-- 卡可以关；关掉的记在 `upgrade/` 下的 `seen.json`（`{ schema_version: 1, run_id }`，`format.home.upgrade.seen` 第 1 版，登记进 `tooling/versions.json` 与升级描述符），同一轮不再出现。新一轮自动作废。
+- 接着做完的这一轮，升级过程在 `upgrade/` 下写 `notice.json`（`{ schema_version: 1, run_id, unavailable }`，`format.home.upgrade.notice` 第 1 版，登记在 `tooling/versions.json`）。它和记录、戳记一样归升级过程，不进升级描述符；只对记录里那一轮有效，新一轮自动作废。放在文件里而不是内存里，是因为人常在重启之后才看到首页（实现时改，比内存标记加 `seen.json` 少一个文件）。
+- 首页顶部一张卡（`mw-alert`）：全部成功是「上次没做完的升级已经接着做完」（success）；有暂不可用的是「……其中 n 块暂不可用」（warning），并说「打开那几块就能看到原因和出路」。
+- 卡可以关：`POST /api/upgrade/notice/dismiss` 带 `run_id`，删掉这一轮的提示；别的轮的不动。
 
 ## 4. 开场那一行（UPG-19）
 

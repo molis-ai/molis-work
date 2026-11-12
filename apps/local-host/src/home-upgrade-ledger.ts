@@ -9,6 +9,8 @@ const LEDGER = "ledger.json";
 const STAMP = "state.json";
 const LEDGER_SCHEMA_VERSION = /* @version format.home.upgrade.ledger */ 1;
 const STAMP_SCHEMA_VERSION = /* @version format.home.upgrade.state */ 1;
+const NOTICE = "notice.json";
+const NOTICE_SCHEMA_VERSION = /* @version format.home.upgrade.notice */ 1;
 const MAXIMUM_BYTES = 16 * 1024 * 1024;
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -143,6 +145,38 @@ export function writeUpgradeStamp(root: string, identity: string, expected: stri
 
 export function removeUpgradeStamp(root: string): void {
   if (plainDirectory(root)) rmSync(join(root, UPGRADE_DIRECTORY, STAMP), { force: true });
+}
+
+/** An interrupted round that a later start finished (U3 §3): the home page says so once, until the person closes it. */
+export interface UpgradeNotice {
+  readonly run_id: string;
+  /** How many stores of that round stay out of use. */
+  readonly unavailable: number;
+}
+
+export function writeUpgradeNotice(root: string, notice: UpgradeNotice): void {
+  assertWritableDirectory(root);
+  atomicWriteFileSync(join(root, UPGRADE_DIRECTORY, NOTICE), `${JSON.stringify({ schema_version: NOTICE_SCHEMA_VERSION, ...notice })}\n`, { mode: 0o600, durable: true });
+}
+
+/** The notice, if there is one to show: only for the round the record is at, so a later round leaves an old one unread. Any doubt is no notice. */
+export function readUpgradeNotice(root: string): UpgradeNotice | undefined {
+  if (!plainDirectory(root)) return undefined;
+  const file = join(root, UPGRADE_DIRECTORY, NOTICE);
+  try {
+    if (!lstatSync(file, { throwIfNoEntry: false })) return undefined;
+    const notice = object(JSON.parse(readSnapshotFile(file, MAXIMUM_BYTES).toString("utf8")), ["schema_version", "run_id", "unavailable"]);
+    const { schema_version, run_id, unavailable } = notice;
+    if (schema_version !== NOTICE_SCHEMA_VERSION || typeof run_id !== "string" || !RUN_ID.test(run_id) || !Number.isSafeInteger(unavailable) || (unavailable as number) < 0) return undefined;
+    return readUpgradeLedger(root)?.run_id === run_id ? { run_id, unavailable: unavailable as number } : undefined;
+  } catch { return undefined; }
+}
+
+/** Closing it is for that round: another round's notice stays. */
+export function removeUpgradeNotice(root: string, runId: string): boolean {
+  if (readUpgradeNotice(root)?.run_id !== runId) return false;
+  rmSync(join(root, UPGRADE_DIRECTORY, NOTICE), { force: true });
+  return true;
 }
 
 /** What a kill left of an atomic write. Snapshot runs are not touched here; they stay until the next successful upgrade. */

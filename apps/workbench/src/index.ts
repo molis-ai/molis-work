@@ -1,4 +1,5 @@
-export { workbenchClientSource } from "./page-assets.js";
+export { renderMolisWorkArrivalStylesheet, workbenchClientSource } from "./page-assets.js";
+export { renderUpgradeOpeningPage } from "./arrival/upgrade-opening.js";
 export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";

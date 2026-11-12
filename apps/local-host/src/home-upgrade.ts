@@ -10,7 +10,7 @@ import {
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostLog } from "./host-log.js";
 import {
-  homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeStamp,
+  homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
@@ -386,6 +386,8 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
     hostLog.warn("host", "home_upgrade_unit_failed", undefined, { diagnostic_id: diagnosticId(round.ledger!.run_id, unit.relative_path), owner: unit.owner,
       state: unit.state, code: unit.error?.code ?? "storage.store_too_new", reason: unit.error?.reason ?? "too_new" });
   }
+  // An interrupted round finished now: the home page says so once (U3 §3), with how many parts stay out of use.
+  if (resumed && round.ledger) writeUpgradeNotice(root, { run_id: round.ledger.run_id, unavailable: units.filter(unit => unit.state === "failed" || unit.state === "too_new").length });
   const everyStoreCurrent = present > 0 && unversioned === 0 && settled.length === 0 && units.every(unit => unit.state === "committed");
   if (everyStoreCurrent) {
     writeUpgradeStamp(root, identity, fingerprint);

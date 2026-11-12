@@ -53,7 +53,7 @@ test("S-upgrade-maintenance-listener: bound to loopback only", async t => {
 
 test("S-upgrade-maintenance-listener: a `Host` that is not a loopback name, and another site's `Origin`, are refused on every route", async t => {
   await during(t, { token: true }, async origin => {
-    for (const path of ["/health", "/api/projects"]) {
+    for (const path of ["/health", "/api/projects", "/upgrade-progress", "/assets/molis-work-arrival.css", "/"]) {
       assert.equal((await ask(origin, path, { host: "evil.example" })).status, 403, path);
       assert.equal((await ask(origin, path, { origin: "https://evil.example" })).status, 403, path);
       assert.equal((await ask(origin, path, { origin: "not a url" })).status, 403, path);
@@ -120,6 +120,23 @@ test("S-upgrade-maintenance-listener: everything but `/health` is 503 and does n
     assert.equal(health.body.includes(STORE), false);
     assert.deepEqual(Object.keys(JSON.parse(health.body)).sort(), ["process_id", "service_process_id", "status", "upgrade"]);
     assert.deepEqual(Object.keys(JSON.parse(health.body).upgrade).sort(), ["done", "started_at", "total"]);
+  });
+});
+
+test("UPG3-05 S-upgrade-maintenance-listener: the opening page and `/upgrade-progress` give the numbers and nothing else: no store, no token, no proof", async t => {
+  await during(t, { token: true }, async origin => {
+    const page = await ask(origin, "/", { accept: "text/html" });
+    assert.equal(page.status, 503);
+    assert.match(page.body, /data-upgrade-opening/u);
+    assert.equal(page.body.includes(STORE), false);
+    assert.equal(page.body.includes(TOKEN), false, "the page carries no control token");
+    assert.match(page.headers["content-security-policy"] ?? "", /default-src 'none'/u, "the page reaches nothing but its own numbers and stylesheet");
+    const progress = await ask(origin, "/upgrade-progress");
+    assert.equal(progress.status, 200);
+    assert.deepEqual(Object.keys(JSON.parse(progress.body)).sort(), ["done", "started_at", "state", "total"]);
+    assert.equal(progress.body.includes(STORE), false);
+    assert.equal(progress.headers["x-molis-work-proof"], undefined, "no proof: that is `/health`'s, with a challenge");
+    for (const method of ["POST", "DELETE"]) assert.equal((await ask(origin, "/upgrade-progress", {}, method)).status, 503, `${method} does nothing`);
   });
 });
 

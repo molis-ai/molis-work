@@ -2858,6 +2858,9 @@
     "workbench.chooser.try-another-word-start-new-project-anything-that": "Try another word, or start a new project with it. Anything that belongs to no project can go in your personal space.",
     "workbench.chooser.welcome-molis-work": "Welcome to Molis Work",
     "workbench.chooser.working-late": "Working late",
+    "workbench.chooser.upgrade-resumed": "The upgrade that was interrupted last time has finished",
+    "workbench.chooser.upgrade-resumed-some-unavailable": "The upgrade that was interrupted last time has finished; {count} parts are unavailable for now",
+    "workbench.chooser.upgrade-resumed-open-to-see": "Open them to see why and what you can do. Everything else keeps working.",
     "workbench.client-events.choice-needs-least-two-options": "A Choice needs at least two options",
     "workbench.client-events.connect-judgment-service": "Connect judgment service",
     "workbench.client-events.could-not-save": "Could not save",
@@ -7731,6 +7734,8 @@
     "workbench.write-checkers-section.these-checkers-were-changed-elsewhere-have-been-reloaded": "These checkers were changed elsewhere and have been reloaded. Make your change again.",
     "workbench.write-checkers-section.time-limit-seconds": "Time limit (seconds)",
     "workbench.write-checkers-section.value-1-60-seconds-leave-empty-30": "1 to 60 seconds. Leave empty for 30.",
-    "workbench.write-checkers-section.version-version": "Version {version}"
+    "workbench.write-checkers-section.version-version": "Version {version}",
+    "workbench.upgrade-opening.upgrading": "Upgrading {done} / {total}",
+    "workbench.upgrade-opening.caption": "Your data stays on this computer. It opens once the upgrade is done."
   }
 }

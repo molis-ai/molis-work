@@ -2690,6 +2690,9 @@
     "workbench.chooser.try-another-word-start-new-project-anything-that": "换个关键词，或者就用它开始一个新项目。不属于任何项目的事，也可以先放进个人空间。",
     "workbench.chooser.welcome-molis-work": "欢迎来到 Molis Work",
     "workbench.chooser.working-late": "夜深了",
+    "workbench.chooser.upgrade-resumed": "上次没做完的升级已经接着做完",
+    "workbench.chooser.upgrade-resumed-some-unavailable": "上次没做完的升级已经接着做完，其中 {count} 块暂不可用",
+    "workbench.chooser.upgrade-resumed-open-to-see": "打开那几块就能看到原因和出路，其余照常能用。",
     "workbench.client-events.choice-needs-least-two-options": "Choice 至少需要两个选项",
     "workbench.client-events.connect-judgment-service": "连接判断服务",
     "workbench.client-events.could-not-save": "保存失败",
@@ -7207,6 +7210,8 @@
     "workbench.write-checkers-section.these-checkers-were-changed-elsewhere-have-been-reloaded": "这组检查器已在别处改过，已重新读取，请再改一次。",
     "workbench.write-checkers-section.time-limit-seconds": "时限（秒）",
     "workbench.write-checkers-section.value-1-60-seconds-leave-empty-30": "1 到 60 秒，空着是 30 秒。",
-    "workbench.write-checkers-section.version-version": "第 {version} 版"
+    "workbench.write-checkers-section.version-version": "第 {version} 版",
+    "workbench.upgrade-opening.upgrading": "正在升级 {done} / {total}",
+    "workbench.upgrade-opening.caption": "数据都在这台电脑上，升级完就打开"
   }
 }

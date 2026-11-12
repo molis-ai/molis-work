@@ -43,7 +43,7 @@ export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surf
 export { ensureHomeUpgraded, pendingUpgradeUnits, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
 export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
 export { configuredModelChoices } from "./configured-models.js";
-export { describePluginTablesRefusal, describeUnavailable, diagnosticId, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
+export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismissUpgradeNotice, upgradeNoticeFor, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
 export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type UpgradeBlock, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
 export { pluginTablesDescriptor, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";

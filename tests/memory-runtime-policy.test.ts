@@ -224,8 +224,9 @@ test("the trusted scene, plugin kinds and namespace intersect without granting a
   // BL-1073 (user 2026-11-12): a plugin's project default adds the project's approved facts; experience stays out.
   assert.deepEqual(texts, ["Convention coding", "Convention fact", "Convention own"]);
   await f.bound(person).write({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention personal fact", origin: "person", operation_id: "personal-fact", meta: { ...meta, kind: "fact" } });
-  assert.deepEqual((await f.bound(coding).recall({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention" })).map(hit => hit.entry.text), [],
-    "a personal fact never reaches a plugin by default");
+  await f.bound(person).write({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention personal habit", origin: "person", operation_id: "personal-convention", meta: { ...meta, kind: "convention" } });
+  assert.deepEqual((await f.bound(coding).recall({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention" })).map(hit => hit.entry.text), ["Convention personal habit"],
+    "the plugin reads the person's conventions, so the missing personal fact is its kind being held back, not the scope");
   assert.deepEqual(await f.bound(coding).list("project", "b"), []);
   await assert.rejects(f.bound(coding).write({ scope: "project", owner: "b", text: "Cross-project", origin: "person", meta, operation_id: "foreign-project" }));
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { plugins: { "io.molis.work.coding": { allowed: false, kinds: ["convention"] } } });

@@ -296,7 +296,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - 9 个 `MEMORY_EXTRACTION_FAILED`：模型把「没有适用条件」写成 `"applies_when":{"task":""}`，空串不满足结构要求，整批被拒。
   - 另 3 个是真失败或正确的拒绝：一次模型回了缺引号的 JSON，一次回了空文本；一次是遗忘后旧来源重放（`forget-kite` 来源 2），按设计不能复活。
   - 结论：不需要改 SDK。用户先前选的「先查清再改」到此为止，不开 Prologue PR。
-- **修复（Molis）。** `apps/local-host/src/memory/memory-extractor.ts`：交给 SDK 的输入改为未命中 + 缓存命中；`applies_when.task` 允许空串，空的当作没有条件。新用例 `tests/memory-formation.test.ts`「MEM-FORM BL-1073 a cache-hit reply and a blank condition…」照诊断里的真实形状造回复；在改前代码上失败，改后通过。
+- **修复（Molis）。** `apps/local-host/src/memory/memory-extractor.ts`：交给 SDK 的输入改为整段提示、缓存只算一次：按 Host 对协议的同一条规则（`promptIncludesCache`，与 Run 的窗口计算共用），OpenAI 兼容协议的输入本来就含缓存，直接用；其他协议用未命中 + 缓存命中 + 缓存写入；拿不到这条规则时不报输入，不猜（评审台 11-12 指出最初只按 Anthropic 形状相加，OpenAI 兼容模型会把缓存算两遍；用例补了 OpenAI 形状、缓存写入和没有规则三种）；`applies_when.task` 允许空串，空的当作没有条件。新用例 `tests/memory-formation.test.ts`「MEM-FORM BL-1073 a cache-hit reply and a blank condition…」照诊断里的真实形状造回复；在改前代码上失败，改后通过。
 - **用户决定一：插件在项目里默认读该项目已认可的事实。** 漏召回的 12 次都因为插件默认只读偏好与约定，Coding 也是插件。按「插件一视同仁」，改的是所有插件的项目默认（`pluginDefaultKinds("project")` 加 `fact`），个人事实仍不读；本人在设置里对单个插件的收紧照旧生效。§4.2 Coding 行与设置页文字随之改。
 - **用户决定二：skip 场景的门从「零自动检索」放宽为「零注入」。** 产品里没有判断任务是否需要历史的一步，`skip` 开关只在用例里手动打开；B2 在这类任务里已不注入，本机检索不花 token。§9.2 与 MEM-32 已改，注明是用户放宽的验收。
 - **用户决定三：形成提示暂不按场景精简。** 先看修复后重测的 token 差还剩多少。

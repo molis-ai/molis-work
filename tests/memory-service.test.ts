@@ -382,9 +382,12 @@ test("MEM-05 recall is scoped, filtered and bounded, honours each consumer's swi
   assert.equal((await memory.recall(assistant(), { query: "总结" })).state, "ok");
   // Plugins read only the kinds they are allowed: preferences and conventions, and in a project that project's
   // facts (user 2026-11-12, BL-1073); never a personal fact.
+  const personalFact = (await memory.write(person(), { scope: "personal", kind: "fact", text: "NSM 北极星是我个人在跟的指标" })).memory!;
+  assert.ok((await memory.recall(assistant(), { query: "NSM 北极星" })).items.some(item => item.memory_id === personalFact.memory_id), "the personal fact itself is recallable");
   const plugin = await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM 北极星" });
   assert.ok(plugin.items.some(item => item.memory_id === nsm.memory_id), "a plugin reads the project's approved fact");
-  assert.ok(plugin.items.filter(item => item.kind === "fact").every(item => item.scope === "project"), "a plugin never reads a personal fact");
+  assert.ok(!plugin.items.some(item => item.memory_id === personalFact.memory_id), "a plugin never reads a personal fact");
+  await memory.change(person(), { memory_id: personalFact.memory_id, action: "remove" });
   memory.savePrefs(person(), "project", { plugins: { "io.example.notes": { allowed: false } } as never });
   assert.ok(!(await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM" })).items.some(item => item.scope === "project"));
   // External clients never read personal memories unless the person allows it.

@@ -1,6 +1,6 @@
 # 第 27 批 Coding 围栏原文与逻辑行
 
-状态：设计待公共 C 合审（2026-11-09，设计 Codex，实施待分配）。本片交付目标沿用 [VUX-33、VUX-35、VUX-36](../../spec.md#code-diff) 的 Coding 余项，先取得工程和隔离实操证据。真实规模由第 56 批验收，本人实物验收依主规格安排。
+状态：用户 2026-11-11 选 B1（换 Micromark），第 27 批主会话已实施，实现记录见文末；两处可见差异待用户确认。设计 2026-11-09（设计 Codex）。本片交付目标沿用 [VUX-33、VUX-35、VUX-36](../../spec.md#code-diff) 的 Coding 余项，先取得工程和隔离实操证据。真实规模由第 56 批验收，本人实物验收依主规格安排。
 
 ## 目标与前置
 
@@ -105,3 +105,38 @@ git diff --check
 ```
 
 规模命令用于固定夹具的前后测量，随后整批复用相同用例的有效证据。涉及 SDK 共享核心，由统筹在最终批次头安排 CI Full。设计稿阶段只整理已完成的临时实验与只读核查，候选实现、构建、产品测试和公共 C 合审均待做。
+
+## 实现记录（2026-11-11，第 27 批主会话）
+
+用户在第 27 批弹窗里选 B1「换 Micromark（推荐）」。按上面的推荐实现做了，公开签名和 API 快照不变。
+
+- 解析与正文（`packages/plugin-sdk/src/rich-text.ts`）。一次 `preprocess`、`parse`、`postprocess` 得到事件，`fencedSources` 按事件取每个围栏的正文。正文由 `codeFlowValue` 与 `lineEnding` 逐 token 的 `sliceSerialize` 拼成，规则如下：
+  - 开围栏后的那个行尾不算；闭合的围栏扣掉闭围栏前的一个行尾。
+  - 开放的块跑到输入末尾时，补回留在 token 外的最后一个真实行尾；只有开围栏、下面没有一行的块仍为空。
+  - 开放的块被容器结束时，若 token 终点后紧跟的不是行尾，说明分隔行尾已收进正文，扣掉它。
+  - 编译用同一事件流，HTML 扩展只接管 `codeFenced` 的进出：语言沿默认处理器的转义结果，正文自己转义。GFM 去掉脚注（`disable.null` 关三个构造）。`htmlFlowData`、`htmlTextData` 恢复成默认写法，即停用 GFM tagfilter，原始 HTML 去留仍由清洗器定。
+  - 空白输入仍为空，但不再先 trim 全文。
+- CR（`&#13;`）与单独 CR 的 `<br>`。正文里的 CR 先暂存成 NUL；清洗器的 `textFilter` 只在 `code` 文本里把它写成 `&#13;`，别处直接去掉。Micromark 与 HTML 解析都把输入里的 NUL 和 `&#0;` 变成 U+FFFD，所以输入造不出 CR。**实测补充**：Chrome 156 把 `white-space: pre` 里单独的 CR 画成空格（CSS Text 3 的规定），CR-only 的代码会显示成一行。所以单独的 CR 后面加一个 `<br>`：不进 `textContent`，复制按钮读的原文不变；CRLF 不加。用选区手动复制时，浏览器会把 `<br>` 写成换行，这一点和 LF 的块不同。
+- 着色与 Coding 分块。`/highlight` 的行注释、字符串、HTML 引号值、YAML 行首都在 LF、CR 处停；`growCodeTokens` 的回改起点取 LF 或 CR 的最后一个，CRLF 从 CR 算起，所以后来补上 LF 的 CR 会和它一起重分。Coding painter 的 `throughLine` 认 LF、CRLF、CR，回改起点同上。含单独 CR 的片段画成一个 span，CR 后跟 `<br>`；测试投影只读文本节点，结果不变。
+- 依赖。SDK 的可选 peer 换成 `micromark@^4.0.2`、`micromark-extension-gfm@^3.0.0`、`sanitize-html@^2.17.7`，开发依赖同步，去掉 `marked`。Coding、Feed 的直接依赖和 `molis-work.extraDependencies` 同样换掉；README 已改。`apps/workbench/package.json` 里旧的 `marked`／`sanitize-html` 声明没有动：工作台源码不导入 `/rich-text`，要不要删交统筹。Pages 自己的 Marked 不涉及。
+- 性能（B27SRC-07）。Node 24.15 下，同一份 Coding 式 Markdown（标题、列表、链接、30 行 ts 围栏交替），取中位数：
+
+  | 规模 | Marked | Micromark |
+  | --- | --- | --- |
+  | 1.5 万字符 | 0.55 ms | 2.26 ms |
+  | 9 万字符 | 2.85 ms | 14.6 ms |
+  | 40 万字符 | 12.2 ms | 63.9 ms |
+
+  与设计时的估计一致，约慢 5 倍。Coding 每次回答路由都把所有轮次重新画一遍，所以在 `plugins/native/coding/src/rich-html.ts` 加了按原文缓存的 HTML（先进先出，原文加 HTML 合计 400 万字符封顶）。刷新时只有正在流的那一轮会重新解析，长会话的实际成本比换包前低。页面端的着色帧与首次布局门槛（`tests/code-scale.e2e.test.ts`）照旧通过。
+- 可见差异（待用户确认）。逐字比较 45 份样本（Feed 混合正文、安全样本、GFM 各构造、Coding 回答），忽略空白后只有设计预期的两处不同，都按 CommonMark 读：
+  - 以四个空格开头的整段文字，现在是缩进代码；以前先 trim 全文，读成段落。
+  - 闭围栏那一行后面还有字（如 ```` ```~ ````）时，它不算闭合，围栏一直开到结尾；Marked 以前把它当闭合。
+
+  另外，围栏的尾 LF 不再强加，这是本项的目的。
+- 证据：
+  - `tests/plugin-sdk-rich-text.test.ts`（B27SRC-01、02：spec 表与更多容器、行尾样本，同文异行尾的两个围栏，原始 HTML 与缩进代码，语言与正文作数据，NUL／`&#0;`，清洗、GFM、两处差异）
+  - `tests/plugin-sdk-subpaths.test.ts`、`tests/coding-rich-html.test.ts` PG062-07、`tests/plugin-sample.e2e.test.ts`（B27SRC-03：peer 一致、Coding 页面包不带解析器、离线安装能加载 `/highlight`，不装 peer 时 `/rich-text` 报 `ERR_MODULE_NOT_FOUND`）
+  - `tests/code-incremental-colour.test.ts`（B27SRC-04）
+  - `tests/code-scale.e2e.test.ts` B27SRC-05：9 万字符 LF、CRLF、CR 三份，渲染出的 HTML 与 Coding 分片着色都逐字读回、显示 1823 行同高；一个单独 CR 先到、LF 后到也不出现重行。
+  - 消费者回归 `tests/code-incremental.e2e.test.ts`、`tests/assistant-text-html.e2e.test.ts`、`tests/code-diff-reader.e2e.test.ts`、`tests/feed-rich-content.test.ts` 均通过（B27SRC-06）。
+- 还没做：真实 Host 中 Coding 的 CR-only 回合实操（B27SRC-05 只在组件板页面用生产 painter 证明），以及第 56 批的真实规模复验。

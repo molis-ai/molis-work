@@ -135,3 +135,26 @@ test("VUX-33, VUX-35, VUX-36: the Assistant reuses the unchanged colouring befor
   assert.ok(after!.from > 0 && after!.pieces.slice(0, after!.from).every((piece, index) => piece === before!.pieces[index]),
     "pieces ahead of the correction keep their identity");
 });
+
+test("B27SRC-04: CR and CRLF end a line as LF does: a line comment stops there, and growing or correcting colours from the edited line", () => {
+  for (const ending of ["\n", "\r\n", "\r"]) {
+    const text = ["// first", "const second = 2;", "const third = 3;"].join(ending);
+    const whole = codeTokens(text, "ts");
+    assert.deepEqual(whole.slice(0, 3), [["comment", "// first"], [null, ending], ["keyword", "const"]], `the comment ends at its line (${JSON.stringify(ending)})`);
+    // Appending to the last line colours again only from the piece covering the line break before it (";" and the break are one piece).
+    const grown = growCodeTokens(growCodeTokens(null, text, "ts", codeTokens), text + " // tail", "ts", codeTokens);
+    assert.deepEqual(grown.pieces, codeTokens(text + " // tail", "ts"));
+    assert.equal(grown.starts[grown.from], text.indexOf("2;") + 1, `coloured again from the last break (${JSON.stringify(ending)})`);
+  }
+  // A CR that later gains its LF is coloured again with it, and the result is the whole colouring at every step.
+  const before = growCodeTokens(null, "a = 1;\r", "ts", codeTokens), after = growCodeTokens(before, "a = 1;\r\nb", "ts", codeTokens);
+  assert.deepEqual(after.pieces, codeTokens("a = 1;\r\nb", "ts"));
+  for (const ending of ["\r\n", "\r"]) for (const [language, text] of Object.entries(SAMPLES)) {
+    if (language === "diff") continue;
+    const changed = text.replaceAll("\n", ending);
+    for (let seed = 1; seed <= 10; seed += 1) for (const step of grownBy(changed, language, seed))
+      assert.deepEqual(step.pieces, codeTokens(step.text, language), `${language} ${JSON.stringify(ending)}, seed ${seed}, at ${step.text.length}`);
+    // A string or a comment does not run past a CR any more than past an LF.
+    assert.ok(codeTokens(changed, language).every(([kind, value]) => kind !== "string" || language === "py" || !/[\r\n]/u.test(value.replace(/`[\s\S]*`/u, ""))), `${language} strings stop at a line end`);
+  }
+});

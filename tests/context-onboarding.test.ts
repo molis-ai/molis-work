@@ -416,7 +416,7 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
 }
 
 test('HTTP control gate, persisted selection, Google PKCE start, cancellation and callback resume correct journey',async t=>{
-  const dir=await home(t),id=randomUUID(),token='onboarding-control-test';const handle=createContextOnboardingHttp({...pagesPorts(dir),model:async()=>({})});
+  const dir=await home(t),id=randomUUID(),token='onboarding-control-test';/* Each write is the person's action through the page's door (B9), so the router answers with a Host. */const host=new MolisWorkLocalHost({homeDirectory:dir,completeText:null});hosts.set(dir,host);const handle=createContextOnboardingHttp({...pagesPorts(dir),model:async()=>({})},host);
   const keys=new Map<string,LocalMutationState>();
   const server=createServer((req,res)=>{const url=new URL(req.url!,'http://127.0.0.1');if(!authorizeLocalWebRequest(req,res,url,token,keys))return;void runWithMolisWorkHome(dir,async()=>{if(await handle(req,res,url,dir))return;if(await handleConnectorApiMethodsHttp(req,res,url,dir,()=>{},async()=>{}))return;if(await handleLocalConnectorsSettingsHttp(req,res,url,dir))return;res.writeHead(404);res.end();}).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));const address=server.address() as {port:number};const origin='http://127.0.0.1:'+address.port;

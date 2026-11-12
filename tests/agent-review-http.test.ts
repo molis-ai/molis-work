@@ -1,14 +1,23 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import test from "node:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test, { after } from "node:test";
 
-import { AgentHost, handleAgentReviewHttp } from "@molis-ai/molis-work-app-local-host";
+import { AgentHost, MolisWorkLocalHost, handleAgentReviewHttp } from "@molis-ai/molis-work-app-local-host";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** 宿主的审查队列走 HTTP：只有宿主能决定，而且批准不等于已发生。 */
 
 const BOARD = "board-a";
+
+/** The Host whose action service carries the person's decisions (B9): one for this file, in a temporary Home. */
+let reviewHost: Promise<MolisWorkLocalHost> | undefined;
+const reviewHome = mkdtempSync(path.join(tmpdir(), "molis-review-host-"));
+const hostForReviews = () => reviewHost ??= Promise.resolve(new MolisWorkLocalHost({ homeDirectory: reviewHome, completeText: null }));
+after(async () => { await (await reviewHost)?.close(); rmSync(reviewHome, { recursive: true, force: true }); });
 
 function pending(reviewId: string): AgentReviewRequest {
   return {
@@ -28,11 +37,11 @@ function pending(reviewId: string): AgentReviewRequest {
 
 async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts["observeGitIndex"]) {
   const { AgentHost: Host } = await import("@molis-ai/molis-work-service-agent-host");
-  const agentHost = new Host();
+  const agentHost = new Host(), host = await hostForReviews();
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     void handleAgentReviewHttp(request, response, url, {
-      projectId: BOARD, agentHost, actorId: "user", observeGitIndex,
+      host, projectId: BOARD, agentHost, actorId: "user", observeGitIndex,
     }).then((handled) => {
       if (!handled) { response.writeHead(404); response.end(); }
     });

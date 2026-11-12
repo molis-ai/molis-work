@@ -27,6 +27,8 @@ import { projectPluginJudge } from "./project-action-availability.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
+import { contextOnboardingProvider } from "./context-onboarding-actions.js";
+import { agentReviewProvider } from "./agent-review-http.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -246,6 +248,8 @@ export class MolisWorkLocalHost {
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)),
       actionUsagesProvider(callerClient, options.homeDirectory),
+      // The pages' own writes (B9): each serves only a call its page's route issued (`web-entry-actions.ts`).
+      contextOnboardingProvider(), agentReviewProvider(),
       ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), { manifest: (installId, pluginId, projectId) => installedPluginManifestFor(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === projectId)), projectNames: async () => new Map(this.catalogRunner ? await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.listProjects().map(project => [project.project_id, project.display_name] as const)) : []) }), options.homeDirectory, this.plugins)] : []),

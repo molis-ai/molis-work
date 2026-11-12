@@ -3,17 +3,61 @@
   "review": "2026-11-11 合并 #2031（206884b447）后以隔离 Host 对照 merge-base 实测；四页面的新词包路径与 cold/warm 增量如 pages。该文件不是产品新增内容，只是同一词包的新 digest。",
   "userApproval": "用户 2026-11-11 已批准全部审查修复并免除人工验收；第 16 批 §6.7 的语言词包首屏资源批准覆盖该词包（#2031 的 16-c-locales 同源）。",
   "entryApprovals": [
-    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "zh", "entry": "/assets/locale/workbench.zh.<digest>.js", "change": "new" },
-    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "en", "entry": "/assets/locale/workbench.en.<digest>.js", "change": "new" }
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
   ],
   "pages": {
-    "arrival-empty/zh": { "cold": 1198, "warm": 939 },
-    "arrival-empty/en": { "cold": 1198, "warm": 939 },
-    "chooser/zh": { "cold": 1754, "warm": 1495 },
-    "chooser/en": { "cold": 1754, "warm": 1495 },
-    "workbench-default/zh": { "cold": 1055, "warm": 668 },
-    "workbench-default/en": { "cold": 1055, "warm": 668 },
-    "workbench-all-plugins/zh": { "cold": 1055, "warm": 668 },
-    "workbench-all-plugins/en": { "cold": 1055, "warm": 668 }
+    "arrival-empty/zh": {
+      "cold": 1198,
+      "warm": 939
+    },
+    "arrival-empty/en": {
+      "cold": 1198,
+      "warm": 939
+    },
+    "chooser/zh": {
+      "cold": 1983,
+      "warm": 1724
+    },
+    "chooser/en": {
+      "cold": 1983,
+      "warm": 1724
+    },
+    "workbench-default/zh": {
+      "cold": 1143,
+      "warm": 668
+    },
+    "workbench-default/en": {
+      "cold": 1143,
+      "warm": 668
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 1143,
+      "warm": 668
+    },
+    "workbench-all-plugins/en": {
+      "cold": 1143,
+      "warm": 668
+    }
   }
 }

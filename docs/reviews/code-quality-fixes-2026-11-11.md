@@ -17,8 +17,8 @@
 PR 期间 main 合入第 16 批「字体、皮肤和中英界面切换」（`206884b447`，2575 文件），把工作台/宿主/插件入口切到按主人取词的中英文文件，并改变了若干界面的文字与结构 API。本分支合并时按「新架构优先」处理冲突：
 
 - **本分支保留并适配到新文字系统的改动**：账号菜单邮箱显示（`uiText.text` 稳定键 + 合同 `email`）；发给菜单的 glyph sprite（不改文字）；成员 HTTP 的严格信封（错误文案改用新文字键）；升级链里的 `config/ui-locale.json` 注册移到新的属主 `horizontal/appearance`（`UI_LOCALE_FILE`），`platform-upgrade-stores.ts`/`golden/formats.mjs`/`CHECKLIST` 同步；`initial-versions` 的内联 `@version` 扫描保留，但 prompt/method/role 改按第 16 批的内容版本表（`tooling/versions.json` + `content-versions`）判定，不再按「必须为 1」误报；提示词的派发时记录改用第 16 批的 `deferUse` 接口（保留 once）。
-- **本分支放弃、由第 16 批取代的改动**（续）：页面收件人丢文件的 toast（它要加新的稳定文字键，会改变内容寻址的词包文件与首屏审批面；第 16 批的页面收件人已按新文字系统处理，先不做）。
-- **本分支放弃、由第 16 批取代的改动**：K5 的来源名英文翻译（新文字/语言包系统已覆盖，旧 `ui.translations` 字段已不存在）；composer 桥 `sources` 死字段清理（第 16 批重新使用该字段）；im-ui `dateLabels` 抽取（第 16 批改用 `uiText` 日期格式）；Coding 自动档（#2030 已独立补做）；页面收件人 toast（同上）。
+- **页面收件人 toast 按新文字系统重接**：不加新稳定键（那会改内容寻址词包与首屏审批面），改用第 16 批已有的 `workbench.side-panel-browser.files-were-not-given-page` 文案；`tests/assistant-island-script.test.ts` 恢复为通过。
+- **本分支放弃、由第 16 批取代的改动**：K5 的来源名英文翻译（新文字/语言包系统已覆盖，旧 `ui.translations` 字段已不存在）；composer 桥 `sources` 死字段清理（第 16 批重新使用该字段）；im-ui `dateLabels` 抽取（第 16 批改用 `uiText` 日期格式）；Coding 自动档（#2030 已独立补做）。
 - **首屏门禁的跨副本适配**：第 16 批把文字上下文装在进程级 `Symbol.for` 上，而首屏门禁在同一进程里先量 merge-base 再量候选，两份 Host 模块各自安装会冲突；在 `scripts/first-screen/host.mjs` 每次测量结束时释放该上下文，并用本任务的首屏许可文件 `tooling/gates/page-asset-allowances/2026-11-11-review-locale-entry.json` 记录同一词包因重新构建产生的新内容寻址文件名与 8 个页面的增量（用户 2026-11-11 的修复授权 + 第 16 批 §6.7 的词包批准覆盖）。
 - 合并后 `apps/workbench/src/i18n/renderer-gap-en.ts` 随第 16 批删除；本分支新增的 toast 译文进入新语言文件。
 

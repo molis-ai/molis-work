@@ -1,0 +1,7 @@
+{
+  "reason": "第 15 批同步 main（第 16 批稳定键）后，Inbox 客户端在已获批的 382 字节之外多出 6 字节：两批对同一客户端的改动合在一起（第 16 批把 L(中文) 换成 inbox.client.* 键，第 15 批加首页刷新和语言切换后的重读），没有新功能。实测 8881→9269（+388），扣除 batch-15-cross-consumers.json 的 382 字节。",
+  "review": "第 15 批 PR #2017 全 PR 评审核对，见 PR 评论的评审台结论。",
+  "assets": {
+    "/assets/molis-work-plugins/inbox.js": 6
+  }
+}

@@ -4,7 +4,7 @@
 
 ## 当前包：official main（2026-11-13，第 31 批换）
 
-当前包为 **1,447,978 字节**，SHA-256 `d6c0623d05a3eacc7c79951eeced22b12cdfeeac63c89c60e909f3bafb18b3c9`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `1c0654b749cf92c732603cc865638c6e532c4daa`**（PR [#114](https://github.com/molis-ai/molis-prologue/pull/114)，即 Slice-31 三项改动合入 `770a2e27` 之后的主线）。这份包就是**官方版本**：不再从自建分支打，源码就是公开 main 上的那棵树，没有 vendor 补丁、没有脏文件，任何人都能按 provenance 里的步骤重建。
+当前包为 **1,448,221 字节**，SHA-256 `2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53`**（PR [#114](https://github.com/molis-ai/molis-prologue/pull/114) 合入 `770a2e27`，再由 PR [#115](https://github.com/molis-ai/molis-prologue/pull/115) 补上写后检查的 Run/Session 身份；两次都在 main 上）。这份包就是**官方版本**：不再从自建分支打，源码就是公开 main 上的那棵树，没有 vendor 补丁、没有脏文件，任何人都能按 provenance 里的步骤重建。
 
 它按 24 批盘点补上三处上游缺口（子代理、Skill 自动选用、续跑与写后检查），其余与 `memory-p0` 相同：
 
@@ -418,7 +418,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：35 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 与 final103-bridge、2026-11-13 由官方 main 包换下的 window31；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：45 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核（2026-11-12 补入 `1cc80b05`，即上一份源码；2026-11-13 补入 `4537a570` 与主线合并提交 `1c0654b7`，`mainHead` 随之更新）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `upstream`：47 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7` 与写后检查身份修复 `5cbf2601`，以及测试补充 `bdf80c6f`；`checkedOn` 为 2026-11-13，`mainHead` 为 `bdf80c6f684214e9aa18835662969f457e5db44c`）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

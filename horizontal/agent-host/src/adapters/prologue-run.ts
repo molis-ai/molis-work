@@ -11,7 +11,7 @@ import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
-import { createCodeIntelligence, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
+import { createCodeIntelligence, unavailableSymbolIndex, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
 import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -161,6 +161,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const wantsSymbols = actionTools !== undefined && !none && gatewayTools === undefined && input.root_path !== undefined
     && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL);
   const codeServers = deps.options.codeIntelligence;
+  const codeProblem = codeServers?.problem;
   const codeIntelligence = wantsSymbols && codeServers !== undefined
     ? createCodeIntelligence({
       servers: codeServers.servers,
@@ -182,7 +183,8 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     : { ...actionTools, ...withSymbolTool({
       pack: actionTools.pack,
       executors: actionTools.executors,
-      symbolIndex: codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
+      symbolIndex: codeProblem !== undefined ? unavailableSymbolIndex(codeProblem)
+        : codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
       name: symbolToolName,
     }), names: [...actionTools.names, symbolToolName] };
   return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols,
@@ -194,14 +196,21 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
  * the round works in a directory whose workspace has the person's checkers now. Without it the pack may still declare the
  * check, and nothing is asked.
  */
-async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, mode: Mode, attempt: { run_id?: string }, tools: readonly PackTool[] | undefined) {
+async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, mode: Mode, tools: readonly PackTool[] | undefined) {
   const workspaceAt = deps.options.checks?.workspaceAt, projectId = index.owner.project_id, store = createPrologueWriteCheckers(deps.runtime);
   const declared = tools?.some(tool => tool.afterWriteCheck === true) === true;
   const workspace = !declared || mode.none || mode.business || !input.root_path || !workspaceAt ? undefined : await workspaceAt(projectId, input.root_path);
   if (!workspace || !(await store.read(projectId, workspace)).checkers.length) return undefined;
   return afterWriteExecutor({ projectId, rootPath: input.root_path!, workspaceAt: workspaceAt!, store, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}),
     // A round stopped while the index was being read keeps nothing either: the check is in the change itself, just before the write.
-    note: (key, note, signal) => deps.index.update(input.session_id, saved => { signal?.throwIfAborted(); const held = attempt.run_id && saved.attempts.find(item => item.run_id === attempt.run_id); if (held) (held.write_checks ??= {})[key] = note; }) });
+    note: (about, note, signal) => deps.index.update(about.session?.id ?? input.session_id, saved => {
+      signal?.throwIfAborted();
+      // A dispatched child inherits the parent's pack, so its check runs on the same executor: record it against the
+      // child's own attempt (named by the Run the SDK sends), never the parent's. A run without an id falls back to the
+      // latest attempt of its session.
+      const held = about.run === undefined ? saved.attempts.at(-1) : saved.attempts.find(item => item.run_id === about.run!.id) ?? saved.attempts.at(-1);
+      if (held) (held.write_checks ??= {})[about.operationKey] = note;
+    }) });
 }
 
 /** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
@@ -646,7 +655,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const ref = state.sessions.get(input.session_id);
   const { actionController, actionTools, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none);
   ensureStopGuard(runtime, state, input.session_id);
-  const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
+  const afterWrite = await roundChecks(deps, input, index, mode, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || symbolTool);
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
   const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack,
@@ -700,7 +709,6 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     }
     throw error;
   });
-  attempted.run_id = started.run.ref.id;
   watchRoundFacts(state, started.run);
   // The language servers this round started belong to it: they go when it ends, however it ends.
   if (codeIntelligence !== undefined) started.run.subscribe(event => { if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") void codeIntelligence.close().catch(() => undefined); });

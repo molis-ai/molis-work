@@ -48,6 +48,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
     readonly downloadsAllowed?: boolean;
     readonly registry?: string;
     readonly toolsRoot?: string;
+    /** The optional configuration file could not be read/validated; the symbol tool reports it instead of starting. */
+    readonly problem?: string;
   };
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };

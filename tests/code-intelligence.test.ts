@@ -79,3 +79,25 @@ test("A4-1 只读本轮的目录；没有登记的服务器就明确拒绝", { t
     assert.equal(existsSync(join(home.root, "src/a.ts")), true);
   } finally { delete process.env.FAKE_LSP_LOG; home.close(); }
 });
+
+test("A4-1 可选的 language-servers.json 写坏了：只关代码智能并说明原因，不打死 Agent", async () => {
+  const { codeIntelligenceConfig } = await import("@molis-ai/molis-work-app-local-host");
+  const dir = mkdtempSync(join(tmpdir(), "molis-language-servers-broken-"));
+  try {
+    // No file: the feature is simply absent.
+    assert.equal(codeIntelligenceConfig(dir), undefined);
+    // Broken JSON: a problem, not a throw — the composition keeps starting the Agent.
+    writeFileSync(join(dir, "language-servers.json"), "{ this is not json");
+    const broken = codeIntelligenceConfig(dir);
+    assert.equal(broken?.servers.length, 0);
+    assert.match(String(broken?.problem), /language-servers\.json 读不了/u);
+    // Valid JSON with an invalid field: same degradation, with the validation reason.
+    writeFileSync(join(dir, "language-servers.json"), JSON.stringify({ downloads: "allow", servers: [] }));
+    assert.match(String(codeIntelligenceConfig(dir)?.problem), /registry/u);
+    // A usable file carries the servers and no problem.
+    writeFileSync(join(dir, "language-servers.json"), JSON.stringify({ servers: [{ extensions: [".ts"], command: "fake-lsp" }] }));
+    const usable = codeIntelligenceConfig(dir);
+    assert.equal(usable?.servers.length, 1);
+    assert.equal(usable?.problem, undefined);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

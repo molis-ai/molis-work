@@ -310,3 +310,9 @@ function describeSymbols(symbols: readonly unknown[], requested: string): string
   }
   return lines.length === 1 ? `${lines[0]}: none` : lines.join("\n");
 }
+
+
+/** The executor a round gets when the optional `language-servers.json` exists but could not be used: report it, per call. */
+export function unavailableSymbolIndex(reason: string): ToolRunner {
+  return async () => { throw new Error(reason); };
+}

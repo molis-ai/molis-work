@@ -456,23 +456,34 @@ function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<
  * A file that is there but unreadable or invalid is an error, not a silent "no servers" — a typo in a command should be
  * visible at start, not leave a file type without intelligence forever.
  */
-function codeIntelligenceConfig(homeDirectory: string | undefined): {
+export function codeIntelligenceConfig(homeDirectory: string | undefined): {
   readonly servers: readonly import("@molis-ai/molis-work-service-agent-host").LanguageServerSpec[];
   readonly downloadsAllowed: boolean;
   readonly registry?: string;
   readonly toolsRoot: string;
+  /** Set when the optional file exists but cannot be used; the Agent still starts and the symbol tool reports this. */
+  readonly problem?: string;
 } | undefined {
   if (homeDirectory === undefined) return undefined;
   const file = path.join(homeDirectory, "language-servers.json");
   if (!existsSync(file)) return undefined;
-  let parsed: unknown;
-  try { parsed = JSON.parse(readFileSync(file, "utf8")); } catch (error) { throw new Error(`Home 的 language-servers.json 读不了：${(error as Error).message}`); }
-  const settings = languageServerSettings(parsed);
-  return {
-    servers: settings.servers,
-    downloadsAllowed: settings.downloads,
-    // The isolated tools root belongs to this Home, never to a project or a global prefix (Q5).
-    toolsRoot: path.join(homeDirectory, "tools", "language-servers"),
-    ...(settings.registry === undefined ? {} : { registry: settings.registry }),
-  };
+  const toolsRoot = path.join(homeDirectory, "tools", "language-servers");
+  try {
+    let parsed: unknown;
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+    const settings = languageServerSettings(parsed);
+    return {
+      servers: settings.servers,
+      downloadsAllowed: settings.downloads,
+      // The isolated tools root belongs to this Home, never to a project or a global prefix (Q5).
+      toolsRoot,
+      ...(settings.registry === undefined ? {} : { registry: settings.registry }),
+    };
+  } catch (error) {
+    /*
+     * The file is optional and hand-written: a typo in it disables code intelligence and says why, but must not stop the
+     * whole Agent Host — every other action would be unavailable until the person found and fixed it.
+     */
+    return { servers: [], downloadsAllowed: false, toolsRoot, problem: `language-servers.json 读不了：${(error as Error).message}` };
+  }
 }

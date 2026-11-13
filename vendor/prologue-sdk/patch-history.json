@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/molis-prologue",
-    "checkedOn": "2026-10-25",
-    "mainHead": "1c0654b749cf92c732603cc865638c6e532c4daa",
-    "statement": "2026-10-25 在准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对42个commitsChecked逐个执行git merge-base --is-ancestor：除已换掉的08b84296、923e5a40、4007a93c三个历史过渡源及当前ba75c9f8之外，其余均为main祖先。当前final103-bridge依赖来自公开固定分支feature/node-storage-final103-bridge的ba75c9f8437018904b24dabeaaef6ded8054add5，不是main祖先：基点2c7feba5（PR60），只移植PR103定稿6523abb47..513237d2的功能；4e018e1a保旧普通分页/读取及旧合同，ba75只修导航。按accepted WO #1267/6395049480作为过渡包采用，不带PR61–101、PR104或旧42。旧42只曾作为本PR候选验证、未正式合入，不将其伪记为已采用的历史包。原已删除的26份补丁与32包记录保持，后续可按Git blob取回。",
+    "checkedOn": "2026-11-13",
+    "mainHead": "bdf80c6f684214e9aa18835662969f457e5db44c",
+    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）与 1c0654b7（PR #114 的主线合并提交，当前 main 头），commitsChecked 共 45 条；当前包已改为 main 官方构建，旧 33 个包记录与 26 份补丁保持，后续可按 Git blob 取回。当前 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -57,7 +57,9 @@
       "ba75c9f8437018904b24dabeaaef6ded8054add5",
       "1cc80b05253df798eeb34afff65d1bda06bee587",
       "4537a570dcb4541f2dc68466f6886880c1b75007",
-      "1c0654b749cf92c732603cc865638c6e532c4daa"
+      "1c0654b749cf92c732603cc865638c6e532c4daa",
+      "5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53",
+      "bdf80c6f684214e9aa18835662969f457e5db44c"
     ]
   },
   "patches": [

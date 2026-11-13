@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "1c0654b749cf92c732603cc865638c6e532c4daa",
+    "commit": "5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main build. 1c0654b7 is the merge of PR #114 (Slice-31 window: bounded App-tools subagents, Skill auto-selection and on-demand read, subagent continuation and write-after-check) on top of 770a2e27; the packed tree is the repository's public main branch at that merge, with no vendor patch and no dirty files."
+    "note": "Official main build. 5cbf2601 is the merge of PR #115 (an after-write check now names its Session and Run) on top of 1c0654b7 (the Slice-31 window, PR #114) and 770a2e27; the packed tree is the repository's public main branch at that merge, with no vendor patch and no dirty files."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1447978,
-    "sha256": "d6c0623d05a3eacc7c79951eeced22b12cdfeeac63c89c60e909f3bafb18b3c9",
-    "integrity": "sha512-2ItXjPYkfSDkPHnmFUKf6tsNBVqyHL22attQkw8WINlalSWk5IRONYD8I7X8wrvrzgPhhiqMKIRx2LCRHoBwAA=="
+    "bytes": 1448221,
+    "sha256": "2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5",
+    "integrity": "sha512-X/JtU8DPXIxPZITmxtuAo7SvBd7E6mNcX9IOsXUNVMoZIOLWLwIJe/zJqsnbFXWOwpe7OqfQtmxQ0w+mxHzAHA=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,7 +27,7 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use the public main commit 1c0654b749cf92c732603cc865638c6e532c4daa (the merge of PR #114 on 770a2e27).",
+      "Use the public main commit 5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53 (the merge of PR #115 on 1c0654b7).",
       "pnpm install --frozen-lockfile --offline (existing store).",
       "node scripts/public-api.mjs and node scripts/quality-ratchet.mjs pass against that commit.",
       "pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>, run twice from two separate builds; the two archives are byte-for-byte identical.",

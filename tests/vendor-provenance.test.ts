@@ -214,9 +214,10 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "1c0654b749cf92c732603cc865638c6e532c4daa");
+    assert.equal(provenance.source.commit, "5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53");
     // The packed tree is the public main branch at the merge; no branch-only package and no vendor patch.
     assert.match(provenance.source.note, /Official main build/);
+    assert.match(provenance.source.note, /1c0654b7/);
     assert.match(provenance.source.note, /770a2e27/);
     assert.equal(provenance.source.candidateUpstream, undefined);
     assert.deepEqual(provenance.source.patches, []);
@@ -243,7 +244,7 @@ describe("the records of this repository", () => {
     assert.equal(existsSync(path.join(repoRoot, folder, previous.file)), false);
     // The upstream audit the record carries is unchanged by the replacement.
     const upstream = record.upstream;
-    assert.equal(upstream.mainHead, "1c0654b749cf92c732603cc865638c6e532c4daa");
+    assert.equal(upstream.mainHead, "bdf80c6f684214e9aa18835662969f457e5db44c");
     assert.ok(upstream.commitsChecked.includes("ba75c9f8437018904b24dabeaaef6ded8054add5"));
     assert.ok(upstream.commitsChecked.includes("2c7feba5a6ea85e81e4a263671fb5e68f536d86a"));
   });
@@ -271,7 +272,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 45);
+    assert.equal(record.upstream.commitsChecked.length, 47);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

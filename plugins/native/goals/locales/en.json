@@ -536,6 +536,8 @@
     "goals.event-history-body.authorize-action": "Authorize action",
     "goals.event-history-body.based-event": "Based on event",
     "goals.event-history-body.blocks-completion": "Blocks completion",
+    "goals.event-history-body.cited": "Cites",
+    "goals.event-history-body.open-cited": "Open",
     "goals.event-history-body.cancel": "Cancel",
     "goals.event-history-body.capture": "Capture",
     "goals.event-history-body.change-reason": "Change reason",

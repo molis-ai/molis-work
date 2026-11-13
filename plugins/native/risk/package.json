@@ -27,8 +27,8 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs methods",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --define:RISK_CSS=\"$(node tooling/minify-styles.mjs)\" --outfile=dist/risk-client.js && node ../../../scripts/client-literals.mjs --factory dist/risk-client.js && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs methods",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
@@ -44,5 +44,8 @@
       "@molis-ai/molis-work-plugin-sdk"
     ],
     "extraDependencies": {}
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

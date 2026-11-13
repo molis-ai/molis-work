@@ -14,3 +14,4 @@ export { RiskStore, RISK_PAGE } from "./store.js";
 export { riskErrors } from "./error.js";
 export { RISK_STATUSES, RISK_LEVELS, RISK_LIMITS, riskSeverity } from "./model.js";
 export type { RiskRecord, RiskRow, RiskLink, RiskEvent, RiskStatus, RiskLevel } from "./model.js";
+export { RISK_CLIENT_FACTORY_SCRIPT } from "./client.js";

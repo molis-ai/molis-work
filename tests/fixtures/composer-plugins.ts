@@ -21,13 +21,14 @@ const manifest = (id: string, name: string, actions: ActionDefinition[], routes:
 
 export const NOTE_KIND = "composernotes.note";
 
-export function composerSourcePlugin(prefix = "composernotes") {
+/** `words` gives the source's name and its plugin's name a line of the plugin's own language files each, as a released plugin declares them. */
+export function composerSourcePlugin(prefix = "composernotes", words?: { name_text: { key: string }; title_text: { key: string } }) {
   const id = `io.molis.work.example.${prefix}`;
   const reader = defineSubjectContextAction(`${prefix}.read`, 1, NOTE_KIND, "测试笔记", []);
   const pick: ActionDefinition<ComposerPickInput, ComposerPickOutput> = { capability_id: `${prefix}.pick`, version: 1, operation: "query",
     action: { title: "选测试笔记", description: "按标题找这个项目的测试笔记", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [NOTE_KIND],
       input_type: COMPOSER_PICK_INPUT_TYPE, output_type: COMPOSER_PICK_OUTPUT_TYPE, input_schema: COMPOSER_PICK_INPUT_SCHEMA, output_schema: COMPOSER_PICK_OUTPUT_SCHEMA,
-      composer_source: { title: "测试笔记", layers: ["ai", "plain"] } } };
+      composer_source: { title: "测试笔记", ...(words ? { title_text: words.title_text } : {}), layers: ["ai", "plain"] } } };
   const notes = [{ id: "n1", title: "访谈记录" }, { id: "n2", title: "访谈提纲" }, { id: "n3", title: "周报" }];
   const seen: unknown[] = [];
   let picked: ComposerPickOutput | undefined;
@@ -35,7 +36,8 @@ export function composerSourcePlugin(prefix = "composernotes") {
   /** Each held pick's signal, as its handler got it: a pick the page let go of sees its abort here. */
   const held: AbortSignal[] = [];
   const availability = (): ActionAvailability => available ? { available: true } : { available: false, code: "composernotes.off", reason: "测试笔记已停用" };
-  const definition: PluginDefinition = { manifest: manifest(id, prefix, [pick, reader]), async start() {
+  const declared = manifest(id, prefix, [pick, reader]);
+  const definition: PluginDefinition = { manifest: words ? { ...declared, name_text: words.name_text, ui: { ...declared.ui, locales: { default: "zh", available: ["zh", "en"] } } } : declared, async start() {
     return { kind: "app", actions: [
       { ...pick, availability, handle: async (caller, input) => {
         seen.push(structuredClone(input));

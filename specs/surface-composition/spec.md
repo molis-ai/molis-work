@@ -259,20 +259,22 @@ surface_corrections        项目库
 
 ### 8.1 一次组合
 
+整次组合的截止由 1 秒放宽到 3 秒（用户 2026-11-13 定）：首页是一次请求组合完才画，慢机上（CI 约慢 3 倍）主人在 1 秒内答不完，读取在截止时被取消，「重试」也是同一个预算，卡片永远读不出。3 秒的代价是某个主人卡住时，首页最多空等 3 秒才显示该卡的「重试」。
+
 | 读 | 次数 | 说明 |
 | --- | --- | --- |
 | 插件目录与声明 | 0 或 1 | 按目录版本缓存在进程里，版本变了才重读 |
 | 动作目录 `discover()`（带可用性） | 1 | 对本次所有候选操作一起取，不按操作逐个 |
-| 主人 values（规则字段） | 每个精确提供方＋values 动作的最少批次数 | 每批最多 50 对象、32 字段；同对象不重复读取，最多 4 个真实在途调用；整次组合共用 1 秒截止，过期不再派发 |
+| 主人 values（规则字段） | 每个精确提供方＋values 动作的最少批次数 | 每批最多 50 对象、32 字段；同对象不重复读取，最多 4 个真实在途调用；整次组合共用 3 秒截止，过期不再派发 |
 | 「等你」 | 0 或 1 | 只有 `attention` 和 `home` |
 | Context Ledger | 0 或 1 | 本次所有对象的边一起查 |
 | 工作记录 | 0 或 1 | 只有 `home` |
-| 插件概况 | 每个已启用、声明了概况的插件 1 次 | 只有 `home`；与 values 共用四个真实在途槽和整次一秒截止，见 §14.5 |
+| 插件概况 | 每个已启用、声明了概况的插件 1 次 | 只有 `home`；与 values 共用四个真实在途槽和整次三秒截止，见 §14.5 |
 | 纠正表 | 1 | 一次读出这个调用方在这个位置的全部纠正 |
 
 不按条目逐个请求，不重复读同一份数据（对抗式审查 N42～N56）。
 
-**2026-11-09 用户批准的 IUI-02 例外。** 仅没有有效呈现声明的对象，按本轮不同引用各至多调用一次原唯一读取器，取得当前标题、版本和打开位置。与概况、规则值及显示字段共用原有四个在途调用与一秒截止。只调用已确认本地只读、明确免费、不外发、不调模型的读取器，正文立即丢弃。普通 values 仍按提供方合批，页面仍一次请求，不增加目录发现或单项 HTTP。无法核实的对象不得提供旧标题、数量或打开。完整边界与验证见[智能呈现 §17.5](../intelligent-surfaces/spec.md#175-没有呈现声明的对象iui-02)。
+**2026-11-09 用户批准的 IUI-02 例外。** 仅没有有效呈现声明的对象，按本轮不同引用各至多调用一次原唯一读取器，取得当前标题、版本和打开位置。与概况、规则值及显示字段共用原有四个在途调用与三秒截止。只调用已确认本地只读、明确免费、不外发、不调模型的读取器，正文立即丢弃。普通 values 仍按提供方合批，页面仍一次请求，不增加目录发现或单项 HTTP。无法核实的对象不得提供旧标题、数量或打开。完整边界与验证见[智能呈现 §17.5](../intelligent-surfaces/spec.md#175-没有呈现声明的对象iui-02)。
 
 ### 8.2 页面一次画
 
@@ -443,7 +445,7 @@ surface_corrections        项目库
 
 - **对话用途、折叠与时间。** 请求的 `delivery_subjects` 是 `subjects` 的去重子集，仅对话可给；交付默认卡片、其余引用默认名字片。对话和讨论默认显示前 6 个，`overflow` 只记可读的折叠件数；`expanded:true` 在原位置展开，不改变 50 项输入上限和插件挂载位硬上限。它与首页上方已显示的 `hidden_above` 不共用语义。S-1 省略可选的折叠标签，不伪造词表键。条目的 `read_at` 只转发本次授权读取给的真实旧值时间；无时间的失败组是 unreadable。
 - **动作和说明。** 普通操作固定精确 provider；同名跨提供方有歧义时不任选。`unavailable` 只有声明与输出两处：先筛外层 `when`，内部 status/codes 至少一个非空，两项同时给时为 AND；codes 只比可见的不可用行。命中时把按钮替换为 owner 文字键的 notice。去处只引用同一对象已声明的另一动作、复用其输入映射，且最终必须可用并为只读 query 或 navigation。权限隐藏的动作不出原因；provider、notice、后果由候选决定，助理不能改写。外发由动作 owner 的 `external:true` 显式声明，计费和不可逆用既有元数据，不按名称猜。
-- **批量和截止。** SDK 允许一个主人不同 kind 使用不同 values 动作，旧“每 owner 一次”不能覆盖现行合法声明。按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 个规则字段，同一对象不重复读取；最多 4 个真实在途调用，整次 compose 共用 1 秒截止。截止停止派发并取消本轮子调用，不能把 Promise 超时当成底层已经结束后继续补槽。父取消或撤权直接传播，不能当作 stale 成功。动作必须符合现有 values schema、只读、不调模型、非 `external:true` 且明确 `execution.cost: "none"`；省略、unknown 和 metered 均不能作为自动 values 读取，标准声明 helper 显式给 none；复用 `presentationValuesProblems`。签名与原生自动读取采用同一边界，不能借组合触发外发。发现型 Attention 条目指向的对象尚未证明可读就不输出，也不进入 merged、overflow、hidden 或可读对象计数；有未完成读取时组给 unreadable，不伪装成空组。停用条目的独立聚合按下一条，不把 Attention 自身事实等同于对象正文。
+- **批量和截止。** SDK 允许一个主人不同 kind 使用不同 values 动作，旧“每 owner 一次”不能覆盖现行合法声明。按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 个规则字段，同一对象不重复读取；最多 4 个真实在途调用，整次 compose 共用 3 秒截止。截止停止派发并取消本轮子调用，不能把 Promise 超时当成底层已经结束后继续补槽。父取消或撤权直接传播，不能当作 stale 成功。动作必须符合现有 values schema、只读、不调模型、非 `external:true` 且明确 `execution.cost: "none"`；省略、unknown 和 metered 均不能作为自动 values 读取，标准声明 helper 显式给 none；复用 `presentationValuesProblems`。签名与原生自动读取采用同一边界，不能借组合触发外发。发现型 Attention 条目指向的对象尚未证明可读就不输出，也不进入 merged、overflow、hidden 或可读对象计数；有未完成读取时组给 unreadable，不伪装成空组。停用条目的独立聚合按下一条，不把 Attention 自身事实等同于对象正文。
 - **Attention 的事实与排序。** 由 `modules/attention-resumption` 的窄批量读取只投影活动持久条目的 owner、规范对象引用、reason、revision、进入时间，不带 detail。现有 subject_type 到 kind 的对应由这个事实 owner 维护，不在服务抄 Inbox 分支；null owner 不猜。goal_decision 是决定，source_fault/artifact_out_failed 是失败，其余已存在且可读的条目可以按主人状态分类，无分类排在三类之后。状态只影响排序，绝不产生条目（SSC-11）。当前 Coding/Goals 的其他待验收没有进入此表，不假造；新增生产者与生命周期另议。本片不接 `/api/attention` 的后台任务和 AssistantNotices 聚合。插件枚举继续服从现有 attention:read 和原调用人的对象权限。
 - **停用遗漏的准确口径。** §7.1 原有 user 停用计数保留：Attention 自身事实已有独立读取授权（`PluginAttentionClient` 的本项目显式 owner 条目），不以对象 reader 可用为前提。仅 user、当前项目、原 caller 授权仍有效时，按 owner＋规范 subject 去重统计活动 Attention 事实，且准确安装状态必须为 `disabled`；输出 owner 与数量，不输出其对象引用、正文或关系，也不算进可读对象数。它表示因停用未参与的 Attention 项，不声称对象仍存在、可读或已跨关系合并。crashed、quarantined、启动失败和权限拒绝不能压成 disabled；目录须保留真实状态。无授权的事实不计，非 user 不带 owner 和数字。该口径经独立只读复核，纠正本节先前“任何计数”的过宽措辞，不改变原首页验收。
 - **关系只读与身份。** Context Ledger owner 提供限定候选引用的 active latest 批量读取，复用原有 scope、namespace、引用和访问校验。Placement 在自己的 Home 分区批读复制／派生边，并核对当前位置；Host 一次逻辑端口合并主人结果，不跨包写 SQL。两端必须都是本轮已授权候选且位置、kind、身份一致；不向候选外扩图。当前没有可信 created_from 生产来源，不能仅凭插件可自写的 type/cause 把它认成平台关系。真实链用 placement.copy/convert 验证。
@@ -512,7 +514,7 @@ surface_corrections        项目库
 
 Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请求可给有界、去重的 `home_order`（canonical plugin id 列表）；页面沿已有目录把 shell key 投影为 canonical id，不另存一份顺序。该输入只排序服务已经取得的可见候选，未知或已不可见 id 不产生卡片或权限。可读「等你」所在插件优先，其余按当前固定顺序及既有导航默认顺序；不能宣称 Host 已持有浏览器 pin 状态。
 
-**一次读取。** 保持一次目录、一次 discover、一次纠正和至多一次 Attention 读取。每个已启用且合格的概况最多调用一次；现行 `definePresentationOverviewAction` 补明确 `execution.cost: "none"`，SDK 声明校验和运行前检查都要求 query、read、无模型、非 external，与 values 相同。概况与规则 values 共用四个真实在途槽和整次一秒截止，截止后不补派。概况失败只影响本卡；父取消、撤权直接传播。保留本轮所有实际依赖的精确路由授权，并在等待后及结果交付前重新检查。
+**一次读取。** 保持一次目录、一次 discover、一次纠正和至多一次 Attention 读取。每个已启用且合格的概况最多调用一次；现行 `definePresentationOverviewAction` 补明确 `execution.cost: "none"`，SDK 声明校验和运行前检查都要求 query、read、无模型、非 external，与 values 相同。概况与规则 values 共用四个真实在途槽和整次三秒截止，截止后不补派。概况失败只影响本卡；父取消、撤权直接传播。保留本轮所有实际依赖的精确路由授权，并在等待后及结果交付前重新检查。
 
 动作目录的元数据和原注册身份须在同一次同步目录取样中绑定，再跨异步边界交给组合服务；不能 `await discover()` 后仅凭 ref/provider 重新保留当前注册，让旧 schema 配上新注册的授权。注册身份仍由 Kernel 的现有登记表拥有，Host 只转发同次取得的保留能力，不比较元数据冒充身份、不另存代次。潜在候选可先捕获，但取值前只激活真实 reader／values 依赖；状态和形态选定后再激活实际返回的操作、notice 去处和通用操作依赖。未命中 `when` 的声明操作、未展示的 placement 操作不能因变化而拒绝整页。 同次目录分批激活的依赖共用一次当前性检查：先执行所有已激活依赖的授权回调，再对它们的原注册作不执行回调的同步尾检，防止后一个授权回调替换前一个刚核过的注册。
 

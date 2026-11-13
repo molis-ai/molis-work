@@ -79,7 +79,7 @@
 新增 `packages/contracts/src/platform/state-vocabulary.ts`（新 subpath `./platform/state-vocabulary`，合同变更）：
 
 - `StateRingFamily`／`STATE_RING_FAMILIES`：**平台闭合的语义家族**，已随 #1979 落在 `platform/ui-state-rings.ts`（由 `platform/ui.ts` 转出），就是现有 `STATE_RING_FAMILIES` 的 21 个键（idle、connected、running、done、waiting、answer、paused、blocked、syncing、retrying、failed、partial、interrupted、verify、stale、disconnected、unsaved、unread、read、archived、trashed）。contracts 不能反向依赖 SDK，所以键集合以数据形式放在 contracts，SDK 的视觉表保留并**用一条穷尽测试互相对照**（任何一边增删都失败）；见 §4.5。
-- `STATE_VOCABULARIES`：**纯数据表**，每个平台能力一段：`owner`、`states`（状态 → 家族）、`public`（是否对外可见）。**不放转换表、不放函数**——转换属于实现（§4.7）。
+- `STATE_VOCABULARIES`：**纯数据表**，每个平台能力一段：`owner`、`states`（状态 → 家族）、`public`（是否对外可见）。**不放转换表、不放函数**——转换属于实现（§4.7）。`owner` 只能是平台能力；插件（含 Goals）的状态机只经 Manifest 的 `state_machines` 申报，不写进 contracts，首片的 4～6 个公开类型里也不含 Goal 类（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
 - 现有 31 个命名状态类型改成从表派生（`export type X = keyof typeof VOCAB.states`），**类型仍留在原文件**并 re-export，避免 25 个文件与 177 个 `PluginManifest` 级联改动；38 个内联联合按“公开且被界面/接口消费的”逐个升级成命名类型，其余留在原处并记入基线（§8）。
 - contracts 的纯度门禁（`scripts/gates/contracts-purity.mjs`）只数副作用、可变状态和 ≥20 行函数：本表是 `as const` 数据，不加函数；helper 一律放 SDK。
 

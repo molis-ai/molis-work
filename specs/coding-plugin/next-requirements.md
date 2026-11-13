@@ -238,7 +238,7 @@ Q4 产品对齐已完成，不代表 Memory P0 已交付；原负责人、依赖
 
 - **需求**：在终端或脚本里直接交给 Coding 一个任务，拿到结构化结果；其他 agent 也能调用 Coding。
 - **参照**：`codex exec`、`opencode run` 与 `serve`、Pi 的 print / json / rpc 模式、`claude -p`。
-- **实现要点**：`molis-work coding run "任务"` 经本机服务执行，输出 JSON 事件流；审查照旧，命中放行规则的直接跑，需要人批的就停下并给出打开审查的链接。把 Coding 的会话能力作为工具加进 Molis 自带的 MCP 服务。
+- **实现要点**：Coding 在 Manifest 里声明一条非交互运行命令，平台 CLI 按已安装插件的声明生成子命令（第三方插件同样可以声明），平台 CLI 里不写死 `coding`；用户敲的仍可以是 `molis-work coding run "任务"`，它存在是因为 Coding 声明了。经本机服务执行，输出 JSON 事件流；审查照旧，命中放行规则的直接跑，需要人批的就停下并给出打开审查的链接。MCP 工具来自动作目录，不在 MCP 里单列（2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。
 - **验收**：在终端跑一个只读评审任务，拿到 JSON 结果。
 
 #### D2 GitHub：PR 跟进、评论触发、PR 评审
@@ -312,7 +312,7 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 | D4 | **明确启用的 PR 真人批准门** | `claude-code-action/agent-approval-check` | 仅在配置适用范围要求 N 个有写权限的不同真人批准；`/approve <sha>` 绑定 head，push 后过期；Agent/bot 与 AI 低风险代批不计票，分支名不作信任依据；其余工作复用有效授权 | 适用人审范围未达 N 票不能合并，push 后重新批准；已授权且无该人审要求的工作不被统一阻塞 |
 | D5 | 提交签名与身份 | Claude Code Action 的 `use_commit_signing` / `ssh_signing_key` | Coding 推的 commit 可配置 GitHub API 签名或 SSH 签名；bot 身份可配置；审查卡显示这次提交是谁签的 | 真实 PR 上 commit 显示 verified；身份与配置一致 |
 | D6 | PR 场景的**配置来源与注入清洗** | Claude Code Action 的安全模型 | 评审/CI 场景先从 base 分支恢复 `.molis/`、`.mcp.json`、`AGENTS.md` 等项目配置，PR head 的版本只作参考；清洗 HTML 注释、不可见字符、alt、隐藏属性、实体 | PR 作者改配置不能提权；隐藏指令不进模型上下文 |
-| D7 | 非交互结构化输出 | Claude Code Action 的 `--json-schema` | D1 的 `molis-work coding run` 支持 JSON Schema，结果按 schema 校验后作为单一 JSON 输出；用于 flaky 判定、发布说明、Issue 分诊 | 脚本/CI 能稳定消费；schema 不符时失败而不是猜 |
+| D7 | 非交互结构化输出 | Claude Code Action 的 `--json-schema` | D1 的 Coding 声明的运行命令（`molis-work coding run`）支持 JSON Schema，结果按 schema 校验后作为单一 JSON 输出；用于 flaky 判定、发布说明、Issue 分诊 | 脚本/CI 能稳定消费；schema 不符时失败而不是猜 |
 | E6 | **有界迭代** | `claude-code/plugins/ralph-wiggum` | 用 Stop 事件做“同一目标反复跑”，必须有完成承诺、最大轮数、可取消；不取代正常一轮的停止判断 | 修到测试全绿后停止；达到上限/取消后不再跑 |
 | E7 | 计划即页面 | `claude-plugins-community/html-plan`、`playground` | 实施计划可生成为一张交互页：claim 树 + 每种 claim 一个 exhibit + 决策放在它影响的 claim 上；用户在页面里勾选/评论，最后把一份 response 交回 Coding | 计划页能评审、能回答决策、能把结果带回新一轮 |
 | E8 | 代码简化与安全评审作为专科角色 | `code-simplifier`、`claude-security` | 评审面板可选“简化但不改行为”“安全 finding + 独立 verifier + 只出 patch”；安全评审不自动应用 | 简化不改行为；安全 finding 经过复核才进待处理项 |

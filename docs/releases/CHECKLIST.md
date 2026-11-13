@@ -76,7 +76,7 @@
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝。不进升级链（统筹按 `search.sqlite` 的同一理由并入：这个插件要重做，`specs/backlog/BL-377.md`） |
-| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
+| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝旧结构/旧版本（当前 v1 含 `im_messages.subjects_json`；旧 v1 结构在可写打开前拒绝，不转换，见 [CONTRACT-CHANGES](../system/CONTRACT-CHANGES.md#当前保留机制)） |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；账号登录、设备授权、OAuth 与 MCP 的换令牌和刷新在发出请求之前就被拒（`assertSecretStoreWritable`，有别的条目坏了也一样），授权码不被用掉；低版本升级 |

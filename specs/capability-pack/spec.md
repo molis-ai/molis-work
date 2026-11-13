@@ -68,7 +68,7 @@
 | `prompt` | 宿主 Agent 定义登记（插件声明、内置、生成插件的提示词，人的改写、`prompt_uses`） | 默认正文的版本；有改写时显示「基于第几版、默认已到第几版」 | 不加。条目不带提示词正文或改写原文，只带名称、主人、版本、用在哪个调用处、有没有改写 |
 | `role` | 宿主 Agent 定义登记（插件声明的角色与子代理）、Characters（`modules/characters`）；作用范围与继承由第 36 批的公开读接口给，36 之前只显示声明与来源 | 角色声明的版本；Character 的修订号 | 签名角色只上报一次（从 `methods()` 里去掉 `kind: "role"`） |
 | `tool` | **Agent Host**：它读 vendored SDK 的系统工具全集，再加平台网关工具、业务工具、子代理与计划步骤工具，按同一种条目上报（id、说明、来源、会不会写、哪些角色开放） | 系统工具的版本取 SDK 包的版本与形状指纹；平台工具取产品版本 | 工具条目的上报。合同里只保留作者用得到的 `BUSINESS_HOST_TOOLS`、`SKILL_TOOLS`；Agent Host 内部的名单（`GATEWAY_TOOLS`、`childRoleTools`、`STEP_TOOLS`、创作台 `TOOLS`）收成 Agent Host 里的一处，`assistant-present.ts` 的名字表改从条目取 |
-| `mcp` | 服务器：Agent Host 的 MCP 库（项目 MCP）、连接器带的 MCP；它们的工具、提示与资源：服务器上报的清单，已登记成动作的工具指向动作目录（`mcp.external.*`、`mcp.connector.*`）；对外：Molis 自己的 MCP 服务器暴露了什么、对哪个客户端开着（`action_grants`），以及装进外部 AI 工具的 `goal-advance` Skill | 服务器上报的工具清单变化（「发现差异」，[MCP 策略](../prologue-strategies/mcp.md) M0） | 不加事实，只上报。读的是已存的清单，不为列目录去连服务器 |
+| `mcp` | 服务器：Agent Host 的 MCP 库（项目 MCP）、连接器带的 MCP；它们的工具、提示与资源：服务器上报的清单，已登记成动作的工具指向动作目录（`mcp.external.*`、`mcp.connector.*`）；对外：Molis 自己的 MCP 服务器暴露了什么、对哪个客户端开着（`action_grants`）（装进外部 AI 工具的 `goal-advance` Skill 随 44-7 删除，目录里不再列2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） | 服务器上报的工具清单变化（「发现差异」，[MCP 策略](../prologue-strategies/mcp.md) M0） | 不加事实，只上报。读的是已存的清单，不为列目录去连服务器 |
 
 **工具的说明不授予权限**：Agent Host 的工具条目只记「有什么、是什么」。角色的 `host_tools` 仍是授权来源，技能的 `tools` 仍只是说明（SKC-13）。新增一条检查：角色 `host_tools` 里的名字不在 Agent Host 的工具全集里，装配时拒绝；再加一个测试核对 Agent Host 的全集与 SDK 的 `SYSTEM_TOOL_NAMES` 一致，换包时漂移就红。合同不复制 SDK 的名单：只有 Agent Host 依赖 SDK（AGENTS.md 硬约束），[Tool 策略](../prologue-strategies/tool.md) 第 5 节也写明不在宿主另写工具目录。
 
@@ -148,7 +148,7 @@
 | `UNREGISTERED_MODEL_CALLS`（已是空表，`/diagnostics` 还在传）、`AgentRoleSkillsDeclaration`（公开合同，SDK 还在校验）、`AgentSkillsCapability`（没有实现者）、`builtin-registrations.ts` 的转发 | **已删**（#2015；#2019 收尾核过）：公开合同随删、快照已刷，`/diagnostics` 不再传未登记模型调用；`builtin-registrations.ts` 只剩 `homeAgentDefinitions` 一个入口，`builtinRegistrations` 的转发已删 |
 | 两条「MCP 工具登记成动作」的流水线（`external-mcp-actions.ts`、`connector-mcp-actions.ts`）各写一遍 | **不在本批**：它们是 MCP 调用链，四份 JSON（`config/*-mcp-actions.json`、`*-mcp-tools.json`）存着动作版本，流程与对外授权按这些版本固定引用，合并要改带版本文件的结构。记 [BL-mcp-action-pipelines-merge](../backlog/BL-mcp-action-pipelines-merge.md)，主人连接器线，去处第 62 批第 1 项 |
 | 提示词版本写法三种（`@version` 标记、创作台 `"designer/1"`、章节摘要） | **不在本批**：创作台是用户批过的构建期例外，随 BL-377 重做；章节摘要连着 `pnpm studio:replay`。记候选，主人创作台（写进 [BL-377](../backlog/BL-377.md)） |
-| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**：它是 Goals 的业务数据，要不要变成技能是产品决定。记 [BL-goals-methods-as-skills](../backlog/BL-goals-methods-as-skills.md)，主人 Goals；去处**第 41 批（Skill 选用）**开工时一并交用户定，定了做随第 62 批第 1 项走第 08 批的共同目录 |
+| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**。已定：规划方法 41-2 起是能力包里的技能，不再是 Goals 的业务数据（见 [BL-goals-methods-as-skills](../backlog/BL-goals-methods-as-skills.md)，随第 41 批 41-2 做，走第 08 批的共同目录）（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） |
 | 安装器 `runtime-config-adapters.ts` 手写的命令名与路径、Shelf 的 `SHELF_ENGINES` | **不在本批**：外部工具登记表的余项，归第 22 批（BL-955） |
 | 运行时登记的 MCP 动作不在动作快照里 | **不在本批**：记 [BL-runtime-mcp-actions-snapshot](../backlog/BL-runtime-mcp-actions-snapshot.md)，主人 C1（动作合同快照）；去处**第 62 批第 1 项**，与流水线合并一起做（合并后快照只量一条流水线），本批不改门禁 |
 
@@ -158,7 +158,7 @@
 
 1. ~~名称~~ 已定（用户 2026-11-08）：界面叫「能力包」；代码、类型与动作 id 用 `kit`（如 `kit.catalog.list@1`、`KitEntry`），避开指动作的 capability；GLOSSARY 写清「能力包」与「能力库」（动作目录）的分别（9-7）；Onboarding §3.8 原来的「能力包」改称「能力组合」。英文界面名随 9-11 定样一起定。
 2. ~~工具用量~~ 已定（用户 2026-11-08）：09 先显示能便宜取到的最近一次，精确次数随第 62 批（§4.4）；界面不写「次数随第 62 批」（2026-11-09）。
-3. ~~设置页合并~~ 已定（2026-11-09，主会话按设计台建议）：技能页并进能力包，导航「技能」换成「能力包」；提示词列表并进，编辑页保留、从提示词详情进入；角色、能力库、服务连接、对外接入、调用记录、AI 与执行工具、Coding 的 MCP 页保留，从详情链过去；Coding 方法页删；Goals 规划方法库不并。合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包。
+3. ~~设置页合并~~ 已定（2026-11-09，主会话按设计台建议）：技能页并进能力包，导航「技能」换成「能力包」；提示词列表并进，编辑页保留、从提示词详情进入；角色、能力库、服务连接、对外接入、调用记录、AI 与执行工具、Coding 的 MCP 页保留，从详情链过去；Coding 方法页删；Goals 规划方法库本批不并（41-2 起作为能力包里的技能进来）。合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包。
 4. ~~英文名~~ 已定（2026-11-09，主会话）：AI kits。
 5. 9-8 合同稿里写明的边角：
    - **主人不在了**：插件卸载后，它的包只剩包头（名称、版本、「重新添加」）；它的提示词改写、技能、角色不再列为条目；用量历史照 08 保留在各主人那里。删掉的 MCP 服务器、删掉的 Character 同样。要在包里列历史条目，记 [BL-kit-uninstalled-history](../backlog/BL-kit-uninstalled-history.md)。

@@ -218,6 +218,25 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
   assert.ok(measured.projectBrief!.ownerResolutions > 0 && measured.projectBrief!.shippedRegistrationRows > 0, "the measured brief checks plugin reach");
 
+  // BCC-06 (N43/46): the controlled counterexample. The production reach resolver is called once per built-in id during a projection;
+  // repeating that resolution in one measured window must go over the committed project-home budget. Drive the public availability
+  // function (which calls reachEntry) with a catalog that says the project shows Goals.
+  const { projectActionAvailability } = await import("@molis-ai/molis-work-app-local-host");
+  const withCatalog = async (_settings: unknown, operation: (catalog: unknown) => unknown) => operation({
+    projectPluginMembership: () => ({ plugins: ["goals"], hidden: [] }),
+  });
+  const live = projectActionAvailability(withCatalog as never, "/tmp/call-budget-bcc-06");
+  const extra = await measure(async () => {
+    for (let index = 0; index < 200; index++) {
+      const answer = await live({ actor_id: "web-user", project_id: "budget-project", audience: "user", permissions: [] },
+        { provider: { plugin_id: "io.molis.work.goals" } });
+      assert.equal((answer as { available: boolean }).available, true);
+    }
+  });
+  const committed = JSON.parse(readFileSync(new URL("../tooling/gates/call-budget.json", import.meta.url), "utf8")) as Record<string, Counts>;
+  assert.ok(extra.ownerResolutions > (committed.projectHome?.ownerResolutions ?? 0),
+    `the extra ${extra.ownerResolutions} owner resolutions exceed the committed ${committed.projectHome?.ownerResolutions}`);
+
   // Required fields are checked before the current source is looked up. A complete request still checks live membership.
   const unknownAndIncomplete = new URLSearchParams({ source: "absent", id: file.subject.id });
   const rejected = await measure(() => refusal(previewPath + unknownAndIncomplete, 400, /没有说明要预览哪个文件/u));
@@ -241,3 +260,4 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     }
   }
 });
+

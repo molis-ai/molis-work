@@ -8,7 +8,8 @@ import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js
 import { CODING_BOX, CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
 
 // W5-02-REG-06: real generated-catalog startup, materials snapshots, Diff and Git readers, and Coding's files face (WMD-05: a file
-// opened there shows in the side panel's reader, whose 固定快照 menu hands Diff its versions before and after).
+// opened there shows in the side panel's reader, whose 固定快照 menu hands Diff its versions before and after). WMD-01: with Files
+// retired, Coding's own face and the side-panel materials reader still browse, preview and reference the same project folder.
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { command, sessionId } = b;

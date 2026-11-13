@@ -1,6 +1,6 @@
 # 06 批宿主调用成本
 
-状态：实施中（2026-11-09，Codex）。对应 [06-3](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3) 的 N56、N42 首片，目标为功能可用，BL-943 在本片取得对照基线。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）。对应 [06-3](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3) 的 N56、N42 首片、N43/46、N44、BL-943、N45（已在 main 的 #2033 实现）与 N55；实现与证据见下文，剩余 BCC-05/09 的直接证据、N42 首片范围与 BL-943 后续。
 
 项目目录和文件资料合同已经随第 05 批合入。起点为 `54a12642c`。#1932 后，建立调用上下文只准备动作元数据，按可用性遍历整个目录的旧路径已移走。侧栏文件请求仍在检查必填参数前准备上下文。先测出当前调用次数，再把缺少必填参数的请求挡在准备之前。目录中的来源是否可见、动作当前是否可执行，仍由现有发现和执行路径判断。
 
@@ -111,7 +111,7 @@ BCC-03 的拒绝用例在旧构建上因缺来源仍准备一次上下文而失�
 
 下一片先让绑定和连接记录走同一个 owner 连接。现有 Kernel 同步目录 pass 可按真实 Home 与该 provider 的配置读上下文复用本轮可用性观察，确认足以消除重复后再判断是否需要跨请求缓存。读取新目录以及实际执行继续核当前连接、密封修订和凭据。改后用同夹具计实际开库，并以真实连接写入、换绑、清除和执行拒绝验失效。服务端广播发生在提交后且可迟到，不能作为唯一拒绝依据。
 
-**N45 实施（2026-11-11）。** 配置检查把 Functions 绑定与它指向的连接记录放进同一次连接库打开（`functionsCredentialConfigured` 用 `typeSafeBinding` 在已打开的库里读绑定），不另设缓存，执行仍核当前连接、密封修订和凭据。同一探针、同一真实绑定重测（三次一致）：项目首页连接库开库 41→21，简介 70→35，Inbox 判断每种状态 110→30（检查次数 55→30，受 N43／44 同次展示复用影响）；已绑定可用、停用不可用、换绑重新可用、断开不可用不变，`tests/connector-consumer-usages.test.ts`、`tests/connector-connections.test.ts` 通过。同一轮目录检查里仍按动作逐个问配置；要合成一次须由 Kernel 给出同步目录 pass 的上下文，本批不做，记在 BL-943 的后续里。
+**N45 实施（2026-11-11；合后审计更正）。** 配置检查把 Functions 绑定与它指向的连接记录放进同一次连接库打开（`functionsConnectionSnapshot`／`selectedTypeSafeConnection`；`store.binding` 的 SQL 已经 JOIN 连接记录），不另设缓存，执行仍核当前连接、密封修订和凭据。该行为来自 main 的 [#2033](https://github.com/molis-ai/molis-work/pull/2033)（`e060846395`），不是第 06 批的 diff；06 只把内联 lambda 提取成 `typeSafeBinding`，没有行为改动。同一探针、同一真实绑定重测（三次一致）：项目首页连接库开库 41→21，简介 70→35，Inbox 判断每种状态 110→30（检查次数 55→30，受 N43／44 同次展示复用影响）；已绑定可用、停用不可用、换绑重新可用、断开不可用不变，`tests/connector-consumer-usages.test.ts`、`tests/connector-connections.test.ts` 通过。同一轮目录检查里仍按动作逐个问配置；要合成一次须由 Kernel 给出同步目录 pass 的上下文，本批不做，记在 BL-943 的后续里。
 
 ## N55 缓存基线与 Home 分隔
 

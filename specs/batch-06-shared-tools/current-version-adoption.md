@@ -1,10 +1,10 @@
 # 06 现行版本下的资料与同步采用
 
-状态：同版本实施设计已独立复核并补齐采用边界（2026-11-09），产品实现、隔离实证和公共 C 合审未完成。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）；产品实现与隔离实证完成，公共 C 合审已过，真实 Home 采用另授权。
 
 > **2026-11-13 补**：第 15 批（#2017）把项目库升到第 3 版（2→3 新增 `surface_corrections`）。用户选「例外改指第 3 版」：现行第 3 版带采用后日志，同版本例外改指第 3 版那对哈希；下文的「项目 v2」「原结构」指第 2 版旧布局，采用从它换日志后在同一事务里走完 2→3，落到第 3 版现行（`apps/local-host/src/project-layout.ts`）。宿主的 2→3 对旧布局因结构不符回滚，只拦那个项目。项目库里 Goals、Schedule、Feed 的表（第 15 批前后升到第 2 版）跟着记 `prerequisite_failed`；采用之后下一次启动见到库已是现行版本，就把它们补升（升级记录原本只重试空间不足，11-13 起也重试「等的库已经到了」的这一种，见 `upgrade-chain-design.md` §2.4）。金样回放与 BSH-14-F／M3 都走「启动 → 采用 → 再启动」这条路。
 
-依据用户最新决定（`79dbf1bdd`）。项目库仍是 2、D1 仍是 6，`process_items`、sync.db、round、Agent SessionIndex 维持 1。[A 接入](materials-ui-contract.md)和[共享需求书](spec.md)的 BSH-05–08/11/13/14 行为、历史及授权要求照旧。[同步合同](sync-cutover.md)管理容量、冻结值、授权、回执、R2 和验收约束。本文细化公开协议路由、本地接管与同版本结构采用。以下是同版本实施替换段，实际采用只在隔离 Home 与本地 Worker/D1/R2。现行结构、原结构、数据接管是三个可单独观察的事实。
+依据用户最新决定（`79dbf1bdd`）。06 批当时项目库仍是 2、D1 仍是 6；第 15 批（#2017）已把项目库升到第 3 版，11-13 用户决定同版本例外改指第 3 版；下文「项目 v2／原结构」指第 2 版旧布局。`process_items`、sync.db、round、Agent SessionIndex 维持 1。[A 接入](materials-ui-contract.md)和[共享需求书](spec.md)的 BSH-05–08/11/13/14 行为、历史及授权要求照旧。[同步合同](sync-cutover.md)管理容量、冻结值、授权、回执、R2 和验收约束。本文细化公开协议路由、本地接管与同版本结构采用。以下是同版本实施替换段，实际采用只在隔离 Home 与本地 Worker/D1/R2。现行结构、原结构、数据接管是三个可单独观察的事实。
 
 ## 永久封旧与同一公开集合
 
@@ -41,7 +41,7 @@
 | 载体 | 当前基线和显式隔离维护 |
 | --- | --- |
 | D1 v6 | 冻结现有 `server/migrations/sync/0001_sync.sql` 为此前 v6 精确起点；加一份本集合 SQL 结构采用脚本（D1 文件序号不参与 schema 版本），装封印/计划及范围、预留、引用保护所需结构和约束，原 `sync_schema=6`。空库初始化按这两份同源 SQL；既有 v6 只在显式本地 operator 路径，先认准确前置表/触发器、锁定隔离目标，再原子执行同一脚本和校验。current Worker 的 `quota::check_schema` 在 Auth 前同时查版本和当前结构必需表/新安全触发器的准确定义；旧 v6、部分结构、高版拒，绝不请求中补 DDL。真实窗口另行决定备份/排空旧 Worker 的全部 HTTP 与 cron（也含只读请求，旧读链仍可能按逻辑选择读到旧流）；旧 Worker 也认 6，且旧 blob reserve SQL 不携 namespace，数值不能保护混跑或旧二进制回退。 |
-| 项目 v2 | `PROJECT_DATABASE_BASELINE` 给空库完整初始化当前结构及新 journal；`LocalProjectDatabase.inspectDatabase` 在可写打开前按 owner 做当前触发器/结构检查，已存在同版本旧布局只给明确采用入口，不普通读修补。U1 的同版本步骤无效，且 stamp 不是采用证明。现有 v1→v2 步骤（用户 2026-11-12 定，取代原先「保留原结果形状」）同时建采用后的过程项日志、把过程项触发器改记到它，只动结构、不转数据，从 1 起的库直接到现行布局；这样到 2 的库若还有 Files 过程项与连线，由显式采用程序在现行布局上转换，移动期间用采用日志自己的 `applying` 标记不入日志。真实 Home 已有的旧布局 v2 照旧只走显式采用。用现有 Home owner lease、配对恢复/拒绝与可信数据库身份读检，在隔离维护命令确认 exact 旧 v2、项目、Home/space、安装、sidecar、恢复件和写屏障，备份后每项目一同步 owner 事务做最窄 DDL、转换和逐键回读。保留 `PRAGMA user_version=2`，不调用 `runSqliteUpgrade` 假装同版本步骤，不改 U1 ledger/stamp。当前同名触发器定义不同，旧构建的只读 trigger 检查应拒已采用库，实测。中断同一项目回滚，重入以 exact old/current 结构和 owner 事实判断；陌生混形、外来/高版、未验证恢复件均拒并留原件。历史旧 journal 继续保全，不以清库达标。 |
+| 项目 v2 | `PROJECT_DATABASE_BASELINE` 给空库完整初始化当前结构及新 journal；`LocalProjectDatabase.inspectDatabase` 在可写打开前按 owner 做当前触发器/结构检查，已存在同版本旧布局只给明确采用入口，不普通读修补。U1 的同版本步骤无效，且 stamp 不是采用证明。现有 v1→v2 步骤（用户 2026-11-12 定，取代原先「保留原结果形状」）同时建采用后的过程项日志、把过程项触发器改记到它，只动结构、不转数据，从 1 起的库直接到现行布局；这样到 2 的库若还有 Files 过程项与连线，由显式采用程序在现行布局上转换，移动期间用采用日志自己的 `applying` 标记不入日志。真实 Home 已有的旧布局 v2 照旧只走显式采用。用现有 Home owner lease、配对恢复/拒绝与可信数据库身份读检，在隔离维护命令确认 exact 旧 v2、项目、Home/space、安装、sidecar、恢复件和写屏障，备份后每项目一同步 owner 事务做最窄 DDL、转换和逐键回读。旧布局第 2 版不就地修补：采用程序换日志后在同一事务里走完 2→3，`PRAGMA user_version` 落到第 3 版现行（11-13 用户定），不调用 `runSqliteUpgrade` 假装同版本步骤，不改 U1 ledger/stamp。当前同名触发器定义不同，旧构建的只读 trigger 检查应拒已采用库，实测。中断同一项目回滚，重入以 exact old/current 结构和 owner 事实判断；陌生混形、外来/高版、未验证恢复件均拒并留原件。历史旧 journal 继续保全，不以清库达标。 |
 | A 消费者 | Goals 维持已核 wire，过程项固定绑定只存 exact opaque id/version，由实际 owner 恢复 ref；UTF-16 原范围保在 immutable item。阅读位置搬运精确官方 Files 的项目偏好，原值没有 actor，继续以 live 根权限检查，记录不补造历史个人归属。原 collection 输出、授权及 A 界面行为沿已定稿。 |
 | Coding 私有值 | 同一项目 v2 owner 采用中，由 Coding/Runtime 用原整值 CAS 转精确官方安装的 `materials:`/`queued:` 两类行，含非 Files。原可解析 artifact id/version 仍是 fixed；原活动缺精确版本保留待核对。旧队列 workId/正文/意图照旧，字段缺省或 null 仍按原语义取草稿，显式 [] 仍无材料；新队列才按新合同冻结所选 ref。CAS 冲突保原值并重核，不混用新旧路径。范围已获用户决定，不再请求批准。 |
 | Agent SessionIndex v1 | Agent owner 在现有 `AgentTextMaterial` 和冻结来源投影加可选 `material_ref/read_revision`。仅随正常已接收轮次的 CAS 写出，现有 reader 的 v1 版本和原字段照旧。旧缺 ref 的轮次显示当时未记录，正文沿原 exact Prologue resource、SDK resume/replay，不重读替换；原成果、原 key/密文格式、旧索引记录和 SDK 历史原样保留。无需 `openNodeRecoveryMaintenance`、重写或加密升级编排。 |

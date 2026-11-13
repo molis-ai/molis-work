@@ -26,7 +26,7 @@ createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项�
 
 Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git 后台服务，由 LocalHost 持有，同一 Host 只装配一次。正式 stdio launcher 有明确 Runtime Home 时，只构造无 Home 的协议装配；公共动作经 `LocalActionGatewayClient` 转发，context 的 resolve/list/bind/unbind/reject/create+bind、恢复绑定读取与 panel alias 也交给常驻 Host，不打开本地可写 Catalog，不装配 Home 业务 Host 或第二个 SDK。常驻传输调用同一套 MCP context handlers、presenter 和原 Catalog owner，保留确认、幂等、协议 Session 作者和面板别名行为；工具 arguments 不携带传输身份。创建并绑定项目的目录暂存、提升和提交前均复查原调用。失败、拒绝或结果未知不回退本地写入。回归：`tests/security-invariants-home-context.test.ts`、`tests/security-invariants-home-context-lifecycle.test.ts`。嵌入者关闭借用 Host 的传输后，仍须在整个 Host 不再使用时 `await host.close()`。能力注册不会启动 SDK、CLI 或请求模型，实际操作才初始化执行器。
 
-通道使用 Runtime 的 `webBaseUrl`（Runtime 没给时按 Home 的地址文件 `run/endpoint.json` 取宿主地址，没有地址文件才是 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出连接工具，其余调用返回 `actions.service_unavailable`。MCP 目录只有平台工具（连接与受信管理入口）加已授权的动作，没有旧名称或旧开关；Files/Git 的跨调用者成果归属仍未完成。
+通道使用 Runtime 的 `webBaseUrl`（Runtime 没给时按 Home 的地址文件 `run/endpoint.json` 取宿主地址，没有地址文件才是 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出连接工具，其余调用返回 `actions.service_unavailable`。MCP 目录只有平台工具（连接与受信管理入口）加已授权的动作，没有旧名称或旧开关；Git 的跨调用者成果归属仍未完成。
 
 中央账号由 `src/account-host.ts` 为同一 Host 装配，协议 owner 是 `horizontal/account`；可信配置、安全读取及本地身份边界见 [中央账号服务](../../docs/horizontal/account.md)。账号入口改动另跑 `tests/account-client.test.ts`、`tests/account-session.test.ts` 与 `tests/security-invariants-account-host.test.ts`。
 
@@ -54,7 +54,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/project-plugin-enablement.ts](src/project-plugin-enablement.ts) | 每个项目的 Runtime 监督器按项目插件名单启用与停用插件；和 Home 监督器一样，关闭项目时先停、保留启用，再撤监督器（`preserve_enabled`），启动时跳过已卸载的、以及名单不管的已停用的安装，名单也不把已卸载的装回来（BL-755，`tests/shipped-plugin-lifecycle.test.ts` RAC-1032～1034） |
 | [src/plugin-interaction.ts](src/plugin-interaction.ts) | `services.interaction`（PG-062）：插件自己的页面要的问题卡、操作卡与下一步行，用助理同一套画法、按调用的语言画；只画不写、不要权限，交来的值形状不对就拒（S-56） |
 | [src/plugin-route-operations.ts](src/plugin-route-operations.ts) | Runtime 插件 HTTP 共用的那一段：重启、解除隔离、升级、已卸载的 404（`actions.missing`，与 Home 插件同一个答复）、未运行的 503、视图版本号、已声明路由的分发；不认识任何插件，属于某个插件或项目输入图的部分由调用方经钩子给（项目一侧的调用方是 `project-plugin-http.ts`） |
-| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，路由前后也没有调用方塞进来的步骤（读 Files 产物的插件先刷新一次的钩子随 BL-521 删掉：工作区设置的变化经 `host.workspace.changed@1` 通知 Files）；插件回答之后不再加料（PG-062） |
+| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，路由前后也没有调用方塞进来的步骤（读工作区产物的插件先刷新一次的钩子随 BL-521 删掉：工作区设置的变化经 `host.workspace.changed@1` 通知 Git）；插件回答之后不再加料（PG-062） |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
 | [src/home-side.ts](src/home-side.ts) | 宿主与它的 Home 的登记：宿主构造时绑定（`bindHomeSide`，Agent 服务照旧在这里装配）、关闭时撤下；项目的插件平台经它拿到本宿主的 Home（模型注入在调用时读，不在启动时拷）和测试夹具，`PluginPlatformOptions.home` 的值（`pluginHomeFor`）也由它给 |
 | [src/plugin-model-service.ts](src/plugin-model-service.ts)、[src/plugin-instructions.ts](src/plugin-instructions.ts) | 插件的模型服务端口（`hostTextGeneration` → agent-host）与插件运行时的 Agent 定义登记（指令、Agent 提示词、方法，PG-051） |
@@ -268,7 +268,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 
 `changes` 对照原基线读取净变化，同时包含未忽略的新文件，并保留特殊路径。`remove` 只移除已核对来源的干净工作目录，拒绝未提交、未跟踪和忽略内容，保留分支及来源以免丢失未整合提交。清理不代表整合或验收，已移除目录的 slot 不自动复用。真实 Git 验证见 `tests/git-worktrees.test.ts`；后续须接 SDK 子目录授权、原审查和成果整合。
 
-Coding/Git 生产通知接到当前项目的 Files/Git 视图 revision；Host receipt observer 可晚于 headless 插件装配接入，项目关闭先注销，插件停用撤销发布身份。revision 是进程内 UI 提示，重启更换 epoch，不能当作可靠业务 outbox。
+Coding/Git 生产通知接到当前项目的 Git 视图 revision；Host receipt observer 可晚于 headless 插件装配接入，项目关闭先注销，插件停用撤销发布身份。revision 是进程内 UI 提示，重启更换 epoch，不能当作可靠业务 outbox。
 
 ### 公共材料提取
 

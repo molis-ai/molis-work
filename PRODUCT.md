@@ -27,7 +27,7 @@ Molis Work 是本地优先的插件基座加多插件工作平台。
 <!-- 2026-10-07 按代码现状改写（用户更正：产品是插件基座加多插件，Goals 是其中一个内置插件）。只写已从代码核实的事实。 -->
 
 - **一个 Home，一个常驻宿主。** `~/.molis-work` 下只有一个执行进程，管项目数据库、插件、动作目录和 AI 运行时。浏览器和 macOS App 打开同一个 loopback 工作台；CLI 与 MCP 入口不自己执行，转发给常驻宿主。
-- **项目按插件组织。** 当前登记 23 个，以各包 `src/registration.ts` 为准（`apps/workbench/src/builtin-plugins.ts` 由它们生成），分两类：
+- **项目按插件组织。** 当前登记 22 个，以各包 `src/registration.ts` 为准（`apps/workbench/src/builtin-plugins.ts` 由它们生成），分两类：
   - 项目插件 8 个，在项目里添加或移除：Goals（每个项目都带、工作台里不能移除，拥有 Goal 的事实）、Inbox、Feed、Schedule，以及 Coding 一族（Coding、Git、Diff，加上平台的参考插件 Text stats：它只在开发者模式下出现在插件列表里；开发者模式只由启动 Host 时的环境变量 `MOLIS_WORK_DEVELOPER_MODE=1` 打开，设置里没有开关，这是用户 2026-10-09 定的）。项目文件夹的浏览、阅读和固定快照、选区是平台的资料服务（侧栏与主区的「资料」），不是插件；原来的 Files 插件第 06 批退役。
   - 个人插件 14 个，对每个项目都开着，项目可以隐藏：Cognia、插件创作工作台、图片、Jelly、Shelf、灵光、待办、Issue、Pages、Forms、Dataset、PPT、炼金术士、工作流程。成果库是平台能力；角色（Character）是设置里的一节。Shelf 仍由插件登记，入口在右栏。
 - **每项事实一个主人。** Goal、关系和工作状态归 Goals，可信用户决定归 Governance，来源配置归来源（Sources）、信息流条目归 Feed、需要用户介入的事项归 Inbox，固定版本的成果归成果库；个人插件各管自己的内容（日历与笔记归 Jelly，待办归待办插件，知识库归 Cognia，文档归 Pages，演示稿归 PPT，等等），内容放在 Home 级的库里。其他插件不复制这些事实；完整归属与成熟度以 `docs/SSOT-MATRIX.md` 为准。

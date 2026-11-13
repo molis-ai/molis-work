@@ -1,6 +1,6 @@
 # 第 06 批成果固定、平台资料产生者与 SDK 公用工具
 
-状态：独立合同预审及回修复核通过（2026-11-09）。N12 平台隔离实现与四插件采用已做定向验证，整批验证和真实 Home 采用另约。Files 的设计和界面定样按独立前置推进，数据切换与删除等 §3 的证据。设计维护由本批合同设计台负责，实现由第 06 批主会话分配。基线为 `batch/06` 的 `54a12642c`。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）。N12 四插件采用、Files 退役与 SDK 共用实现完成；真实 Home 采用另授权，剩余真实 Home 与本人验收。
 
 这是 [06-2](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2) 与 [Files 退役](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1) 的 S1 技术切片。原需求沿用 [审查台账 N12／N13／N15／N16](../../docs/reviews/adversarial-review-2026-11-01.md)、[项目资料 WMD §5–7](../product-flow-governance/workspace-and-materials-design.md) 和 [06 批 11-08 方案](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-plan-2026-11-08)。第 05 批公共资料合同已随 #1979 合入。实施目标沿 06 批的合同、消费者切换、迁移回读、删除和完整体验验收。分片状态与证据见各节。
 

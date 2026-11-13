@@ -89,17 +89,24 @@ function assertRowsKept(manifest, home, retired = new Map()) {
   }
 }
 
+/** Start a Host on each Home and close it, opening no project: the Home's own upgrade runs as it starts (U1 design §4). */
+async function startEveryHost(homes) {
+  for (const item of homes) await (await openGoldenHost(item.at, { web: !item.account })).close();
+}
+
 const FILES_PLUGIN_ID = "io.molis.work.files", FILES_CATALOG_ID = "files";
 
 /**
  * The Files retirement (batch 06; the user's decisions of 2026-11-12): a project library in the layout before it is refused when
  * a Host opens it, until the adoption program runs in a maintenance window the person authorizes (sync settings' step 3,
- * specs/batch-06-shared-tools/current-version-adoption.md). The replay stands in for that window: after each Home's own upgrade, the product's
- * adoption of every project library the Home lists and its Home step, before any Host opens a project. What only Files held may go, counted in
+ * specs/batch-06-shared-tools/current-version-adoption.md). The replay stands in for that window: after each Home's own upgrade (`startEveryHost`,
+ * the step `upgrade`), the product's adoption of each project library the Home lists that still has something to adopt, and its
+ * Home step, before any Host opens a project. A library with nothing to adopt is left alone, so a current golden goes through no adoption and
+ * the sync library is still opened by the structure check alone (UPG2-06). What only Files held may go, counted in
  * the restored golden before anything ran and nothing wider: the event cursors Files subscribed with, Files' membership in the catalog, and the
  * default bindings whose source was Files, which the materials source takes over only once the person agrees again.
  */
-function adoptAsMaintenance(homes, home) {
+function filesOnlyRows(homes, home) {
   const retired = new Map();
   const count = (file, table, sql, ...values) => {
     const db = new DatabaseSync(path.join(home, file), { readOnly: true });
@@ -117,12 +124,17 @@ function adoptAsMaintenance(homes, home) {
     if (existsSync(path.join(home, catalog))) for (const table of ["project_plugins", "project_portable_plugins"]) count(catalog, table, `SELECT COUNT(*) AS n FROM ${table} WHERE plugin_id = ?`, FILES_CATALOG_ID);
     return { item, files };
   });
+  return { retired, libraries };
+}
+
+async function adoptAsMaintenance({ retired, libraries }, home) {
   for (const { item, files } of libraries) {
     const where = item.path || "root";
-    if (local.runHomeUpgrade(item.at).units.some(unit => unit.state === "failed")) throw goldenFailure("golden.upgrade_failed", where);
+    const waiting = files.filter(file => { const found = local.inspectProjectAdoption(path.join(home, file)); return found.layout !== "current" || local.adoptionPending(found); });
+    if (!waiting.length) continue;
     const backups = mkdtempSync(path.join(tmpdir(), "golden-adoption-")), owner = storage.acquireStorageOwner(path.join(item.at, "agent-runtime"));
     try {
-      for (const file of files) {
+      for (const file of waiting) {
         const projectId = path.basename(path.dirname(file));
         if (local.adoptProjectDatabase({ home: item.at, owner, projectId, backupDirectory: backups }).state === "refused") throw goldenFailure("golden.adoption_refused", `${where}/${projectId}`);
       }
@@ -271,8 +283,9 @@ async function replayGolden(name) {
     restoreGolden(source, manifest, restored.home);
     // The gates take a golden's versions from its manifest; before anything upgrades them, they are read from what was restored.
     step = "recorded-versions"; assertRecordedVersions(storage, manifest, restored.home);
-    const homes = homesOf(manifest, restored.home);
-    step = "adoption"; const retired = adoptAsMaintenance(homes, restored.home);
+    const homes = homesOf(manifest, restored.home), filesOnly = filesOnlyRows(homes, restored.home);
+    step = "upgrade"; await startEveryHost(homes);
+    step = "adoption"; const retired = await adoptAsMaintenance(filesOnly, restored.home);
     step = "upgrade"; await openEveryProject(homes);
     step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home, retired);
     step = "structure"; await assertStructure(homes);

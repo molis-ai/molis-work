@@ -10,7 +10,7 @@
 
 - [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／46-2／47-5、迁移进统一待办；尚未实现。
 
-- [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊与 `goal-advance` Skill；CLI 怎么改待确认），待排期；尚未实现。
+- [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill），待排期；尚未实现。
 
 - [daily-quality-d0002](daily-quality-d0002/spec.md)：工作资产恢复使用宿主身份，不从资产包继承团队共享授权；2026-11-08 获批，实施中。
 

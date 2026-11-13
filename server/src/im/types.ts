@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ImMember } from "@molis-ai/molis-work-contracts/services/im";
+import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export type ImDatabase = Pick<SqliteDatabase, "prepare" | "exec" | "transaction">;
 export interface ImSession { id: string; member_id: string | null; expires_at: number }
@@ -22,4 +23,6 @@ export interface ImRequest {
   /** A canonical, transport-validated URL, including the public origin. */
   url: URL;
   session: ImSession | null;
+  /** Only the protected local Workbench mount can prove a second, independent object authority. */
+  authorizeSubjects?: (projectId: string, session: ImSession, subjects: readonly ActionSubject[], assertRoom: () => void) => Promise<() => void>;
 }

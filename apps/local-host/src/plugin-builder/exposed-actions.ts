@@ -7,7 +7,7 @@ import { sandboxOperationActions, sandboxOperationPermissions, sandboxActionId }
  *
  * A call runs the installed operation in its sandbox, as the plugin, exactly like a click on its page.
  */
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ExactActionReference } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
@@ -20,10 +20,17 @@ type InstalledOperationCall = (pluginId: string, operationId: string, input: San
 
 /** A plugin's functions as the directory names them: stable across versions, distinct between plugins. */
 export const exposedActionId = (release: Pick<AgentRelease, 'buildId'>, operationId: string) => sandboxActionId(release.buildId, operationId);
+const exposedProviderId = (release: Pick<AgentRelease, 'pluginId'>) => 'plugin:' + release.pluginId;
+export function exposedActionReference(release: Pick<AgentRelease, 'buildId' | 'pluginId' | 'version'>, operationId: string): ExactActionReference {
+  return { capability_id: exposedActionId(release, operationId), version: release.version, provider_id: exposedProviderId(release) };
+}
 
 type Cost = NonNullable<ActionExecutionPolicy['cost']>;
 type PublishedOperations = Pick<AgentRelease, 'buildId' | 'pluginId' | 'version' | 'design'>;
-const operationKey = (release: PublishedOperations, id: string) => JSON.stringify([exposedActionId(release, id), release.version, 'plugin:' + release.pluginId]);
+const operationKey = (release: PublishedOperations, id: string) => {
+  const { capability_id, version, provider_id } = exposedActionReference(release, id);
+  return JSON.stringify([capability_id, version, provider_id]);
+};
 
 export interface ExposedOperationPolicy { cost: Cost; permissions: readonly string[]; binding: string; available: boolean; effect: 'read' | 'write'; statusProblem?: string }
 
@@ -46,7 +53,7 @@ export function exposedOperationPolicies(releases: readonly PublishedOperations[
       if (operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate')) costs.push('metered');
       for (const id of operation.effects.capabilities ?? []) {
         const entry = latestCapability(catalog, id);
-        bindings.push([id, entry?.provider_id ?? null, entry?.version ?? null, entry?.offered ?? null, entry?.installed ?? null,
+        bindings.push([id, entry?.provider_id ?? null, entry?.version ?? null, entry?.scope ?? null, entry?.offered ?? null, entry?.installed ?? null,
           entry?.effect ?? null, entry?.execution ?? null, [...(entry?.permissions ?? [])].sort()]);
         if (!entry || entry.installed === false) { costs.push('unknown'); available = false; continue; }
         const dependency = JSON.stringify([entry.id, entry.version, entry.provider_id]);
@@ -82,14 +89,17 @@ export function exposedOperationCosts(releases: readonly PublishedOperations[], 
 
 export interface InstalledPluginActions {
   readonly release: AgentRelease;
+  retainOperation(operationId: string): { permissions: readonly string[]; assertCurrent(): void };
   refresh(policies: ReadonlyMap<string, ExposedOperationPolicy | Cost>): boolean;
   assertReady(): void;
+  /** Runtime registrations stay unavailable until their actual policy has been checked for this activation. */
+  publish?(): void;
   dispose(): void;
 }
 
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: (context: ActionCallContext) => ActionAvailability, plugin?: PluginInstance,
   operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability): InstalledPluginActions {
-  const providerId = 'plugin:' + release.pluginId, title = release.design.title;
+  const providerId = exposedProviderId(release), title = release.design.title;
   const definitions = sandboxOperationActions({ contract: release.design.contract, buildId: release.buildId, version: release.version, title,
     scope: actions.project_id === null ? 'home' : 'project' });
   const handlers: ActionHandlerBinding[] = release.design.contract.operations.map(operation => ({
@@ -145,7 +155,14 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     return changed;
   };
   refresh(exposedOperationPolicies([release], [], false).get(release.pluginId)!);
-  return { release, refresh, dispose, assertReady() {
+  return { release, refresh, dispose, retainOperation(operationId) {
+    const original = registrations.get(operationId);
+    const replaced = () => new ActionError('actions.provider_replaced', '原组件动作的登记或策略已变化');
+    if (closed || !original) throw replaced();
+    return { permissions: Object.freeze([...original.policy.permissions]), assertCurrent() {
+      if (closed || registrations.get(operationId) !== original) throw replaced();
+    } };
+  }, assertReady() {
     const problem = [...registrations.values()].find(item => item.policy.statusProblem)?.policy.statusProblem;
     if (problem) throw new ActionError('actions.definition_invalid', problem);
   } };

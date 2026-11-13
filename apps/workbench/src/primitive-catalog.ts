@@ -27,7 +27,7 @@ import { renderSessionSourceSection, SESSION_SOURCE_SECTION_STYLES } from "./ses
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
@@ -212,7 +212,7 @@ const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;co
 /**
  * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and
  * plugin-row sections are written through it and their frames start in it (the sections keep the same sample structure). `environment` is the
- * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none.
+ * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none. This entry also supplies the text environment for the presentation forms.
  */
 export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: WebLocale = DEFAULT_WEB_LOCALE, environment = "", appearance?: WorkbenchAppearance, delivery?: string): string {
   const languages = renderToggleGroup({
@@ -227,7 +227,18 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: t.text("workbench.client-render.system"), current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say, delivery })
+  const directory = builtinPluginDirectory();
+  const catalog = renderPrimitiveCatalog({
+    plugins: iconInventoryPlugins(), say, delivery,
+    ...(environment ? {
+      presentationLocale: lang,
+      presentationPlugins: BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
+        id: manifest.plugin_id,
+        name: directory.find(entry => entry.plugin_id === manifest.plugin_id)?.name ?? manifest.name,
+        declared: (manifest.presentation?.objects.length ?? 0) > 0,
+      })),
+    } : {}),
+  })
     .replace("</nav>", `<a href="#foundation" title="${t("workbench.primitive-catalog.foundation")}">${t("workbench.primitive-catalog.foundation")}</a><a href="#conditions" title="${say("workbench.primitive-catalog.conditions-states")}">${say("workbench.primitive-catalog.conditions-states")}</a><a href="#assistant" title="${say("workbench.primitive-catalog.assistant-information-works")}">${say("workbench.primitive-catalog.assistant-information-works")}</a><a href="#plugin-rows" title="${say("workbench.primitive-catalog.plugin-rows")}">${say("workbench.primitive-catalog.plugin-rows")}</a><a href="#service-connections" title="${say("workbench.primitive-catalog.service-connections")}">${say("workbench.primitive-catalog.service-connections")}</a><a href="#return-trips" title="${say("workbench.primitive-catalog.back-where-were")}">${say("workbench.primitive-catalog.back-where-were")}</a><a href="#platform-area" title="${say("workbench.primitive-catalog.platform-area")}">${say("workbench.primitive-catalog.platform-area")}</a><a href="#connection-need" title="${say("workbench.primitive-catalog.connection-card-place-platform-area")}">${say("workbench.primitive-catalog.connection-card-place-platform-area")}</a><a href="#bar" title="${t("workbench.primitive-catalog.bar-and-overlays")}">${t("workbench.primitive-catalog.bar-and-overlays")}</a><a href="#collab" title="${say("workbench.primitive-catalog.collaboration-parts")}">${say("workbench.primitive-catalog.collaboration-parts")}</a><a href="#session-sources" title="${t("workbench.session-source-specimens.title")}">${t("workbench.session-source-specimens.title")}</a><a href="#navigation" title="${say("workbench.primitive-catalog.workbench-navigation")}">${say("workbench.primitive-catalog.workbench-navigation")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
     // The board's own sections go at the end of the catalog: the last closing before its script, not the first (an interaction example
     // closes the same way, and its sections used to land inside it).

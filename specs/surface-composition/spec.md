@@ -1,6 +1,6 @@
 # 确定组合平台服务（路线书 15 ①）
 
-状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）、第 14 批 A 段的 `TextRef` 合入和 C 轨交接；服务骨架 S-1 不等第 16 批，首页与接页面的片在第 16 批切换之后合入（第 12 节第 7 条，统筹 11-04 定）。第 7 节对着第 15 批的基础首页定样写，D 轨 11-04 共审过；第 4 节和第 12 节牵涉的合同缺口 C 轨 11-04 已同意，收进 C-2、C-3。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。05② 把挂载位并进 slots（统筹 2026-11-08 定）。
+状态：第 15 批实施中。S-1、公共组件与 S-2 首页的独立实施已合回本批，并有定向证据。S-2 尚待统一接入实际的取词、页面授权和项目成员接口。2026-11-08 用户指定 Codex 本批主台接续；原 C3 设计与 D 定样成果保留。`batch/15` 从 main `226ce892a8` 开始；[05② 的呈现合同](../shared-sources-and-surfaces/spec.md)（C-2、C-3，#1979）与第 14 批 A 段（#1976）已进入该基线。按用户同日后续更正，本批独立开发首页与入口，最终统一同步时接回第 16 批页面授权和取词切换、第 20 批项目成员能力，再以实际采用的接口验收；不再逐文件等待交接。开工检查及证据范围见 §14；全批统一验证、产品实操与本人验收未完成。第 7 节对着[基础首页定样](../../docs/design/basic-home/README.md)写，D 轨 11-04 共审过；合同缺口已由 C-2、C-3 接收，挂载位已并进 slots。早期核查保留在[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。
 
 ## 0. 给人讲清楚
 
@@ -30,7 +30,7 @@
 - 基础首页：[Work Brief](../work-brief/spec.md) §1.1～1.4（WBR-21～28）与第 15 批定样（#1778，用户 11-04 选「先等你和接着做，再插件卡片表」）；
 - 插件领头的样子：第 03 批定样方案 B。
 
-本稿不改这些合同，只写服务怎样用它们；用的时候发现合同缺的，列在第 12 节，由 C 轨在 C-2、C-3 里补。
+本稿写服务怎样消费合同。C-2、C-3 已合入；2026-11-08 按真实装配核到的剩余缺口在 §14.2 收敛，经过本批独立合同评审后随 S-1 补齐，合同形状只在 [05② §5～§7](../shared-sources-and-surfaces/spec.md#6-组合服务的公开合同) 维护。
 
 ## 2. 包边界
 
@@ -40,7 +40,7 @@
 | --- | --- |
 | `surfaces.compose@1`：按调用方、位置和对象排出 `SurfaceDescription` | 字段的值（主人插件的 values 动作；页面另取） |
 | 确定组合的规则：选形态、选字段、选操作、分组、排序、去重、降级 | 呈现声明的解析与安装校验（Plugin Runtime，用 SDK 的 `validatePresentationDeclaration`） |
-| `surfaces.correct@1`：记住用户的纠正（换形态、移走、固定） | 「等你」条目本身（`modules/attention-resumption`） |
+| `surfaces.correct@1`：记住用户的纠正（换形态、移走、固定、恢复默认） | 「等你」条目本身（`modules/attention-resumption`） |
 | 纠正记录这一张表 | 对象之间的关系（Context Ledger） |
 | 组合结果的进程内缓存 | 最近在做什么（观测和采集层的工作记录） |
 | 按位置给出通用操作（打开、速览、放进、交给……）的引用 | 执行操作（动作网关，用点击时的授权） |
@@ -57,7 +57,7 @@ surface_corrections        项目库
   actor_id      调用方（取自调用上下文）
   slot_key      位置：kind + plugin_id + slot_id 归一后的串（如 "plugin-slot:goals:evidence"、"home"）
   subject_kind, subject_id   针对哪个对象；为空表示对整个位置（如密度）
-  correction    "form" | "remove" | "pin"
+  correction    "form" | "remove" | "pin" | "reset"
   value         form 时是形态名；pin 时是顺序
   revision      整数，按 (actor_id, slot_key) 递增；surfaces.correct@1 用 expected_revision 提交
   recorded_at
@@ -67,6 +67,7 @@ surface_corrections        项目库
 - **怎样建表**：经第 02 批的 storage 驱动（#1790「项目数据库归 storage」），包里不自己开库（C 轨评审 11-04）。
 - **不存组合结果**：描述只在进程内缓存（第 8 节），重启后重算；描述里本来就没有值，丢了不影响事实。
 - **不存值、不存正文**：纠正只记对象引用和形态。
+- **恢复默认**：reset 标记写在原表，修订号取所有行的最大 revision，包括 reset 和已失效偏好。对象恢复仅截断该对象之前的 form／remove／pin，仍继承位置统一 form；位置恢复截断全部旧偏好。后续新修订继续生效，不改建表结构。准确合同和当前验证边界见[智能呈现 §17](../intelligent-surfaces/spec.md#17-跨位置消费者实施输入2026-11-09)。
 - **库结构怎样进升级链**：和 05② §8 同一个分界，看 02③ 真实 Home 重建。重建之前落，就写进第 1 版建表；重建之后落，就是一步升级，属于「新增迁移逻辑」的红线，开 PR 之前由统筹先问用户。
 - **助理组合的记录**（第三片）写进观测和采集层的工作记录，不在本包另建表（IUI-23）。
 
@@ -77,7 +78,7 @@ surface_corrections        项目库
 | 合同 | 怎样用 |
 | --- | --- |
 | `PresentationDeclaration`（Manifest 的 `presentation`） | 经插件目录端口读已装、已启用插件的声明。声明已在安装时校验过，服务不再解析 Manifest |
-| `PresentationValues`（主人的 values 动作） | 只取**规则要用的字段**：状态字段（选操作的 `when.status`、排「等你」）和关系字段。显示用的字段由页面另取。每个主人插件一次批量调用，最多 50 个对象 |
+| `PresentationValues`（主人的 values 动作） | 只取**规则要用的字段**：状态字段（选操作的 `when.status`、排「等你」）和关系字段。显示用的字段由页面另取。按精确提供方和 values 动作批量读取，每批最多 50 个对象、32 个字段；同一路由合并，不按条目逐个请求（§14.2） |
 | `SurfaceRequest`、`SurfaceDescription`、`SurfaceItem` | 服务的输入和输出，原样照 05② §6 |
 | `presentationFormFields(object, form)`（SDK） | 算一个形态要显示哪些字段，和页面单独画形态时用同一份 |
 | `assertSurfaceDescription(value, candidates)`（SDK） | 第一片用来自查输出；第三片校验助理组合 |
@@ -152,7 +153,7 @@ surface_corrections        项目库
 3. 插件没声明这种形态，按梯度降一级：速览 → 卡片 → 行 → 名字片（IUI-03）；
 4. 一种都没声明，或这个对象的 kind 没有声明：兜底（图标、名字、所属插件、「打开」，IUI-02）。
 
-位置不接受的形态不用；降到位置接受的最大一种为止。
+位置不接受的形态不用；降到位置接受的最大一种为止。`accepts_forms` 是集合，不以声明数组的先后决定大小；按 `PRESENTATION_FORM_KINDS` 的既有形态顺序选择。
 
 ### 6.3 字段
 
@@ -167,14 +168,14 @@ surface_corrections        项目库
 3. 动作目录 `discover()` 给的 `availability` 不可用的不放；声明了必须让人知道原因的（对象被锁、等别人），放一个不可点的说明，写原因与去处；
 4. 至多一个 `primary`；声明里多个都写了 primary，取第一个；
 5. 按位置补通用操作：名字片和行补「速览」「打开」，卡片补「打开」「放进」「交给」；
-6. `consequence` 从动作元数据填，不信声明；
-7. `prepared_input` 按 `input_from` 从规则字段里取值，只预备不写入；需要显示字段才能预备的，留给页面在取值后预备。
+6. `consequence` 从动作目录的现行语义填，不信呈现声明；不可逆复用平台的 `actionEffect(action, capability_id)`，包括省略 effect 时的现有判断和显式 effect 的覆盖，不在组合服务另写一套名称规则；
+7. `prepared_input` 保留 `input_from` 的「输入键 → 字段键」映射，不填字段值；点击时在当时的授权下读取值并准备输入（05② 已合入合同）。
 
 点下去时走动作网关，用点击时的授权，不用组合时的（IUI-07）。
 
 ### 6.5 规则要读的值
 
-为了 6.4 的 `when.status` 和 6.7 的排序，服务要知道每个对象的状态。每个主人插件调一次它的 values 动作，只要状态字段和关系字段：
+为了 6.4 的 `when.status` 和 6.7 的排序，服务要知道每个对象的状态。按 §8.1 的动作路由批量调用 values，只要状态字段和关系字段：
 
 - `ok`：照常；
 - `forbidden`：对象照放，`state: "forbidden"`，不给字段、不给操作，页面写「没有权限查看」；
@@ -225,31 +226,34 @@ surface_corrections        项目库
 
 每个已启用的插件一张卡：
 
-| 定样里的 | 服务给什么 | 合同里有没有 |
+| 定样里的 | 服务给什么 | 现行合同与本片接线 |
 | --- | --- | --- |
 | 插件色带 | `owner_plugin_id`；颜色由平台分配（05② §10 第 1 条） | 有 |
-| 一句概况，如「2 个目标在推进 · 1 件等你验收」 | 插件给的概况 | **没有**：要插件级的概况声明（第 12 节第 1 条） |
-| 概况下的说明，如 Feed 的「同步来的资料不算你接下的工作」 | 插件给的说明 | **没有**，同上 |
+| 一句概况，如「2 个目标在推进 · 1 件等你验收」 | 插件给的概况 | 已有 overview 声明与返回；S-2 通过 §14.5 的 `plugin_card.summary` 返回本轮文字引用 |
+| 概况下的说明，如 Feed 的「同步来的资料不算你接下的工作」 | 插件给的说明 | 已有 overview.note 声明；S-2 绑定可信文字 owner 后放入 `plugin_card.note` |
 | 两三行内容（行形态） | 插件概况给出的前几个对象，按 6.2～6.6 组合 | 对象有；「哪几个」要概况声明给 |
-| 上面已列过的不重复，写「另有 N 件在上面」 | 服务按 subject 去掉「等你」「接着做」里已有的，组上写 `hidden_above: N` | **没有**（第 12 节第 4 条） |
-| 「打开」 | 通用操作，去插件主区 | 有 |
-| 新项目：「还没有内容」加插件自己的开始入口 | 概况给的开始动作 | **没有**，同第 1 条 |
-| Goals 读不到：显示 2 小时前的值，标「读不到」，给「再读一次」 | 卡片 `state: "stale"`、`read_at`；行照 6.5 | 对象级有；插件卡这一级要第 4 条 |
-| Inbox 已停用：「已停用，内容都还在」，给「启用」 | 卡片 `state: "disabled"`，操作是平台动作 `plugins.installed.enable@1`（只给本人） | **没有**（第 4 条） |
-| 没有声明首页内容的插件：只显示名字和「打开」 | 卡片 `state: "undeclared"` | **没有**（第 4 条） |
-| Feed 的行标「本项目」「个人」 | 字段角色 `held_in`，值由 Feed 按真实关联给；只在一处同时出现两种值时才显示 | **没有**，D 轨定加（第 12 节第 6 条） |
-| Inbox 的「要紧 · 对上『手机排版』」 | 字段角色 `judgment`：标签加理由，主人给 | **没有**，D 轨定加（第 6 条） |
+| 上面已列过的不重复，写「另有 N 件在上面」 | 服务按当前可读对象去重，组上给 `hidden_above: { count, label }` | 结构已有；S-2 接实际去重与文字引用，未授权对象不进计数 |
+| 「打开」 | 去可信 Host 选定的插件主区 | S-2 的 `plugin_card.open` 固定原安装与 view，点击继续复核 |
+| 新项目：「还没有内容」加插件自己的开始入口 | 概况在声明白名单里选择开始动作 | 已有选择协议；S-2 区分真实空输入调用与已有输入表单，见 §14.5 |
+| Goals 读不到：显示真实上次读取值及时间，给「再读一次」 | 卡片 `state: "stale"`、`read_at`；行照 6.5 | 结构已有；只有主人本次授权读取返回的旧值才可显示，首次失败不造旧值 |
+| Inbox 已停用：「已停用，内容都还在」，给「启用」 | 卡片 `state: "disabled"`；原生项目成员走 `projects.plugins.set@1`，项目签包走安装启用，Home 插件打开现有设置 | S-2 的三种精确安装恢复入口见 §14.5，不把成员关系当签名安装记录 |
+| 没有声明首页内容的插件：只显示名字和「打开」 | 卡片 `state: "undeclared"` | 结构已有；S-2 接可信可见目录，不伪造概况 |
+| Feed 的行标「本项目」「个人」 | 字段角色 `held_in`，值由 Feed 按真实关联给；只在一处同时出现两种值时才显示 | 字段角色已有；真实 values 与消费由本批接入 |
+| Inbox 的「要紧 · 对上『手机排版』」 | 字段角色 `judgment`：标签加理由，主人给 | 字段角色已有；本批消费主人提供的现有有效判断 |
 
 卡片的顺序：有「等你」的插件在前，其余按插件在 Dock 里的顺序；不按插件名写死。
 
 ### 7.4 首页的几种情况
 
+以 Work Brief §1.1 前 2026-11-04 的更正为准：首页始终归平台，Work Brief 和其他插件一样注册卡片。原型里的「插件接管首页」只保留为历史模拟，不作为实现合同；生成页面采用、版本与恢复归第 20／37 批。
+
 | 情况 | 谁管 |
 | --- | --- |
 | 后台在刷新：不清空，「更新了 1 处」 | 页面：比较新旧描述的 revision 和每项的值版本，只换变了的；服务保证同样输入同样 revision |
-| 装上了 Work Brief，首页换成综合首页 | 工作台的通用挂载：哪个插件声明了「项目首页」挂载、它是否启用、页面是否打开成功。**不归组合服务**，服务不知道 Work Brief |
-| Work Brief 的首页打不开，回到基础首页 | 同上；回退后页面向服务要 `home` 位置的描述 |
-| 写文稿时装好了 Work Brief，不打断当前标签 | 工作台 |
+| 安装或启用声明了首页概况的插件 | 按相同目录和呈现声明显示插件卡，不按 Work Brief 名称分支，不替换平台首页 |
+| 某个插件的首页内容读不到 | 该插件卡显示 unreadable 或真实旧值的 stale 状态；其余卡和基础首页仍可用 |
+| 已采用的生成首页不可用 | 后续平台页面运行时负责回到基础首页；本服务照常提供 `home` 描述，不拥有页面定义或恢复状态 |
+| 写文稿时安装或停用插件，不打断当前标签 | 工作台保留当前标签与草稿；回到首页时按最新目录刷新 |
 
 ## 8. 调用次数和缓存
 
@@ -259,18 +263,20 @@ surface_corrections        项目库
 | --- | --- | --- |
 | 插件目录与声明 | 0 或 1 | 按目录版本缓存在进程里，版本变了才重读 |
 | 动作目录 `discover()`（带可用性） | 1 | 对本次所有候选操作一起取，不按操作逐个 |
-| 主人 values（规则字段） | 每个涉及的主人插件 1 次 | 批量，最多 50 个对象；各插件并发，各自限时 |
+| 主人 values（规则字段） | 每个精确提供方＋values 动作的最少批次数 | 每批最多 50 对象、32 字段；同对象不重复读取，最多 4 个真实在途调用；整次组合共用 1 秒截止，过期不再派发 |
 | 「等你」 | 0 或 1 | 只有 `attention` 和 `home` |
 | Context Ledger | 0 或 1 | 本次所有对象的边一起查 |
 | 工作记录 | 0 或 1 | 只有 `home` |
-| 插件概况 | 每个已启用、声明了概况的插件 1 次 | 只有 `home`；并发、各自限时 |
+| 插件概况 | 每个已启用、声明了概况的插件 1 次 | 只有 `home`；与 values 共用四个真实在途槽和整次一秒截止，见 §14.5 |
 | 纠正表 | 1 | 一次读出这个调用方在这个位置的全部纠正 |
 
 不按条目逐个请求，不重复读同一份数据（对抗式审查 N42～N56）。
 
+**2026-11-09 用户批准的 IUI-02 例外。** 仅没有有效呈现声明的对象，按本轮不同引用各至多调用一次原唯一读取器，取得当前标题、版本和打开位置。与概况、规则值及显示字段共用原有四个在途调用与一秒截止。只调用已确认本地只读、明确免费、不外发、不调模型的读取器，正文立即丢弃。普通 values 仍按提供方合批，页面仍一次请求，不增加目录发现或单项 HTTP。无法核实的对象不得提供旧标题、数量或打开。完整边界与验证见[智能呈现 §17.5](../intelligent-surfaces/spec.md#175-没有呈现声明的对象iui-02)。
+
 ### 8.2 页面一次画
 
-一个位置：1 次 `surfaces.compose@1`，加上每个主人插件 1 次 values（显示字段）。所以一个首页大约是 1 次组合，加上「已启用插件数」次 values。
+一个位置：1 次 `surfaces.compose@1`，加上按主人精确 values 动作合并的显示字段批次；批次按同样的 50 对象、32 字段上限计算，不按对象各发一次请求。消费者在其实施片证明真实调用成本。
 
 ### 8.3 缓存与刷新
 
@@ -313,7 +319,7 @@ surface_corrections        项目库
 
 ## 11. 拆片
 
-按轨道规则 1，合同先单独开，服务接着，消费者最后。
+按[开发流程 §8.4](../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)，合同先做、服务接着、消费者最后；本批各片在子分支上开发，合回 `batch/15`，只开一个批 PR。05② 已合入的合同直接消费，不重新开合同 PR。
 
 | 片 | 内容 | 谁写 | 前置 |
 | --- | --- | --- | --- |
@@ -322,13 +328,13 @@ surface_corrections        项目库
 | S-2 首页位置 | `home` 的三组、插件概况读取、去重与「另有 N 件在上面」、停用与读不到 | C3 | S-1；第 12 节第 1、4 条进合同；工作记录读取（21／28，没交就先不出「接着做」） |
 | 消费者 | 四种形态的组件、页面接线、Goals／Inbox／Coding 的声明（第 15 批第 2 项）；基础首页与 Feed 归属（第 3 项）；现有分支退出（核账） | D 轨、E 轨、各插件 | S-1；首页用 S-2 |
 
-两片服务都在一个分支上叠，S-1 做完开 PR。S-1 按第 12 节第 7 条的四个条件不等 16，排在 C-2、C-3 和第 14 批 A 段 `TextRef` 之后合入；S-2 和接页面的片在第 16 批切换之后合入（统筹 2026-11-04 定）。
+两片服务按依赖在本批分支上叠；子分支不开 PR。S-1 按第 12 节第 7 条的四个条件不等 16，随本批 PR 合入；S-2 和接页面的片在第 16 批切换之后合入，届时仍未就绪的按本批文件「粒度」及开发流程 §8.4 明确移交，不能把 S-1 完成写成整项或整批完成。
 
 门禁与测试：
 
 - 包里不出现插件 id：测试按已装插件列表在源码里找，一个都不许有；
 - 不调模型：第一片的端口里没有 agent-host，测试断言组合时没有任何模型调用；
-- 调用次数：测试用计数端口，断言第 8.1 节的次数（每个主人插件一次 values、关系一次……）；
+- 调用次数：测试用计数端口，断言第 8.1 节的次数（同一路由最少批次、关系一次……）；
 - 内置插件和测试用的第三方插件走同一条路，结果同形。
 
 ## 12. 要定的事
@@ -369,10 +375,15 @@ surface_corrections        项目库
 | SCS-06 | 由 Context Ledger 关系连着的两个对象在同一位置只算一次，被合并的挂在留下的下面 | WBR-24 |
 | SCS-07 | 首页「等你」只来自 attention-resumption；停用插件的条目不算，并写明少了几件；Feed 同步来的资料不进「等你」 | WBR-21、WBR-24、SSC-11 |
 | SCS-08 | 首页插件卡在读不到、停用、没有声明、新项目四种情况下各给对应状态，与「没有内容」分开 | WBR-21、WBR-25 |
-| SCS-09 | 一次组合每个主人插件只调一次 values，关系与「等你」各一次，不按条目逐个请求 | 开工前检查第 9 项 |
+| SCS-09 | 一次组合按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 字段；最多 4 个真实在途调用，整次截止后不再派发；关系与「等你」各一次，不按条目逐个请求 | 开工前检查第 9 项；§14.2 |
 | SCS-10 | `surfaces.correct@1` 按 `expected_revision` 提交，冲突被拒；同一位置下次先照纠正来；被拒或取消的调用不写纠正 | IUI-06 |
 | SCS-11 | 包里没有任何插件 id；内置插件与测试用第三方插件走同一条路，结果同形 | IUI-01、WBR-23 |
 | SCS-12 | 描述里给人看的字都是 `TextRef`，主人取自插件目录；切换语言不重新组合 | FSS-34 |
+| SCS-13 | 组合候选先经 `assertSurfaceDescription(候选, 候选)` 自查；重复的同种同主人分组被拒。呈现声明只在同一次动作目录里找到唯一且属于声明者的对象读取器时生效；没有、多个或属于别人的读取器均按未声明处理；停用、启用后重新判定 | IUI-02、SSC-19；05② 交接 |
+| SCS-14 | 同一对话可混排正文引用与交付；默认前 6 件、原处展开，计数只含可读对象；对话之外拒绝交付子集，挂载位上限不能被展开绕过 | §6.1、§6.7；§14.2 |
+| SCS-15 | 普通操作固定提供方；不可用说明与按钮互斥，原因取 owner 的文字键，去处复用同对象声明的可用只读或导航动作；同名提供方与助理改写不能重指向 | IUI-07、IUI-08；§14.2 |
+| SCS-16 | 安装、换版及外部确认写入之前用同一完整目录验证跨提供方引用；停用但已装的声明仍参与，换版移除的旧动作不能满足引用 | SSC-06；§14.2 |
+| SCS-17 | 「等你」只读活动持久条目；未授权或尚未核实的对象不进入对象引用或可读对象计数；停用遗漏只按 §7.1／§14.2 的已授权 Attention 事实聚合；关系仅两端已授权且位置相符时合并，伪造平台关系被拒 | SSC-11、SCS-06；§14.2 |
 
 ## 14. 开工前检查
 
@@ -392,3 +403,203 @@ surface_corrections        项目库
 | 12 | 页面与外壳 | 服务不出页面；页面接线归消费者那一片，新的 DOM 事件在那一片登记 |
 | 13 | 错误 | `defineErrorCodes("surfaces", …)`，第 9 节四个码；主人表加一条 |
 | 14 | 冲突面 | 新包无冲突；宿主装配碰 `apps/local-host/src/` 的动作登记处（枢纽文件，按并行开发第 2 节先查在途 PR）；包清单、SSOT、CODEOWNERS 由脚本生成 |
+
+### 14.1 S-1 当前开工检查（2026-11-08）
+
+目标是让四处位置的确定组合与用户纠正通过真实动作入口工作，达到 SCS-01～06、09～17；SCS-07～08 的首页行为归 S-2。没有模型、没有页面接线，不以纯函数样例代替宿主装配、持久化与拒绝路径。以下检查取代上一表在 `226ce892a8` 上已经过时的前置判断；实施完成后以实际 diff 和证据复核。
+
+| # | 当前回答 |
+| --- | --- |
+| 1 事实主人 | 组合规则与纠正归 `horizontal/surfaces`；对象值、Attention 条目、Context Ledger 关系仍由现有主人给。服务不复制正文，不新增首页工作事实。 |
+| 2 插件同等待遇 | 从可信插件目录取声明和 owner，内置与第三方走同一路径。复用 `findSubjectReader` 核对唯一读取器与声明 owner，不在宿主列插件名单。 |
+| 3 能力注册 | 消费已有 `surfaceCompositionActions.compose`／`correct`，以 `system.surfaces` 登记一次；compose 为 concurrent query，correct 只给 user。actor、project、调用控制来自真实上下文。 |
+| 4 合同 | 05② C-2/C-3 已合入；先复用现有形状、`presentationFormFields`、`assertSurfaceDescription`。自查能拒重复组，不再改 SDK 另建校验。宿主动作快照的两条新登记排在在途占用之后；发现形状缺口先交公共合同合审。 |
+| 5 包边界 | 新包只做确定组合和本服务纠正记录；Host 只装配端口、生命周期与动作。持久化使用已有 storage 公开驱动，不由 Host 写本服务的业务 SQL。包注册、依赖和 README 随同一片更新。 |
+| 6 表与存储 | 项目库已经是第 2 版。完整 S-1 需要本服务拥有的 `surface_corrections`，在当前 schema 加表并提供 2→3 连续升级；不修改旧段，不从普通读取路径补表。用户已批准此组升级与必要登记，见下。 |
+| 7 兼容与迁移 | 不加兼容读取。第 3 版升级只新建空纠正表，已有项目内容、目录与插件表保持原样；先在 CONTRACT-CHANGES 记下具体版本维护，再写升级段。 |
+| 8 安全边界 | 声明 owner 与读取器 owner 一致；不可达对象不泄露字段、操作与被合并引用。correct 在实际事务写点复查取消、授权与 expected revision；关闭后不再发起插件读取或写纠正。同步补安全记录与断言拒绝本身的测试。 |
+| 9 调用次数 | 每次 compose 共用一份动作发现与调用上下文，插件目录至多一次；每个 owner 批量取规则值，纠正和关系各一次，attention 仅该位置一次。禁止逐对象调用会再次 discover 的解析入口；端口计数与真实装配都验，不能用短缓存遮住冷路径。 |
+| 10 升级与数据 | 通过现有升级链验证 1→2→3、新建 v3、过新版本拒绝、升级失败保留旧数据，以及纠正重开后生效。保留旧金样，补存着项目库 v2 的金样并回放；仅隔离 Home 验证。 |
+| 11 成果与过程项 | 不涉及：描述是即时投影，纠正是本服务自己的偏好记录，不写成果或过程项。 |
+| 12 页面、外壳与文字 | S-1 不改页面、DOM 事件、翻译和资源；只引用目录已有 TextRef。四形态与基础首页沿已定样，组件板实件与页面消费者由后续 D 片接入，并受 16 切换约束。 |
+| 13 错误 | 用 `defineErrorCodes("surfaces", …)` 与现有 ActionError 类别，不新增 Error 子类。候选自查失败归服务生成错误，不冒充模型输出错误或静默发布坏候选。 |
+| 14 冲突面 | 独占新包；宿主动作装配、项目库 schema、包登记、版本表、错误 owner 表、宿主动作快照与金样为串行接线面。#1984 占用的 SDK／Manifest／动作快照不并发写；主台先安排交接，再由本批写手落地。 |
+| 15 全局最优 | **插件**：Goals／Inbox／Coding 和第三方只提供同一声明，不为四处位置各做适配；**平台**：复用目录、授权、Attention、Context Ledger、storage，新增服务只拥有组合与纠正；**助理**：对话通过同一组合入口，外部 Agent 仍读已有文本形态；**平台能力**：复用公开动作和放置能力，不复制 Skill／连接器／工作流程，也不提前做采集；**后续**：15 S-2、52 第二片、63 助理组合共享此服务，20 的生成页面消费描述，不把生成页面生命周期塞进本包。相比继续在页面各排一份，统一规则可消除重复；相比把组合放 SDK，独立服务不迫使作者安装平台运行时。 |
+
+**已核回的现成能力。** `findSubjectReader` 在 contracts 的 `platform/action-subjects.ts`，接同一份 discover 结果；SDK `surface-description.ts` 的 `checkedGroup` 在自查时已经拒绝同 kind／owner 重复组。S-1 通过调用这两处和行为测试证明，不再添第二个查找器或重复校验。
+
+**用户已批准的准确范围（2026-11-08）。** 项目库 `database.project_database_baseline` 从 2 升 3；新建空 `surface_corrections` 的连续升级段，保留旧数据和旧升级段；补 v2 金样、结构快照及维护记录。新包还需要在 `scripts/workspace-packages.mjs` 登记、在 `tooling/gates/error-owners.json` 增加唯一 owner，并刷新派生包清单、CODEOWNERS、锁文件和宿主动作快照，不改门禁算法、阈值或 CI。用户在本会话选择「授权上述升级与必要登记」。v2 金样从基点 `226ce892a8` 的干净构建生成，使用独立的开发金样标签，保留 `0.1.0` 原样；此标签不是产品发版。
+
+升级设计 §14 写过「组合服务的纠正表……同样不再问」，本稿 §3／§14 与用户本轮却仍要求红线先问；本次已将准确范围交用户确认并获准。真实 Home、发布、凭据与 vendor 不在本批许可范围内。
+
+**验证安排。** 写手只运行自己新增的用例，均经机器槽、`--jobs 1`；交回前查健康门禁。本批写完才统一同步 main、构建，并按 affected-tests 与包 README 跑完整受影响集合；本机不跑 Full，最终头由统筹安排 CI Full。产品代码、工程结果、隔离实操和本人验收分别记，不把此检查表当成通过证据。
+
+
+### 14.2 S-1 装配缺口与合同合审（2026-11-08）
+
+公共合同台在 `85d54e86e0f10e53c1fb4ec8bd9b4271b8bd4074` 对本节至 §14.4 及公共来源 §7 的呈现承载设计合审通过，无 Blocker/P1（`gpt-6-astra / high`，只读，未跑测试）。此结论只覆盖设计，不覆盖尚未固定的 Host 接线或最终 PR。首页接入还须把原生 `definePresentationOverviewAction` 与 overview 校验补成同一自动读取门槛：明确 `execution.cost: "none"`、read/query、无模型和 external；不能只拦 values 和签名协议。
+
+在 `efafe16f5e` 上按实际调用链核查，合同设计台给出的最小补充经过独立 `gpt-6-astra / high` 只读合审。以下是本片实施约定，尚不是代码或验收证据。公开形状维护在 [05② §5～§7](../shared-sources-and-surfaces/spec.md#6-组合服务的公开合同)，S-1 不重复定义类型。
+
+- **对话用途、折叠与时间。** 请求的 `delivery_subjects` 是 `subjects` 的去重子集，仅对话可给；交付默认卡片、其余引用默认名字片。对话和讨论默认显示前 6 个，`overflow` 只记可读的折叠件数；`expanded:true` 在原位置展开，不改变 50 项输入上限和插件挂载位硬上限。它与首页上方已显示的 `hidden_above` 不共用语义。S-1 省略可选的折叠标签，不伪造词表键。条目的 `read_at` 只转发本次授权读取给的真实旧值时间；无时间的失败组是 unreadable。
+- **动作和说明。** 普通操作固定精确 provider；同名跨提供方有歧义时不任选。`unavailable` 只有声明与输出两处：先筛外层 `when`，内部 status/codes 至少一个非空，两项同时给时为 AND；codes 只比可见的不可用行。命中时把按钮替换为 owner 文字键的 notice。去处只引用同一对象已声明的另一动作、复用其输入映射，且最终必须可用并为只读 query 或 navigation。权限隐藏的动作不出原因；provider、notice、后果由候选决定，助理不能改写。外发由动作 owner 的 `external:true` 显式声明，计费和不可逆用既有元数据，不按名称猜。
+- **批量和截止。** SDK 允许一个主人不同 kind 使用不同 values 动作，旧“每 owner 一次”不能覆盖现行合法声明。按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 个规则字段，同一对象不重复读取；最多 4 个真实在途调用，整次 compose 共用 1 秒截止。截止停止派发并取消本轮子调用，不能把 Promise 超时当成底层已经结束后继续补槽。父取消或撤权直接传播，不能当作 stale 成功。动作必须符合现有 values schema、只读、不调模型、非 `external:true` 且明确 `execution.cost: "none"`；省略、unknown 和 metered 均不能作为自动 values 读取，标准声明 helper 显式给 none；复用 `presentationValuesProblems`。签名与原生自动读取采用同一边界，不能借组合触发外发。发现型 Attention 条目指向的对象尚未证明可读就不输出，也不进入 merged、overflow、hidden 或可读对象计数；有未完成读取时组给 unreadable，不伪装成空组。停用条目的独立聚合按下一条，不把 Attention 自身事实等同于对象正文。
+- **Attention 的事实与排序。** 由 `modules/attention-resumption` 的窄批量读取只投影活动持久条目的 owner、规范对象引用、reason、revision、进入时间，不带 detail。现有 subject_type 到 kind 的对应由这个事实 owner 维护，不在服务抄 Inbox 分支；null owner 不猜。goal_decision 是决定，source_fault/artifact_out_failed 是失败，其余已存在且可读的条目可以按主人状态分类，无分类排在三类之后。状态只影响排序，绝不产生条目（SSC-11）。当前 Coding/Goals 的其他待验收没有进入此表，不假造；新增生产者与生命周期另议。本片不接 `/api/attention` 的后台任务和 AssistantNotices 聚合。插件枚举继续服从现有 attention:read 和原调用人的对象权限。
+- **停用遗漏的准确口径。** §7.1 原有 user 停用计数保留：Attention 自身事实已有独立读取授权（`PluginAttentionClient` 的本项目显式 owner 条目），不以对象 reader 可用为前提。仅 user、当前项目、原 caller 授权仍有效时，按 owner＋规范 subject 去重统计活动 Attention 事实，且准确安装状态必须为 `disabled`；输出 owner 与数量，不输出其对象引用、正文或关系，也不算进可读对象数。它表示因停用未参与的 Attention 项，不声称对象仍存在、可读或已跨关系合并。crashed、quarantined、启动失败和权限拒绝不能压成 disabled；目录须保留真实状态。无授权的事实不计，非 user 不带 owner 和数字。该口径经独立只读复核，纠正本节先前“任何计数”的过宽措辞，不改变原首页验收。
+- **关系只读与身份。** Context Ledger owner 提供限定候选引用的 active latest 批量读取，复用原有 scope、namespace、引用和访问校验。Placement 在自己的 Home 分区批读复制／派生边，并核对当前位置；Host 一次逻辑端口合并主人结果，不跨包写 SQL。两端必须都是本轮已授权候选且位置、kind、身份一致；不向候选外扩图。当前没有可信 created_from 生产来源，不能仅凭插件可自写的 type/cause 把它认成平台关系。真实链用 placement.copy/convert 验证。
+- **安装目录。** Runtime 的安装、换版和外部确认 pin/save 前复用同一套 `validatePresentationDeclaration`、完整 `presentationCatalog`。Host 注入同作用域完整可信声明：已装（含停用和未授权）、待启动声明、系统定义、候选自身，去掉被替换旧版本；不能用 caller discover 代替完整目录，也不递归启动插件。Runtime 和安装 Service 遇到有呈现声明却没有可信校验端口时，按 `plugin.declaration_invalid` 拒绝。这里只核引用存在；组合每次另用同一份 discover 和 `findSubjectReader` 判唯一 reader 与 owner。保留现成 `presentationFormFields` 及自查重复组拒绝，`assertSurfaceDescription(候选, 候选)` 必须无 dropped。Home 串行、动态系统声明和同发行物重挂的边界见 §14.4。
+- **纠正写点。** slot 与 subject 使用无碰撞键，位置级 form 不依赖 NULL 唯一性。form、pin、remove 是独立偏好，remove 优先；换形态不丢 pin。actor 从上下文来，项目库隔离。user compose 按本人 actor 读纠正；plugin compose 给空纠正及 revision 0，不因共享 actor_id 读到本人的偏好。await `beforeEffect` 后，最后同步控制检查与同一事务里的 revision 比较、写入递增紧邻；关闭、取消、撤权和冲突都不留业务记录。
+
+文件边界：新服务包、contracts 的动作/呈现/组合与 Attention/Ledger 读取合同、SDK 共用声明/描述校验、事实 owner 的公开读取、Plugin Runtime 安装检查、Host 装配，以及相应 API/动作快照与拒绝用例。首页 S-2、页面、语言切换、DOM 事件、模型和生成页面均不在 S-1。每项必要扩展都为了补当前公开需求的接线，不新增持久事实或第二套权限目录；遇到无法通过现有端口闭合的信任边界须先向主台报告。
+
+验证用 SCS-09、14～17 覆盖混排及原处展开、同名 provider 不重指向、说明和去处的输入复用、跨 kind 批次与真实在途上限、整体截止及撤权、隐藏项零泄露、跨项目和伪造关系拒绝、停用依赖的安装与换版旧动作剔除。其余保持 §14.1；`0.1.1-dev.1` v2 金样已从相同基线产品代码生成并重复检查逐字节一致（4,467,044 bytes，官方 Node v24.15.0，签名插件和 Home 库样本齐备），候选 v3 回放尚未运行。
+
+### 14.3 签名插件的同一路径（2026-11-08）
+
+本节设计及协议已分别经过独立复核；S-1 接线 `18502c873a` 与修复 `9851ae4bd10b` 已在 `ac3e527c71` 合回本批。独立 `gpt-6-astra / high` 在修复头关闭两项 P1，无剩余 Blocker/P1。真实同包预览、严格读取、安装、三个协议、compose/correct 与 Host 重开恢复纠正 5/5 通过；安装目录与集成包拒绝等原 8 项通过，两项新增拒绝反例亦通过，其中补权夹具首轮身份不合法，修正合法 Host 身份后单独 1/1。固定修复头 health 通过。以上为定向工程证据；旧金样回放、全批统一验证和最终 PR 合审仍未运行，不代表全批完成。以下实施条件保持。
+
+- 协议查询用一份明确的本地只读 effects 白名单。普通 query 现有的联网能力不能沿用；`resources`、`capabilities` 等间接调用入口也必须拒绝。真实 runner 还须拒绝未声明的服务调用。
+- 版本方案的直接依据是[合同变更 §3 第 3 条及当前保留机制](../../docs/system/CONTRACT-CHANGES.md#3-阶段一现在不留兼容期)：阶段一动作和 Manifest 按现行版本扩展，发行物留存属于现行产品功能。复核确认本方案无须新增审批；若实现须改变持久业务格式、重写旧包或增加历史读取分支，仍先回到红线确认。
+- 同一个真实插件完成预览、打包签名、严格读取、确认安装、三个读取协议调用及 compose；关 Host 后从留存签名包重新启动，再验 discover、三个协议与 compose。另用现有旧金样原件完成候选回放，不重新生成旧包替代。
+
+**真实缺口。** 现行签名包从 `contract.json` 经 SDK 的唯一动作投影生成 Manifest，再由 Host 比对投影后安装；运行时再次使用这份投影。目前投影没有呈现声明和三个读取协议的语义字段，普通 `SandboxSchema` 也不接受这些协议已有的开放映射等结构。仅给 Runtime 测试注册一个第三方 Manifest 不能证明签名插件能用；SCS-11 必须补真实打包、读取与运行证据。
+
+**最小补充。** `SandboxPluginContract.presentation` 直接使用已有 `PresentationDeclaration`；操作只增加闭集 `read_protocol`：对象上下文（一个 kind）、呈现取值（kinds）和插件概况（无 kinds），外发继续用 `external:true`。SDK 的 `sandboxOperationActions` 从现有三个 `define*Action` 取得固定 schema、语义类型、只读 kind/effect；不接受包传入任意 ActionMetadata、提供方、权限、执行成本、超时或项目范围。普通操作仍使用原声明。协议查询只允许现有本地只读 effects，拒绝网络、连接、模型、图像生成、委托能力与写入；运行权限和费用仍由现有 effects 与运行策略决定。kind 沿现有唯一 reader 和 owner 规则，不为签名插件另加命名前缀要求。
+
+签名 operation 的 input/output 必须与该协议的现行公共 schema 深等；用明确的协议类型分支表达，不将公共 schema 强转为有限 `SandboxSchema`。普通操作仍走原 `assertSchema`／`assertMatches`。三个固定协议的 examples 和真实 runner 输入、输出共用一个校验入口：先守住现有 JSON 与消息大小限制，再由 Kernel 的公开 schema 编译器校验平台选定的固定 schema。只为私有 sandbox 包登记现有 Kernel 依赖，SDK 不依赖 Kernel，也不新造 schema 解释器或放宽普通 operation 的关键词。
+
+`sandboxPluginManifest` 在声明协议、外发或呈现时启用同一静态动作投影，并保留 contract 的呈现声明；旧 `interface.presentation` 是插件自身页面布局开关，语义不变。Host 的签名验证、原有完整投影比对和 `parsePluginManifest` 保持；CLI 继续原样传 contract，不加第二个呈现入口。运行 definition 保留静态协议字段，原动态授权、身份与 effects 检查不能被声明覆盖；Home 概况不因此得到额外项目范围。
+
+**版本边界。** 本方案按阶段一公开分发合同在现行 v1 增加可选作者声明，不改持久业务格式、不提供双版本读取、不改写或重签已安装发行物。[Home 数据 §1](../../docs/system/HOME-DATA.md#1-怎么读) 把 `plugin-packages/` 定为原样保留的软件发行物，[金样 §2](../upgrade-continuity/golden-replay-design.md#2-一份金样里有什么) 单列已签字节，且它不在现行持久格式升级名单。没有新增声明的现有签名包须得到逐字相同的 Manifest 投影并原样回放；这是上述阶段一规则的适用范围，不是新增历史兼容许可。
+
+**文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/security-invariants-sandbox-presentation.test.ts`。第 10、16 批均核实并释放了 design-system 的 `plugin-components.ts`／`plugin-component-records.ts`，只在普通组件绑定中排除固定读取协议，不改界面或样式。创作台 `build-checks.ts` 的 G5 合成测试壳只移除真实 query 的协议标记；生产声明、样例和 G6 的真实权限保持。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
+
+现有 `apps/local-host/src/plugin-development.ts` 明确只运行 Integration；app 作者预览走真实沙箱预览及项目 Host 装配。该 Integration 入口不新增呈现 checker，也不把它当作 app 预览证据；签名 Integration 的呈现／读取协议仍在包边界拒绝。app 的正式安装和项目 Host 共用可信检查器，Runtime 遇到声明呈现却缺检查器时拒绝，不能为开发用途默认放行。
+
+**验证。** SCS-11／16：上述同包预览、安装、运行与重开均须保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装、运行和重开前，不宣称第三方同等待遇已实现。
+
+### 14.4 Home 安装的串行边界（2026-11-08）
+
+在 `b6a7274fd8ac` 上完成调用链核查与独立设计复核，以下 SCS-16 接线已在 `18502c873a`／`9851ae4bd10b` 实现并完成定点实现复核，证据范围见 §14.3。修复前确认动作只串行同一个项目，两个项目能同时改一个 Home 的安装目录，导致最终声明检查通过后、Runtime 复查前目录变化，在 pin/save 后才拒绝。
+
+**串行范围。** 唯一 `HomePluginHost` 复用现有 `HomeLine` 类，拥有一份专用实例。正常 `ready()` 完成后进入这条线，从最终版本、发布者与声明检查，经过 pin/save，持有到 Runtime 安装、换版及其内部启动或恢复结束。签名包的安装、换版、卸载与启用，包括直接 HTTP 入口，使用同一条线；内置 Home 插件的 enable 也必须进入，因为它可经 `recordToFollow` 跟随当前构建、改变目录。撤权和停用的立即失效不等待这条线。不能借用 LocalHost 全局 Home 动作队列：现有 Placement 会从 Home 等待项目动作，安装确认反向等待该队列会死锁。现有签名包启动只等沙箱 ready/stop；项目委托发生在业务 operation 内。曝光刷新用 Home caller 的原始 inspect，不启动或派发项目动作；实现改变此调用链时重新核对。
+
+**排队后的授权。** 可信调用 control 从动作入口传到确认临界段。出队并完成最后异步准备后重新 `beforeEffect()`，紧邻同步目录检查和 pin/save 再核取消、调用权限与 closed，随后同步复查发布者 pin。不能只沿用入队前的授权检查。关闭先标 closed，拒绝尚未写入的排队回调，排空在途安装操作后再释放库。声明不合法、排队期间取消或撤权均不留下本次 pin、留存包或安装记录。
+
+**系统声明取样。** 系统动作并非全是静态定义：已发布判断规则可重新登记，MCP 也可能有 system 身份。用现成 `isMcpToolCapability` 排除 MCP，并排除其它项目；在本次确认的最后检查复制系统能力 id/version 对，供该候选的预检及 Runtime 复查共用。取样只证明引用存在，不能保存调用权限；实际组合和执行继续现查。最小注入放在 Host 私有安装 helper 的调用上下文，绑定 scope、plugin id、版本、发布者签名及现有 `manifest_digest`，结束即失效。其它候选、下一次请求和普通 Runtime 入口重新读取。没有新增持久状态、摘要格式或 SDK 合同。
+
+**已装发行物与目录完整性。** 同一安装记录、严格身份和 `manifest_digest` 的现行发行物重挂、enable 或恢复，不重新当作接纳新声明；仍做形状、可信 hook 和身份检查，依赖后来卸载只影响组合时的可用性。首次安装、卸载后重装、`recordToFollow`、新声明和换版均须完整检查；跨版本 rollback 不能按同发行物重挂免验。同范围旧签名 app 的 Manifest 可能没有 actions，目录读取须用现有 `SandboxPackageStore.load(id, signature, version)` 严格读取留存原件，再复用真实曝光的 `sandboxOperationActions`，含停用项；不改写或重签原件。已装记录覆盖待启动同 id，候选整体替换旧版，目录 reader 本身不启动 Runtime。
+
+**失败后的原状恢复。** 第 08 批的 `changeInstalledVersion` 已有提交后失败补偿；本片复用它，不另建恢复流程。只有该 catch 的 `same(moved)` 成立后，Host 才可用私有、结束即失效的上下文包住原有 `platform.rollback`，对本次操作前的确切 release 免外部引用存在性重验。写前核对 scope、Runtime、plugin id、publisher signature、version 和现有 `manifest_digest` 与原 record 一致；Runtime 取得锁、实际执行 hook 时再核 active、closed、epoch、install id、installation generation 及当前仍是本次 moved 的 version/digest。形状、可信 hook、身份及生命周期检查不豁免。保留 `actions.provider_replaced` 直接退出，以及替换、卸载、关闭、epoch 变化不补偿的保护；跨 await 仍核归属，恢复后仍核原 version/digest/state，再恢复原批准值、曝光及提示词。失效的 caller `assertCurrent` 不能充当补偿许可，也不能复活撤销的执行权限。普通回滚、其它请求、同版本不同 digest 和上下文结束后的调用均完整校验；首次安装失败仍走 `abandonInstall`。这项窄边界已由独立 `gpt-6-astra / high` 只读裁定，不是运行证据。
+
+第 08 批先在 [#1984 交接](https://github.com/molis-ai/molis-work/pull/1984#issuecomment-6732774500) 固定 `8fc71a40e879deec31c4ac3cb36a5571920f9215`。本批按其调用控制、恢复保护和成功启动后取消清理接续。最终头 `2703ca8b15` 已于 2026-11-09 UTC 经 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 `main` 的 `416ee8cef0`。最后的修复保留该安装生命周期实现，另带入限项目读取的 `heldInstalls`、助理定义库 v2 快照和共享浏览器夹具修复。第 15 批写完后统一同步实际合入版本，保留这些修复并按两批实际库生成快照，再跑受影响的安装拒绝、关闭与恢复用例。 2026-11-09 核对的 `origin/main` 已另含第 08 批合后修复 [#1997](https://github.com/molis-ai/molis-work/pull/1997)（`c7bf66a711`）：最终同步还须保留 Home 安装升级预览按 Home 范围读取技能设置、技能读取不逐引用重开库，以及原设置页失败文案。它与本批共享安装服务和设置入口，冲突不能只取本批版本；统一验证包含原 Home 升级预览的真实反例。
+
+**SCS-16 验证。** 两个项目共用隔离 Home，制造真实确认与卸载／换版的交错，验证两种先后：确认持线时目录变更不能插入；目录先变更时确认引用旧动作被拒，pin、留存包、安装记录均不变。另覆盖出队前取消／撤权、关闭排队、内置 enable 跟随构建、取样后系统规则消失而下一次确认重新取样、缺可信端口拒绝、依赖卸载后同发行物恢复，以及 Placement Home→Project 与安装确认并行不死锁。已有 SCS-11 同签名包的真实安装测试接上 compose/correct 后再记完整链路通过。
+
+补偿反例：原 A 的外部依赖已卸载，B 不再引用该依赖；采用 B 后取消，原操作须拒绝并恢复 A。普通用户回滚到 A 仍拒绝；等待恢复时安装被替换不能覆盖新安装；恢复上下文结束后不能再次复用。测试走实际 Host/Runtime 入口，断言最终安装、实例、批准值和业务副作用，不只测上下文工具。
+
+两项实现复核补充已固定在 `9851ae4bd10b`：同版本、同 digest 因补 required grant 而 `recordToFollow`，仍须在写入前完整校验声明；只有非 follow 才走同发行物重挂。失败恢复的私有控制区分“提交前仍属 moved 版”和“本次已写回原版”，后者延续至 executor 返回后与 redeem 后；关闭或换代时清理已启动实例，不登记 running 或发布激活，也不借用已取消调用的授权。对应安装测试分别断言拒绝且记录不变，以及实际恢复启动等待期间关闭后零激活、无 contribution、持久状态未变成 running。
+
+### 14.5 S-2 首页接线设计（2026-11-09，服务与 Host 已复核，生产页面待实施）
+
+在已合回的 S-1 `ac3e527c71` 上核对首页实际缺口。2026-11-08 用户明确 15、16、20 各自在独立工作树开发，取消跨批文件占用、逐段确认和会话交接。第 15 批按已定公共合同开发本批代码，统一同步 `main` 时处理重叠、接回准确的第 16 批页面授权和取词接口及第 20 批成员动作，再用实际合入版本验收。内置稳定词和页面在完整切换后的路径验收。本节复用 §14.1 的十五项检查，补充 SCS-07／08 特有边界，不新增库、升级段、事实缓存或插件特例。
+
+**一份结果。** 现行 `SurfaceGroup` 没有概况、说明与开始入口，不能用页面第二次调用概况或把数据塞进 `title` 补缺。仅 `kind: "plugin"` 的组增加 `plugin_card`：可选 `summary`、`note`（均 `OwnedTextRef`）；`start` 至多三个，分为直接执行 `invoke` 和打开输入表单 `form`，两者均绑定精确目录动作与安装，表单分支再带 `view_id`、`panel`；动作沿用 `SurfaceItemAction` 的引用、必填 provider、primary 和后果，不接受通用操作或 `prepared_input`。`open` 固定为 `stage`，带可信 Host 选出的安装与 `view_id`；`enable` 明确区分 `project_membership`、`project_installation` 和 `home_plugin_settings`，前两种带精确动作，后一种只打开现有设置。安装引用统一带 `scope`、`install_id`、`installation_generation`、`version`、`manifest_digest`，前两种启用只能指项目 scope，设置分支只能指 Home。组的 canonical owner 与当前目录决定目标，不携带任意输入或 URL。SDK 把整段作为候选事实原样保留，助理不能改写文字、路由或启用类型，非 plugin 组带它直接拒绝。
+
+“描述只有引用”在首页的准确含义是：不带对象字段值或准备输入值；本轮已授权的插件概况与静态说明允许带文字引用及参数，不带译好的句子。`summary` 来自本轮概况，`note` 来自确切 Manifest；文字 owner 从该读取器的可信插件身份绑定，不信返回值自报 owner。完整引用与参数、概况状态、目录与授权版本进入本轮 revision。现有描述缓存只有在本次所有读取和授权复核后才可命中；概况失败／被拒的卡不回退旧 summary，不能借命中跳过读取或 retain。无须另加与 groups 平行的展示结果。
+
+**目录与顺序。** 只为当前可信项目的本人调用组合首页，插件 audience 在任何首页事实读取前被拒。Host 给服务同一份当前安装、项目成员关系和工作台主区投影；canonical plugin id 是唯一 owner，shell key 只留在导航适配。双实例只出一张卡；打开复用现有 `dualStageOwner` 的实际 view owner，概况独立绑定唯一可用的声明、scope、install 和 provider，不拿没有概况的 Home 半部替代项目半部。 当前签包的同一插件 id 由安装服务 `assertScopeKept` 保持首次安装范围，不能用“同 id 在 Home 与项目各装一包”构造双实例；双实例用实际支持两半的内置登记验证，签包分别验证各自真实范围及伪造范围的拒绝。两份有效概况无法按现有可信路由唯一决定时不任选，卡为 unreadable。真正 disabled、项目隐藏、卸载、启动失败不能互相替代。
+
+Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请求可给有界、去重的 `home_order`（canonical plugin id 列表）；页面沿已有目录把 shell key 投影为 canonical id，不另存一份顺序。该输入只排序服务已经取得的可见候选，未知或已不可见 id 不产生卡片或权限。可读「等你」所在插件优先，其余按当前固定顺序及既有导航默认顺序；不能宣称 Host 已持有浏览器 pin 状态。
+
+**一次读取。** 保持一次目录、一次 discover、一次纠正和至多一次 Attention 读取。每个已启用且合格的概况最多调用一次；现行 `definePresentationOverviewAction` 补明确 `execution.cost: "none"`，SDK 声明校验和运行前检查都要求 query、read、无模型、非 external，与 values 相同。概况与规则 values 共用四个真实在途槽和整次一秒截止，截止后不补派。概况失败只影响本卡；父取消、撤权直接传播。保留本轮所有实际依赖的精确路由授权，并在等待后及结果交付前重新检查。
+
+动作目录的元数据和原注册身份须在同一次同步目录取样中绑定，再跨异步边界交给组合服务；不能 `await discover()` 后仅凭 ref/provider 重新保留当前注册，让旧 schema 配上新注册的授权。注册身份仍由 Kernel 的现有登记表拥有，Host 只转发同次取得的保留能力，不比较元数据冒充身份、不另存代次。潜在候选可先捕获，但取值前只激活真实 reader／values 依赖；状态和形态选定后再激活实际返回的操作、notice 去处和通用操作依赖。未命中 `when` 的声明操作、未展示的 placement 操作不能因变化而拒绝整页。 同次目录分批激活的依赖共用一次当前性检查：先执行所有已激活依赖的授权回调，再对它们的原注册作不执行回调的同步尾检，防止后一个授权回调替换前一个刚核过的注册。
+
+合并 Attention 与各概况给出的对象后，先按真实 reader 和来源 owner 核对，再对同一个对象去重；规则 values 按既有精确 provider／动作、50 个对象、32 个字段合最少批次。对象全部有当前读取结果后仅批查一次关系，两端可读才合并。先产出「等你」，插件卡再扣掉上方已经表示的对象，`hidden_above` 只计本次可读对象。工作记录还没有交付，本片省略「接着做」。页面一次 compose 后只补显示字段的合批 values，不再读一次概况。
+
+**Feed 的本批最小接入。** 真实 Attention 记录保留 Feed owner，条目和来源故障分别指向 `feed_item`、`source`；Inbox 的 `inbox_entry` 只是事项壳，不能代读。S-1 先匹配同主人声明再选同 scope 的唯一 values，因此只补 values 仍不会进入可读候选。本片在 Feed 项目 Runtime 同时声明这两种对象的行形态、实际使用的标题／状态／时间／来源／归属字段及一支共用只读 values，复用现有两支 subject reader；概况按固定协议提供本轮文字引用、至多五个可读对象和现有打开入口。无真实开始动作或表单绑定时不给 start；可选建议只读已有有效结果，不为首页启动模型或同步。第 52 批仍负责完整 Feed 卡片、跨位置挂载和研究呈现。
+
+归属按授权分区内的条目 `source_id` 读取来源原记录，以 `SourceRecord.project_id` 与 `PERSONAL_SPACE_PROJECT_ID` 判定；来源对象用自己的项目，空来源或无法核实就省略，不能按 Gmail／RSS 类型猜。个人分区走同一个项目 Runtime；Feed 的 Home 实例是证据账本，不能借它跨分区聚合。只在同一可读组确有本项目／个人混合值时显示归属标签。Feed Item 的 `read_at` 是用户阅读时间，不能当作旧值的上次成功读取时间。同步材料不自动产生 Attention 或工作计数；同一可读对象在「等你」和概况之间去重，撤权后不留隐藏计数。WBR-24 验同项目 Gmail 与 RSS 同属项目、个人分区、缺源不猜、无 Attention 的同步资料不计工作、现有条目／来源故障可读与去重，以及撤权拒绝。
+
+**空态与旧值。** 新项目从插件真实空结果给概况与开始；没有声明只给插件名字和可达的打开；停用只给保留内容的说明及真实可用恢复入口。概况失败／超时给 unreadable，不带其动态 summary、候选和开始操作，其余卡仍可用。概况成功而某行只能读到旧值时，只用主人在本次授权读取下返回的旧字段及原 `read_at`；卡内全是旧行才沿 S-1 最早真实时间标 stale，新旧混合逐行标。不得把旧首页内存或描述缓存当作当前授权证明。Goals 若实现上次成功行投影，只能由 Goals Runtime 有界保留并在基础读口再次核存在性及当前权限后返回；删除、撤权和切项目均不能返回旧行。
+
+概况成功但其对象首次取值失败或共用截止耗尽，也须把该插件组标为 unreadable，不能因不可读行省略后变成 `ok` 的空组。失败只归实际受影响的 owner；forbidden／deleted 对象不作为失败计数或恢复旧值的依据。已成功读取的本轮概况与已核可用的独立开始入口不因此伪装为旧值，也不把其它插件的成功卡降级。
+
+**点击。** 开始动作必须同时属于 Manifest 的 start 白名单和本轮概况返回，固定同一 owner／install／provider，当前可用。声明项增加可选 `open: { view_id, panel }`，概况仍只选择动作引用，不另回路由。无 `open` 时，空输入须通过实际 schema 才可生成 `invoke`；有必填业务字段的动作不假造输入。有 `open` 时只生成 `form`，点击复核当前安装、声明、概况选择、动作权限与实际表单后，沿已有 `UiViewSelection.panel` 和 `molis-work:select-item` 导航；仅打开和取消均零业务写入，用户填表并提交后才走既有动作网关。
+
+Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自身页面消费选择并调用原 `openCreate()`。Host 不识别 Goals 名字：SDK 校验只接受本 Manifest 的主区与有界 panel，Host 匹配同贡献的实际浮层；签名包匹配其已签组件中绑定该动作的真实输入表单。签名页面只接受当前父 pane 的选择，复用组件已有打开和聚焦行为。原生与签名安装共用声明、权限与点击复核，不能以 Goals 专用分支绕过第三方同等待遇。
+
+**首页表单的现有授权证明。** 接线核对发现，合法的委托能力表单可能在普通本人目录中缺少目标权限，尽管原页面提交网关能够证明原安装的自身服务授权与精确委托批准。首页不能把它永久降为无开始入口，也不能扩大普通动作客户端。Host 从 `installedComponentSubmit` 抽取与 payload 无关的原组件绑定、exposure／`retainOperation` 与两份授权证明，由真实输入表单复用；提交仍单独解析用户填写的真实 payload，不传假值探测权限。原 activation 的 `requireGrant` 由现有页面授权 owner 按完整发行物取得，不只看持久 grants，也不为导航造一个页面凭据。
+
+受保护首页入口在 compose 之前同步取同一份可信目录，构造仅供本请求读取候选的 caller：普通引用继续按原本人授权检查，额外证明只对应确切 form 动作／提供方／安装，不能让另一项动作借用同名权限。目录与服务共用这份取样及一次 `discoverRetained`，由 Kernel 保留原登记；不能事后拼装“可用”目录行，也不能在 discovery 内临时换 caller，绕过已绑定原 caller 的保留检查。只保留本次实际返回的依赖，未选表单的变化不拖累整页；已选表单的原激活、policy、自身授权或精确批准在等待后变化则拒绝。首页只把这份证明用于表单导航；直接执行仍用原本人授权，真正提交仍只走原 `component_submit`，打开和取消零业务写入。定向验证包含合法委托表单、缺自身授权／缺精确批准／另一 capability 的同名权限、晚撤权与换包、伪组件／panel／动作／安装、普通客户端仍拒绝越权及一次目录取样。这是独立实现核对后的接线补充，公共合同最终合审与生产首页实操仍待全批交付。
+
+**签名表单提交。** 源码核对发现，当前已装签名组件的 `submit` 仍把组件和表单值送到 `/call` 后直接执行，不能仅接通首页导航便宣称经过统一动作网关。本片让所有已安装签名页的表单提交共用现有 `/api/host/plugin-page-actions`，增加封闭模式 `{ mode: "component_submit", component_id, payload }`；不收客户端给的动作、提供方、安装或项目身份，不保留首页专用提交分支。普通组件读取及未安装的创作台预览仍走各自现有读取／试运行路径。
+
+项目与 Home 签名文档均通过现有 `PluginPageAuthority.open` 的 `selected` 绑定确切 scope、安装和发行物检查，Home 从项目打开时保持原 `assertProject`。Host 从原激活的可信 `definitionOrigin`／`rememberInstalledActionSource` 取已验证 node，复用 `resolvePluginComponentCall(node, "submit", payload)`，动作引用复用实际曝光投影：`exposedActionId`、曝光动作的数值版本（不是安装记录的版本字符串）及 `plugin:<canonical>`，不能误用页面通用分支默认的 install id 提供方。现行合法签包没有 `Manifest.actions` 时也只取同一安装真实注册的曝光，不改写或重签包。提交继续用 `pluginActionView`、当前页与安装检查、现有 bound action client 及 `withPluginPermissionChecks`，在本人精确动作范围内执行，并核目录行的 `plugin_install_id` 与 scope。
+
+签名组件提交须保留现有两种授权的区别：本 operation 的自身服务 effects（含声明的本地后台闭包）沿 SDK 唯一投影，由原 activation 的 requireGrant 核对；受委托 capability 由原安装的 sandboxGrants 核对声明和批准交集，不把目标的权限名当成本包自身服务授权。原曝光登记已经计算该 operation 的完整权限闭包，网关只从这份现有登记读取，并捕获原登记／policy 的当前性检查；不第二次扫描目录推算、不解析 binding 字符串。两种证明均通过后，本人 caller 只获得这一条精确曝光动作的闭包与 allowed_actions；等待后、写前继续核原安装、同一 policy 和两种授权，不能更新到新 policy 后继续旧请求。实际委托仍由既有 sandbox broker 与 catalogCapabilities.call 再核 capability id 和精确目标；仅另一 capability 持有同名权限不算批准，自身服务 grant 缺失也不能借委托闭包补足。此适配仅用于原页绑定的签名 component_submit，不放宽普通页面或公共 ActionClient。
+
+原文档的异步写前检查也必须保留：`pluginPageRequest(request).beforeEffect()` 含 Home `packageDocument` 捕获的项目可达性检查，不能用仅查 `page.assertCurrent` 和动作可见性的闭包替换。网关把原文档检查与同步的页／安装检查组合后，经现有 `withProjectReachInvocation` 传入实际执行 control，每次写前仍检查原项目。
+
+旧签名 `/call` 拒绝 `binding: "submit"` 和外部原始 `{ operation, input }`。内部动作桥只在 `currentPluginAction()` 与原激活、安装代次、实际提供方和动作 `local_id` 全部相符时进入原沙箱执行段；HTTP 同样有 `execution`，不能再以它存在作为内部调用证明。保留现有 `withProjectReachInvocation` 和生命周期 control，执行段不回调页面网关，避免递归。项目已装页 GET 和 `/call` 目前只匹配 `io.molis.work.generated.<uuid>`，须改为现行合法插件 id 后再核当前项目的确切签包／生成安装记录；未知、内置或 Home 仍沿原分流，不增页面或授权路由。
+
+打开、开始及启用都按原卡的完整安装引用比对当前记录；同名不同 scope、卸载重装、换代、同版本不同 digest 均拒绝旧卡。主区继续走既有 `dualStageOwner` 与挂载 producer，签名懒加载页取文档时再核原安装，不能先验旧记录、等待后打开新包。导航意图由可信 Host 适配为现有工作台选择，不把 `UiViewSelection` 当作已经具备跨 owner 权限的公开入口。
+
+原生项目插件的“启用”事实属于 Projects 的成员关系，不能伪装成只控制签名安装记录的 `plugins.installed.enable@1`。第 20 批在固定头 `3a8a3703ed`（合同与 owner 前置 `33cd1028c6`）已交 `projects.plugins.get@1`／`projects.plugins.set@1`，设置 HTTP、市场、选择器和 Coding 共用同一写口；本片直接复用，不新增 `projects.plugins.enable` 或第二份 HTTP 桥。`project_membership` 候选额外保留本次 compose 同一次可信 Catalog 读取的 `expected_revision`，该值进入组合 revision，点击原样交给 set，不能读一个新 revision 代用户重试。项目和操作者从调用上下文来，Host 按可信注册、发布者和当前安装把 canonical id 映射到 `ProjectPluginId`。
+
+普通卡的可见性沿 Projects 的实际成员／隐藏计算，不拿包含嵌入依赖的运行可达集合代替。原生项目插件被移除时会退出成员列表，因此在普通可见卡之外补恢复卡：须未被主动隐藏、已有成员移除事实、当前已非成员且不再因嵌入而应运行，同时可信的原安装确为 disabled。移除事实在同一次 Catalog 取样里复用既有 `wasProjectPluginRemoved`，不另存状态；只有嵌入运行经历的安装不能因此冒出首页卡。恢复卡不授予主区或概况读取，只保留原安装与本次成员 revision。从未安装、已卸载、仍应运行却未启动、crashed／quarantined／blocked 和切换未完成均不冒充已停用。常开与有效隐藏规则仍由 Projects 计算。
+
+成员 revision 不含安装代次或 digest，所以旧卡仍须独立核原安装。受保护首页入口复用第 20 批 `projectPluginSetter`，把当前页面检查与仅限本请求的确切安装检查合成可信 `assert_authority_current`：从已打开项目的现有 `pluginInstallRecords` 同步比较 scope、owner、host trust、install id、generation、version、digest 与仍可启用，再进同一个动作网关。`project-workspace-actions.ts` 已在 `catalog.commit` 出队、最后 await 后、调用 `setProjectPlugin` 前同步执行该检查，随后 Projects 在自己的事务内核成员 revision。无需改变公共 set schema、Projects owner 或 Runtime 枢纽。提交后的 Runtime 切换和 503 沿用第 20 批语义：成员选择已经保存，重试只读、重开项目恢复；不能误报未保存，也不能在本次合法启用后仍要求 disabled。
+
+<a id="s2-membership-adoption"></a>
+
+**统一集成输入（2026-11-09 核对 `main` `6df7285c31`）。** [第 20 批 #2000](https://github.com/molis-ai/molis-work/pull/2000) 已合入。首页在同一次 Catalog 读取中用 `projectPluginMembershipWithRevision` 取成员、隐藏和 revision，并由现有登记映射恢复卡的插件 id。公开 `projects.plugins.set@1` 由 `PROJECT_WORKSPACE_PROVIDER_ID` 登记在 Home 持有的 `project-catalog`，普通 Runtime 目录并不提供这个入口。首页使用现有 `invokeLocalWebCatalogAction` 的确切调用路径，保留原项目、会话和安装检查；已显示的 revision 原样进入 set。验证要同时覆盖正常恢复、成员 revision 过期或 ABA、成员 revision 未变但安装被替换、授权在等事务时撤回，以及提交后 Runtime 未切换时保留已保存事实。用例须经实际首页控件，并以原 Catalog 的成员、修订号、事件和 Runtime 状态判断结果。项目签包仍由原生命周期动作启用，两个 owner 的按钮不能互换。
+
+**成员恢复实施记录（2026-11-12，`38d8a6b4da`）。** 首页恢复卡带同次 `projectPluginMembershipWithRevision` 读到的 revision；点击经 `invokeLocalWebCatalogAction` 调 `projects.plugins.set@1`，原样交 revision。核对时发现上段「普通 Runtime 目录并不提供这个入口」与实际不符：本人在项目里的普通发现已列出该动作，另借一份目录视图会让组合服务看到两份而丢掉启用，所以不另借，直接用普通发现里的那一份。写前同步核原卡与确切 disabled 安装；成员重新显示以后只核安装发行物（Runtime 可能已在启动；别人先写会让 revision 变，由 Projects 在事务里拒），与签包启用「成功后只核同发行物」同一口径。提交后 Runtime 切换失败原样返回第 20 批的 503 回执，同一张卡再点为 409。合并 `main` 后 Home `installations()` 在 Home 尚未启动时抛错，首页冷读与本人首页授权改读「已启动的记录」（`installations(..., started)`），不启动、不等 Home；已准备的普通 local web 路径语义不变。证据：`tests/security-invariants-surface-home-http.test.ts` 的 SCS-12 三项（正常恢复与 ABA、revision 不变而安装换代、排队期间换安装或撤页面会话、提交后切换失败）与原有四项，`tests/project-plugin-membership-http.test.ts`、`tests/local-web-actions.test.ts`、`tests/surface-home-composition.test.ts`、签包首页五项，共 45 项通过。
+
+项目签名插件仍走 `plugins.installed.enable@1` 与受保护页面入口，但其 `expected_installation` 改为必填，现有设置列表及按钮一并携带当时看到的代次和 digest；没有发现当前 CLI 消费者，实现前再以实际引用核对。比较在 ProjectLine 出队并取得实际记录后进行，沿既有生命周期 control 贯穿 Supervisor 等待和 Runtime 启动；首个写点要求仍为 disabled，本次成功启用后只核同发行物及当前授权，不再要求 disabled。写前继续 `beforeEffect` 和同步当前检查。Home 签名插件去现有设置入口完成 S94，不给首页或插件 frame 伪造设置凭据。服务只给候选，不启用插件；界面回执仅在真实成功后显示。
+
+当前基线的安装启用链尚未完整传递该 control：`plugin-install-actions.ts` 的调用须保留原 caller，经 `plugin-trust-actions.ts`、`project-plugin-ports.ts` 和 `installed-plugin-lifecycle.ts` 传到 `PluginSupervisor.enable`。Supervisor 的 gate 出队及 `restart`／激活路径继续传递原检查，最后交给已有支持 control 的 `runtime.start`；不能只在进入队列前检查一次。此处只补既定授权与安装身份的贯穿，不另建启用服务或状态记录。 启用未提交前不能先公开可被 `ensureStarted` 消费的新启用状态；被拒时只收回本次尝试的临时状态，不影响后来的合法启用。已核对的停用安装沿同一启动路径直接交给原 Runtime，不先按旧 entry 重建或替换安装；Runtime 真正提交 running 后再被撤权，只拒绝尚未发生的曝光、提示词登记与成功回执，如实保留已经提交的事实。 项目签包从原 disabled 安装启动时，Agent 定义的现有 hold／withdraw 只维护活实例的内存状态；声明的持久发布留给原启用成功后的 `registerPrompts`，被拒时保留原声明记录与更新时间。正常安装、恢复及 Home 路径不变，不把 `AgentDeclarations.remember` 改成全局幂等：现有恢复顺序及同 owner／同版本的后登记优先语义依赖注册时间。验证须使用真实签包方法／角色，并检查失败后的持久记录和内存可调用状态。
+
+**文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
+
+签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`plugin-builder/exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新。统一集成保留第 16 批对原会话、原激活、项目和取词来源的围栏。
+
+SCS-07／08／09／11／12／17 验真实空 Goals 和已签安装包从首页打开表单，打开与取消零写、提交一次；Inbox 停用及恢复、双实例主区、同对象跨组扣除、概况返回后撤权、隐藏计数零泄露、首次失败与真实旧值恢复，以及冷路径实际调用次数。拒绝反例涵盖伪 panel、跨贡献、同名不同 scope、换代、同版本不同 digest、排队期间撤权，以及懒加载期间换包。原生启用分别制造排队期间成员变化和成员 revision 不变的安装换代，均零成员写入；真实提交后切换失败返回 503，重试只读。不改门禁算法、阈值或 CI，不用 Mock 的状态常量代替最终首页实操。2026-11-08 的两处设计 P1（Goals 必填输入无入口、旧卡缺安装绑定）按上述方案处理，仍须实现复核与公共合同合审后关闭。
+
+签名表单验收使用普通第三方 id 的真实签包，从首页和插件主区分别打开同一表单：正常提交经同一网关只写一次；提交前及写前撤权／换包、原页关闭、旧 `/call` 直接 submit、伪造 raw operation、跨项目复用页面均零写。现有 Home 项目可达性用例的合法提交迁到新入口，旧入口保留明确拒绝断言；未安装 preview 的有效验证保持。公共合同台已在 `a179bc797a` 定点通过此设计，关闭签名提交设计 P1；网关实现与定向运行证据见下，从首页打开同一表单仍待消费者片。实际提供方可直接取既有 `currentPluginAction().caller.current_action` 的精确引用，无须增加另一份动作上下文。
+
+**服务片证据（2026-11-09）。** `49a73dc803` 实现首页编排与公共卡片合同，`b0e5049188`、`2f626ce4f6` 修复独立复核指出的三项 P1；最终头经同一评审人定点复核全部关闭，无剩余 Blocker/P1，于 `8bcc6cc3ff` 合回本批。Host 依赖闭包构建及 server/browser 类型检查通过，`tests/surface-home-composition.test.ts` 10/10，`tests/surface-home-contracts.test.ts` 最终 8/8；其中三项真实 Kernel 尾检反例修复前均漏拒、修复后均拒绝，未跳过。最终 Kernel 定向构建、API 快照检查、health 门禁及 diff 检查通过；原 S-1 三处已登记巨大单元提示未在本片增加。生产首页的可信目录投影、插件声明、Feed 和页面接入尚未完成，后续签名表单网关证据见下；这些局部证据不代表最终 Host 实操、全批统一验证、公共合同最终合审或本人验收。
+
+**生成插件的声明闭包修复（2026-11-09，已定向验证）。** 网关片沿真实 Studio G2 检查发现，S-1 为 SandboxReadOperation 和 presentation 增加的类型引用未进入原 SDK 声明文件清单，生成插件因此在类型检查报缺失 actions／presentation。本批负责修复：将唯一 ActionSchema 别名与呈现声明的数据形状抽到纯合同叶子，原公开入口继续导出同一份；沙箱合同只引用必要叶子，生成 SDK 仅补这些声明及其 ui-text／ui-state-rings 依赖。不复制第二套类型，不改变 schema、版本或 G1～G6 检查，不为通过而放宽 authoring 同步文件范围。验证真实生成插件门禁和带 read_protocol 的签包声明；原浏览器 frame 定位失败单独诊断，不作为网关验证通过或产品缺陷的替代证据。
+
+**签名网关片证据（2026-11-09）。** 固定头 `e8626e303b`（含声明闭包修复 `3d4ea2f703`）经独立完整复核无剩余 Blocker/P1，于 `bfcc55bb43` 合回本批。真实第三方签包验证正常提交一次、旧 submit／raw 拒绝、伪身份／跨项目／关闭页拒绝、同版本不同 digest、仅提供方或仅 scope 更换、委托批准与自身服务 grant 在等待期间撤回均零写；Home 原项目撤回后同样零写。固定协议 3 项、旧原始调用拒绝 1 项、Home 可达性 RAC-2647、Studio 发布安装提交主流程、英文界面与真实 HTTPS 升级分别通过；Studio 测试复用真实 HTTP 核心并在后续同步检查前正常释放其 Home owner，最终主流程自然退出。Host 依赖构建、health 和 diff 检查通过，声明提取未改变公开 API 快照；真实 Host 51 条资源无遗漏，Builder 脚本 101,303 字节，对基点 101,339 字节减少 36。一次 Home 测试发生原因未明的 `ECONNRESET`，原断言单独复跑通过，未将断线当作拒绝证据，整批验证继续跟踪。最终统一检查仍须覆盖完整 Studio 与既有 agent-built-plugins-workflow 路径；本片不代表首页导航、启用、Feed、跨位置消费者或本人验收完成。
+
+**项目签包启用片证据（2026-11-09）。** 固定头 `a8cbf6e180` 经独立复核关闭两项 P1，无剩余 Blocker/P1，于 `285beab760` 合回本批。项目设置列表给出完整安装引用，启用动作必填并沿原项目队列、Supervisor 和 Runtime 保留原安装及调用授权。真实执行器／兑现等待后仅异步撤权的反例在修复前错误写入 running，修复后拒绝且原安装、角色／方法持久记录不变；合法提交后撤权保留已提交事实并拒绝后续发布和回执。项目与 Home 修改可选权限后声明动作不可用的反例也已修复，实际沙箱调用恢复，同时保留被拒启用不发布的断言。实质修复头 `5948779a8f` 的三文件九项全部通过；最终头仅把原启用分支移为同文件函数、为两项重授权测试写明字面名称，Host 重编与相关四项复验通过；此前真实设置浏览器路径一项通过。最终 health、API 快照与差异检查通过。实际隔离基点和候选 Host 各测 51 条资源、无遗漏，工作台脚本增加 212 字节，由独立评审认可的本任务许可覆盖；许可后的检查复用这份实测基线，脚本标记为 fixture，不是重新构建基点。临时 Home、浏览器、基点工作树和机器槽已释放。以上仅证明启用片，生产首页、插件声明、Feed、跨位置消费者、统一同步和最终验证仍未完成。[启用及重授权拒绝用例](../../tests/security-invariants-project-package-enable.test.ts)
+
+**生产首页消费者接线（2026-11-09，实施输入，尚未验证）。** 沿已选基础首页 B，以服务实际返回的组替换旧日期条、当天事件计数、Goals 焦点与首页的 `HOME_EVENTS` 请求及轮询；没有工作记录组就不显示「接着做」。插件外卡保留已定版面，内部对象使用唯一 `renderPresentationForm`。Dock 固定顺序只投影为 `home_order`，不另存；旧插件捷径由 Dock 与插件卡承接。旧自定义网址书签不是插件捷径，B 没有规定新的承载位置：随旧首页栏退出入口，保留原浏览器存储，不新增界面。`HOME_EVENTS` 仍被助理材料扫描消费，须保留到最后调用者迁移；原 contextual 操作准备、确认和网关也不随首页旧渲染一起删除。
+
+显示阶段复用同次可信目录、原声明和保留的精确 reader／values 身份，在一次 compose 后只合批读取实际显示字段，不重读概况。给 renderer 的声明投影、主人显示和值均对应本次已验证来源，不下发整份 Manifest，不由浏览器猜安装，不在 `SurfaceDescription` 之外再造一套组合结果；取词按 §14.6 接同一来源授权。等待后和交付前复核实际依赖。loading、成功空、unreadable、真实 stale、disabled、无声明分别显示；后台保留的画面不是主人 stale 结果。离开、换项目和替换响应取消读取并释放本响应引用，旧请求不能覆盖新页。
+
+首页只由工作台内部消费可信点击响应，核对原 `shell_key`、安装和 native producer／signed frame path，再复用现有窗格选择及 DOM 选择消息；不能伪造插件 origin 绕过 `tabWorkspace.openView` 的同贡献限制。Goals 自己消费 `create-dialog` 打开原创建表单，签包在原身份文档内选择真实输入组件，打开／取消零提交。Coding 在其原创建动作补真实 output schema 与 `result_subject` 路径 `session.session_id`、`session.updated_at`，随动作快照交付。可信调用边界用本次保留的动作元数据解释真实结果，并沿同次目录保留的同主人、scope、安装的 subject reader 取得打开信息，不在成功后重新 discover 替代原登记，不加宿主按插件名的分支。已创建而读取／打开失效时保留已提交事实，重试只打开，不再创建。
+
+下一实施片限上述首页链路及 Goals／Inbox／Coding／Feed 的声明、values、overview 和必要原页选择接点，沿[智能呈现 §16](../intelligent-surfaces/spec.md#16-第-15-批组件与入口实施边界2026-11-08)的 owner 读口实施。对象打开也走同一受保护入口，只接受本轮实际可读对象并保留同一精确 reader，不另建通用 URL 代理。当前基线中的内置稳定词沿各 owner 的 `ui.messages` 声明，概况和呈现仍只用 `TextRef` 键及参数；最终接回第 16 批时迁入实际 locale 声明和 §14.6 取词路径，不新增临时语言或授权 owner。SCS-08／11／17 验一次目录与概况、显示字段合批、创建一次与失败后只重试打开、取消及撤权后拒绝；WBR-24 验 Feed 实际来源归属与去重；IUI-21／26 验真实首页 12 种显示组合与键盘路径。跨位置真实写入、刷新和回执仍在本批后续片完成，不能用首页可打开替代 IUI-07／08。第 16 批取词与第 20 批成员接口在最终统一同步后采用真实实现并验收。
+
+**首页 Host 片证据（2026-11-09）。** 固定头 `dd572a20f7`（产品代码截至 `3591d73ea1`）经独立完整复核无 Blocker/P1，于 `99459602ae` 合回本批。受保护真实 HTTP 四项通过：冷读不创建个人项目、不准备 Runtime、不启动插件或模型；双实例一张卡、隐藏／移除／启动失败区分；概况等待后撤权拒绝；命令已合法提交后回执前撤权返回 `outcome_unknown`，持久事实和调用日志均一次。真实签包首页三项及原统一网关三项通过，覆盖停用、重装、同版换摘要、懒加载换范围／代次、伪组件／表单／动作／安装、精确委托批准及未返回候选不留依赖。Studio 主流程独立浏览器一项自然退出通过：同版重载保留内容，升级／回退拒绝旧安装地址，再由当前真实主区取新地址验证内容和布局。服务编排十项与既有导航定向证据保留。构建、最终 health、实际宿主动作快照和差异检查通过，未新增页面资源；测试进程与机器槽已释放。评审七项均通过，仅留非阻塞 P2：目录尾检重复枚举及只读开库的成本，待实际性能证据决定优化，不改变当前性检查。该片不含生产首页按钮到 pane 的消费、第 16 批取词、第 20 批成员恢复、全量或本人验收，公共 C 最终合审仍待全批头。[HTTP 拒绝与回执](../../tests/security-invariants-surface-home-http.test.ts) · [签包首页](../../tests/security-invariants-surface-home-signed.test.ts)
+
+### 14.6 首页取词来源的接线补充（2026-11-09，公共 C 设计合审通过）
+
+SCS-12 要求语言切换不重新组合。实际首页概况可能由项目半部提供，主区却由 Home 半部承接；只按 `OwnedTextRef.owner` 或 `plugin_card.open.installation` 取词会把来源混掉。同一发行物重启也不会改变完整安装引用。第 16 批的现有页面取词只接受已签发的同项目 page id，不能用虚构插件页或新的主区页代替未挂载的原概况 activation。
+
+本方案保持公共 `SurfaceDescription` 和纯服务的语言无关合同不变。在受保护首页响应中，由 Host 按本轮实际 reader、成功结果里要显示的文字键以及原工作台会话，返回“具体显示位置 → 仅供取词的 `surface_text` 不透明引用”的映射。同一真实来源可以合并键集合，不能只按 canonical owner 合并；locale 返回也按引用关联，防止同 owner、同 key 的不同实例串词。授权仍由现有 `PluginPageAuthority` 管理；复用其原会话、项目、安装／activation 检查、关闭与释放机制，不能成为第二份授权目录。该引用只能用于既有 locale 读取入口，不能充当插件 page id、动作或表单提交凭据，也不能扩大原 reader 的权限。它只保留请求内已证明的来源绑定与有界文字键，不缓存概况、正文或业务取值；只返回所选语言和必要回退中的获准键，不下发整包。
+
+签发发生在本轮实际依赖和最终结果均复核之后；未成功的概况、最终未显示的内容不取得文字授权。后续用于显示的 values 返回若含插件 `TextRef`，沿同一来源绑定机制处理实际 values reader，不借概况或主区身份。语言切换沿现有工作台 locale 流程取齐词，再原地更新已有描述与 DOM；不重新 compose、overview 或 values，不另建语言缓存作为授权凭据。切换期间原会话、项目、安装、activation、所需权限或精确 reader 失效时拒绝旧引用；保留原页面与偏好，沿现有失败反馈恢复。
+
+locale 输入只增加可重复的 `surface_text` 引用，与 `locale` 一次批量读取；保留现有页面取词分支。客户端不提交 owner、安装、reader 或任意 keys，授权键由服务器绑定。`PluginPageAuthority` 增加明确的仅取词记录分支，不调用普通 `open()` 造页；记录精确 activation、reader 身份及其当前权限检查，但不长期持有组合请求的 deadline 或取消上下文。每次读取在异步检查前后复核，最终投影与返回之间不留未经复核的异步间隙。
+
+复用现有 30 分钟失效和 256 条容量边界，页面与取词记录合计受限，每次批量请求也合计限额。首页结果替换、离开、会话关闭、项目清理和 activation 断开时释放并取消在途读取；旧响应的释放只影响其自身引用，不能关闭新响应。键集合只来自有界显示结果，复用既有文字与词包大小限制，不因持续取词无限续期。
+
+公共 C 在文档 `8b4d6ec842`（tree `8e331abe0a54bae8cbb918dd4a6f2581e3c2ea55`）上通过此设计，无阻断方向的 Blocker/P1，明确现有页面接口不能直接覆盖未挂载概况。以上为合审补充后的实施合同，不代表实现验收。验证用双实例使概况与主区来自不同半部，计数证明切换语言没有业务重读；同 owner、同 key、不同来源不串词；同发行物重启、目录替换、会话关闭、撤权及等待后变化拒绝；伪造、跨项目、超键集合和把引用用于 page/action/form 均拒绝；旧响应释放不影响新引用。实际第 16 批接口在最终统一同步时采用，不复制其 owner 实现，不新增跨批窗口。
+
+**实施记录（2026-11-12，`a3e1b84fea`）。** `PluginPageAuthority` 增仅取词授权 `grantText`：按插件、请求项目、actor、install id 与 installation generation 找唯一活激活，记录显示键（单个来源至多 512 个）、原会话与来源当前检查（安装仍 running 且同发行物）；与页面合计受 256 条上限，30 分钟失效；激活断开、项目清理、`release_text` 释放时删除，不调用 `open()`、不造页。授权记在请求首页的项目上，Home 半部的来源也只能从该项目读取。`/api/ui/locales` 增可重复的 `surface_text`，与 `page` 同一批读、同一上限，每个引用只返回它那份来源的所选语言与默认语言回退中的获准键；引用用作 `page`、插件页面头或别的项目都拒绝。首页读取在最后复核后签发 `surface_text`（位置 `group:<owner>`、`row:<owner,kind,id>` 对应引用），同一来源合并键集合，概况半部与 Home 半部分开。工作台由语言入口持有这些引用与当前语言的词包：首页读到后先取词再画，替换或丢弃响应时释放旧引用；切换语言在 `prepare` 里按同一组引用读目标语言，与其他区域一起应用，原地改字，不重新 compose、overview 或 values；同一主人两份来源对同一键给出不同文字时拒绝，不混用。证据：`tests/security-invariants-surface-home-text.test.ts` 两项（双实例概况来自项目半部，Home 半部同键不同字不串，切换中英不重读概况；伪造、当页面、当插件页面头、跨项目、无原会话、换安装、释放、同发行物重启均拒绝，新引用不受旧引用释放影响），以及 `tests/security-invariants-ui-text-page.test.ts`、`tests/ui-text-locale-files.test.ts`、`tests/security-invariants-plugin-pages.test.ts` 原有用例通过。工作台真实首页的中英原地切换浏览器验证见本批统一验证记录。

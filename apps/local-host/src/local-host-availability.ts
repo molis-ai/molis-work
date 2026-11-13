@@ -1,7 +1,7 @@
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
-import { actionDirectoryLookup, judgmentRecommendationKeys, subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionReference, type ActionSceneUsage, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionService, CapabilityRegistry, RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import { actionDirectoryLookup, judgmentRecommendationKeys, sampleRetainedActionDirectory, subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { admitPluginCall } from "./plugin-callers.js";
 import type { ActionAvailabilityPolicy, DiscoveryPass, LocalHostOptions } from "./local-host-types.js";
 
@@ -21,7 +21,19 @@ export class HostAvailability {
     return this.views(caller, views, views);
   }
 
-  async views(caller: ActionCallContext, views: ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {
+  async discoverRetained(caller: ActionCallContext, retain: NonNullable<ActionExecutionContext["retainAuthority"]>): Promise<RetainedActionDirectory> {
+    const sample = sampleRetainedActionDirectory(observe => this.actionService.discover(caller, observe), retain);
+    const views = await this.views(caller, sample.views, sample.views);
+    const original = new Map(views.map((view, index) => [view, sample.views[index]!]));
+    const select = (selected: readonly ActionView[]) => selected.map(view => {
+      const row = original.get(view);
+      if (!row || !view.availability.available) throw new ActionError("actions.forbidden", "只能保留本次目录可用的能力");
+      return row;
+    });
+    return { views, retain: selected => sample.retain(select(selected)), pin: selected => sample.pin(select(selected)) };
+  }
+
+  async views(caller: ActionCallContext, views: readonly ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {
     const policy = await this.options.actionAvailability?.snapshotForDiscovery?.(caller) ?? this.options.actionAvailability;
     // Projecting the views reads every row once; when they are the dependency snapshot too, those same reads index it. Every
     // dependency is looked up after the policy's await, by when the projection has read them all, so the snapshot is not read again.

@@ -195,6 +195,8 @@ test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices re
   await browser.waitFor("document.querySelector('[data-step-offer]')");
   await browser.click("[data-step-offer]");
   await browser.waitFor("document.querySelector('.workbench-bar [data-assistant-panel]:not([hidden])') && document.querySelector('[data-side-tab=browser][aria-selected=true]')");
+  // VUX-36: the shared width is marked on the root by the Assistant's layout script, not found by a page-wide :has().
+  await browser.waitFor("document.body.hasAttribute('data-side-shared')");
   const reachable = await browser.evaluate(`(() => {
     const selectors = ['[data-browser-action=approve-once]', '[data-browser-action=approve-site]',
       '[data-browser-action=reject]', '[data-browser-action=sites]', '[data-assistant-panel-close]'];
@@ -211,4 +213,7 @@ test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices re
   assert.deepEqual(bodies.map(body => JSON.parse(body)), [{ review_id: id, decision: "reject" }]);
   assert.equal(queue.receipt(id)?.status, "rejected");
   assert.equal(a.effects(), 0);
+  // VUX-36: minimising the Assistant no longer shares the width, and the mark goes with it.
+  await browser.click("[data-assistant-panel-close]");
+  await browser.waitFor("document.querySelector('[data-assistant-panel]').hidden && !document.body.hasAttribute('data-side-shared')");
 });

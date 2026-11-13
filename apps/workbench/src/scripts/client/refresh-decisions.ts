@@ -191,6 +191,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         goalRefresh.apply(() => {});
         state = nextState;
         projectHome?.sync();
+        projectPositions?.invalidate();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
         if (selected) applySelection(selected, false);

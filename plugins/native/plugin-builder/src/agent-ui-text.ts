@@ -1,4 +1,4 @@
-import type { SandboxSchema, SandboxVisibleText } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { SandboxDataOperation, SandboxSchema, SandboxVisibleText } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { isRecord } from '@molis-ai/molis-work-plugin-sdk';
 import { inspectLocaleSet, parseLocalePack, textRefProblems } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { UI_FORMAT_VERSIONS, type PluginLocalesDeclaration, type TextRef, type UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
@@ -71,7 +71,7 @@ function studioSlots(design: AgentDesign): Slot[] {
     for (const key of PLUGIN_COMPONENT_WORD_KEYS) {
       const words = part.props[key];
       if (!words) continue;
-      const operation = (key === 'title' || key === 'description') && design.contract.operations.find(row => row.id === part.read?.operationId);
+      const operation = (key === 'title' || key === 'description') && design.contract.operations.find((row): row is SandboxDataOperation => row.id === part.read?.operationId && row.read_protocol === undefined);
       add(['part', part.id, key], words, ref => { part.props[key] = ref; }, operation ? pluginSchemaAt(operation.output, part.read?.outputPath) : undefined);
     }
     for (const column of part.props.columns ?? []) {
@@ -80,7 +80,7 @@ function studioSlots(design: AgentDesign): Slot[] {
     }
     for (const binding of [part.read, part.submit]) for (const [field, input] of Object.entries(binding?.input ?? {})) {
       if (input.source !== 'form') continue;
-      const operation = design.contract.operations.find(row => row.id === binding!.operationId)!;
+      const operation = design.contract.operations.find((row): row is SandboxDataOperation => row.id === binding!.operationId && row.read_protocol === undefined)!;
       const words = pluginFieldWords(design.contract, operation.id, field, operation.input.properties![field]!, !!design.contract.ui);
       for (const [kind, ref] of Object.entries(words)) {
         const path = ['field', operation.id, field, kind];

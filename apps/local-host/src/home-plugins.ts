@@ -1,11 +1,15 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
 import type { InstalledRelease } from "./installed-release.js";
+import { assertStageInstallation, installedStageReleaseMatches } from "./installed-stage-identity.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { installedPageSelection } from "./plugin-page-authority.js";
+import { captureRuntimeStageOwner } from "./project-plugin-stages.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor, type SettingsVersionClaims } from "./declaration-owners.js";
@@ -32,6 +36,7 @@ import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
+import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallCatalog, type SurfaceInstallRegistry } from "./surface-installation.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 import type { PluginRetainedItem, PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
@@ -62,11 +67,16 @@ export class HomePluginHost {
   private releaseProjectOwners?: () => void;
   private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
   private unwatchArtifacts?: () => void;
+  readonly installationScope = createHomeInstallationScope({ ready: () => this.ready(),
+    current: () => !!this.installed && !this.closed && !this.options.ownerClosing?.(), catalog: () => homeInstallCatalog(this.closed ? undefined : this.db, this.options) });
+  /** Stage projection may observe the live platform without awaiting or starting the Home. */
+  readonly surfacePlatform = (): HomePluginPlatform | undefined => this.closed ? undefined : this.platform;
   private readonly releaseRegistration: () => void;
   /** The Home this host runs in, for the stage that says why a plugin stopped (U3 §2.4). */
   readonly homeDirectory: string;
-  constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
+  constructor(private readonly options: { home: string; actorId: string; registry: SurfaceInstallRegistry; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
+    ownerClosing?(): boolean;
     settingsVersionClaims?: SettingsVersionClaims;
     projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
@@ -129,41 +139,53 @@ export class HomePluginHost {
    * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
    */
   async installPackage(release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
-    await this.ready();
-    const installed = this.installed;
-    if (!installed || this.closed) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
-    assertCurrent?.();
-    await installed.installPackage(release, { consent: true, assertCurrent });
-    await installed.refreshPublicActions();
+    await this.installationScope.run(async assertOpen => {
+      const check = () => { assertOpen(); assertCurrent?.(); };
+      const installed = this.installed!;
+      check();
+      await installed.installPackage(release, { consent: true, assertCurrent: check });
+      await installed.refreshPublicActions();
+    });
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
-  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {}): Promise<readonly PluginRetainedItem[]> {
-    await this.ready();
-    const installed = this.installed;
-    if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
-    // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read; the row is found and checked there.
-    if (action === "uninstall") { const retained = await installed.uninstall(pluginId, input); await installed.refreshPublicActions(); return retained; }
-    const record = installed.recordFor(pluginId);
-    if (!record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
-    // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one.
-    const release = installed.packageOf(pluginId);
-    if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
-    await installed.lifecycle(action, release, input);
-    await installed.refreshPublicActions();
-    return [];
+  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {},
+    control?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<readonly PluginRetainedItem[]> {
+    const change = async (assertOpen?: () => void): Promise<readonly PluginRetainedItem[]> => {
+      const assertCurrent = () => { assertOpen?.(); input.assertCurrent?.(); control?.signal?.throwIfAborted(); requireSynchronous(control?.assert_authority_current?.()); };
+      await control?.beforeEffect?.(); assertCurrent();
+      const installed = this.installed; if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+      // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read; the row is found and checked there.
+      if (action === "uninstall") { const retained = await installed.uninstall(pluginId, { ...input, assertCurrent }); await installed.refreshPublicActions(); return retained; }
+      const record = installed.recordFor(pluginId);
+      if (!record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+      // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one.
+      const release = installed.packageOf(pluginId);
+      if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
+      await installed.lifecycle(action, release, { ...input, assertCurrent });
+      await installed.refreshPublicActions(); return [];
+    };
+    // Disabling takes effect at once and does not wait behind an install on the Home line (surface-composition §14.4); the rest go through it.
+    if (action !== "disable") return this.installationScope.run(change);
+    await this.ready(); return change();
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
   /** Refresh installed definitions after activation replacement and before public directory/dispatch reads them. */
   async refreshPublicActions(): Promise<void> { if (!this.closed) await this.installed?.refreshPublicActions(); }
-  /** The running installed stage's release; its plugin id is the stage id, and its Manifest owns the label. */
+  /** The running installed stage's release; its plugin id is the stage id, and its Manifest owns the label. None when that exact release is not what runs. */
   packageStage(pluginId: string): InstalledRelease | undefined {
-    if (this.installation(pluginId)?.state === "running" && !this.packageError(pluginId)) return this.installed?.releaseFor(pluginId);
+    const record = this.installation(pluginId), release = this.installed?.releaseFor(pluginId);
+    if (record?.state === "running" && installedStageReleaseMatches(record, release) && !this.packageError(pluginId)) return release;
   }
-  /** The page the stage frames, opened under this package's Home activation. */
-  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, projection=false) {
-    const release = this.packageStage(pluginId);
-    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration, projection, running: () => this.installation(pluginId) ?? undefined,
+  /** The page the stage frames, opened under this package's Home activation for the exact installation the person saw. */
+  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, projection=false, expected?: SurfaceInstallationRef) {
+    const release = this.packageStage(pluginId), record = this.installation(pluginId);
+    if (expected) assertStageInstallation("home", record, expected);
+    const manifest = this.platform?.supervisor.manifest(pluginId);
+    const owner = manifest && captureRuntimeStageOwner(this.platform, "home", { project_plugin_id: pluginId, manifest });
+    return release && owner && record && installedStageReleaseMatches(record, release, manifest) ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId,
+      release, controlToken, projectId, accountRegistration, projection, running: () => this.installation(pluginId) ?? undefined,
+      selection: installedPageSelection(record, null, () => this.installation(pluginId), owner),
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
         await this.options.projectActions(projectId, pluginId);
@@ -176,10 +198,15 @@ export class HomePluginHost {
   packageError(pluginId: string, as: "message" | "code" = "message"): string | undefined {
     return as === "code" ? this.installed?.recoveryErrors.code(pluginId) : this.installed?.recoveryErrors.get(pluginId);
   }
-  installations(): PluginInstanceRecord[] {
-    if (this.platform) return this.platform.runtime.list();
-    if (this.startFailure !== undefined) throw this.startFailure;
-    throw new ActionError("actions.plugin_unavailable", this.closed ? "Home 插件宿主已关闭" : "Home 插件正在启动，请稍候", { kind: "unavailable" });
+  /** `started` reads what a started owner runs and none before it started or after it failed: for a read that must neither start nor wait for it. */
+  installations(includeSurfaceSlots = false, started = false): Array<PluginInstanceRecord & { surface_slots?: readonly UiSlotDescriptor[] }> {
+    const platform = this.platform;
+    if (!platform) {
+      if (started) return [];
+      if (this.startFailure !== undefined) throw this.startFailure;
+      throw new ActionError("actions.plugin_unavailable", this.closed ? "Home 插件宿主已关闭" : "Home 插件正在启动，请稍候", { kind: "unavailable" });
+    }
+    return includeSurfaceSlots ? withSurfaceSlots(platform, platform.runtime.list()) : platform.runtime.list();
   }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
@@ -226,6 +253,7 @@ export class HomePluginHost {
     this.releaseRegistration();
     return this.closing ??= (async () => {
       try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
+      await this.installationScope.settled();
       await this.release();
     })().catch(error => { this.closing = undefined; throw error; });
   }
@@ -275,7 +303,8 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+      assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, this.installationScope.catalog(), runtime, rollback),
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,
@@ -304,7 +333,7 @@ export class HomePluginHost {
     // The packages installed in the Home start after the Host's own plugins, each on its own: one that cannot start leaves its reason and nothing else less (BL-628).
     // The way to start one is not on the platform this method returns: only a sandboxed definition under a pinned publisher goes through it (S-80).
     this.installed = await openHomeInstalledPlugins({ home: this.options.home, actorId: this.options.actorId, actions: { registry: this.options.registry, client: this.options.client, ...this.options.inspect ? { inspect: this.options.inspect } : {} },
-      db, privateStorage: storage, closed: () => this.closed, projectActions: this.options.projectActions,
+      db, privateStorage: storage, closed: () => this.closed || this.options.ownerClosing?.() === true, projectActions: this.options.projectActions,
       // An integration package's sources go to the Home's one registry, the one every project's Feed binds through (BL-530).
       integrations: { registry: () => homeIntegrationRegistry(this.options.home), connections: createCallConnectionsPort(this.options.home) },
       platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
@@ -320,4 +349,20 @@ export class HomePluginHost {
         } } });
     return platform;
   }
+}
+
+/** What a Home install is checked against: the Host's own plugins and fixtures as they start, over the Home's installed records. */
+function homeInstallCatalog(db: ReturnType<typeof openHomePluginStore>["db"] | undefined,
+  options: { home: string; registry: SurfaceInstallRegistry; entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[] }): SurfaceInstallCatalog {
+  if (!db) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
+  return { projectId: null, home: options.home, db, registry: options.registry,
+    pending: [...options.entries.map(entry => entry.manifest), ...pluginFixtureEntries(options.fixtures ?? []).map(entry => entry.definition.manifest)] };
+}
+
+/** Each installation with the object slots its running views declare (surface-composition §14), read off the live supervisor. */
+function withSurfaceSlots(platform: HomePluginPlatform, records: readonly PluginInstanceRecord[]): Array<PluginInstanceRecord & { surface_slots: readonly UiSlotDescriptor[] }> {
+  return records.map(record => {
+    const contribution = platform.supervisor.contribution(record.plugin_id);
+    return { ...record, surface_slots: contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [] };
+  });
 }

@@ -63,6 +63,7 @@ export interface ImBaseCtx extends ReturnType<typeof createTransport> {
  * Method factories receive ImBaseCtx; their returned handlers obtain this context when called, after assembly.
  */
 export interface ImCtx extends ImBaseCtx {
+  refreshObjects?(): void;
   invitations: ReturnType<typeof createInvitations>;
   // shell
   key: (suffix: string) => string;

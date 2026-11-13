@@ -14,7 +14,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { assertStorageOwner, LocalSqliteStorage, openSqliteConnection, readDatabaseSpace, readStorageSpace, type SqliteDatabase, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { PROCESS_ITEMS_TRIGGER_NAMES } from "./project-database-schema.js";
 import { ADOPTED_PROCESS_ITEMS_JOURNAL, ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL } from "./project-replication-schema.js";
-import { layoutOf, type ProjectLayout } from "./project-layout.js";
+import { layoutOf, upgradeAdoptedOriginal, type ProjectLayout } from "./project-layout.js";
 import { processItemKey, verifyProcessItemsRecovery } from "./process-items-recovery.js";
 import { processItemsSyncFailureKeys, readProcessItemsSyncEvidence } from "@molis-ai/molis-work-module-sync-replication";
 import { projectDatabases } from "./platform-upgrade-stores.js";
@@ -187,6 +187,8 @@ export function adoptProjectDatabase(input: { home: string; owner: StorageOwner;
       // Lines no stream was ever offered stay unsent, now in the adopted journal, in the order they were first recorded; the original stays.
       if (found.carried) db.exec(`INSERT INTO ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_changes(key) SELECT key FROM process_items_replica_changes GROUP BY key ORDER BY MIN(seq)`);
       else db.exec(`UPDATE ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_state SET applying=0 WHERE id=1`);
+      // The original layout is version 2; the later steps of the project upgrade bring it to the current version in this same transaction.
+      if (found.layout === "original") upgradeAdoptedOriginal(db);
       const after = plan(db, path);
       const carried = (db.prepare(`SELECT COUNT(DISTINCT key) AS n FROM ${ADOPTED_PROCESS_ITEMS_JOURNAL}_replica_changes`).get() as { n: number }).n;
       if ((found.layout === "original" && carried !== found.carried) || items !== found.items || wiring.outputs !== found.outputs || wiring.bindings !== found.bindings || values !== found.private_values || positions !== found.positions

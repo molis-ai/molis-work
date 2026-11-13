@@ -295,7 +295,8 @@ test("persisted running state rehydrates a plugin contribution after process res
   // (C5, PG-009: review:git-worktree, review:git-integration) and skills:read (09: it lists the shared Skill catalog), so both installs grant every required permission; the Runtime
   // still refuses a start without them.
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
-  const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" } });
+  // Coding declares presentations (batch 15); a real Host checks them against its action directory, which is not what this test is about.
+  const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" }, assertPresentation: () => undefined });
   const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
   const installed = first.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   await first.start(installed.install.install_id);

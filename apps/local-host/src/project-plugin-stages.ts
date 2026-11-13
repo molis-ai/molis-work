@@ -1,5 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type PreparedStageView, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { directoryRegistry, placedDirectoryViews, stageOnlyDirectoryViews, type PluginDirectory } from "@molis-ai/molis-work-ui-host";
+import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageOpeningView, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type PreparedStageView, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByProjectKey, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -18,10 +19,22 @@ import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable
 import { activeLocale, runWithRegisteredText, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { pluginViewText } from "./plugin-host-services.js";
 import { projectTextPacks } from "./ui-text-provider.js";
+import { installedStageIdentity } from "./installed-stage-identity.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
 /** A plugin whose stage the project page draws: a catalog registration, or a Home dual-instance plugin outside the build. */
 export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest;
   readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts" | "pageClients"> };
+
+/** A running contribution supplies its main surface. An installed package opens in the workbench frame. */
+export function projectHomeStageLocation(manifest: PluginManifest, contribution?: UiContribution) {
+  const view = stageOpeningView(manifest);
+  const surface = contribution
+    ? stageSurfaceDescriptors(manifest, contribution).find(item => item.target_slot_id === "workbench.main")?.surface_id
+    : "workbench";
+  if (!view || surface === undefined) return undefined;
+  return { view_id: view.view_id, surface };
+}
 
 /** What a project page's plugin surfaces are drawn with: the project plugin services plus the page's escape. */
 export interface ProjectPluginSurfacePorts extends ProjectPluginHttpPorts {
@@ -231,6 +244,7 @@ export interface RuntimeStageOwner {
   readonly producer: string;
 
   readonly installation_generation: string;
+  readonly installation: SurfaceInstallationRef;
   readonly view: UiContribution;
   assertCurrent(): void;
   capturePermission(permission: string): () => void;
@@ -246,7 +260,7 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   if (record.state !== "running" || contribution?.kind !== "app") return undefined;
   const id = stageContributionId(manifest), view = contribution.views?.find(item => item.descriptor.contribution_id === id);
   if (!view) return undefined;
-  const identity = { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version, manifest_digest: record.manifest_digest };
+  const identity = installedStageIdentity(scope, record);
   // The supervisor's Manifest is the platform's deep-frozen copy (`platformDefinition`) unless the declaration was not plain data:
   // that copy cannot serialize differently later, so it is not serialized on every check; any other Manifest is compared as before.
   const frozen = isFrozenRegisteredManifest(manifest);
@@ -262,7 +276,7 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   };
   assertCurrent();
   return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id, installation_generation: record.installation_generation,
-    producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent,
+    installation: identity, producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent,
     capturePermission: permission => platform.runtime.capturePermission(record.install_id, permission) };
 }
 
@@ -310,7 +324,7 @@ export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (act
 export function shownRuntimeOwners(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined): RuntimeStageOwner[] {
   const showing = new Set(shown);
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
-    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];
+    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !builtinPluginByProjectKey(entry.project_plugin_id))];
   return entries.flatMap(entry => stageContributionId(entry.manifest) ? runtimeStageOwner(state, entry, home).owner ?? [] : []);
 }
 
@@ -349,4 +363,11 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
     }
   }
   return { data, views };
+}
+
+/** Rank the project home cards by the shell's rail (ui-host's one placement rule), with one directory entry per shell key. */
+export function projectHomeRailOrder(entries: PluginDirectory): ReadonlyMap<string, number> {
+  const directory = [...new Map(entries.map(entry => [entry.id, entry])).values()];
+  const registry = directoryRegistry(directory, directory.map(entry => entry.id));
+  return new Map([...placedDirectoryViews(registry, "navigator"), ...stageOnlyDirectoryViews(registry)].map(({ id }, index) => [id, index]));
 }

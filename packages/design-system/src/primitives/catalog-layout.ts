@@ -186,7 +186,11 @@ export function layoutSection(): string {
       description: "打开常用入口。",
       body: "<p>添加快捷方式后显示在这里。</p>",
       footer: renderButton({ label: "添加", variant: "secondary", size: "sm" }),
-    })))}${mark("scroll-area", specimen("内部滚动", renderScrollArea({
+    })))}${mark("surface-slot", specimen("对象挂载位 · 插件页只定位置，原件由它的主人画", `<div role="group" aria-label="原件">${renderCard({
+      title: "移动端价格表第三列换行",
+      description: "Inbox · 等你决定",
+      body: "<p>回复草稿和预览导出的重试已经备好，等你看。</p>",
+    })}</div>`))}${mark("scroll-area", specimen("内部滚动", renderScrollArea({
       className: "mw-catalog-scroll",
       body: "<p>目录超过这一屏高度后，只在栏内滚动，外面的工作区不动。</p><p>第二段用来把滚动条唤醒：行与行仍然贴紧，组和组才拉开。</p><p>纸面用发丝线围住，不是描边玩具盒。</p><p>再往下还有一屏，确认 overflow 真的发生。</p>",
     })))}${mark("table", specimen("表格", renderTable({

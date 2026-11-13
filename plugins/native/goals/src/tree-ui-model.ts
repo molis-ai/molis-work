@@ -6,6 +6,7 @@ export interface GoalsTreeItem {
   created_by?: string | null;
   status: GoalPresentationState;
   display_status: GoalDisplayStatus;
+  presentation_status?: import("./presentation.js").GoalPresentationStatus;
   relations: GoalRelationRecord[];
 }
 export interface GoalsTreeView<T extends GoalsTreeItem = GoalsTreeItem> {
@@ -16,6 +17,7 @@ export interface GoalsTreeView<T extends GoalsTreeItem = GoalsTreeItem> {
 }
 export type GoalVisibleStatus = GoalDisplayStatus | "archived" | "trashed";
 export interface GoalsTreeUiPrimitives {
+  presentationLocale?: () => string;
   translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   listJoin(values: string[]): string;

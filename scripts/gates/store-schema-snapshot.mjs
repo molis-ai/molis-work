@@ -38,12 +38,14 @@ const squash = text => String(text ?? "").replace(/\s+/gu, " ").trim();
 /** The hash of a baseline's structure. `describe` is the storage package's `describeSqliteSchema`. */
 export function structureHash(schema, describe) {
   const db = new DatabaseSync(":memory:");
-  try {
-    db.exec(schema);
-    const objects = db.prepare("SELECT type, name, tbl_name AS owner, sql FROM sqlite_master WHERE type IN ('trigger', 'view') ORDER BY type, name").all()
-      .map(row => [row.type, row.name, row.owner, squash(row.sql)]);
-    return createHash("sha256").update(JSON.stringify({ tables: describe(db).tables, objects })).digest("hex").slice(0, 16);
-  } finally { db.close(); }
+  try { db.exec(schema); return databaseStructureHash(db, describe); }
+  finally { db.close(); }
+}
+
+export function databaseStructureHash(db, describe) {
+  const objects = db.prepare("SELECT type, name, tbl_name AS owner, sql FROM sqlite_master WHERE type IN ('trigger', 'view') ORDER BY type, name").all()
+    .map(row => [row.type, row.name, row.owner, squash(row.sql)]);
+  return createHash("sha256").update(JSON.stringify({ tables: describe(db).tables, objects })).digest("hex").slice(0, 16);
 }
 
 const froms = baseline => (baseline.upgrades ?? []).map(step => step.from).sort((left, right) => left - right);

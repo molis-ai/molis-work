@@ -167,12 +167,14 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
  const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
- async function api(path,method='GET',body,signal){
-  const r=await lifetime.fetch(host.api(path),{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||globalThis.t.text("plugin-builder.agent-studio.operation-failed-content-preserved")),{status:r.status,code:v.code,text:v.text,detail:v.detail});return v;
+ async function request(url,method='GET',body,signal,fallback=globalThis.t.text("plugin-builder.agent-studio.operation-failed-content-preserved")){
+  const r=await lifetime.fetch(url,{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v?.error||fallback),{status:r.status,code:v?.code,text:v?.text,detail:v?.detail});return v;
  }
+ const api=(path,...args)=>request(host.api(path),...args);
  let pending=0;globalThis.__molisPluginPending=0;
- const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+ const pendingCall=async run=>{globalThis.__molisPluginPending=++pending;try{return await run()}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+ const pluginCall=id=>(componentId,binding,payload)=>pendingCall(async()=>(await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value);
  if(host.mode==='preview'){
   const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
   lifetime.own(()=>plugin.destroy());
@@ -184,8 +186,22 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  }
  if(host.mode==='installed'){
   if(parent!==window)root.dataset.framed='';
-  const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||globalThis.t.text("common.generated.input-preserved"));return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
-  const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
+  const call=(componentId,binding,payload)=>pendingCall(async()=>{
+    const submit=binding==='submit',url=submit?host.route('/api/host/plugin-page-actions'):host.call;
+    const body=submit?{mode:'component_submit',component_id:componentId,payload}:{componentId,binding,payload};
+    const value=await request(url,'POST',body,undefined,globalThis.t.text("common.generated.input-preserved"));
+    return submit?value:value.value;
+  });
+  const plugin=host.components({root,call,mountSurfaceSlot:host.mountSurfaceSlot});lifetime.own(()=>plugin.destroy());
+  const ready=plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
+  lifetime.listen(host.root||root,'molis-work:select-item',event=>{
+    const {panel,itemId,intent}=event.detail||{};if(intent!=='open')return;
+    const unavailable=()=>{if(lifetime.alive){const note=document.createElement('p');note.dataset.pcOpenFailed='';note.setAttribute('role','alert');note.textContent=globalThis.t.text("plugin-builder.agent-studio.record-or-form-unavailable");root.prepend(note);}};
+    void ready.then(async()=>{if(!lifetime.alive)return;root.querySelector('[data-pc-open-failed]')?.remove();
+      const opened=typeof panel==='string'?plugin.openInput(panel):typeof itemId==='string'?await plugin.openRecord(itemId):true;
+      if(!opened)unavailable();
+    }).catch(unavailable);
+  });
   return;
  }
  const $=s=>root.querySelector(s);
@@ -562,8 +578,8 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  */
 export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const client=(` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `),components=` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `;
- const embedded=host.page?.();
- if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
+ const embedded=host.page?.(),mountSurfaceSlot=host.view?.surfaceSlot;
+ if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,mountSurfaceSlot,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
  const valid=s=>typeof s==='string'&&/^app-[a-f0-9-]{36}$/.test(s);
  const entry=s=>[...document.querySelectorAll('[data-work-surface-open]')].find(el=>el.dataset.workSurfaceOpen===s);
  const openPlugin=s=>{if(!valid(s))return;if(host.openPlugin){host.openPlugin(s);return;}const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};

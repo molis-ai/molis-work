@@ -29,6 +29,8 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 
 ## 接入与边界
 
+项目首页用受保护的项目请求取得实际分组、主人显示和这一轮可显示的字段。外卡由工作台排版，内部对象只用 SDK 的 `renderPresentationForm`。Dock 的既有固定顺序投影为 `home_order`，切项目、离开首页或新请求替换旧读时取消原请求。正常刷新保留未变的行和焦点。原页只接收当前首页点击返回的可信导航，沿工作台窗格、原贡献与隔离框选择，签包表单的打开和取消不提交。旧日期栏、事项请求和自定义网址入口已退出首页；原浏览器书签存储未被改动。
+
 本包处理页面结构和交互装配，不打开数据库。宿主通过 `unavailable_plugin_stages` 提供不可用舞台的结构化显示数据，工作台转义后绘制静态占位；该分支不申请插件页面授权，正常 `plugin_stages` HTML 始终进入原 sandbox frame。目标状态解释、关系/规划等专属界面由 Goals Plugin 提供；通用主题和图标由 Design System 提供。
 
 项目常规设置保留最初名称观察值，保存冲突时留住输入草稿，不以后台新读值替旧编辑授权。缺失插件区仅显示 Host 核对后尚未安装的依赖；已安装但停用的插件不报缺失，原始标识可换行，提示不触发下载、安装、启用或授予权限。真实 Chrome 动线在 `tests/project-settings-standalone.e2e.test.ts`。
@@ -86,8 +88,9 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 项目设置的签名插件启用提交该按钮渲染时的安装编号、代次、版本和摘要。过期响应由原请求报告，按钮不换用更新的安装重试。个人空间的启用沿现有宿主设置动作。
   - Home 包的项目同意显示在当前项目设置的插件行；确认只提交当前选择快照，取消不发修改请求，失败重读真实状态。声明增加要重新确认，旧列表回执不能覆盖新状态；实际工作台导航和刷新都保留 iframe 的项目绑定，Home 打开则没有项目。回归：`tests/home-package-project-reach.e2e.test.ts`。
-  - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；Home 日期条为「今天」与事件点统一预留底部空间，日期数字不与状态字相叠，各日期仍对齐。手机沿用现有 70px 高度，比原来的 64px 多出 6px 容纳三层字形及后备字体，列宽仍为 49px。不改文字与日期行为，不加截断与审计例外。回归 `tests/chinese-completion-layout.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
+  - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；首页对象行在窄屏与后备字体下仍保留标题和状态。回归 `tests/chinese-completion-layout.e2e.test.ts`、`tests/surface-home-workbench.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
   - Home 工具（目录项 `runtime.keys`，现在是 Issue 的 `Mod+Shift+I`）是开关：按钮或组合键打开它的侧栏视图并把键盘送进视图文档，从视图里再按一次收起。组合键在同源框架里（侧栏视图、嵌入窗格，以及本机 Host 发的讨论页）由 `homeToolKeysScript()` 转交给外壳；从视图里收起时键盘回到打开它的地方，打开前没有焦点就离开侧栏；带组合键的视图在页面空闲时预载，第一次按下就可用。视图可回报 `molis:side-status`（`busy` / `attention`），外壳在它的页签和按钮上标点，侧栏收起时也看得到。Home 插件侧栏始终只展示当前页。验证见 `tests/issue-global-navigation.e2e.test.ts`。
   - 可见插件页面的非终端内容中，`Mod+K` 与 `Mod+F` 经同一 plugin-frame 桥进入外壳的全局搜索，分别保留开关与打开／聚焦语义。组合由可信外壳提供；子页已处理、组合输入、重复键和终端目标不转发。嵌套侧栏搜索还需核对同源、真实来源框、当前打开且可见的非 inert 页，不接受消息自报身份。原 Home 工具键与讨论页召回路径保持。回归见 `tests/global-ui-interaction.e2e.test.ts`（RAC-2800、2802）、`tests/issue-global-navigation.e2e.test.ts`（RAC-2801～2803）。
   - 侧栏脚本（`side-panel*.ts`）发出时去掉整行注释：说明留在源码里，不进页面资源。

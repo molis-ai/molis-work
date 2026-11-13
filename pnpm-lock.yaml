@@ -202,6 +202,9 @@ importers:
       '@molis-ai/molis-work-service-search':
         specifier: workspace:*
         version: link:horizontal/search
+      '@molis-ai/molis-work-service-surfaces':
+        specifier: workspace:*
+        version: link:horizontal/surfaces
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -473,6 +476,9 @@ importers:
       '@molis-ai/molis-work-service-search':
         specifier: workspace:*
         version: link:../../horizontal/search
+      '@molis-ai/molis-work-service-surfaces':
+        specifier: workspace:*
+        version: link:../../horizontal/surfaces
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -537,6 +543,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:../../packages/im-ui
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -727,6 +736,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
+  horizontal/surfaces:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
   modules/artifacts:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -867,6 +885,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk

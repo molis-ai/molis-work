@@ -15,11 +15,14 @@ import { createImDialogs } from "./controller-dialogs.js";
 import { createImStartup } from "./controller-startup.js";
 import { createImPage } from "./controller-page.js";
 import { createImClicks } from "./controller-clicks.js";
+import { createImObjects } from "./objects.js";
 import { installImLanguage } from "./locale.js";
+import { IM_MESSAGE_SUBJECT_LIMIT } from "@molis-ai/molis-work-contracts/services/im";
 
 Object.assign(document, { molisImLanguage: installImLanguage() });
 startIm({
   createViews, createMessageFormat, createHistory, createDrafts, createTransport, createInvitations,
   createImShell, createImComposer, createImSync, createImRooms, createImTopics,
   createImNavigate, createImDialogs, createImStartup, createImPage, createImClicks,
+  createImObjects: controller => createImObjects(controller, IM_MESSAGE_SUBJECT_LIMIT),
 });

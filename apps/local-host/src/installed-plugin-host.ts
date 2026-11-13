@@ -58,7 +58,7 @@ interface InstalledPluginHostOptions {
 
 /** One execution owner per project database. Authoring and its Workflow are separate consumers. */
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
-const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
+const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost>; current?: InstalledPluginHost }>>();
 
 /** Passive projection of the unique installed execution owner; never installs or starts a second platform. */
 export async function runningInstalledPluginPlatform(store: LocalProjectDatabase, projectId: string) {
@@ -67,6 +67,10 @@ export async function runningInstalledPluginPlatform(store: LocalProjectDatabase
 }
 /** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
+
+/** A passive read never waits for a sandbox recovery or opens a plugin host. */
+export const currentInstalledPluginHost = (store: LocalProjectDatabase, projectId: string) =>
+  hosts.get(store)?.get(projectId)?.current;
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map();
@@ -79,9 +83,11 @@ export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Pro
   if (inLanguagePreview()) throw languagePreviewUnavailable();
   hosts.set(options.store, boards);
   const ready = openInstalledPlugins(options);
-  const entry = { ...identity, ready }; boards.set(options.projectId, entry);
-  ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });
-  return ready;
+  const entry: NonNullable<ReturnType<typeof boards.get>> = { ...identity,
+    ready: ready.then(installed => { entry.current = installed; return installed; }) };
+  boards.set(options.projectId, entry);
+  entry.ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });
+  return entry.ready;
 }
 
 export async function releaseInstalledPlugins(store: LocalProjectDatabase, projectId: string): Promise<void> {
@@ -149,9 +155,10 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       throw staleInstallation();
     }
   };
+  const grantedCapabilities = (identity: Readonly<SandboxIdentity>) => sandboxGrants(identity, releases, { recordFor, releaseFor, approvedFor });
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> => catalogCapabilities({ actions, catalog, live, author: titleOf,
     declaration: identity => sandboxDeclaration(identity, releases, release => manifestOf(release), { recordFor, releaseFor }),
-    granted: identity => sandboxGrants(identity, releases, { recordFor, releaseFor, approvedFor }) });
+    granted: grantedCapabilities });
   const secrets = pluginSecrets(homeDirectory, projectId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
@@ -172,8 +179,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled,
-    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
+    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)),
     earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]), declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
@@ -228,7 +235,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
 
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
-      installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
+      installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void; scopeOpen?: () => boolean }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
       packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
       /** Takes a signed package's installation off from its trusted row, its package not read; and the tombstones whose clean-up did not finish, listed until it has (BL-915). */
       uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),

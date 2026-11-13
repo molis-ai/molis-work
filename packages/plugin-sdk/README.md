@@ -262,6 +262,8 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
   - `/diff-view` 只加载 SDK 自己的文件与合同包，不带词；`renderDiff` 不自己转义、翻译或画图标，三样都由调用方的 `primitives` 给，每个标签用调用方自己的键（`labels`），仓库里只有它一份比较画法（PG062-08、PG062-10）。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 智能呈现的取值动作（`definePresentationValuesAction`、`bindPresentationValuesHandler`）和插件概况（`definePresentationOverviewAction`，schema 由平台定死）从根入口出，合同在 contracts 的 `platform/presentation`；`bind` 只交回问到的字段，`forbidden`、`deleted` 只留状态。Manifest 的 `presentation` 由 `parsePluginManifest` 调 `validatePresentationDeclaration` 查，作者自查用同一个函数，每条问题写出哪一项错了（SSC-06）：对象种类要是本插件的搜索来源或别的动作已经声明的（给值的动作列出的不算），每种要有一个给值的动作，状态字段的角色是 `status`，引用本插件的动作要写声明过的版本，引用别的提供方的这里答「不知道」、不拦；概况动作和 `start` 都是本 Manifest 自己的，schema 与平台定的一字不差；`mounts` 不收：挂载位是贡献的 `slots` 里带 `accepts_forms` 的 slot（contracts 的 `UiSlotDescriptor`）。给人看的字用 `/ui` 的文字工具查：声明里的 `label`、`note` 不收 `literal`，键要用本插件的前缀或 `common.`；操作面上的词要绑过主人。`presentationText` 按 `text.lines` 写文本形态，值里的词按对象的主人不抛地绑（`tryOwnedTextRef`），绑不上显示不可用；结果是没转义的纯文本，不进 HTML 插值。`/ui` 的状态环取值从 contracts 的 `platform/ui` 取，SDK 只留标签、图标和画法。
+  - 自动概况使用 `definePresentationOverviewAction`，明确只读、不调用模型、不外发且不计费。概况只从声明中选择开始动作，`overview.start[].open` 可指定本 Manifest 的 `stage` 视图和有界 `panel`，运行时还须匹配该安装中绑定同一动作的实际表单。`assertSurfaceDescription` 保留候选里的首页插件卡事实，不接受助理改写。
+  - `/ui` 的 `renderPresentationForm(object, form, values)` 和组合服务用同一份 `presentationFormFields`。第三参只收语言、可信主人显示、一次读取结果和已绑定的局部控件。撤权、删除、首次读失败先截断正文、操作与说明。旧值标记使用主人返回的读取时间。作者预览可以只画自己的对象和字段，按钮上的局部 DOM key 由位置绑定，SDK 不负责授权或执行。预览卡、浮层、底部单、菜单与菜单项由这份 SDK 源码提供，设计系统原入口同源转出。变更这条路径跑 `node scripts/run-tests.mjs tests/presentation-forms.test.ts`。
   - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；插件在 `PluginDefinition.instructions` 里声明自己的指令，由 Host 在插件运行时统一登记，内置与安装的插件走同一条路。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
 - 改了公开导出：`pnpm build` 后跑 `pnpm api:update`，提交 `tooling/gates/api/`；改了动作的形状或声明：跑 `pnpm actions:update`，提交 `tooling/gates/actions/`（两份快照与源码不同，CI 失败；PR 里写对插件作者的影响，见 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
@@ -299,11 +301,11 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
 
 每条事项包含稳定的 `event_id`、原对象 `subject: { kind, id }`、`occurred_at`、标题/摘要/正文、`facts` 二元字符串数组、`category`（`personal` 或 `organization`）和 `needs_attention`。`placement: occurred` 按发生日显示；`active` 把窗口外仍未处理的旧事项放到今天；`today` 始终放到今天。处理完成的记录应由提供方撤回。对象类型须在声明中列出，同一查询不能返回重复 `event_id`；Home 会再按提供方与查询能力隔离身份，避免不同插件互相覆盖。
 
-`open` 可为 `null`，或 `{ kind, surface, id, title, label }`。`item` 打开原对象，`group` 打开所属页面的分组，`surface` 打开页面且 `id` 必须为 `null`。目标必须是实际存在、由产品 UI 支持的页面或对象；它不表示执行业务操作，也不授予目标权限。Home 点击前通过 `home.events.open` 重新读取原查询，核对目标没有改变且提供方仍可访问。分组页面通过现有 DOM 事件 `workbench-open-group` 接收 `{ surface, id }`，由页面自己的控制器处理。
+`open` 可为 `null`，或 `{ kind, surface, id, title, label }`。`item` 打开原对象，`group` 打开所属页面的分组，`surface` 打开页面且 `id` 必须为 `null`。目标必须是实际存在、由产品 UI 支持的页面或对象；它不表示执行业务操作，也不授予目标权限。仍使用这份窗口结果的调用方可以用 `home.events.open` 核对原查询和目标。项目首页改用呈现声明、对象取值和概况，独立的事项窗口继续服务助理材料扫描等原调用方。
 
-事项、上下文和可执行动作是三种不同查询，按需求分别注册。提供事项不会自动生成上下文或写操作。Home 的 `home.events.read`、内部调用及 MCP 都使用同一目录、调用者和原始处理器；单个来源失败时只撤回该来源的事项并显示错误，停用或撤权后的下一次读取不会保留旧事项。插件内容更新在 Home 重新读取时反映；当前页面可见时每 30 秒查询一次，已接入的产品变更也会触发刷新。
+事项、上下文和可执行动作是三种不同查询，按需求分别注册。提供事项不会自动生成上下文或写操作。Home 的 `home.events.read`、内部调用及 MCP 都使用同一目录、调用者和原始处理器；单个来源失败时只撤回该来源的事项并返回错误说明，停用或撤权后的下一次读取不会保留旧事项。
 
-验证：[home-event-actions.test.ts](../../tests/home-event-actions.test.ts) 覆盖正式 Runtime、权限、导航变化和原业务记录；[home-events.e2e.test.ts](../../tests/home-events.e2e.test.ts) 覆盖未知插件在实际首页提供自己的事项、上下文和执行结果。
+验证：[home-event-actions.test.ts](../../tests/home-event-actions.test.ts) 覆盖正式 Runtime、权限、导航变化和原业务记录；[home-events.e2e.test.ts](../../tests/home-events.e2e.test.ts) 覆盖未知插件的真实事项和执行结果，并验证生产首页不再请求事项窗口。
 
 ### 首页判断的对象上下文
 

@@ -1,3 +1,4 @@
+import type { ActionSchema } from "./action-schema.js";
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-input.js";
@@ -36,8 +37,7 @@ export * from "./local-person.js";
 export * from "./placement.js";
 export * from "./work-executors.js";
 
-/** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
-export type ActionSchema = Readonly<Record<string, unknown>>;
+export type { ActionSchema } from "./action-schema.js";
 export type ActionAudience = "user" | "agent" | "workflow" | "mcp" | "plugin";
 
 export interface ActionReference {
@@ -258,6 +258,8 @@ export interface ActionMetadata {
    * Omitted, it is inferred (see `actionEffect`). Irreversible actions are never offered to plugins.
    */
   readonly effect?: "read" | "write" | "irreversible";
+  /** The provider declares that this action sends content outside the Home. */
+  readonly external?: true;
   /** `false` keeps an agent-facing action away from generated plugins even when it is reversible. */
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */

@@ -1,5 +1,5 @@
 import type {
-  ContextAccess, ContextEdge, ContextEdgeInput, ContextEdgeQuery, ContextLedgerApi, ContextScope, ObjectRef,
+  ContextAccess, ContextEdge, ContextEdgeInput, ContextEdgeQuery, ContextLedgerApi, ContextLedgerRelationReader, ContextScope, ObjectRef,
 } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ContextLedgerRepository } from "./repository.js";
 import { ledgerErrors } from "./errors.js";
@@ -25,7 +25,7 @@ export function contextEdgeQueryKeys(value: unknown): readonly string[] | undefi
 }
 
 /** Knows reference integrity, not the business meaning of a Feed or Session transition. */
-export class ContextLedgerService implements ContextLedgerApi {
+export class ContextLedgerService implements ContextLedgerApi, ContextLedgerRelationReader {
   readonly query = {
     get: (access: ContextAccess, key: string) => {
       this.checkAccess(access, "read");
@@ -64,6 +64,14 @@ export class ContextLedgerService implements ContextLedgerApi {
   };
 
   constructor(private readonly repository: ContextLedgerRepository, private readonly options: ContextLedgerOptions) {}
+
+  activeBetween(access: ContextAccess, candidates: readonly ObjectRef[], types: readonly string[]): ContextEdge[] {
+    this.checkAccess(access, "read");
+    for (const ref of candidates) this.checkRef(access, ref);
+    if (!candidates.length || !types.length) return [];
+    return this.repository.between(access.scope, candidates, types).filter(edge =>
+      candidates.some(ref => sameRef(ref, edge.source)) && candidates.some(ref => sameRef(ref, edge.target)));
+  }
 
   private put(access: ContextAccess, input: ContextEdgeInput): ContextEdge {
     this.checkAccess(access, "write");

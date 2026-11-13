@@ -12,7 +12,7 @@ import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { directoryPanelIdentity, renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { directoryWidthPreferenceScript } from "./directory-width.js";
-import { homeStarts, islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
+import { islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, renderPluginTabTitlesData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
@@ -242,7 +242,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-panes" data-tab-panes></div>
           <div class="tab-workspace-exclusive" data-tab-exclusive hidden></div>
           <div class="tab-workspace-pool" data-surface-pool hidden>
-            ${renderProjectHome(view.project?.display_name || title, primitives, homeStarts(enabledPlugins, directory))}
+            ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${page?.html ?? ""}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="${uiText("workbench.artifacts.navigation-name")}" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             ${view.project ? renderMaterialsStage() : ""}

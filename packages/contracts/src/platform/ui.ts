@@ -1,5 +1,5 @@
 import type { ContractDescriptor } from "./package.js";
-import type { ActionAvailability, ActionReference } from "./actions.js";
+import type { ActionAvailability, ActionReference, ActionSubject } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
@@ -31,6 +31,8 @@ export interface UiPageView<Element = unknown> {
   refreshShell(): void;
   /** The shell displays another current-project object inside this slot; its DOM and authority stay outside this page. */
   embed(element: Element, target: { surface: string; itemId: string; title?: string }): { ready: Promise<void>; dispose(): void };
+  /** Reserve this contribution's declared position. The trusted shell reads and draws the objects outside the plugin page. */
+  surfaceSlot(element: Element, options: { slot_id: string; subjects: readonly ActionSubject[] }): { ready: Promise<void>; dispose(): void };
 }
 
 export interface UiPageActions {

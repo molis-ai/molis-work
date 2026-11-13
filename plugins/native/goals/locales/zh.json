@@ -1183,6 +1183,9 @@
     "goals.workbench-stage.work-rules": "工作规则",
     "goals.capability-library.goals-list-v1.title": "目标目录",
     "goals.capability-library.goals-policy-save-v1.title": "保存项目默认规则",
+    "goals.presentation.empty": "还没有目标",
+    "goals.presentation.start": "创建目标",
+    "goals.presentation.summary": "本项目最近更新的目标",
     "goals.read-group.goals.description": "目标的状态、正文、进展记录、关系与资料",
     "goals.read-group.goals.title": "目标",
     "goals.dialogs-ui.generated-if-empty": "不填会自动生成"

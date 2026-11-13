@@ -1,5 +1,5 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
+import { directoryRegistry as registryFor, placedDirectoryViews, stageOnlyDirectoryViews, type DirectoryRegistry, type PlacedDirectoryView, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -30,7 +30,7 @@ export interface PluginMarketCard {
  */
 export function dockDefaultPins(directory: PluginDirectory = builtinPlacementDirectory()): string[] {
   const chosen = directory.filter(entry => entry.chosen);
-  return registryFor(chosen, chosen.map(entry => entry.id)).placements("navigator").filter(({ view }) => view.pinned_default).map(({ manifest }) => manifest.id);
+  return placedDirectoryViews(registryFor(chosen, chosen.map(entry => entry.id)), "navigator").filter(({ view }) => view.pinned_default).map(({ id }) => id);
 }
 
 /** The shell keys of the plugins that are a way to extend the workbench (a navigator view with `rail: "extend"`), kept out of the list of tools. */
@@ -142,16 +142,7 @@ export function pluginDirectoryFor(running?: PluginDirectory): PluginDirectory {
   return [...clean, ...market.filter(entry => !present.has(entry.id))];
 }
 
-type DirectoryRegistry = UiViewRegistry<PluginDirectoryEntry>;
-type DirectoryPlacement = ReturnType<DirectoryRegistry["placements"]>[number];
-
-function registryFor(directory: PluginDirectory, enabled: readonly ProjectPluginId[]): DirectoryRegistry {
-  const active = new Set(enabled);
-  return new UiViewRegistry(directory.map(entry => ({ manifest: entry, enabled: !entry.chosen || active.has(entry.id) })));
-}
-
-function railEntry({ manifest: entry, view }: DirectoryPlacement): RailEntry {
-  const id = entry.id;
+function railEntry({ id, entry, view }: PlacedDirectoryView): RailEntry {
   return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package",
     // The 个人 group is the person's own plugins, by the one rule ＋ and the bar's right tray use too (isPersonalPlugin; 07-1 S4b):
     // a view does not put itself there, nor keep another group once it is the person's.
@@ -160,43 +151,36 @@ function railEntry({ manifest: entry, view }: DirectoryPlacement): RailEntry {
     rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
 
-function railFrom(registry: DirectoryRegistry, islands: readonly DirectoryPlacement[], artifactLabel: string): RailEntry[] {
-  const views = registry.placements("navigator"), entries = views.map(railEntry);
+function railFrom(registry: DirectoryRegistry, artifactLabel: string): RailEntry[] {
+  const views = placedDirectoryViews(registry, "navigator"), entries = views.map(railEntry);
   const at = views.findIndex(({ view }) => view.order > ARTIFACT_NAVIGATION.order
     || (view.order === ARTIFACT_NAVIGATION.order && view.plugin_id.localeCompare(ARTIFACTS_PROVIDER_ID) > 0));
   const { id, surface, glyph, group, rail, pinned_default, chosen } = ARTIFACT_NAVIGATION;
   entries.splice(at < 0 ? entries.length : at, 0, { id, surface, label: artifactLabel, glyph, group, rail, pinned_default, chosen });
 
-  // Installed plugins with only a stage open there. A directory or island already represents its plugin.
-  const represented = new Set([...views, ...islands].map(item => item.manifest.id));
-  for (const stage of registry.placements("stage")) {
-    const { id, chosen } = stage.manifest;
-    if (chosen || represented.has(id)) continue;
-    represented.add(id);
-    entries.push(railEntry(stage));
-  }
+  // Installed plugins with only a stage open there; a directory or island view already represents its plugin (ui-host's one rule).
+  entries.push(...stageOnlyDirectoryViews(registry).map(railEntry));
   return entries;
 }
 
 /** Platform navigation and the enabled Plugins' views, in their declared order. Platform entries are never project members. */
 export function railEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
-  const registry = registryFor(directory, enabled);
-  return railFrom(registry, registry.placements("island"), artifactNavigationLabel());
+  return railFrom(registryFor(directory, enabled), artifactNavigationLabel());
 }
 
 /** Personal island entries above the project card. */
 export function islandEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
-  return registryFor(directory, enabled).placements("island").map(railEntry);
+  return placedDirectoryViews(registryFor(directory, enabled), "island").map(railEntry);
 }
 
 function navigationEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory, artifactLabel: string): RailEntry[] {
-  const registry = registryFor(directory, enabled), islands = registry.placements("island");
-  return [...railFrom(registry, islands, artifactLabel), ...islands.map(railEntry)];
+  const registry = registryFor(directory, enabled);
+  return [...railFrom(registry, artifactLabel), ...placedDirectoryViews(registry, "island").map(railEntry)];
 }
 
-function launchViews(enabled: readonly ProjectPluginId[], directory: PluginDirectory): DirectoryPlacement[] {
+function launchViews(enabled: readonly ProjectPluginId[], directory: PluginDirectory): PlacedDirectoryView[] {
   const registry = registryFor(directory, enabled);
-  return [...registry.placements("navigator"), ...registry.placements("island")];
+  return [...placedDirectoryViews(registry, "navigator"), ...placedDirectoryViews(registry, "island")];
 }
 
 /**
@@ -205,16 +189,16 @@ function launchViews(enabled: readonly ProjectPluginId[], directory: PluginDirec
  */
 export function creatableKinds(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginCreatableKind[] {
   return launchViews(enabled, directory)
-    .flatMap(({ manifest, view }) => {
-      const create = manifest.ui.views.find(item => item.view_id === view.view_id)?.creates;
-      return create ? [{ id: manifest.id, plugin_id: manifest.plugin_id, ...create }] : [];
+    .flatMap(({ id, entry, view }) => {
+      const create = entry.ui.views.find(item => item.view_id === view.view_id)?.creates;
+      return create ? [{ id, plugin_id: entry.plugin_id, ...create }] : [];
     });
 }
 
 /** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
 export function homeStarts(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginHomeStart[] {
-  return launchViews(enabled, directory).flatMap(({ manifest, view }) => view.start
-    ? [{ id: manifest.id, plugin_id: manifest.plugin_id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
+  return launchViews(enabled, directory).flatMap(({ id, entry, view }) => view.start
+    ? [{ id, plugin_id: entry.plugin_id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
 }
 
 /**
@@ -241,7 +225,7 @@ export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] =
 
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
 export function sideEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): Array<UiPlacedView & { project_plugin_id: string }> {
-  return registryFor(directory, enabled).placements("side").map(({ manifest, view }) => ({ ...view, project_plugin_id: manifest.id }));
+  return placedDirectoryViews(registryFor(directory, enabled), "side").map(({ id, view }) => ({ ...view, project_plugin_id: id }));
 }
 
 /** Settings pages for the enabled set, in Manifest order. */

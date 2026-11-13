@@ -9,7 +9,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, pluginControlActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
-import { caller, installedPackageHost, mac, readsAndWrites } from "./fixtures/signed-package-host.js";
+import { caller, installedPackageHost, mac, observeSignedPackageLifecycle, projectInstallation, readsAndWrites } from "./fixtures/signed-package-host.js";
 
 // BL-623 (ac-trust, S-84): what the person does with a plugin installed from a signed package once it is installed. A newer package of the same
 // plugin and publisher is its upgrade (the install path, preview then confirm); switching it off and on and taking it off are three actions of
@@ -217,7 +217,7 @@ test("BL623-06 S-84 only the person in a project reaches the three actions: an A
   actions.registerProvider(pluginInstallProvider(service));
   const person = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: "project-one", permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
   const user_action = { source: "management" as const, conversation_ref: "test:lifecycle", message_ref: "test:request" };
-  const inputs = { disable: { plugin_id: "x" }, enable: { plugin_id: "x" }, uninstall: { plugin_id: "x", keep_data: true, target: { install_id: "x", installation_generation: "g", version: "1.0.0", manifest_digest: "d" } } } as const;
+  const inputs = { disable: { plugin_id: "x" }, enable: { plugin_id: "x", expected_installation: projectInstallation({ install_id: "x", installation_generation: "g", version: "1.0.0", manifest_digest: "digest" }) }, uninstall: { plugin_id: "x", keep_data: true, target: { install_id: "x", installation_generation: "g", version: "1.0.0", manifest_digest: "d" } } } as const;
   for (const name of ["disable", "enable", "uninstall"] as const) {
     const action: ActionReference = { capability_id: pluginControlActions[name].capability_id, version: 1 };
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
@@ -254,26 +254,28 @@ async function replaceKeptPackage(h: Host, bundle: PluginPackageBundle) {
 /** The entrypoint that starts fine when it is first read and refuses to start from then on: how a kept package can fail a later start. */
 const crashesOnStart = (files: Parameters<typeof readsAndWrites>[0]) => { files[SANDBOX_PACKAGE_FILES.entrypoint] = "throw new Error('boom');\n"; };
 /**
- * Puts the installed plugin into the Runtime's quarantine the way repeated crashes do, through the person's own switch: the kept package is
- * replaced by a same-version build whose entrypoint throws (the Host verifies its signature and reads it again at every start), then the
- * plugin is switched off and on. The first enable records crashed; the recoveries after it spend the recovery budget; the last enable reports
- * the quarantine, leaving the record there. Nothing writes a record's state by hand.
+ * One failed start leaves the installation crashed. Its own Runtime's failed recoveries consume the recovery budget and quarantine it.
+ * The settings switch cannot recover a crashed installation.
  */
-async function quarantine(h: Host, publisher: ReturnType<typeof newPublisher>) {
+async function quarantine(h: Host, publisher: ReturnType<typeof newPublisher>, observed: ReturnType<typeof observeSignedPackageLifecycle>) {
   await h.install(signedPackage(publisher, readsAndWrites));
   await add(h, "one");
   assert.deepEqual(await notes(h), ["one"], "the installation holds business data");
   await replaceKeptPackage(h, signedPackage(publisher, crashesOnStart));
   await h.control("disable", { plugin_id: PACKAGE_PLUGIN_ID });
-  for (let attempt = 0; attempt < 4; attempt += 1) await h.control("enable", { plugin_id: PACKAGE_PLUGIN_ID }).catch(() => undefined);
-  const installed = await only(h);
-  assert.equal(installed.state, "quarantined", "four failed starts and recoveries leave the installation quarantined");
+  await assert.rejects(h.control("enable", { plugin_id: PACKAGE_PLUGIN_ID }));
+  const crashed = await only(h), { runtime } = observed();
+  assert.equal(crashed.state, "crashed");
+  await assert.rejects(h.control("enable", { plugin_id: PACKAGE_PLUGIN_ID }), refused("plugin.state_invalid"));
+  for (const code of ["plugin.executor_failed", "plugin.executor_failed", "plugin.quarantined"])
+    await assert.rejects(runtime.recover(crashed.install_id), refused(code));
+  assert.equal((await only(h)).state, "quarantined");
 }
 
-test("RAC-2298 S-84 a quarantined signed-package plugin that meets a package that is not its upgrade is refused at the confirmation with plugin.upgrade_required, and nothing changes", mac, async () => {
-  const h = await installedPackageHost(), publisher = newPublisher();
+test("RAC-2298 S-84 a quarantined signed-package plugin that meets a package that is not its upgrade is refused at the confirmation with plugin.upgrade_required, and nothing changes", mac, async t => {
+  const h = await installedPackageHost(), publisher = newPublisher(), observed = observeSignedPackageLifecycle(t);
   try {
-    await quarantine(h, publisher);
+    await quarantine(h, publisher, observed);
     const installed = await only(h), pins = h.ledger.publishers(), data = await h.data(installed.install_id);
     const directories = (await readdir(join(h.home, "plugin-packages"))).sort();
     assert.notDeepEqual(data, [], "the quarantined installation still holds its business data");

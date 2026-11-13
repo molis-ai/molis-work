@@ -41,7 +41,7 @@
 
 - `icon`：图标名，限平台图标集（SDK `/ui` 的 `PLUGIN_ICON_NAMES`，设计系统逐个画）；写了集合外的名字、不是字符串或是空白，`parsePluginManifest` 当场拒绝，不回退。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写就用 `settings`。
 - `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
-- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`，以及 `creates.title_text`、`start.title_text`、`start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
+- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`、动作 `composer_source` 的 `title_text`，以及 `creates.title_text`、`start.title_text`、`start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
 - `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
 - `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
 - `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
@@ -182,6 +182,36 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
 
 需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒，版本号不动。`stop` 钩子里被拒是同步抛错（`ui_host.plugin_denied`）；钩子返回以后，留下的定时器、监听器再调什么也不做、不抛错，在还没返回的动作或还没答复的路由里调照常抛错（BL-411，见 [host.md](host.md)「停止以后」）。会调它的定时器、监听器仍要在 `stop` 一开始清掉：它们停用后白跑，日志里留下这个插件。
+
+## 对象的呈现
+
+给插件已经拥有的对象写 `presentation.objects`。例如 `note` 已由本插件的对象读取动作声明，名字片显示标题，行还显示更新时间。要加操作时，`actions[].ref` 指向动作目录中的 `capability_id@version`，`input_from` 写成动作输入键到呈现字段键的映射。实际执行由位置层经动作网关核当前授权。
+
+```json
+{
+  "presentation": { "objects": [{
+    "kind": "note",
+    "fields": [{ "key": "title", "role": "title" }, { "key": "updated_at", "role": "updated_at" }],
+    "forms": { "chip": { "fields": ["title"] }, "row": { "fields": ["title", "updated_at"] } }
+  }] }
+}
+```
+
+**原生插件。** 每个种类在同一插件、同一运行范围内各用一支对象读取动作和给值动作。给值动作可服务多个本插件的种类。两份定义登记到 Manifest 的 `actions`，运行时绑定处理器。SDK 根入口用 `defineSubjectContextAction(id, version, kind, title, permissions, scope)` 配 `bindActionHandler` 读对象正文与版本，用 `definePresentationValuesAction(id, version, [kind], title, permissions, scope)` 配 `bindPresentationValuesHandler` 读显示字段。权限按对象的真实读取要求声明。给值是只读、不外发、不调用模型且不计费的查询。 字段标签和概况说明用所属插件词表的 `TextRef`，公共词可引用 `common.`，用户正文保留原样。`status` 映射供显示，不产生「等你」条目。
+
+给值处理器从调用上下文取当前调用方与项目并逐对象核权。按请求的 `subjects` 和 `fields` 返回 `items`，每件带 `subject`、`revision` 和 `state`，最多回答一次。读到当前值给 `ok`，只回请求过且有权读取的字段。对 `forbidden`、`deleted` 只给前三项。暂时读不到但有旧值时回 `stale` 和真实的 `read_at`。首次读取失败且没有旧值，预览可用 `unreadable` 显示。
+
+**预览。** 用 SDK `/presentation` 的 `presentationFormFields` 选形态与字段，再用 `/ui` 的 `renderPresentationForm(object, form, values)` 画 `chip`、`row`、`card` 或 `peek`。`object.owner` 从可信目录或自己的 Manifest 取。第三参给 `locale`（`null` 用主人默认语言）、`ownerDisplay` 和本次读取结果 `read`。只有位置已经绑定的控件才传给 `actions` 或 `notices` 的下一步。控件 `key` 是这次渲染的局部句柄，由位置层绑定。
+
+**手写签名 app 包。** 在 `contract.json` 写同样的 `presentation`。需要的固定操作写 `kind: "query"` 及 `read_protocol`。对象读取用 `{ kind: "subject_context", subject_kind: "note" }`，给值用 `{ kind: "presentation_values", subject_kinds: ["note"] }`，可选概况用 `{ kind: "presentation_overview" }`。分别取上述两个定义 helper 和 `definePresentationOverviewAction` 返回的 `action.input_schema`、`action.output_schema` 原样作为操作的 `input`、`output`，并给符合合同的示例。固定操作只用实际需要的本机只读效果，例如 `effects: { storage: ["read"] }`。
+
+操作能力 id 用 SDK 的 `sandboxActionId(sandboxPackageBuildId(pluginId, publisherSignature), operationId)` 派生，`publisherSignature` 用签名包真实的公钥绑定身份。签名包动作版本为 1，写对象的操作引用时用派生后的 `capability_id@1`。完整的签验、沙箱读取和重开用例见 [签名包呈现验证](../../tests/security-invariants-sandbox-presentation.test.ts)。
+
+挂载位置写在实际页面贡献的 `slots` 里，例如 `{ slot_id: "related", accepts: [], accepts_forms: ["chip", "row"] }`。把一个空元素留在页内，调用 `host.view.surfaceSlot(element, { slot_id: "related", subjects })`；`subjects` 最多 50 个 `{ kind, id }` 引用。返回的 `ready` 只报告能否预留，元素高度只随声明形态及宽度变化。工作台在隔离页之外读取、绘制并接收人的操作；对象值、数量和结果不回到插件。选择变化时先 `dispose()`，再挂新元素；同元素再次挂载也会释放旧位置，页面关闭时自动释放。此 API 与嵌入整张插件页的 `embed` 各管自己的用途。
+
+签名 app 包与创作台使用同一能力。在 `interface.json` 的 `ui.slots` 写上述声明；在部件和节点写 `surfaceSlot: { slot_id: "related" }`，节点用 `kind: "surface-slot"`。部件的 `read` 指向现有安全查询，查询结果或 `outputPath` 必须是只含 `kind`、`id` 的引用数组。该查询不能外发、用模型、计费或充当呈现读取协议；组件不提供提交或选中输出。平台组件挂载原页面位置，保留原有安装范围和打开路径。不使用挂载位的包省略这组字段。
+
+用 SDK `/presentation` 的 `validatePresentationDeclaration(manifest)` 自查清单，用 `presentationValuesProblems(input, output)` 检查取值。打开组件板 `/__ui/catalog#presentation-forms` 对照四种形态，自查长标题、不可读状态、操作后果和速览的键盘路径。
 
 ## 生成插件的页面组合
 

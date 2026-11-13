@@ -224,6 +224,23 @@ export interface PluginLocaleReader {
     problems(): readonly LocaleSetProblem[];
 }
 
+export interface PresentationFormValues {
+    readonly locale: string | null;
+    readonly ownerDisplay: {
+        readonly name: string;
+        readonly icon?: PluginIconName;
+        readonly hue?: UiViewHue;
+    };
+    readonly read: Pick<PresentationValueItem, "state" | "values" | "read_at"> | {
+        readonly state: "unreadable";
+    };
+    readonly actions?: readonly PresentationControl[];
+    readonly notices?: readonly {
+        readonly reason: OwnedTextRef;
+        readonly next?: PresentationControl;
+    }[];
+}
+
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 export declare const STATE_RING_CORES: Record<string, string>;
@@ -409,6 +426,8 @@ export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifes
 export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
 
 export declare function preferredUiLanguage(catalog: UiLanguageCatalog, requested: readonly string[]): UiLanguageDescriptor | undefined;
+
+export declare function presentationOwnerHue(pluginId: string): UiViewHue;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
@@ -605,6 +624,25 @@ export declare function renderLabel(options: {
     className?: string;
 }): string;
 
+export declare function renderMenu(options: {
+    items: string;
+    className?: string;
+    labelledBy?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
+export declare function renderMenuItem(options: {
+    label: string;
+    description?: string;
+    id?: string;
+    iconName?: Parameters<typeof icon>[0];
+    danger?: boolean;
+    shortcut?: string;
+    disabled?: boolean;
+    checked?: boolean;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderMeter(options: {
     value: number;
     max?: number;
@@ -634,6 +672,21 @@ export declare function renderPluginStageShell(input: {
     dataset: string;
     extraAttrs?: string;
     body: string;
+}): string;
+
+export declare function renderPopover(options: {
+    body: string;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+    preview?: boolean;
+}): string;
+
+export declare function renderPresentationForm(object: OwnedPresentationObject, form: FormKind, values: PresentationFormValues): string;
+
+export declare function renderPreviewCard(options: {
+    title: string;
+    body: string;
+    className?: string;
 }): string;
 
 export declare function renderProgress(options: {
@@ -692,6 +745,17 @@ export declare function renderSelect(options?: MwInputOptions & {
 
 export declare function renderSeparator(options?: {
     className?: string;
+}): string;
+
+export declare function renderSheet(options: {
+    labelledBy: string;
+    title: string;
+    description?: string;
+    body: string;
+    footer: string;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+    closeLabel?: string;
 }): string;
 
 export declare function renderSidebar(options: {
@@ -831,7 +895,16 @@ interface MwInputOptions {
     attrs?: Record<string, AttrValue>;
 }
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
+    readonly actions?: PluginManifest["actions"];
+};
+
+interface PresentationControl {
+    readonly key: string;
+    readonly label: string;
+    readonly primary?: boolean;
+    readonly consequence?: readonly SurfaceConsequence[];
+}
 
 interface RingSegment {
     points: number[][];

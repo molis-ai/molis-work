@@ -1,7 +1,7 @@
 import { SANDBOX_PACKAGE_FILES, pluginErrors, type PluginPackageBundle, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_LIMITS } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { effectsFromContract, parsePluginPackageManifest, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { effectsFromContract, parsePluginPackageManifest, parseSandboxUi, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES, type PluginIconName } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { parsePluginPackage } from '@molis-ai/molis-work-plugin-runtime';
 import { packDeclaredLocales, packageFileReader, writePluginPackageFile } from './package-files.js';
@@ -50,7 +50,8 @@ export async function packSandboxProject(directory: string, output: string, opti
   const contract = contractInput(await readJson(SANDBOX_PACKAGE_FILES.contract));
   const surface = await readJson(SANDBOX_PACKAGE_FILES.interface);
   if (!plain(surface) || !Array.isArray(surface.parts) || !Array.isArray(surface.nodes)
-    || Object.keys(surface).some(key => !['parts', 'nodes', 'acceptance', 'presentation'].includes(key))) return invalid('interface.json 必须声明 parts/nodes，不能加入任意字段');
+    || Object.keys(surface).some(key => !['parts', 'nodes', 'acceptance', 'presentation', 'ui'].includes(key))) return invalid('interface.json 必须声明 parts/nodes，不能加入任意字段');
+  parseSandboxUi(surface.ui);
   const prompts = await readJson(SANDBOX_PACKAGE_FILES.prompts);
   if (!Array.isArray(prompts)) invalid('prompts.json 必须是列表');
   const code = await read(SANDBOX_PACKAGE_FILES.entrypoint, 8 * 1024 * 1024);

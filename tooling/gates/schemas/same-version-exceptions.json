@@ -1,10 +1,10 @@
 [
   {
     "store": "projects/*/molis-work.db",
-    "version": 2,
-    "from": "0866eff8b6d2f85b",
-    "to": "3aebf14aed859252",
-    "approved": "用户 2026-11-11 弹窗选「门禁例外」：只放行这一对结构哈希，项目库保持第 2 版，其他库不受影响",
-    "reason": "Files 退役的同版本采用（specs/batch-06-shared-tools/current-version-adoption.md）：过程项改记采用后的 process_items_adopted 日志，同名触发器切过去，原日志留作恢复证据。第 2 版旧布局不就地修补，只由显式采用程序（apps/local-host/src/process-items-adoption.ts）在隔离环境改；1→2 升级段直接升到新布局（用户 2026-11-12 定）。"
+    "version": 3,
+    "from": "8692b6c37da54b0a",
+    "to": "052d02d66e597812",
+    "approved": "用户 2026-11-11 弹窗选「门禁例外」：只放行这一对结构哈希，其他库不受影响；2026-11-13 第 15 批把项目库升到第 3 版后，用户弹窗选「例外改指第 3 版」，同一决定从第 2 版那对哈希改指第 3 版这一对",
+    "reason": "Files 退役的同版本采用（specs/batch-06-shared-tools/current-version-adoption.md）：过程项改记采用后的 process_items_adopted 日志，同名触发器切过去，原日志留作恢复证据。第 2 版旧布局不就地修补：宿主的 2→3 升级对它因结构不符回滚，只由显式采用程序（apps/local-host/src/process-items-adoption.ts）换日志后在同一事务里走完 2→3；1→2 升级段直接升到新布局（用户 2026-11-12 定）。"
   }
 ]

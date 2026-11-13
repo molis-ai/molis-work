@@ -69,6 +69,21 @@ test("UPG-01 a version that goes down fails", () => {
   assert.match(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PLUGIN(), PROJECT()) }, table(MEMORY(2))).join("\n"), /memory\/memory\.db: its version went down, 2 → 1/u);
 });
 
+test("UPG-01 discussion v1 allows only the approved directional structure change", () => {
+  const discussion = (hash: string, store = "server/server.sqlite", owner = "server", version = 1, upgrades = "-") =>
+    `${store}\t${owner}\t${version}\t${hash}\t${upgrades}`;
+  const before = "626a2905680637a9", after = "2c4efaa24415de5e";
+  const check = (base: string, head: string) => problems({ [SCHEMAS_FILE]: table(head) }, table(base)).join("\n");
+  assert.equal(check(discussion(before), discussion(after)), "");
+  for (const [old, next] of [
+    [discussion(after), discussion(before)], [discussion(HASH), discussion(after)], [discussion(before), discussion(OTHER)],
+    [discussion(before, "test/other.sqlite"), discussion(after, "test/other.sqlite")],
+    [discussion(before), discussion(after, "server/server.sqlite", "test")],
+    [discussion(before, undefined, undefined, 2), discussion(after, undefined, undefined, 2)],
+    [discussion(before), discussion(after, undefined, undefined, 1, "1")],
+  ]) assert.match(check(old!, next!), /UPG-01.*creation statements changed/u);
+});
+
 test("UPG-01 a raised version needs each step from the old version and a golden that holds the library at the old version", () => {
   const holding = golden([{ path: "memory/memory.db", schema_version: 1 }, { path: "projects/p1/molis-work.db", schema_version: 1, plugin_tables: { "io.molis.work.todo": 1 } }, { path: "projects/catalog.db", schema_version: 1 }]);
   const raised = (memory: string, goldens: Tree = { "tests/fixtures/golden-homes/0.1.0/manifest.json": holding }) => problems({ [SCHEMAS_FILE]: table(CATALOG(), memory, PLUGIN(), PROJECT()), ...goldens });

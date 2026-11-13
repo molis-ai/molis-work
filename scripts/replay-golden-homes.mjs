@@ -37,6 +37,7 @@ const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs"
 const { assertRecordedVersions } = await import("./golden/formats.mjs");
 const storage = await import("@molis-ai/molis-work-storage");
 const { relativePathPattern, versionsNewestLast } = await import("./golden/versions.mjs");
+const { retainRefusedDiscussion } = await import("./golden/discussion-v1.mjs");
 
 /** A golden Home has neither a managed workspace nor a model a read could reach. The table of the shared read, and nothing wider. */
 const UNAVAILABLE = unavailableInFixture;
@@ -73,11 +74,14 @@ function declaredReductions(entry) {
 
 /**
  * Every recorded table of every library still has at least its recorded rows (§4 step 5), less what the Files retirement's adoption declared it
- * drops (`adoptAsMaintenance`), library by library and table by table. Only numbers leave this function.
+ * drops (`adoptAsMaintenance`), library by library and table by table. An old discussion library the discussion-v1 step refused is counted where
+ * it was kept. Only numbers leave this function.
  */
-function assertRowsKept(manifest, home, retired = new Map()) {
+function assertRowsKept(manifest, home, retainedDiscussion, retired = new Map()) {
   for (const entry of manifest.stores) {
-    const db = new DatabaseSync(path.join(home, entry.path), { readOnly: true });
+    const retained = retainedDiscussion.get(entry.path);
+    retained?.assertKept();
+    const db = new DatabaseSync(retained?.file ?? path.join(home, entry.path), { readOnly: true });
     let now;
     try { now = countSqliteRows(db); } finally { db.close(); }
     const reduced = declaredReductions(entry), dropped = retired.get(entry.path) ?? {};
@@ -283,20 +287,23 @@ async function replayGolden(name) {
     restoreGolden(source, manifest, restored.home);
     // The gates take a golden's versions from its manifest; before anything upgrades them, they are read from what was restored.
     step = "recorded-versions"; assertRecordedVersions(storage, manifest, restored.home);
+    step = "discussion-v1-refusal"; const retainedDiscussion = retainRefusedDiscussion(manifest, restored);
+    steps.discussion_v1_refused = retainedDiscussion.size;
     const homes = homesOf(manifest, restored.home), filesOnly = filesOnlyRows(homes, restored.home);
     step = "upgrade"; await startEveryHost(homes);
     step = "adoption"; const retired = await adoptAsMaintenance(filesOnly, restored.home);
     step = "upgrade"; await openEveryProject(homes);
-    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home, retired);
+    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home, retainedDiscussion, retired);
     step = "structure"; await assertStructure(homes);
     step = "versioned-files"; steps.versioned_files = await readVersionedFiles(manifest, source, homes);
     step = "read"; steps.reads = await readEverything(manifest, homes);
-    step = "rows"; assertRowsKept(manifest, restored.home, retired);
+    step = "rows"; assertRowsKept(manifest, restored.home, retainedDiscussion, retired);
     step = "write"; steps.writes = await writeEverything(homes);
     step = "third-party"; steps.third_party = await replayThirdParty(manifest, homes);
     step = "home-library"; steps.home_library = await replayHomeLibrary(manifest, homes);
     step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
     step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
+    step = "discussion-v1-retained"; for (const retained of retainedDiscussion.values()) retained.assertKept();
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
     return { golden: name, ok: true, steps, not_run: [["third-party", steps.third_party], ["home-library", steps.home_library]].filter(([, result]) => result === THIRD_PARTY_NOT_RUN).map(([what]) => what) };
   } catch (error) {
@@ -312,6 +319,6 @@ const said = result => result === THIRD_PARTY_NOT_RUN ? `not run on ${process.pl
 for (const name of selectedGoldens()) results.push(await replayGolden(name));
 if (json) writeFileSync(1, `${JSON.stringify({ results })}\n`);
 else if (!results.length) writeFileSync(1, "no golden Homes to replay\n");
-else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
+else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, discussion v1: ${item.steps.discussion_v1_refused} old files refused and kept, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
 // The Host's background work has no reason to outlive a finished replay.
 process.exit(results.every(item => item.ok) ? 0 : 1);

@@ -27,6 +27,15 @@ const fromRequest = (request: PluginRouteRequest, keys: readonly string[] = []) 
   ...(request.params.runId ? { run_id: request.params.runId } : {}),
   ...Object.fromEntries(keys.flatMap(key => request.query[key] === undefined ? [] : [[key, key === "window" || key === "before" || key === "limit" || key === "revision" ? Number(request.query[key]) : request.query[key]]])) });
 
+const createSession = define("sessions.create", /* @version action.coding.sessions.create */ 1, "新建编码会话",
+  "新建一个编码会话；第一轮任务开始前不会调用模型", "command", closed({ title: { type: "string", maxLength: 200 } }, []), ["storage:private"], READS);
+export const codingCreateSessionAction = { ...createSession, action: { ...createSession.action,
+  output_schema: closed({ session: open({
+    project_id: id, session_id: id, title: { type: "string" }, state: { const: "idle" }, archived: { const: false },
+    goal_id: { type: "null" }, runtime_id: id, runtime_session_id: { type: "null" },
+    created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" },
+  }) }), result_subject: { id: "session.session_id", revision: "session.updated_at" } } };
+
 /** Coding's business surface: the Runtime instance redeems these, and the matching routes only forward to them. */
 export const codingRouteActions: Readonly<Record<string, { definition: ActionDefinition<Record<string, unknown>, unknown> } & Translate>> = {
   // One session as a subject: its title, state and latest rounds, by the shared protocol (the Assistant, references).
@@ -38,7 +47,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toRequest: input => ({ method: "GET", params: {}, query: { ...(typeof input.cursor === "string" ? { cursor: input.cursor } : {}), limit: String(input.limit ?? 500) }, body: {} }) },
   "coding.state": { definition: define("state", /* @version action.coding.state */ 1, "Coding 概况", "读取本项目的编码会话、可用模型、运行时、方法与当前工作目录", "query", closed({}), ["artifact:read"], READS),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
-  "coding.create-session": { definition: define("sessions.create", /* @version action.coding.sessions.create */ 1, "新建编码会话", "新建一个编码会话；第一轮任务开始前不会调用模型", "command", closed({ title: { type: "string", maxLength: 200 } }, []), ["storage:private"], READS),
+  "coding.create-session": { definition: codingCreateSessionAction,
     toInput: request => body(request).title === undefined ? {} : { title: body(request).title }, toRequest: input => ({ method: "POST", params: {}, query: {}, body: input }) },
   "coding.read-session": { definition: define("sessions.read", /* @version action.coding.sessions.read */ 1, "读取编码会话", "读取会话、最近几轮执行与草稿；window 限制完整读取的轮次", "query",
       closed({ ...session, window: { type: "integer", minimum: 1, maximum: 50 }, known: { type: "string", maxLength: 20_000 }, earlier: { type: "string", maxLength: 200 } }, ["session_id"]), ["artifact:read"], READS),

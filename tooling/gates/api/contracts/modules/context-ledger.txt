@@ -60,6 +60,10 @@ export interface ContextLedgerApi {
     };
 }
 
+export interface ContextLedgerRelationReader {
+    activeBetween(access: ContextAccess, candidates: readonly ObjectRef[], types: readonly string[]): ContextEdge[];
+}
+
 export interface ContextMaterializationApi {
     rebuild<T>(access: ContextAccess, request: ContextRebuildRequest, read: (ref: ObjectRef, access: ContextAccess) => ContextObjectRead<T>): {
         nodes: ContextMaterializedNode<T>[];

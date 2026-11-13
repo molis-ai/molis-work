@@ -26,10 +26,57 @@ import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
 import { installedStageSection } from "./workbench-renderer.js";
 import { installedPluginWords } from "./plugin-builder/installed-page.js";
-import { FRAME_QUERY } from "./plugin-builder-surface.js";
+import { assertStageInstallation, installedStageIdentity, installedStagePath, requestedStageInstallation } from "./installed-stage-identity.js";
+import { captureWebSessionAuthority } from "./web-sessions.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
 export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; reaches(pluginId: string): boolean } | null>;
+
+/** Management is a Host operation. Queued requests check the original connection before changing an installation. */
+async function changeHomePlugin(request: IncomingMessage, response: ServerResponse, home: HomePluginHost, platform: HomePluginPlatform,
+  pluginId: string, operation: "enable" | "disable" | "uninstall"): Promise<void> {
+  if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return; }
+  const assertConnected = () => {
+    if (request.aborted || response.destroyed) throw new ActionError("actions.cancelled", "这次设置操作已经结束");
+  };
+  try {
+    if (home.hasPackage(pluginId)) {
+      // A package installed in the Home (BL-628): switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
+      if (operation === "uninstall" && pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
+      const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
+      // The installation this request reaches is fixed when it arrives (BL-915): a reinstall or upgrade while it waits is not taken off in its place; what it kept is answered as the settings door answers it (`retained`).
+      // Read once the Home has started: before that no installation is known, and the uninstall would fall back to whatever is current then.
+      if (operation === "uninstall") await home.ready();
+      const row = operation === "uninstall" ? home.installation(pluginId) : undefined;
+      const retained = await home.packageAction(pluginId, operation, { keepData: body?.keep_data === true,
+        ...row ? { target: { install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } } : {} },
+        { assert_authority_current: assertConnected });
+      sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true, ...retained.length ? { retained } : {} });
+    } else if (operation === "uninstall") {
+      sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
+    } else if (operation === "enable") {
+      const state = await home.installationScope.run(() => { assertConnected(); return platform.supervisor.enable(pluginId); });
+      sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
+    } else {
+      assertConnected();
+      const refusal = home.leaveRefusal(pluginId, "停用");
+      if (refusal) throw refusal;
+      const install = home.installation(pluginId);
+      platform.supervisor.revoke(pluginId);
+      if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
+      sendLocalWebJson(response, 200, { disabled: true });
+    }
+  } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
+}
+
+/** A tagged lazy frame must not fall through to a different scope or an unbound page. */
+function unavailableStage(response: ServerResponse, expected?: SurfaceInstallationRef): boolean {
+  if (!expected) return false;
+  const refused = actionErrorResponse(new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开"));
+  sendLocalWebJson(response, refused.status, refused.body);
+  return true;
+}
 
 /**
  * Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. A plugin's own route
@@ -44,13 +91,19 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const sidePage = /^\/side\/([a-z0-9][a-z0-9.-]*)\/([a-z0-9-]+)$/u.exec(url.pathname);
   const page = sidePage ?? /^\/plugins\/([a-z0-9][a-z0-9.-]*)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
-  if (!page && !route || !host.homePlugins) return false;
+  if (!page && !route) return false;
+  let expected: SurfaceInstallationRef | undefined;
+  try { expected = page ? requestedStageInstallation(url) : undefined; }
+  catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); return true; }
+  if (expected?.scope === "project") return false;
+  const home = host.homePlugins, currentSession = captureWebSessionAuthority();
+  if (!home) return unavailableStage(response, expected);
   const pageLocale = () => ({ readText, htmlLang, accountRegistration, appearance: appearance?.current() });
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
-  const entry = page ? await registeredPage(host.homePlugins, page[1]!) : undefined;
-  if (page && !entry) return false;
+  const entry = page ? await registeredPage(home, page[1]!) : undefined;
+  if (page && !entry) return unavailableStage(response, expected);
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
-  if (!host.homePlugins.manifest(pluginId)) return false;
+  if (!home.manifest(pluginId) || expected && (sidePage || page?.[1] !== pluginId)) return unavailableStage(response, expected);
   const side = sidePage?.[2] ?? (page ? url.searchParams.get("side") : null);
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
@@ -63,9 +116,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
   // A dual-instance plugin's routes are split between its halves (specs/archive/dual-instance-plugins): the Home answers those its running half
   // binds and leaves every other declared route to the project's instance, next in the request chain. Only the Host's start list marks a plugin so.
-  const split = Boolean(route) && !PLUGIN_MANAGEMENT_OPERATIONS.has(operation) && host.homePlugins.dualInstance(pluginId);
+  const split = Boolean(route) && !PLUGIN_MANAGEMENT_OPERATIONS.has(operation) && home.dualInstance(pluginId);
   let platform;
-  try { platform = await (operation === "retry" ? host.homePlugins.retry() : host.homePlugins.ready()); }
+  try { platform = await (operation === "retry" ? home.retry() : home.ready()); }
   catch (error) {
     if (split) return false;
     const message = error instanceof Error ? error.message : String(error);
@@ -75,7 +128,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     } else sendLocalWebJson(response, 503, { error: message });
     return true;
   }
-  const install = host.homePlugins.installation(pluginId);
+  const install = home.installation(pluginId);
   // A running Home half that does not bind the route leaves it to the project's half, unchanged. A Home half that binds nothing
   // (stopped, revoked or uninstalled) leaves it only to a project half that binds it; one that does not, or whose platform cannot be
   // started, is not this route's to answer: the Home answers it as it answers any stopped Home plugin's (RAC-1300, RAC-1301).
@@ -105,15 +158,27 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (page && entry) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     // A signed package installed in the Home draws its stage with a page of its own, framed by the workbench or by the Home's page around it.
-    if (host.homePlugins.hasPackage(pluginId)) {
-      const surface = host.homePlugins.packageStage(pluginId), framed = url.searchParams.get("frame") === "workbench";
-      const projection = framed && request.headers.accept === "application/json";
+    if (expected || home.hasPackage(pluginId)) {
+      const framed = url.searchParams.get("frame") === "workbench", projection = framed && request.headers.accept === "application/json";
       if (projection && !shellPageRead(request, "http://" + requestHost(request))) { refuseLocalWebRequest(response); return true; }
       try {
-        const body = surface && framed ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null, accountRegistration, projection)!
-          : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
+        currentSession();
+        const current = home.installation(pluginId), release = home.packageStage(pluginId);
+        if (expected) {
+          assertStageInstallation("home", current, expected);
+          if (!release) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
+        }
+        // A stage with declared object slots opens in the workbench, where its slots are drawn (it has no page of its own to open).
+        if (release && project && !framed && captureRuntimeStageOwner(platform, "home", pageEntry(entry))?.view.descriptor.slots.length) {
+          response.writeHead(302, { location: `/projects/${encodeURIComponent(project.project_id)}/?openSurface=${encodeURIComponent(release.pluginId)}`, "cache-control": "no-store" });
+          response.end(); return true;
+        }
+        const frame = release && current ? installedStagePath(project ? `/projects/${encodeURIComponent(project.project_id)}` : "", pluginId, installedStageIdentity("home", current)) : undefined;
+        const body = release && framed ? home.packageDocument(pluginId, controlToken, project?.project_id ?? null, accountRegistration, projection, expected)
+          : renderHomePluginPage(pageEntry(entry), null, home.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
             // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
-            pageLocale(), false, false, project, surface ? `${project ? `/projects/${encodeURIComponent(project.project_id)}` : ""}/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
+            pageLocale(), false, false, project, frame, Boolean(release));
+        if (body === undefined) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
         if (typeof body !== "string") sendLocalWebJson(response, 200, body);
         else { response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp }); response.end(body); }
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
@@ -126,30 +191,18 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
     const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: { ...homeViewModel(pluginId), project_id: project?.project_id ?? null, route_prefix: project ? `/projects/${encodeURIComponent(project.project_id)}` : "", view_id: side } }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-    response.end(renderHomePluginPage(pageEntry(entry), html, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken, pageLocale(), false, Boolean(sideView), project));
+    response.end(renderHomePluginPage(pageEntry(entry), html, home.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken, pageLocale(), false, Boolean(sideView), project));
     return true;
   }
-  if (["enable", "disable", "uninstall"].includes(operation)) {
-    if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return true; }
-    if (host.homePlugins.hasPackage(pluginId)) { await answerPackageAction(request, response, host.homePlugins, pluginId, operation as "enable" | "disable" | "uninstall"); return true; }
-    if (operation === "uninstall") { sendLocalWebJson(response, 404, { error: "插件没有这个入口" }); return true; }
-    if (operation === "enable") {
-      const state = await platform.supervisor.enable(pluginId);
-      sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
-    } else {
-      const refusal = host.homePlugins.leaveRefusal(pluginId, "停用");
-      if (refusal) { const refused = actionErrorResponse(refusal); sendLocalWebJson(response, refused.status, refused.body); return true; }
-      platform.supervisor.revoke(pluginId);
-      if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
-      sendLocalWebJson(response, 200, { disabled: true });
-    }
+  if (operation === "enable" || operation === "disable" || operation === "uninstall") {
+    await changeHomePlugin(request, response, home, platform, pluginId, operation);
     return true;
   }
   const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
   const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
-  const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }, pageAuthority?.assertCurrent), page_context: homePageContext(request, url, host.homePlugins.registered()), project_title: project?.display_name };
+  const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }, pageAuthority?.assertCurrent), page_context: homePageContext(request, url, home.registered()), project_title: project?.display_name };
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
@@ -171,27 +224,11 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
           error instanceof Error ? error.message : "请求读取失败"); }
       },
     });
-    const handled = install && host.homePlugins.hasPackage(pluginId)
+    const handled = install && home.hasPackage(pluginId)
       ? await withProjectReachInvocation(execution, project?.project_id ?? null, install, dispatch) : await dispatch();
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
-}
-
-/** A package installed in the Home (BL-628): switched and removed by the install lifecycle a project's packages have, not by the supervisor alone. */
-async function answerPackageAction(request: IncomingMessage, response: ServerResponse, homePlugins: HomePluginHost, pluginId: string,
-  operation: "enable" | "disable" | "uninstall"): Promise<void> {
-  try {
-    if (operation === "uninstall" && pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
-    const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
-    // The installation this request reaches is fixed when it arrives (BL-915): a reinstall or upgrade while it waits is not taken off in its place; what it kept is answered as the settings door answers it (`retained`).
-    // Read once the Home has started: before that no installation is known, and the uninstall would fall back to whatever is current then.
-    if (operation === "uninstall") await homePlugins.ready();
-    const row = operation === "uninstall" ? homePlugins.installation(pluginId) : undefined;
-    const retained = await homePlugins.packageAction(pluginId, operation, { keepData: body?.keep_data === true,
-      ...row ? { target: { install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } } : {} });
-    sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true, ...retained.length ? { retained } : {} });
-  } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
 }
 
 /**
@@ -330,8 +367,12 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest), key = `home:${entry.project_plugin_id}`;
     if (options?.views && !Object.hasOwn(options.views, key)) continue;
     if (host.hasPackage(pluginId)) {
-      const release = host.packageStage(pluginId);
-      if (release) html.push(installedStageSection({ pluginId, surface: release.pluginId, label: installedPluginWords(release).name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+      const release = host.packageStage(pluginId), record = host.installation(pluginId);
+      const actual = captureRuntimeStageOwner(platform, "home", entry);
+      if (release && record && actual) {
+        html.push(installedStageSection({ pluginId, surface: release.pluginId, installation: installedStageIdentity("home", record), label: installedPluginWords(release).name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+        surfaces.push({ contribution_id: actual.view.descriptor.contribution_id, surface: "workbench" });
+      }
       else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
       continue;
     }
@@ -378,10 +419,16 @@ export async function homeStageHalves(host?: HomePluginHost): Promise<HomeStageH
   let platform: HomePluginPlatform | undefined, failure: { code: string; message: string } | undefined;
   try { platform = await host.ready(); }
   catch (error) { failure = { code: error instanceof ActionError ? error.code : "actions.plugin_unavailable", message: uiText.text("workbench.home-plugin-http.start-failed") }; }
-  const outsideCatalog = host.registered().filter(entry => host.dualInstance(entry.manifest.plugin_id)
-    && builtinPluginByProjectKey(entry.key)?.manifest.plugin_id !== entry.manifest.plugin_id)
-    .map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
-  return { outsideCatalog, entries: host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest })),
+  return currentHomeStageHalves(host, platform, failure);
+}
+
+/** The same projection from the live Home, without opening it or waiting for startup. */
+export function currentHomeStageHalves(host?: HomePluginHost, platform = host?.surfacePlatform(), failure?: { code: string; message: string }): HomeStageHalves | undefined {
+  if (!host) return undefined;
+  const entries = host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
+  const outsideCatalog = entries.filter(entry => host.dualInstance(entry.manifest.plugin_id)
+    && builtinPluginByProjectKey(entry.project_plugin_id)?.manifest.plugin_id !== entry.manifest.plugin_id);
+  return { outsideCatalog, entries,
     owner: entry => captureRuntimeStageOwner(platform, "home", entry),
     hasPackage: pluginId => host.hasPackage(pluginId),
     dualInstance: pluginId => host.dualInstance(pluginId),

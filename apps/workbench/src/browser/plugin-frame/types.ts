@@ -34,6 +34,8 @@ export interface FrameHost {
   status?(...args: unknown[]): void;
   openView?(root: HTMLElement, selection: UiViewSelection): void;
   invalidateView?(root: HTMLElement): void;
+  positionNavigationFrom?(root: HTMLElement): (result: unknown) => boolean;
+  positionChanged?(): void;
 }
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
   recordRow?: { selector: string; idDataset: string };
@@ -68,6 +70,10 @@ export type FrameAnswer = { type: "response"; id: number; status: number; status
   | { type: "chunk"; id: number; bytes: ArrayBuffer } | { type: "end"; id: number } | { type: "fetch-error"; id: number; message: string };
 /** A box the page reports for an empty element of its own, in its frame's CSS pixels; `null` while it cannot be shown. */
 export type FrameBox = { x: number; y: number; width: number; height: number };
+export type SurfaceSlotUp = { type: "surface-slot-open"; id: number; slot_id: string; subjects: unknown }
+  | { type: "surface-slot-layout"; id: number; box: FrameBox | null } | { type: "surface-slot-close"; id: number };
+export type SurfaceSlotDown = { type: "surface-slot-ready"; id: number; error?: "unavailable" }
+  | { type: "surface-slot-size"; id: number; height: number };
 /**
  * The platform's reads area on one of the page's tasks (task-grants-area.ts). Up: only a key, a place and closing — nothing that
  * chooses a category or writes. Down: only the element's height (one of two steps, or 0 when too narrow), when it shows (with the
@@ -114,7 +120,7 @@ export type FrameUp =
   | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
-  | TaskGrantsUp | ConnectionNeedUp | ReturnUp | ComposerUp
+  | TaskGrantsUp | ConnectionNeedUp | ReturnUp | ComposerUp | SurfaceSlotUp
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string }; input?: Readonly<Record<string, string>> }
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
@@ -141,7 +147,7 @@ export type FrameDown =
   | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
   | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; error?: string; status?: number }
   | { type: "embedded"; id: number; error?: string }
-  | TaskGrantsDown | ConnectionNeedDown | ReturnDown | ComposerDown
+  | TaskGrantsDown | ConnectionNeedDown | ReturnDown | ComposerDown | SurfaceSlotDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "environment"; snapshot: AppearanceProjection["snapshot"]; skin_href: string | null }
   | FrameLanguageUpdate

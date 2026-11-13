@@ -94,7 +94,7 @@ const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJEC
   examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 } } as const;
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
-  subject: defineSubjectContextAction("pages.subject.read", /* @version action.pages.subject.read */ 1, PAGES_SUBJECT_KIND, "文档", read),
+  subject: withAction(defineSubjectContextAction("pages.subject.read", /* @version action.pages.subject.read */ 1, PAGES_SUBJECT_KIND, "文档", read), { execution: { cost: "none" } }),
   /** What can be done with part of a document; preparing reads and writes nothing (specs/archive/contextual-interaction §5.1). */
   fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", /* @version action.pages.fragment.offers */ 1, [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
   /** The input of 「存为文档」 for a passage from anywhere; no choices of its own, so it is only the `prepare` of `create`. */

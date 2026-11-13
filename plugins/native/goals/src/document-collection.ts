@@ -4,6 +4,7 @@ import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 import { createGoalDocumentIndex } from "./document-index.js";
 import { projectGoalDocument } from "./document-projection.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
+import type { CaptureGoalPresentationStatus } from "./presentation.js";
 
 /**
  * Which list each of the project's Goals is in, read from the snapshot and the trash before any Goal is projected: the collection
@@ -32,7 +33,8 @@ function placeGoals<T extends { goal: BoardSnapshot["goals"][number] }>(allGoals
   return { active_goal_id: activeGoalId, goals, archived_goals: archivedGoals, trashed_goals: trashedGoals };
 }
 
-export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string, membership = readGoalsMembership(ports, projectId)) {
+export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string, membership = readGoalsMembership(ports, projectId),
+  capturePresentation?: CaptureGoalPresentationStatus) {
   const { snapshot } = membership;
   const inputBindings = ports.inputs.list(projectId)
     .map(({ project_id: _projectId, ...binding }): GoalsInputBinding => binding);
@@ -40,7 +42,7 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, proj
   const events = ports.events(projectId);
   const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listWorkEventGoalLinks(projectId));
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {
-    projectId, snapshot, ports, index,
+    projectId, snapshot, ports, index, capturePresentation,
   }));
   const { active_goal_id, goals, archived_goals, trashed_goals } = placeGoals(allGoals, snapshot, membership.trashedGoalIds);
   const counts = Object.fromEntries(GOALS_PRESENTATION_STATES.map((status) => [status, 0])) as Record<GoalPresentationState, number>;

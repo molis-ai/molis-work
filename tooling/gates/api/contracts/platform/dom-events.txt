@@ -455,16 +455,9 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "element";
     readonly detail: "none";
     readonly summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.";
-}, {
-    readonly name: "workbench-open-group";
-    readonly kind: "request";
-    readonly owner: "tab-workspace";
-    readonly on: "document";
-    readonly detail: "{ surface, id }";
-    readonly summary: "Open the named plugin default page with its current group selection; the layout owner selects the pane and tab.";
 }];
 
-export declare const DOM_EVENT_PREFIXES: readonly ["molis-work:", "molis:", "workbench-"];
+export declare const DOM_EVENT_PREFIXES: readonly ["molis-work:", "molis:"];
 
 export interface DomEventDeclaration {
     readonly name: string;
@@ -509,7 +502,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.";
     };
     readonly "tab-workspace": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/plugin-document-shell.ts", "apps/workbench/src/browser/plugin-frame/view.ts"];
         readonly state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).";
     };
     readonly "settings-directory": {

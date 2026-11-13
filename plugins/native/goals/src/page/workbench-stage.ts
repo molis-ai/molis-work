@@ -31,7 +31,11 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
     const ports = goalsPagePorts(model);
     const page = createGoalsPage(ports);
     const selected = data.selected;
-    const decorate = (item: GoalsPageView["goals"][number]) => item.goal.goal_id === selected?.goal_id ? { ...item, event_document: selected.document } : item;
+    const states = new Map(data.presentation_states.map(({ goal_id, status }) => [goal_id, status]));
+    const decorate = (item: GoalsPageView["goals"][number]) => ({ ...item,
+      ...(item.goal.goal_id === selected?.goal_id ? { event_document: selected.document } : {}),
+      ...(states.has(item.goal.goal_id) ? { presentation_status: states.get(item.goal.goal_id) } : {}),
+    });
     const view: GoalsPageView = { ...data.collection, project: context.project, demo: context.demo, route_prefix: model.route_prefix,
       goals: data.collection.goals.map(decorate), archived_goals: data.collection.archived_goals.map(decorate), trashed_goals: data.collection.trashed_goals.map(decorate),
       inbox_judgment: context.client_data?.inbox_judgment };

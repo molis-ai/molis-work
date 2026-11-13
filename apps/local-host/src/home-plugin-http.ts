@@ -206,7 +206,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
-    const caller = await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
+    const caller = await projectContext(host, project);
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
@@ -289,11 +289,13 @@ function binds(platform: Pick<PluginPlatform, "runtime">, install: PluginInstanc
  * The project's plugin platform, started through the Host's own preparation path when nothing has started it yet. Null when it still
  * does not run: the route is then the project chain's to answer, as it answers any project plugin route whose platform cannot start.
  */
+const projectContext = (host: MolisWorkLocalHost, project: LocalHostProjectReference | undefined) => localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
+
 async function projectPluginPlatform(host: MolisWorkLocalHost, project: LocalHostProjectReference): Promise<PluginPlatform | null> {
   const running = () => host.withProject(project, runtime => runningProjectPlatform(runtime.store, project.project_id));
   const started = await running();
   if (started) return started;
-  await host.actionClient(project).discover(await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS));
+  await host.actionClient(project).discover(await projectContext(host, project));
   return running();
 }
 

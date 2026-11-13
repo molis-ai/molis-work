@@ -41,12 +41,14 @@ export async function runUpkeep(service: MemoryService, input: { homeDirectory: 
   });
 }
 
+const memoryContext = (host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+
 /** The names of the objects memories are limited to (Goals, for now), read through their own plugins' readers; unreadable ones are left out. */
 export async function subjectTitles(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, kind: string, ids: readonly string[]): Promise<Record<string, string>> {
   const unique = [...new Set(ids)].slice(0, 40);
   if (!unique.length) return {};
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
-  const context = await localWebActionContext(localHost, reference, LOCAL_OWNER_PERMISSIONS);
+  const context = await memoryContext(localHost, reference);
   const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
   const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(kind));
   if (!reader) return {};
@@ -64,7 +66,7 @@ async function objectState(localHost: MolisWorkLocalHost, ref: { kind: string; i
   const reference = ref.project_id ? localHost.projects().find(row => row.project_id === ref.project_id && row.state !== "closing") : undefined;
   if (ref.project_id && !reference) return "unknown";
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
-  const context = await localWebActionContext(localHost, reference, LOCAL_OWNER_PERMISSIONS);
+  const context = await memoryContext(localHost, reference);
   const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
   const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(ref.kind));
   if (!reader) return "unknown";

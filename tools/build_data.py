@@ -2,7 +2,7 @@ import re,json,sys,collections,os
 G,R,OUT=sys.argv[1:4]
 sys.path.insert(0,G)
 from data import N,L,M1_HARD,M1_PART,FINAL,M1,MAP,MOVED
-SHA='b66112d0d7ea26cd7152631b1eb7c91e3846e2f2'
+SHA='838dfea76c8f7d963591d5b3bc999ecf82fc851a'
 rows=[(n[0],n[1],n[2],list(n[3]),n[4]) for n in N]
 ids={r[0] for r in rows}
 def parse(s):

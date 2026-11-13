@@ -1,0 +1,63 @@
+{
+  "reason": "第 22 批的首屏增量。组件板新增两项（项目许可行、外部会话原文）的标本文字 58 个键进了工作台词包（和已有 427 个组件板标本键放在同一处），词包换了内容定址文件名，门禁把它算作新路径；另有三份共用样式表各 +542 B（见 batch-22-catalog.json）。只有冷载增长，热载不变；没有新增别的路径，每页净增在 3 KB 以内。",
+  "review": "CI 对照 merge-base 3d844d493a 的隔离构建实测（Package boundaries 作业，头 94f74a7b1c）：到达页与项目选择页冷 zh +2834 / en +2643，工作台默认与全部插件冷 zh +2292 / en +2101，热各 0。许可按实测向上取整到 100 B。随第 22 批 PR #2038 评审。",
+  "userApproval": "用户于 2026-11-12 弹窗批准（「Approve as is」）：工作台中英文词包换名，以及上列各页的首屏冷载增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 2900,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 2700,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 2900,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 2700,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 2300,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 2200,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 2300,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 2200,
+      "warm": 0
+    }
+  }
+}

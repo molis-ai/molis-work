@@ -1072,6 +1072,26 @@
     "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
   },
   {
+    "entry": "action.sessions.attribution.set",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.attribution.suggest",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.search.entries",
+    "reason": "由服务片 S-4 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，S-1 按设计稿第 10.2 节除开它，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.subject.read",
+    "reason": "由服务片 S-4 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，S-1 按设计稿第 10.2 节除开它，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.tool.search",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+    },
+    {
     "file": "horizontal/memory/src/batch.ts",
     "name": "version",
     "values": { "1": 1 },

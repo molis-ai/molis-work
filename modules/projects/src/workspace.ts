@@ -17,7 +17,10 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { PROJECT_OUTPUT_PATH_PREFIX, projectOutputId } from "./project-output.js";
 import type { ProjectsRepository } from "./repository.js";
-import type { ProjectDirectoryRow } from "./workspace-repository.js";
+import { toolBoundBy, type ProjectDirectoryRow } from "./workspace-repository.js";
+
+/** What a tool's unlink did: only `unlinked` changed anything. The output stays (SSC-17), and so does a relation the person made. */
+type WorkspaceUnlinkOutcome = "unlinked" | "absent" | "output_kept" | "person_kept";
 
 /**
  * A folder a runtime context names, before it is matched to a row: its resolved path and whether `realpathSync.native` could resolve it.
@@ -134,23 +137,25 @@ export class ProjectWorkspaceService {
   }
 
   /**
-   * A runtime context's folder stops offering this project: its link goes. The project's output is left as it is (false): every project
-   * keeps its one output (SSC-17), and which folder that is changes only in the project's settings (`set_output`).
+   * A runtime context's folder stops offering this project: a link a tool brought in goes. The project's output is left as it is: every
+   * project keeps its one output (SSC-17), and which folder that is changes only in the project's settings (`set_output`). A relation the
+   * person made is left too: a tool cannot narrow what the person linked, they unlink it in the project's settings.
    */
-  unlink(workspaceId: string, projectId: string, actorId: string): boolean {
+  unlink(workspaceId: string, projectId: string, actorId: string): WorkspaceUnlinkOutcome {
+    // The relation is read once; one this project does not list is absent (a project in the recycle bin lists none).
     return this.repository.transaction(() => {
-      const own = this.repository.workspaces.projectDirectoryRows(this.requiredProjectId(projectId)).find(row => row.workspace_id === workspaceId);
-      if (own?.roles.includes("output")) return false;
-      const changes = this.repository.workspaces.removeWorkspaceMembership(
-        this.requiredWorkspaceId(workspaceId),
-        this.requiredProjectId(projectId),
-      );
-      if (changes === 0) return false;
-      this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
-      this.appendEvent(projectId, "project.workspace_unlinked", this.requiredActorId(actorId), {
-        workspace_id: workspaceId,
-      });
-      return true;
+      const project = this.requiredProjectId(projectId);
+      const workspace = this.requiredWorkspaceId(workspaceId);
+      const own = this.repository.workspaces.projectDirectoryRows(project).find(row => row.workspace_id === workspace);
+      if (!own) return "absent";
+      if (own.roles.includes("output")) return "output_kept";
+      if (this.repository.workspaces.isPersonMembership(workspace, project)) return "person_kept";
+      // Who acted is asked for only when something is recorded, as the event needs it.
+      const actor = this.requiredActorId(actorId);
+      this.repository.workspaces.removeWorkspaceMembership(workspace, project);
+      this.repository.workspaces.removeWorkspaceIfEmpty(workspace);
+      this.appendEvent(project, "project.workspace_unlinked", actor, { workspace_id: workspace });
+      return "unlinked";
     });
   }
 
@@ -162,17 +167,19 @@ export class ProjectWorkspaceService {
 
   /**
    * Links the folder at `candidate` to the project (§3 「路径到行」) and answers its row, or null when a runtime context binds the session
-   * alone. A new link gets `roles`; an existing one keeps its roles. An `explicit` link insists the path resolves and refuses what it may
+   * alone. A new link gets `roles`; an existing one keeps its roles. A `session` link is a tool's, the person's own terminal included, and
+   * is marked so (`toolBoundBy`); an `explicit` one records its actor, the person on every entry that reaches it. An `explicit` link insists the path resolves and refuses what it may
    * not name: another project's default output directory, or anywhere else inside `outputs` (`projects.directory_duplicate`).
    */
   private link(projectId: string, actorId: string, candidate: string, intent: "explicit" | "session", roles: readonly DirectoryRole[]): { workspace_id: string; created: boolean } | null {
     if (typeof candidate !== "string" || !path.isAbsolute(candidate.trim())) throw catalogErrors.workspace_required("工作目录必须是绝对路径");
+    const boundBy = intent === "session" ? toolBoundBy(actorId) : actorId;
     const place = this.repository.workspaces.placeOf(candidate.trim());
     const refuse = (message: string) => { if (intent === "explicit") throw projectDirectoryErrors.directory_duplicate(message); return null; };
     if (place.kind === "inside-outputs") return refuse("这个位置在 Molis Work 的输出目录里，不能单独关联");
     if (place.kind === "project-output") {
       if (place.project_id !== projectId) return refuse("这是另一个项目的默认输出目录，不能关联到这个项目");
-      return this.member(place.row?.workspace_id ?? this.ownOutputRow(projectId), projectId, actorId, roles);
+      return this.member(place.row?.workspace_id ?? this.ownOutputRow(projectId), projectId, actorId, boundBy, roles);
     }
     let verified = true;
     try { realpathSync.native(place.canonical_path); } catch { verified = false; }
@@ -186,13 +193,14 @@ export class ProjectWorkspaceService {
       this.repository.workspaces.upsertWorkspace({ workspace_id: workspaceId, canonical_path: place.canonical_path, realpath_verified: true,
         display_name: path.basename(place.canonical_path) || place.canonical_path }, this.now());
     }
-    return this.member(workspaceId, projectId, actorId, roles);
+    return this.member(workspaceId, projectId, actorId, boundBy, roles);
   }
 
-  private member(workspaceId: string, projectId: string, actorId: string, roles: readonly DirectoryRole[]): { workspace_id: string; created: boolean } {
+  /** `actorId` acted, as events record it; `boundBy` made the relation. An existing one is written again too, so the person can claim it; only a new one is announced. */
+  private member(workspaceId: string, projectId: string, actorId: string, boundBy: string, roles: readonly DirectoryRole[]): { workspace_id: string; created: boolean } {
     const existing = this.repository.workspaces.projectDirectoryRows(projectId).some(row => row.workspace_id === workspaceId);
+    this.repository.workspaces.upsertWorkspaceMembership({ membership_id: this.id("workspace-membership"), workspace_id: workspaceId, project_id: projectId, bound_by: boundBy, now: this.now(), roles });
     if (!existing) {
-      this.repository.workspaces.upsertWorkspaceMembership({ membership_id: this.id("workspace-membership"), workspace_id: workspaceId, project_id: projectId, actor_id: actorId, now: this.now(), roles });
       // A folder that is this project's own is read as itself: a link that named it for another device's id goes.
       this.repository.workspaces.removeSourceLink(projectId, workspaceId);
       this.appendEvent(projectId, "project.workspace_member_bound", actorId, { workspace_id: workspaceId });
@@ -237,14 +245,14 @@ export class ProjectWorkspaceService {
     this.appendEvent(projectId, "project.workspace_output_set", actorId, { workspace_id: chosen.workspace_id, previous_workspace_id: previous?.workspace_id ?? null });
   }
 
-  /** A `DirectoryTarget` as one of this project's folders: an existing one, a path linked now (as an input), or the default output directory. */
+  /** A `DirectoryTarget` as one of this project's folders: an existing one (claimed when the person chose it), a path linked now (as an input), or the default output directory. */
   private target(current: ProjectDirectories, target: DirectoryTarget, projectId: string, actorId: string): { workspace_id: string; created: boolean } {
     if ("workspace_id" in target) {
       if (!current.directories.some(item => item.workspace_id === target.workspace_id)) throw catalogErrors.workspace_membership_not_found("这个文件夹不是当前项目的目录");
-      return { workspace_id: target.workspace_id, created: false };
+      return this.member(target.workspace_id, projectId, actorId, actorId, ["input"]);
     }
     if ("workspace_path" in target) return this.link(projectId, actorId, target.workspace_path, "explicit", ["input"])!;
-    return this.member(this.ownOutputRow(projectId), projectId, actorId, ["input"]);
+    return this.member(this.ownOutputRow(projectId), projectId, actorId, actorId, ["input"]);
   }
 
   /** The row of this project's default output directory, written again under the same id when it went with an earlier change of output. */

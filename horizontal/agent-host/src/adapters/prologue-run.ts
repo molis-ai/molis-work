@@ -39,6 +39,7 @@ import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
 import { prologueToolName, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
+import { withDispatchControl } from "./prologue-dispatch.js";
 
 /**
  * Starting one round on the Prologue runtime (W4-06 moved `startAgentRun` here from the Node composition, in stages):
@@ -640,20 +641,26 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
-  const dispatchGuard = async () => {
+  const assertDispatchCurrent = () => {
+    if (stopping.current !== undefined) throw new Error("原轮次正在停止");
+    actionController.signal.throwIfAborted();
+    requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+  };
+  const dispatchGuard = { assertCurrent: assertDispatchCurrent, beforeEffect: async () => {
     await input.beforeDispatch?.();
     if (!mode.none && !mode.business) {
       await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
       await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
     }
-  };
+  } };
   // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
   // instructions on the round's own model, behind the same pre-dispatch check.
   guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
     model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
-  const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
+  const started = await withDispatchControl(deps.dispatchGuards, dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
   }))).catch(async (error: unknown) => {
+    actionController.abort();
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
     if (!deps.effects.accepted()) {
@@ -671,7 +678,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   attempted.run_id = started.run.ref.id;
   watchRoundFacts(state, started.run);
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
-  state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
+  state.dispatchChecks.set(started.run.ref.id, async () => { assertDispatchCurrent(); await dispatchGuard.beforeEffect(); assertDispatchCurrent(); });
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
   return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),

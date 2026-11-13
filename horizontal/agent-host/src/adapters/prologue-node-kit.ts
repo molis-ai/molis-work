@@ -12,6 +12,7 @@ import type { RoundFacts } from "./announce-guard.js";
 import type { StopGuard } from "./prologue-stop-guard.js";
 import { agentTool } from "../tool-catalog.js";
 import type { PrologueActionReviews } from "./prologue-action-reviews.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
 
 /**
  * What the parts of the Node composition share (W4-06 split `initializePrologueNodeAdapter` into them): the adapter's
@@ -61,7 +62,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 }
 
 export type NodeHost = ReturnType<typeof createNodeHost>;
-export type DispatchGuards = AsyncLocalStorage<() => void | Promise<void>>;
+export type DispatchGuards = AsyncLocalStorage<ReviewDecisionControl>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
 export type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";

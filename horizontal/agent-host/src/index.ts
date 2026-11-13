@@ -69,6 +69,7 @@ export type {
 } from "./capability-registration.js";
 export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
+export { guardNodeDispatch } from "./adapters/prologue-dispatch.js";
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
 export { surfaceRules } from "./adapters/prologue-surfaces.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";

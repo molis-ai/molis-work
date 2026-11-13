@@ -76,6 +76,8 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - `src/session-actions.ts`：关于会话轮次的统一动作——等待与接续（`agent.collaboration.*`），以及插件向一轮补充要求（`agent.inputs.send`，回执说这一轮收下了还是留到下一轮；纠正用 `about` 指向原来那条）、撤回还没交给模型的补充（`agent.inputs.withdraw`）。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
 
+原轮次的命令派发控制沿 `DispatchGuards` 同时携带异步准备和同步检查。前台与后台命令在现行 Node Host 真正启动进程前核原 Run 的停止/取消及持续授权，不取 Session 当前轮次代替。网络继续以原 `beforeNetworkDispatch` 消费异步检查；模型专用同步检查走 `beforeModelDispatch`，保留 SDK 的授权拒绝、取消和 handle 结算语义。改这些边界跑 `tests/security-invariants-run-dispatch.test.ts` 与 `tests/security-invariants-run-mcp-cleanup.test.ts`；MCP 单条请求和 Surface 的最终边界仍须各自接线验证。
+
 ## 开发要求
 
 - 负责：Agent Runtime 注册、能力矩阵、冻结的启动授权、宿主审查队列与 Prologue 推理接线。

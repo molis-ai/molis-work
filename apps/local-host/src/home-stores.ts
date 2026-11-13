@@ -18,6 +18,7 @@ import { UPGRADE_DIRECTORY } from "./home-upgrade-ledger.js";
 import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
 import { CONNECTOR_TOOLS_HOME_STORE } from "./connector-tool-download.js";
 import { CONNECTORS_HOME_STORE } from "./connectors-store.js";
+import { OBSERVATION_HOME_STORE } from "@molis-ai/molis-work-service-observation";
 import { CONTEXT_ONBOARDING_HOME_STORE } from "./context-onboarding-store.js";
 import { HOME_PLUGIN_RUNTIME_HOME_STORE } from "./home-plugin-store.js";
 import { INSTALLED_LIBRARIES_HOME_STORE, installedLibrarySnapshots, installedLibrarySnapshotsFile } from "./installed-plugin-libraries.js";
@@ -92,6 +93,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     }),
     ...owned("horizontal/appearance", ...at(dirname(APPEARANCE_STATE_PATH), UI_LOCALE_RELATIVE_PATH)),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
+    ...owned("horizontal/observation", OBSERVATION_HOME_STORE),
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", { path: "browser", snapshot: browserSnapshot }, { path: "plugin-builder", snapshot: builderSnapshot },
       { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("computer", "plugin-files", "git-operation-details.json", "config/onboarding.json",

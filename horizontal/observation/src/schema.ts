@@ -1,4 +1,4 @@
-import type { SqliteBaseline } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /** The Home store of the observation layer: `<Home>/observation/observation.db` (contract-design §2). */
 export const OBSERVATION_STORE = "observation";
@@ -102,3 +102,6 @@ export const OBSERVATION_BASELINE: SqliteBaseline = { version: /* @version datab
     value TEXT NOT NULL
   );
 ` };
+
+/** The library as the Home's store registry lists it: snapshotted with the Home (its evidence sealed), removed by a purge of user data. */
+export const OBSERVATION_HOME_STORE: HomeStoreDeclaration = { path: OBSERVATION_STORE, library: { baseline: OBSERVATION_BASELINE } };

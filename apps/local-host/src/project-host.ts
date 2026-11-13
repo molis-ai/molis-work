@@ -37,6 +37,7 @@ import { contextOnboardingProvider } from "./context-onboarding-actions.js";
 import { agentReviewProvider } from "./agent-review-http.js";
 import { assistantPanelProvider } from "./assistant/assistant-http.js";
 import { ActionCallLog } from "./action-call-log.js";
+import { createHostObservation, type HostObservation } from "./observation-host.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
@@ -173,6 +174,7 @@ export class MolisWorkLocalHost {
   private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
+  readonly observation?: HostObservation; // The work records of this Home (observation-collection); absent without a Home directory.
   private readonly plugins: ProjectPluginHost; // What the plugin-reading services share: the Host, its options, the Agent Host and the Home plugins.
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
@@ -192,7 +194,7 @@ export class MolisWorkLocalHost {
       instanceId: options.instanceId,
       assertProjectAvailable: projectId => { if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, projectId); },
       retainSceneAuthority: (scene, project) => capturePluginSceneAuthority(this, scene, project),
-      actionSettled: this.callReports.settled,
+      actionSettled: this.callReports.settled, actionObserved: this.callReports.observed,
       admitActionProvider: (provider, scenes) => admitProviderRules(options.homeDirectory, provider, scenes),
       actionProvidersChanged: (provider, scenes) => {
         this.search?.providerChanged(provider);
@@ -206,7 +208,7 @@ export class MolisWorkLocalHost {
         open: async (reference) => {
           if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, reference.project_id);
           if (this.webCatalog) await this.webCatalog.access.withCatalog({homeDirectory:options.homeDirectory}, catalog => { if (catalog.recycle.isRecycled(reference.project_id)) throw hostErrors.project_closing("项目已回收，不能启动运行环境"); });
-          options.onRuntimeOpen?.(reference);
+          options.onRuntimeOpen?.(reference); await this.observation?.projectOpened(reference.project_id);
           const store = new LocalProjectDatabase(reference.storage_key, { homeStorage });
           const clock = options.clock ?? (() => new Date());
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
@@ -244,6 +246,7 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
+    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory, this.host.actionRegistry());
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);
@@ -459,7 +462,7 @@ export class MolisWorkLocalHost {
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
-        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }
@@ -494,8 +497,8 @@ function hostCatalogOwner(host: MolisWorkLocalHost, home: string) {
   return {canonicalHome, storageOwner: ensureHomeStorageOwner(host, canonicalHome, preflightMemoryHome)};
 }
 
-function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins">): CallReports & Required<Pick<CallReports, "settled">> {
-  return { settled: (caller, action, outcome) => {
+function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins" | "observation">): Required<CallReports> {
+  return { observed: (caller, action, observation) => host.observation?.observed(caller, action, observation), settled: (caller, action, outcome) => {
     host.callLog?.record(caller, action, outcome);
     // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
     if (outcome.ok && action.operation === "command" && action.provider_id) {

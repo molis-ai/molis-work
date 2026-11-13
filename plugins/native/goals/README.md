@@ -92,6 +92,8 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 固定输入和交付物的动作等待 owner，因此声明并发调度；委托保留原调用的授权、取消和生命周期，owner 返回后再次检查原 beforeEffect、同步授权和 Goal 是否归档/移入回收站，再写 Ledger 关联。owner 已提交的成果保留。收尾表单遇到固定回执未知时先核对清单，同一意图不自动再次固定；已有版本可沿 reference 关联，新明确固定意图仍增版。
 
+`goals.deliverables.pin`、`goals.artifact_inputs.pin` 声明 `delegation: "confirmation-only"`：对象 owner 固定当前内容时可能读取它自己的动态关联，外层输入不能固定这个目标，因此不能以完整参数匹配获得可复用自动委托。人工确认后的调用、原授权和业务检查保留。声明提取证据见 `tests/security-invariants-pages-delegation.test.ts`；实际自动委托消费由 agent-host 接线。
+
 问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求；要求修改沿事件表单，项目默认沿项目设置。规划详情按请求和当前选择回写，关闭或页面拆除后忽略迟到成功与失败。
 
 - 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）；Goals 与 Governance 在项目库里的表声明（Manifest 的 `databases.project`，即 `GOALS_PROJECT_DATABASE`，`src/project-database.ts`，建表语句在 `src/project-database-*.ts`；S8，PG-020）；Goal 约定与要求、工作事件与关注项、关系图、项目规则、生命周期、项目指导与规划事实（`src/module/`，原 `modules/goals`，S9-3 搬入）；Goal Tree 结构提案、可信用户决定与确认来源（`src/governance/`，原 `modules/governance-collaboration`，S9-3 搬入）。规划方法的内置资产在 `methods/`（37 个 Markdown，随包发）。

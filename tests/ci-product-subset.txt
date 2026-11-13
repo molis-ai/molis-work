@@ -47,6 +47,7 @@ tests/home-plugin-stage-pages.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
+tests/security-invariants-pages-delegation.test.ts
 tests/pages-ai-actions.test.ts
 tests/pages-unicode-actions.test.ts
 tests/plugin-platform-composition.test.ts

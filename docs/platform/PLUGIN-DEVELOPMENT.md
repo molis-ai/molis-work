@@ -745,3 +745,9 @@ await caller.beforeEffect(); // 写业务记录之前
 ### 打包的插件客户端公共类型
 
 Todo 与 Form 的浏览器工厂使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，宿主构造同一类型，插件用 `Pick` 取实际消费的字段。`UiClientTranslate`、`UiClientScope` 与 `UiRequest` 形状由合同提供；全局 `molisWorkRequest` 仅在 Plugin SDK 公共入口声明，浏览器文件以类型导入纳入；作用域请求在卸载时取消，迟到结果被拒绝。宿主从 Manifest 提供展示身份 `pluginId`，`pluginRoute(path)` 拼当前项目与插件路径，`route(path)` 保留平台路径语义；这些展示字段不授予权限，父框架仍用可信安装与页面授权。源码中的 DOM 类型作为泛型参数，contracts 不依赖 DOM 或私有实现。现有问卷卡通过 `UiPageInteraction` 返回读取、报错、聚焦和销毁操作。
+
+## 有限委托声明
+
+`action.delegation` 有三种情况：未声明只可考虑完整参数精确授权，有限声明对象可提取对象范围，`"confirmation-only"` 明确拒绝可复用自动委托。准备、授予与实际执行都须检查；该标记不禁用人工确认后的原调用及嵌套调用。间接调用无法固定目标的入口时，外层动作也须明确标记，不能借委托改变 audience 绕过。
+
+动作的 `action.delegation` 描述实际输入中的有限目标与全部副作用，不授予权限。封闭顶层字段须完整分类，修改关联／位置也须列为副作用；仅版本和幂等字段属于控制。原输入 schema 校验后使用公共 SDK `extractActionDelegation`，所有激活操作均须在原 owner 授权范围内；不支持的目标不能回退精确参数放行。文字引用与空串目标名称沿可信动作提供方词包，空名称缺失时不能准备或授予对象级候选。目标名复用 `presentation.values` 按 owner 批读，不读正文。写前仍由业务 owner 核对象、项目、版本和当前权限，授予时的标题读取不代替最终检查。写法和 Pages 的首批边界见[插件 Skill](../../skills/molis-plugin-dev/capabilities.md#声明有限委托范围)与[有限委托合同](../../specs/agent-approval/delegation-contract-design.md)。

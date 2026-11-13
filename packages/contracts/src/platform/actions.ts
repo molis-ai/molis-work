@@ -273,8 +273,8 @@ export interface ActionMetadata {
   readonly audiences: readonly ActionAudience[];
   readonly permissions: readonly string[];
   readonly subject_kinds: readonly string[];
-  /** Finite input targets and operations; the SDK validates them and the authority owner checks the actual call. */
-  readonly delegation?: ActionDelegationDeclaration;
+  /** Finite input targets and operations, or an explicit refusal of reusable automatic delegation. Unset keeps the original policy. */
+  readonly delegation?: ActionDelegationDeclaration | "confirmation-only";
   readonly input_schema: ActionSchema;
   readonly output_schema?: ActionSchema;
   /** Plain-language result and original-object link, declared by the provider for all consumers. */

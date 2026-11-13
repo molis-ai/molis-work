@@ -11,6 +11,7 @@ const requiresConfirmation = (reason: Extract<ActionDelegationExtraction, { stat
 export function extractActionDelegation(action: Pick<ActionMetadata, "input_schema" | "delegation">, input: unknown): ActionDelegationExtraction {
   const declaration = action.delegation;
   if (declaration === undefined) return requiresConfirmation("undeclared");
+  if (declaration === "confirmation-only") return requiresConfirmation("confirmation-only");
   if (actionDelegationDeclarationProblems("selected", action).length) return requiresConfirmation("invalid-declaration");
   const properties = action.input_schema.properties;
   if (!isRecord(input) || !isRecord(properties)

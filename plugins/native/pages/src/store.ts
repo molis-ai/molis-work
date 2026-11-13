@@ -9,6 +9,8 @@ import { PagesGenerationStore } from "./store-generations.js";
 import { pagesTemplateById } from "./templates.js";
 import type { PagesPublicationIntent, PagesPublicationSnapshot } from "./promote.js";
 import { PAGES_DATABASE } from "./database.js";
+import { readPagesPresentation } from "./presentation.js";
+import type { PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { PAGES_DATABASE };
 
 /** The SQL the store runs: its own connection, or the library the Runtime gives the plugin, read or inside one write transaction. */
@@ -75,6 +77,10 @@ export class PagesStore extends PagesGenerationStore {
 
   listFolders(projectId: string): PagesFolder[] {
     return this.db.all("SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE", [projectId]).map(fromFolderRow);
+  }
+
+  presentationValues(projectId: string, input: PresentationValuesInput) {
+    return readPagesPresentation(this.db, projectId, input);
   }
 
   get(id: string, projectId?: string): PagesRecord {
@@ -200,8 +206,11 @@ export class PagesStore extends PagesGenerationStore {
       if (pending) {
         if (pending.actor_id !== actorId) throw pagesErrors.publication_owner("请由上次保存的发起者恢复发布，原快照已保留");
         if (goalId !== undefined && goalId !== pending.goal_id) throw pagesErrors.publication_pending("请先恢复上次保存的成果，再关联新的 Goal");
+        if (existing && existing.goal_id !== pending.goal_id) throw pagesErrors.publication_conflict("已保存的成果与上次发布目标不同，原快照已保留");
         return pending;
       }
+      // A retained Artifact may supply content, never silently replace an explicit permission target.
+      if (goalId !== undefined && existing && normalizeGoalId(goalId) !== existing.goal_id) throw pagesErrors.publication_conflict("已保存的成果属于不同的 Goal，原成果与文稿已保留");
       const intent: PagesPublicationIntent = { title: existing?.title ?? current.title, body: existing?.body ?? current.body,
         goal_id: existing?.goal_id ?? normalizeGoalId(goalId ?? current.goal_id), original_goal_id: existing?.goal_id ?? current.goal_id,
         version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };

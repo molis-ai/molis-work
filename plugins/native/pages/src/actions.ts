@@ -23,6 +23,10 @@ import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
 import { PAGES_DOCUMENT_INTAKE, preparePagesIntakeOffers } from "./intake-offers.js";
 import { createPagesDocument, type CreatedPagesDocument } from "./create-document.js";
+import { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { pagesPresentationValues, PAGES_FOLDER_KIND, PAGES_SUBJECT_KIND } from "./presentation.js";
+import { pagesDelegations } from "./delegation.js";
+export { PAGES_FOLDER_KIND, PAGES_SUBJECT_KIND } from "./presentation.js";
 
 const text = { type: "string" };
 
@@ -70,8 +74,6 @@ const read = ["pages:read"], write = ["pages:write"];
 const MATERIALS_READ = "materials:read";
 type Fields = { title?: string; body?: PagesBody; folder_id?: string; starred?: boolean; goal_id?: string };
 type WrittenFields = Fields & { markdown?: string };
-/** The object kind every Pages action and surface names. */
-export const PAGES_SUBJECT_KIND = "pages_document";
 /** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
 export const PAGES_READABLE_EXTENSIONS = [".md", ".markdown", ".txt", ".html", ".htm", ".csv", ".docx", ".zip"];
 export const PAGES_READABLE_FILE = new RegExp(`(?:${PAGES_READABLE_EXTENSIONS.map(extension => extension.replace(".", "\\.")).join("|")})$`, "iu");
@@ -93,6 +95,7 @@ const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJEC
   describe: "能独立成篇、以后还要改的内容：一段完整的说明、方案或纪要；一句话的事、要跟进的事、一闪而过的想法不放这里",
   examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 } } as const;
 export const pagesActions = {
+  presentation: pagesPresentationValues,
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
   subject: defineSubjectContextAction("pages.subject.read", /* @version action.pages.subject.read */ 1, PAGES_SUBJECT_KIND, "文档", read),
   /** What can be done with part of a document; preparing reads and writes nothing (specs/archive/contextual-interaction §5.1). */
@@ -108,7 +111,7 @@ export const pagesActions = {
   /** A pinned version of a document as Markdown (artifact-positioning A4), for the 成果库 and the side panel. */
   artifactPreview: defineArtifactPreviewAction("pages.artifacts.preview", /* @version action.pages.artifacts.preview */ 1, "文档", read),
   /** Pins a document's current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("pages.artifacts.pin", /* @version action.pages.artifacts.pin */ 1, PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]),
+  artifactPin: withAction(defineArtifactPinAction("pages.artifacts.pin", /* @version action.pages.artifacts.pin */ 1, PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]), { delegation: "confirmation-only" }),
   /** Whether a pinned version still matches the pages object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", /* @version action.pages.artifacts.compare */ 1, "文档", [...read]),
   /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
@@ -127,18 +130,18 @@ export const pagesActions = {
   // since) and carries no `created_version`, so the undo, which reads it, is not offered there.
   create: withAction(define<WrittenFields & { template_id?: string; request_id?: string }, CreatedPagesDocument>("create", /* @version action.pages.create */ 1, "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇（这时没有 created_version，也就没有可撤销的新建），同一 request_id 换了内容会被拒绝", "command",
     object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page, created_version: version }, ["document"]), write),
-    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: /* @version action.pages.discard */ 1, input: { id: "document.id", expected_version: "created_version" } } }),
+    { delegation: pagesDelegations.create, intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: /* @version action.pages.discard */ 1, input: { id: "document.id", expected_version: "created_version" } } }),
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
   discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", /* @version action.pages.discard */ 1, "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
-    { effect: "irreversible" }),
+    { effect: "irreversible", delegation: pagesDelegations.discard }),
   // An edit by an agent or a workflow keeps what it replaced (change_id), so the person can take it back while nothing changed since.
   update: withAction(define<WrittenFields & { id: string; expected_version?: number }, { document: PagesRecord; change_id?: string | null }>("update", /* @version action.pages.update */ 1, "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑；正文可用 markdown 给出，由 Pages 转换", "command", object({ id, ...writeFields, expected_version: version }, ["id"]), { type: "object", properties: { document: page, change_id: { type: ["string", "null"] } }, required: ["document"], additionalProperties: false }, write),
-    { undo: { capability_id: "pages.revert", version: /* @version action.pages.revert */ 1, input: { change_id: "change_id" } } }),
-  revert: define<{ change_id: string }, { document: PagesRecord }>("revert", /* @version action.pages.revert */ 1, "撤销对文档的修改", "把一次由助理或流程做的修改撤回到修改前；之后又被改过就不撤并说明", "command", object({ change_id: id }), object({ document: page }), write),
-  delete: define<{ id: string }, { ok: true }>("delete", /* @version action.pages.delete */ 1, "删除文档", "永久删除当前项目的一篇文档，不能撤销；已存为固定版本的成果不会随之删除", "command", object({ id }), object({ ok: { const: true } }), write),
-  createFolder: define<{ title?: string }, { folder: PagesFolder }>("folders.create", /* @version action.pages.folders.create */ 1, "新建文件夹", "在当前项目创建一个文档文件夹（可带名称）并返回它；文件夹只用来整理文档，不改动任何文档内容", "command", object({ title: { type: "string", maxLength: 40 } }, []), object({ folder }), write),
-  updateFolder: define<{ id: string; title?: string }, { folder: PagesFolder }>("folders.update", /* @version action.pages.folders.update */ 1, "修改文件夹", "修改当前项目里一个文档文件夹的名称；只改名称，不移动或改动里面的文档", "command", object({ id, title: { type: "string", maxLength: 40 } }, ["id"]), object({ folder }), write),
-  deleteFolder: define<{ id: string }, { ok: true }>("folders.delete", /* @version action.pages.folders.delete */ 1, "删除文件夹", "删除文件夹并将文档移回根目录，保留文档", "command", object({ id }), object({ ok: { const: true } }), write),
+    { delegation: pagesDelegations.update, undo: { capability_id: "pages.revert", version: /* @version action.pages.revert */ 1, input: { change_id: "change_id" } } }),
+  revert: withAction(define<{ change_id: string }, { document: PagesRecord }>("revert", /* @version action.pages.revert */ 1, "撤销对文档的修改", "把一次由助理或流程做的修改撤回到修改前；之后又被改过就不撤并说明", "command", object({ change_id: id }), object({ document: page }), write), { delegation: "confirmation-only" }),
+  delete: withAction(define<{ id: string }, { ok: true }>("delete", /* @version action.pages.delete */ 1, "删除文档", "永久删除当前项目的一篇文档，不能撤销；已存为固定版本的成果不会随之删除", "command", object({ id }), object({ ok: { const: true } }), write), { delegation: pagesDelegations.delete }),
+  createFolder: withAction(define<{ title?: string }, { folder: PagesFolder }>("folders.create", /* @version action.pages.folders.create */ 1, "新建文件夹", "在当前项目创建一个文档文件夹（可带名称）并返回它；文件夹只用来整理文档，不改动任何文档内容", "command", object({ title: { type: "string", maxLength: 40 } }, []), object({ folder }), write), { subject_kinds: [PAGES_FOLDER_KIND] }),
+  updateFolder: withAction(define<{ id: string; title?: string }, { folder: PagesFolder }>("folders.update", /* @version action.pages.folders.update */ 1, "修改文件夹", "修改当前项目里一个文档文件夹的名称；只改名称，不移动或改动里面的文档", "command", object({ id, title: { type: "string", maxLength: 40 } }, ["id"]), object({ folder }), write), { subject_kinds: [PAGES_FOLDER_KIND] }),
+  deleteFolder: withAction(define<{ id: string }, { ok: true }>("folders.delete", /* @version action.pages.folders.delete */ 1, "删除文件夹", "删除文件夹并将文档移回根目录，保留文档", "command", object({ id }), object({ ok: { const: true } }), write), { subject_kinds: [PAGES_FOLDER_KIND] }),
   previewImport: define<{ files: PagesImportFile[] }, PreparedPagesImport>("import.preview", /* @version action.pages.import.preview */ 1, "预览导入", "解析上传的文档，不写入文档库", "query", object({ files }), prepared, [...read, MATERIALS_READ], undefined, "concurrent"),
   import: define<{ files: PagesImportFile[]; selected_keys: string[]; request_id: string; folder_id?: string }, { documents: PagesRecord[]; warnings: string[] }>("import", /* @version action.pages.import */ 1, "导入文档", "提交预览选中的文档；同一请求标识可重试，保留已经导入后的编辑", "command",
     object({ files, selected_keys: { ...array(id), minItems: 1, maxItems: 100, uniqueItems: true }, request_id: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }, folder_id: text }, ["files", "selected_keys", "request_id"]), object({ documents: array(page), warnings: array(text) }), [...write, MATERIALS_READ], undefined, "concurrent"),
@@ -159,7 +162,7 @@ export const pagesActions = {
   ai: readOnly(define<PagesAiRequest & { id: string; expected_version?: number }, PagesAiResult>("ai", /* @version action.pages.ai */ 1, "文档写作助手", "使用文字模型生成候选正文；用户确认或后续动作负责写入，缺少模型时拒绝执行", "command",
     object({ id, command: { enum: PAGES_AI_COMMANDS.map(command => command.id) }, text: { type: "string", minLength: 1, maxLength: 180000, pattern: "\\S" }, style: { enum: ["concise", "expand", "formal", "casual"] }, expected_version: version }, ["id", "command", "text"]),
     object({ text, command: text, style: text }, ["text", "command"]), [...read, "model:invoke"], { cost: "metered" }, "concurrent")),
-  promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.pages.promote */ 1, "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]),
+  promote: withAction(define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.pages.promote */ 1, "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]), { delegation: pagesDelegations.promote }),
   extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", /* @version action.pages.extract */ 1, "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
 };
 /** The body of a Markdown text: Pages' own reader, else one paragraph; never one a document could not hold. */
@@ -222,6 +225,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
   };
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "pages.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [...createPagesCommentHandlers(ports), ...createPagesLandingHandlers(pagesLandingActions, ports),
+    bindPresentationValuesHandler(pagesActions.presentation, (input, caller) => ports.read(store => store.presentationValues(project(caller), input))),
     // The whole document (整篇) is prepared from its stored text; preparing never writes.
     bind(pagesActions.fragmentOffers, (input, caller) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.read(store => {
       try { return String(actionFieldValue("body", store.get(id, project(caller)).body) ?? ""); } catch { return null; }

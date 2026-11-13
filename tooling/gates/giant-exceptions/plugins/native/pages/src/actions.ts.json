@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function plugins/native/pages/src/actions.ts#createPagesActionHandlers": {
+      "kind": "cohesive-unit",
+      "reason": "Pages 同一组公开动作的处理器装配表，共用一次注入的存储、模型与成果端口；发布、材料生成、评论、片段和新名称读取的业务实现均已独立，不为单行超限拆开同一份动作登记。",
+      "size": 151
+    }
+  }
+}

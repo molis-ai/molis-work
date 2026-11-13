@@ -14,7 +14,9 @@
 
 ### 2.1 有限声明
 
-在 `ActionMetadata` 加可选 `delegation`，其内容全部进入授权合同摘要。已有动作没有声明时仍可完整参数精确授权，不能据 `subject_kinds` 或可撤销性自动获得对象级范围。
+在 `ActionMetadata` 加可选 `delegation`，其内容全部进入授权合同摘要。取有限声明对象或 `"confirmation-only"`；后者明确禁止可复用自动委托。已有动作没有声明时仍可完整参数精确授权，不能据 `subject_kinds` 或可撤销性自动获得对象级范围。
+
+三态补充（2026-11-13，同一 GPT-6.1 high 只读代理设计评审及 C 合审通过）：SDK 只将未声明返回为 `undeclared`，这是唯一能进入完整参数精确授权的提取结果；标记返回 `confirmation-only`，有限声明的其他失败保留原确认。准备、授予和实际执行均遵守，不能只在界面隐藏选择。标记约束新增自动委托，不禁用人工确认后的 ActionService 及嵌套调用，也不改未选择新模式时的原策略。Pages 的 `pages.artifacts.pin` 动态读取文稿／原 intent 的 Goal，`pages.revert` 从历史快照恢复文件夹和 Goal，两者都用该标记；Goals 的 `goals.deliverables.pin`、`goals.artifact_inputs.pin` 会委托前一入口，也须在外层声明，不能借嵌套 audience 转换绕过。平台不按插件 id 维护黑名单。
 
 | 字段 | 形状与约束 |
 | --- | --- |
@@ -35,7 +37,7 @@
 | Pages `pages.update` | 修改内容：`title/body/markdown/starred`，目标 `id`；移动文件夹：仅存在 `folder_id` 时触发，目标 `id + folder_id`；改 Goal 关联：仅存在 `goal_id` 时触发，目标 `id + goal_id`；控制字段 `expected_version` | `written()` 不改变文稿 id，Pages 原项目范围检查和 store 的版本 CAS 保留。文件夹由 Pages 同一事务检查存在/所属项目；目标字符串要求已规范化。只有修改内容的委托不能混入移动或改关联。空串移到根／取消关联必须显式在对应范围中；非空 Goal 的限制见表后 |
 | Pages `pages.create` | 新建文稿，固定操作，目标文件夹与 Goal；`folder_id/goal_id` 的默认常量均为 `""`；正文、标题、markdown、starred、template_id 可变，request_id 只作原幂等键 | template_id 选原 owner 的静态正文／标题模板，不选择额外业务目标；同样过原模板检查。新建只在选定文件夹与明确 Goal 边界内；不把返回的新 id 自动追加到“修改已有文稿”的范围 |
 | Pages `pages.promote` | 保存固定成果 **并更新文稿的 Goal 关联**：两个 always 操作，都以 `id + goal_id` 为目标；控制字段 expected_version。**goal_id 无自动授权默认值**，即使原动作允许省略 | 省略时会从当前文稿或原 pending intent 取 Goal，不能用文稿 id 猜目标。`beginPublication` 的实际事务内统一比较明确 goal_id、pending 和 existing 固定成果目标，不同即拒绝且原 intent 保留。completePublication 条件更新关联也要求已允许关联操作。写前原 beforeEffect、同步 current、source_version/CAS 均保留；恢复只核原效果，不重发 |
-| Pages `pages.delete`／`pages.discard` | 删除／丢弃是独立操作，目标 `id`；discard 的 expected_version 仍是原前置版本 | 修改内容的委托不能授权删除。原 owner 决定可删除性，不能把副作用少的命名当作只读 |
+| Pages `pages.delete`／`pages.discard` | 删除／丢弃是独立操作，目标 `id`；discard 的 expected_version 仍是原前置版本；名称明确一并删除评论 | 修改内容的委托不能授权删除。原 owner 决定可删除性，不能把副作用少的命名当作只读 |
 | 连接器业务动作 | 沿相同声明绑定实际连接字段与对象字段；额外固定 connector owner 提供的连接 id、账号／租户身份、授权世代及工具／声明摘要 | 原连接调用器在真实网络派发前核账号、来源和当前授权。刷新凭据且身份不变不自行扩大范围；身份或来源无法被当前 owner 证明时不得保存持续自动范围 |
 | 无可信声明的 MCP 工具 | 只保存完整 JSON 参数及实际工具身份的精确指纹；连接身份边界同上 | 参数有任何变化就不命中，包括省略和显式 null；工具 annotation 不证明只读。不显示数据库／目录宽范围的静态承诺；未改变原执行前授权和原 SDK effect 归属 |
 | Coding 命令 | 原工作区身份、会话／工作 epoch、完整 command/argv/cwd/env_allowlist/timeout/background/outlives_run | 原 command document 与原 SDK pending 精确匹配；现有 elevate/network/path 的硬边界不由“记住”扩大。后续独立低风险 AI 评估器仍归第 64 批 |
@@ -43,6 +45,8 @@
 Pages 现状只把 Goal 关联当字符串，`normalizeGoalId` 没有 Goals owner 的当前存在/项目检查，不能在设计里写成已有该保证。首批对象自动范围完整覆盖文稿内容、Pages 文件夹、新建、删除及明确不关联 Goal 的发布；非空 Goal 关联不声明为当前可自动委托的目标，保留原确认，UI 给出原因，**完整参数精确授权也不能绕过此限制**。若要在本批加入非空 Goal 自动范围，必须先提交 Goals 当前身份的公开最终校验设计并合审，不能仅凭授予时读过标题放行。这是无法验证的跨 owner 目标的适配边界；对象级授权并未退成所有动作只能精确参数，其他可验证操作仍须交付。
 
 目标名称不能由模型提供。复用 `platform/presentation` 的 `presentation.values`：按声明发现同一可信项目内唯一的目标 owner，批量读 subject 的 title 角色字段与 state，固定其 provider/安装世代；重复 owner、缺项、forbidden/deleted/stale 均不能用于新授予。Pages 补文稿/文件夹的该协议实现，Goals 沿它的现行呈现声明；不新增 `delegation_targets` 协议。不读正文，每次按现有上限 50 个 subject 分页；候选一次最多 50 个非空目标，按 owner 批读。空串的根／不关联名称来自字段声明，不伪造可读取的对象。没有 title 呈现声明的 owner 不能展示一个看似对象级的授权选择。声明上的 title 也沿现行词包机制，不把原始 id 当主标签。
+
+名称合同补充（2026-11-13，同一只读代理设计评审及 C 合审通过）：目标和操作保留 `title: string`，各加可选 `title_text: TextRef`；目标另加可选 `empty_title: TextRef`，只表示实际空串目标的名称，`TextRef.fallback` 可提供默认文字，不另加一对空值显示字段。SDK 沿 `textRefProblems(..., { literal: false })` 校验，准备与授予均用可信动作提供方的 plugin_id 绑定词包；缺少合法准确空值名称时不能构造或授予对象级候选。显示字段不改 default_value／allowed_values，不增加执行许可。沿整份 declaration 的摘要，更换声明内的文字引用会使旧摘要失配；只改词包译文、对象标题不会。
 
 该读口只为授予／当前展开详情校验身份与名称，不进入每次执行链；改标题不废除委托，也不把一份旧标题当当前事实。业务写事务仍检查对象存在、所在项目及本次版本，不能因为授予时读过就跳过。动态默认目标在本协议里读出来也不成为执行许可；实际调用仍须明确输入。
 

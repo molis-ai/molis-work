@@ -479,12 +479,13 @@ export type ActionDelegationExtraction = {
     readonly operations: readonly ActionDelegationEffect[];
 } | {
     readonly state: "confirmation-required";
-    readonly reason: "undeclared" | "invalid-declaration" | "invalid-input" | "target-missing" | "target-unsupported" | "no-operation";
+    readonly reason: "undeclared" | "confirmation-only" | "invalid-declaration" | "invalid-input" | "target-missing" | "target-unsupported" | "no-operation";
 };
 
 export interface ActionDelegationOperation {
     readonly key: string;
     readonly title: string;
+    readonly title_text?: TextRef;
     readonly fields: readonly string[];
     readonly targets: readonly string[];
     readonly when: "always" | readonly string[];
@@ -493,6 +494,8 @@ export interface ActionDelegationOperation {
 export interface ActionDelegationTarget {
     readonly key: string;
     readonly title: string;
+    readonly title_text?: TextRef;
+    readonly empty_title?: TextRef;
     readonly kind: string;
     readonly field: string;
     readonly default_value?: string;
@@ -565,7 +568,7 @@ export interface ActionMetadata {
     readonly audiences: readonly ActionAudience[];
     readonly permissions: readonly string[];
     readonly subject_kinds: readonly string[];
-    readonly delegation?: ActionDelegationDeclaration;
+    readonly delegation?: ActionDelegationDeclaration | "confirmation-only";
     readonly input_schema: ActionSchema;
     readonly output_schema?: ActionSchema;
     readonly result_view?: ActionResultView;

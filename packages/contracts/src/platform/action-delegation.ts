@@ -1,7 +1,12 @@
+import type { TextRef } from "./ui-text.js";
+
 /** A finite target in the actual input, owned by the action's declaration. Never an execution grant. */
 export interface ActionDelegationTarget {
   readonly key: string;
   readonly title: string;
+  readonly title_text?: TextRef;
+  /** Name of the explicit empty-string target, bound to the action provider's words. Does not authorize/default that value. */
+  readonly empty_title?: TextRef;
   readonly kind: string;
   readonly field: string;
   /** Only a constant owner-defined default; absence otherwise requires an explicit input. */
@@ -14,6 +19,7 @@ export interface ActionDelegationTarget {
 export interface ActionDelegationOperation {
   readonly key: string;
   readonly title: string;
+  readonly title_text?: TextRef;
   readonly fields: readonly string[];
   readonly targets: readonly string[];
   /** A constant operation, or the presence of any of its effect fields. Empty values still count. */
@@ -36,4 +42,4 @@ export interface ActionDelegationEffect {
 
 export type ActionDelegationExtraction =
   | { readonly state: "resolved"; readonly operations: readonly ActionDelegationEffect[] }
-  | { readonly state: "confirmation-required"; readonly reason: "undeclared" | "invalid-declaration" | "invalid-input" | "target-missing" | "target-unsupported" | "no-operation" };
+  | { readonly state: "confirmation-required"; readonly reason: "undeclared" | "confirmation-only" | "invalid-declaration" | "invalid-input" | "target-missing" | "target-unsupported" | "no-operation" };

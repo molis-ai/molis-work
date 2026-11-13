@@ -1,15 +1,18 @@
 import type { ActionDelegationDeclaration, ActionDelegationOperation, ActionDelegationTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isRecord } from "./json-value.js";
+import { textRefProblems } from "./ui/text-ref.js";
 
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const canonical = (value: unknown): value is string => typeof value === "string" && value === value.trim();
 const uniqueStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every(text) && new Set(value).size === value.length;
 const exactKeys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []): boolean =>
   required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => required.includes(key) || optional.includes(key));
+const validWords = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  keys.every(key => !Object.hasOwn(value, key) || textRefProblems(value[key], { literal: false }).length === 0);
 
 function targetShape(value: unknown): value is ActionDelegationTarget {
-  if (!isRecord(value) || !exactKeys(value, ["key", "title", "kind", "field"], ["default_value", "allowed_values"])
-    || ![value.key, value.title, value.kind, value.field].every(text)) return false;
+  if (!isRecord(value) || !exactKeys(value, ["key", "title", "kind", "field"], ["default_value", "allowed_values", "title_text", "empty_title"])
+    || ![value.key, value.title, value.kind, value.field].every(text) || !validWords(value, ["title_text", "empty_title"])) return false;
   if (Object.hasOwn(value, "default_value") && !canonical(value.default_value)) return false;
   if (Object.hasOwn(value, "allowed_values") && (!Array.isArray(value.allowed_values) || value.allowed_values.length === 0
     || !value.allowed_values.every(canonical) || new Set(value.allowed_values).size !== value.allowed_values.length)) return false;
@@ -18,7 +21,7 @@ function targetShape(value: unknown): value is ActionDelegationTarget {
 }
 
 function operationShape(value: unknown): value is ActionDelegationOperation {
-  if (!isRecord(value) || !exactKeys(value, ["key", "title", "fields", "targets", "when"]) || !text(value.key) || !text(value.title)
+  if (!isRecord(value) || !exactKeys(value, ["key", "title", "fields", "targets", "when"], ["title_text"]) || !text(value.key) || !text(value.title) || !validWords(value, ["title_text"])
     || !uniqueStrings(value.fields) || !uniqueStrings(value.targets) || !value.targets.length) return false;
   // Every effect field activates its operation; an omitted trigger must not hide a supplied effect field.
   return value.when === "always" || uniqueStrings(value.when) && value.when.length > 0
@@ -70,7 +73,7 @@ function classifiedFields(declaration: ActionDelegationDeclaration, properties: 
 
 /** Shared by authoring, Manifest installation, registration and actual-input extraction. */
 export function actionDelegationDeclarationProblems(key: string, action: Record<string, unknown>): string[] {
-  if (action.delegation === undefined) return [];
+  if (action.delegation === undefined || action.delegation === "confirmation-only") return [];
   if (!declarationShape(action.delegation)) return [`能力 ${key} 的 delegation 需要不重复的有限目标、操作和控制字段`];
   const properties = inputProperties(action.input_schema);
   if (!properties) return [`能力 ${key} 的 delegation 只接受封闭的顶层对象输入，不接受动态键或组合 schema`];

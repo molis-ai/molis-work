@@ -9,6 +9,7 @@ import { handleSearchHttp } from "./search-http.js";
 import { handleRuntimeOverviewHttp } from "./runtime-overview-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
+import { runningHomePluginText } from "./running-plugin-text.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions, invokeLocalWebCatalogAction } from "./local-web-actions.js";
@@ -98,7 +99,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
   { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
-    (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
+    (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), runningHomePluginText(localHost)) },
   // The unified input's start-up sweep (UIC-10): which of this machine's draft places are for a project or plugin now gone.
   { id: "composer-drafts", handle: ({ request, response, url, localHost, projects }) => handleComposerDraftsHttp(request, response, url,
     { projects: () => projects.map((project) => project.project_id), reach: (project) => localHost.projectPluginReach(project) }) },

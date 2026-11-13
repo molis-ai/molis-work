@@ -18,7 +18,7 @@
 | 4 | 合同 | 现在处在 M1 之前，不留兼容期，都在原版本里改（阶段一）。四处：① 新插件的动作（快照新增）；② Goals 顾虑加可选 `cited_subjects`（Goals 动作 schema，库 2→3）；③ Manifest 侧栏视图加 `opens_items`（contracts `platform/plugin-manifest`、SDK 校验）；④ Schedule 对话任务加一次性与对象（§4.5，库 v+1）。另有 SDK `/ui` 新增 `renderSeverityGrid`（§4.4）。刷新 `actions:update`、`api:update`，PR 写对调用方的影响（都只多可选字段）。没有别的批在等，随本批 PR 走，公共合同台在最终头上合审。 |
 | 5 | 放在哪个包 | `plugins/native/risk`（`@molis-ai/molis-work-plugin-risk`），只依赖 contracts 与 plugin-sdk。侧栏优先在工作台 `plugin-catalog.ts` 的推导与 `tab-workspace` 的 `openInSide`；矩阵小格在 SDK `/ui`，样式在 `packages/design-system/src/styles/primitives.ts`。没有新的平台服务。 |
 | 6 | 表与存储 | 风险的三张表在 Manifest `databases.project`（store `risk`，第 1 版，`storage:private`），只由风险插件读写，不进共写名单；进 `tooling/gates/schemas/stores.tsv`。Goals 顾虑表加一列、Schedule 任务表加列：两个库各升一版，带升级段与旧版本金样（§4.2、§4.5）。 |
-| 7 | 兼容与迁移 | 不加兼容读取。风险从空开始（原需求已定）。Goals、Schedule 的加列走升级链的正式升级段；同步便携格式升版本（§4.2、§4.5），不留旧格式读取。 |
+| 7 | 兼容与迁移 | 不加兼容读取。风险从空开始（原需求已定）。Goals、Schedule 的加列走升级链的正式升级段；同步便携格式在原版本内加列（§4.2、§4.5），不留旧格式读取。 |
 | 8 | 安全边界 | 不碰回环、令牌、网关、MCP 授权等。风险插件转调 Schedule 用 `actions:delegate`：以原调用者身份、workflow 受众（S-43），调用者自己要有 `schedule:read`／`schedule:write`；不给 Schedule 加 `plugin` 受众，不开以安装身份调用的路。到点那一轮读什么只按人给这个任务的授权（第 18 批）；任务带的对象不带出任何读取权（`plugin-task-subjects` 的规则）。侧栏打开只把对象 id 交给同一插件已声明的侧栏视图。 |
 | 9 | 调用次数 | 总览一次请求：`risk.list@1` 两条 SQL（风险一条、关联一条，带分页与筛选），不按条目逐个请求。详情一次请求（`risk.get@1`）；关联对象的名字由页面按 15 的呈现取值批量读，每个主人一次（上限 50）。复查段一次请求：`risk.review.get@1` 委托一次 Schedule `tasks.list`（按对象筛）。加关联时用对象读取器核对一次（读取器一次一个对象，只读新加的这一个）。页面不在后台轮询；改完一条只回读这一条。 |
 | 10 | 升级与数据 | 新库第 1 版；以后改结构升版本带升级段。Goals 已有顾虑升级后 `cited_subjects` 为空，Schedule 已有任务升级后是每天任务、无对象，照常可用；两边的金样存每个旧版本。 |
@@ -77,9 +77,9 @@
 | `risk.status.set@1` | command，`concurrent` | `{ risk_id, expected_revision, status, note? }` → `{ risk, review_left? }`；关闭提交后归档这条风险的复查任务（委托 Schedule）；归档没成功时返回 `review_left`，页面提示并可重试（`risk.review.cancel@1`）；重新打开不自动恢复复查 |
 | `risk.links.add@1`／`risk.links.remove@1` | command，`concurrent` | `{ risk_id, subject }` → `{ links }`（加之前用读取器核一次这个对象在、读得到） |
 | `risk.notes.add@1` | command | `{ risk_id, text }` → `{ event }` |
-| `risk.review.get@1` | query，`concurrent` | `{ risk_id }` → `{ state: "ok"\|"unavailable", tasks }`：委托 Schedule `tasks.list`（按对象 `{ kind: "risk", id }` 筛）：时间、暂停、历次结果、这个任务的读取授权状态；风险已关闭而任务还在时标出来 |
-| `risk.review.schedule@1` | command，`concurrent` | `{ risk_id, at, focus, task_id? }` → `{ task }`：新建（或按 `task_id` 改期）Schedule 的一次性对象任务：标题是风险标题、说明是人写的 `focus`、对象是这条风险；已关闭的风险拒绝 |
-| `risk.review.enabled@1`、`risk.review.cancel@1` | command，`concurrent` | `{ risk_id, task_id, enabled }`／`{ risk_id, task_id }`：先核这个任务的对象就是这条风险，再委托 Schedule 暂停／恢复、归档 |
+| `risk.review.get@1` | query，`concurrent` | `{ risk_id }` → `{ state: "ok"\|"unavailable", review }`：委托 Schedule `tasks.list`（按对象 `{ kind: "risk", id }` 筛）；`review` 是这条风险的那一个复查（时间、`scheduled`／`paused`／`done`、focus、上一轮结果或没跑成的原因分开给、这个任务的读取授权计数，平台说不出时为 null），没安排过为 null；项目没启用 Schedule 或调用者够不到它时 `state: "unavailable"`（目录不区分这两种）。实现时改：一条风险只有一个复查，不返回任务列表（见 §9） |
+| `risk.review.schedule@1` | command，`concurrent` | `{ risk_id, at, focus? }` → `{ review }`：没有复查就新建、有就改到新时间并重新打开（同一个任务，不另建）；Schedule 的一次性对象任务，标题是风险标题、说明是人写的 `focus`（不写时用风险的描述，都是用户的原话，不存译文）、对象是这条风险；已关闭的风险以 `risk.closed` 拒绝，过去的时间以 Schedule 的 `schedule.task_invalid` 拒绝 |
+| `risk.review.enabled@1`、`risk.review.cancel@1` | command，`concurrent` | `{ risk_id, enabled }`／`{ risk_id }`：只动按对象筛出的这条风险的任务（不收 `task_id`，所以碰不到别的任务），再委托 Schedule 暂停／恢复、归档；过了时间的复查恢复被 Schedule 拒绝，要重新安排；没有复查时 cancel 返回 `cancelled: false` |
 
 Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核对象），`capabilities.consumes` 写 Schedule 的 `tasks.list`、`tasks.create`、`tasks.update`、`tasks.enabled`、`tasks.archive`；`read_groups`：`{ group_id: "risk", actions: [risk.list, risk.get, risk.subject.read, risk.search.entries] }`，复查任务（与别的定时任务）经人勾选才读得到风险。
 
@@ -107,9 +107,9 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 ### 4.5 Schedule：一次性的对象任务
 
-- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`at`、`subject` 与 `reads`（`ScheduleTaskReads` 的计数：开了几类、已授权、待确认、不可用、已移除）；Schedule 每次请求读一次平台的授权列表，风险一侧不另调。不加 `plugin` 受众。
+- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`run_at`、`subject`；给了 `subject` 时另带 `reads`（`ScheduleTaskReads` 的计数：开了几类、已授权、待确认、不可用、已移除，只含列出的任务；平台说不出时不带，不当成「没开」），Schedule 这次请求读一次平台的授权列表，风险一侧不另调；不给 `subject` 时输出不变。不加 `plugin` 受众。
 - 库升一版：任务表加 `repeat`（默认 `daily`）、`run_at`、`subject_kind`、`subject_id`；一次性任务的 `hour`、`minute` 取 `at` 的本地时分（两列仍 NOT NULL，列表显示用），排期只看 `run_at`。升级段只加列；金样存每个旧版本。
-- 同步便携格式 `format.schedule.portable` 逐列校验任务列，加列即升格式版本（`tooling/versions.json`；阶段一不留旧版本读取），回放金样一起刷新。
+- 同步便携格式 `format.schedule.portable` 逐列校验任务列：加四列并校验（`repeat` 与 `run_at` 成对、对象两列同空同有）；格式版本照 Goals 2026-11-11 加列的先例不升（统一起点后只有登记了升级链的持久格式能高于 1，`initial-versions.mjs`；阶段一在原版本改）。
 - 一次性任务跑完一次就停（不再排期，`enabled` 置否，记录与结果保留）；错过的一次性运行按 `missed-runs.ts` 现行规则记给人看、不补跑，任务随之结束。
 - 带对象的任务，到点那一轮的说明里点名这个对象（kind + id）；读取仍只按人给这个任务（授权对象 `schedule_task`，键 task_id）的授权，没开授权就按 reader 角色跑、读不到风险，结果如实写「没有读取授权」。风险详情的复查段显示授权状态，并给入口去平台授权页（`task-grants-page`）；助理安排复查后也要说明这一步得人来做（RISK-07 的「到期读取」含这个状态）。
 - 动作 schema 原版本内改，刷新快照，PR 写对调用方的影响：只多可选字段与输出字段。
@@ -144,3 +144,15 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 - 2026-11-13 第 1 版（`f9c1aaa077`）公共合同台／D 轨合审：退回。挡开工三项——侧栏优先要接现有 `sideOpenedPlugins`；Schedule 扩展不加 `plugin` 受众、沿用 `at`／`repeat`、写清库与同步格式与错过的运行、按任务授权的状态与入口；改版前的旧文字。建议六项：任务说明不拷正文；关闭与归档非原子的标记与重试；Goals 同步列与删 `blocking_risks`；取数口径与分页、状态环取值；同步要写明；矩阵小格用 `MwTone`、样式进 primitives、标签由调用方给、不只靠颜色、标本清单。第 2 版全部采纳。
 - 2026-11-13 第 2 版（`0f622090ff`）复审：通过。四条建议已补进第 2 版：`tasks.list` 输出 `reads`；`openBeside` 照旧分栏；发起方插件 id 作内部参数传下去；Goals 同步格式按先例不升。D 轨：标本先合进本批分支并过合审，再写用它的界面。
+
+## 9. 实现中的调整（`b17/review`，2026-11-13）
+
+合同台合审时一并看；都只收窄或改名，不加新的权限或受众。
+
+1. 一条风险只有一个复查：`risk.review.schedule` 有就改期（同一个 Schedule 任务），`get` 返回 `review` 而不是任务列表，`enabled`／`cancel` 不收 `task_id`、只动按对象筛出的那一个。理由：设计里「改期带 `task_id`」与「先核对象」合起来就是这一条；少一个参数，就少一种碰到别的任务的可能。
+2. `focus` 可不写，缺省用风险的描述（同为用户原话，不存译文）。
+3. Schedule 任务的输出字段叫 `run_at`（与表列一致），输入仍叫 `at`；`reads` 只在按对象筛时带。
+4. 同步便携格式不升版本：统一起点后只有登记了升级链的持久格式能高于 1（`scripts/gates/initial-versions.mjs`），照 Goals 的先例在原版本内加列。
+5. 目录对「Schedule 没启用」与「调用者够不到 Schedule」给同一个 `actions.dependency_missing`：风险一侧统一说 `risk.review_unavailable`，文字两种都提。
+6. 复查一轮失败后不重试：一次性任务的唤醒没了、时间也过了，对账就把它停下，结果页写「没跑成」；要再跑由人重新安排（RISK-07「重试不重复」）。
+

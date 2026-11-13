@@ -1,10 +1,11 @@
 import { arraySchema as array, createActionDefinition, nullableSchema, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, ACTION_SUBJECT_SCHEMA, bindActionHandler, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema,
-  type ActionSubject, type ActionSubjectContext, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionReference, type ActionSubject, type ActionSubjectContext, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { riskErrors } from "./error.js";
 import { RISK_KIND } from "./identity.js";
 import { RISK_LIMITS, type RiskEvent, type RiskLink, type RiskRecord, type RiskRow } from "./model.js";
+import { archiveRiskReviews, createRiskReviewHandlers } from "./review.js";
 import { RISK_PAGE, type RiskStore } from "./store.js";
 
 export const RISK_READ = ["risk:read"], RISK_WRITE = ["risk:read", "risk:write"];
@@ -54,10 +55,10 @@ export const riskActions = {
   update: define<{ risk: RiskRecord }>()("update", /* @version action.risk.update */ 1, "修改风险",
     "按读到的 revision 改风险的字段，只改给出的；风险刚被别处改过时以 risk.conflict 拒绝，details.current 带当前内容；已关闭的风险以 risk.closed 拒绝，重新打开后再改。",
     "command", object({ risk_id: id, expected_revision: revision, ...editable }, ["risk_id", "expected_revision"]), changed, { result: true }),
-  setStatus: define<{ risk: RiskRecord; review_left?: { task_id: string } }>()("status.set", /* @version action.risk.status.set */ 1, "改风险状态",
-    "按读到的 revision 把风险改成打开、缓解中、已接受或已关闭，可附一句说明记进进展；关闭后这条风险的复查任务一并归档，没归档成的在 review_left 里返回。",
+  setStatus: define<{ risk: RiskRecord; review_left?: { task_id: string | null } }>()("status.set", /* @version action.risk.status.set */ 1, "改风险状态",
+    "按读到的 revision 把风险改成打开、缓解中、已接受或已关闭，可附一句说明记进进展；关闭后这条风险的复查任务一并归档，没归档成的在 review_left 里返回（task_id 为 null 表示读不到它的复查）。",
     "command", object({ risk_id: id, expected_revision: revision, status, note: text(RISK_LIMITS.note) }, ["risk_id", "expected_revision", "status"]),
-    object({ risk, review_left: object({ task_id: id }) }, ["risk"]), { concurrent: true, result: true }),
+    object({ risk, review_left: object({ task_id: nullableSchema(id) }) }, ["risk"]), { concurrent: true, result: true }),
   addLink: define<{ links: RiskLink[] }>()("links.add", /* @version action.risk.links.add */ 1, "给风险关联对象",
     "把一个对象（Goal、Coding 会话、Feed 消息、成果……，任何有对象读取器的种类）关联到风险；先用它主人的读取器核对它在、调用者读得到，已关联的不重复。",
     "command", object({ risk_id: id, subject }), object({ links: array(link) }), { concurrent: true }),
@@ -72,6 +73,8 @@ export interface RiskActionPorts {
   read<T>(run: (store: RiskStore) => T): T;
   write<T>(caller: ActionExecutionContext, run: (store: RiskStore, transaction: PluginDatabaseTransaction) => T): Promise<T>;
   readSubject(subject: ActionSubject, caller: ActionCallContext): Promise<ActionSubjectContext>;
+  /** Schedule's actions as the caller, for a risk's reviews (review.ts). */
+  schedule<Output>(reference: ActionReference, input: unknown): Promise<Output>;
   now(): string;
 }
 
@@ -84,8 +87,13 @@ export function createRiskActionHandlers(ports: RiskActionPorts): ActionHandlerB
       risk: store.create(tx, { ...fields, treatment: fields.treatment ?? "", owner_name: fields.owner_name ?? null, links: links ?? [] }, caller.actor_id, ports.now()) }))),
     bindActionHandler(riskActions.update, ({ risk_id, expected_revision, ...changes }, caller) => write(caller, (store, tx) => ({
       risk: store.update(tx, risk_id, expected_revision, changes, caller.actor_id, ports.now()) }))),
-    bindActionHandler(riskActions.setStatus, ({ risk_id, expected_revision, status: next, note }, caller) => write(caller, (store, tx) => ({
-      risk: store.setStatus(tx, risk_id, expected_revision, next, note ?? null, caller.actor_id, ports.now()) }))),
+    bindActionHandler(riskActions.setStatus, async ({ risk_id, expected_revision, status: next, note }, caller) => {
+      const before = read(store => store.get(risk_id)).status;
+      const risk = await write(caller, (store, tx) => store.setStatus(tx, risk_id, expected_revision, next, note ?? null, caller.actor_id, ports.now()));
+      // Once the close has committed: its reviews go too, so nothing wakes about a closed risk.
+      const left = risk.status === "closed" && before !== "closed" ? await archiveRiskReviews(ports, risk_id) : undefined;
+      return { risk, ...(left ? { review_left: left } : {}) };
+    }),
     bindActionHandler(riskActions.addLink, async ({ risk_id, subject: linked }, caller) => {
       if (linked.kind === RISK_KIND && linked.id === risk_id) throw riskErrors.invalid("风险不能关联它自己");
       read(store => store.get(risk_id));
@@ -102,5 +110,6 @@ export function createRiskActionHandlers(ports: RiskActionPorts): ActionHandlerB
       return { links: store.links(risk_id, tx) };
     })),
     bindActionHandler(riskActions.addNote, ({ risk_id, text: note }, caller) => write(caller, (store, tx) => ({ event: store.addNote(tx, risk_id, note, caller.actor_id, ports.now()) }))),
+    ...createRiskReviewHandlers(ports),
   ];
 }

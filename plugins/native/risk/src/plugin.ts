@@ -25,6 +25,7 @@ export function createRiskPlugin(): PluginDefinition {
       read,
       write: (caller, run) => database.transaction(() => caller.beforeEffect(), tx => run(new RiskStore(tx, projectId), tx)),
       readSubject: async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context,
+      schedule: (reference, input) => directory.invoke(reference, input),
       now: () => new Date().toISOString(),
     };
     return { kind: "app", views: [riskUiContribution],

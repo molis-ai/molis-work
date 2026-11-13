@@ -554,7 +554,8 @@ describe("a generated golden Home", { concurrency: false }, () => {
     for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
     for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, CATALOG_SCHEMA_VERSION, `${prefix}the catalog's catalog_meta`);
     const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
-    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 2, "io.molis.work.goals": 2, "io.molis.work.inbox": 1, "io.molis.work.schedule": 2 });
+    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 2, "io.molis.work.goals": 3, "io.molis.work.inbox": 1, "io.molis.work.risk": 1,
+      "io.molis.work.schedule": 3 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
     // A golden made now holds every format at this build's version: the catalog has had its first upgrade step (05②), the rest are at 1.
@@ -578,9 +579,9 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }],
     ["a plugin's project tables raised", recorded => {
       const at = `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`, entry = recorded.stores.find(item => item.path === at);
-      // A golden made now holds Goals' tables at this build's version (2 since the evidence contract, batch 24).
-      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 2);
-      entry!.plugin_tables!["io.molis.work.goals"] = 3;
+      // A golden made now holds Goals' tables at this build's version (2 since the evidence contract, batch 24; 3 since cited objects, batch 17).
+      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 3);
+      entry!.plugin_tables!["io.molis.work.goals"] = 4;
       return `${at}#plugin_tables`;
     }],
     ["a format's version raised", recorded => {

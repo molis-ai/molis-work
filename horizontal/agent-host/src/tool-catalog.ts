@@ -59,6 +59,9 @@ export const AGENT_TOOLS: readonly AgentToolEntry[] = [
   runtime("await-commands", false, "Wait for background commands to finish.", { unasked: true }),
   runtime("list-mcp-resources", false, "List the resources the round's MCP servers offer."),
   runtime("read-mcp-resource", false, "Read one resource of the round's MCP servers."),
+  // Skill 的两件只读入口：找只回元数据，读按精确版本取正文或某一份参考/脚本。
+  runtime("find-skills", false, "List the skills this round may use, by their metadata only."),
+  runtime("read-skill", false, "Read a registered skill's body or one of its own references or scripts."),
   ...Object.entries(BUSINESS).map(([name, entry]) => runtime(name, entry.writes, entry.description, { origin: "business", ...(entry.unasked ? { unasked: true } : {}) })),
   ...Object.entries(SUBAGENT).map(([name, [writes, description, unasked]]) => runtime(name, writes, description, { origin: "subagent", ...(unasked ? { unasked } : {}) })),
   ...STEP_TOOLS.map(name => runtime(name, name !== "board-read", name === "board-read" ? "Read the steps of the round's confirmed plan." : "Report progress on the round's own plan steps.",

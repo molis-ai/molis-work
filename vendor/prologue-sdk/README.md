@@ -1,10 +1,20 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-window31.tgz`（第 31 批 SDK 窗口一）；被它换下的 `memory-p0` 与 `final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
 
-当前包为 **1,397,575 字节**，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源为已合并 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净提交 `1cc80b05253df798eeb34afff65d1bda06bee587`，与上游合并提交 `ccafbb74fb9db0e3a124ec502c57291677487e23` 整树一致，没有 vendor 补丁。沿用已验证包的原始字节，816 个 dist 文件曾逐一对照原构建；本次从 Git 中取回同一产物，不声称重新独立制包。
+## 当前包：window31（2026-11-12，第 31 批换）
 
-它包含既有 Memory CAS、分类、可信来源、采用与恢复能力，以及后续维护修复。新主干快照依赖的 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?})` 公共接口保留；当前组合仍须经过 Molis 实际离线快照、负例和恢复回归。本 Foundation 不采用尚在验证的集合读取优化 #108。
+当前包为 **1,422,521 字节**，SHA-256 `5927154e8c37d580467927cc0866b75941c0830ce76ec516d9085bcd5b0eadd0`。来源为 Molis fork 的 `feat/batch31-window-base` 分支提交 `4537a570dcb4541f2dc68466f6886880c1b75007`：**当前包源码 `1cc80b05` 加三组窗口改动**，不带别的上游改动（上游此后到 `770a2e27` 的 Memory #109–#113 不在里面），没有 vendor 补丁、没有脏文件；该分支包**尚未合并上游**，provenance 的 `source.note` 写明这一状态。
+
+它按 24 批盘点补上三处上游缺口（子代理、Skill 自动选用、续跑与写后检查），其余与 `memory-p0` 相同：
+
+- App 模式（`workspace: "app"`）的 Run 可以派出有界子代理：子会话沿用同一条包绑定，孩子拿到的是这个 App 自己的业务工具，工具面仍是与请求求交之后的那份；子目录授权、`requireWorkspace`、`parentReads` 在准入处拒绝。
+- Skill：`SkillManifest` 增 `description`／`whenToUse`／`whenNotToUse`／`appliesTo` 与 `resources`；`SkillRegistry.router` 有界（缺省 3、最多 8）且给理由；系统工具加 `find-skills`（只回元数据）与 `read-skill`（按精确版本读正文或某一份参考/脚本，路径在登记处即拒绝逃逸）；回执带版本、来源、状态、理由与用量。
+- 子代理续跑：`runtime.subagents.continue` 沿原父子关系在同一个子会话上开一跑，权限按登记时那份求交（宽了当场拒），登记成同一子任务的新尝试；子会话沿用父会话的包绑定，所以子 Run 的写入也会跑同一份写后检查（K-1／BL-302）。
+
+重建：在该提交上 `pnpm install --frozen-lockfile --offline`、`pnpm build`、`pnpm -C packages/sdk pack --pack-destination <外部目录>`；两次独立构建的包逐字节相同。质量证据：`node scripts/public-api.mjs`、`node scripts/quality-ratchet.mjs` 通过；质量门禁的稳定套件 73 个文件、750 条用例通过。上游 CI 未跑，不声称它已绿。
+
+已删除的上一份：`memory-p0`（1,397,575 字节，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`，来源 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 合并头 `1cc80b05`）。下面「保留的上一主线依赖」与更早各节保留原样，作为历史记录。
 
 相邻 `.sha256`、`.provenance.json` 记录实际产物和来源；`patch-history.json` 保留历史补丁、已替换包及此前上游祖先审计。旧 #94 的包和 sidecars 可从 Molis `c61508d5e15ab4850d256843a0e4110f9ecf1e20` 取回。来源记录不是应用采用、性能或用户验收结果；以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 为准。
 
@@ -408,7 +418,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：42 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `upstream`：43 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核（2026-11-12 补入 `1cc80b05`，即当前包的上一份源码；它已在 main 上）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

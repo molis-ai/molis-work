@@ -91,8 +91,9 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
     || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
     || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
     || state.actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
+  // A business round may hand bounded sub-tasks to children (they are App-tools rounds: same business tools, no directory).
   if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
-    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
     || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
   if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
@@ -183,15 +184,16 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
     childRoots.push({ id: grant.worktree_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
   }
   const childRoles = new Map<string, ChildRole>();
+  const business = input.workspace === "business";
   for (const role of input.subagents ?? []) {
-    assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools);
+    assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools, business ? "business" : "workspace");
     const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
     const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
       ...(ref ? { instructionsRef: ref } : {}), tools: role.host_tools.map(prologueToolName) });
     const published = runtime.characters.publish(draft.ref);
     childRoles.set(exactCharacterKey(published.ref), role);
   }
-  const childScope = childRoots.length
+  const childScope = business ? "本轮是业务会话，没有目录：子任务只能使用与这里同一套业务工具，不得填写 workspace 参数，也不能读写文件或运行命令。" : childRoots.length
     ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
       + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
     : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";
@@ -359,7 +361,11 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
-    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
+    /*
+     * A message the Host forwards to a child is the person speaking to that child (SAI-02/03): the default source is the
+     * person, so no `source: "app"` — that would record our own forwarding as the App talking.
+     */
+    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text }); } });
     state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
     observed.run.subscribe(event => { if (["completed", "failed", "cancelled"].includes(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
     // A child with operations to review is tracked by the Host: one in its own directory, or one in the main

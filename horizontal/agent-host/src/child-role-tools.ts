@@ -7,7 +7,19 @@ import { agentErrors } from "./errors.js";
  * (`adapters/prologue-run.ts`). A child in the main workspace never writes files; it may run commands (each reviewed) only
  * when its own execution allows them; it may read and wait on the parent's background commands when the parent holds that.
  */
-export function childRoleTools(execution: AgentRoleExecution, hasOwnWorkspace: boolean, parentTools: readonly string[]): readonly string[] {
+/**
+ * The tools an App-tools (business) child may hold: the parent's own business read/change surface. **Never a file, a
+ * command or anything that needs a directory** — such a round has no workspace, and the SDK admits the child as another
+ * App-tools run. A child gets only what its parent already holds, the same cap as a workspace child.
+ */
+export function businessChildRoleTools(parentTools: readonly string[]): readonly string[] {
+  return ["ask-user", "find-tools", "context-remaining", "acknowledge-inputs",
+    "find-capabilities", "read-capability", "change-capability", "suggest-action", "board-read", "board-report"]
+    .filter(name => parentTools.includes(name));
+}
+
+export function childRoleTools(execution: AgentRoleExecution, hasOwnWorkspace: boolean, parentTools: readonly string[], mode: "workspace" | "business" = "workspace"): readonly string[] {
+  if (mode === "business") return businessChildRoleTools(parentTools);
   return ["read-file", "list", "search", "context-remaining",
     ...(hasOwnWorkspace && execution !== "read-only" ? ["write", "edit-file"] : []),
     ...(execution === "workspace-write" ? ["run-command"] : []),
@@ -15,8 +27,8 @@ export function childRoleTools(execution: AgentRoleExecution, hasOwnWorkspace: b
 }
 
 /** Refuse a child role that reaches past what its own workspace and its parent's tools allow (BL-305: one cap, one message). */
-export function assertChildRoleTools(execution: AgentRoleExecution, tools: readonly string[], hasOwnWorkspace: boolean, parentTools: readonly string[]): void {
-  const allowed = childRoleTools(execution, hasOwnWorkspace, parentTools);
+export function assertChildRoleTools(execution: AgentRoleExecution, tools: readonly string[], hasOwnWorkspace: boolean, parentTools: readonly string[], mode: "workspace" | "business" = "workspace"): void {
+  const allowed = childRoleTools(execution, hasOwnWorkspace, parentTools, mode);
   if (!hasOwnWorkspace && execution === "text-edit" || tools.some(tool => !allowed.includes(tool) || !hasOwnWorkspace && !parentTools.includes(tool))) {
     throw agentErrors.role_execution_exceeded("子角色请求了当前父任务未开放的工具与目录");
   }

@@ -401,12 +401,14 @@ export function frozenSubagents(adapter: AgentRuntimeAdapter, role: AgentRoleDec
   const childWorkspaces = childWorkspacesOf(adapter, role, execution, request, authority.manifest, worktrees);
   let subagents: AgentFrozenSubagentRole[] | undefined;
   const declaration = authority.manifest.subagents;
+  // An App-tools (business) round has no directory: its children are App-tools runs holding the parent's business tools.
+  const mode = request.workspace === "business" ? "business" as const : "workspace" as const;
   if (declaration?.parent_role_ids.includes(role.role_id)) {
     if (!adapter.subagents || adapter.descriptor.capabilities.subagents === "unsupported") throw agentErrors.capability_unavailable("当前运行时尚未接通子任务");
     subagents = declaration.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)).map(child => {
       const tools = child.host_tools ?? [];
       const childExecution = child.execution ?? "read-only";
-      assertChildRoleTools(childExecution, tools, Boolean(childWorkspaces), hostTools);
+      assertChildRoleTools(childExecution, tools, Boolean(childWorkspaces), hostTools, mode);
       if (EXECUTION_CAPABILITIES[childExecution].some(capability => adapter.descriptor.capabilities[capability] === "unsupported")) throw agentErrors.capability_unavailable("运行时不能执行声明的子角色操作");
       const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);
       if (!prompt) throw agentErrors.role_not_declared("子角色缺少声明版本的正文");

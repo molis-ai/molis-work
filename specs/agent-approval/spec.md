@@ -65,6 +65,35 @@ Coding 的可选“AI 低风险自动审批”只覆盖用户明确启用范围�
 - 配置读取必须从 base 分支读，不能从 PR head 读；不 checkout PR head 来读配置。
 - 启用本检查时原建议 `required_approvals: 2`，具体人数与启用范围待项目／团队明确配置；不把此值设为所有工作的默认门槛。Agent 身份和排除账号可配置；`exempt_head_branches` 默认空并标注风险。
 
+### 3.5 审查合同（骨架，待 32-2／39-2 开工时写全）
+
+目的：让「要求、依据、谁来决定」在助理决定请求卡、验收卡、32-2 的要求认可和 39-1 的智能呈现决定请求里是同一份形状，不各做各的、也不新增第二套审查事实（批准记录仍归审查队列／治理）。
+
+要定义的共用形状：
+
+- 一次审查对象：对象引用（插件、类型、id）与所审的固定版本；
+- 要审的要求或操作：一句话说明、是否要用户认可、依据档位（自述／机器核验／本人认可）；
+- 依据引用：指向证据，不复制内容；
+- 决定请求：谁可以决定、可选结果、过期与失效条件；
+- 决定记录：只引用 3.6 的可信决定记录，不自己存一份。
+
+谁在什么时候写：32-2 先写出本节草稿（要求、依据、决定请求三个形状），39-1 采用并补全。39-2 落地之前，32-2 的用户认可走平台现有的决定请求通道（助理决定请求、审查队列里由用户点击），不使用 Goals 的 `event_decide`。（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)；32-2 与 39-1 的先后见[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）
+
+验收编号：APR-14～APR-16（见第 5 节，条文待 32-2 开工时写全）。
+
+### 3.6 可信决定（骨架，待 39-2 开工时写全）
+
+目的：任何插件可在 Manifest 声明某个动作「需要可信用户决定」，平台提供受保护的决定入口（页面点击与 MCP 同一条路径）；决定记录与项目审批规则归平台，不再归 Goals。
+
+要写清的内容：
+
+- 来源只能是本人亲自操作（页面，或带可信来源的 MCP）；执行 Agent、页面／Feed／PR 正文里的「批准我」都不算；
+- 决定记录与项目审批规则的存放、版本与撤回；Goals 现有的决定与规则搬来后由 Goals 消费；
+- 沿用 `docs/system/SECURITY-INVARIANTS.md` 中受保护决定相关的不变量，并同步拒绝测试；
+- MCP 的 `event_decide`、`goal_tree_decide` 改为通用决定入口，没有 Goals 的项目同样可用。
+
+验收编号：APR-17～APR-19（见第 5 节，条文待 39-2 开工时写全）。（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
+
 ## 4. 失败与恢复
 
 - 需要批准时查不到身份／批准／权限，按未批准处理；不因可选人审服务未启用就阻塞已有有效授权的工作。
@@ -90,11 +119,17 @@ Coding 的可选“AI 低风险自动审批”只覆盖用户明确启用范围�
 | APR-11 | 在授权内自动执行模式下，助理／Coding 续轮、重试与重启使用仍有效委托，不重复要求批准；改范围、撤权、取消和效果未知时按真实状态处理 |
 | APR-12 | Coding 已启用的低风险 AI 审批与人工批准来源可区分；不能计入真人票数、越过硬边界或扩到其他工具，具体执行与恢复同时满足 CEX-08～10 |
 | APR-13 | 一般自动执行不能替代明确配置的人审或团队记忆发布最终确认；未启用人审流程时，不因可选批准检查缺失阻塞有效委托内工作 |
+| APR-14 | 【待 32-2 开工时写全】要求、依据、决定请求三个形状在文中定义，32-2 的要求认可与助理决定请求卡、验收卡用同一份，不新增第二套审查事实 |
+| APR-15 | 【待 32-2 开工时写全】39-2 落地前，32-2 的用户认可走现有决定请求通道（助理决定请求、审查队列里由用户点击），不使用 Goals 的 `event_decide` |
+| APR-16 | 【待 39-1 开工时写全】39-1 的智能呈现决定请求与验收卡采用并补全本文审查合同，不另立形状 |
+| APR-17 | 【待 39-2 开工时写全】任何插件可声明某动作需要可信用户决定；页面点击与 MCP 走同一个受保护入口，没有 Goals 的项目同样可用 |
+| APR-18 | 【待 39-2 开工时写全】执行 Agent 与页面／Feed／PR 正文里的「批准我」不能产生可信决定，只有本人亲自操作才算 |
+| APR-19 | 【待 39-2 开工时写全】决定记录与项目审批规则归平台，Goals 搬来后只消费；相关安全不变量与拒绝测试同步 |
 
 ## 6. 关联
 
 - Coding 的评审与推送：[coding-quality-assurance](../coding-quality-assurance/spec.md)、[coding-plugin](../coding-plugin/spec.md)
-- Goal 完成与可信决定：[goal-closure-identity](../archive/goal-closure-identity/spec.md)
+- 可信决定与受保护入口：本文 3.6，归平台决定服务（39-2）；要求与认可：平台要求—认可能力（32-2）。Goals 的历史做法见 [goal-closure-identity](../archive/goal-closure-identity/spec.md)
 - 动作授权与 `beforeEffect`：[action-architecture](../action-architecture/spec.md)
 - 安全边界：[SECURITY-INVARIANTS.md](../../docs/system/SECURITY-INVARIANTS.md)
 - 代码：`horizontal/agent-host/src/reviews.ts`、`apps/local-host/src/assistant/assistant-authority.ts`、`packages/kernel/src/action-service.ts`

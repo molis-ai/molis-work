@@ -1,3 +1,4 @@
+import { inDirectoryPass } from "@molis-ai/molis-work-kernel";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import { ActionError, bindActionClient, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -83,7 +84,15 @@ export function openProjectPersonContext(host: MolisWorkLocalHost, reference: Lo
     new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.installations(false, true) ?? []) };
 }
 
-function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
+/**
+ * Building the authority is synchronous and checks every listed action's grants, so it is one directory pass: each installation record is read once
+ * for it (not once per action and permission). The checks it hands out run later, each reading afresh.
+ */
+function localWebAuthority(...args: Parameters<typeof buildLocalWebAuthority>): ActionCallContext {
+  return inDirectoryPass(() => buildLocalWebAuthority(...args));
+}
+
+function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
   catalog: readonly LocalActionMetadata[], projectRepository: SqlitePluginRuntimeRepository | undefined,
   platform: Awaited<ReturnType<typeof runningProjectPlatform>>, homeInstalled: readonly PluginInstanceRecord[], entry: LocalWebEntry = {},
   stageAction?: ActionDefinition): ActionCallContext {

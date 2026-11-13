@@ -46,7 +46,11 @@ export class HostAvailability {
     }));
   }
 
-  async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, pass?: DiscoveryPass): Promise<ActionAvailability> {
+  /**
+   * `pass` is the caller's directory for the whole resolution: a check that brings none gets one here, and every dependency, scene, binding and
+   * offer it follows reads that same directory, once, instead of reading the whole directory again at each step.
+   */
+  async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, given?: DiscoveryPass): Promise<ActionAvailability> {
     if (!view.availability.available) return view.availability;
     const key = JSON.stringify([view.capability_id, view.version, view.provider.provider_id]);
     if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或消费场景存在循环依赖，请修正配置" };
@@ -54,8 +58,8 @@ export class HostAvailability {
     const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
     if (!view.action.required_actions?.length && !view.action.required_scene) return state;
-    const actions = pass ? undefined : this.actionService.discover(caller);
-    const firstAction = pass?.actions() ?? ((ref: ActionReference) => actions!.find(row => row.capability_id === ref.capability_id && row.version === ref.version));
+    const pass = given ?? dependencyDirectory(this.actionService, caller);
+    const firstAction = pass.actions();
     for (const reference of view.action.required_actions ?? []) {
       const dependency = firstAction(reference);
       if (!dependency) return { available: false, code: "actions.dependency_missing", reason: "所需能力不存在或不可访问" };
@@ -67,13 +71,11 @@ export class HostAvailability {
     }
     if (!view.action.required_scene) return state;
     const required = view.action.required_scene;
-    const scene = pass ? pass.scene(required) : this.actionService.discoverScenes(caller)
-      .find(item => item.definition.scene_id === required.scene_id && item.definition.version === required.version);
+    const scene = pass.scene(required);
     if (!scene) return { available: false, code: "actions.scene_missing", reason: "消费场景不存在或不可访问" };
     const sceneState = scene.availability.available ? await this.options.sceneAvailability?.(caller, scene) ?? scene.availability : scene.availability;
     if (!sceneState.available) return sceneState;
-    const bindings = pass ? await pass.bindings(required) : (await this.actionService.usages(caller))
-      .filter(binding => binding.scene_id === required.scene_id && binding.scene_version === required.version && binding.enabled);
+    const bindings = await pass.bindings(required);
     if (!bindings.length) return { available: false, code: "actions.binding_required", reason: "请先为此场景选择并启用判断规则" };
     const states = await Promise.all(bindings.map(async binding => {
       if (!binding.availability.available) return binding.availability;
@@ -82,11 +84,10 @@ export class HostAvailability {
       const fnState = await this.resolve(caller, fn, path, policy, pass);
       if (!fnState.available || scene.definition.recommendation_source !== "subject-offers") return fnState;
       const keys = judgmentRecommendationKeys(fn) ?? [];
-      const choices = (pass?.choices() ?? subjectOfferChoices(actions!)).filter(choice => keys.includes(choice.key));
+      const choices = pass.choices().filter(choice => keys.includes(choice.key));
       for (const choice of choices) for (const reference of [choice.source, choice.action]) {
         // This caller's directory has at most one row for this id/version. The offer still pins its exact provider.
-        const dependency = pass ? firstAction(reference) : actions!.find(row =>
-          row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+        const dependency = firstAction(reference);
         if (!dependency || dependency.provider.provider_id !== reference.provider_id) return { available: false as const, code: "actions.binding_invalid", reason: "推荐动作已不可访问" };
         const available = await this.resolve(caller, dependency, path, policy, pass);
         if (!available.available) return available;

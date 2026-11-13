@@ -128,14 +128,14 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const registration = this.registry.registrationToken(registeredDefinition);
           const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
           let executing = true;
-          const assertCurrent = () => {
+          const assertCurrent = () => inDirectoryPass(() => {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
             lifetime?.assertActive();
             context.signal?.throwIfAborted();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
             assertAvailable(availability(context));
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
-          };
+          });
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
             definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };

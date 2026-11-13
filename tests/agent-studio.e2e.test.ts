@@ -1,10 +1,11 @@
 import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
 import { framedStudioPage, studioHarnessRequests, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
-import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
+import { pluginPagesFor, WebSessions } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type IncomingMessage } from 'node:http';
+import { createSingleHomeTestWebServer } from './fixtures/local-web-core.js';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createServer as createHttpsServer, Agent } from 'node:https';
@@ -34,11 +35,13 @@ import { readSandboxPackage } from '@molis-ai/molis-work-app-local-host';
 
 function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string }, token: string, mutations: Map<string, LocalMutationState>, setup?: {
   observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean; languageControls?: true;
+  sessions?: WebSessions; intercept?(request: IncomingMessage, response: import('node:http').ServerResponse, url: URL): boolean;
 }) {
-  const harness = studioHarnessRequests(options.homeDirectory, options.projectId, token, setup?.languageControls ? mutations : undefined);
+  const harness = studioHarnessRequests(options.homeDirectory, options.projectId, token, setup?.languageControls ? mutations : undefined, setup?.sessions);
   const server = createServer((request, response) => {
     setup?.observe?.(request, response);
     const url = new URL(request.url ?? '/', 'http://localhost');
+    if (setup?.intercept?.(request, response, url)) return;
     harness.handle(request, response, url, options.routePrefix ?? '', (local, proof, locale, preview) => {
       if (setup?.page && url.pathname === STUDIO_HARNESS_PATH) {
         response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -174,7 +177,20 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
   const options = { store, projectId, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: "/projects/" + projectId, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => {if(modelHold){modelStarted();await modelHold;} await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
-  const server = studioServer(options, token, mutations, { page: true, observe(request, response) {
+  const sessions = new WebSessions(home);
+  const gateway = createSingleHomeTestWebServer({ homeDirectory: home, controlToken: token, webSessions: sessions });
+  const [webRequest] = gateway.listeners('request'); assert.ok(webRequest);
+  await new Promise<void>(resolve => gateway.listen(0, '127.0.0.1', resolve));
+  let stopped: Promise<void> | undefined;
+  const stopGateway = () => stopped ??= new Promise<void>((resolve, reject) => {
+    gateway.close(error => error ? reject(error) : resolve());
+    gateway.closeAllConnections();
+  });
+  // The generated page stays on the Studio fixture's original store and action client. Its submit uses the real Host HTTP fence.
+  const server = studioServer(options, token, mutations, { page: true, sessions, intercept(request, response, url) {
+    if (url.pathname !== options.routePrefix + '/api/host/plugin-page-actions') return false;
+    webRequest.call(gateway, request, response); return true;
+  }, observe(request, response) {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
   } });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -310,9 +326,21 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
     assert.ok(stages[0]!.stage.includes('data-work-surface="' + stages[0]!.surface + '"'));
-    assert.ok(stages[0]!.stage.includes('data-plugin-page-source="' + pluginHref + '?frame=workbench"'));
+    assert.ok(stages[0]!.stage.includes('data-plugin-page-source="' + pluginHref + '?frame=workbench&amp;installation='));
     assert.match(stages[0]!.stage, /data-deferred-surface hidden><script type="application\/json" data-plugin-document>/u);
     assert.doesNotMatch(stages[0]!.stage, /<iframe/u, 'the real workbench owns the opaque frame when this stage opens');
+    const boundStagePath = (markup: string) => {
+      const source = /data-plugin-page-source="([^"]+)"/u.exec(markup)?.[1]?.replaceAll('&amp;', '&');
+      assert.ok(source, 'SCS-11: use the real installed stage address with its edition');
+      return source;
+    };
+    const framedStagePath = boundStagePath(stages[0]!.stage);
+    const currentStagePath = async () => boundStagePath((await installedPluginStages(options))[0]!.stage);
+    const refuseOldStage = async (path: string) => {
+      const response = await fetch(origin + path);
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, 'actions.provider_changed');
+    };
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
@@ -320,7 +348,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await legacy.platform.runtime.regrant(originalRecord.install_id, 'capabilities:call', true);
     const installedPage = await framedStudioPage(t, browser, await browser.page());
     await installedPage.command('Page.enable');
-    await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
+    await installedPage.command('Page.navigate', { url: origin + framedStagePath });
     await installedPage.wait('globalThis.__molisPluginReady===true');
     // SYS-15: a generated plugin is equally isolated and cannot call the authoring or another plugin API.
     assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-page-session]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
@@ -328,6 +356,10 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     const oldCallStatus = await installedPage.evaluate<number>(`(async()=>{const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});await r.text();return r.status})()`);
     assert.equal(oldCallStatus, 403, 'SYS-15: the installed page cannot POST its component-read body to the retired private alias');
+    await installedPage.click('[data-pc-open="editor"]');
+    await installedPage.fill('[data-component-id="editor"] [data-field]', '取消这条未提交的内容');
+    await installedPage.click('[data-component-id="editor"] dialog[open] .mw-form__footer button[type=button]');
+    await installedPage.wait(`!document.querySelector('[data-component-id="editor"] dialog[open]') && document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
     await installedPage.click('[data-component-id="editor"] [type=submit]');
@@ -356,11 +388,14 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
 
     // Publish the preceding presentation as v2, upgrade, then roll back to the exact v1 layout without losing data.
     await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish');await act('upgrade',{version:2,grants:{consent:true}})})()`);
-    await installedPage.command('Page.reload');
+    await refuseOldStage(framedStagePath);
+    const upgradedStagePath = await currentStagePath();
+    await installedPage.command('Page.navigate', { url: origin + upgradedStagePath });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await installedPage.evaluate(`!!document.querySelector('[data-pc-open="editor"]')`), false, 'v2 uses the preceding inline form');
     await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'rollback',revision:build.revision,version:1})});if(!r.ok)throw Error(await r.text())})()`);
-    await installedPage.command('Page.reload');
+    await refuseOldStage(upgradedStagePath);
+    await installedPage.command('Page.navigate', { url: origin + await currentStagePath() });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.
@@ -457,6 +492,8 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     const revision=await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId+'/action',{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify({action:'visual',revision:saved.build.revision,message:'保存一份可以跨设备恢复的真实界面修订'})});assert.equal(revision.status,200,await revision.clone().text());
     let revised=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as typeof saved;for(let i=0;i<600&&revised.build.active;i++){await new Promise(resolve=>setTimeout(resolve,50));revised=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as typeof saved;}
     assert.equal(revised.build.phase,'ready',revised.build.error??'source revision did not finish');assert.ok(revised.build.history.length);
+    // The installed page is finished. The isolated sync check below opens the Home's catalog under its own owner.
+    await stopGateway();
     await proveAuthoringSync(t,{home,space,projectId,itemId:buildId,manifest:builderManifest,storage:installedOwner.storage,owner:directory=>builderPrivateValueReplicationOwner({home:directory,verifyDistribution:verifySyncPluginDistribution}),codec:createSyncJsonContent({spaceId:space.spaceId,authorize(){},...builderSyncProjection}),verifyTarget:resumeTargetStudio,call(){
       const started=new Promise<void>(resolve=>{modelStarted=resolve;});modelHold=new Promise<void>(resolve=>{releaseModel=resolve;});
       const settled=(async()=>{await post('editor','submit',{form:{text:'真实预览同步竞争'}});const rows=await post('notes','read',{});assert.ok(Array.isArray(rows)&&rows.length);const row=rows[0] as {id:string};await post('expand','submit',{selection:{notes:{id:row.id}}});})();
@@ -470,6 +507,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     throw error;
   } finally {
     releaseModel();
+    await stopGateway();
     await releaseAgentStudio(store, projectId); await releaseInstalledPlugins(store, projectId);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
@@ -711,8 +749,11 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   // The upgrade's consent approves the site and the secret; using them is still the person's switch in Settings, off until turned on (BL-701).
   const upgraded = installed.platform.runtime.list().find(record => record.plugin_id === pluginId)!.install_id;
   for (const permission of ['network:request', 'secret:use']) await installed.platform.runtime.regrant(upgraded, permission, true);
-  const called = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'web-user', execution: { beforeEffect: async () => {} }, body: { operation: 'fetch', input: null } });
-  assert.equal(called?.status, 200, JSON.stringify(called?.body)); assert.equal((called!.body as { value: string }).value, 'received'); assert.equal(await received.promise, secretValue);
+  const caller = { actor_id: 'web-user', project_id: DEMO_PROJECT_ID, audience: 'user' as const, permissions: [] };
+  const action = (await installed.actions.client.discover(caller)).find(view => view.provider.plugin_id === pluginId && view.action.local_id === 'fetch');
+  assert.ok(action);
+  const called = await installed.actions.client.invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id }, null);
+  assert.equal(called, 'received'); assert.equal(await received.promise, secretValue);
   assert.equal(fixtureConnections, 1); assert.equal(checkedResolutions, 1, 'the new connection still ran the production DNS/address/authority checks');
   assert.ok(!JSON.stringify(installed.secrets.list(pluginId)).includes(secretValue)); assert.ok(!String(installed.storage.get('plugin-builder:agent-studio:approved:' + pluginId)).includes(secretValue));
 });

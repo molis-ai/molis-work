@@ -8,7 +8,8 @@ import { pluginInstallationsFor } from "./plugin-installation-directory.js";
 import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { pluginAgentsFor } from "./plugin-agent-service.js";
 import { pluginSchedulerFor } from "./plugin-scheduler-service.js";
-import { pluginPagesFor } from "./plugin-page-authority.js";
+import { installedPageRelease, pluginPagesFor } from "./plugin-page-authority.js";
+import { installedComponentSubmit } from "./installed-action-registration.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -92,7 +93,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
     refuseUngivenSandboxServices(definition, context);
-    const manifest = definition.manifest;
+    const manifest = definition.manifest, readRecord = () => options.record?.(context.install_id);
     withdrawText = pluginTextFor(options, definition, context);
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants), permission => {
@@ -107,7 +108,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     library = openDeclaredLibrary(options, definition, context, assertActive);
     projectLibrary = openProjectTables(options, definition, context, assertActive);
     const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive);
-    withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
+    withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id, readRecord());
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, home: options.home?.directory, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
@@ -126,8 +127,11 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
       background: background?.client, directory: directory?.client, terminal: terminal?.client,
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
+    const submit = installedComponentSubmit(definition, options.actions, readRecord);
+    const record = submit && readRecord();
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, instance: context, project_id: options.project_id, actor_id: options.actor_id,
-      invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
+      release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
+      invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },

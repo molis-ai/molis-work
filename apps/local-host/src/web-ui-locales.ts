@@ -16,9 +16,11 @@ export async function handlePageLocales({ request, response, url, serverOptions 
   if (!shellPageRead(request, `http://${requestHost(request)}`)) { refuseLocalWebRequest(response); return; }
   if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "此入口只读取界面语言包" }); return; }
   const locale = url.searchParams.get("locale"), ids = [...new Set(url.searchParams.getAll("page"))];
-  if (!isWebLocale(locale) || url.searchParams.getAll("locale").length !== 1 || !ids.length || ids.length > 256
-    || ids.some(id => !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/u.test(id))
-    || [...url.searchParams.keys()].some(key => key !== "locale" && key !== "page")) {
+  // A protected home response's word grants (surface-composition §14.6) are read beside the pages, in the same one batch and limit.
+  const texts = [...new Set(url.searchParams.getAll("surface_text"))];
+  if (!isWebLocale(locale) || url.searchParams.getAll("locale").length !== 1 || !ids.length && !texts.length || ids.length + texts.length > 256
+    || [...ids, ...texts].some(id => !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/u.test(id))
+    || [...url.searchParams.keys()].some(key => key !== "locale" && key !== "page" && key !== "surface_text")) {
     sendLocalWebJson(response, 400, { error: "请选择语言与当前页面的挂载" }); return;
   }
   const abort = new AbortController();
@@ -27,7 +29,7 @@ export async function handlePageLocales({ request, response, url, serverOptions 
   try {
     const home = serverOptions.homeDirectory;
     if (!home) throw new ActionError("actions.unavailable", "界面语言包需要当前 Home");
-    await pluginPagesFor(home).withPageText(request, ids, projectId, abort.signal, sources => {
+    await pluginPagesFor(home).withPageText(request, ids, projectId, abort.signal, (sources, granted) => {
       serverOptions.assertAccountCurrent?.();
       const common = pluginTextForOwner("workbench");
       if (!common) throw new ActionError("actions.unavailable", "共有界面语言包不可用，请重试");
@@ -42,8 +44,16 @@ export async function handlePageLocales({ request, response, url, serverOptions 
         }
         (embedded ? existing.embedded : existing.pages).push(id);
       }
-      sendLocalWebJson(response, 200, { language: frameUiLanguage(webLanguage(locale)!), shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()] });
-    }, shown);
+      // Only the keys the response showed, from that one source: two sources of one owner never lend each other words.
+      const surface = granted.map(({ id, manifest, reader, keys }) => {
+        if (!reader) throw new ActionError("actions.unavailable", "插件语言包不可用，请重新打开");
+        const packs = projectTextPacks(reader, locale, manifest.ui.locales?.available.includes(locale) === true)
+          .map(pack => ({ ...pack, messages: Object.fromEntries(Object.entries(pack.messages).filter(([key]) => keys.has(key))) }));
+        return { ref: id, owner: manifest.plugin_id, packs };
+      });
+      sendLocalWebJson(response, 200, { language: frameUiLanguage(webLanguage(locale)!), shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()],
+        ...(texts.length ? { texts: surface } : {}) });
+    }, shown, texts);
   } catch (error) {
     if (!response.destroyed) respondLocalWebRefusal({ respond: (status, body) => sendLocalWebJson(response, status, body) }, error);
   } finally { response.off("close", closed); }

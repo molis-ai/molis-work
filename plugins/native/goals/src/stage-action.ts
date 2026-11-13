@@ -4,12 +4,14 @@ import { goalsCollectionAction } from "./collection-action.js";
 import { goalDocumentAction } from "./document-action.js";
 import type { GoalsDocumentCollectionView, GoalsMembership } from "./document-collection.js";
 import type { GoalEventDocumentView } from "./event-document-model.js";
-import { identifier, object, nullable } from "./contract/goal-actions.js";
+import { identifier, object, nullable, array, enumeration } from "./contract/goal-actions.js";
 import { resolveGoalsPageCollection, type GoalDocumentCollection } from "./document-routes.js";
+import { goalPresentationStates, type CaptureGoalPresentationStatus, type GoalPresentationStatus } from "./presentation.js";
 
 export interface GoalsStageInput { goal_id?: string; collection?: GoalDocumentCollection }
 export interface GoalsStageData {
   collection: GoalsDocumentCollectionView;
+  presentation_states: Array<{ goal_id: string; status: GoalPresentationStatus }>;
   selection: GoalDocumentCollection;
   selected: { goal_id: string; document: GoalEventDocumentView } | null;
 }
@@ -17,6 +19,7 @@ const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read"
   "读取当前项目的目标集合及所选目标正文、关系和规则；不启动工作或改变目标", "query",
   object({ goal_id: identifier, collection: { type: "string", enum: ["current", "archive", "trash"] } }, []),
   object({ collection: goalsCollectionAction.action.output_schema!, selection: { type: "string", enum: ["current", "archive", "trash"] },
+    presentation_states: array(object({ goal_id: identifier, status: enumeration(goalPresentationStates) })),
     selected: nullable(object({ goal_id: identifier, document: goalDocumentAction.action.output_schema! })) }));
 
 /** The stage read is for the person opening the page; identity is the existing action context, never request input. */
@@ -29,7 +32,7 @@ export const goalsStageAction = { ...stageRead, action: { ...stageRead.action, a
  */
 export function createGoalsStageActionHandler(ports: {
   membership(): GoalsMembership;
-  collection(membership: GoalsMembership): GoalsDocumentCollectionView;
+  collection(membership: GoalsMembership, capturePresentation: CaptureGoalPresentationStatus): GoalsDocumentCollectionView;
   document(goalId: string): GoalEventDocumentView;
 }): ActionHandlerBinding {
   return { ...goalsStageAction, handle: (_caller, input) => {
@@ -42,6 +45,8 @@ export function createGoalsStageActionHandler(ports: {
     const goalId = goal_id ?? (selection === "current" ? membership.active_goal_id : visible[0]?.goal.goal_id);
     const selected = goalId && visible.some(item => item.goal.goal_id === goalId)
       ? { goal_id: goalId, document: ports.document(goalId) } : null;
-    return { collection: ports.collection(membership), selection, selected };
+    const presentation_states: GoalsStageData["presentation_states"] = [];
+    const collection = ports.collection(membership, (goal_id, status) => presentation_states.push({ goal_id, status }));
+    return { collection, presentation_states, selection, selected };
   } };
 }

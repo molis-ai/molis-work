@@ -1,9 +1,9 @@
 import { validateFrozenStudioWords } from "./agent-ui-text.js";
-import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
 import { PLUGIN_COMPONENT_WORD_KEYS, pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 import { validateExperience } from './agent-experience.js';
-import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxDataOperation, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 export function parseBuilderJson(text: string): unknown { const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, ''); return JSON.parse(clean); }
 /** A schema error in words the designer can act on: which operation, which field, what to write. */
 function explainContract(error: unknown, contract: unknown): string {
@@ -24,7 +24,7 @@ function explainContract(error: unknown, contract: unknown): string {
   return '功能合同不成立：' + message;
 }
 export function validateAgentDesign(input: unknown, capabilities: readonly string[], resources: readonly string[], validateContract: (contract: unknown) => void): AgentDesign {
-  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience', 'localePacks'].includes(key))) throw new Error('方案包含未知属性');
+  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience', 'localePacks', 'ui'].includes(key))) throw new Error('方案包含未知属性');
   if (input.experience !== undefined) input.experience = validateExperience(input.experience);
   for (const field of ['id', 'title', 'description', 'rationale']) if (typeof input[field] !== 'string' || !input[field] || (input[field] as string).length > 4000) throw new Error('方案缺少有效的' + field);
   if (!Array.isArray(input.journey) || input.journey.length < 1 || input.journey.length > 20 || input.journey.some(item => typeof item !== 'string' || item.length > 1000)) throw new Error('用户旅程不完整');
@@ -39,16 +39,19 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
     if (capabilities.includes(operation.id)) throw new Error('操作 ' + operation.id + ' 和平台能力同名：插件自己的操作用自己的前缀（例如 reports.list），要用这个能力就在调用它的操作的 effects.capabilities 里写 "' + operation.id + '"');
     for (const capability of operation.effects.capabilities ?? []) if (!capabilities.includes(capability)) throw new Error('项目能力目录中没有：' + capability);
     for (const resource of operation.effects.resources ?? []) if (!resources.includes(resource)) throw new Error('没有这个已授权资源：' + resource);
-    // Documents, artifacts and what goes to the Feed or Inbox are other plugins' actions in the catalog, not sandbox effects.
-    if (operation.effects.events?.length || operation.effects.artifacts?.length)
+    // Studio-authored data operations use catalog actions for these effects. The sandbox already checked the fixed protocol allowlist.
+    if (operation.read_protocol === undefined && (operation.effects.events?.length || operation.effects.artifacts?.length))
       throw new Error('操作 ' + operation.id + ' 的 effects 里不要写 events 或 artifacts：写文档用能力清单里的 pages.create / pages.update，存成果用 pages.promote，读成果用 artifacts.read，放进 Feed 用 feed.content.receive，到点提醒用 reminders.add');
   }
-  design.parts = validatePluginComponentPlans(design.parts, design.contract);
+  const dataOperation = (id: string): SandboxDataOperation | undefined =>
+    design.contract.operations.find((operation): operation is SandboxDataOperation => operation.id === id && operation.read_protocol === undefined);
+  if (design.ui !== undefined) design.ui = parseSandboxUi(design.ui);
+  design.parts = validatePluginComponentPlans(design.parts, design.contract, design.ui);
   validateFrozenStudioWords(design);
   if (design.presentation !== undefined) design.presentation = validatePluginPresentation(design.presentation, design.parts, design.contract);
   // "今天已经喝了 {{count}} 杯": a sentence filled from the part's own query result, so the field must be in it.
   for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of (typeof text === 'string' ? text : '').matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
-    const query = part.read && design.contract.operations.find(item => item.id === part.read!.operationId), shown = query ? pluginSchemaAt(query.output, part.read!.outputPath) : undefined;
+    const query = part.read && dataOperation(part.read.operationId), shown = query ? pluginSchemaAt(query.output, part.read!.outputPath) : undefined;
     if (!shown || shown.type !== 'object' || !pluginSchemaAt(shown, field!)) throw new Error('组件 ' + part.id + ' 的文字里用了 {{' + field + '}}，但它没有读取一个返回 ' + field + ' 的查询：给它 "read": 一个 output 含 ' + field + ' 的 query');
   }
   // A field taken from another part must exist there: in the records a collection lists, or in the result of the
@@ -59,8 +62,8 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
     const wanted = source.source === 'selection' ? source.field : source.source === 'form' ? source.prefill!.field : '';
     if (from === part.id) throw new Error('组件 ' + part.id + ' 的 ' + field + ' 不能取自它自己；由用户填写就直接写 "form"');
     const origin = design.parts.find(item => item.id === from)!;
-    const query = origin.read && design.contract.operations.find(item => item.id === origin.read!.operationId);
-    const command = origin.submit && design.contract.operations.find(item => item.id === origin.submit!.operationId);
+    const query = origin.read && dataOperation(origin.read.operationId);
+    const command = origin.submit && dataOperation(origin.submit.operationId);
     const listed = query ? pluginSchemaAt(query.output, origin.read!.outputPath) : undefined;
     const has = (schema?: SandboxSchema) => schema?.type === 'object' && !!pluginSchemaAt(schema, wanted);
     if (!has(listed?.type === 'array' ? listed.items : listed) && !has(command?.output))
@@ -81,11 +84,11 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
       const part = design.parts.find(item => item.id === step.componentId); if (!part) throw new Error(where + '没有组件 ' + step.componentId + '（组件有 ' + design.parts.map(item => item.id).join('、') + '）');
       if (step.action === 'submit' && !part.submit) throw new Error(where + '组件 ' + part.id + ' 没有提交操作，不能 submit');
       if (step.action === 'faultRead' || step.action === 'retry') {
-        if (!part.read || design.contract.operations.find(operation => operation.id === part.read!.operationId)?.kind !== 'query') throw new Error(where + step.action + ' 需要组件绑定的 read query');
+        if (!part.read || dataOperation(part.read.operationId)?.kind !== 'query') throw new Error(where + step.action + ' 需要组件绑定的 read query');
       }
       if (step.action === 'expectWord' && (!PLUGIN_COMPONENT_WORD_KEYS.includes(step.word) || !part.props[step.word])) throw new Error(where + ' expectWord 要引用组件的显示文字');
       if (step.action === 'submitBlocked') {
-        const operation = design.contract.operations.find(operation => operation.id === part.submit?.operationId);
+        const operation = part.submit && dataOperation(part.submit.operationId);
         const field = Object.entries(part.submit?.input ?? {}).find(([name, source]) => source.source === 'form' && source.field === step.field && operation?.input.required?.includes(name) && operation.input.properties?.[name]?.type !== 'boolean');
         if (!field || step.reason !== 'valueMissing') throw new Error(where + 'submitBlocked 需要提交表单的必填字段及 valueMissing');
       }

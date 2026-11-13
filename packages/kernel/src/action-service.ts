@@ -1,7 +1,7 @@
 import { actionExecutionContext, assertReadOnlyEffects, visibleAction, prepareSubjectStateResult } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
-import { registeredActionMetadata } from "./action-metadata.js";
+import { discoveredActionViews, registeredActionMetadata, type ObserveActionRegistration } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
@@ -190,8 +190,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return dispose;
   }
 
-  discover(context: ActionCallContext): ActionView[] {
-    return this.directory(context, false);
+  discover(context: ActionCallContext, observe?: ObserveActionRegistration): ActionView[] {
+    return this.directory(context, false, observe);
   }
 
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */
@@ -199,11 +199,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return this.directory(context, true);
   }
 
-  private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
+  private directory(context: ActionCallContext, inspection: boolean, observe?: ObserveActionRegistration): ActionView[] {
     // Visibility is checked before any row is made. One pass: a provider is asked once for all its actions, the caller once for its authority.
     const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context), caller = rowCaller(context);
-    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
-      ({ ...metadata, availability: this.registry.availability(caller, { ...metadata, action_provider: metadata.provider }) })));
+    return inDirectoryPass(() => discoveredActionViews(this.registry, caller,
+      registeredActionMetadata(this.registry, context, visible), observe));
   }
 
   /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */

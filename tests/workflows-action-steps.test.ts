@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
@@ -49,8 +49,12 @@ test("a workflow step runs any registered action — even one the Host never hea
     publisher: { publisher_id: "test", signature: "test" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "tickets:write", required: true, reason: "建工单" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [create.definition] }, async start() { return { kind: "app", actions: [create.handler] }; } });
-  const runtime = await host.withProject(reference, project => new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined,
-    { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: PROJECT } }));
+  // Its release is archived as a real install keeps one: a presentation check reads every installed plugin's declared actions and
+  // refuses an installation whose Manifest it cannot read, which would keep Feed (it declares a presentation) from starting.
+  const runtime = await host.withProject(reference, project => {
+    new SqlitePluginRuntimeReleaseArtifactRepository(project.store.db).save(createPluginRuntimeReleaseArtifact(plugin.manifest, "export {};"));
+    return new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: PROJECT } });
+  });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
   await runtime.start(installed.install_id);
 

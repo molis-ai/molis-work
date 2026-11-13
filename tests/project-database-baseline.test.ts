@@ -71,19 +71,18 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-// The current snapshot independently fixes the complete platform/Module schema at the current version (2: the first upgrade step,
-// shared-sources-and-surfaces §2.1, §3, dropped the browsing setting and added 「最近用过」).
-test("RAC-2360 the project database baseline is version 2 and the platform's and Modules' current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 2);
+// Version 3 adds the surface composition service's corrections (surface-composition §3, §14.1).
+test("RAC-2360 the project database baseline is version 3 and the platform's and Modules' current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 3);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 2", () => {
+test("RAC-2360 an existing empty file initializes the complete current library at 3", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 2); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 3); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -94,18 +93,19 @@ test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped id
   try {
     const old = new DatabaseSync(file);
     old.exec(PROJECT_DATABASE_BASELINE.schema);
-    old.exec("PRAGMA user_version = 3");
+    const ahead = PROJECT_DATABASE_BASELINE.version + 1;
+    old.exec(`PRAGMA user_version = ${ahead}`);
     old.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("p", "2026-10-24");
     old.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run("p", "io.molis.work.example:entry", "goal_decision", "io.molis.work.example:goal", "goal_decision", "open", "2026-10-24", "2026-10-24");
     const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
     old.close();
     const bytes = readFileSync(file);
-    assert.throws(() => new LocalProjectDatabase(file), error => isSqliteVersionRefusal(error) && error.code === "storage.store_too_new" && error.details?.found === 3 && error.details?.expected === 2);
+    assert.throws(() => new LocalProjectDatabase(file), error => isSqliteVersionRefusal(error) && error.code === "storage.store_too_new" && error.details?.found === ahead && error.details?.expected === PROJECT_DATABASE_BASELINE.version);
     assert.deepEqual(readFileSync(file), bytes);
     const after = new DatabaseSync(file, { readOnly: true });
     try {
-      assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, 3);
+      assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, ahead);
       assert.deepEqual(describeSqliteSchema(after), before.schema);
       assert.deepEqual(after.prepare("SELECT * FROM inbox_entries").all(), before.rows);
     } finally { after.close(); }

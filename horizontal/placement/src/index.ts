@@ -3,7 +3,7 @@ import {
   type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type {
   PlacedObject, PlacementAssociation, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription, PlacementGoalView,
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
@@ -34,6 +34,8 @@ export interface PlacementPorts {
   beforeEffect?(): void | Promise<void>;
   /** Last title seen for an object, so a deleted one is still named where it was used. A cache, never a fact. */
   titles: { get(kind: string, id: string): string | null; set(kind: string, id: string, title: string): void };
+  /** The presentation path follows only its original source partition and never records incidental reads. */
+  surfaceSource?: PlacedObject;
   /** Reads a Workbench key in the caller's language. */
   text?(key: string, vars?: Record<string, string | number>): string;
   /** Which declared relation (`placement_relation`) the Goal-shaped parts of this service keep; `goal`, the name the wire vocabulary uses. */
@@ -68,6 +70,9 @@ export class PlacementService {
     const edge = this.ports.ledger.query.get(ACCESS, key("location", object.kind, object.id));
     if (!edge) return { object, moved: false };
     const partition = edge.target.id === HOME ? null : edge.target.id;
+    const source = this.ports.surfaceSource;
+    if (source && object.kind === source.kind && object.id === source.id && partition !== source.project_id)
+      throw new ActionError("actions.provider_changed", "原对象的放置位置已变化");
     return { object: { ...object, project_id: partition }, moved: partition !== object.project_id };
   }
 
@@ -98,8 +103,10 @@ export class PlacementService {
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
     if (placementBelongsOf(read) === projectId) throw new ActionError("placement.already_here", placementText(this.ports, "workbench.index.s-already-stored-project-no-link-needed"));
     await this.ports.beforeEffect?.();
-    this.remember(object);
     const linkKey = key("used_in", object.kind, object.id, projectId);
+    if (this.ports.surfaceSource && this.ports.ledger.query.get(ACCESS, linkKey)?.state === "active")
+      throw new ActionError("actions.provider_changed", "这个对象已用于所选项目");
+    this.remember(object);
     this.ports.ledger.commands.put(ACCESS, { key: linkKey, type: TYPES.used, source: identity(object.kind, object.id), target: projectRef(projectId),
       cause: "placement.link" });
     return { key: linkKey };
@@ -326,6 +333,28 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
 export const PLACEMENT_LEDGER_ACCESS = ACCESS;
 
+/** The caller has already read these candidates from their owners at the supplied locations. */
+export function placementRelationsFor(ledger: ContextLedgerRelationReader, projectId: string, candidates: readonly PlacedObject[]): ContextEdge[] {
+  const objects = candidates.filter(object => object.project_id === projectId || object.project_id === null);
+  if (objects.length < 2) return [];
+  const locations = new Map(objects.map(object => [key(object.kind, object.id), object.project_id ?? HOME]));
+  const refs = [...objects.map(object => identity(object.kind, object.id)), ...Array.from(new Set(locations.values()), projectRef)];
+  const edges = ledger.activeBetween(ACCESS, refs, [TYPES.location, TYPES.copied, TYPES.derived]);
+  const found = new Set<string>();
+  for (const edge of edges) {
+    if (edge.type !== TYPES.location || edge.actor_id !== ACCESS.actor_id || !edge.source.object_type) continue;
+    const object = key(edge.source.object_type, edge.source.id);
+    if (edge.key === key("location", edge.source.object_type, edge.source.id) && locations.get(object) === edge.target.id) found.add(object);
+  }
+  return edges.filter(edge => {
+    const { source, target } = edge;
+    if (edge.actor_id !== ACCESS.actor_id || !source.object_type || !target.object_type) return false;
+    const kind = edge.type === TYPES.copied ? "copied_from" : edge.type === TYPES.derived ? "derived_from" : undefined;
+    return kind !== undefined && edge.key === key(kind, source.object_type, source.id)
+      && found.has(key(source.object_type, source.id)) && found.has(key(target.object_type, target.id));
+  });
+}
+
 interface PlacementInstanceAccess {
   locate(object: PlacedObject): { object: PlacedObject; moved: boolean };
   read(object: PlacedObject): Promise<Read>;
@@ -408,7 +437,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
   }
   const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null };
   const here = object.project_id ?? placementBelongsOf(read);
-  if (object.project_id === null && read.state === "ok") { await ports.beforeEffect?.(); self.rememberBelonging(object, here); }
+  if (!ports.surfaceSource && object.project_id === null && read.state === "ok") { await ports.beforeEffect?.(); self.rememberBelonging(object, here); }
   // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
   const belonged = object.project_id === null ? ports.ledger.query.get(ACCESS, key("belonged_to", object.kind, object.id)) : null;
   const before = belonged && belonged.target.id !== (here ?? PERSONAL_SPACE_PROJECT_ID) ? belonged.target.id : null;
@@ -605,12 +634,15 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
     const kind = declared ? declared.action.subject_kinds[0]! : readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : station;
     created = { kind, id: item.item_id, project_id: request.to_project_id };
   }
+  const actual = ports.surfaceSource ? await access.read(created) : undefined;
+  if (actual && actual.state !== "ok") throw new ActionError("actions.outcome_unknown", "新对象的读取结果需要到接收方核对");
   await ports.beforeEffect?.();
   if (!read.context) ports.titles.set(source.kind, source.id, sourceTitle);
   access.remember(source);
   access.remember(created);
   ports.ledger.commands.put(ACCESS, { key: key("derived_from", created.kind, created.id), type: TYPES.derived,
     source: identity(created.kind, created.id), target: identity(source.kind, source.id), cause: `placement.convert:${"goal" in request.to ? "goal" : request.to.station}` });
-  const createdRead = await access.read(created);
-  return { object: created, title: createdRead.context?.title ?? title, location: placementLocation(ports, created.project_id, spaces), open: await access.openOf(created) };
+  const createdRead = actual ?? await access.read(created);
+  const open = actual ? actual.context?.open && { ...actual.context.open, project_id: placementOpenProject(created, actual) } || null : await access.openOf(created);
+  return { object: created, title: createdRead.context?.title ?? title, location: placementLocation(ports, created.project_id, spaces), open };
 }

@@ -96,10 +96,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
       </section>`;
 }
 
-// Both surfaces are already mounted. The current browser and a drawn, floating Assistant share the available width.
-const SHARED_BROWSER = "html body.immersive-workbench[data-side-open=true]:not([data-side-solo])"
-  + ":has([data-side-panel]:not([hidden],[inert])>[data-side-browser]:not([hidden]))"
-  + ":has(.workbench-bar:not([data-dock-hidden])>[data-assistant-island]>[data-assistant-panel]:not([hidden]))";
+// Both surfaces are already mounted. The current browser and a drawn, floating Assistant share the available width: the Assistant's
+// layout script marks it on the root (data-side-shared, assistant-layout.ts), so no rule here re-checks the whole page (VUX-36).
+const SHARED_BROWSER = "html body.immersive-workbench[data-side-shared]";
 
 /* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
  * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
@@ -217,7 +216,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,gone=()=>false,readText=globalThis.t.text,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,gone=()=>false,readText=globalThis.t.text,paneSrc=null,glyph=()=>'',toMain=null,discussionObjects=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -440,7 +439,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(event.data?.type==='molis:im-connect'&&projectId){
       const source=frame.contentWindow,page=frame.contentDocument;
       const answer=(error,code)=>{if(frame.contentDocument===page&&frame.contentWindow===source)source.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error,code},location.origin);};
-      try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
+      try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});if(frame.contentDocument===page&&frame.contentWindow===source)source.molisDiscussionObjects??=discussionObjects?.(frame);answer(null);}
       catch(error){answer(molisWorkRequest.text(error,globalThis.t.text("workbench.side-panel.couldn-t-connect-project")),error?.code);}
     }
   });

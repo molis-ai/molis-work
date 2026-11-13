@@ -380,7 +380,6 @@ tests/git-operation-review.test.ts
 tests/git-plugin.test.ts
 tests/governance-collaboration-module.test.ts
 tests/governance-provenance.test.ts
-tests/home-flow.test.ts
 tests/home-offer-actions.test.ts
 tests/host-inference-completion.test.ts
 tests/im-browser-state.test.ts

@@ -3,10 +3,12 @@ import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "./contract.js";
 import type { DatasetStore } from "./store.js";
 import { datasetErrors } from "./error.js";
 
+const subjectReader = defineSubjectContextAction("dataset.subject.read", /* @version action.dataset.subject.read */ 1, "dataset", "数据表", ["dataset:read"]);
+
 /** Dataset's part in the system search: table name, description, column names and cell text. */
 export const datasetSearchActions = {
   entries: defineSearchEntriesAction("dataset.search.entries", /* @version action.dataset.search.entries */ 1, [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),
-  subject: defineSubjectContextAction("dataset.subject.read", /* @version action.dataset.subject.read */ 1, "dataset", "数据表", ["dataset:read"]),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
   /** The side panel's file tab (specs/archive/side-panel): each table as the CSV it would export to. */
   files: defineFileEntriesAction("dataset.files.entries", /* @version action.dataset.files.entries */ 1, [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),
   fileContent: defineFileContentAction("dataset.files.content", /* @version action.dataset.files.content */ 1, [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),

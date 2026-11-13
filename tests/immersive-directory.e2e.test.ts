@@ -131,7 +131,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const indent = await evaluate<{ depths: number[]; step: number; errors: string[] }>(`(() => {
     const items = [...document.querySelectorAll('[data-goal-stage-list] [data-tree-root]:not([data-collection-tree]) [data-tree-item]')];
     const rows = items.map((item) => {
-      const title = item.querySelector(':scope > .tree-row .tree-title-line strong');
+      const title = item.querySelector(':scope > .tree-row :is(.tree-title-line strong, .tree-presentation-name .mw-presentation__tag strong)');
       const leading = item.querySelector(':scope > .tree-row .tree-leading');
       const nest = item.querySelector(':scope > .tree-children');
       const nestStyle = nest ? getComputedStyle(nest) : null;

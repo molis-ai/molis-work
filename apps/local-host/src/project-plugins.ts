@@ -63,13 +63,17 @@ export function projectPluginProblem(state: ProjectPluginState, store: LocalProj
   return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.error ?? null };
 }
 
-type StartedProject = { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> };
+type StartedProject = { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState>; current?: ProjectPluginState };
 const started = new WeakMap<LocalProjectDatabase, Map<string, StartedProject>>();
 /** A project's plugin platform when it is already running; never starts one. */
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);
   return opening ? (await opening.ready).platform : null;
 }
+
+/** A synchronous view of a finished startup, for reads that cannot wait for plugin activation. */
+export const currentProjectPlatform = (store: LocalProjectDatabase, projectId: string) =>
+  started.get(store)?.get(projectId)?.current?.platform ?? null;
 
 /** Reconcile through the project's existing queue without starting a plugin platform. */
 export async function refreshRunningProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<ProjectPluginRefreshResult | null> {
@@ -126,10 +130,10 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
   started.set(ports.store, boards);
   const configuration = { ...ports };
   const opening = startPlatform(configuration);
-  const project = { ports: configuration, ready: opening };
+  const project: StartedProject = { ports: configuration, ready: opening.then(state => { project.current = state; return state; }) };
   boards.set(ports.projectId, project);
   noteProjectOpened(project);
-  return opening;
+  return project.ready;
 }
 
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {

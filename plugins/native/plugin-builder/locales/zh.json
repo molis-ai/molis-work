@@ -397,6 +397,7 @@
     "plugin-builder.agent-prompt.builder-revise.title": "代码 Agent · 修改",
     "plugin-builder.agent-prompt.builder-revise.purpose": "按用户的修改意见改动已有插件代码",
     "plugin-builder.agent-prompt.builder-acceptance.title": "代码 Agent · 验收",
-    "plugin-builder.agent-prompt.builder-acceptance.purpose": "按设计里的验收项检查生成的插件"
+    "plugin-builder.agent-prompt.builder-acceptance.purpose": "按设计里的验收项检查生成的插件",
+    "plugin-builder.agent-studio.record-or-form-unavailable": "原记录或表单已不可用"
   }
 }

@@ -6,7 +6,8 @@ import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/func
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createInboxActionHandlers, readInboxStageSubjects, INBOX_STAGE_GOAL_READ, type InboxActionEntry } from "./actions.js";
-import { createInboxContentHandlers, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
+import { createInboxContentHandlers, type InboxContentPorts, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
+import { createInboxPresentationHandlers } from "./presentation.js";
 import { inboxManifest } from "./manifest.js";
 import { createInboxPagesHandlers } from "./pages.js";
 import { createInboxRouteHandlers } from "./route-handlers.js";
@@ -108,6 +109,13 @@ export function createInboxPlugin(): PluginDefinition {
           source_label: material.source_label, captured_at: new Date().toISOString(), provenance: material.provenance } as InboxPagesInputSnapshot;
       },
     });
+    const content: InboxContentPorts = {
+      entries: () => attention.listInbox(), entry: entryOf, briefs,
+      readSubject: async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context,
+      readFeed: id => ask<WorkflowPayload>(FEED.read, { item_id: id }),
+      receiveFeed: input => ask<WorkflowItemRef>(FEED.receive, input),
+      admit: itemId => ask<{ entry_id: string }>(FEED.admit, { item_id: itemId }),
+    };
     const actions = [...createInboxActionHandlers({ ...sceneRuntime.ports, ...pages,
       listEntries: () => attention.listInbox().map(recordOf),
       stageSubjects: (entries, caller) => readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
@@ -127,13 +135,7 @@ export function createInboxPlugin(): PluginDefinition {
           return writer.setStatus(entryId, status as AttentionStatus, revision);
         })));
       },
-    }), ...createInboxContentHandlers({
-      entries: () => attention.listInbox(), entry: entryOf, briefs,
-      readSubject: async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context,
-      readFeed: id => ask<WorkflowPayload>(FEED.read, { item_id: id }),
-      receiveFeed: input => ask<WorkflowItemRef>(FEED.receive, input),
-      admit: itemId => ask<{ entry_id: string }>(FEED.admit, { item_id: itemId }),
-    })];
+    }), ...createInboxContentHandlers(content), ...createInboxPresentationHandlers(content, sceneRuntime.ports.recommendations)];
     // The page's requests only adapt HTTP to the plugin's own actions, called as the person who made the request (their authority, not Inbox's).
     const routes = (inboxManifest.routes ?? []).map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
       const handlers = createInboxRouteHandlers({ changed() {}, actions: { discover: async () => [], invoke: (definition, input) => own.invoke(definition, input, request.execution) } });

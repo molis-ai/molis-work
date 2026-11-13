@@ -403,6 +403,10 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
 
+## 对象的呈现
+
+对象、字段与四种呈现形态沿用同一份声明。原生插件的读取绑定、手写签名 app 包的固定读取协议和组件板自查，见 [插件开发 Skill · 对象的呈现](../../skills/molis-plugin-dev/ui.md#对象的呈现)。
+
 ## 系统搜索
 
 插件的内容经共同动作目录进入系统搜索（`search.query`，工作台 ⌘K、助理、工作流与 MCP 共用），插件不写索引、不调用搜索服务：
@@ -539,10 +543,12 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `manifest.json` | 与 `payload.manifest` 逐字段相同的清单 |
 | `plugin.mjs` | 沙箱里运行的入口代码，不超过 8 MiB |
 | `contract.json` | `SandboxPluginContract`：插件有哪些操作（读 `query`、写 `command`）、每个操作的输入输出 schema 和要的权限；`pluginId` 与清单的 `plugin_id` 相同；输入输出的对象 schema 都写 `properties`、`required` 和 `additionalProperties: false` |
-| `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
+| `interface.json` | `{ parts, nodes, presentation?, acceptance?, ui? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现、验收步骤和对象挂载位；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
 沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限包含 `storage:private` 以及合同声明的项目存在性、模型和生图服务所派生的可选权限，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent`、方法声明 `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+
+可选的 `interface.ui` 只收 `slots`。同一贡献派生方法用于项目或个人空间的原 stage；运行时从已验证的签名发行物登记，未声明挂载位的包沿用原页。挂载位的读操作提供引用，真实值及操作由工作台父区域处理；隔离页只得预留结果。完整部件与节点写法见[插件界面开发说明](../../skills/molis-plugin-dev/ui.md#生成插件的页面组合)。
 
 **签名角色资料**：app 包的 wire 清单可写 `agent: [{ name, purpose, body }]`，每项只收这三个键。名字为 1–80、用途为 1–300 个 UTF-16 单元，`body` 是 `agent/` 下无跳转的包内相对资源路径。资源先限 32,000 字节，再按严格 UTF-8 解码，正文非空白且至多 8000 个 UTF-16 单元，保留原始文字与空白。不同条目可共用资源，名字不能重复。
 

@@ -5,7 +5,7 @@ import type { PluginConnectionServiceDeclaration, PluginConnectionWord } from "@
 import { localeMessageArguments, type LocaleSetProblem } from "./locale-pack.js";
 import { tryOwnedTextRef } from "./text-ref.js";
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & { readonly actions?: PluginManifest["actions"] };
 export type DirectoryWordManifest = NameFields & {
   readonly ui?: Pick<PluginManifest["ui"], "locales" | "views">;
   readonly artifacts?: Pick<PluginManifest["artifacts"], "produces">;
@@ -23,6 +23,8 @@ const fields = (manifest: DirectoryWordManifest) => [
       [place + "start.hint_text", view.start?.hint_text, 200],
     ] as const;
   }),
+  ...(manifest.actions ?? []).flatMap(({ action, capability_id }) => action.composer_source?.title_text === undefined ? []
+    : [["动作 " + capability_id + " 的 composer_source.title_text", action.composer_source.title_text, 80] as const]),
 ] satisfies ReadonlyArray<readonly [string, TextRef | undefined, number]>;
 
 const deletionField = "databases.home.project_rows.label";

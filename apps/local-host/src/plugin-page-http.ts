@@ -1,7 +1,7 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 import { registeredPageRoutes } from "./plugin-page-routes.js";
 import { changePageWorkspace } from "./plugin-page-workspaces.js";
@@ -42,6 +42,9 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
   const reader = stageObjectAction(owner.entry.manifest);
   return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation,
     project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent, embedded: embeddedStageTextOwners(platform, owner),
+    ...(typeof surface === "string" && typeof target_slot_id === "string" && owner.view.descriptor.slots.some(slot => slot.accepts_forms?.length)
+      ? { surfaceSlotSource: { contribution_id: owner.view.descriptor.contribution_id, surface, target_slot_id, producer: owner.producer,
+        slots: owner.view.descriptor.slots, installation: owner.installation } } : {}),
     ...(reader ? { objectPresentation: { permissions: [...reader.action.permissions], surfaces: (owner.view.descriptor.surfaces ?? []).filter(item => item.target_slot_id === "workbench.main" && item.format === "declarative-html").map(item => item.surface_id) } } : {}) };
 }
 
@@ -93,18 +96,22 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     if (action) {
       const page = pluginPageRequest(request);
       if (!page) throw new ActionError("actions.forbidden", "动作入口需要当前插件页面");
-      const availability = body?.mode === "availability";
-      const keys = availability ? ["mode", "reference"] : ["reference", "input"];
-      if (!body || Object.keys(body).some(key => !keys.includes(key)) || availability && !body.reference)
+      const availability = body?.mode === "availability", submit = body?.mode === "component_submit";
+      const keys = submit ? ["mode", "component_id", "payload"] : availability ? ["mode", "reference"] : ["reference", "input"];
+      if (!isRecord(body) || Object.keys(body).some(key => !keys.includes(key)) || availability && !body.reference)
         throw new ActionError("actions.input_invalid", "动作请求无效");
+      const component_id = body.component_id;
+      if (submit && (typeof component_id !== "string" || !component_id || !Object.hasOwn(body, "payload")))
+        throw new ActionError("actions.input_invalid", "组件提交请求无效");
       const beforeBackgroundEffect = async () => {
         const key = page.project_key ?? PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === page.plugin_id)?.project_plugin_id;
         if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };
-      const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); page.assertCurrent(); };
-      const result = await page.invoke({ reference: body.reference as ActionReference, input: body.input,
-        ...(availability ? { mode: "availability" as const } : {}),
-        project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect });
+      const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); await page.beforeEffect(); };
+      const control = { project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect };
+      const result = submit && typeof component_id === "string"
+        ? await page.invoke({ ...control, mode: "component_submit", component_id, payload: body.payload })
+        : await page.invoke({ ...control, reference: body.reference as ActionReference, input: body.input, ...(availability ? { mode: "availability" } : {}) });
       sendLocalWebJson(response, 200, result); return true;
     }
     if (!body || Object.keys(body).some(key => !["plugin_id", "mount", "producer"].includes(key)) || typeof body.plugin_id !== "string"

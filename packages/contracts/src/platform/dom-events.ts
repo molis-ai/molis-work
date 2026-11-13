@@ -36,9 +36,9 @@ export const platformDomEventsContract = {
  * event's registered `owner` is exactly `<owner>` and all of that owner's files belong to one `plugins/<group>/<package>/`
  * directory (`molis-shelf-notice` is owned by `shelf`). An owner mixing plugin and platform files, or different plugin
  * packages, must be split. The longest complete owner prefix wins. Every plugin gets the same treatment and this table
- * names none of them (ac-artifacts A4, PG-096). Platform owners use only the three prefixes below.
+ * names none of them (ac-artifacts A4, PG-096). Platform owners use only the prefixes below.
  */
-export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "workbench-"] as const;
+export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:"] as const;
 
 /**
  * The module that holds a piece of page state. The rule: it is the only place that changes it, and the one other modules
@@ -84,7 +84,7 @@ export const PAGE_STATE_OWNERS = {
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
-    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
+    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/plugin-document-shell.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
     state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
@@ -509,11 +509,6 @@ export const DOM_EVENTS = [
     name: "molis:surface-landing-flash", kind: "request", owner: "pages-landing", on: "element",
     detail: "none",
     summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.",
-  },
-  {
-    name: "workbench-open-group", kind: "request", owner: "tab-workspace", on: "document",
-    detail: "{ surface, id }",
-    summary: "Open the named plugin default page with its current group selection; the layout owner selects the pane and tab.",
   },
 ] as const satisfies readonly DomEventDeclaration[];
 

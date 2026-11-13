@@ -76,6 +76,11 @@ export function sameStrings(left: readonly string[], right: readonly string[]): 
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+/** The running record published by either a start or a recovery. */
+export function startedInstall(record: PluginInstanceRecord, at: string, recoveryCount = record.recovery_count): PluginInstanceRecord {
+  return { ...record, state: "running", recovery_count: recoveryCount, last_error_code: null, updated_at: at };
+}
+
 export function cloneRecord(record: PluginInstanceRecord): PluginInstanceRecord {
   return { ...record, grants: [...record.grants] };
 }

@@ -288,13 +288,14 @@ test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices
   t.diagnostic("delegated: " + subtasks.join("; "));
 
   // The bell: the decision on the open work counts as seen; a failure and a reminder wait; news and a held one fold below.
+  // Since batch 15 the popover lists the waiting owner objects first and the notices in their own list below them.
   await waitFor(inside("!d.querySelector('[data-assistant-attention]').hidden"), 10_000);
   const bell = async () => inFrame<{ count: string; rows: string[]; folds: string[] }>(`
     const pop = d.querySelector('[data-assistant-notices]'); if (pop.hidden) d.querySelector('[data-assistant-attention]').click();
     await new Promise((r) => setTimeout(r, 200));
     return { count: d.querySelector('[data-assistant-attention-count]').textContent,
-      rows: [...pop.querySelectorAll(':scope > .assistant-notice .assistant-notice-text')].map((n) => n.textContent),
-      folds: [...pop.querySelectorAll(':scope > details > summary')].map((n) => n.textContent) };`);
+      rows: [...pop.querySelectorAll('.assistant-notice-list > .assistant-notice .assistant-notice-text')].map((n) => n.textContent),
+      folds: [...pop.querySelectorAll('.assistant-notice-list > details > summary')].map((n) => n.textContent) };`);
   const first = await bell();
   t.diagnostic("bell: " + JSON.stringify(first));
   assert.deepEqual(first.rows, ["「安排试用复盘」等你确认创建日程", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"]);

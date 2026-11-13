@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：实现中，2026-11-04 设计。C-1、C-2、C-3 与目录实现都已合入：C-1（#1894）、C-2/C-3 与 05② 目录实现（输入/输出目录、`projects.directories.*`、`materials.recent`／`origins`、永久删除时问默认输出目录、设置页「输入与输出」）随路线书第 05 批 #1979 于 2026-11-08 合入 main `500d868df3`；剩下的是第 15 批的组合服务实现与呈现组件。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。2026-11-08 状态环取值已下沉到 contracts 的 `platform/ui`（随 C-2，用户同意，D 轨事后审）；C-2、C-3 的合同和 SDK 的共用校验在同一个分支、同一个 PR 里写完并随 #1979 合入（用户 11-08 定本批只开一个大 PR），没设临时拒绝；用到第 14 批 T4 文字工具的部分单独一个提交，在 14 批合入后统一编译（第 7、9 节）。同日统筹定：`mounts` 并进 `slots`，挂载位就是带 `accepts_forms` 的 slot（第 5 节）；`renderPresentationForm` 和 SSC-14 移到第 15 批第 2 项；目录实现片排在 C-2、C-3 之后，升级段随 U1 和四份门禁一起落地（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。2026-11-08 用户看实物定了目录实现片和指定文件夹片的定样：永久删除时问删还是留选 A3「选项就是确认」，指定文件夹选 B1「就地指定」（第 3 节「定样」，原型在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)）。
+状态：实现中，2026-11-04 设计。C-1、C-2、C-3 与目录实现都已合入：C-1（#1894）、C-2/C-3 与 05② 目录实现（输入/输出目录、`projects.directories.*`、`materials.recent`／`origins`、永久删除时问默认输出目录、设置页「输入与输出」）随路线书第 05 批 #1979 于 2026-11-08 合入 main `500d868df3`；剩下的是第 15 批的组合服务实现与呈现组件（S-1 的合同补充在第 5、6 节）。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。2026-11-08 状态环取值已下沉到 contracts 的 `platform/ui`（随 C-2，用户同意，D 轨事后审）；C-2、C-3 的合同和 SDK 的共用校验在同一个分支、同一个 PR 里写完并随 #1979 合入（用户 11-08 定本批只开一个大 PR），没设临时拒绝；用到第 14 批 T4 文字工具的部分单独一个提交，在 14 批合入后统一编译（第 7、9 节）。同日统筹定：`mounts` 并进 `slots`，挂载位就是带 `accepts_forms` 的 slot（第 5 节）；`renderPresentationForm` 和 SSC-14 移到第 15 批第 2 项；目录实现片排在 C-2、C-3 之后，升级段随 U1 和四份门禁一起落地（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。2026-11-08 用户看实物定了目录实现片和指定文件夹片的定样：永久删除时问删还是留选 A3「选项就是确认」，指定文件夹选 B1「就地指定」（第 3 节「定样」，原型在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)）。
 
 ## 0. 这份稿子做什么
 
@@ -416,6 +416,11 @@ interface PresentationObject {
     primary?: boolean;
     when?: { status?: string[]; slots?: SurfaceSlotKind[] };
     input_from?: Record<string, string>;  // 预备输入取哪些字段；预备不写入
+    unavailable?: {
+      when: { status?: string[]; codes?: string[] }; // 至少一项非空；两项并列时 AND
+      reason: TextRef;               // 主人的已声明文字键，不收 literal
+      next?: string;                 // 只引用本对象 actions 里的另一动作，复用它的 input_from
+    };
   }>;
   /** 给外部 Agent、终端、通知用的文本形态（§4.5）：每一行是一个字段键，和图形出自同一份事实。 */
   text?: { lines: string[] };
@@ -476,6 +481,8 @@ type SurfaceSlotKind = "plugin-slot" | "conversation" | "discussion" | "attentio
 interface SurfaceRequest {
   slot: { kind: SurfaceSlotKind; plugin_id?: string; slot_id?: string };   // plugin-slot 时要写在哪个插件的哪个 slot（带 accepts_forms 的）
   subjects?: ActionSubject[];
+  delivery_subjects?: ActionSubject[]; // 仅 conversation；subjects 的去重子集，其余为正文引用；总输入仍最多 50 项
+  expanded?: true;                    // 仅 conversation/discussion，在原位置展开全部可读项；不改变挂载位 max
   /** 此刻在做什么（§5 依据 4）。第一片的确定组合不看它，只为助理组合留位置。 */
   task?: "writing" | "reviewing" | "finding" | "handing-off" | "discussing";
 }
@@ -497,8 +504,17 @@ interface SurfaceGroup {
   /** 没有放进来的。第一片只收 disabled：不给 forbidden，「有几件你看不了」本身就是泄露。件数和插件 id 只给 user 受众；plugin 受众只给有没有（统筹 2026-11-08 定，和第 15 批 §7.1 对齐）。 */
   excluded?: Array<{ reason: "disabled"; count?: number; owner_plugin_id?: string }>;
   hidden_above?: { count: number; label: OwnedTextRef };   // 「另有 N 件」：只数调用方读得了的；label 带 count 参数
+  overflow?: { count: number; label?: OwnedTextRef };     // 当前折叠的可读项，与已经显示在上面的 hidden_above 分开；S-1 不新声明文字键
   title?: OwnedTextRef;
   items: SurfaceItem[];
+}
+
+interface SurfaceItemAction {
+  ref: string;                    // "capability_id@version"，或平台通用操作 open、peek、place、hand_off
+  provider_id?: string;           // 普通目录动作必带精确提供方；通用操作不冒充某个提供方
+  primary: boolean;
+  prepared_input?: Record<string, string>; // 输入键 → 字段键，不放值；点击时按当时授权取值
+  consequence?: Array<"external" | "cost" | "irreversible">;
 }
 
 interface SurfaceItem {
@@ -506,13 +522,10 @@ interface SurfaceItem {
   owner_plugin_id: string;          // 方案 B 的插件色块、色带用它
   form: FormKind;
   state: "ok" | "forbidden" | "deleted" | "stale";
+  read_at?: string;                // 只转发本次已授权 owner 读取给的真实旧值时间，不填当前时间冒充
   fields: Array<{ key: string; role: FieldRole }>;   // 显示哪些字段；值由页面用 PresentationValues 去取，不放进描述
-  actions: Array<{
-    ref: string;                    // "capability_id@version"，或平台的通用操作 SURFACE_GENERIC_OPERATIONS：open、peek、place、hand_off（打开、速览、放进、交给）
-    primary: boolean;
-    prepared_input?: Record<string, string>;   // 只放字段引用（同 input_from：输入键 → 字段键），不放值；点下去时按当时的授权取值
-    consequence?: Array<"external" | "cost" | "irreversible">;   // 写在按钮旁（IUI-08，VUX-56）
-  }>;
+  actions: SurfaceItemAction[];
+  notices?: Array<{ reason: OwnedTextRef; next?: SurfaceItemAction }>; // 原因不是可执行按钮；next 只能复用已核实的只读/导航动作
   /** 被合并进这一件的对象（#1798 第 12 节第 5 条）。服务按动作目录填 owner_plugin_id；调用方读不了的不放进来。 */
   merged?: Array<{ subject: ActionSubject; owner_plugin_id: string; relation: ContextRelationType }>;
 }
@@ -521,9 +534,9 @@ interface SurfaceItem {
 | 动作 | 种类 | 说明 |
 | --- | --- | --- |
 | `surfaces.compose@1` | query | 按调用方、位置（slot）和对象返回校验过的 `SurfaceDescription`。第一片只做确定组合，不调模型 |
-| `surfaces.correct@1` | command | 用户换形态、移走、固定。按调用方和位置记住，同一位置下次先照纠正来（IUI-06）。用 `expected_revision`，取描述里的 `corrections_revision` |
+| `surfaces.correct@1` | command | 用户换形态、移走、固定或恢复默认。按调用方和位置记住，同一位置下次先照纠正来（IUI-06）。用 `expected_revision`，取描述里的 `corrections_revision` |
 
-两个动作都是项目范围。`compose` 只读、并发（要等各主人的 values），受众 user、plugin（第 10 节第 4 条）；`correct` 改的是本人自己的版面，受众只有 user。`correct` 的输入是 `{ slot, subject?, correction: "form" | "remove" | "pin", form?, position?, expected_revision }`：`form` 必带形态，不带 `subject` 时对整个位置；`remove` 必带对象；`pin` 带对象和从 0 起的位置；多带的键被 schema 拒绝。返回新的 `corrections_revision`。
+两个动作都是项目范围。`compose` 只读、并发（要等各主人的 values），受众 user、plugin（第 10 节第 4 条）；`correct` 改的是本人自己的版面，受众只有 user。`correct` 的输入是 `{ slot, subject?, correction: "form" | "remove" | "pin" | "reset", form?, position?, expected_revision }`：`form` 必带形态，不带 `subject` 时对整个位置；`remove` 必带对象；`pin` 带对象和从 0 起的位置；`reset` 不带 form／position，带对象时恢复该对象，不带对象时恢复整个位置。多带的键被 schema 拒绝。返回新的 `corrections_revision`。恢复沿原表写 reset 标记，修订号仍取所有行的最大值，不删除旧行使修订回退；对象恢复仍继承位置形态。准确截断和受保护消费者边界见[智能呈现 §17](../intelligent-surfaces/spec.md#17-跨位置消费者实施输入2026-11-09)。
 
 **纠正记录的生命周期**：
 - 存在哪：位置属于某个项目的（插件挂载位、项目讨论、等你）存在组合服务在项目库里的纠正表；不属于项目的（个人一层）存在组合服务自己的 Home 库，登记进 `homeStoreRegistry`。两处都在 `table-owners.json` 记为组合服务独占，建表经第 02 批的 storage 驱动，按 02③ 分界（第 8 节）。
@@ -537,6 +550,8 @@ interface SurfaceItem {
 - **关系类型要登记**：现在 context-ledger 的 `ContextEdge.type` 是自由字符串，写入方各自定常量（如 `horizontal/placement/src/index.ts` 的 `TYPES`）。C-3 在 contracts 的 `modules/context-ledger` 加一张平台关系类型表 `CONTEXT_RELATION_TYPES`（类型 `ContextRelationType`）：放进 placement 已有的 `placement.derived_from`、`placement.copied_from`（照原名，归 placement，placement 的 `TYPES` 改成从表里取；它的其余几种边说的是「放在哪里」，不是同一件事，不进表），再加 `created_from`；`merged` 只认表里的类型。三者不重叠：`copied_from` 是复制出的副本，`derived_from` 是由别的对象派生出的版本，`created_from` 是在操作面上「从这件新建」出的另一件东西，两者主人可以不同。这条边由执行「从这件新建」的平台路径写，不由插件自称。
 - **授权核对只读**：组合服务核对「这个操作此刻能不能点」直接用动作目录的 `discover()`，它带 `availability`，不另开接口。
 - **操作就是动作**：`SurfaceItem.actions` 里只能是动作目录里现有的动作，或者平台的通用操作。点下去的时候走动作网关，用当时的授权，不用组合当时的授权（IUI-07）。
+- **提供方和不可用说明（15 S-1 合审补齐，2026-11-08）。** 普通动作按 `(ref, provider_id)` 匹配候选及去重；先在声明 owner 的提供方找唯一匹配，再找唯一跨提供方匹配，有歧义不给按钮。先筛外层 `when`，再匹配 `unavailable.when`：`status` 可抑制原本可用的按钮，`codes` 只匹配可见目录行的 `available:false` 原因码；条件都满足时只给 notice，不再给该按钮。权限隐藏的行不出说明。`next` 只能引用同一对象另一个声明动作，复用其输入映射；最终不可用、不能准备输入或不是只读 query/navigation 就省略去处。候选事实中的 provider、notice 与后果不能由助理改写。动作元数据补 `external?: true`，SDK 拒绝其他值；不可逆复用平台 `actionEffect`，计费取 `execution.cost`，不按动作名猜外发。
+- **对话和折叠（同次合审）。** `delivery_subjects` 必须是 `subjects` 的去重子集，交付默认卡片、其余默认名字片；讨论默认卡片。默认显示前 6 件，多出的可读件数进 `overflow`；`expanded:true` 才在同一位置全部展开，仍最多 50 个请求对象。`hidden_above` 只记录首页上方已经显示的对象。没有授权核实的对象不能进入折叠计数。无可用旧值时间的读取失败使用 unreadable 组，不捏造 stale 组的 `read_at`。
 - **组合不存值**：描述里只有引用、形态和该显示哪些字段，值由页面另取。所以描述可以缓存，值照样是主人的当前值。
 - **助理组合**（第三片）：同一个 `compose`，`composed_by: "assistant"`。服务先算出确定组合的候选，再经 agent-host 让模型挑选，输出用 `assertSurfaceDescription(候选)` 校验：候选以外的丢掉并记下，不合格就退回确定组合（IUI-05）。合同现在只是给它留了字段，第一片不实现。
 - **记录**：助理组合的输入、候选、选择、理由和纠正写进组合服务自己的组合记录，不记对象正文（IUI-23）；观测采集层（第 21 批）落地后由它接进「完整工作记录」，这里不另起同名的东西。
@@ -562,7 +577,7 @@ interface SurfaceItem {
 已经定下的取值规则：
 
 - `presentationFormFields` 返回 `{ form, fields }`：没声明的形态按 `chip → row → card → peek` 往简单的一侧降，降到有声明的为止；一个都没有时返回 `null`，平台画兜底（IUI-02）。声明了 `status` 的，它的字段跟着每种形态一起取，因为每种形态都显示状态和提醒标记。
-- `OwnedPresentationObject = PresentationObject & { owner }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object: OwnedPresentationObject, form, values): string` 不加工具和主人参数；平台画（挂载位、MLN-23）和插件预览是同一个函数。它和 `presentationText(object, item, locale)` 对值里的引用做不抛的绑定（`tryOwnedTextRef`），`locale` 必填，可以是 `null`（A 段 §2.4 第 3 条、§5.2）。插件页面不画别人的对象：挂载位的内容由平台在服务端画好放进插件文档（A 段 §8.3 的 (a)）。
+- `OwnedPresentationObject = PresentationObject & { readonly owner: string }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object: OwnedPresentationObject, form: FormKind, values: PresentationFormValues): string` 保留三个参数；第三参包含显示所需的值、语言及已绑定控件，准确边界见下方第 15 批交接。平台画（挂载位、MLN-23）和插件预览是同一个函数。它和 `presentationText(object, item, locale)` 对值里的引用做不抛的绑定（`tryOwnedTextRef`），`locale` 必填，可以是 `null`（A 段 §2.4 第 3 条、§5.2）。插件页面不画别人的对象：挂载位的内容由平台在服务端画好放进插件文档（A 段 §8.3 的 (a)）。
 - `catalog` 对每个动作引用答三种：有、没有、不知道（统筹 2026-11-08 定）。`parsePluginManifest` 里只拿本 Manifest 自己的动作当目录：引用本插件的动作必须存在、版本对；引用别的提供方的答「不知道」，不拦。安装时对着整份动作目录查的那一步归第 15 批 S-1。
 - 概况动作返回的 `start` 必须是声明里 `overview.start` 的子集，每个只出现一次；`presentationOverviewProblems` 查，组合服务和作者的测试用同一个函数。
 
@@ -588,6 +603,79 @@ interface SurfaceItem {
 上表以 D 轨核对为准。
 
 SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享核心，照规矩跑全量。
+
+### 第 15 批渲染入口交接（2026-11-08）
+
+公共合同台在 `85d54e86e0f10e53c1fb4ec8bd9b4271b8bd4074` 对本段的渲染输入及可信父文档承载设计合审通过，无 Blocker/P1（`gpt-6-astra / high`，只读）；与组合和安装边界一并记录在[组合服务 §14.2](../surface-composition/spec.md#142-s-1-装配缺口与合同合审2026-11-08)。设计通过不代替组件、挂载执行和最终合同代码的合审与实操。
+
+本节把原三参数签名与必填 locale 的缺口补全，不改变 Manifest、values 或 `SurfaceItem` 的线协议。设计依据是 S-1 `ccfd93200936` 和方案 B 实件标本 `49beab1c55`；以下仍待公共 API 合审和实际实现验证。
+
+`PresentationFormValues` 是一次渲染的显示投影：必填 `locale: string | null`、`ownerDisplay: { name: string; icon?: PluginIconName; hue?: UiViewHue }`、`read`（`PresentationValueItem` 的 state／values／read_at，或明确的 `{ state: "unreadable" }`），可选 `actions` 与 `notices`。控件为 `{ key: string; label: string; primary?: boolean; consequence?: readonly SurfaceConsequence[] }`；notice 为 `{ reason: OwnedTextRef; next?: 控件 }`。`key` 只是一处位置自己绑定的局部 DOM 句柄，不能充当 provider、ref、prepared_input、执行权或自造 URL；renderer 不执行、不取数据、不注册动作。
+
+`ownerDisplay` 的名称与图标来自现有可信插件目录和确切 Manifest，不从 id 猜名字，也不新建 SDK 主人登记表；缺图标用既有 package 表达。呈现色由平台按 §10 第 1 条分配，不拿标签条的 Manifest hue 代替；用户已选择保持颜色稳定、允许偶尔同色。字段按现有 role 与 `presentationFormFields` 画一份内容；未绑定 TextRef 经 `tryOwnedTextRef`，已绑定的 notice 直接经 `say`，HTML 只转义一次。日期和数值复用 `format` 的内部原实现及相同文字环境，按显式 locale 解析；locale 为 null 时用 owner 默认语言，所需读取 helper 留私有，不直接套用只读全局页面语言的公开 `format`。投影中的已译按钮字只用于当前 DOM，不存回业务事实。
+
+平台把实际 `SurfaceItem.actions`／`notices` 和当时可用的精确目录行绑定到控件，点击时经网关重核授权、重取当前输入。独立 MLN-23 读取同一声明和值，沿用其原菜单与切换动作；插件预览只画自己对象，无绑定时只显示。`stale` 必须有主人真实 read_at；仍可保留按组合服务 §6.4 核实可用的操作，禁止的是失效操作，不是所有操作。首次失败、撤权、删除与未声明分别处理；forbidden／deleted 优先截断 values、actions、notices 及隐藏属性。挂载位跨插件执行当前没有通用入口，须按下一段补齐，不能以 `pageIntake` 或 `embed-open` 冒充已接通。
+
+**挂载位的可信承载。** 复用工作台一页唯一的 `pageFramedAreas`、`childPlaces` 和现有页面凭据。SDK `UiPageView.surfaceSlot(element, { slot_id, subjects })` 只提交至多 50 个闭合的 `{ kind, id }` 目标引用和声明位置；引用是不可信输入，不是授权，仍按组合服务 §6.1 检查、去重及 `refuse_kinds`／`max` 过滤。子 frame 只发 open、geometry、close；父文档从实际 page 绑定安装、项目、贡献、producer 和该贡献的 `accepts_forms`，在不可由插件访问的 sibling 里使用同一 renderer。自动展示用当前用户已有授权读取，不给插件身份加权限、不凭输入选择 actor/project/install，也不产生 user_action。原目录仍供选择操作，只有 values 子调用受 query-only／只读约束；自动 values 同时拒绝显式 external、模型和计费。
+
+子端 ready 只表示声明位置获准预留，不等待数据查询；高度只由宽度与该位置预先确定的形态决定，不取决于授权、结果、条数或错误。不向子页面返回 HTML、对象值、候选、按钮、路由、操作结果或焦点回执。父文档沿现有 contextual header 新增窄读／执行接点，插件 fetch 桥不能转发该凭据。真实点击先经现有 `area.gate`，核当前可见、无遮挡、稳定、busy 和局部渲染绑定；绑定包含当前页面/安装/项目/贡献/slot/渲染代次及精确动作。Host 在正常用户动作网关前核页面仍有效、当前候选及动作/输入映射，点击重取值，过期或未知句柄拒绝，不开放任意 ref/input 的代理。重绘、切项目、停用、撤权和关闭要使旧绑定及在途请求失效；结果只在父文档处理。共用现成裁剪、相交隐藏、真实点按与焦点保护，不另建平台区域或授权目录。
+
+验收复用 IUI-07／08／10／13：同项目合法对象可显示；越权引用与空结果向子端给相同协议回执；未声明、跨贡献、伪安装和过量引用拒绝；外发 values 未被调用；脚本点击、pointerdown 后重绘、旧代次、遮盖和撤权期间均零写；真实父键盘点击只执行一次、回执和跨位置更新正确。公开 renderer 的合审不替代这些挂载位路径的验证。
+
+**surfaceSlot 实施合同补充（2026-11-09 前置合审）。** 对照 `c07dbad4a8`，现行 `UiPageView` 只有 `embed`；上面的 surfaceSlot 仍需实现，不能把声明当作已有能力。独立设计与只读合审未发现方向性 Blocker/P1，按下列约束进入第 15 批唯一 writer 实施；此结论不是产品、安全验证或最终公共合审通过。
+
+新增页面 API（签包作者入口另见下文补充）：
+
+```ts
+surfaceSlot(element: Element, options: {
+  slot_id: string;
+  subjects: readonly ActionSubject[];
+}): { ready: Promise<void>; dispose(): void };
+```
+
+沿用现有 `ActionSubject`、slot 标识及对象数校验，允许空数组，超过 50 或含未知字段整次拒绝，再按组合服务原规则去重。同元素再次调用先释放旧挂载；更改引用用新调用，不增加 update API。dispose 幂等，元素离开 DOM 或 page scope 结束自动释放；待定 ready 在本地释放时以 AbortError 拒绝，已完成的 ready 不再变化。Host 拒绝向子端只映射固定 unavailable，不泄漏诊断。`UiSlotDescriptor`、`SurfaceRequest`、`SurfaceItem` 和 Manifest 不加字段；SDK 与 contracts 的实际导出、API 快照和作者文档随实现同步，本页面方法不提升现有动作或 API 版本。签包持久化格式的新增面按下文单独核定，不能由此推导全部格式均不升版。
+
+私有 MessagePort 上行只有 `surface-slot-open {id,slot_id,subjects}`、`surface-slot-layout {id,box}`、`surface-slot-close {id}`，下行只有 `surface-slot-ready {id,error?:"unavailable"}` 与 `surface-slot-size {id,height}`。沿现有 FrameBox；id 为端口内不重用的递增正 safe integer。重复 open 拒绝，关闭／替换后的消息与异步返回失效。没有子端 click、prepare、execute 或 peek 消息。ready 在声明预留校验结束后、任何业务查询之前答一次；height 只取声明预定形态档和盒宽，不能按值、数量、结果或错误测量。沿既有宽度分档、已批实件布局取固定高度，内部滚动；不足宽时为零。不回传焦点、存在标志或执行结果。
+
+父端在一页唯一 `pageFramedAreas` 中申请区域，与其他种类共享原四区配额，复用裁剪、相交隐藏、稳定期、真实 pointer／keyboard gate 和 childPlaces，不另建区域登记。可信 PageSelection 从实际选中的 owner contribution 记录私有 slot 来源：contribution、surface、target slot、producer、原贡献 slots 和准确 installation／scope／activation。预签发的签包页也须在实际选定贡献时绑定，不能凭 plugin_id 猜贡献；没有来源证明的 preview 或旧页不能申请 slot。Page 只提供按 slot_id 取得本页原声明的窄操作，不开放任意安装／贡献查询。
+
+父端新增工作台内部 `POST /api/contextual/surface-slot`，沿原 contextual header fence 和 page authority：只接受受保护的 `x-molis-context-page`，与当前项目／页面／贡献绑定；普通插件页头、双头、错项目和关闭页面均拒绝。插件 fetch 桥不得转发该头，Home 对 pluginPageRequest 的拒绝不变。HTTP 各意图闭合校验：reserve 收本地挂载 id、slot_id、subjects；read 收 page 内 slot 句柄；activate 收 slot／render／control；confirm 收 slot／render／preparation；cancel 收 slot／preparation；close 收 slot。不得传任意 actor、project、install、ref、input、subject 或 URL 到执行意图。
+
+reserve 只核页面、原贡献声明、输入和容量，零业务读取；父端取得当前 Page 内的随机句柄与固定高度档后先发 ready，再 read。Page 最多保存四个挂载记录，记录随原页关闭、撤权或 activation 更替清理，不是第二授权目录。read 只向父端返回当前 render 句柄、共用显示投影与可信控件标签／后果；实际动作及输入映射留在 Host。activate 只能选择本 render 返回过的 control，沿原对象打开／速览、offer 或 placement 服务；confirm 只消费本次准备的句柄，cancel／close 不执行业务动作。有限输入选择沿原受保护 picker，不开放 JSON 代理。并发／重复 confirm 对原准备只消费一次，未知或过期句柄拒绝。
+
+组合位置仍是原 `plugin-slot`。只在本次可信采样目录的 slots 投影中保留本页准确安装及原贡献声明；其余 presentation／对象来源保留，但不让同 plugin_id 的另一 scope 或同名贡献决定此处形态。投影前后检查原目录与页面，内置和签包同路。抽出首页已用的采样、显示与准确打开接点供真实消费者共用，一次 read 只做一次目录发现与 compose，显示字段继续按准确 ActionView 合批和对象自身形态裁剪。
+
+**两层寿命是合审的必要条件。** `PluginPageAuthority.bind` 在 HTTP finish 会中止请求，`localWebAuthority` 闭包也捕获创建时的 signal。因此 page／slot 长寿命 caller 必须从最初以 page／slot signal 创建 `openProjectPersonContext`，不能由短请求 caller spread 后换 signal；compose 用于保留目录的 context 也不能被 `bindActionClient` 控制参数合并回 HTTP signal。每次实际查询与交付另用短请求、slot signal 及 deadline 的读 guard；请求结束不留下写权限。只保留原登记、声明、候选绑定及其原 token guard，不保留已经结束请求的 effectGuard，不使用后台 authority 续命。后续真实点击重新创建当前人 request caller，并叠加原 page／slot／目录 token guard，再走原网关和 beforeEffect。
+
+非 Home compose 当前还没有首页的采样注入、catalogCurrent 和共享 deadline，实施时须一并推广到本次受保护位置；compose 与最后显示读取共用同一预算，compose 返回时不能提前 dispose。prepare／confirm 虽调用原服务，其 discover 也必须返回受原 guard 约束的同一目录，不能通过重新发现替换原 registration、reader 或 values。任意 read 开始先让旧 render 与 preparation 失效，成功才发布新绑定；隐藏标脏、清敏感 DOM 并取消读取，再显示时重读。切项目、关闭、停用、撤权和贡献变化先清绑定并中止请求，旧响应不能覆盖新状态；只有 owner 的真实 stale／read_at 可显示旧值。
+
+现有 `area.redraw` 不会清除 pointerdown，slot 层须额外保存 pointerdown 的 render 并在点击时比对；键盘绑定更换后重新计稳定期。真实父端按钮同时通过 isTrusted、area.gate、可见／无遮挡／非 busy 与当前 control 映射。准备／确认等待后重核当前人、页面、安装、贡献、对象、原读口、动作输入映射与 revision；提交后失权或断线只核实，不自动重做。刷新按逻辑对象／操作保焦，但不恢复旧 render key，也不在用户离开后抢焦点。
+
+调用数：首次 reserve 零业务读，再一次 read／compose 与有界显示合批；几何变化零 Host 调用；打开／速览一次 activate 及必要原读取；写操作沿原 prepare 和一次真实 confirm，不叠加另一套执行。验收除前述 IUI-07／08／10／13，还须实际覆盖同名不同贡献、双 scope、同版本换 digest／activation／registration、普通 fetch 头与未知字段拒绝；对子端比较合法／空／越权／删除／超时的相同 ready／size；证明首次 HTTP 结束后当前按钮仍可合法使用、撤权后不能凭页面寿命继续执行，及 pointerdown 后重绘／旧 preparation／并发确认零额外写。Goals 自身直接复用同形态 renderer，不伪造 slot；Inbox 在真实原件详情声明并使用 slot。最终仍须真实写入、跨位置回执与三宽中英深浅／键盘验收。
+
+**签包作者与真实挂载路径补充（2026-11-09，前置窄审及限定同版例外已批准）。** 实施核查发现现行 `interface.json` 严格字段只有 parts／nodes／presentation／acceptance，组件没有调用 surfaceSlot 的入口，已安装沙箱 Runtime 又把 slots 固定为空。只验证未声明时拒绝，不能交付 IUI-13 的签包正向路径。原稿“仅新增一个公开 API”的结论因此更正；以下最小补充经独立前置窄审，一骏已批准下述两个 Builder 格式本次保持版本 1，继续实施真实签包正向路径。
+
+签包界面文件与 AgentDesign 增可选 `ui?: Pick<UiContributionDeclaration, "slots">`，只承载现有 slot 类型，不开放作者重复填写 contribution id、kind、label、surface、owner 或安装。当前沙箱仅承载对象形态，`accepts` 必须为空、`accepts_forms` 非空；其余收法沿现行合同。part／node 增 `surfaceSlot?: { slot_id: string }` 及专用 `surface-slot` 组件 kind，引用同一 ui 声明，沿原 reading intent／read binding，禁止 submit，不复制收法。未使用的合法 slot 无须拒绝安装。引用 query 沿原 operationId／input／outputPath，静态核真实 query 与闭合 kind/id 数组类型；不要求 schema 为通过此绑定另写某个长度字面量，运行时仍严格检查最多 50 个非空、闭合引用，接受已有更严约束。
+
+SDK 以唯一校验／派生入口生成完整贡献声明：id 沿 `sandboxUiContribution`，kind 为 primary-page，label 取既有名称，slots 取已校验的 ui，workbench surface 采用平台既有格式与位置。Manifest 继续由原生成器产出，不能再加第二份 slots 表。CLI pack、安装读取、Studio 的原 `builderReleaseInterface`、发布、保存／portable 同步、安装停启及重开必须保留同份 ui 与组件引用；签名继续覆盖原 interface 字节，不改签名格式，不增加 hash 或授权目录。签名包同版本不同内容仍由原包存储拒绝。
+
+保留现有 `/plugins/:id` framed stage 为签包页面的唯一实际装配。项目 `agent-surface` 与 Home 的包文档渲染从同一实际 Runtime owner 捕获 descriptor、producer、render 及原安装／activation；Home 的包渲染分支须把已画的 contribution/workbench 纳入现有去重，不能随后再由 generic stage 画一次空 main。原导航、直接打开和重开都须进入同一实例、只出现一页。PageSource 从这个已验证 descriptor 取得 slots，不回头从 design 或 plugin id 猜；原 `captureRuntimeStageOwner` 与原发行物检查必须保留，Manifest digest 本身不覆盖 interface，不能仅凭该 digest 判定声明不变。
+
+签包客户端在合并 `{...host, ...embedded}` **之前**捕获真实 `UiPageView.surfaceSlot`，以独立窄函数参数交给组件；embedded.view 是组件数据，会覆盖 host.view，不能从它取得页面方法，更不能把函数放进持久化 interface。组件 query 只取得该插件本来有权读的引用；surface-slot 分支不把它渲染为通用表格或正文，调用公共方法后仍只接 ready／固定 size。切选择、重读、重绘、关闭先 dispose 原挂载；父端值、数量、按钮及结果不回流 query、selection 或 onRead。无声明的现有包仍没有挂载权。
+
+版本边界已核实：interface 没有独立版本，但新增的 design／part／node 结构进入 `format.builder.saved-state` 与 `format.builder.portable`，当前均为 1。一骏明确批准仅这两种格式本次保持 1：允许可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind；旧的无挂载位数据继续是现行格式的合法子集，不改写原数据、历史发行物或签名包，不新增升级或读时转换。未知字段、非法引用／组件、签名不符和错误版本仍严格拒绝，拒绝不改变原内容，不触碰真实 Home。本次例外独立登记在[合同变更规则](../../docs/system/CONTRACT-CHANGES.md#当前保留机制)，不借用 IM 例外、不扩到其他格式或后续变化。最终验收包含真实外部 pack→签名→安装→原舞台父组件正向，项目／Home 双路径、发布／保存／同步／停启重开往返，以及未知字段、跨贡献、篡改、旧代次和子端回流拒绝；不以测试注入 descriptor 代替实际生产路径。项目与 Home 签包分别使用不同插件 ID 验证真实安装与挂载。同一 canonical ID 的签包改换范围，仍由现行 BL-628 的 `assertScopeKept`／`SandboxPackageStore.scopeOf` 拒绝（包括不同版本或签名），验证拒装且零变更，不为此验收放宽安装合同。同 ID 双 scope 的准确页面绑定与隔离正向使用现有原生路径证明，签包另验原页面 scope 错绑拒绝；两类证据分别记录。
+
+签包候选 `07799208cbc7fc9aa18ccacbda39d45f0843a353` 已完成上述生产接线，独立限定复核无 Blocker/P1，尚未合回本批。实际整体构建及两份定向文件 3/3 通过：外部 CLI 打包、签名、project／Home 两范围真实安装和原直接地址，浏览器各显示唯一原载体，原 query 经可信 reserve/read 在父组件呈现，子页面没有原件标题或按钮；Inbox 做完／忽略各使原记录 revision 仅增加一次并出现真实回执。普通子传输、跨贡献、签名篡改和同 ID 换范围被拒。Studio 发布采用同一 `builderReleaseInterface`，v1 草稿重开与 portable 恢复保留 ui／组件引用及原签名字节，非法写入和错误版本在副作用前拒绝。已修复原页面启动误认 UUID 长度和 Studio 发布漏传 ui；首轮回执断言也未通过，不把首轮失败计为通过。
+
+这轮证据仍不包含签包停启重开、侧栏真实点击及旧页面代次拒绝；已有原生用例不能替代它们。Studio 离线答卷回放已执行，替身模型 smoke 3/3 只证明接线；真实模型证据另记如下。最终健康、资源、中英深浅多宽实操及全批公共合审另验。测试入口为 `tests/security-invariants-signed-surface-slots.e2e.test.ts` 与 `tests/signed-surface-slot-authoring.test.ts`，目前在上述子分支候选，合回时同步进入本批。
+
+同一固定候选 `07799208cb` 在独立工作树整体构建后，完成真实 Studio smoke：笔记、阅读摘记、收支记录 3/3 均冻结为设计，详细设计首答接受 2/3，共 4 轮修复；只有收支记录全阶段首答接受。笔记的三轮修复为验收步骤语法，阅读摘记的一轮修复为体验方案漏掉已选新增入口，校验未被放宽。配置选择 `MiniMax-M3.1-Flash-Preview`，服务实际报告 `MiniMax-M3.1-Flash`，13 次设计者调用及修复答卷保留在本地评审材料。用户授权复用历史隔离 QA 的单项模型配置及凭据，在新临时 Home 中通过现行 owner 接口建立连接；原 QA 只读、真实 Home 未触碰，完成后临时凭据已清理。该命令只到设计冻结，不证明生成插件的构建、安装、运行或模型主动采用 surfaceSlot；本次 Node 24.14.0 构建和执行成功，但出现仓库要求 24.15.x 的引擎提示，不替代最终标准环境验证。
+
+
+
+最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。
+
+文件边界：SDK `src/ui/presentation-form.ts` 与最小 primitive 叶子、design-system `src/styles/presentation.ts`、同 renderer 的组件板样张。SDK `/ui` 导出及私有文字接线、API 快照、design-system overlay 重导和样式入口、组件板装配、语言键与页面消费者按第 10／16 批实际窗口串行；第 16 批 C 切换之前不接新稳定键或页面入口。不得提交只有签名或无人消费的永久空壳。SSC-14 验不经 compose 的行与组合行相同；IUI-03／07／08／10／26 分别验跨位置事实、绑定与后果、异常泄露和三宽双语双主题及键盘；原标本的局部浏览器结果不替代产品验收。
 
 ## 8. 存量数据
 
@@ -637,7 +725,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 ## 10. D 轨的答复（2026-11-04 共审）
 
-1. **插件色：平台分配，Manifest 不声明。** 分配结果要稳定：同一个插件换设备、重装后颜色不变；色盘够用时，两个已装的插件不撞色。色盘和状态色分开，由 D 轨在 design-system 里定，浅色和深色都要分得清（IUI-26）。合同只给 `owner_plugin_id`，不加颜色字段；是记在安装记录上，还是按 id 确定地算，D 轨做色盘时再定，两种都不用改本合同。
+1. **插件色：平台分配，Manifest 不声明。** 用户 2026-11-08 在第 15 批会话选择「颜色稳定，允许偶尔同色」：同一个插件换设备、重装、增删其它插件后颜色不变，允许不同插件分到同色，继续由图标与名字辨认。此决定取代原“色盘够用时两个已装插件不撞色”的要求。按规范 plugin id 确定地选取现有语义色盘，不新增安装字段、持久化映射或同步；色盘和状态色分开，浅色和深色都要分得清（IUI-26）。合同仍只给 `owner_plugin_id`，不加颜色字段，不改变标签条自身的 Manifest hue 规则。
 2. **字段角色：四种形态够画，「行」缺一个角色。** 已加 `activity`（第 5 节）；行的第二行固定读 `actor`、`activity` 和时间。之后 D 轨又定了 `judgment` 和 `held_in` 两个（第 5 节），一共 18 个。
 3. **第一片的位置：同意插件内、对话、项目讨论、等你四处**，首页和 Shelf 进第二片。「插件内」是 `plugin-slot`：插件的贡献在 `UiContributionDeclaration.slots` 里带 `accepts_forms` 的 slot；原来答的「挂载位」不另起声明，`mounts` 并进 `slots`（统筹 2026-11-08 定，第 5 节）。另外，MLN-23 不经 `surfaces.compose`，直接按声明画「行」（第 5 节、第 7 节）。
 4. **`surfaces.compose` 第一片只给 user 和 plugin：同意。** 外部 Agent 走 `presentationText`。

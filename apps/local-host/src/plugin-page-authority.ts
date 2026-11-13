@@ -6,12 +6,49 @@ import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginImageGenerationDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginImageGenerationDeclaration, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { pluginActivationOpen, pluginRouteMatcher, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginTextReader, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import type { installedComponentSubmit } from "./installed-action-registration.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
+import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
+import { pageSurfaceSlotState, type SurfaceSlotSource } from "./surface-slot-state.js";
+import type { RuntimeStageOwner } from "./project-plugin-stages.js";
+export { installedPageRelease };
+
+type PageRelease = ReturnType<typeof installedPageRelease>;
+
+interface PageSelection {
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly project_id: string | null;
+  readonly project_key?: string;
+  /** The exact signed release a stage or position was drawn from; a page of it opens only while that release still runs. */
+  readonly release?: PageRelease;
+  readonly objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
+  readonly surfaceSlotSource?: SurfaceSlotSource;
+  readonly embedded?: readonly { plugin_id: string; install_id: string; installation_generation: string; assertCurrent(): void }[];
+  assertCurrent(): void;
+}
+
+export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined, owner: RuntimeStageOwner): PageSelection {
+  const release = installedPageRelease(record);
+  const descriptor = owner.view.descriptor;
+  const mount = descriptor.surfaces?.find(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html");
+  if (!mount || owner.scope !== (project_id === null ? "home" : "project") || !sameInstalledRelease(release, owner.installation)) throw refused();
+  owner.assertCurrent();
+  const surfaceSlotSource = descriptor.slots.some(slot => slot.accepts_forms?.length) ? {
+    contribution_id: descriptor.contribution_id, surface: mount.surface_id, target_slot_id: mount.target_slot_id,
+    producer: owner.producer, slots: descriptor.slots, installation: owner.installation,
+  } : undefined;
+  return { install_id: release.install_id, installation_generation: release.installation_generation, project_id, release, surfaceSlotSource, assertCurrent() {
+    const now = current();
+    if (now?.state !== "running" || !sameInstalledRelease(release, now)) throw refused();
+    owner.assertCurrent();
+  } };
+}
 
 interface Activation {
   readonly manifest: PluginManifest;
@@ -21,21 +58,14 @@ interface Activation {
   readonly registeredText?: PluginTextReader;
   readonly project_id: string | null;
   readonly actor_id: string;
+  readonly release?: PageRelease;
   /** The image connections this instance was given (`services.imageGeneration`): its Manifest's, or the one a sandboxed package's effects derive. */
   readonly image_generation?: PluginImageGenerationDeclaration;
   assertCurrent(permission?: string): void;
   invoke?(request: PageActionRequest): Promise<unknown>;
+  componentForm?: NonNullable<ReturnType<typeof installedComponentSubmit>>["form"];
   resolveFiles?(paths: readonly string[]): readonly string[];
   requestAllowed?(method: string, pathname: string): boolean;
-}
-interface PageSelection {
-  readonly install_id: string;
-  readonly installation_generation: string;
-  readonly project_id: string | null;
-  readonly project_key?: string;
-  readonly objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
-  readonly embedded?: readonly { plugin_id: string; install_id: string; installation_generation: string; assertCurrent(): void }[];
-  assertCurrent(): void;
 }
 interface PageTextSource {
   readonly id: string;
@@ -43,6 +73,19 @@ interface PageTextSource {
   readonly reader: PluginTextReader | null;
   readonly embedded: boolean;
 }
+/** Words only (surface-composition §14.6): one shown source's bounded keys, never a page, action or form. */
+interface TextGrant {
+  readonly activation: Activation;
+  /** The project whose home response showed the words; a Home half's activation has none of its own. */
+  readonly project_id: string | null;
+  readonly keys: ReadonlySet<string>;
+  readonly expiresAt: number;
+  sessionCurrent(reader?: IncomingMessage): void;
+  assertCurrent(): void;
+}
+export interface SurfaceTextSource { readonly id: string; readonly manifest: PluginManifest; readonly reader: PluginTextReader | null; readonly keys: ReadonlySet<string> }
+/** The existing bound on what one Home keeps open, pages and word grants together. */
+const OPEN_LIMIT = 256;
 export type ReadShownProjectPlugins = () => Promise<readonly string[]>;
 type AssertPageScope = (shown?: ReadShownProjectPlugins) => Promise<void>;
 
@@ -57,11 +100,12 @@ interface Page {
   closing?: boolean;
   assertScope?: AssertPageScope;
   selection?: PageSelection;
+  surfaceSlots?: ReturnType<typeof pageSurfaceSlotState>;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
 const homes = new Map<string, PluginPageAuthority>();
-const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; signal: AbortSignal }>();
+const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; pageCurrent(): void; signal: AbortSignal; surfaceSlot: boolean }>();
 
 /** The list can only come from the same stage selection as the original, actual nested render. */
 function capturedEmbedded(activations: ReadonlySet<Activation>, page: Activation, selection?: PageSelection): Activation[] {
@@ -105,6 +149,7 @@ export function pluginPagesFor(home: string): PluginPageAuthority {
 export class PluginPageAuthority {
   private readonly activations = new Set<Activation>();
   private readonly pages = new Map<string, Page>();
+  private readonly texts = new Map<string, TextGrant>();
   constructor(private readonly storageScope: string = randomUUID()) {}
 
   connect(activation: Activation): () => void {
@@ -112,14 +157,37 @@ export class PluginPageAuthority {
     return () => {
       this.activations.delete(activation);
       for (const [id, page] of this.pages) if (page.activation === activation) this.close(id);
+      for (const [id, grant] of this.texts) if (grant.activation === activation) this.texts.delete(id);
     };
+  }
+
+  /** Prove only a real input form of the original signed activation, without opening a page or parsing a submission. */
+  installedStartForm(pluginId: string, projectId: string | null, actorId: string, release: PageRelease,
+    panel: string, target: { capability_id: string; version: number }) {
+    const matches = [...this.activations].filter(item => item.manifest.plugin_id === pluginId && item.project_id === projectId
+      && item.actor_id === actorId && sameInstalledRelease(release, item.release));
+    const activation = matches.length === 1 ? matches[0] : undefined;
+    const form = activation?.componentForm?.(panel, target);
+    if (!activation || !form) return undefined;
+    return { action: form.action, retain: () => {
+      const authority = form.retain();
+      const assertCurrent = () => {
+        if (!this.activations.has(activation)) throw refused();
+        activation.assertCurrent();
+        for (const permission of form.ownPermissions) activation.assertCurrent(permission);
+        authority.assertCurrent();
+      };
+      assertCurrent();
+      return { permissions: authority.permissions, assertCurrent };
+    } };
   }
 
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: AssertPageScope, registered?: Activation & { readonly exact?: true },
     selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
     const activation = registered?.exact ? registered : selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
-      && item.instance?.installation_generation === selected.installation_generation)
+      && item.instance?.installation_generation === selected.installation_generation
+      && (!selected.release || sameInstalledRelease(selected.release, item.release)))
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
     if (!activation || activation.manifest.plugin_id !== pluginId || activation.actor_id !== actorId
@@ -128,8 +196,8 @@ export class PluginPageAuthority {
     activation.assertCurrent();
     const embedded = capturedEmbedded(this.activations, activation, selected);
     if (activation === registered) this.activations.add(activation);
-    for (const [id, page] of this.pages) if (page.expiresAt < Date.now()) this.close(id);
-    if (this.pages.size >= 256) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
+    this.expire();
+    if (this.pages.size + this.texts.size >= OPEN_LIMIT) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
     this.pages.set(id, { activation, embedded, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
@@ -145,6 +213,7 @@ export class PluginPageAuthority {
     const requests = page ? [...page.requests] : [];
     const reasons = requests.map(() => reason());
     this.pages.delete(id);
+    page?.surfaceSlots?.dispose();
     if (page && page.activation.install_id === null) this.activations.delete(page.activation);
     requests.forEach((request, index) => request.abort(reasons[index]));
   }
@@ -190,18 +259,57 @@ export class PluginPageAuthority {
 
   clearProject(projectId: string): void {
     for (const [id, page] of this.pages) if (page.project_id === projectId) this.close(id);
+    for (const [id, grant] of this.texts) if (grant.project_id === projectId) this.texts.delete(id);
+  }
+
+  private expire() {
+    const now = Date.now();
+    for (const [id, page] of this.pages) if (page.expiresAt < now) this.close(id);
+    for (const [id, grant] of this.texts) if (grant.expiresAt < now) this.texts.delete(id);
+  }
+
+  /**
+   * Lets the trusted shell read, in another language, the words a protected home response showed from one exact running source (§14.6).
+   * Taken from the request that composed it, after its last check; the response's own session and the source's own checks hold every read.
+   */
+  grantText(requester: string | null, source: { plugin_id: string; project_id: string | null; actor_id: string; install_id: string; installation_generation: string },
+    keys: ReadonlySet<string>, assertCurrent: () => void): string | undefined {
+    const matches = [...this.activations].filter(item => item.manifest.plugin_id === source.plugin_id && item.project_id === source.project_id
+      && item.actor_id === source.actor_id && item.install_id === source.install_id && item.instance?.installation_generation === source.installation_generation);
+    const activation = matches.length === 1 ? matches[0]! : undefined;
+    if (!activation || !keys.size || keys.size > 512) return undefined;
+    assertTextSource(activation, this.activations); assertCurrent();
+    this.expire();
+    if (this.pages.size + this.texts.size >= OPEN_LIMIT) return undefined;
+    const id = randomUUID();
+    this.texts.set(id, { activation, project_id: requester, keys, sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000, assertCurrent });
+    return id;
+  }
+
+  /** A replaced or left home response ends only its own word grants. */
+  releaseText(ids: readonly string[], project: string | null): void {
+    for (const id of ids) if (this.texts.get(id)?.project_id === project) this.texts.delete(id);
   }
 
   /** Capture the same grants already minted for this document, and read their exact owners only after the last asynchronous scope check. */
   async withPageText(request: IncomingMessage, ids: readonly string[], project: string | null, signal: AbortSignal,
-    read: (sources: readonly PageTextSource[]) => void, shown?: ReadShownProjectPlugins): Promise<void> {
+    read: (sources: readonly PageTextSource[], texts: readonly SurfaceTextSource[]) => void, shown?: ReadShownProjectPlugins, textIds: readonly string[] = []): Promise<void> {
     const entries = ids.map(id => {
       const page = this.pages.get(id);
       if (!page || page.project_id !== project) throw refused();
       return { id, page };
     });
+    const grants = textIds.map(id => {
+      const grant = this.texts.get(id);
+      if (!grant || grant.project_id !== project) throw refused();
+      return { id, grant };
+    });
     const check = () => {
       signal.throwIfAborted();
+      for (const { id, grant } of grants) {
+        if (this.texts.get(id) !== grant || grant.expiresAt < Date.now()) throw refused();
+        grant.sessionCurrent(request); assertTextSource(grant.activation, this.activations); grant.assertCurrent();
+      }
       for (const { id, page } of entries) {
         if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now()) throw refused();
         page.sessionCurrent(request); page.selection?.assertCurrent();
@@ -214,7 +322,8 @@ export class PluginPageAuthority {
     const requestSelection = shown && (() => selection ??= shown());
     await Promise.all(entries.map(({ page }) => page.assertScope?.(requestSelection)));
     check();
-    read(entries.flatMap(({ id, page }) => pageTextSources(id, page)));
+    read(entries.flatMap(({ id, page }) => pageTextSources(id, page)), grants.map(({ id, grant: { activation, keys } }) => ({ id, manifest: activation.manifest,
+      reader: activation.instance ? pluginTextReader(activation.instance) : activation.registeredText ?? null, keys })));
   }
 
   /** A terminal transport keeps this closure, never a caller-supplied installation or project. */
@@ -265,20 +374,22 @@ export class PluginPageAuthority {
     // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
     const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";
+    const surfaceSlot = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id && page.selection?.surfaceSlotSource) && request.method === "POST" && pathname === "/api/contextual/surface-slot";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
-    const check = () => {
-      controller.signal.throwIfAborted();
-      if (this.pages.get(id as string) !== page || !this.activations.has(page.activation)) throw refused();
+    const pageCurrent = () => {
+      if (this.pages.get(id as string) !== page || surfaceSlot && (page.closing || page.expiresAt < Date.now()) || !this.activations.has(page.activation)) throw refused();
       page.sessionCurrent(); page.activation.assertCurrent(permission);
       page.selection?.assertCurrent();
     };
+    const check = () => { controller.signal.throwIfAborted(); pageCurrent(); };
     await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; page.requests.add(controller);
-    requests.set(request, { page, check, signal: controller.signal });
+    requests.set(request, { page, check, pageCurrent, signal: controller.signal, surfaceSlot });
     const release = () => { controller.abort(this.left(page)); page.requests.delete(controller); requests.delete(request); };
     response?.once("finish", release); response?.once("close", release); return release;
   }
@@ -292,6 +403,17 @@ export function pluginPageRequest(request: IncomingMessage) {
   return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
     async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
+    surfaceSlot() {
+      authority.check();
+      const { page, pageCurrent } = authority, source = page.selection?.surfaceSlotSource;
+      if (!authority.surfaceSlot || !source || page.activation.install_id !== source.installation.install_id) throw refused();
+      const state = page.surfaceSlots ??= pageSurfaceSlotState();
+      return {
+        reserve: (mount: number, slotId: string, subjects: Parameters<typeof state.reserve>[4]) =>
+          state.reserve(mount, page.activation.manifest.plugin_id, source, slotId, subjects, pageCurrent),
+        require: state.require, close: state.close,
+      };
+    },
     objectPresentation(surface: string) {
       authority.check();
       const declaration = authority.page.selection?.objectPresentation;
@@ -331,7 +453,11 @@ export function pluginPageRequest(request: IncomingMessage) {
       for (const permission of reader.action.permissions) authority.page.activation.assertCurrent(permission);
       return {kind: object.kind, id: object.id, project_id};
     },
-    invoke(request: PageActionRequest) { if (!authority.page.activation.invoke) throw refused(); return authority.page.activation.invoke(request); },
+    invoke(request: PageActionRequest) {
+      authority.check();
+      if (!authority.page.activation.invoke || request.mode === "component_submit" && !authority.page.selection?.release) throw refused();
+      return authority.page.activation.invoke(request);
+    },
     async resolveFiles(paths: readonly string[]) {
       await authority.page.assertScope?.(); authority.check();
       const resolveFiles = authority.page.activation.resolveFiles;

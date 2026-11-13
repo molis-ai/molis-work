@@ -4,6 +4,7 @@ import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/
 import type { StagePagePresentation, UiContribution, UiRenderRequest, UiSurfaceDescriptor, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 
 /** The contribution a Manifest view names, or its existing plugin-and-view default. Kept inside the workbench package. */
@@ -133,6 +134,11 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
           return renderPluginFrameSurface(html, id, title, descriptor.target_slot_id !== "workbench.directory", false, owner,
             { contribution_id, surface, target_slot_id: descriptor.target_slot_id }, options?.manifest?.plugin_id, options?.producer);
         }
+      }
+      const descriptor = contribution.descriptor.surfaces?.find(item => item.surface_id === surface);
+      if (options?.producer && options.manifest && descriptor?.target_slot_id === "workbench.main") {
+        const mount = ` data-plugin-owner="${escapeHtml(options.manifest.plugin_id)}" data-plugin-contribution="${escapeHtml(contribution_id)}" data-plugin-surface="${escapeHtml(surface)}" data-plugin-slot="workbench.main" data-plugin-producer="${escapeHtml(options.producer)}"`;
+        return html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1" + mount);
       }
       return html;
     } finally { active = false; }

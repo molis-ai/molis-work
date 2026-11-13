@@ -1,11 +1,12 @@
-import { ActionError, bindActionHandler, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, inputSchemaFor, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget, type ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 export { PLUGIN_INSTALL_PROVIDER_ID };
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { PROJECT_INSTALLATION } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
-import type { BundledPluginList, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
+import type { BundledPluginList, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService, ProjectPackageControl } from "./plugin-install-service.js";
 import type { SkillImportService } from "./skill-import.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md
@@ -122,7 +123,10 @@ export const pluginInstallActions = {
     title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的），以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
-    output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
+    output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: {
+      ...installedView, required: [...installedView.required, "installation_generation", "manifest_digest"],
+      properties: { ...installedView.properties, installation_generation: text, manifest_digest: text },
+    } } } } } } as ActionDefinition<Record<string, never>, { plugins: ProjectPluginInstalledView[] }>,
 };
 
 const controlOutput = { type: "object", additionalProperties: false, required: ["plugin_id", "state"], properties: { plugin_id: text, state: text } };
@@ -131,7 +135,8 @@ const retainedItem = { type: "object", additionalProperties: false, required: ["
   kind: { enum: ["home_library", "owner_files", "network_credential", "installation_binding", "task_grant", "declared_rule"] },
   reason: { enum: ["ownership_unverified", "other_holder", "inventory_unavailable"] }, label: { type: "string", maxLength: 200 } } };
 const uninstallOutput = { ...controlOutput, properties: { ...controlOutput.properties, retained: { type: "array", minItems: 1, items: retainedItem } } };
-const controlInput = { plugin_id: { type: "string", minLength: 1, maxLength: 200 } };
+const controlInput = { plugin_id: { type: "string", minLength: 1, maxLength: 200 } } as const;
+type EnableInput = Pick<Extract<ProjectPackageControl, { action: "enable" }>, "plugin_id" | "expected_installation">;
 const controlled = (title: string, description: string) => ({ ...metadata, scope: "project", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
 const homeControlled = (title: string, description: string) => ({ ...metadata, scope: "home", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
 
@@ -146,8 +151,10 @@ export const pluginControlActions = {
     "停用这个项目里一个从签名的包装进来的插件：它的动作停止提供，数据保留，之后可以再启用或卸载。有常开同意的插件不能停用。"),
     input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
   enable: { capability_id: "plugins.installed.enable", version: /* @version action.plugins.installed.enable */ 1, operation: "command", action: { ...controlled("启用签名包装的插件",
-    "启用这个项目里一个停用了的、从签名的包装进来的插件。发布者已被撤销信任的插件不能启用，只能卸载。"),
-    input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
+    "启用刚才看到的、已停用的项目签名插件安装。安装或发行物变化后须重新查看；发布者已被撤销信任的插件只能卸载。"),
+    input_schema: inputSchemaFor<EnableInput>()({ type: "object", additionalProperties: false, required: ["plugin_id", "expected_installation"], properties: {
+      ...controlInput, expected_installation: PROJECT_INSTALLATION,
+    } }), output_schema: controlOutput } } as ActionDefinition<EnableInput, { plugin_id: string; state: string }>,
   uninstall: { capability_id: "plugins.installed.uninstall", version: /* @version action.plugins.installed.uninstall */ 1, operation: "command", action: { ...controlled("卸载签名包装的插件",
     "把这个项目里一个从签名的包装进来的插件卸载：`keep_data` 为真时它的数据留下（以后重装可以接上），为假时数据一并删除，也删除它存的密钥。有常开同意的插件不能卸载。发布者已被撤销信任的插件可以卸载。"),
     input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" }, target: uninstallTarget }, required: ["plugin_id", "keep_data", "target"], additionalProperties: false }, output_schema: uninstallOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean; target: PluginUninstallTarget }, PluginUninstallResult>,
@@ -190,13 +197,17 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
       await caller.beforeEffect();
       return { publisher: service.revokePublisher((input as { key_id: string }).key_id) };
     } },
-    ...(["disable", "enable", "uninstall"] as const).map((action): ActionHandlerBinding => ({ capability_id: pluginControlActions[action].capability_id, version: pluginControlActions[action].version, handle: async (caller, input) => {
+    ...(["disable", "uninstall"] as const).map((action): ActionHandlerBinding => ({ capability_id: pluginControlActions[action].capability_id, version: pluginControlActions[action].version, handle: async (caller, input) => {
       // Taking a plugin off is the project settings door's alone, like switching its permissions (S-94, BL-915); switching it off and on stays the person's act in the project.
       if (action === "uninstall") assertPluginPermissionSettingsEntry(caller);
       const who = pluginInstallPerson(caller); await caller.beforeEffect();
       const { plugin_id, keep_data, target } = input as { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget };
-      return { plugin_id, ...await service.control(action, { plugin_id, keep_data: keep_data === true, ...target ? { target } : {} }, who, caller) };
+      return { plugin_id, ...await service.control({ action, plugin_id, keep_data: keep_data === true, ...target ? { target } : {} }, who, caller) };
     } })),
+    bindActionHandler(pluginControlActions.enable, async (input, caller) => {
+      const who = pluginInstallPerson(caller);
+      return { plugin_id: input.plugin_id, ...await service.control({ ...input, action: "enable", caller }, who) };
+    }),
     ...([["homeDisable", "disable"], ["homeEnable", "enable"], ["homeUninstall", "uninstall"]] as const).map(([name, action]): ActionHandlerBinding => ({ capability_id: pluginControlActions[name].capability_id, version: pluginControlActions[name].version, handle: async (caller, input) => {
       // Only the Host settings door's credential for the Home's own plugins (S-94), asked before the Home's plugin host is touched.
       assertHomePluginPermissionSettingsEntry(caller);

@@ -93,6 +93,11 @@ export interface ContextLedgerApi {
   };
 }
 
+/** Owner-only batch read. Latest active edges, with both exact endpoints in the supplied set. */
+export interface ContextLedgerRelationReader {
+  activeBetween(access: ContextAccess, candidates: readonly ObjectRef[], types: readonly string[]): ContextEdge[];
+}
+
 /** Trusted same-connection replica port. Replacing reference history never grants access or executes referenced objects. */
 export interface ContextHistoryReplication {
   read(source:ObjectRef):ContextEdge[];

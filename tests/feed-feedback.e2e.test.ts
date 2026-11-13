@@ -4,6 +4,7 @@ import test, { type TestContext } from "node:test";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
 import { createSourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { fromBetterSqlite, listListenerRuns } from "@molis-ai/molis-work-plugin-feed/store";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
@@ -60,6 +61,9 @@ test("B27-FF01 B27-FF02 Feed tells a refused, malformed, and interrupted pull ap
   const { source_id: id } = source;
   const feed = createLocalFeedApplication(store.db);
   const snapshot = () => feed.snapshot(projectId);
+  // The directory's `runs` is the latest run of each source (a bounded read since #2026); this source's whole pull history is read here.
+  const pullHistory = () => listListenerRuns(fromBetterSqlite(store.db), projectId).filter(run => run.source_id === id)
+    .map(run => ({ ...run, receipt: run.connector_receipt }));
   const pulls: Array<{ status: number; etag: string | null }> = [];
   let foreignRequests = 0;
   let answer = 200, title = "Original feed item";
@@ -99,7 +103,7 @@ test("B27-FF01 B27-FF02 Feed tells a refused, malformed, and interrupted pull ap
     await child.click(sync);
     await child.waitFor(`feedback.toasts.length > ${count} && feedback.pending === 0`);
     const after = snapshot();
-    const runs = after.runs.filter(run => run.source_id === id);
+    const runs = pullHistory();
     assert.equal(runs.length, observations.length + 2);
     const latest = runs[0]!;
     assert.equal(latest.phase, "terminal");
@@ -297,6 +301,7 @@ test("B27-FF04 Feed preserves a filter, source selection, and source draft after
   await child.waitFor(`feedback.toasts.length > ${count} && feedback.pending === 0`);
   assert.deepEqual(await state(), original);
   const feedback = await child.evaluate<Array<[string, boolean]>>(`feedback.toasts.slice(${count})`);
+  const failedRequests = await b.evaluate<number>("feedListRequests");
   await shot(b, "list-read-failed");
   await b.evaluate("window.failFeedList = false");
   const reads = await child.evaluate<number>("feedback.reads");
@@ -305,8 +310,11 @@ test("B27-FF04 Feed preserves a filter, source selection, and source draft after
   await child.waitFor(`feedback.reads > ${reads} && feedback.pending === 0 && document.querySelector("[data-feed-source-rail]").textContent.includes("Feed refresh recovered")`);
   assert.deepEqual(await state(), original);
   const requests = await b.evaluate<number>("feedListRequests");
-  t.diagnostic(JSON.stringify({ requests, feedback }));
-  assert.equal(requests, 2);
+  t.diagnostic(JSON.stringify({ failedRequests, requests, feedback }));
+  // The failed refresh asks once and is not retried behind the person's back. The recovered one is a parameterized page
+  // (`readInputPageDocument`): it reads its owner page before and after the list, so exactly two page reads, no more.
+  assert.equal(failedRequests, 1);
+  assert.equal(requests - failedRequests, 2);
   assert.equal(feedback.length, 1);
   assert.equal(feedback[0]![1], true);
   assert.match(feedback[0]![0], /当前输入已保留.*重试/);

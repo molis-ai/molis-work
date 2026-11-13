@@ -76,6 +76,11 @@ function formatted(what: string, last: string, write: (locale: string | undefine
   }, last));
 }
 
+/** Explicit display locale, falling back to the named owner's default in the same text environment. */
+export function ownerFormatLocale(owner: string, locale: string | null): string | null {
+  return locale ?? requireProvider("renderPresentationForm").defaultLocale(owner);
+}
+
 /** Dates and numbers in the current language. The result goes into HTML like `t`'s. */
 export const format: UiFormatTool = {
   date: (at: string, style: TextDateStyle, options?: TextDateOptions) => formatted(`format.date("${at.slice(0, 40)}")`, at, (locale, problem) => formatDate(at, style, locale, { ...options, problem })),

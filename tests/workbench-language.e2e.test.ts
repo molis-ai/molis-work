@@ -1195,7 +1195,8 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   const plugin = release.pluginId, surface = "app-" + sandboxPackageBuildId(plugin, bundle.payload.manifest.publisher.signature);
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   const prefix = "/projects/" + b.projectId, source = prefix + "/plugins/" + plugin + "?frame=workbench", requests: string[] = [];
-  b.server!.on("request", request => { if (request.headers.accept === "application/json" && request.url === source) requests.push(source); });
+  // The stage's page also names the live installation it is bound to (`&installation=`); either form is one release opening.
+  b.server!.on("request", request => { if (request.headers.accept === "application/json" && (request.url === source || request.url?.startsWith(source + "&installation="))) requests.push(source); });
   const child = await pluginFrameBrowser(t, b, surface);
   await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, b.sessionId);
   const navigate = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
@@ -1232,8 +1233,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   await b.waitFor(`document.querySelector(${JSON.stringify(tab)})?.querySelector('.tab-item-name')?.textContent === '读书摘记'`);
   assert.deepEqual(await b.evaluate(`[window.originalInstalledTitle = document.querySelector(${JSON.stringify(tab)}), window.originalMarketTitle = document.querySelector('[data-market-plugin=todo] h2'),
     JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}], originalMarketTitle.textContent].slice(2)`), ["读书摘记", "待办"]);
-  const goalsStart = `JSON.parse(document.querySelector('[data-home-starts]').dataset.homeStarts).find(start=>start.id==='goals')`;
-  assert.deepEqual(await b.evaluate(`[${goalsStart}.title,${goalsStart}.hint]`), ["推进一个目标", "明确要做成什么，接着往下走。"]);
+  // The project home is composed when it is shown, so this window holds none of it; SCS-12 FSS-34 (surface-home-workbench) switches the shown home's owners' words.
   await chooseEnglishInSettings(t, b);
   await child.waitFor("document.documentElement.lang === 'en' && document.querySelector('h1').textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate(`[savedStudioBody===document.body,savedStudioField===document.querySelector('[data-field=text]'),document.activeElement===savedStudioField,
@@ -1250,8 +1250,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
     originalMarketTitle.textContent, originalMarketTitle.nextElementSibling.textContent, JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}]]`),
   [true, "Reading notes", true, "Todo", "Write down what needs doing, what is for today, and who you are waiting for.", "Reading notes"]);
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "a viewless Home half and the installed release used their actual owners");
-  assert.deepEqual(await b.evaluate(`[${goalsStart}.title,${goalsStart}.hint,document.querySelector(${JSON.stringify(frame)}).title]`),
-    ["Move a goal forward", "Decide what you want to achieve, then take the next step.", "Reading notes"]);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).title`), "Reading notes");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
   assert.deepEqual(requests, [source], "language preparation did not mint or re-open a release");
   const beforeLook = await child.evaluate<string[]>("['--page','--font'].map(name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim())");
@@ -1463,7 +1462,8 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
         hasControl: Boolean(request.headers["x-molis-work-control-token"]), status: response.statusCode, createsSession: response.hasHeader("set-cookie") }));
     }
     if (request.method === "POST" && /\/im\/(?:api\/|connect$)/u.test(path)) {
-      if (watchWrites) writes.push(path);
+      // Reading the objects in rows the person scrolled to posts its bounded views; it changes nothing, so it is not a write.
+      if (watchWrites && !/^\/im\/api\/rooms\/[^/]+\/surfaces$/u.test(path.split("?")[0]!)) writes.push(path);
       if (path.endsWith("/read")) response.once("finish", () => { if (response.statusCode === 200) initialRead.resolve(); });
     }
   });

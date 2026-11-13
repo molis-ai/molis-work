@@ -75,6 +75,11 @@ export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
   /** For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`); the Host's dialog names it as the Host reads it. */
   setOutput(workspaceId: string): Promise<void>;
+  /**
+   * For 「读取这个文件夹的说明文件」 where a page says the repository's instruction files are not read: after the Host's own dialog,
+   * rounds read them and the current output counts as the person's (`projects.directories.set_instructions@1`, batch12-design §3.2).
+   */
+  readInstructions(): Promise<void>;
 }
 
 /** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */

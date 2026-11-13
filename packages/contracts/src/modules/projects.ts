@@ -166,7 +166,9 @@ export type DirectoryChange =
   | { kind: "set_output"; target: DirectoryTarget }
   | { kind: "repair"; workspace_id: string; workspace_path: string }
   | { kind: "map_source"; source_workspace_id: string; target: DirectoryTarget }
-  | { kind: "unmap_source"; source_workspace_id: string };
+  | { kind: "unmap_source"; source_workspace_id: string }
+  /** Whether rounds read the repository's instruction files. Turning it on confirms the current output as the person's (batch12-design §3.2). */
+  | { kind: "set_instructions"; off: boolean };
 
 export interface ChangeDirectoriesInput {
   project_id: string;
@@ -182,6 +184,12 @@ export interface ProjectDirectories {
   directories: ProjectDirectory[];
   /** Ids only, no paths. Kept on this device alone and never synced. */
   source_links: { source_workspace_id: string; workspace_id: string }[];
+  /**
+   * Whether a round reads the repository's instruction files (AGENTS.md and the like) in the output (specs/coding-harness-optimization/
+   * batch12-design.md §3). `trusted` is worked out now, never stored: the output is not the default location, the person chose it
+   * (linked it, or confirmed it with `set_instructions`), and reading is not `off`. It adds no permission; it decides only what is read.
+   */
+  instructions: { off: boolean; trusted: boolean };
   /** Where changes commit from, as `expected_revision`. */
   revision: string;
 }
@@ -384,8 +392,9 @@ const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
   }, required: [...WORKSPACE_SCHEMA.required, "roles", "state"], additionalProperties: false } },
   source_links: { type: "array", items: { type: "object", properties: { source_workspace_id: { type: "string" }, workspace_id: { type: "string" } },
     required: ["source_workspace_id", "workspace_id"], additionalProperties: false } },
+  instructions: { type: "object", properties: { off: { type: "boolean" }, trusted: { type: "boolean" } }, required: ["off", "trusted"], additionalProperties: false },
   revision: { type: "string" },
-}, required: ["project_id", "directories", "source_links", "revision"], additionalProperties: false };
+}, required: ["project_id", "directories", "source_links", "instructions", "revision"], additionalProperties: false };
 
 const expectedRevision = { type: "string", minLength: 1, maxLength: 200 } as const;
 const closedInput = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties: { ...properties, expected_revision: expectedRevision },
@@ -423,6 +432,10 @@ export const projectDirectoryActions = {
     { ...closedInput({ source_workspace_id: folderId, workspace_id: folderId, workspace_path: folderPath, default_output: { const: true } }),
       required: ["source_workspace_id", "expected_revision"],
       oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }, { required: ["default_output"] }] }),
+  // The person's own switch: audiences ["user"] (directoryCommand), so no Agent, MCP client, workflow or plugin turns reading on.
+  setInstructions: directoryCommand<{ off: boolean }>("projects.directories.set_instructions", /* @version action.projects.directories.set_instructions */ 1, "读取仓库说明文件",
+    "开或关：每一轮是否读输出目录里的说明文件（AGENTS.md 等）。打开即确认当前输出目录是你选的；只决定读不读，不加任何权限",
+    closedInput({ off: { type: "boolean" } })),
   unmapSource: directoryCommand<{ source_workspace_id: string }>("projects.directories.unmap_source", /* @version action.projects.directories.unmap_source */ 1, "取消对应的文件夹",
     "取消对应；文件夹还是当前项目的目录，磁盘上的文件不动",
     closedInput({ source_workspace_id: folderId }), { effect: "write" }),

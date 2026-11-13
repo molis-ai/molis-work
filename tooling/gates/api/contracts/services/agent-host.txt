@@ -285,6 +285,7 @@ export interface AgentFrozenRole {
     prompts: AgentPromptText[];
     skills?: AgentRoundSkill[];
     reply_locale?: UiLanguageTag;
+    instructions_trusted?: true;
     host_tools: string[];
 }
 
@@ -1326,6 +1327,16 @@ export interface AgentRunHandle {
     frozen: AgentFrozenStart;
 }
 
+export interface AgentRunInstructions {
+    trusted: boolean;
+    files: Array<{
+        path: string;
+        chars: number;
+        truncated: boolean;
+        sha256: string;
+    }>;
+}
+
 export interface AgentRunOffer extends AgentActionOffer {
     offer_id: string;
     offered_at: string;
@@ -2085,6 +2096,7 @@ interface AgentFrozenStartFields {
     }>;
     skills: AgentFrozenSkill[];
     reply_locale?: UiLanguageTag;
+    instructions?: AgentRunInstructions;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];

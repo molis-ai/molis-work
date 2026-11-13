@@ -407,6 +407,7 @@
     "common.request-client.we-can-t-tell-whether-finished-refresh-page": "We can’t tell whether this finished. Refresh the page to check.",
     "common.text.unavailable": "This text cannot be shown right now",
     "common.workspaces.allow-plugin-link-folder-project-project-path": "Allow {plugin} to link this folder to project {project}?\n{path}",
+    "common.workspaces.allow-plugin-read-instructions": "Let every turn in “{project}” read the instruction files (AGENTS.md and the like) in “{folder}”? This says you chose this folder; it only decides what is read and grants nothing more. You can turn it off in project settings.",
     "common.workspaces.allow-plugin-make-folder-output-folder-project-project": "Allow {plugin} to make “{folder}” the output folder of project {project}? From now on agents, the terminal and Git write only there.",
     "common.workspaces.allow-plugin-make-folder-output-folder-project-project-2": "Allow {plugin} to make “{folder}” the output folder of project {project}? From now on agents, the terminal and Git write only there. Nothing more is written to the current output folder “{current}”; its files stay as they are.",
     "common.workspaces.allow-plugin-make-folder-output-folder-project-project-3": "Allow {plugin} to make “{folder}” the output folder of project {project}? From now on agents, the terminal and Git write only there. Nothing more is written to the current output folder “{current}”; its files stay as they are, and it leaves the project.",

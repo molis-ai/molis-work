@@ -400,6 +400,7 @@
     "common.request-client.we-can-t-tell-whether-finished-refresh-page": "不知道这次操作有没有完成，请刷新后核对",
     "common.text.unavailable": "这句话暂时显示不了",
     "common.workspaces.allow-plugin-link-folder-project-project-path": "允许 {plugin} 为项目 {project} 关联目录？\n{path}",
+    "common.workspaces.allow-plugin-read-instructions": "让「{project}」的每一轮读取「{folder}」里的说明文件（AGENTS.md 等）？这表示这个文件夹是你选的；只决定读不读，不加任何权限。可以在项目设置里关掉。",
     "common.workspaces.allow-plugin-make-folder-output-folder-project-project": "允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。",
     "common.workspaces.allow-plugin-make-folder-output-folder-project-project-2": "允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。现在的输出目录「{current}」不再写入，里面的文件不动。",
     "common.workspaces.allow-plugin-make-folder-output-folder-project-project-3": "允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。现在的输出目录「{current}」不再写入，里面的文件不动，它会从项目里移出。",

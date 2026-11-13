@@ -96,6 +96,8 @@ export interface PrologueStartInput {
   workspace?: "required" | "none" | "business";
   root_path?: string;
   model: PrologueModelConfiguration;
+  /** The Host trusted the project: the runtime may give the round the repository's instruction files. Never from the request. */
+  project_trusted?: true;
   /** Character frozen from the Plugin's own role declaration. */
   character: {
     id: string;
@@ -189,6 +191,8 @@ export interface PrologueRuntimePort {
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
     control: PrologueControlPort;
+    /** The instruction files this round was given, as recorded in its index (`frozen.instructions`); absent when not recorded. */
+    instructions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunInstructions;
   } & RoundDesk>;
   shutdown(): Promise<unknown>;
 }

@@ -599,3 +599,65 @@ test("SSC-20 catalog 1 to 2: a folder the person linked that is not where the Ho
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+/** One change as the person makes it (the local person's own actor, as every entry of theirs records). */
+function personChange(env: Env, projectId: string, next: DirectoryChange): ProjectDirectories {
+  const current = env.projects.query.projectDirectories(projectId);
+  return env.projects.commands.changeDirectories({ project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, change: next, expected_revision: current.revision });
+}
+
+test("BCD-04 the repository's instruction files are read only from an output the person chose, and not when they turned reading off", () => {
+  withHome(env => {
+    const project = env.create("代码");
+    assert.deepEqual(env.projects.query.projectDirectories(project).instructions, { off: false, trusted: false }, "the default output is not the person's folder");
+    const repo = folder(env, "repo");
+    const chosen = personChange(env, project, { kind: "set_output", target: { workspace_path: repo } });
+    assert.deepEqual(chosen.instructions, { off: false, trusted: true }, "the person's own folder as the output");
+    const off = personChange(env, project, { kind: "set_instructions", off: true });
+    assert.deepEqual(off.instructions, { off: true, trusted: false });
+    assert.notEqual(off.revision, chosen.revision, "BCD-09: the switch is part of the revision");
+    // Off belongs to the project, not the folder: another output stays off.
+    const other = personChange(env, project, { kind: "set_output", target: { workspace_path: folder(env, "other") } });
+    assert.deepEqual(other.instructions, { off: true, trusted: false });
+    personChange(env, project, { kind: "set_instructions", off: false });
+    // Back to the default location: not trusted, at once.
+    assert.deepEqual(personChange(env, project, { kind: "set_output", target: { default_output: true } }).instructions, { off: false, trusted: false });
+  });
+});
+
+test("BCD-04 an output a tool linked or the catalog upgrade picked is trusted only once the person confirms that very folder", () => {
+  withHome(env => {
+    const project = env.create("代码");
+    const repo = folder(env, "repo"), next = folder(env, "next");
+    // A folder a tool brought in, then made the output by someone other than the person (as the 1→2 upgrade did for a lone folder).
+    // It stays an input too, so switching the output away keeps the folder in the project (one that was only the output would leave it).
+    change(env, project, { kind: "add_input", workspace_path: repo });
+    const linked = change(env, project, { kind: "set_output", target: { workspace_path: repo } });
+    const repoId = linked.directories.find(item => item.roles.includes("output"))!.workspace_id;
+    env.db.prepare("UPDATE workspace_project_memberships SET bound_by = 'molis-work-upgrade' WHERE project_id = ? AND workspace_id = ?").run(project, repoId);
+    const before = env.projects.query.projectDirectories(project);
+    assert.deepEqual(before.instructions, { off: false, trusted: false }, "not the person's until confirmed");
+    const confirmed = personChange(env, project, { kind: "set_instructions", off: false });
+    assert.deepEqual(confirmed.instructions, { off: false, trusted: true });
+    assert.notEqual(confirmed.revision, before.revision, "BCD-09: a change of trust is a new revision");
+    // The confirmation names that folder: a new output linked by a tool is not trusted by it; back to the confirmed folder, it is again.
+    change(env, project, { kind: "set_output", target: { workspace_path: next } });
+    const nextId = env.projects.query.projectDirectories(project).directories.find(item => item.roles.includes("output"))!.workspace_id;
+    env.db.prepare("UPDATE workspace_project_memberships SET bound_by = 'binding:tool' WHERE project_id = ? AND workspace_id = ?").run(project, nextId);
+    assert.equal(env.projects.query.projectDirectories(project).instructions.trusted, false);
+    change(env, project, { kind: "set_output", target: { workspace_id: repoId } });
+    assert.equal(env.projects.query.projectDirectories(project).instructions.trusted, true, "the same folder again keeps its confirmation");
+  });
+});
+
+test("BCD-09 set_instructions from an old revision is refused, and the setting goes with its project", () => {
+  withHome(env => {
+    const project = env.create("代码");
+    const stale = env.projects.query.projectDirectories(project).revision;
+    personChange(env, project, { kind: "set_instructions", off: true });
+    assert.throws(() => env.projects.commands.changeDirectories({ project_id: project, actor_id: LOCAL_PERSON_ACTOR_ID, change: { kind: "set_instructions", off: false }, expected_revision: stale }),
+      refusedWith("actions.conflict"));
+    env.db.prepare("DELETE FROM projects WHERE project_id = ?").run(project);
+    assert.equal((env.db.prepare("SELECT COUNT(*) AS n FROM project_instruction_settings").get() as { n: number }).n, 0, "ON DELETE CASCADE");
+  });
+});

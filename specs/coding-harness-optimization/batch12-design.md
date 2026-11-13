@@ -61,7 +61,7 @@ notice?: () => ComposerNotice | null;
 `trusted` 三条同时成立才为真，每次读、每一轮开始都按当前状态现算，不存：
 
 1. 输出不是项目的默认输出目录（`projectOutputId`）。改回默认，立刻不信任。
-2. 这个输出是本人选的：关联是本人建的（`isPersonMembership`，即 `bound_by` 为本人），或本人对**这一个**输出目录点过「确认」（存在设置行的 `confirmed_workspace_id`，等于当前输出的 `workspace_id`）。工具会话关联的（`binding:<actor>`）和目录库 1→2 升级时按「只有一个文件夹」自动设成输出的，`bound_by` 不是本人，要本人确认一次才算；输出换成别的文件夹，确认不跟过去。确认的入口在 Coding 的规则菜单（「规则没加载」那一段的「读取这个文件夹的说明文件」）和项目设置的同一个开关上，调的是 `set_instructions`，不改 `set_output`（选择器把当前输出排除在外，不为认领开第二条路）。Coding 里的按钮和 `set_output` 一样经工作台的插件框桥（`plugin-frame/workspaces.ts`）由本人点击发出，不走 Coding 后端，所以 §3.4「插件不能调」仍然成立。确认按文件夹记：输出换走再换回同一个文件夹，确认恢复。
+2. 这个输出是本人选的：关联是本人建的（`isPersonMembership`，即 `bound_by` 为本人），或本人对**这一个**输出目录点过「确认」（存在设置行的 `confirmed_workspace_id`，等于当前输出的 `workspace_id`）。工具会话关联的（`binding:<actor>`）和目录库 1→2 升级时按「只有一个文件夹」自动设成输出的，`bound_by` 不是本人，要本人确认一次才算；输出换成别的文件夹，确认不跟过去。确认的入口在 Coding 的规则菜单（「规则没加载」那一段的「读取这个文件夹的说明文件」）和项目设置的同一个开关上，调的是 `set_instructions`，不改 `set_output`（选择器把当前输出排除在外，不为认领开第二条路）。Coding 里的按钮和 `set_output` 一样经工作台的插件框桥（`plugin-frame/workspaces.ts`）由本人点击发出，不走 Coding 后端，所以 §3.4「插件不能调」仍然成立。确认按文件夹（目录的 id）记：输出换走时文件夹仍是项目的输入，换回来确认还在；只做输出的文件夹换走时就离开了项目，再加回来是新的关联，要重新确认。
 3. 这个项目的「读取仓库说明文件」没有关。关了以后换输出目录，仍然是关的（开关属于项目，不属于文件夹）。
 
 另外写明：只作输入的文件夹不会成为一轮的根，所以不会被读（`horizontal/agent-host/src/index.ts` 的 `authorizedDirectories` 只有输出）；Host 建的工作树按它所属的输出算。
@@ -134,3 +134,5 @@ Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文�
 | 处 | 设计稿 | 实际 | 原因 |
 | --- | --- | --- | --- |
 | §2.3 只读描边 | 新语义变量 `--line-readonly` | 组件规则里 `color-mix(in srgb, var(--accent) 22%, var(--line))` | 与失败描边同法；由现有变量推出，皮肤与深浅色自动一致，不在两套皮肤里各写死四个值 |
+| §3.5 子任务继承信任 | 子任务继承这一轮的 `projectTrusted` | 子任务现在读不到说明文件 | vendored SDK（`subagent-dispatch.js`）派子任务时自己拼 `context`，只带压缩与窗口，不传 `projectTrusted`；改 vendored 包是红线。失败方向是不信任（少读，不多读）。要继承得等上游 SDK 把父一轮的信任带给子任务，换包时补测试 |
+| §3.6 补记位置 | 冻结记录 | 写进这一轮在会话索引里的冻结意图（`attempts[i].frozen.instructions`），同一份也放进运行视图 | 冻结记录就存在那里，重启后由它恢复；新增的是可选字段，旧记录没有它，读到即「这一轮没有记录规则来源」，会话索引格式不升版本（与第 16 批给冻结意图加 `reply_locale` 同法） |

@@ -157,6 +157,12 @@ export interface AgentFrozenCharacter extends CharacterContent {
   published_at: string;
 }
 
+/** What a round recorded of the repository's instruction files it was given (`frozen.instructions`). */
+export interface AgentRunInstructions {
+  trusted: boolean;
+  files: Array<{ path: string; chars: number; truncated: boolean; sha256: string }>;
+}
+
 interface AgentFrozenStartFields {
   /** Body-free reference to the original text, not the assembled model task. */
   original_input?: import("./agent-inputs.js").AgentOriginalInputRef;
@@ -211,6 +217,13 @@ interface AgentFrozenStartFields {
   skills: AgentFrozenSkill[];
   /** The language the round was told to reply in (`AgentStartAuthority.reply_language`); absent when it was told none. */
   reply_locale?: UiLanguageTag;
+  /**
+   * The repository's own instruction files this round was given, written once after it started from what the runtime packed
+   * (specs/coding-harness-optimization/batch12-design.md §3.6): whether the Host trusted the project, and each file's path, the
+   * packed length, whether it was cut, and the hash of the packed text. Absent on a round without a directory, on a round from
+   * before this was recorded, and when recording failed; a round that read none while trusted has `files: []`.
+   */
+  instructions?: AgentRunInstructions;
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
@@ -359,6 +372,8 @@ export interface AgentFrozenRole {
   skills?: AgentRoundSkill[];
   /** The language the Host told the round to reply in; its words are among `prompts`. */
   reply_locale?: UiLanguageTag;
+  /** Trusted Host composition only: the round may read the repository's own instruction files (`AgentStartAuthority.directories`). */
+  instructions_trusted?: true;
   /** Host tool names this role may call. */
   host_tools: string[];
 }

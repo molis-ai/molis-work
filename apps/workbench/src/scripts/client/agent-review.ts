@@ -140,6 +140,8 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         const details=new Map([...container.querySelectorAll('details[data-review-detail]')].map(item=>[detailKey(item),item.open]));
         const panels=new Map([...container.querySelectorAll('[data-review-recovery-view]')].map(panel=>[panel.closest('[data-agent-review-item]').dataset.agentReviewItem,panel]));
         const focused=container.contains(document.activeElement) && document.activeElement.matches('[data-agent-review-feedback]') ? {id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd,direction:document.activeElement.selectionDirection}:null;
+        const choice=container.contains(document.activeElement)?['approve','reject','remember','inspect','check'].find(name=>document.activeElement.hasAttribute('data-agent-review-'+name)):null;
+        const focusedChoice=choice?{id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,choice}:null;
         let scroller=container.parentElement;while(scroller && scroller.scrollHeight<=scroller.clientHeight)scroller=scroller.parentElement;
         const visibleTop=scroller?.getBoundingClientRect().top || 0;
         const anchor=scroller?.scrollTop>0 ? [...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.getBoundingClientRect().bottom>visibleTop) : null;
@@ -151,6 +153,12 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
           const id=input.closest('[data-agent-review-item]').dataset.agentReviewItem;input.value=readFeedback(id);
           if(focused?.id===id){input.focus({preventScroll:true});input.setSelectionRange(focused.start,focused.end,focused.direction);}
         });
+        if(focusedChoice){
+          const row=[...container.querySelectorAll('[data-agent-review-item]')].find(item=>item.dataset.agentReviewItem===focusedChoice.id);
+          const next=row?.querySelector('[data-agent-review-'+focusedChoice.choice+']')||row||container;
+          if(next===row||next===container)next.tabIndex=-1;
+          next.focus({preventScroll:true});
+        }
         if(anchorId && scroller){const next=[...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.dataset.agentReviewItem===anchorId);if(next)scroller.scrollTop+=next.getBoundingClientRect().top-anchorTop;}
       }
       container.dataset.reviewHtml=data.html;state.reviews=data.reviews;state.locale=locale;

@@ -1,4 +1,8 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pluginPageRequest } from "../plugin-page-authority.js";
+import { computerHolderFor } from "../computer/computer-surfaces.js";
+import { confirmArrivedTooSoon } from "../computer/computer-policy.js";
+import { computerErrors } from "../computer/computer-errors.js";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
@@ -19,7 +23,7 @@ import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, bindActionClient, requireSynchronous, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
@@ -268,7 +272,7 @@ export async function assistantNotices(ports: AssistantHttpPorts, surface: strin
 }
 
 /** What the panel's route hands its writes for one request (B9): the Assistant's ports with the page's project, and the page's language. */
-interface AssistantPageEntry { readonly ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }; readonly language: () => { reply_locale?: WebLocale } }
+interface AssistantPageEntry { readonly ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }; readonly language: () => { reply_locale?: WebLocale }; readonly page: ReturnType<typeof pluginPageRequest> }
 const door = webEntryDoor<AssistantPageEntry>("assistant:panel", () => uiText.text("workbench.assistant-http.entry-refused"));
 /** The panel's fields as their owner reads them: the owner checks each one, the action's schema bounds only the envelope. */
 const pageBody = <T>(body: Readonly<Record<string, unknown>>): T => body as unknown as T;
@@ -278,7 +282,7 @@ const ofWork = { type: "object", properties: { work_id: pageId, body }, required
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
-  handle: (entry: AssistantPageEntry, input: InferActionInput<S>) => Output | Promise<Output>, metered = false) =>
+  handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false) =>
   door.define({ capability_id: `assistant.panel.${name}`, version, title, description: `助理面板：${title}。`, scope: "home", input_schema, ...(metered ? { metered } : {}) }, handle);
 const of = (entry: AssistantPageEntry) => assistantServiceFor(entry.ports);
 
@@ -316,8 +320,17 @@ export const assistantPanelActions = {
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
     async (entry, input) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false) })),
-  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input) => of(entry).service.outcomes.decide(input.work_id,
-    { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) })),
+  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
+    { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) }, {
+      beforeEffect: async () => { await caller.beforeEffect(); await entry.page?.beforeEffect(); },
+      assertCurrent: review => {
+        caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); entry.page?.assertCurrent();
+        const holder = computerHolderFor(entry.ports.localHost)?.();
+        if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, Date.now())) {
+          throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
+        }
+      },
+    })),
   answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input) => answerQuestion(entry, input.work_id, input.body), true),
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
     ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) })),
@@ -339,7 +352,7 @@ const named = <T>(table: Readonly<Record<string, T>>, key: string | undefined): 
 /** The panel's write a POST names, called as the person through the panel's door; undefined when the path is not one of them. */
 async function panelWrite(parts: readonly string[], body: Readonly<Record<string, unknown>>, ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference },
   request: IncomingMessage): Promise<{ result: unknown } | undefined> {
-  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, entry: { ports, language: () => pageRoundLanguage(ports) } };
+  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, entry: { ports, language: () => pageRoundLanguage(ports), page: pluginPageRequest(request) } };
   const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => ({ result: await door.invoke(call, definition, input) });
   const a = assistantPanelActions;
   if (parts.length === 1) {

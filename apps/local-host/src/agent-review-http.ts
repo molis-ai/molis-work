@@ -2,13 +2,13 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest, AgentReviewDecisionAvailability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderAgentReviewSurface, renderAgentReviewRecovery } from "@molis-ai/molis-work-app-workbench";
-import { format, icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { format, icon, say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { actionErrorKind, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { confirmArrivedTooSoon, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
 import { computerErrors } from "./computer/computer-errors.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -45,8 +45,11 @@ const missing = (message: string) => new ActionError("actions.missing", message)
 const REVIEW_CONFLICT = "agent.review_conflict";
 /** A decision or a check that cannot be recorded (decided, expired, cancelled, too soon, nothing to check against) is a conflict, not a fault. */
 const conflict = (error: unknown, fallback: string) => {
+  if (["forbidden", "not_found", "cancelled"].includes(actionErrorKind(error))) return error;
   const code = (error as { code?: unknown } | null)?.code;
-  return new ActionError(typeof code === "string" ? code : REVIEW_CONFLICT, error instanceof Error && error.message ? error.message : fallback, { kind: "conflict", cause: error });
+  const decision = (error as { details?: { review_decision?: AgentReviewDecisionAvailability } } | null)?.details?.review_decision;
+  const message = decision?.available === false ? say.text(decision.reason) : error instanceof Error && error.message ? error.message : fallback;
+  return new ActionError(typeof code === "string" ? code : REVIEW_CONFLICT, message, { kind: "conflict", cause: error });
 };
 
 export const agentReviewActions = {
@@ -54,19 +57,26 @@ export const agentReviewActions = {
     title: "决定一条待审操作", description: "本人批准或拒绝 Agent 请求的一项操作；批准不等于已经发生，回执另说。",
     input_schema: { type: "object", properties: { review_id: reviewId, decision: { enum: ["approve", "reject"] }, note: { type: "string", maxLength: 2000 },
       remember: { enum: ["session", "app-this-round"] } }, required: ["review_id", "decision"], additionalProperties: false } },
-  async ({ ports, page }, input) => {
-    const holder = ports.computerHolder?.() ?? null;
+  async ({ ports, page }, input, caller) => {
     const review = ports.agentHost.reviews.get(input.review_id);
-    const projectId = page ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
-    if (!review || review.project_id !== projectId) throw missing(uiText.text("workbench.agent-review.review-missing"));
-    if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, ports.now?.() ?? Date.now())) {
-      throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
-    }
-    await ports.agentHost.reviews.refresh(projectId);
-    try {
+    const assertCurrent = () => {
+      caller.signal?.throwIfAborted();
+      requireSynchronous(caller.assert_authority_current?.());
       page?.assertCurrent();
+      const holder = ports.computerHolder?.() ?? null;
+      const projectId = page ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
+      if (!review || review.project_id !== projectId) throw missing(uiText.text("workbench.agent-review.review-missing"));
+      if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, ports.now?.() ?? Date.now())) {
+        throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
+      }
+    };
+    assertCurrent();
+    await ports.agentHost.reviews.refresh(review!.project_id);
+    try {
       return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, decision: input.decision, actor_id: ports.actorId,
-        ...(input.note ? { note: input.note } : {}), ...(input.remember ? { remember: input.remember } : {}) }) };
+        ...(input.note ? { note: input.note } : {}), ...(input.remember ? { remember: input.remember } : {}) }, {
+        beforeEffect: async () => { await caller.beforeEffect(); await page?.beforeEffect(); }, assertCurrent,
+      }) };
     } catch (error) { throw conflict(error, uiText.text("workbench.agent-review.cannot-decide")); }
   }),
   recover: door.define({ capability_id: "agent.reviews.recover", version: /* @version action.agent.reviews.recover */ 1, scope: "home",
@@ -143,17 +153,14 @@ export async function handleAgentReviewHttp(
       sendLocalWebJson(response, 400, { error: uiText.text("workbench.agent-review.bad-limit") });
       return true;
     }
-    const matched = ports.agentHost.reviews.list(projectId, status)
+    const candidates = ports.agentHost.reviews.list(projectId, status)
       .filter(review => runIds.length === 0 && !sessionId && !workspaceId && !runSessionId || review.run && runIds.includes(review.run.run_id)
         || runSessionId && review.run?.session_id === runSessionId
-        || sessionId && review.operation?.session_id === sessionId || workspaceId && review.operation?.workspace_id === workspaceId)
-      .map((review) => ({
-        request: review,
-        // The receipt carries whether the effect really happened. A pending
-        // item has none, and an approved one keeps `effect_settled: false`
-        // until the Runtime returns a real result.
-        receipt: ports.agentHost.reviews.receipt(review.review_id) ?? undefined,
-      }));
+        || sessionId && review.operation?.session_id === sessionId || workspaceId && review.operation?.workspace_id === workspaceId);
+    const projected = await ports.agentHost.reviews.readMany(candidates.map(review => review.review_id));
+    pluginPageRequest(request)?.assertCurrent();
+    const currentProject = pluginPageRequest(request) ? ports.projectId : reviewProjectFor(ports.projectId, runSessionId, ports.computerHolder?.() ?? null);
+    const matched = currentProject === projectId ? projected.filter(row => !status || row.receipt?.status === status) : [];
     // With a limit, whatever still needs a person or a result is always kept; settled history keeps its latest entries.
     const open = (row: typeof matched[number]) => !row.receipt || row.receipt.status === "pending" || row.receipt.status === "approved" && !row.receipt.effect_settled && !row.receipt.effect_error;
     const settled = matched.filter(row => !open(row));

@@ -34,7 +34,7 @@ function pendingLedger(input: {
   };
   const port: ProloguePendingPort = {
     async document() { return document; },
-    async canAnswer() { return true; },
+    canAnswer() { return true; },
     async read() {
       return pending;
     },
@@ -242,7 +242,7 @@ test("failed deny delivery remains visible and cannot be mistaken for an SDK den
 
 test("an open restored pending without a live waiter cannot receive approval", async () => {
   const ledger = pendingLedger();
-  const { queue, bridge } = bridgeFor({ ...ledger.port, canAnswer: async () => false });
+  const { queue, bridge } = bridgeFor({ ...ledger.port, canAnswer: () => false });
   const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
   await assert.rejects(queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "user" }), /原执行已中断/);
   assert.equal(queue.receipt(request.review_id)?.status, "cancelled");
@@ -298,7 +298,7 @@ test("withdrawn and expired reviews retain their original receipt without restor
     const request = await bridge.mirrorPending({ pendingRef: ledger.pending.ref, owner: { project_id: BOARD, plugin_id: PLUGIN }, run: RUN });
     assert.deepEqual(recorded, [{ request }]);
     now = new Date(state === "expired" ? "2026-09-19T02:00:00.000Z" : "2026-09-19T00:10:00.000Z");
-    if (state === "no-waiter") ledger.port.canAnswer = async () => false;
+    if (state === "no-waiter") ledger.port.canAnswer = () => false;
     else ledger.pending.state = state === "expired" ? "expired" : "cancelled";
     await assert.rejects(bridge.decide({ review_id: request.review_id, decision: "approve", actor_id: "tester" }));
     assert.deepEqual(ledger.answers, [], "withdrawal never answers or dispatches the old effect");
@@ -327,7 +327,7 @@ test("a repeated decision on an ended pending never redelivers prior approval or
       await bridge.decide({ review_id: request.review_id, decision, actor_id: "tester", note: "This feedback is delivered exactly once." });
       const receipt = queue.receipt(request.review_id);
       if (closed) ledger.pending.state = "settled";
-      else ledger.port.canAnswer = async () => false;
+      else ledger.port.canAnswer = () => false;
       await assert.rejects(bridge.decide({ review_id: request.review_id, decision, actor_id: "tester" }));
       assert.deepEqual(deliveries, [decision === "approve" ? "approved" : "rejected"]);
       assert.equal(ledger.answers.length, 1);

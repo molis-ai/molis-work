@@ -26,6 +26,7 @@ const p: AgentReviewPrimitives = {
 
 function row(overrides: Partial<AgentReviewRow> = {}): AgentReviewRow {
   return {
+    decisions: { approve: { available: true }, reject: { available: true } },
     request: {
       review_id: "r1",
       run: { run_id: "run-1", session_id: "s-1" },
@@ -296,4 +297,15 @@ test("RING-07 review rings distinguish approval, pending effect, success, failur
     assert.match(html, /data-ring-segments/);
     assert.doesNotMatch(html, /data-icon="(?:clock|circle-alert|check|x|alert)"/);
   }
+});
+
+test("BL-360: current decisions hide approval after revocation and both choices without an owner", () => {
+  const denied = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
+  const onlyReject = row({ decisions: { approve: denied, reject: { available: true } } });
+  const html = renderAgentReviewSurface({ rows: [onlyReject], primitives: p });
+  assert.doesNotMatch(html, /data-agent-review-approve|data-agent-review-remember/);
+  assert.match(html, /data-agent-review-reject="r1"/); assert.match(html, /原授权已经失效/);
+  const neither = row({ decisions: { approve: denied, reject: denied } });
+  assert.equal(isDecidable(neither), false);
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [neither], primitives: p }), /data-agent-review-approve|data-agent-review-reject/);
 });

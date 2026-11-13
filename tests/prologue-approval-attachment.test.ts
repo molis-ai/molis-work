@@ -48,7 +48,7 @@ function pendingLedger() {
     expiresAtWallMs: Date.parse("2026-09-19T01:00:00.000Z"),
   };
   const port: ProloguePendingPort = {
-    async canAnswer() { return true; },
+    canAnswer() { return true; },
     async document() { return { kind: "text-edit", target_path: "src/login.ts", exists: true, before_text: "const retries = 0;", after_text: "const retries = 3;" }; },
     async read() { return pending; },
     async answer(_ref, answer) {

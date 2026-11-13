@@ -181,6 +181,27 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   assert.deepEqual((await (await fetch(browser.origin + "/api/browser/sites")).json()).sites, []);
 });
 
+test("BL-360: the same browser review drops decisions when its original waiter becomes unavailable", { timeout: 90_000 }, async t => {
+  const browser = await openAuditBrowser(t); if (!browser) return;
+  const a = await site(t, "Original wait"), queue = queueOf(browser);
+  let live = true, effects = 0;
+  const id = "owner-became-unavailable";
+  queue.request(review(browser, id, a.origin));
+  queue.registerDecisionHandler(id, async (_input, commit) => { const receipt = commit(); effects++; return receipt; }, async () => () => live);
+  await browser.reloadPage();
+  await observedSideBrowser(t, browser, a.origin + "/");
+  await browser.waitFor("!!document.querySelector('[data-browser-action=approve-site]')", 15_000);
+  await browser.evaluate("document.querySelector('[data-browser-action=reject]').focus()");
+  assert.equal(await browser.evaluate("document.activeElement.matches('[data-browser-action=reject]')"), true, "the review's original choice has focus before its owner changes");
+  live = false;
+  await browser.waitFor("!document.querySelector('[data-browser-action=approve-once]') && !document.querySelector('[data-browser-action=approve-site]') && !document.querySelector('[data-browser-action=reject]')", 10_000);
+  assert.equal(await browser.evaluate("document.querySelector('[data-browser-approval]').hidden"), false);
+  assert.equal(await browser.evaluate("document.activeElement.id"), "side-browser-approval-title", "desktop copy uses display:contents, so focus moves to the visible review heading");
+  await assert.rejects(queue.respond({ review_id: id, decision: "reject", actor_id: "web-user" }), { code: "agent.pending_not_open" });
+  assert.equal(effects, 0); assert.equal(queue.receipt(id)?.status, "pending");
+  assert.deepEqual((await (await fetch(browser.origin + "/api/browser/sites")).json()).sites, []);
+});
+
 test("BBA-01 / BBA-02: a narrow Assistant leaves the browser's review choices reachable and a rejection returns focus", { timeout: 90_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
   const a = await site(t, "Narrow review"), queue = queueOf(browser);

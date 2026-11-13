@@ -193,7 +193,7 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
       }
       return { ...pending, expiresAtWallMs };
     },
-    async canAnswer(ref) {
+    canAnswer(ref) {
       // EffectChain.whenSettled and ordinary Pending waits have different
       // wait registries in this SDK. hasLiveWaiter only covers the latter.
       // Require the actual live SDK Run plus its exact still-waiting effect;

@@ -270,29 +270,31 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const focused=approval.contains(document.activeElement)?document.activeElement:null;
     if(!row){if(focused)focusBrowserTab();approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over';
+    const mode=JSON.stringify([held,row.decisions]);
     const same=reviewing===row.request.review_id;
-    if(same&&reviewMode===held)return;
+    if(same&&reviewMode===mode)return;
     if(!same&&focused)focusBrowserTab();
     const scroll=same&&(!held||focused)?approval.querySelector('.side-browser-approval-copy').scrollTop:0;
-    reviewing=row.request.review_id;reviewMode=held;
+    reviewing=row.request.review_id;reviewMode=mode;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
     // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
-    const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':'';
+    const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':!row.decisions.approve.available?'<p class="side-browser-approval-note">'+esc(globalThis.say.text(row.decisions.approve.reason))+'</p>':'';
     const details=fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
-    const choices=held?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
-    approval.innerHTML='<h2 id="side-browser-approval-title">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
+    const choices=held||!row.decisions.approve.available?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
+    approval.innerHTML='<h2 id="side-browser-approval-title" tabindex="-1">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
       +'<div class="side-browser-approval-copy" role="group" aria-labelledby="side-browser-approval-title" tabindex="0">'
       +note+'<p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+details+'</dl></div>'
-      +'<div class="side-browser-actions-row">'+choices+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>';
+      +'<div class="side-browser-actions-row">'+choices+(row.decisions.reject.available?browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost'):'')+'</div>';
     approval.dataset.site=site;approval.hidden=false;
     paintApprovalBusy();
     const copy=approval.querySelector('.side-browser-approval-copy');
     copy.scrollTop=scroll;
     if(same&&focused){
       const next=focused.dataset.browserAction?tool(focused.dataset.browserAction):copy;
-      (next?.getClientRects().length?next:tool('reject')).focus({preventScroll:true});
+      const fallback=copy.getClientRects().length?copy:approval.querySelector('h2');
+      (next?.getClientRects().length?next:fallback).focus({preventScroll:true});
     }
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm-what",{what:doc.summary||''}),true);

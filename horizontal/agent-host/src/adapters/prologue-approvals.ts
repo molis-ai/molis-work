@@ -41,7 +41,7 @@ export interface ProloguePendingPort {
   /** Read the immutable review published by the effect owner; fail if unavailable. */
   document(pending: ProloguePending): Promise<AgentReviewDocument>;
   /** An open persisted pending without a live SDK waiter cannot resume execution. */
-  canAnswer(ref: ProloguePendingRef): Promise<boolean>;
+  canAnswer(ref: ProloguePendingRef): boolean;
   answer(
     ref: ProloguePendingRef,
     answer: { kind: "effect-approval"; answer: "allow" | "deny" | "later" },
@@ -121,8 +121,18 @@ export class PrologueApprovalBridge {
       expires_at: new Date(input.pending.expiresAtWallMs).toISOString(),
     });
     if (!this.#pendingByReview.has(request.review_id)) {
-      this.#queue.registerDecisionHandler(request.review_id, decision => this.decide(decision));
-      this.#pendingByReview.set(request.review_id, { ...input.pending.ref });
+      const pendingRef = { ...input.pending.ref };
+      this.#queue.registerDecisionHandler(request.review_id, (decision, commit) => this.decide(decision, commit), async () => {
+        const pending = await this.#pendings.read(pendingRef);
+        return () => {
+          if (!pending || pending.kind !== "effect-approval" || pending.ref.kind !== pendingRef.kind || pending.ref.id !== pendingRef.id || pending.ref.revision !== pendingRef.revision
+            || pending.origin?.session !== request.run?.session_id || pending.origin?.run !== request.run?.run_id) return false;
+          if (pending.state === "open" && this.#pendings.canAnswer(pendingRef)) return true;
+          this.#queue.cancel(request.review_id, "原执行等待已结束");
+          return false;
+        };
+      });
+      this.#pendingByReview.set(request.review_id, pendingRef);
     }
     return request;
   }
@@ -171,7 +181,7 @@ export class PrologueApprovalBridge {
     actor_id: string;
     note?: string;
     remember?: "session" | "app-this-round";
-  }): Promise<AgentReviewReceipt> {
+  }, commit?: () => AgentReviewReceipt): Promise<AgentReviewReceipt> {
     const pendingRef = this.#pendingByReview.get(input.review_id);
     if (!pendingRef) {
       throw agentErrors.review_unknown("找不到这条待审操作");
@@ -190,17 +200,14 @@ export class PrologueApprovalBridge {
       // The execution owner already closed it. Our queue must not pretend the
       // user can still decide, and must not invent an approval.
       this.#queue.cancel(input.review_id, "执行主人已经结束了这笔待批");
-      const receipt = this.#queue.receipt(input.review_id)!;
-      if (receipt.status === "cancelled" || receipt.status === "expired") await this.#recordDecision?.(pending, receipt);
+      // The owner's refresh records cancellation; this late page request may already have lost its authority.
       throw agentErrors.pending_not_open("这笔待批已经结束，请刷新后按当前状态处理");
     }
-    if (!await this.#pendings.canAnswer(pendingRef)) {
+    if (!this.#pendings.canAnswer(pendingRef)) {
       this.#queue.cancel(input.review_id, "执行已中断，原待批没有活动等待方；需核对后继续");
-      const receipt = this.#queue.receipt(input.review_id)!;
-      if (receipt.status === "cancelled" || receipt.status === "expired") await this.#recordDecision?.(pending, receipt);
       throw agentErrors.pending_not_open("原执行已中断，不能通过批准旧待批恢复它");
     }
-    const receipt = this.#queue.decide({
+    const receipt = commit ? commit() : this.#queue.decide({
       review_id: input.review_id,
       decision: input.decision,
       actor_id: input.actor_id,

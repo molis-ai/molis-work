@@ -1199,12 +1199,25 @@ export interface AgentRetryWait {
     attempt: number;
 }
 
+export type AgentReviewDecisionAvailability = {
+    readonly available: true;
+} | {
+    readonly available: false;
+    readonly code: string;
+    readonly reason: OwnedTextRef;
+};
+
 export interface AgentReviewDecisionInput {
     review_id: string;
     decision: "approve" | "reject";
     actor_id: string;
     note?: string;
     remember?: "session" | "app-this-round";
+}
+
+export interface AgentReviewDecisions {
+    readonly approve: AgentReviewDecisionAvailability;
+    readonly reject: AgentReviewDecisionAvailability;
 }
 
 export type AgentReviewDocument = AgentTextReviewDocument | AgentCommandReviewDocument | AgentToolOperationReviewDocument | AgentMcpReviewDocument | AgentGitIndexReviewDocument | AgentGitIntegrationReviewDocument | AgentRewindReviewDocument;
@@ -1216,6 +1229,8 @@ export interface AgentReviewQueueApi {
     get(reviewId: string): AgentReviewRequest | null;
     decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
     receipt(reviewId: string): AgentReviewReceipt | null;
+    decisions(reviewId: string): Promise<AgentReviewDecisions>;
+    readMany(reviewIds: readonly string[]): Promise<AgentReviewRow[]>;
     observe(listener: (request: AgentReviewRequest) => void): () => void;
 }
 
@@ -1276,6 +1291,12 @@ export interface AgentReviewRequest {
     document: AgentReviewDocument;
     requested_at: string;
     expires_at: string | null;
+}
+
+export interface AgentReviewRow {
+    request: AgentReviewRequest;
+    receipt?: AgentReviewReceipt;
+    decisions: AgentReviewDecisions;
 }
 
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";

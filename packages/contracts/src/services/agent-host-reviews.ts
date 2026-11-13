@@ -105,6 +105,18 @@ export type AgentReviewDocument =
 
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
 
+/** A current owner projection, never permission to execute or a replacement for checking at decision time. */
+export type AgentReviewDecisionAvailability = { readonly available: true } | {
+  readonly available: false;
+  readonly code: string;
+  readonly reason: OwnedTextRef;
+};
+
+export interface AgentReviewDecisions {
+  readonly approve: AgentReviewDecisionAvailability;
+  readonly reject: AgentReviewDecisionAvailability;
+}
+
 export interface AgentReviewRequest {
   review_id: string;
   /** Null for a manual operation; never fabricate an Agent Run. */
@@ -147,6 +159,13 @@ export interface AgentReviewReceipt {
   standing_rule?: { set_by: string; set_at: string };
 }
 
+/** The same review and current decisions for the Host surface and other read-only presenters. */
+export interface AgentReviewRow {
+  request: AgentReviewRequest;
+  receipt?: AgentReviewReceipt;
+  decisions: AgentReviewDecisions;
+}
+
 export interface AgentGitIndexObservation {
   revision: string;
   observed_at: string;
@@ -181,5 +200,8 @@ export interface AgentReviewQueueApi {
   get(reviewId: string): AgentReviewRequest | null;
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
   receipt(reviewId: string): AgentReviewReceipt | null;
+  decisions(reviewId: string): Promise<AgentReviewDecisions>;
+  /** Owner reads are awaited once, then queue status and current authority are checked together for the returned rows. */
+  readMany(reviewIds: readonly string[]): Promise<AgentReviewRow[]>;
   observe(listener: (request: AgentReviewRequest) => void): () => void;
 }

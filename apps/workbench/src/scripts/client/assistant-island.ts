@@ -429,7 +429,7 @@ ${ASSISTANT_TABS_PART}
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) removeReview(card); });
     reviews.forEach((review) => {
       const card = keyed(thread, "data-review", review.review_id, () => el("div", "assistant-card assistant-card--review"));
-      if (!card.dataset.painted) { card.dataset.painted = "1"; renderReview(card, work, review); }
+      renderReview(card, work, review);
       put(card);
     });
     thread.querySelector(":scope > .assistant-problem")?.remove();

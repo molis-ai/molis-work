@@ -117,11 +117,11 @@ async function sessionCheckpoints(runtime: Runtime, queue: AgentReviewQueue, ind
 }
 
 /** Carries the person's decision to the SDK's pending approval: only while the round that asked still holds it and the effect still waits. */
-async function answerRewind(ports: Ports, decision: AgentReviewDecisionInput, request: AgentReviewRequest, effect: Effect, stillHeld: () => boolean, sessionId: string): Promise<AgentReviewReceipt> {
+async function answerRewind(ports: Ports, decision: AgentReviewDecisionInput, request: AgentReviewRequest, effect: Effect, currentPending: () => ReturnType<Runtime["effects"]["pendings"]["get"]>, sessionId: string, commit: () => AgentReviewReceipt): Promise<AgentReviewReceipt> {
   const { runtime, queue } = ports;
-  const pending = runtime.effects.pendings.get(effect.pending!.ref);
-  if (!stillHeld() || pending?.state !== "open" || runtime.effects.get(effect.ref)?.state !== "awaiting-approval") throw new Error("这次回退已结束或原执行者不在，不能通过旧批准重新执行");
-  const receipt = queue.decide(decision);
+  const pending = currentPending();
+  if (!pending) throw new Error("这次回退已结束或原执行者不在，不能通过旧批准重新执行");
+  const receipt = commit();
   try {
     if (decision.decision === "approve") queue.consumeApproval(request.review_id);
     await ports.decision(sessionId, pending.ref.id, receipt);
@@ -244,8 +244,13 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
               const request = await requestOf(session.session_id, effect, intent, expires);
               reviewId = request.review_id;
               queue.request(request);
-              queue.registerDecisionHandler(reviewId, decision => answerRewind(ports, decision, request, effect,
-                () => active.get(session.session_id) === held, session.session_id));
+              const currentPending = () => {
+                const pending = runtime.effects.pendings.get(effect.pending!.ref);
+                return !closed && active.get(session.session_id) === held && runtime.effects.get(effect.ref)?.state === "awaiting-approval"
+                  && pending?.state === "open" ? pending : undefined;
+              };
+              queue.registerDecisionHandler(reviewId, (decision, commit) => answerRewind(ports, decision, request, effect,
+                currentPending, session.session_id, commit), async () => () => Boolean(currentPending()));
               resolve(request);
               return runtime.effects.whenSettled(effect.ref, at);
             },

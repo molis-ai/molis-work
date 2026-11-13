@@ -14,7 +14,7 @@ async function waitUntil(check: () => boolean) {
   for (let tries = 0; tries < 100; tries++) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 10)); }
   assert.fail('operation did not settle');
 }
-async function fixture() {
+async function fixture(beforeCancel?: () => Promise<void>) {
   const faults = { decision: false, review: false, dispatchUnknown: false };
   const root = await mkdtemp(join(tmpdir(), 'molis-checkpoints-')), project = join(root, 'project');
   await mkdir(project);await writeFile(join(project, 'a.ts'), 'original\n');
@@ -25,6 +25,7 @@ async function fixture() {
       preset: 'local-agent', posture: { sandbox: 'workspace-write' }, rules: [{ source: 'user', effect: 'allow', kinds: ['mutate-local'] }] });
     queue = new AgentReviewQueue();
     checkpoints = createPrologueCheckpoints({ runtime: { ...runtime, effects: { ...runtime.effects,
+      cancel: async (ref: Parameters<Parameters<typeof createPrologueCheckpoints>[0]["runtime"]["effects"]["cancel"]>[0]) => { await beforeCancel?.(); return runtime.effects.cancel(ref); },
       inspectDispatch: async (ref:any) => faults.dispatchUnknown ? { state:'unknown', fingerprint:'unknown', receiptId:undefined, ok:undefined } : runtime.effects.inspectDispatch(ref),
     } }, queue, readIndex: async id => structuredClone(indexes.get(id)),
       remember: async (id, intent) => { (indexes.get(id).rewinds ??= []).push(structuredClone(intent)); },
@@ -116,4 +117,27 @@ test('unreadable dispatch outcome stays unknown and blocks repeat until authorit
     f.faults.dispatchUnknown=false;await f.restart();await f.checkpoints.restore(f.session.session_id);
     assert.equal(f.queue.receipt(review.review_id)?.effect_settled,true);assert.equal(f.checkpoints.busy!(f.session),false);
   }finally{await f.close();}
+});
+
+test("BL-360: closing a real rewind while its entry waits rejects before SDK cancellation finishes", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const cancelling = Promise.withResolvers<void>(), finishCancel = Promise.withResolvers<void>();
+  const f = await fixture(async () => { cancelling.resolve(); await finishCancel.promise; });
+  let closing: Promise<void> | undefined;
+  try {
+    const checkpoint = await f.edit("a.ts", "changed\n"), review = await f.checkpoints.prepareRewind(f.session, checkpoint);
+    const result = f.queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "person" }, {
+      beforeEffect: async () => { entered.resolve(); await release.promise; },
+    });
+    const rejected = assert.rejects(result, /原执行者不在/);
+    await entered.promise; closing = f.checkpoints.close(); await cancelling.promise;
+    release.resolve(); await rejected;
+    assert.equal(f.queue.receipt(review.review_id)?.status, "pending");
+    assert.equal(f.queue.receipt(review.review_id)?.decided_by, null);
+    assert.equal(f.indexes.get(f.session.session_id).review_decisions, undefined, "no late decision is persisted");
+    assert.equal(await readFile(join(f.project, "a.ts"), "utf8"), "changed\n");
+    finishCancel.resolve(); await closing;
+    assert.equal(f.queue.receipt(review.review_id)?.status, "cancelled");
+    assert.equal(await readFile(join(f.project, "a.ts"), "utf8"), "changed\n");
+  } finally { release.resolve(); finishCancel.resolve(); await closing; await f.close(); }
 });

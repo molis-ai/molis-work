@@ -137,7 +137,7 @@ test("PA-29 the after-write check's review card shows 写后检查：<名>（配
     const card = (check: boolean): AgentReviewRow => ({ request: { review_id: check ? "check" : "plain", run: { run_id: "run-1", session_id: "s-1" }, project_id: "p", plugin_id: "io.molis.work.coding", kind: "command",
       document: { kind: "command", command: "node", args: ["--check", "src/login.js"], cwd: ".", timeout_ms: 15000, env_allowlist: [], escalate: false,
         ...(check ? { after_write_check: { checker_id: "node-check", display_name: "Node 语法", version: 3 } } : {}) },
-      requested_at: "2026-11-11T02:00:00Z", expires_at: null } } as AgentReviewRow);
+      requested_at: "2026-11-11T02:00:00Z", expires_at: null }, decisions: { approve: { available: true }, reject: { available: true } } });
     const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const html = renderAgentReviewSurface({ rows: [card(true), card(false)], primitives: { escape, icon: () => "", formatDate: value => value.slice(0, 10) } });
     const review = join(process.cwd(), ".impeccable/qa/review/coding-diagnose-timeline"); mkdirSync(review, { recursive: true });

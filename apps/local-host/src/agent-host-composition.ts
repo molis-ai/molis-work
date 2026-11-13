@@ -197,6 +197,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return disposal = (async () => {
       await ready?.catch(() => undefined);
       await initialization?.close();
+      agentHost.reviews.close();
     })().catch(error => { disposal = undefined; throw error; });
   } };
 }

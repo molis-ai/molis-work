@@ -12,6 +12,7 @@ import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
 import type { OwnedTextRef } from "../platform/ui-text.js";
 import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
+import type { AgentReviewDecisions } from "./agent-host-reviews.js";
 import type { AgentInputSend, AgentQueuedInput, AgentSteerMode } from "./agent-inputs.js";
 import type { MemoryChange } from "./memory.js";
 
@@ -349,6 +350,8 @@ export interface AssistantRound {
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {
   review_id: string;
+  /** The original execution owner determines which decisions this pending can still accept. */
+  decisions: AgentReviewDecisions;
   /** What is held: a business change, a file edit, a command, an MCP call… The fields read accordingly. */
   kind: string;
   run_id: string | null;

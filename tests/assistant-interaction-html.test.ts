@@ -5,14 +5,27 @@ import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-cont
 import {
   agentQuestionHtml, assistantCardHtml, assistantOutcomeSteps, assistantStepRow, drawAssistantReply, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
+import { assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
 import { cardInputValues, instantIn, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
-import { pageText } from "./fixtures/page-text.js";
+import { pageText, withPageText } from "./fixtures/page-text.js";
 
 // The Assistant's questions, action cards and next steps are drawn on the Host with the design system's shared parts
 // (specs/ai-interaction-experience A1, H2); the page only binds them.
 /** The opening tag of the option with this value inside the field with this id, whatever order its attributes are written in. */
 const optionTag = (html: string, field: string, value: string) => html.slice(html.indexOf(`data-ix-field="${field}"`)).match(new RegExp(`<button[^>]*data-ix-option="${value}"[^>]*>`))?.[0] ?? "";
 const say = pageText("zh");
+
+test("BL-360: Assistant review cards show only decisions the original owner still accepts", () => {
+  const blocked = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
+  const review = { review_id: "r", decisions: { approve: blocked, reject: { available: true as const } }, run_id: "run", kind: "change", summary: "保存页面", fields: [], requested_at: "", expires_at: null };
+  const rejectOnly = withPageText("zh", [], () => assistantReviewHtml(review, say));
+  assert.doesNotMatch(rejectOnly, /data-assistant-decision="approve"/);
+  assert.match(rejectOnly, /data-assistant-decision="reject"/);
+  assert.match(rejectOnly, /workbench.agent-review.authority-ended/);
+  const closed = withPageText("zh", [], () => assistantReviewHtml({ ...review, decisions: { approve: blocked, reject: blocked } }, say));
+  assert.doesNotMatch(closed, /data-assistant-decision/);
+  assert.match(closed, /assistant-card-actions/);
+});
 
 const questionnaire: AgentPendingQuestion = {
   pending_id: "pending-1", pending_revision: 2, kind: "questionnaire", prompt: "怎么安排<复盘>？", options: [], allows_free_text: false,
@@ -175,7 +188,7 @@ test("SLOT-01: the outcome slot follows whatever waits on the person; the row st
   const done = view("completed", { cards: [card("ready")], objects: [made("a"), made("b"), made("c")] });
   assert.deepEqual(ids(assistantStepRow(done, say).next_all_html), ["card:card-1:run", "open:page:a", "open:page:b"], "the card that waits first, then two outcomes");
   const crowded = view("completed", { cards: done.cards, objects: done.objects,
-    reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }] });
+    reviews: [{ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }] });
   const row = assistantStepRow(crowded, say);
   assert.deepEqual(ids(row.next_html), ["review:r1", "card:card-1:run", "open:page:a"]);
   assert.match(row.next_html, /data-ix-steps-more="1" data-secondary>还有 1 项</, "an outcome never pushes what waits out of the first three");
@@ -237,7 +250,7 @@ test("AC-06-3, SLOT-01: the card's result takes the outcome slot alone, after wh
 
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
   const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
-    reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
+    reviews: [{ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
     cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
     delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
   const { next_html, next_all_html } = assistantStepRow(busy, say);
@@ -306,7 +319,7 @@ test("AC-03, R4: among other questions, a questionnaire's one text question is m
 test("PAS-15: reply projection redraws text and reviews in direct and wrapped views without trusting supplied HTML", () => {
   const raw = view("running");
   raw.rounds[0]!.turns = [{ turn_id: "t1", kind: "assistant", text: "**first**", at: "" }, { turn_id: "u1", kind: "user", text: "<b>person</b>", at: "" }];
-  raw.reviews = [{ review_id: "r1", run_id: "run-1", kind: "file", summary: "<not markup>", fields: [{ label: "改动", value: "+ saved" }], requested_at: "", expires_at: null }];
+  raw.reviews = [{ review_id: "r1", decisions: { approve: { available: true }, reject: { available: true } }, run_id: "run-1", kind: "file", summary: "<not markup>", fields: [{ label: "改动", value: "+ saved" }], requested_at: "", expires_at: null }];
   const drawn = structuredClone(raw), ports = { say, drafts: () => ({}), card: () => "" };
   Object.assign(drawn.rounds[0]!.turns[0]!, { html: "<script>untrusted</script>" });
   drawAssistantReply(drawn, ports);

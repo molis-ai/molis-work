@@ -6,8 +6,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 
-import { AgentHost, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { AgentHost, assistantServiceFor, ComputerDesk, ensureSystemAgentService, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale, WebSessions, webPageToken, withWebSessionRequest } from "@molis-ai/molis-work-app-local-host";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 /** 宿主的审查队列走 HTTP：只有宿主能决定，而且批准不等于已发生。 */
 
@@ -36,14 +40,16 @@ function pending(reviewId: string): AgentReviewRequest {
   };
 }
 
-async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts["observeGitIndex"]) {
+async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts["observeGitIndex"], entry: Pick<import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts, "computerHolder" | "now"> = {}, sessions?: WebSessions) {
   const { AgentHost: Host } = await import("@molis-ai/molis-work-service-agent-host");
   const agentHost = new Host(), host = await hostForReviews();
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => handleAgentReviewHttp(request, response, url, {
-      host, projectId: BOARD, agentHost, actorId: "user", observeGitIndex,
-    })).then((handled) => {
+    sessions?.bind(request, "review-fixture-control", response);
+    if (sessions && url.pathname === "/") { response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ token: webPageToken(request) })); return; }
+    void withWebSessionRequest(request, () => runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => handleAgentReviewHttp(request, response, url, {
+      host, projectId: BOARD, agentHost, actorId: "user", observeGitIndex, ...entry,
+    }))).then((handled) => {
       if (!handled) { response.writeHead(404); response.end(); }
     });
   });
@@ -245,4 +251,148 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
     const result = await post({ review_id: 'mine', action: 'not-happened', confirmed: true, actor_id: 'forged', reason: 'actual evidence', revision: 'host-version', observation: { matches_before: true }, document: { kind: 'git-index' } });
     assert.equal(result.status, 200); assert.equal(resolves, 1); assert.equal(reads, 3);
   } finally { item.server.close(); }
+});
+
+test("BL-360: GET carries current decisions and POST rechecks an owner lost after display", async () => {
+  const item = await fixture(); let live = true, calls = 0;
+  try {
+    const queue = item.agentHost.reviews;
+    queue.request(pending("availability"));
+    queue.registerDecisionHandler("availability", async input => { calls++; return queue.decide(input); }, async () => () => live);
+    const before = await (await fetch(`${item.base}/api/agent/reviews`)).json() as { reviews: Array<{ decisions: { approve: { available: boolean } } }>; html: string };
+    assert.equal(before.reviews[0]?.decisions.approve.available, true);
+    assert.match(before.html, /data-agent-review-approve/);
+    live = false;
+    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json", "accept-language": "en" },
+      body: JSON.stringify({ review_id: "availability", decision: "approve" }) });
+    assert.equal(response.status, 409);
+    assert.match(await response.text(), /original wait has ended/);
+    const after = await (await fetch(`${item.base}/api/agent/reviews`)).json() as { html: string };
+    assert.doesNotMatch(after.html, /data-agent-review-approve|data-agent-review-reject/);
+    assert.equal(calls, 0); assert.equal(queue.receipt("availability")?.status, "pending");
+  } finally { item.agentHost.reviews.close(); item.server.close(); }
+});
+
+test("BL-360: GET rereads receipts and reapplies the pending filter after all owner reads", async () => {
+  const item = await fixture(), queue = item.agentHost.reviews;
+  let entered!: () => void, release!: () => void;
+  const read = new Promise<void>(resolve => { entered = resolve; }), waiting = new Promise<void>(resolve => { release = resolve; });
+  try {
+    queue.request(pending("raced"));
+    queue.registerDecisionHandler("raced", async (_input, commit) => commit(), async () => { entered(); await waiting; return () => true; });
+    const response = fetch(`${item.base}/api/agent/reviews?status=pending`);
+    await read; queue.cancel("raced", "stopped"); release();
+    const listed = await (await response).json() as { reviews: unknown[]; total: number; html: string };
+    assert.deepEqual(listed.reviews, []); assert.equal(listed.total, 0);
+    assert.doesNotMatch(listed.html, /data-agent-review-approve|data-agent-review-reject/);
+    const all = await (await fetch(`${item.base}/api/agent/reviews`)).json() as { reviews: Array<{ receipt: { status: string }; decisions: { approve: { available: boolean }; reject: { available: boolean } } }> };
+    assert.equal(all.reviews[0]!.receipt.status, "cancelled");
+    assert.equal(all.reviews[0]!.decisions.approve.available, false); assert.equal(all.reviews[0]!.decisions.reject.available, false);
+  } finally { release(); queue.close(); item.server.close(); }
+});
+
+test("BL-360: a computer injection during owner waiting cannot commit its own approval", async () => {
+  const holder = { sessionId: "s-1", projectId: BOARD, lastInjectAt: null as number | null };
+  const item = await fixture(undefined, { computerHolder: () => holder, now: () => 5_000 }), queue = item.agentHost.reviews;
+  let entered!: () => void, release!: () => void, effects = 0;
+  const read = new Promise<void>(resolve => { entered = resolve; }), waiting = new Promise<void>(resolve => { release = resolve; });
+  try {
+    queue.request(pending("injected"));
+    queue.registerDecisionHandler("injected", async (_input, commit) => { entered(); await waiting; const receipt = commit(); effects++; return receipt; });
+    const response = fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ review_id: "injected", decision: "approve" }) });
+    await read; holder.lastInjectAt = 5_000; release();
+    const refused = await response;
+    assert.equal(refused.status, 409); assert.match(await refused.text(), /computer.self_approval/);
+    assert.equal(effects, 0); assert.equal(queue.receipt("injected")?.status, "pending");
+  } finally { release(); queue.close(); item.server.close(); }
+});
+
+for (const mode of ["expired", "closed"] as const) test(`BL-360: a Web session ${mode} during owner waiting cannot commit`, async () => {
+  let now = 0;
+  const sessions = new WebSessions("review-test-home", () => now, 60_000), item = await fixture(undefined, {}, sessions), queue = item.agentHost.reviews;
+  let enter!: () => void, release!: () => void, finish!: () => void, effects = 0, refusal: unknown;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), waiting = new Promise<void>(resolve => { release = resolve; });
+  const finished = new Promise<void>(resolve => { finish = resolve; });
+  try {
+    const page = await fetch(item.base, { headers: { connection: "close" } }), cookie = page.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const { token } = await page.json() as { token: string };
+    queue.request(pending("session-closed"));
+    queue.registerDecisionHandler("session-closed", async (_input, commit) => {
+      enter(); await waiting;
+      try { const receipt = commit(); effects++; return receipt; } catch (error) { refusal = error; throw error; } finally { finish(); }
+    });
+    const response = fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json", connection: "close", cookie, "x-molis-work-page-session": token },
+      body: JSON.stringify({ review_id: "session-closed", decision: "approve" }) })
+      .then(async value => ({ status: value.status, body: await value.text() }), error => ({ failure: error }));
+    await Promise.race([entered, response.then(value => { throw new Error(`request ended before owner waiting: ${JSON.stringify(value)}`); })]);
+    if (mode === "closed") sessions.close(); else now = 60_001;
+    release(); await finished;
+    const denied = await response;
+    if (mode === "closed") assert.ok("failure" in denied, "closing the session also closes its HTTP response");
+    else { assert.ok("status" in denied); assert.equal(denied.status, 403); assert.match(denied.body, /actions.forbidden/); }
+    assert.equal((refusal as { code?: string })?.code, "actions.forbidden");
+    assert.equal(effects, 0); assert.equal(queue.receipt("session-closed")?.status, "pending");
+  } finally { release(); sessions.close(); queue.close(); item.server.close(); }
+});
+
+test("BL-360: a changed computer holder cannot return the previous project's pending rows", async () => {
+  const holder = { sessionId: "s-1", projectId: "other-project", lastInjectAt: null };
+  const item = await fixture(undefined, { computerHolder: () => holder }), queue = item.agentHost.reviews;
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), waiting = new Promise<void>(resolve => { release = resolve; });
+  try {
+    queue.request({ ...pending("other"), project_id: "other-project" });
+    queue.registerDecisionHandler("other", async (_input, commit) => commit(), async () => { enter(); await waiting; return () => true; });
+    const response = fetch(`${item.base}/api/agent/reviews?run_session_id=s-1&status=pending`);
+    await entered; holder.sessionId = "replacement"; release();
+    const read = await (await response).json() as { reviews: unknown[]; total: number; html: string };
+    assert.deepEqual(read.reviews, []); assert.equal(read.total, 0); assert.doesNotMatch(read.html, /data-agent-review-approve/);
+  } finally { release(); queue.close(); item.server.close(); }
+});
+
+// BL-360 / S-25 / S-page-entry-actions: real HTTP, Web session, Assistant work ownership and queue commit;
+// only the execution owner's last read and the desktop input fact are controlled. No native desktop is operated.
+for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: Assistant approval refuses a changed ${withdrawn} after its execution owner waits`, { timeout: 30_000 }, async t => {
+  let now = 0;
+  const sessions = new WebSessions("assistant-review-entry", () => now, 60_000);
+  const f = await serveHomeRuntime(t, {}, { webSessions: sessions });
+  const agents = ensureSystemAgentService(f.host, f.home);
+  // This held execution is a queue owner fixture, so the SDK is never started to invent a replacement waiter.
+  t.mock.getter(agents, "ready", () => Promise.resolve());
+  const { store } = assistantServiceFor({ localHost: f.host, homeDirectory: f.home, agentHost: agents.agentHost,
+    agentReady: () => agents.ready, projectTitle: async () => null, pages: async () => [] });
+  const work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: "原工作的待审操作", scope: { kind: "personal" }, origin: null });
+  const sessionId = "original-session";
+  store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { session_id: sessionId });
+  const queue = agents.agentHost.reviews, entered = deferred(), release = deferred();
+  t.after(() => { release.resolve(); sessions.close(); });
+  let lastInjectAt: number | null = null, effects = 0;
+  t.mock.method(ComputerDesk.prototype, "holding", () => ({ sessionId, projectId: null, lastInjectAt }));
+  queue.request({ review_id: "original-review", project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: ASSISTANT_PLUGIN_ID,
+    run: { session_id: sessionId, run_id: "original-run" }, kind: "text-edit",
+    document: { kind: "text-edit", target_path: "note.md", exists: true, before_text: "before", after_text: "after" },
+    requested_at: new Date().toISOString(), expires_at: null });
+  queue.registerDecisionHandler("original-review", async (_input, commit) => {
+    entered.resolve(); await release.promise;
+    const receipt = commit(); effects++; return receipt;
+  });
+  const page = await fetch(f.origin), html = await page.text();
+  assert.equal(page.status, 200);
+  const proof = /<meta name="molis-work-page-session" content="([^"]+)"/.exec(html)?.[1];
+  assert.ok(proof);
+  const cookie = page.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+  const response = f.request(`/api/assistant/works/${work.work_id}/reviews/original-review`, { method: "POST", authorized: false,
+    headers: { cookie, "x-molis-work-page-session": proof }, body: { decision: "approve" } });
+  await Promise.race([entered.promise, response.then(async value => { throw new Error(`request ended before owner waiting: ${value.status} ${await value.clone().text()}`); })]);
+  if (withdrawn === "session") now = 60_001;
+  else if (withdrawn === "computer") lastInjectAt = Date.now();
+  else store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { archived: true });
+  release.resolve();
+  const refused = await response, body = await refused.json() as { code: string };
+  assert.equal(refused.status, withdrawn === "session" ? 403 : withdrawn === "computer" ? 409 : 403);
+  assert.equal(body.code, withdrawn === "session" ? "actions.forbidden" : withdrawn === "computer" ? "computer.self_approval" : "assistant.scope");
+  assert.equal(effects, 0, "the original owner gets no authorization and performs no effect");
+  const receipt = queue.receipt("original-review");
+  assert.equal(receipt?.status, "pending"); assert.equal(receipt?.decided_by, null); assert.equal(receipt?.effect_settled, false);
 });

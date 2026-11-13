@@ -66,6 +66,10 @@ try {
   queue.settle(request.review_id, { ok: false, error: "Owner verified no write" });
   assert.equal(events.at(-1).recipient, null, "the restarted installation does not inherit its old activation's notification");
   assert.equal(events.at(-1).payload.workspace_id, "main", "workspace invalidation still has its actual operation target");
+  await composition.dispose();
+  assert.throws(() => queue.request({ review_id: "after-host-close", project_id: "project", plugin_id: "test", run: { session_id: "s", run_id: "r" },
+    kind: "text-edit", document: { kind: "text-edit", target_path: "note", exists: false, before_text: null, after_text: "new" },
+    requested_at: new Date().toISOString(), expires_at: null }), { code: "agent.capability_unavailable" }, "final Host disposal closes its shared review queue");
 } finally {
   unsubscribe(); await runtime.stop(install.install_id); await composition.dispose(); queue.close(); await host.close(); store.close(); await rm(root, { recursive: true, force: true });
 }

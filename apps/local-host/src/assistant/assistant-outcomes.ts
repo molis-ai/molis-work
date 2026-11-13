@@ -1,5 +1,6 @@
 import { assistantWords } from "./assistant-saved-text.js";
 import { isDeepStrictEqual } from "node:util";
+import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { recordAssistantResultCard } from "./assistant-result-card.js";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionResultSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -55,7 +56,7 @@ export class AssistantOutcomes {
     return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
   }
 
-  async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }): Promise<AssistantWorkView> {
+  async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }, boundary?: Parameters<AgentHost["reviews"]["respond"]>[1]): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
@@ -64,7 +65,16 @@ export class AssistantOutcomes {
       ? (await (await this.link.executorOf(work)).read(work.executor.session_id, 1)).runtime_session_id ?? null : work.session_id;
     if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
-    await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
+    await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, {
+      beforeEffect: boundary?.beforeEffect,
+      assertCurrent: request => {
+        const current = this.store.get(this.actorId, workId);
+        if (ownerOf(current) !== request.project_id || current.session_id !== work.session_id || current.archived !== work.archived || !isDeepStrictEqual(current.executor, work.executor)) {
+          throw assistantErrors.scope("这项工作的执行归属已经改变，原确认没有提交");
+        }
+        return boundary?.assertCurrent?.(request);
+      },
+    });
     // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
     if (input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
       const latest = await this.link.latestRun(host, work).catch(() => null);

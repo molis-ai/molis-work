@@ -196,6 +196,28 @@ test("BL-359: closing while a Git decision is saving proves cancellation without
   assert.deepEqual(events, []);
 });
 
+test("BL-360: a Git pending closed during entry waiting cannot be approved or dispatched", async t => {
+  const { sdk, ports, prepare } = await liveGitDecision(t);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  t.after(() => release.resolve());
+  let executions = 0;
+  const request = await prepare("pending-ended-before-commit", async () => { executions++; });
+  const effect = (await sdk.effects.readRecovery()).effects.find(item => item.pending?.ref.id === request.review_id.slice("prologue-git:".length));
+  assert.ok(effect?.pending);
+  const result = ports.queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "person" }, {
+    beforeEffect: async () => { entered.resolve(); await release.promise; },
+  });
+  const rejected = assert.rejects(result, /等待已经结束/);
+  await entered.promise;
+  await sdk.effects.pendings.answer(effect.pending.ref, { kind: "effect-approval", answer: "deny" }, await sdk.readClock());
+  assert.notEqual(sdk.effects.pendings.get(effect.pending.ref)?.state, "open");
+  release.resolve(); await rejected;
+  assert.equal(ports.queue.receipt(request.review_id)?.status, "pending");
+  assert.equal(ports.queue.receipt(request.review_id)?.decided_by, null);
+  assert.equal(ports.decisions.size, 0); assert.equal(executions, 0);
+  assert.equal((await sdk.effects.inspectDispatch(effect.ref)).state, "not-dispatched");
+});
+
 test("BL-359: Git close waits for an already-dispatched decision to publish its actual settlement", async t => {
   const { ports, reviews, prepare } = await liveGitDecision(t);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -348,4 +370,26 @@ test("after a restart, review refreshes bring earlier Git operations back once a
     assert.equal(reads, 0, "a refresh after the first finds nothing new to bring back and reads no stored record");
     assert.equal(queue.list("board").filter(item => item.operation?.kind === "git-index").length, 3);
   } finally { fs.readFileSync = original; syncBuiltinESMExports(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("BL-360: a real persisted Git wait restored after adapter shutdown offers neither decision and never dispatches", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-decisions-restart-"));
+  let queue = new AgentReviewQueue(), executions = 0;
+  const make = () => createPrologueNodeAdapter({ app: { appId: "molis.git.decisions", appVersion: "1.0.0" }, storageRoot: path.join(root, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => { throw new Error("this operation needs no model"); } });
+  let adapter = await make();
+  try {
+    const original = await adapter.gitReviews!.prepare({ project_id: "board", workspace_id: "workspace", operation_id: "waiting-1",
+      document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [
+        { path: "note", before_text: "before", after_text: "after", before_mode: "100644", after_mode: "100644" },
+      ] } }, { authority: held, check: async () => {}, execute: async () => { executions++; } });
+    assert.equal((await queue.decisions(original.review_id)).approve.available, true);
+    await adapter.close(); queue.close(); queue = new AgentReviewQueue(); adapter = await make(); await queue.refresh("board");
+    assert.equal(queue.receipt(original.review_id)?.status, "cancelled");
+    const decisions = await queue.decisions(original.review_id);
+    assert.equal(decisions.approve.available, false); assert.equal(decisions.reject.available, false);
+    await assert.rejects(queue.respond({ review_id: original.review_id, decision: "reject", actor_id: "person" }));
+    await assert.rejects(queue.respond({ review_id: original.review_id, decision: "approve", actor_id: "person" }));
+    assert.equal(executions, 0); assert.equal(queue.receipt(original.review_id)?.decided_by, null);
+  } finally { await adapter.close(); queue.close(); await rm(root, { recursive: true, force: true }); }
 });

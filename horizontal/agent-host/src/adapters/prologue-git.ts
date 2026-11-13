@@ -144,9 +144,11 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
         if (closed || effect.state !== "awaiting-approval" || !effect.pending) { await runtime.effects.cancel(effect.ref); throw new Error("Git 操作没有进入可批准状态，未执行"); }
         const request = requestOf(effect, saved); live.add(effect.ref.id); queue.request(request, execution.authority);
         bindRecovery(effect, request);
-        const decide = async (decision: Parameters<AgentReviewQueue["respond"]>[0]) => {
-          if (closed || runtime.effects.get(effect.ref)?.state !== "awaiting-approval") throw new Error("原 Git 操作的等待已经结束，不能重新派出");
-          const receipt = queue.decide(decision);
+        const answerable = () => !closed && live.has(effect.ref.id) && runtime.effects.get(effect.ref)?.state === "awaiting-approval"
+          && runtime.effects.pendings.get(effect.pending!.ref)?.state === "open";
+        const decide = async (decision: Parameters<AgentReviewQueue["respond"]>[0], commit: () => AgentReviewReceipt) => {
+          if (!answerable()) throw new Error("原 Git 操作的等待已经结束，不能重新派出");
+          const receipt = commit();
           try {
             if (decision.decision === "approve") queue.consumeApproval(request.review_id);
             const { status, decided_by, decided_at, note } = receipt;
@@ -181,7 +183,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
             throw error;
           } finally { live.delete(effect.ref.id); restored.add(effect.ref.id); }
         };
-        queue.registerDecisionHandler(request.review_id, decision => track(decide(decision)));
+        queue.registerDecisionHandler(request.review_id, (decision, commit) => track(decide(decision, commit)), async () => answerable);
         return request;
       } finally { busy.delete(workspaceKey); }
     })();

@@ -59,7 +59,7 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
     usage: { tokens: { input: 9200, output: 640, cached_input: 6000 }, coverage: { input: "reported", output: "reported", cached_input: "reported", cache_creation: "unknown", cost_usd: "unknown" }, context: { tokens: 41000, coverage: "reported" } },
   });
   const view = boardView(work, [first, latest], {
-    reviews: [{ review_id: "rv-plan", kind: "business", run_id: "run-plan-2", summary: "日程 · 创建日程「试用复盘」", requested_at: at(4), expires_at: null,
+    reviews: [{ review_id: "rv-plan", decisions: { approve: { available: true }, reject: { available: true } }, kind: "business", run_id: "run-plan-2", summary: "日程 · 创建日程「试用复盘」", requested_at: at(4), expires_at: null,
       fields: [{ label: "时间", value: "周五 10:00–10:45" }, { label: "参加", value: "王一骏、产品组" }, { label: "地点", value: "待定" }] }],
     objects: [
       { relation: "result", subject: { kind: "artifact", id: "art-agenda" }, title: "试用复盘议程 v1", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: at(5), open: { surface: "artifacts", id: "art-agenda" } },

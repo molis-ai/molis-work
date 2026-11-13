@@ -39,6 +39,8 @@
 - 开发要求：specs/post-anticorruption-roadmap/reference/development-workflow.md 第 4 节（开工前检查 15 项）、第 5 节（界面与体验）、第 8 节（有更好的方案就换、边做边清理、写法要优雅）、第 10.1 节（防腐与代码质量）、第 11.1 节（批次收尾检查）；docs/prompts/repository-systematic-review.md 第 3～12 节；docs/reviews/adversarial-review-2026-11-01.md 的 N42～N56（调用次数）；命名照 docs/system/GLOSSARY.md
 - 原需求（行为与验收以它们为准）：https://github.com/molis-ai/molis-work/blob/personal/specs/personal-cloud-sync/spec.md；https://github.com/molis-ai/molis-work/blob/personal/specs/plugin-sync-foundation/spec.md；https://github.com/molis-ai/molis-work/blob/personal/specs/personal-plugin-replication/spec.md；specs/upgrade-continuity/spec.md
 
+当前 main 的对应文档：[个人云同步总纲](../../../personal-cloud-sync/spec.md)、[同步基础](../../../personal-cloud-sync/foundation.md)、[插件复制](../../../personal-cloud-sync/plugin-replication.md)；下面的 `personal` 分支 URL 保留为历史来源。
+
 二、开工前先跟我讲清楚（大白话）
 先核对现状：main 上已经有什么、前置批次是否真的合入、有没有在途 PR 在做同样的事。然后用大白话跟我讲：这批做什么、要解决什么问题、做完我能看到或用到什么、为什么排在这里、需要我做什么。不用包名、合同、schema、编号这类词，非用不可时顺带解释一句。本批文件「给人讲清楚」一节是底稿，按核对结果改。讲完就继续做，不用等我回话。
 

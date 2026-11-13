@@ -10,7 +10,7 @@
 - 做完一条就删掉对应条目文件，在提交说明里写编号。不改编号，不复用编号。
 - 只抽取与归并，不重新设计需求。几处说法冲突的，列在「待你决定」。
 
-新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/gates/backlog-rows.mjs --report`，不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。
+新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 503 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
 
 类型：**待你验收**（做完了、等用户本人试用）、**待你决定**（要用户拍板）、**未实现**、**部分实现**、**明确后续做**（原 spec 写明了留到以后）、**已知缺口**（实现里如实标注的限制）。
 
@@ -26,8 +26,12 @@
 
 ## 3. 助理、记忆与动态交互
 
+### 统一输入
+
 
 ## 4. 搜索、放置与工作流
+
+### 调用次数
 
 
 ## 5. 插件
@@ -35,12 +39,10 @@
 
 ## 6. 连接、来源与 Onboarding
 
+
 ## 7. 平台与架构
 
-- [BL-golden-generation-nondeterministic](backlog/BL-golden-generation-nondeterministic.md)：金样生成不逐字节确定（两条用例在干净基线上同样失败）；**回放**本身四份金样全过。
-
-- [BL-lsp-servers-declaration](backlog/BL-lsp-servers-declaration.md)：第三方插件还不能声明自己的语言服务器（`lsp_servers`）；第 31 批先交宿主侧按人配置的那一份。
-- [BL-skill-hand-and-tools-consumers](backlog/BL-skill-hand-and-tools-consumers.md)：`find-skills`／`read-skill` 还没有消费者；Coding 旧的「auto 全列」技能路径留给 Skill 策略的消费者片。
+### 状态与状态机
 
 
 ## 8. 交给第二步（防腐整理）
@@ -51,6 +53,9 @@
 ## 9. 平台小项与工程流程
 
 按[需求清单 §7](post-anticorruption-roadmap/reference/requirements.md#section-3-7)归组。只移动仍在清单里的事项，原编号、依赖与认领继续有效。
+
+### 统一输入
+
 
 ### 翻译与界面用词
 
@@ -74,7 +79,7 @@
 
 ### 记忆误记与默认设置
 
-随第 24、31 批。Memory 沿用原暂停决定。
+随第 24、31 批。Memory 原暂停已于 2026-11-11 解除（决定 36）：P0 收口见 [BL-memory-p0-closure](backlog/BL-memory-p0-closure.md) 与 #2020，P1 随第 31 批，P2 按触发条件登记。
 
 
 ### 模型本身的能力

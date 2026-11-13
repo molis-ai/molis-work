@@ -68,9 +68,9 @@
 | `prompt` | 宿主 Agent 定义登记（插件声明、内置、生成插件的提示词，人的改写、`prompt_uses`） | 默认正文的版本；有改写时显示「基于第几版、默认已到第几版」 | 不加。条目不带提示词正文或改写原文，只带名称、主人、版本、用在哪个调用处、有没有改写 |
 | `role` | 宿主 Agent 定义登记（插件声明的角色与子代理）、Characters（`modules/characters`）；作用范围与继承由第 36 批的公开读接口给，36 之前只显示声明与来源 | 角色声明的版本；Character 的修订号 | 签名角色只上报一次（从 `methods()` 里去掉 `kind: "role"`） |
 | `tool` | **Agent Host**：它读 vendored SDK 的系统工具全集，再加平台网关工具、业务工具、子代理与计划步骤工具，按同一种条目上报（id、说明、来源、会不会写、哪些角色开放） | 系统工具的版本取 SDK 包的版本与形状指纹；平台工具取产品版本 | 工具条目的上报。合同里只保留作者用得到的 `BUSINESS_HOST_TOOLS`、`SKILL_TOOLS`；Agent Host 内部的名单（`GATEWAY_TOOLS`、`childRoleTools`、`STEP_TOOLS`、创作台 `TOOLS`）收成 Agent Host 里的一处，`assistant-present.ts` 的名字表改从条目取 |
-| `mcp` | 服务器：Agent Host 的 MCP 库（项目 MCP）、连接器带的 MCP；它们的工具、提示与资源：服务器上报的清单，已登记成动作的工具指向动作目录（`mcp.external.*`、`mcp.connector.*`）；对外：Molis 自己的 MCP 服务器暴露了什么、对哪个客户端开着（`action_grants`），以及装进外部 AI 工具的 `goal-advance` Skill | 服务器上报的工具清单变化（「发现差异」，[MCP 策略](../prologue-mcp-strategy/spec.md) M0） | 不加事实，只上报。读的是已存的清单，不为列目录去连服务器 |
+| `mcp` | 服务器：Agent Host 的 MCP 库（项目 MCP）、连接器带的 MCP；它们的工具、提示与资源：服务器上报的清单，已登记成动作的工具指向动作目录（`mcp.external.*`、`mcp.connector.*`）；对外：Molis 自己的 MCP 服务器暴露了什么、对哪个客户端开着（`action_grants`），以及装进外部 AI 工具的 `goal-advance` Skill | 服务器上报的工具清单变化（「发现差异」，[MCP 策略](../prologue-strategies/mcp.md) M0） | 不加事实，只上报。读的是已存的清单，不为列目录去连服务器 |
 
-**工具的说明不授予权限**：Agent Host 的工具条目只记「有什么、是什么」。角色的 `host_tools` 仍是授权来源，技能的 `tools` 仍只是说明（SKC-13）。新增一条检查：角色 `host_tools` 里的名字不在 Agent Host 的工具全集里，装配时拒绝；再加一个测试核对 Agent Host 的全集与 SDK 的 `SYSTEM_TOOL_NAMES` 一致，换包时漂移就红。合同不复制 SDK 的名单：只有 Agent Host 依赖 SDK（AGENTS.md 硬约束），[Tool 策略](../prologue-tool-strategy/spec.md) 第 5 节也写明不在宿主另写工具目录。
+**工具的说明不授予权限**：Agent Host 的工具条目只记「有什么、是什么」。角色的 `host_tools` 仍是授权来源，技能的 `tools` 仍只是说明（SKC-13）。新增一条检查：角色 `host_tools` 里的名字不在 Agent Host 的工具全集里，装配时拒绝；再加一个测试核对 Agent Host 的全集与 SDK 的 `SYSTEM_TOOL_NAMES` 一致，换包时漂移就红。合同不复制 SDK 的名单：只有 Agent Host 依赖 SDK（AGENTS.md 硬约束），[Tool 策略](../prologue-strategies/tool.md) 第 5 节也写明不在宿主另写工具目录。
 
 ### 4.3 状态：不新造开关（R3）
 
@@ -241,5 +241,5 @@
 - [技能包](../skill-packs/spec.md)与[合同稿](../skill-packs/contract-design.md)（第 08 批）
 - [第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)
 - [action-architecture](../action-architecture/spec.md) §3（动作目录、MCP 工具是动作的呈现）
-- [Prologue Skill](../prologue-skill-strategy/spec.md)、[Tool](../prologue-tool-strategy/spec.md)、[MCP](../prologue-mcp-strategy/spec.md) 策略（第 62 批收口）
+- [Prologue Skill](../prologue-strategies/skill.md)、[Tool](../prologue-strategies/tool.md)、[MCP](../prologue-strategies/mcp.md) 策略（第 62 批收口）
 - [Onboarding §3.8 场景与能力组合](../onboarding-coverage/spec.md#38-场景与能力组合)（第 20 批）

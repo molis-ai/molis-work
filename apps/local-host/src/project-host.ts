@@ -246,7 +246,7 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
-    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory, this.host.actionRegistry());
+    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory);
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);
@@ -271,7 +271,7 @@ export class MolisWorkLocalHost {
     this.plugins = { host: this.host, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
-      accountActionProvider(() => accountSessionForHost(this)),
+      accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), // the pages' writes, behind their doors (B9)
       ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(options.homeDirectory ? [appearanceForHome(options.homeDirectory).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),

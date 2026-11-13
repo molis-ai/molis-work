@@ -5,7 +5,7 @@ import { isAbsolute, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleReader } from "./locale-packs.js";
 import { assertPluginPackagePath } from "./package-verification.js";
 
@@ -14,10 +14,15 @@ function assertInsideProject(root: string, file: string, what: string): void {
   if (relativePath.startsWith("..") || isAbsolute(relativePath)) throw pluginErrors.package_invalid(`${what}不能逃逸项目目录`);
 }
 
+/** A local project's Manifest alone, parsed as installation parses it; no code of the project is loaded. */
+export async function readDevelopmentManifest(directory: string): Promise<PluginManifest> {
+  return parsePluginManifest(JSON.parse(await readFile(join(await realpath(directory), "manifest.json"), "utf8")) as unknown);
+}
+
 /** Caller must have explicit authority to execute local source; this is not signed-package installation. */
 export async function loadDevelopmentPlugin(directory: string): Promise<PluginDefinition> {
   const root = await realpath(directory);
-  const manifest = parsePluginManifest(JSON.parse(await readFile(join(root, "manifest.json"), "utf8")) as unknown);
+  const manifest = await readDevelopmentManifest(root);
   const entry = manifest.entrypoints.find(value => value.deployment === "local");
   if (!entry) throw pluginErrors.package_invalid("开发包没有 local entrypoint");
   const file = entry.entrypoint.replace(/^\.\//u, "");

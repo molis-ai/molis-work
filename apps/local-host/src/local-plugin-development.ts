@@ -6,7 +6,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
+import { PLUGIN_DEVELOPMENT_ACTOR_ID, refuseUnusableDevelopmentLanguage, runPluginDevelopment } from "./plugin-development.js";
 import { bindGoalsManagementActions, goalsHostActions, refusePayloadIdentity } from "./goal-callers.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
@@ -32,6 +32,8 @@ export async function runLocalPluginDevelopment(input: {
   locale?: string;
 }): Promise<PluginDevelopmentResult> {
   const directory = resolve(input.state_directory);
+  // Checked before the state directory is made, so a wrong `--locale` leaves no directory with only a marker in it.
+  await refuseUnusableDevelopmentLanguage(input.directory, input.locale);
   const markerName = ".molis-work-plugin-development.json";
   const marker = { kind: "molis-work-plugin-development", schema_version: /* @version format.plugin.development-marker */ 1 };
   await mkdir(directory, { recursive: true });

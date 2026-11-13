@@ -1,0 +1,7 @@
+{
+  "reason": "第 11 批合后审计：框架页的输入框快照遇到畸形 controls（例如一个 select 的 options 不是数组）时，页内 bridge 先抛 TypeError，S-composer-source-call 第 5 项的 composer-bar-receiver 用例在 macOS 红。child 在快照整份失败时让出这次挂载，和父页 bounded 的「形状不对整份丢弃」一致；对照 origin/main 58af6ece 的隔离构建实测 plugin-frame.js +28 B。",
+  "review": "第 11 批合后审计修复（2026-11-12）；单份 +28 B，远低于 10 KB；没有新增资源，没有复用已采用许可。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 28
+  }
+}

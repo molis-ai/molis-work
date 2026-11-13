@@ -1,5 +1,9 @@
 import { printCliJson, printCliLine } from "@molis-ai/molis-work-app-cli";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { acquireStorageOwner, readStorageSpace } from "@molis-ai/molis-work-storage";
+import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { adoptProjectDatabase, retireFilesConsents, type ProjectAdoptionReport } from "./process-items-adoption.js";
+import { projectDatabases } from "./platform-upgrade-stores.js";
 import { createHomeSnapshot } from "./home-snapshot.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { recoverHomeRestore, restoreHomeSnapshot } from "./home-restore.js";
@@ -9,6 +13,7 @@ import { readRollbackPoint, rollbackHome, type RollbackResult } from "./installe
 import { resolveConfiguredHome } from "./product-home.js";
 
 const usage = "molis-work home snapshot --to DIRECTORY [--home PATH] [--json]\n"
+  + "molis-work home adopt-process-items --confirm [--home PATH] [--json]\n"
   + "molis-work home restore --from DIRECTORY [--home PATH] [--json]\n"
   + "molis-work home restore --recover [--home PATH] [--json]\n"
   + "molis-work home rollback --check | --confirm [--save-current DIRECTORY] [--home PATH] [--json]\n\n"
@@ -16,6 +21,7 @@ const usage = "molis-work home snapshot --to DIRECTORY [--home PATH] [--json]\n"
   + "回到上一版：--check 只看能不能回；--confirm 把这一版升级过的库放回升级前的样子、换回上一版程序，--save-current 先把现在的 Home 整份存到给出的目录。";
 
 const ALLOWED = { snapshot: ["--home", "--to", "--json"], restore: ["--home", "--from", "--recover", "--json"],
+  "adopt-process-items": ["--home", "--confirm", "--json"],
   rollback: ["--home", "--check", "--confirm", "--save-current", "--json"] } as const;
 const SWITCHES = new Set(["--json", "--recover", "--check", "--confirm"]);
 
@@ -50,21 +56,45 @@ function restoredMessage(result: HomeRestoreResult): string {
 
 /** Closed arguments fail before acquiring a Home. The restore inspector comes only from product platform composition. */
 export async function runLocalHomeCli(args: string[], inspectCatalog?: HomeRestoreCatalogInspector): Promise<number> {
-  if (!args.length || args[0] === "--help" || args[0] === "-h" || ["snapshot", "restore", "rollback"].includes(args[0]!) && args.length === 2 && args[1] === "--help") {
+  if (!args.length || args[0] === "--help" || args[0] === "-h" || ["snapshot", "restore", "adopt-process-items", "rollback"].includes(args[0]!) && args.length === 2 && args[1] === "--help") {
     printCliLine(usage); return 0;
   }
   const operation = args[0];
-  if (operation !== "snapshot" && operation !== "restore" && operation !== "rollback") throw homeSnapshotErrors.invalid(`未知 Home 操作: ${operation}`);
+  if (operation !== "snapshot" && operation !== "restore" && operation !== "adopt-process-items" && operation !== "rollback") throw homeSnapshotErrors.invalid(`未知 Home 操作: ${operation}`);
   const values = flags(args, operation), home = values.get("--home"), destination = values.get("--to"), source = values.get("--from");
   if (operation === "snapshot" && typeof destination !== "string") throw homeSnapshotErrors.invalid("home snapshot 必须给出 --to 目录");
   if (operation === "restore" && (typeof source === "string") === values.has("--recover")) throw homeRestoreErrors.invalid("home restore 必须且只能选择 --from 目录或 --recover");
   if (operation === "rollback" && values.has("--check") === values.has("--confirm")) throw homeSnapshotErrors.invalid("home rollback 必须且只能选择 --check 或 --confirm");
   if (operation === "rollback" && values.has("--check") && values.has("--save-current")) throw homeSnapshotErrors.invalid("--save-current 只和 --confirm 一起用");
+  if (operation === "adopt-process-items" && !values.has("--confirm")) throw homeSnapshotErrors.invalid("home adopt-process-items 必须带 --confirm，且只在停止宿主后的维护窗口执行");
   if (operation === "restore" && !inspectCatalog) throw homeRestoreErrors.dependency_unavailable("此入口没有产品目录库的只读检查端口，未开始恢复");
   const abort = new AbortController(), cancelled = () => abort.abort(new Error("Home 离线操作已取消"));
   process.once("SIGINT", cancelled); process.once("SIGTERM", cancelled);
   try {
     const options = { ...(typeof home === "string" ? { homeDirectory: home } : {}), signal: abort.signal };
+    if (operation === "adopt-process-items") {
+      const target = resolveConfiguredHome(typeof home === "string" ? home : undefined);
+      const owner = acquireStorageOwner(agentRuntimeDirectory(target));
+      try {
+        const space = readStorageSpace(target);
+        if (!space) throw new ActionError("actions.missing", "这个 Home 还没有账号空间");
+        const backupDirectory = `${target}/sync/process-items-adoption-backups/${new Date().toISOString().replaceAll(":", "-")}`;
+        const reports: ProjectAdoptionReport[] = [];
+        for (const relative of projectDatabases(target, space)) {
+          const projectId = relative.split("/").at(-2)!;
+          reports.push(adoptProjectDatabase({ home: target, owner, projectId, backupDirectory }));
+        }
+        if (reports.some(report => report.state === "refused")) {
+          if (values.has("--json")) printCliJson({ reports, completed: false, consents: null });
+          else printCliLine(`有 ${reports.filter(report => report.state === "refused").length} 个项目没有采用，未撤 Files 同意；报告里是原因。`);
+          return 1;
+        }
+        const consents = retireFilesConsents({ home: target, owner, at: new Date().toISOString() });
+        if (values.has("--json")) printCliJson({ reports, completed: true, consents });
+        else printCliLine(`采用完成：${reports.length} 个项目，撤 Files 同意 ${consents.revoked} 条，移出项目成员 ${consents.memberships} 个。`);
+        return 0;
+      } finally { owner.release(); }
+    }
     if (operation === "rollback") {
       const target = resolveConfiguredHome(typeof home === "string" ? home : undefined);
       if (values.has("--check")) {

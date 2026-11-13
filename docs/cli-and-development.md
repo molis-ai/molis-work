@@ -2,6 +2,8 @@
 
 ## Home 离线快照
 
+`molis-work home adopt-process-items --confirm [--home /原Home] [--json]` 在停掉宿主的离线窗口把旧布局第 2 版项目库显式采用到第 3 版：先备份、逐项目采用，全部采用后才撤回 Files 同意并移出项目成员；不带 `--confirm` 拒绝。它和同步设置里的过程项四步走同一个 `adoptProjectDatabase`／`retireFilesConsents`，给没开账号同步的本地空间 Home 用。
+
 `molis-work home snapshot --to /绝对路径/新目录 --home /原Home --json` 从已存在的 Home 捕获快照；`--home` 省略时沿用产品的 Home 解析。`--to` 必填，目标尚不存在、父目录已存在，并且目标与 Home 不能互相包含。参数重复、未知或缺值直接拒绝。成功 stdout 是 JSON（不加 `--json` 时是路径和数量），失败只向 stderr 写错误并返回 1。
 
 先停止使用该 Home 的 Web/Desktop/Agent，再在离线窗口执行。命令取得与 Host/Agent 相同的存储所有权，不启动业务 Host 或在线暂停；忙时不建立输出。存储集合来自 `homeStores()`，包括实际安装库和项目分区。SQLite 使用 backup API，包含最新已提交 WAL，侧车和所有权锁不复制；未知条目、错版、坏库、链接或未完成维护整次拒绝。

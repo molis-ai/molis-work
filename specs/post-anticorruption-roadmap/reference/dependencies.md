@@ -198,7 +198,7 @@ flowchart LR
 | 08 | 02 交接后可先落 C-1/C-2，不等 U1/SQLite 第二步；动表实现仍守 02③ 分界与 05 存储前置；C-3 排在 C-1 之后，不等 20 的 P-3b/P-3c（用户 2026-11-07 定），和共用 `platform/plugin.txt` 的片先准备好的先落；随包签名部分等 26-1 | [技能包合同稿](../../skill-packs/contract-design.md)第 11、13 节、[技能包需求第 9 节](../../skill-packs/spec.md#9-决策记录)、#1794 |
 | 14 | TextRef 在 02 共享核心交接后先行，是 05② C-2、C-3 和 20 P-1、P-3b 的输入（它们的 SDK 校验等 14 的 T4）；14 的 T3 与 08 C-1 不互等，08 先合时，白名单收 `ui.locales` 这一行随 T3 补；不能硬等整个 05②。其他消费 05 的片仍逐片核输入，SDK／服务／真实消费者验收不缩减 | [14](batches/14.md)、[场景合同](../../scene-and-page-contract/spec.md)第 10 节 |
 | 05-4 | 02 共享核心已交接；N14 已随 #1961 合入，N22 余片按决定 29 归 55-3 | [05](batches/05.md)、[55](batches/55.md) |
-| 06 | 已合入（[#2009](https://github.com/molis-ai/molis-work/pull/2009)，`a720834a09`，2026-11-13）。Files 退役、平台资料服务、N12、SDK 共用实现、N56/N42 首片/N43/46/N44/BL-943/N45/N55、N47～51 均已交付；剩余真实 Home 采用（另授权）、本人验收、BL-local-space-process-items-adoption（高，排在下一个碰真实 Home 的批之前）。N52 已随本批做完，`BL-side-files-merged-reads` 已删除 | [06 现行方案](batches/06.md#batch-06-plan-2026-11-08)、[合入记录](batches/06.md#batch-06-audit) |
+| 06 | 已合入（[#2009](https://github.com/molis-ai/molis-work/pull/2009)，`a720834a09`，2026-11-13）。Files 退役、平台资料服务、N12、SDK 共用实现、N56/N42 首片/N43/46/N44/BL-943/N45/N55、N47～51 均已交付；剩余真实 Home 采用（另授权）、本人验收。N52 已随本批做完，`BL-side-files-merged-reads` 已删除 | [06 现行方案](batches/06.md#batch-06-plan-2026-11-08)、[合入记录](batches/06.md#batch-06-audit) |
 | 55-3（N22 余片） | 用户 2026-11-08 定：只等 05 的 N22-02、N22-04，N22-05 还等 N14；不等别的批，也不挡 06～54；56 等它全部合入 | [决定 29](decisions.md#decision-29)、[55](batches/55.md) |
 | 41、43-1 | `~31` 已核实是上游缺口（App 模式带有界子代理、Skill 自动选用、「继续这个子代理」入口），改为只挡对应的那一部分 | [24](batches/24.md) SDK 盘点 |
 

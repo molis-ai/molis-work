@@ -235,7 +235,11 @@ export class KnowledgeOrganizer {
     const pieces = await this.options.catalog(projectId);
     if (this.closed || this.removed.has(projectId)) return;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
-    for (const piece of pieces) {
+    // The search index inserts sources concurrently. Its row order is not a stable order for new card IDs.
+    for (const piece of [...pieces].sort((left, right) => {
+      const a = `${keyOf(left.subject)}\u0000${left.source_key}`, b = `${keyOf(right.subject)}\u0000${right.source_key}`;
+      return a < b ? -1 : a > b ? 1 : 0;
+    })) {
       piece.assertCurrent?.();
       const card = cards.get(keyOf(piece.subject));
       cards.delete(keyOf(piece.subject));

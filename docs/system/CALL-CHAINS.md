@@ -308,7 +308,7 @@
 | Agent 审批（`apps/local-host/src/agent-review-http.ts`，`POST /api/agent/reviews/decide`、`/recovery`） | `agent.reviews.decide`、`agent.reviews.recover`。项目归属、插件页的页面授权核对、桌面持有轮次的自批等待期都在处理器里，HTTP 的状态码与错误体不变 | `horizontal/agent-host/src/reviews.ts`，执行与恢复归原操作的主人 |
 | 助理面板（`apps/local-host/src/assistant/assistant-http.ts`，相对 `/api/assistant`：`send`、`cards`、`attachments`、`notices`、`followups/remove`，`works/<id>/` 下的 `control`、`draft`、`rename`、`mode`、`take-back`、`undo/<undo>`、`budget`、`results`、`handover`、`recovery`、`archive`、`reviews/<review>`、`answer`、`question-draft`、`cards/<card>/run`、`dismiss`、`redo`） | `assistant.panel.*`，每个路径一个（`assistantPanelActions`）。两条记忆建议 `memory-candidates/<candidate>/accept`、`discard` 不另起动作，走 Memory 现有的 `memory.candidates.accept`、`discard`，面板带上它看到的版本（`expected_version`） | 助理服务 `apps/local-host/src/assistant/assistant-service.ts`；实际运行归 Agent Host 或执行方插件，记忆归 Memory |
 
-已经走动作的不变：原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 走 `assistant.threads.*`，从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`；`GET`／`POST /works/<id>/cards/<card>/connection` 走 `connectors.authorization.read`／`connectors.authorization.cancel`。助理的设置写入（`capabilities`、`memories`、`memory-prefs`、`rules`、`budget`）见上表。
+已经走动作的不变：原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 走 `assistant.threads.*`，从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`；`GET`／`POST /works/<id>/cards/<card>/connection` 走 `connectors.authorization.read`／`connectors.authorization.cancel`。助理的设置写入（`capabilities`、`memories`、`memory-prefs`、`rules`、`budget`）仍走 HTTP，见 §10.1 的「设置 › 助理」两行；B9 只把面板写入（send、cards、attachments、notices、followups/remove、works/…）改成动作。
 
 读取仍是 HTTP。读的时候会做的恢复与结算登记如下，归各自主人，不是本人的新决定：
 

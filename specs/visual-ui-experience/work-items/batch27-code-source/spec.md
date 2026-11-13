@@ -96,7 +96,7 @@ VUX-33 已授权围栏原文和边界修复，普通 HTML 序列化空白差异�
 ```sh
 pnpm build
 node scripts/machine-slot.mjs run browser --label "27-2 source tests" -- node scripts/run-tests.mjs --jobs 1 tests/plugin-sdk-rich-text.test.ts tests/plugin-sdk-subpaths.test.ts tests/feed-rich-content.test.ts tests/code-incremental-colour.test.ts tests/code-incremental.e2e.test.ts tests/code-scale.e2e.test.ts tests/assistant-text-html.e2e.test.ts tests/code-diff-reader.e2e.test.ts tests/plugin-sample.e2e.test.ts
-node scripts/machine-slot.mjs run browser --label "27-2 Coding scale" -- node scripts/run-tests.mjs --jobs 1 tests/code-scale.e2e.test.ts --test-name-pattern=B27SRC-07
+node scripts/machine-slot.mjs run browser --label "27-2 Coding scale" -- node scripts/run-tests.mjs --jobs 1 tests/code-scale.e2e.test.ts   # B27SRC-05 的浏览器用例；B27SRC-07 没有同名测试，同条件浏览器性能测量见 BL-batch27-audit-followups
 node scripts/machine-slot.mjs run build --label "27-2 page assets" -- pnpm workspace:build
 node scripts/gates/page-assets.mjs --base origin/main
 pnpm boundary:check

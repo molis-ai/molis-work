@@ -46,9 +46,23 @@ export interface ScheduleSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
+/** How one wakeup ended, for the work records (observation-collection design §4): ran, failed, could not run, or was interrupted. */
+export interface ScheduleWakeupEnded {
+  readonly wakeup: ScheduleWakeupRecord;
+  readonly job: Pick<JobRow, "job_id" | "plugin_id" | "capability_id" | "object_ref" | "recurrence_kind">;
+  /** The installation the wakeup was bound to; absent when it had no binding. */
+  readonly install_id?: string;
+  /** The run was stopped part-way (the Host closed, authority ended, the lease was lost): its result was not kept. */
+  readonly interrupted: boolean;
+}
+
 interface ScheduleServiceOptions {
   now?: () => Date;
   leaseMs?: number;
+  /** Told of every wakeup as it ends. A fault in it never reaches the clock. */
+  wakeupEnded?: (ended: ScheduleWakeupEnded) => void;
+  /** Runs each wakeup as an operation of its own (the Host gives it its own call number), so two jobs due together are not one operation. */
+  eachWakeup?: <T>(run: () => Promise<T>) => Promise<T>;
 }
 
 interface JobRow {
@@ -238,7 +252,11 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         result.skipped += 1;
         continue;
       }
-      const outcome = await fireScheduleWakeup(db, claimed, at, { now, leaseMs, executions, renewExecutions, actionCurrent: () => actionWakeups.current(claimed), invoke: actionWakeups.invoke });
+      const outcome = await (options.eachWakeup ?? (run => run()))(() => fireScheduleWakeup(db, claimed, at, { now, leaseMs, executions, renewExecutions, actionCurrent: () => actionWakeups.current(claimed), invoke: actionWakeups.invoke,
+        ended: (wakeup, interrupted) => {
+          const install_id = actionWakeups.bindingFor(claimed.job_id)?.install_id;
+          try { options.wakeupEnded?.({ wakeup, job: claimed, ...(install_id ? { install_id } : {}), interrupted }); } catch { /* The records never hold back the clock. */ }
+        } }));
       result.invoked += 1;
       if (outcome.status !== "ok") result.failed += 1;
     }
@@ -362,6 +380,7 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
   invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<ScheduleWakeupReply | void>;
   executions: Map<string, { token: string; controller: AbortController; job: JobRow }>;
   renewExecutions(at: Date): void;
+  ended(wakeup: ScheduleWakeupRecord, interrupted: boolean): void;
 }): Promise<ScheduleWakeupRecord> {
   const { now, leaseMs, executions, renewExecutions } = options;
   const started = iso(at);
@@ -430,7 +449,7 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
         `).run(wakeupId, finishedAt, job.job_id, token);
       }).immediate();
     }
-    return {
+    const wakeup: ScheduleWakeupRecord = {
       wakeup_id: wakeupId,
       job_id: job.job_id,
       due_at: job.next_due_at,
@@ -439,6 +458,8 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
       status,
       detail,
     };
+    options.ended(wakeup, lifetime.signal.aborted);
+    return wakeup;
   } finally {
     lifetime.dispose();
     if (token && executions.get(job.job_id)?.token === token) executions.delete(job.job_id);

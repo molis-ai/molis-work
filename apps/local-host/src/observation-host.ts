@@ -1,4 +1,5 @@
-import { refusalExpected, type CallObserved } from "@molis-ai/molis-work-kernel";
+import { currentCallId, refusalExpected, type CallObserved } from "@molis-ai/molis-work-kernel";
+import type { ScheduleWakeupEnded } from "@molis-ai/molis-work-service-scheduler";
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OBSERVATION_PROVIDER_ID, type ObservationService } from "@molis-ai/molis-work-contracts/services/observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
@@ -45,6 +46,23 @@ export function observationPluginDataCleared(home: string, record: Pick<PluginIn
   if (live) { live.pluginPurged(purge); return; }
   try { purgeObservationPluginFile(home, purge, new Date().toISOString()); }
   catch (error) { hostLog.warn("observation", "plugin_purge_failed", error); }
+}
+
+/**
+ * A project clock's wakeups as work records (design §4「定时与后台任务」): one per wakeup, in the operation it ran as, so the action call
+ * it made carries the same `call_id`. One that could not run (its plugin gone) is `no_action`; one stopped part-way is `cancelled`.
+ */
+export function scheduleWakeupRecords(home: string, projectId: string): (ended: ScheduleWakeupEnded) => void {
+  return ({ wakeup, job, install_id, interrupted }) => {
+    const live = running.get(home), call_id = currentCallId();
+    if (!live) return;
+    const outcome = interrupted ? "cancelled" : wakeup.status === "ok" ? "succeeded" : wakeup.status === "plugin_unavailable" ? "no_action" : "failed";
+    live.sink("scheduler").bind({ kind: "background", entry: "schedule", actor_id: `plugin:${job.plugin_id}`, project_id: projectId,
+      ...(install_id ? { install_id } : {}), ...(call_id ? { call_id } : {}) }).record({ fact: "scheduler.wakeup", outcome, stage: job.recurrence_kind,
+      occurred_at: wakeup.started_at, subjects: [{ kind: "schedule_job", id: job.job_id }], work: { work_ref: wakeup.wakeup_id },
+      detail: { capability_id: job.capability_id, object_ref: job.object_ref, due_at: wakeup.due_at, late_ms: Math.max(0, Date.parse(wakeup.started_at) - Date.parse(wakeup.due_at)),
+        status: wakeup.status, ...(wakeup.detail ? { reply: wakeup.detail } : {}) } });
+  };
 }
 
 export function createHostObservation(home: string): HostObservation {

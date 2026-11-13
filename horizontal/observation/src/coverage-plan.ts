@@ -25,5 +25,7 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:agent", fact: "agent.tool.action_content", entries: ["agent"], state: "by_rule", reason: "kept_by_action_exit" },
   // The request as the runtime assembled it for the model (history, tools, materials together) is not in its event stream.
   { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "unavailable", reason: "runtime_does_not_expose_request" },
+  // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
+  { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },
   { owner: "observation", fact: "observation.report", entries: ["workbench", "plugin"], state: "not_applicable", reason: "report_channel_itself" },
 ];

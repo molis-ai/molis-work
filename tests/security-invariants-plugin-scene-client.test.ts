@@ -421,7 +421,9 @@ for (const change of ["revoke", "cancel"] as const) {
       if (change === "revoke") who.revoke();
       else abort.abort(cancel);
     } finally { release.resolve(); }
-    await pending.catch(error => { if (change !== "cancel") throw error; assert.equal(error, cancel); });
+    // The outer query checks the same caller again at delivery, even though the plugin caught the inner refusal.
+    await assert.rejects(pending, (error: ActionError) => change === "cancel" ? error === cancel
+      : refused(error, "actions.forbidden", /the caller was revoked/));
     await completed.promise;
     assert.ok(refused(env.main.state.error as ActionError, "actions.forbidden", change === "revoke" ? /the caller was revoked/ : /the caller cancelled/));
     assert.equal(env.main.state.value, undefined);

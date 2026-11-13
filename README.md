@@ -70,7 +70,7 @@ Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok 
   <img src="docs/screenshots/soft-workbench/phone-en.jpg" width="22%" alt="Project home at phone width with the two-row bottom bar">
 </p>
 <p align="center">
-  <sub>Captured from the current source with demo data. A pearl desk holds one continuous work surface; global navigation and the unified conversation live in the bottom bar. Every page shares one icon set, one type scale, four motion durations and a three-layer Dark mode. Visual spec: <a href="DESIGN.md">DESIGN.md</a>.</sub>
+  <sub>Captured from the current source with demo data. A mist-blue desk holds one continuous work surface; global navigation and the unified conversation live in the bottom bar. Every page shares one icon set, one type scale, four motion durations and a three-layer Dark mode. Visual spec: <a href="DESIGN.md">DESIGN.md</a>.</sub>
 </p>
 
 ## Core features

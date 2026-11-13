@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,7 +12,14 @@ import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { inspectMemoryForgetting } from "@molis-ai/molis-work-storage";
 import { person } from "./fixtures/home-runtime.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { openTestHome } from "./fixtures/test-home.js";
+
+async function screenshot(page: Awaited<ReturnType<ChromeHarness["page"]>>, name: string) {
+  const directory = join(REVIEW_EVIDENCE, "memory-settings-forgetting");
+  await mkdir(directory, { recursive: true });
+  await page.screenshot(join(directory, `${name}.png`));
+}
 
 // B4 prerequisite: a committed deletion with a lost response must remove the already-rendered copies too.
 for (const outcome of ["lost-response", "accepted-pending", "completed"] as const) test(`forgetting ${outcome} clears displayed copies without changing the original decision`, { timeout: 60_000 }, async t => {
@@ -106,7 +113,7 @@ for (const outcome of ["lost-response", "accepted-pending", "completed"] as cons
     "the real SDK still contains the physically unremoved body");
     await releaseHistory!(); await historyDelivered;
   } else assert.equal((await client.invoke(memoryActions.page, { scope: "project" })).items.length, 0, "the real service committed the deletion");
-  await page.screenshot(`/private/tmp/memory-v0-b4-ui-${outcome}-20261104.png`);
+  await screenshot(page, outcome);
   const visibleCopy = String(await page.evaluate("document.body.textContent"));
   assert.equal(visibleCopy.includes(currentText), false, "the page must clear its displayed item and body-bearing retry title");
   assert.equal(visibleCopy.includes(oldText), false, "the already-open history must not retain the forgotten body");
@@ -127,7 +134,7 @@ for (const outcome of ["lost-response", "accepted-pending", "completed"] as cons
     await page.wait("[...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility() && node.querySelector('[data-memory-list]')?.getAttribute('aria-busy') === 'false')");
     const reopened = String(await page.evaluate("document.body.textContent"));
     assert.equal(reopened.includes(currentText), false); assert.equal(reopened.includes(oldText), false);
-    await page.screenshot("/private/tmp/memory-v0-b4-ui-pending-reentered-20261104.png");
+    await screenshot(page, "pending-reentered");
     return;
   }
   await page.click(root + " [data-memory-retry]");
@@ -181,7 +188,7 @@ test("a rejected stale deletion permits a fresh management read without changing
   await page.command("Fetch.continueRequest", { requestId: held }); await page.command("Fetch.disable"); await finished;
   await page.click(root + " [data-memory-reload]");
   await page.wait(`document.querySelector('${root} [data-memory-list]')?.getAttribute('aria-busy') === 'false'`);
-  await page.screenshot("/private/tmp/memory-v0-b4-ui-v2-conflict-read-20261104.png");
+  await screenshot(page, "conflict-read");
   assert.equal(await page.evaluate(`document.querySelector('${row} .memory-text')?.textContent`), currentText,
     "a new successful management read can show the current authorized version after a rejected deletion");
   assert.equal(String(await page.evaluate("document.body.textContent")).includes(oldText), false, "the delayed pre-decision history cannot return the old body");
@@ -296,7 +303,7 @@ test("B4 accepted deletion is discovered after leaving and a real Host process r
     assert.equal(deliveries.length, 2); assert.deepEqual(deliveries[1], deliveries[0]);
     assert.equal(deliveries[1]!.memory_id, saved.memory_id); assert.equal(deliveries[1]!.expected_version, saved.version);
     assert.equal(await host.count(project.project_id), 0);
-    await page.screenshot("/private/tmp/memory-v0-b4-process-recovery-complete-20261104.png");
+    await screenshot(page, "process-recovery-complete");
   } finally { await browser.close(); await host.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -330,7 +337,7 @@ test("B4 category selection previews original versions, cancels with zero effect
     const result = (await client.invoke(memoryActions.page, { scope: "project" })).items;
     assert.ok(result.filter(item => saved.slice(0, 2).some(one => one.memory_id === item.memory_id)).every(item => item.state === "disabled"));
     assert.equal(result.find(item => item.memory_id === saved[2]!.memory_id)!.state, "active");
-    await page.screenshot("/private/tmp/memory-v0-b4-selected-batch-complete-20261104.png");
+    await screenshot(page, "selected-batch-complete");
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -409,6 +416,6 @@ test("B4 v2 original clear is visible after a real Host restart and explicitly r
     await page.wait(`!document.querySelector('${root} [data-memory-retry]') && document.querySelector('${root} [data-memory-clear-status]')?.textContent.includes('清空已完成')`);
     assert.equal(deliveries.length, 2); assert.deepEqual(deliveries[1], deliveries[0]);
     assert.equal(typeof deliveries[0]!.fingerprint, "string"); assert.equal(await host.count(project.project_id), 0);
-    await page.screenshot("/private/tmp/memory-v0-b4-clear-recovery-v2-20261104.png");
+    await screenshot(page, "clear-recovery");
   } finally { await browser.close(); await host.close(); await rm(directory, { recursive: true, force: true }); }
 });

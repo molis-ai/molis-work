@@ -11,21 +11,21 @@ import { memoryErrors } from "./errors.js";
 import { learnedInSession, memorySources, type MemorySourceSession } from "./session-links.js";
 
 export const MEMORY_SESSION_CLEAR_PREFIX = "memory-session-clear:";
-/** The long-term memories and waiting suggestions learned in the session, fixed at preview; removed through the ordinary paths. Same format version as the exact plan. */
-const LINKED_PREFIX = "memory-session-learned:";
-interface LinkedPlan { version: /* @version format.memory.session-clear-plan */ 1; binding: MemorySessionBinding; memories: MemoryLinkedTarget[]; candidates: Array<{ scope: MemoryScope; owner: string; candidate_id: string; version: number }> }
-export interface MemoryLinkedTarget { scope: MemoryScope; owner: string; memory_id: string; version: number }
+type ClearTarget = Omit<MemorySessionPurgeTarget, "selection"> & { learned: boolean };
 interface Group { scope: MemoryScope; owner: string; operation_id: string;
   memories: Array<{ memory_id: string; version: number }>; candidates: Array<{ candidate_id: string; version: number }> }
 export interface MemorySessionClearPlan {
   version: /* @version format.memory.session-clear-plan */ 1; actor_id: string; operation_id: string; binding: MemorySessionBinding;
-  groups: Group[]; targets: MemorySessionPurgeTarget[]; started: boolean; complete: boolean; done: number;
+  groups: Group[]; targets: ClearTarget[]; started: boolean; complete: boolean; done: number;
 }
 const key = (item: Pick<MemorySessionPurgeTarget, "scope" | "owner" | "kind" | "id">) => JSON.stringify([item.scope, item.owner, item.kind, item.id]);
-const order = (a: MemorySessionPurgeTarget, b: MemorySessionPurgeTarget) => a.scope.localeCompare(b.scope) || a.owner.localeCompare(b.owner)
+const order = (a: ClearTarget, b: ClearTarget) => a.scope.localeCompare(b.scope) || a.owner.localeCompare(b.owner)
   || Number(a.kind !== "memory") - Number(b.kind !== "memory") || a.id.localeCompare(b.id);
 const id = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= 200;
 const fields = (value: object, allowed: readonly string[]) => Object.keys(value).length === allowed.length && Object.keys(value).every(field => allowed.includes(field));
+const selectionFor = (binding: MemorySessionBinding, operation_id: string): MemorySessionPurgeSelection => ({
+  session_ref: { kind: "session", id: binding.session.session_id, revision: 1 }, operation_id,
+});
 
 /** Strict original plans only. Missing or altered selection is reconciliation, never permission to scan again. */
 export function isMemorySessionClearPlan(value: unknown): value is MemorySessionClearPlan {
@@ -40,10 +40,9 @@ export function isMemorySessionClearPlan(value: unknown): value is MemorySession
     || plan.complete && plan.done !== plan.targets.length) return false;
   const seen = new Set<string>(), operations = new Set<string>();
   for (const item of plan.targets) {
-    if (!item || !fields(item, ["kind", "id", "scope", "owner", "version", "operation_id", "selection"]) || !["memory", "memory-candidate"].includes(item.kind)
+    if (!item || !fields(item, ["kind", "id", "scope", "owner", "version", "operation_id", "learned"]) || !["memory", "memory-candidate"].includes(item.kind)
       || !["personal", "project", "character"].includes(item.scope) || !id(item.id) || !id(item.owner) || !id(item.operation_id)
-      || !Number.isSafeInteger(item.version) || item.version < 1 || !isDeepStrictEqual(item.selection, {
-        session_ref: { kind: "session", id: binding.session.session_id, revision: 1 }, operation_id: plan.operation_id })
+      || !Number.isSafeInteger(item.version) || item.version < 1 || typeof item.learned !== "boolean"
       || seen.has(key(item)) || operations.has(item.operation_id)) return false;
     seen.add(key(item)); operations.add(item.operation_id);
   }
@@ -65,24 +64,22 @@ export function isMemorySessionClearPlan(value: unknown): value is MemorySession
 export class MemorySessionClear {
   constructor(private readonly ports: { ledger: MemoryLedgerPort; backend: MemoryBackendPort; scopes: MemoryScopeCommands; forgetting: MemoryForgetting;
     newId(): string; now(): Date; beforeEffect?(): void | Promise<void>; assertCurrent?(): void; sourceSession?: MemorySourceSession;
-    /** The ordinary removal of one formal memory (the same forgetting as deleting it in settings), and the ordinary dismissal of one suggestion. */
-    removeLearned?(caller: MemoryCaller, target: MemoryLinkedTarget): Promise<void>;
-    dismissLearned?(caller: MemoryCaller, target: LinkedPlan["candidates"][number]): Promise<void> }) {}
+    recordRemoval?(caller: MemoryCaller, target: ClearTarget): void }) {}
 
   /** What was learned from this session but kept long-term (or still waiting): it is the session's to clear too. */
-  private async learned(caller: MemoryCaller, scopes: readonly { scope: MemoryScope; owner: string }[]): Promise<Omit<LinkedPlan, "binding" | "version">> {
-    const out: Omit<LinkedPlan, "binding" | "version"> = { memories: [], candidates: [] };
-    if (!this.ports.sourceSession || !this.ports.removeLearned || !this.ports.dismissLearned) return out;
-    const plain: MemoryCaller = { ...caller, memory_session: undefined };
+  private async learned(caller: MemoryCaller, scopes: readonly { scope: MemoryScope; owner: string }[]): Promise<ClearTarget[]> {
+    if (!this.ports.sourceSession) return [];
+    const out: ClearTarget[] = [];
+    const plain: MemoryCaller = { ...caller, memory_session: undefined, session_id: undefined };
     for (const where of scopes) {
       for (const one of await this.ports.scopes.located(plain, where.scope, where.owner))
         if (learnedInSession(caller, one.entry.meta, memorySources(this.ports.ledger, caller.actor_id, one.entry.memory_id), this.ports.sourceSession))
-          out.memories.push({ scope: where.scope, owner: where.owner, memory_id: one.entry.memory_id, version: one.entry.version });
+          out.push({ ...where, kind: "memory", id: one.entry.memory_id, version: one.entry.version, operation_id: this.ports.newId(), learned: true });
       const notes = new Set(this.ports.ledger.candidates(caller.actor_id).filter(note => note.scope === where.scope && note.owner === where.owner).map(note => note.candidate_id));
       for (const one of await this.ports.backend.withCaller(plain).candidates.list(where.scope, where.owner))
         if (one.state === "pending" && notes.has(one.candidate_id) && !this.ports.forgetting.hidden(where, "memory-candidate", one.candidate_id)
           && learnedInSession(caller, one.meta, one.sources ?? [], this.ports.sourceSession))
-          out.candidates.push({ scope: where.scope, owner: where.owner, candidate_id: one.candidate_id, version: one.version });
+          out.push({ ...where, kind: "memory-candidate", id: one.candidate_id, version: one.version, operation_id: this.ports.newId(), learned: true });
     }
     return out;
   }
@@ -118,16 +115,18 @@ export class MemorySessionClear {
   }
   authorizePurge(caller: Pick<MemoryCaller, "actor_id" | "memory_session">, target: MemorySessionPurgeTarget): boolean {
     if (!caller.memory_session) return false;
-    const plan = this.load(caller.actor_id, target.selection.operation_id, caller.memory_session);
-    return plan.started && [...this.accepted(plan).values()].every(Boolean) && plan.targets.some(item => isDeepStrictEqual(item, target));
+    const { selection, ...identity } = target;
+    const plan = this.load(caller.actor_id, selection.operation_id, caller.memory_session);
+    return plan.started && isDeepStrictEqual(selection, selectionFor(plan.binding, plan.operation_id))
+      && plan.targets.some(item => isDeepStrictEqual(item, { ...identity, learned: false })) && [...this.accepted(plan).values()].every(Boolean);
   }
   async preview(caller: MemoryCaller): Promise<MemorySessionClearPreview> {
     const binding = this.binding(caller), backend = this.ports.backend.withCaller(caller);
     if (!backend.previewSessionPurge || !backend.purgeSessionTarget) throw memoryErrors.unavailable("当前运行时不能完整清理会话记忆");
     await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted();
     const unchanged = await backend.observeWrites(), preview_id = this.ports.newId();
-    const selection: MemorySessionPurgeSelection = { session_ref: { kind: "session", id: binding.session.session_id, revision: 1 }, operation_id: preview_id };
-    const scopes = this.ports.scopes.scopesFor(caller, undefined, true), targets: MemorySessionPurgeTarget[] = [], seen = new Set<string>();
+    const selection = selectionFor(binding, preview_id);
+    const scopes = this.ports.scopes.scopesFor(caller, undefined, true), targets: ClearTarget[] = [], seen = new Set<string>();
     for (const kind of ["memory", "memory-candidate"] as const) {
       let cursor: string | undefined; const cursors = new Set<string>();
       do {
@@ -137,8 +136,8 @@ export class MemorySessionClear {
           if (item.kind !== kind || !id(item.id) || !Number.isSafeInteger(item.version) || item.version < 1
             || !scopes.some(where => where.scope === item.scope && where.owner === item.owner) || !isDeepStrictEqual(item.session_ref, selection.session_ref))
             throw memoryErrors.forbidden("会话记忆包含不可核验的固定身份，没有保存清理计划");
-          const target: MemorySessionPurgeTarget = { kind, id: item.id, scope: item.scope as MemoryScope, owner: item.owner, version: item.version,
-            selection, operation_id: this.ports.newId() };
+          const target: ClearTarget = { kind, id: item.id, scope: item.scope as MemoryScope, owner: item.owner, version: item.version,
+            learned: false, operation_id: this.ports.newId() };
           if (seen.has(key(target))) throw memoryErrors.conflict("会话扫描出现重复身份，没有保存清理计划");
           seen.add(key(target)); targets.push(target);
         }
@@ -147,14 +146,13 @@ export class MemorySessionClear {
         cursor = page.cursor; cursors.add(cursor);
       } while (true);
     }
-    const learned = await this.learned(caller, scopes);
+    for (const target of await this.learned(caller, scopes.map(({ scope, owner }) => ({ scope, owner })))) {
+      if (seen.has(key(target))) throw memoryErrors.conflict("会话扫描出现重复身份，没有保存清理计划");
+      seen.add(key(target)); targets.push(target);
+    }
     await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted(); unchanged(); this.ports.assertCurrent?.();
-    const counts = { memory_count: targets.filter(item => item.kind === "memory").length + learned.memories.length,
-      candidate_count: targets.filter(item => item.kind === "memory-candidate").length + learned.candidates.length };
-    if (!targets.length && !learned.memories.length && !learned.candidates.length) return { preview_id: null, memory_count: 0, candidate_count: 0 };
-    if (learned.memories.length || learned.candidates.length)
-      this.ports.ledger.setMarker(caller.actor_id, LINKED_PREFIX + preview_id, { version: /* @version format.memory.session-clear-plan */ 1, binding: structuredClone(binding), ...learned } satisfies LinkedPlan, this.ports.now().toISOString());
-    if (!targets.length) return { preview_id, ...counts };
+    const counts = { memory_count: targets.filter(item => item.kind === "memory").length, candidate_count: targets.filter(item => item.kind === "memory-candidate").length };
+    if (!targets.length) return { preview_id: null, ...counts };
     targets.sort(order);
     const groups: Group[] = [];
     for (const item of targets) {
@@ -177,47 +175,12 @@ export class MemorySessionClear {
     }) };
   }
   async apply(caller: MemoryCaller, preview_id: string): Promise<MemorySessionClearResult> {
-    const binding = this.binding(caller), body = id(preview_id) ? this.ports.ledger.marker(caller.actor_id, LINKED_PREFIX + preview_id)?.body as LinkedPlan | undefined : undefined;
-    if (body && body.version !== /* @version format.memory.session-clear-plan */ 1) throw memoryErrors.conflict("这份预览的格式已过期，请重新预览");
-    if (body && !isDeepStrictEqual(body.binding, binding)) throw memoryErrors.forbidden("这份预览不属于当前业务会话");
-    const exact = !body || this.ports.ledger.marker(caller.actor_id, MEMORY_SESSION_CLEAR_PREFIX + preview_id) ? await this.applyExact(caller, preview_id) : { complete: true, items: [] };
-    if (!body) return exact;
-    const items = [...exact.items];
-    let complete = exact.complete;
-    const fail = (error: unknown): MemorySessionClearItem["outcome"] => {
-      if (caller.signal?.aborted || error instanceof ActionError && (error.kind ?? platformErrorKind(error.code)) === "forbidden") throw error;
-      complete = false;
-      return error instanceof ActionError && (error.kind ?? platformErrorKind(error.code)) === "conflict" ? "conflict" : "unknown";
-    };
-    const plain: MemoryCaller = { ...caller, memory_session: undefined };
-    for (const one of body.memories) {
-      if (!complete) { items.push({ kind: "memory", memory_id: one.memory_id, outcome: "not-executed", forgetting: "not-accepted", cleanup: "pending" }); continue; }
-      try {
-        await this.ports.removeLearned!({ ...plain, operation_id: `${preview_id}:learned:${one.memory_id}` }, one);
-        items.push({ kind: "memory", memory_id: one.memory_id, outcome: "completed", forgetting: "accepted", cleanup: "complete" });
-      } catch (error) {
-        const absent = error instanceof ActionError && error.code === "memory.not_found";
-        items.push({ kind: "memory", memory_id: one.memory_id, outcome: absent ? "already-absent" : fail(error), forgetting: absent ? "accepted" : "not-accepted", cleanup: absent ? "complete" : "pending" });
-      }
-    }
-    for (const one of body.candidates) {
-      if (!complete) { items.push({ kind: "memory-candidate", candidate_id: one.candidate_id, outcome: "not-executed", forgetting: "not-accepted", cleanup: "pending" }); continue; }
-      try {
-        await this.ports.dismissLearned!({ ...plain, operation_id: `${preview_id}:learned:${one.candidate_id}` }, one);
-        items.push({ kind: "memory-candidate", candidate_id: one.candidate_id, outcome: "completed", forgetting: "accepted", cleanup: "complete" });
-      } catch (error) {
-        // Forgetting a learned memory also forgets what shares its sources, so the suggestion may already be gone.
-        const absent = error instanceof ActionError && error.code === "memory.not_found";
-        items.push({ kind: "memory-candidate", candidate_id: one.candidate_id, outcome: absent ? "already-absent" : fail(error),
-          forgetting: absent ? "accepted" : "not-accepted", cleanup: absent ? "complete" : "pending" });
-      }
-    }
-    return { complete, items };
-  }
-
-  private async applyExact(caller: MemoryCaller, preview_id: string): Promise<MemorySessionClearResult> {
     const plan = this.load(caller.actor_id, preview_id, this.binding(caller)), backend = this.ports.backend.withCaller(caller);
     if (!backend.purgeSessionTarget) throw memoryErrors.unavailable("当前运行时不能继续原会话清理");
+    const scopes = this.ports.scopes.scopesFor(caller, undefined, true);
+    if (plan.groups.some(group => !scopes.some(where => where.scope === group.scope && where.owner === group.owner)))
+      throw memoryErrors.forbidden("原清理计划包含不再授权的记忆范围");
+    const ordinary = this.ports.backend.withCaller({ ...caller, memory_session: undefined, session_id: undefined });
     const save = () => this.ports.ledger.setMarker(caller.actor_id, MEMORY_SESSION_CLEAR_PREFIX + preview_id, plan, this.ports.now().toISOString());
     await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted();
     if (!plan.started) { plan.started = true; save(); }
@@ -243,10 +206,21 @@ export class MemorySessionClear {
       const target = plan.targets[index]!;
       try {
         await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted();
-        await backend.purgeSessionTarget({ ...target, ...(caller.signal ? { signal: caller.signal } : {}) });
+        const { learned, ...identity } = target;
+        const { scope, owner, operation_id, version, id } = identity;
+        const signal = caller.signal ? { signal: caller.signal } : {};
+        if (!learned) await backend.purgeSessionTarget({ ...identity, selection: selectionFor(plan.binding, preview_id), ...signal });
+        else {
+          const condition = { scope, owner, operation_id, expected_version: version, ...signal };
+          if (target.kind === "memory") await ordinary.remove({ ...condition, memory_id: id });
+          else await ordinary.candidates.purge({ ...condition, candidate_id: id });
+        }
         await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted();
         this.ports.ledger.transaction(() => {
-          if (target.kind === "memory") this.ports.ledger.forget(target.id, "exact-identities");
+          if (target.kind === "memory") {
+            this.ports.ledger.forget(target.id, "exact-identities");
+            if (learned) this.ports.recordRemoval?.({ ...caller, operation_id }, target);
+          }
           else this.ports.ledger.dropCandidate(target.id);
           const next = { ...plan, done: index + 1, complete: index + 1 === plan.targets.length };
           this.ports.ledger.setMarker(caller.actor_id, MEMORY_SESSION_CLEAR_PREFIX + preview_id, next, this.ports.now().toISOString());

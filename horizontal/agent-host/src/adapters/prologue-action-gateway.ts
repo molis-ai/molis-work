@@ -429,9 +429,11 @@ export function readableInput(schema: Record<string, unknown>, input: unknown): 
 interface ReadableProperty { title?: string; description?: string; properties?: Record<string, ReadableProperty> }
 
 const booleanWords = (value: boolean) => [{ owner: "workbench", key: value ? "common.generated.yes" : "common.generated.no" }] as const;
+const reviewValue = (key: string, value: unknown, declared?: ReadableProperty) =>
+  actionFieldValue(key, value, declared) || JSON.stringify(value) || "";
 
 function inputField(key: string, value: unknown, declared?: ReadableProperty): ToolReviewField {
-  const label = actionFieldLabelSource(key, declared), words = actionFieldValue(key, value, declared);
+  const label = actionFieldLabelSource(key, declared), words = reviewValue(key, value, declared);
   return { label: label.label, value: words.length > 4000 ? words.slice(0, 4000) + "…" : words, presentation: {
     ...(label.defaultKey ? { label: [reviewText("field." + label.defaultKey)] } : {}),
     ...(typeof value === "boolean" ? { value: booleanWords(value) } : {}),
@@ -441,22 +443,22 @@ function inputField(key: string, value: unknown, declared?: ReadableProperty): T
 
 /** Bookkeeping a person does not decide: the card itself is the confirmation, and the retry key means nothing to them. */
 const BOOKKEEPING_FIELDS = new Set(["idempotency_key", "user_confirmed"]);
-/** Every field but the bookkeeping is on the card, under its declared name or else its own key: what is approved is never hidden (user 2026-11-13). */
-const readable = (key: string) => !BOOKKEEPING_FIELDS.has(key);
 
 function inputFields(schema: Record<string, unknown>, input: unknown): ToolReviewField[] {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return [reviewField("内容", actionFieldValue("", input), "content", typeof input === "boolean" ? { value: booleanWords(input) } : {})];
+    return [reviewField("内容", reviewValue("", input), "content", typeof input === "boolean" ? { value: booleanWords(input) } : {})];
   }
   const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, ReadableProperty>;
+  // Each supplied business value stays visible, except the two bookkeeping fields.
   return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) => {
-    if (value === undefined || value === null || value === "" || BOOKKEEPING_FIELDS.has(key)) return [];
+    if (value === undefined || BOOKKEEPING_FIELDS.has(key)) return [];
     // One level of nesting reads field by field, as the person would name them.
     if (value && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc") {
-      return Object.entries(value as Record<string, unknown>).flatMap(([child, inner]) => inner === undefined || inner === null || inner === ""
-        || !readable(child) ? [] : [inputField(child, inner, properties[key]?.properties?.[child])]);
+      const children = Object.entries(value);
+      if (children.length) return children.flatMap(([child, inner]) => inner === undefined || BOOKKEEPING_FIELDS.has(child)
+        ? [] : [inputField(child, inner, properties[key]?.properties?.[child])]);
     }
-    return readable(key) ? [inputField(key, value, properties[key])] : [];
+    return [inputField(key, value, properties[key])];
   });
 }
 

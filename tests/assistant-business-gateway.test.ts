@@ -1602,10 +1602,11 @@ test("capability inputs keep their declared shape, refusals explain bad input, a
   // The card: the retry key and the confirmation flag stay in 完整参数 only; every other field is on the card, an unnamed one under its own key,
   // so what the person approves is never hidden (user 2026-11-13, for every plugin's actions).
   const card = readableInput({ type: "object", properties: { text: { type: "string", title: "内容" }, idempotency_key: { type: "string" }, user_confirmed: { type: "boolean" }, x_ref_9: { type: "string" } } },
-    { text: "会后发纪要", idempotency_key: "k-1", user_confirmed: true, x_ref_9: "abc" });
-  assert.deepEqual(card.map(field => field.value), ["会后发纪要", "abc"]);
+    { text: "会后发纪要", idempotency_key: "k-1", user_confirmed: true, x_ref_9: "abc", connection_id: null,
+      note: "", metadata: {}, recipients: [], settings: { alias: "", user_confirmed: false } });
+  assert.deepEqual(card.map(field => field.value), ["会后发纪要", "abc", "null", '""', "{}", "[]", '""']);
   assert.equal(card[0]!.label, "内容");
-  assert.equal(card.some(field => /idempotency|confirmed/.test(field.label)), false);
+  assert.equal(card.some(field => field.value === "k-1" || field.value === "是"), false);
 });
 
 test("BL-1076 list-memories stops independently at the count and text limits and reports what was omitted", async () => {

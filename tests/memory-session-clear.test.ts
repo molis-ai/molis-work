@@ -4,7 +4,7 @@ import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { memoryServiceHome, originalMemorySources } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, observeMemoryBackend, originalMemorySources } from "./fixtures/memory-service-home.js";
 
 const person = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true,
   current_scene: "common", purpose: "management", operation_id });
@@ -246,11 +246,55 @@ test("Session view and clear include what was learned in the session: long-term 
   assert.deepEqual(page.total, { kind: "exact", value: 2 });
   const preview = await service.sessionClear.preview(who);
   assert.equal(preview.memory_count, 2); assert.equal(preview.candidate_count, 1); assert.ok(preview.preview_id);
+  const later = await service.propose(person("later"), { scope: "personal", text: "周报附项目进度", kind: "preference", basis: "inferred",
+    why: "在另一个会话里建议修改这条记忆", from: "extraction", supersedes: learned.memory_id }, { sources: [elsewhere] });
   const result = await service.sessionClear.apply(who, preview.preview_id!);
   assert.equal(result.complete, true, JSON.stringify(result));
   const left = (await service.list(person("after"), { scope: "personal" })).items.map(item => item.memory_id);
   assert.ok(!left.includes(learned.memory_id), "the long-term memory learned in this session is forgotten with it");
   assert.ok(left.includes(kept.memory_id), "one learned elsewhere stays");
   assert.ok(!(await service.candidates(person("after-candidates"))).some(item => item.candidate_id === suggestion.candidate_id));
+  assert.ok((await f.raw().candidates.list(scoped.scope, scoped.owner)).some(item => item.candidate_id === later.candidate_id), "a candidate created after preview in another session is not selected by its replacement target");
   assert.ok((await service.changes(person("changes"), { scope: "personal" })).some(change => change.memory_id === learned.memory_id && change.kind === "removed"));
+});
+
+for (const kind of ["memory", "memory-candidate"] as const)
+test(`MEM-09 MEM-18 Session clear resumes a source-linked ${kind} after physical removal fails and the Home reopens`, async t => {
+  const sourceSession = (ref: { event_id: string }) => ref.event_id.split(":")[1];
+  const originals = originalMemorySources(["project-a"]);
+  const f = await memoryServiceHome(t, { projects: ["project-a"], sources: originals.port, sourceSession });
+  const service = await f.open(), who = await binding(f);
+  const source = originals.add(`session:${who.session_id}:said`, "周报先写本周做完的事");
+  const target = kind === "memory"
+    ? (await service.write(person("learned"), { scope: "personal", text: "周报先写本周做完的事", kind: "preference" }, { sources: [source] })).memory!.memory_id
+    : (await service.propose(person("suggested"), { scope: "personal", text: "周报先写本周做完的事", kind: "preference", basis: "inferred",
+      why: "来自本会话", from: "extraction" }, { sources: [source] })).candidate_id;
+  const preview = await service.sessionClear.preview(who);
+  assert.ok(preview.preview_id);
+  assert.deepEqual([preview.memory_count, preview.candidate_count], kind === "memory" ? [1, 0] : [0, 1]);
+  let attempted = 0;
+  const interrupted = async () => { attempted++; throw new Error("physical removal interrupted after acceptance"); };
+  const deleting = new MemoryService({ ledger: f.ledger(), sourceSession, backend: observeMemoryBackend(f.raw(), bound => ({ ...bound,
+    ...(kind === "memory" ? { remove: interrupted } : { candidates: { ...bound.candidates, purge: interrupted } }),
+  })) });
+  const partial = await deleting.sessionClear.apply(who, preview.preview_id);
+  assert.equal(attempted, 1);
+  assert.equal(partial.complete, false);
+  assert.equal(partial.items[0]?.forgetting, "accepted");
+  assert.equal(partial.items[0]?.cleanup, "pending");
+  const decision = f.ledger().forgetting.read().decisions[0];
+  assert.equal(decision?.selection_mode, "exact-identities");
+  const canonicalPresent = async () => kind === "memory"
+    ? (await f.raw().list(scoped.scope, scoped.owner)).some(item => item.memory_id === target)
+    : (await f.raw().candidates.list(scoped.scope, scoped.owner)).some(item => item.candidate_id === target);
+  assert.equal(await canonicalPresent(), true);
+  await f.close();
+  const reopened = await f.open();
+  assert.equal(reopened.listOperations(who, {}).items.some(item => item.kind === "session-clear" && item.cleanup === "pending" && item.preview_id === preview.preview_id), true);
+  const retried = await reopened.sessionClear.apply(who, preview.preview_id);
+  assert.equal(retried.complete, true);
+  assert.equal(retried.items[0]?.outcome, "completed");
+  assert.equal(await canonicalPresent(), false);
+  assert.deepEqual(await reopened.sessionClear.apply(who, preview.preview_id), retried);
+  assert.deepEqual(reopened.listOperations(who, {}).items, []);
 });

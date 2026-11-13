@@ -106,17 +106,17 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
 }
 
 /**
- * The round's memory tools, or none when forming memories is off everywhere this work could keep something (the stop
- * check reads a round without them as “memory is off”). Every call goes through the platform's write gate. Keeping and
- * forgetting rest on the person's own words and wishes, so a delegated sub-task (whose only words are the delegating
- * work's brief) is given neither: it can read what is kept, and suggest.
+ * The round's memory tools follow the current read and formation permissions. Keeping and forgetting rest on the person's
+ * own words and wishes. A delegated sub-task can read what is kept and suggest under the same permissions.
  */
 export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMemoryTools | undefined {
   const { memory, work, projectId, caller } = input;
   const personal = memory.prefsFor(input.actorId, "personal", null), project = projectId ? memory.prefsFor(input.actorId, "project", projectId) : null;
   // 允许记住 is set on the personal page and holds everywhere: off there, no project of theirs forms anything either.
   const formsPersonal = formationAllowed(personal, personal), formsProject = !!project?.enabled && formationAllowed(personal, project);
-  if (!formsPersonal && !formsProject) return undefined;
+  const mayRead = consumerAccess(personal, "assistant", undefined, "explicit").allowed
+    || !!project && consumerAccess(project, "assistant", undefined, "explicit").allowed;
+  if (!mayRead && !formsPersonal && !formsProject) return undefined;
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
   const mayPropose = (formsPersonal && personal.learn_from_work) || (formsProject && project!.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async (request, call) => {
@@ -129,7 +129,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
   };
   return {
     ...(mayPropose ? { propose } : {}),
-    ...(work.delegated_by ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0], call: ToolControl) => {
+    ...(work.delegated_by || !formsPersonal && !formsProject ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0], call: ToolControl) => {
       if (request.scope === "project" && !projectId) throw assistantErrors.scope("这是个人工作，没有项目；只能记为个人偏好");
       if (request.scope === "character" && !caller.character) throw assistantErrors.scope("这一轮不是由某个角色承担的，不能记为角色记忆");
       // “You said” is the person's only when the text is the whole of a message they typed in this work: the gate judges it against these saved messages (not against the quote the model gives), and what is kept
@@ -161,7 +161,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
         return items.filter(item => item.state === "active").map(item => ({ memory_id: item.memory_id, scope: item.scope, text: item.text }));
       } finally { invocation.dispose(); }
     },
-    ...(work.delegated_by ? {} : { forget: async (memoryId: string, call: ToolControl) => {
+    ...(work.delegated_by || !mayRead ? {} : { forget: async (memoryId: string, call: ToolControl) => {
       // Forgetting is switching off, in the Assistant's name: it is no longer used, stays the person's to switch back on or delete in settings.
       const invocation = await memoryInvocation(input, call);
       try { await invocation.memory.change({ ...invocation.caller, context_selection: true }, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。" }; }

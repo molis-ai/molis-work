@@ -4,14 +4,14 @@
       "kind": "cohesive-unit",
       "reason": "Memory 门面与受控用例装配：写入审批、召回、维护学习、管理页面、会话清除与范围搬运共用同一记忆账本和后端端口；分类重试核验由 MemoryEdits、管理变化记录的查询由 MemoryManagementPages 拥有，SDK 与存储不进门面。T-061 的四协作者拆分方案与后继收束责任保留，本轮不为行数另加纯转发层。",
       "size": {
-        "lines": 1118,
-        "methods": 53
+        "lines": 1111,
+        "methods": 54
       }
     },
     "file horizontal/memory/src/service.ts": {
       "kind": "cohesive-unit",
       "reason": "Memory 门面与受控用例装配：写入审批、召回、维护学习、管理页面、会话清除与范围搬运共用同一记忆账本和后端端口；分类重试核验由 MemoryEdits、管理变化记录的查询由 MemoryManagementPages 拥有，SDK 与存储不进门面。T-061 的四协作者拆分方案与后继收束责任保留，本轮不为行数另加纯转发层。文件还含调用者、服务端口与提交输入声明，与门面同一出口。",
-      "size": 1278
+      "size": 1271
     }
   }
 }

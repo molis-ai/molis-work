@@ -30,7 +30,7 @@ interface OperationMark extends OperationIdentity {
   operation_id: string;
   at: string;
   phase: "pending" | "committed" | "closed";
-  result?: { memory_id?: string; candidate_id?: string; version?: number; outcome?: "duplicate" | "candidate" };
+  result?: { memory_id?: string; candidate_id?: string; version?: number; memory_version?: number; outcome?: "duplicate" | "candidate" };
 }
 const PREFIX = "memory-operation:";
 function renewalDeadline(request: MemoryChangeRequest): string {

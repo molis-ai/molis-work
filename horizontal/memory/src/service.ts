@@ -198,18 +198,8 @@ export class MemoryService {
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
     this.sessionClear = new MemorySessionClear({ ...ports, scopes: this.scopeCommands, forgetting: this.forgetting, newId: this.newId, now: this.now,
-      removeLearned: async (caller, target) => {
-        const located = await this.scopeCommands.find(caller, target.memory_id);
-        if (located.scope !== target.scope || located.owner !== target.owner || located.entry.version !== target.version) throw memoryErrors.conflict("这条记忆在预览之后已变化，没有删除");
-        await this.purge(caller, located, target.version);
-        this.recordChange(caller, { kind: "removed", scope: located.scope, owner: located.owner, memory_id: target.memory_id, text: "", by: "person", rule: null, reason: null, undo: null });
-      },
-      dismissLearned: async (caller, target) => {
-        const record = await this.ownCandidate(caller, target.candidate_id);
-        if (record.scope !== target.scope || record.owner !== target.owner || record.version !== target.version && !this.operations.find(caller, `discarded:${target.candidate_id}`))
-          throw memoryErrors.conflict("这条建议在预览之后已变化，没有清除");
-        if (record.state === "pending" || this.operations.find(caller, `discarded:${target.candidate_id}`)) await this.settleCandidate(caller, record, "discarded");
-      } });
+      recordRemoval: (caller, target) => { this.recordChange(caller, { kind: "removed", scope: target.scope, owner: target.owner,
+        memory_id: target.id, text: "", by: "person", rule: null, reason: null, undo: null }); } });
     this.batch = new MemoryBatch({ ...ports, operations: this.operations, scopes: this.scopeCommands, forgetting: this.forgetting,
       newId: this.newId, now: this.now, record: (caller, item) => { this.recordChange(caller, {
         kind: item.action === "remove" ? "removed" : "disabled", scope: item.scope, owner: item.owner, memory_id: item.memory_id,
@@ -762,18 +752,30 @@ export class MemoryService {
   async accept(caller: MemoryCaller, candidateId: string, input: { text?: string; expected_version?: number } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
     caller = this.operations.caller(caller);
     personOnly(caller, "只有本人能认可记忆建议");
-    const record = await this.ownCandidate(caller, candidateId);
+    const candidateScope = new Map<string, MemoryBackendCandidate>();
+    const record = await this.ownCandidate(caller, candidateId, candidateScope);
     this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
-    if (record.state !== "pending" && !this.operations.find(caller, `accept:${candidateId}`)) throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
+    const original = this.operations.find(caller, `accept:${candidateId}`);
+    if (record.state !== "pending" && !original) throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
     const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : record.text;
     if (text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 ${MAX_TEXT} 字以内`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     const holder: MemoryCaller = { ...caller, project_id: record.project_id ?? caller.project_id, work: record.work };
-    const candidate = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
-    if (!candidate) throw memoryErrors.conflict("候选原件已不可读，不能重建其分类或来源");
-    const original = this.operations.find(caller, `accept:${candidateId}`);
+    const candidate = candidateScope.get(candidateId)!;
+    const backend = this.ports.backend.withCaller(holder);
     const entries = await this.scopeCommands.located(holder, record.scope, record.owner);
     this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
+    if (original?.phase === "committed") {
+      const current = entries.find(one => one.entry.memory_id === original.result?.memory_id);
+      if (!current || current.entry.version !== original.result?.memory_version || current.entry.text !== text
+        || candidate.state !== "accepted" || candidate.memory_id !== current.entry.memory_id || candidate.version !== original.result?.version
+        || input.expected_version !== undefined && input.expected_version !== original.expected_version)
+        throw memoryErrors.conflict("原认可结果已变化，不能按原建议补账");
+      for (const twin of this.duplicateSuggestions(holder, record, candidate, candidateScope, text, true))
+        await this.settleCandidate(holder, twin, "discarded");
+      if (this.isForgotten(record.scope, record.owner, "memory", current.entry.memory_id)) throw memoryErrors.conflict("记忆已删除，不能交付原认可结果");
+      return { candidate: candidateView(record), memory: this.scopeCommands.item(current) };
+    }
     const target = candidate.replacement ? entries.find(located => located.entry.memory_id === candidate.replacement!.memory_id) : original
       ? (original.memory_id ? entries.find(located => located.entry.memory_id === original.memory_id) : undefined)
       : (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
@@ -797,69 +799,61 @@ export class MemoryService {
         evidence: [...new Map([...target.meta.evidence, ...facts.evidence].map(item => [JSON.stringify(item), item])).values()].slice(-6), updated_at: at };
       const targetCondition = candidate.replacement ? { expected_version: candidate.replacement.expected_version }
         : this.operations.formal(caller, target, `accept-target:${candidateId}`);
-      const entry = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
+      const entry = await backend.candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         candidate_expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
         target: { memory_id: target.entry.memory_id, expected_version: targetCondition.expected_version, change: { text, meta: toEntryMeta(meta, target.entry.meta) } }, by: { by: "person" } });
       revision = { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
         snapshot: { origin: entry.origin, meta: entry.meta }, change: "replaced", by: "person", at };
-      located = { scope: record.scope, owner: record.owner, entry, meta };
+      located = { scope: record.scope, owner: record.owner, entry, meta: fromEntryMeta({ ...entry, scope: record.scope, owner: record.owner })! };
       change = "replaced";
     } else {
-      const entry = await this.ports.backend.withCaller(holder).candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
+      const entry = await backend.candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}), text, origin, meta: toEntryMeta(facts, candidate.meta) });
       if (entry.version !== 1) throw memoryErrors.conflict("候选接受后的正式记忆已有后继版本，不能把当前正文补作原接受历史");
       revision = { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
         snapshot: { origin: entry.origin, meta: entry.meta }, change: "created", by: "person", at };
-      located = { scope: record.scope, owner: record.owner, entry, meta: { memory_id: entry.memory_id, scope: record.scope, owner: record.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at } };
+      located = { scope: record.scope, owner: record.owner, entry, meta: fromEntryMeta({ ...entry, scope: record.scope, owner: record.owner })! };
       change = "accepted";
     }
-    const settledScope = await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner), accepted = settledScope.find(item => item.candidate_id === candidateId);
-    if (!accepted) throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
+    const accepted = await backend.candidates.get({ scope: record.scope, owner: record.owner, candidate_id: candidateId, signal: caller.signal });
+    if (accepted?.state !== "accepted" || accepted.memory_id !== located.entry.memory_id)
+      throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
     const kept: MemoryCandidateRecord = { ...record, version: accepted.version, text, state: "accepted", memory_id: located.entry.memory_id };
+    const duplicates = this.duplicateSuggestions(holder, record, candidate, candidateScope, text, false);
     this.ports.ledger.transaction(() => {
-      this.operations.committed(caller, decision, { memory_id: located.entry.memory_id, candidate_id: candidateId, version: accepted.version });
+      this.operations.committed(caller, decision, { memory_id: located.entry.memory_id, candidate_id: candidateId, version: accepted.version,
+        memory_version: located.entry.version });
       this.promotions.link(caller.actor_id, located.entry.memory_id, candidate.sources ?? []);
       this.ports.ledger.addRevision(located.entry.memory_id, revision);
       if (change === "replaced") disownAutomatic(this.ports.ledger, located.entry.memory_id);
       this.recordChange(holder, { kind: change, scope: record.scope, owner: record.owner, memory_id: located.entry.memory_id, text: located.entry.text,
         applied_version: located.entry.version, by: "person", rule: null, reason: `依据：${record.why.slice(0, 120)}`, undo: null });
       this.ports.ledger.saveCandidate(kept);
+      for (const twin of duplicates) this.operations.candidate(holder, twin, "discarded");
     });
-    // The same suggestion made again by another work (two runs, two identical candidates) is settled into what was just kept, not left waiting.
-    // Reuse the canonical read of the accepted suggestion for any twins, then read back their versions together.
-    const twinOf = (one: MemoryCandidateRecord) => one.candidate_id !== candidateId && one.state === "pending" && one.scope === record.scope && one.owner === record.owner
-      && one.kind === record.kind && isDeepStrictEqual(one.applies, record.applies) && (sameText(one.text, record.text) || sameText(one.text, text));
-    let current = located.entry;
-    if (this.ports.ledger.candidates(caller.actor_id).some(twinOf)) {
-      const settledTwins: Array<{ twin: MemoryCandidateRecord; mark: ReturnType<MemoryOperations["begin"]>; entry: MemoryBackendEntry }> = [];
-      // What settled is recorded even if a later twin fails; an in-doubt one stays an open operation, as any other.
-      try {
-        for (const twin of (await this.candidateRecords(holder, record.scope, record.owner, undefined, settledScope)).filter(twinOf)) {
-          const mark = this.operations.begin(caller, `accept-twin:${twin.candidate_id}`, { kind: "settleInto", scope: record.scope, owner: record.owner,
-            candidate_id: twin.candidate_id, memory_id: current.memory_id, expected_version: current.version, candidate_expected_version: twin.version });
-          current = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: twin.candidate_id,
-            candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
-            target: { memory_id: current.memory_id, expected_version: mark.expected_version!, change: { text: current.text, meta: current.meta } }, by: { by: "person" } });
-          settledTwins.push({ twin, mark, entry: current });
-        }
-      } finally {
-        if (settledTwins.length) {
-          const results = new Map((await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).map(item => [item.candidate_id, item]));
-          this.ports.ledger.transaction(() => {
-            for (const { twin, mark, entry } of settledTwins) {
-              const acceptedTwin = results.get(twin.candidate_id);
-              if (acceptedTwin?.state !== "accepted" || acceptedTwin.memory_id !== entry.memory_id)
-                throw memoryErrors.conflict("同文建议提交后的关联不可确认，请使用原操作对账");
-              this.operations.committed(caller, mark, { memory_id: entry.memory_id, candidate_id: twin.candidate_id, version: entry.version });
-              this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
-                snapshot: { origin: entry.origin, meta: entry.meta }, change: "merged", by: "person", at });
-              this.ports.ledger.saveCandidate({ ...twin, version: acceptedTwin.version, state: "accepted", memory_id: entry.memory_id });
-            }
-          });
-        }
-      }
+    for (const twin of duplicates) await this.settleCandidate(holder, twin, "discarded");
+    if (this.isForgotten(record.scope, record.owner, "memory", located.entry.memory_id)) throw memoryErrors.conflict("记忆已删除，不能交付原认可结果");
+    return { candidate: candidateView(kept), memory: this.scopeCommands.item(located) };
+  }
+
+  private duplicateSuggestions(caller: MemoryCaller, record: MemoryCandidateRecord, original: MemoryBackendCandidate,
+    candidates: ReadonlyMap<string, MemoryBackendCandidate>, text: string, resume: boolean): MemoryCandidateRecord[] {
+    const pending: MemoryCandidateRecord[] = [];
+    for (const note of this.ports.ledger.candidates(caller.actor_id)) {
+      if (note.candidate_id === record.candidate_id || note.state !== "pending" || note.scope !== record.scope || note.owner !== record.owner
+        || note.kind !== record.kind || note.formal_expires_at !== record.formal_expires_at || note.supersedes !== record.supersedes
+        || !isDeepStrictEqual(note.applies, record.applies) || !sameWords(note.text, text)) continue;
+      const twin = candidates.get(note.candidate_id);
+      if (!twin || this.isForgotten(note.scope, note.owner, "memory-candidate", note.candidate_id)
+        || !sameWords(twin.text, text) || !isDeepStrictEqual(twin.replacement, original.replacement)
+        || twin.meta.namespace !== original.meta.namespace || !isDeepStrictEqual(twin.meta.classification, original.meta.classification)
+        || !isDeepStrictEqual(twin.meta.session_ref, original.meta.session_ref)) continue;
+      const operation = this.operations.find(caller, `discarded:${note.candidate_id}`);
+      if (resume && !operation) continue;
+      if (twin.state === "pending" || twin.state === "discarded" && operation)
+        pending.push({ ...note, version: twin.version });
     }
-    return { candidate: candidateView(kept), memory: this.scopeCommands.item({ ...located, entry: current }) };
+    return pending;
   }
 
   async discard(caller: MemoryCaller, candidateId: string, expectedVersion?: number): Promise<{ candidate: MemoryCandidate }> {
@@ -1235,11 +1229,10 @@ export class MemoryService {
     } catch (error) { return this.forgetting.failed(caller, error, accepted); }
   }
 
-  private async ownCandidate(caller: MemoryCaller, candidateId: string): Promise<MemoryCandidateRecord> {
+  private async ownCandidate(caller: MemoryCaller, candidateId: string, canonical = new Map<string, MemoryBackendCandidate>()): Promise<MemoryCandidateRecord> {
     const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
     if (!note) throw memoryErrors.not_found("没有这条建议");
     const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
-    const canonical = new Map<string, MemoryBackendCandidate>();
     const record = (await this.candidateRecords(holder, note.scope, note.owner, canonical)).find(item => item.candidate_id === candidateId);
     if (!record) throw memoryErrors.not_found("没有这条建议");
     assertManagedMemorySession(caller, canonical.get(candidateId)!.meta);

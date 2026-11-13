@@ -1069,7 +1069,7 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("remember keeps an end the person named, and 允许记住 off on the personal page offers no memory tools in any of their works", { timeout: 90_000 }, async t => {
+test("MEM-20 remember keeps an end the person named and turning formation off still allows deactivation", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-expiry-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
@@ -1089,7 +1089,13 @@ test("remember keeps an end the person named, and 允许记住 off on the person
 
     memory.savePrefs(person, "personal", { form: false });
     await service.memory.memoryForRound(work, work.title);
-    assert.equal(service.memory.memoryTools(work), undefined, "off on the personal page, the project's own 允许记住 does not open a way in");
+    const readOnlyFormation = service.memory.memoryTools(work);
+    assert.equal(readOnlyFormation?.remember, undefined, "the project's own 允许记住 cannot reopen formation");
+    assert.equal(readOnlyFormation?.propose, undefined);
+    assert.ok(readOnlyFormation?.forget);
+    assert.ok((await readOnlyFormation.list(memoryToolControl())).some(memory => memory.memory_id === item!.memory_id));
+    assert.equal((await readOnlyFormation.forget(item!.memory_id, memoryToolControl())).forgotten, true);
+    assert.equal((await memory.list(person)).items.find(memory => memory.memory_id === item!.memory_id)?.state, "disabled");
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 

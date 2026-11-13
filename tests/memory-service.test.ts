@@ -865,7 +865,7 @@ test("允许记住 off on the personal page stops forming everywhere: no keep, o
   assert.equal((await memory.write(person(), { scope: "project", text: "周会改到周三" })).outcome, "written");
 });
 
-test("accepting a suggestion settles the same suggestion still waiting from another work into the same memory", { timeout: 60_000 }, async t => {
+test("MEM-21 accepting a suggestion closes exact duplicates and can finish after the duplicate was discarded in the SDK", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
   const suggest = (work_id: string) => memory.propose(assistant("project-a", { work_id, title: work_id }), { scope: "project", text: "发布前先跑全量回归", kind: "convention", basis: "inferred", why: "推断", from: "work" });
@@ -875,12 +875,37 @@ test("accepting a suggestion settles the same suggestion still waiting from anot
   const second = await suggest("run-2");
   hidden.mock.restore();
   assert.equal((await memory.candidates(person(), { scope: "project" })).length, 2);
-  const accepted = await memory.accept(person(), first.candidate_id);
-  assert.deepEqual(await memory.candidates(person(), { scope: "project" }), [], "nothing is left waiting");
+  const save = env.ledger().saveCandidate;
+  const interruption = t.mock.method(env.ledger(), "saveCandidate", record => {
+    if (record.candidate_id === second.candidate_id && record.state !== "pending") throw new Error("duplicate projection interrupted");
+    return save(record);
+  });
+  const caller = { ...person(), operation_id: "accept-duplicate-replay" };
+  await assert.rejects(memory.accept(caller, first.candidate_id, { expected_version: first.version }), /duplicate projection interrupted/);
+  assert.equal(env.ledger().candidates(LOCAL_PERSON_ACTOR_ID).find(note => note.candidate_id === second.candidate_id)?.state, "pending");
+  const canonical = await env.raw().candidates.list("project", "project-a");
+  assert.equal(canonical.find(note => note.candidate_id === second.candidate_id)?.state, "discarded");
+  interruption.mock.restore();
+  await env.close();
+  const reopened = await env.open();
+  const accepted = await reopened.accept(caller, first.candidate_id, { expected_version: first.version });
+  assert.deepEqual(await reopened.candidates(person(), { scope: "project" }), [], "nothing is left waiting");
   const twin = env.ledger().candidates(LOCAL_PERSON_ACTOR_ID).find(note => note.candidate_id === second.candidate_id)!;
-  assert.deepEqual([twin.state, twin.memory_id], ["accepted", accepted.memory!.memory_id]);
-  assert.deepEqual((await memory.list(person(), { scope: "project" })).items.map(item => item.text), ["发布前先跑全量回归"]);
-  assert.equal(accepted.memory!.version, (await memory.list(person(), { scope: "project" })).items[0]!.version);
+  assert.deepEqual([twin.state, twin.version], ["discarded", second.version + 1]);
+  const listed = (await reopened.list(person(), { scope: "project" })).items;
+  assert.deepEqual(listed.map(item => [item.text, item.version]), [["发布前先跑全量回归", 1]]);
+  assert.equal(accepted.memory!.version, listed[0]!.version);
+});
+
+test("MEM-21 accepting reworded text returns the same approval on replay", async t => {
+  const env = await memoryHome(t), memory = await env.open();
+  const suggestion = await memory.propose(person(), { scope: "project", text: "发布前先检查所有回归", kind: "convention", basis: "inferred", why: "发布前复查", from: "work" });
+  const caller = { ...person(), operation_id: "accept-reworded" };
+  const accepted = await memory.accept(caller, suggestion.candidate_id, { text: "发布前跑全量回归", expected_version: suggestion.version });
+  assert.equal(accepted.candidate.text, "发布前跑全量回归");
+  await env.close();
+  const reopened = await env.open();
+  assert.deepEqual(await reopened.accept(caller, suggestion.candidate_id, { text: "发布前跑全量回归", expected_version: suggestion.version }), accepted);
 });
 
 test("moving a memory to the other scope says so on the earlier changes it leaves behind, without their text", { timeout: 60_000 }, async t => {

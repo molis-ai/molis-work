@@ -13,6 +13,7 @@ import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/s
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryClassRestriction } from "@molis-ai/molis-work-contracts/services/memory";
 import { grantMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
+import { asideReply } from "./fixtures/ending-review.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const CODING = "io.molis.work.coding";
@@ -43,16 +44,23 @@ for (const readAction of [memoryActions.list, memoryActions.recall]) test(`produ
   const provider = createServer(async (request, response) => {
     try {
       let body = ""; for await (const chunk of request) body += chunk;
-      const input = JSON.parse(body) as ProviderRequest, seen = requests[round]!;
-      seen.push(input);
+      const input = JSON.parse(body) as ProviderRequest;
+      const aside = asideReply(body);
       let reply: Response;
-      if (seen.length === 1) {
-        const tool = input.tools?.find(item => item.name.startsWith("molis-action-") && item.description?.includes(readAction.action.title));
-        assert.ok(tool, "the granted production read action must actually be offered to this Run");
-        toolNames[round] = tool.name;
-        if (round === 0) { firstRequest.resolve(); await releaseFirst.promise; }
-        reply = cogniaScriptedResponse({ name: tool.name, input: readAction.capability_id === "memory.list" ? { scope: "project" } : { scopes: ["project"], query: "项目约定" } });
-      } else reply = cogniaScriptedResponse(undefined, "检查完成。");
+      if (aside) reply = cogniaScriptedResponse(undefined, aside);
+      else {
+        const seen = requests[round]!;
+        seen.push(input);
+        if (seen.length !== 1) {
+          reply = cogniaScriptedResponse(undefined, "检查完成。");
+        } else {
+          const tool = input.tools?.find(item => item.name.startsWith("molis-action-") && item.description?.includes(readAction.action.title));
+          assert.ok(tool, `the granted ${readAction.capability_id} action must actually be offered to this Run; tools: ${input.tools?.map(item => item.name).join(", ")}`);
+          toolNames[round] = tool.name;
+          if (round === 0) { firstRequest.resolve(); await releaseFirst.promise; }
+          reply = cogniaScriptedResponse({ name: tool.name, input: readAction.capability_id === "memory.list" ? { scope: "project" } : { scopes: ["project"], query: "项目约定" } });
+        }
+      }
       response.writeHead(200, { "content-type": "text/event-stream" }); response.end(await reply.text());
     } catch (error) {
       providerErrors.push(error); firstRequest.resolve(); response.writeHead(500); response.end("Controlled provider failed");

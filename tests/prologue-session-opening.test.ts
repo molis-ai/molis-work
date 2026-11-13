@@ -3,7 +3,7 @@ import { CODING_STYLES } from "@molis-ai/molis-work-plugin-coding";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -11,6 +11,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRunView, AgentRunHandle } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
@@ -94,7 +95,9 @@ test("old extra opening stays readable but is absent from next and restarted mod
         return { text: node.innerText, visible: node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden' };
       })()`);
       assert.equal(visible.text, notice.text); assert.equal(visible.visible, true);
-      await page.screenshot("/private/tmp/memory-v0-c3-history-notice-20261104.png");
+      const evidence = join(REVIEW_EVIDENCE, "memory-session-opening");
+      await mkdir(evidence, { recursive: true });
+      await page.screenshot(join(evidence, "history-notice.png"));
     } finally { await browser.close(); await rm(profile, { recursive: true, force: true }); }
     await adapter.close(); adapter = await f.open();
     const restored = await adapter.read(second.ref);

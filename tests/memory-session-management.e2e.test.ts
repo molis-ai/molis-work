@@ -22,6 +22,7 @@ import { toolField, untilSetup } from "./fixtures/connector-assistant-model.js";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { CODING_OPEN, codingAdd } from "./fixtures/coding-composer.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 type Product = Awaited<ReturnType<typeof codingProductHost>>;
@@ -128,7 +129,7 @@ async function select(page: ChromePage, selector: string, value: string) {
   await page.evaluate("document.querySelector('[data-session-journey-picker]')?.removeAttribute('data-session-journey-picker')");
 }
 async function captureSessionViews(t: TestContext, j: Journey, kind: Target["kind"]) {
-  const directory = join("/private/tmp/memory-v0-a4m-ui-20261105/session-management-screenshots-20261105", String(process.pid));
+  const directory = join(REVIEW_EVIDENCE, "memory-session-management");
   await mkdir(directory, { recursive: true });
   const observations: Array<{ path: string; width: number; scheme: string; actual: unknown }> = [];
   const { windowId } = await j.page.command<{ windowId: number }>("Browser.getWindowForTarget", { targetId: j.page.targetId });
@@ -455,7 +456,7 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} fixed Session
       const physical = await canonical(reopened, f.home, target);
       assert.equal(physical.some(one => one.memory_id === purged[0]), false); assert.ok(physical.some(one => one.memory_id === purged[1]));
       assert.equal(facts().length, 2, "both independent decisions stay accepted while only the second physical target remains pending");
-      const evidence = join("/private/tmp/memory-v0-a4m-ui-20261105/session-management-screenshots-20261105", String(process.pid)); await mkdir(evidence, { recursive: true });
+      const evidence = join(REVIEW_EVIDENCE, "memory-session-management"); await mkdir(evidence, { recursive: true });
       await j.page.screenshot(join(evidence, `${kind}-partial.png`));
       await writeFile(join(evidence, `${kind}-partial.json`), JSON.stringify({ result: partial.value, feedback, purged, originalBody,
         deliveredBodies: deliveries().map(one => one.rawBody), physicalIds: physical.map(one => one.memory_id), facts: facts() }, null, 2));

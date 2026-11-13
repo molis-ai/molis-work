@@ -43,10 +43,13 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
         return { status: 200, body: await withPluginPermissionSettingsEntry(caller, entry =>
           client.invoke(entry, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };
       }
-      const person: ActionCallContext = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, controller.signal),
-        user_action: { source: "web", conversation_ref: `web:${ports.projectRef.project_id}`, message_ref: `web:request:${randomUUID()}` } };
-      const call = (provider_id: string, definition: { capability_id: string; version: number }, input: unknown) =>
-        client.invoke(person, { capability_id: definition.capability_id, version: definition.version, provider_id }, input);
+      // N42: build the person's context only once a route is known to call an action. An unknown route, or a body the route refuses,
+      // answers without taking the project directory and permissions apart.
+      let person: Promise<ActionCallContext> | undefined;
+      const personContext = () => person ??= localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, controller.signal)
+        .then(context => ({ ...context, user_action: { source: "web", conversation_ref: `web:${ports.projectRef.project_id}`, message_ref: `web:request:${randomUUID()}` } }));
+      const call = async (provider_id: string, definition: { capability_id: string; version: number }, input: unknown) =>
+        client.invoke(await personContext(), { capability_id: definition.capability_id, version: definition.version, provider_id }, input);
       if (method === "GET" && route === "overview") {
         const [installed, publishers] = await Promise.all([call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.installed, {}), call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.publishers, {})]);
         const managed = await ports.localHost.withProject(ports.projectRef, async runtime => {

@@ -387,7 +387,7 @@ skillCatalog?: {
   - 不新建用户数据与注册表，`pack_id` 也不留 `user:` 一类的空位。
   - 记 BL，号由主会话给，主人能力包（`horizontal/kit`），去处第 73 批。
 - 自带包与「你的角色」的显示名、说明由设计台定，合同只给 `pack_id` 与 `kind`。
-  - 定样示例的「目标推进」包装着对外 MCP。对外 MCP 的主人是对外接入，不是 Goals，所以按本表它在自带包里。
+  - 定样示例原有的「目标推进」包装着对外 MCP，其中的 `goal-advance` 技能随 44-7 删除，示例换成别的对外接入说明；对外 MCP 的主人是对外接入，不是 Goals，所以按本表它在自带包里（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）。
   - 示例的「日常助理」就是自带包。
 
 **为什么是主人上报（9-8 比较的三种放法）**：包不存、每次现算，汇总要读五类主人的事实。定「主人上报，汇总放 `horizontal/kit`」前比较过三种：
@@ -713,7 +713,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | `tool` | Agent Host 的工具全集（第 5 节）。上报动作 `agent.tools.kit.report@1` 由宿主装配处登记，随 9-10 | 工具名 | 系统工具：SDK 包版本＋形状指纹；平台工具：产品版本 | 开放给哪些角色 | 只看，不能开关 | `last_only` 或 `not_counted` |
 | `mcp`（项目 MCP 服务器与其工具、资源） | Agent Host 的 MCP 库（读已存视图） | `server`／`action_tool`／`tool`／`resource` | 最近一次发现的差异 | 哪个插件的设置 | 「开」分开写；去 Coding 的 MCP 设置 | 已登记成动作的工具：读动作调用记录，`recent`（只留近期）。未登记的：`none` |
 | `mcp`（连接带的 MCP） | 连接器 `horizontal/connector-host` | 同上，`owner: "connection"` | 同上 | 哪个连接 | 去「服务连接」 | 同上 |
-| `mcp`（对外：Molis 自己的 MCP 服务器、`goal-advance` 技能） | 对外接入的主人（`mcp-settings-store` 与安装器） | `outbound` | 产品版本 | 开给哪些客户端（`action_grants`，已知运行时按 `ExternalToolId`） | 去「对外接入」 | `none`（对外调用另有调用记录，09 不读） |
+| `mcp`（对外：Molis 自己的 MCP 服务器；`goal-advance` 技能随 44-7 删除） | 对外接入的主人（`mcp-settings-store` 与安装器） | `outbound` | 产品版本 | 开给哪些客户端（`action_grants`，已知运行时按 `ExternalToolId`） | 去「对外接入」 | `none`（对外调用另有调用记录，09 不读） |
 
 - 签名角色只上报一次：`methods()` 去掉 `kind: "role"`（第 2.2 节）。
 - 创作台的 `BUILDER_PROMPTS` 若不在 Agent 定义登记里，就不上报，记候选（主人创作台，随 BL-377）。
@@ -1088,7 +1088,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 能力库、服务连接、对外接入、调用记录、AI 与执行工具 | **保留**，从 MCP 和工具详情链过去 |
 | Coding 的 MCP 页 | **保留**，能力包链过去 |
 | Coding 的方法页 | **删**（9-4、9-5） |
-| Goals 的规划方法库 | **保留**，不并 |
+| Goals 的规划方法库 | 本批保留，不并；41-2 起是能力包里的技能 |
 
 - 合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包。
 - 设置页文档列今天被 `:is(body.project-preferences-page, …) .settings-content > .settings-document` 限在 760px，第 08 批 `.skill-settings` 写的 1100px 被它盖住。

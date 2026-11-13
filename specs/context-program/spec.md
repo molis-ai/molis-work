@@ -301,7 +301,7 @@ interface ItemAttach {
 | 家族 | 合并后的做法 | 细节在 | 波次 |
 | --- | --- | --- | --- |
 | F1 创建 Item（含插件页和右栏格的「✦ 一句话新建」） | 创建入口 `ItemIntake`；「记成待办」「记下灵光」并入，旧的删掉 | quick-create §3–§6.1 | W4 |
-| F2 追加到已有 Item | 与「放进左边」合成 `ItemAttach`（本文 3.4）。目标是落点时用 `positions`；目标由 `find` 找到时，一律放末尾或建关联 | quick-create §6.2、本文 3.4 | 落点部分 W3；`find` 部分与 F1 同在 W4 |
+| F2 追加到已有 Item | 与「放进左边」合成 `ItemAttach`（本文 3.4）。目标是落点时用 `positions`；目标由 `find` 找到时，一律放末尾或建关联（关联类型由目标对象的主人插件声明，`ItemAttach` 不写死 goal 或别的插件名2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） | quick-create §6.2、本文 3.4 | 落点部分 W3；`find` 部分与 F1 同在 W4 |
 | F3 一次提取多个 Item | `ItemIntake.multiple`，一张批量卡片可逐条取消 | quick-create §6.2 | W4（与 F1、F2 同一套起草与卡片） |
 | F4 任意文本框润色、翻译 | 依赖 G1；写作类动作改为不挑对象的提供方 | context-toolbar §10.7 | W7 第一批 |
 | F5 只读问答、旁问（btw） | 并入旁问：`result` 动作 + 面板槽内联答复；Coding 与助理各提供一个（8.5） | context-toolbar §10.3、本文 8.5 | W7 |
@@ -320,7 +320,7 @@ interface ItemAttach {
 | 清单 | 细节在 | 波次 |
 | --- | --- | --- |
 | 「放进左边」**第一批（W3）**：Pages 插入到光标处（没有光标放文末）、替换选中的文字、作为引用插入（带出处）。都是确定性的 `ItemAttach` 声明，预览就是将写入的内容 | side-shelf 5.4（2026-10-12 已分批，§14）。与 context-toolbar §10.4 的「Pages 追加到文档」是同一批 | W3 |
-| 「放进左边」**第二批**：Pages 整理成要点后插入（要 W1 起草服务）；Goals 作为依据附上（要 Goals 报告落点）；Coding 放进当前会话的下一轮材料（要 Coding 自己名下的文字摘录过程项 `coding.text-excerpt.v1`，8.5） | 同上；与 context-toolbar §10.4 的「Goals 作为证据」「Coding 放进某个会话的下一轮」是同一批，合并为一份 | 前置条件到位后，W3 之后 |
+| 「放进左边」**第二批**：Pages 整理成要点后插入（要 W1 起草服务）；作为依据附上（落点是声明了要求的对象，内容交平台要求—认可能力保存为证据，要 32-2 的平台能力2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）；Coding 放进当前会话的下一轮材料（要 Coding 自己名下的文字摘录过程项 `coding.text-excerpt.v1`，8.5） | 同上；与 context-toolbar §10.4 的「Goals 作为证据」「Coding 放进某个会话的下一轮」是同一批，合并为一份 | 前置条件到位后，W3 之后 |
 | 各插件的创建入口（Todo、灵光、Pages、Inbox、Goals 先，其余按 ● ◐ ○） | quick-create §7 | W4 起 |
 | context-toolbar §10.4 第一张表里不属于创建入口的去处：Coding「补充给正在运行的这一轮」（`steer`，只许本机本人，必须出卡片）；Schedule、Jelly 识别出时间后建事项或提醒；Text stats 统计这段文字（纯计算动作的样板） | context-toolbar §10.4 | W7 起 |
 | 各插件自己对象上的专属动作与工具（Todo 拆成子待办、Feed 建规则、Inbox 转待办、Dataset 核对数字、PPT 扩写……） | context-toolbar §10.4 第二张表 | W7 起，按 context-toolbar §11.6 的波次 |

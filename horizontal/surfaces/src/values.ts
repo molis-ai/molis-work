@@ -4,7 +4,8 @@ import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { subjectKey, viewRef, type SurfaceComposePorts } from "./ports.js";
 
-const DEADLINE_MS = 1_000;
+/** One whole composition shares this deadline (surface-composition §8.1; 3 s since the user's 2026-11-13 decision, was 1 s). */
+const DEADLINE_MS = 3_000;
 const PARALLEL_READS = 4;
 type ReadResult<T> = { value: T } | { error: unknown };
 

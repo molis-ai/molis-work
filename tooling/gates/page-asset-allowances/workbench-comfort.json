@@ -1,0 +1,26 @@
+{
+  "reason": "全局设计语言第一轮。终层动效表新增三种说明变化的动效（前进与返回 craft-turn、轮到你 craft-ask、同一个对象走过去的视图转场）和 molisCraft 的 turn、ask、carry 三个入口，随每张页面样式表与插件框脚本下发（到达页、设置页样式各 +827，插件框脚本 +699）。工作台样式另含首页一组一圈边与行悬停、项目名标题、列表列名和窄目录一行一条的规则（合计 +5465）。工作台脚本是首页只让第一条等你的行带主按钮、没有等你的事时收成一行（+833）。组件板自己的设计语言一章只在组件板内联下发，不进这五个资源。工作台中英文词包因删掉首页不再显示的说明句（workbench.home.lead）换了内容定址文件名，门禁把它算作新路径；词包本身变小。没有新增别的路径，每个资源和每页净增都低于 10,000 字节。",
+  "review": "specs/workbench-experience-upgrade/spec.md「第一轮：全局设计语言」与分支 feat/workbench-comfort 的 PR 评审。本机对照 merge-base b66112d0d 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main）：到达页与项目选择页冷 zh +8468 / en +8459、热各 +1413；工作台默认与全部插件冷 zh +7140 / en +7146、热 zh +132 / en +147。页面数字量于最后一次收小之前，之后每张样式表又小了 53 字节；许可按当时实测向上取整到 100 B，作为上限。",
+  "userApproval": "用户于 2026-11-13 弹窗批准（「批准，照现在推」）：工作台中英文词包换名，以及上列各页的首屏增长。",
+  "entryApprovals": [
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "zh", "entry": "/assets/locale/workbench.zh.<digest>.js", "change": "new" },
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "en", "entry": "/assets/locale/workbench.en.<digest>.js", "change": "new" }
+  ],
+  "assets": {
+    "/assets/molis-work-arrival.css": 827,
+    "/assets/molis-work-plugin-frame.js": 699,
+    "/assets/molis-work-settings.css": 827,
+    "/assets/molis-work-workbench.css": 5465,
+    "/assets/molis-work-workbench.js": 833
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 8500, "warm": 1500 },
+    "arrival-empty/en": { "cold": 8500, "warm": 1500 },
+    "chooser/zh": { "cold": 8500, "warm": 1500 },
+    "chooser/en": { "cold": 8500, "warm": 1500 },
+    "workbench-default/zh": { "cold": 7200, "warm": 200 },
+    "workbench-default/en": { "cold": 7200, "warm": 200 },
+    "workbench-all-plugins/zh": { "cold": 7200, "warm": 200 },
+    "workbench-all-plugins/en": { "cold": 7200, "warm": 200 }
+  }
+}

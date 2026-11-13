@@ -3996,7 +3996,6 @@
       }
     },
     "workbench.home.hidden-above": "Also listed above: {count}",
-    "workbench.home.lead": "See what’s in the project and start with what needs you.",
     "workbench.home.loading": "Loading the project home…",
     "workbench.home.navigation-failed": "Couldn’t open this. Refresh and try again.",
     "workbench.home.open": "Open",

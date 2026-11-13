@@ -1,6 +1,6 @@
 # Molis Work 用户体验评估与升级方案
 
-状态：概念方案已整理，待评审（2026-11-13）。需求维护由 Codex 负责，实施待分配。
+状态：概念方案已整理，待评审（2026-11-13）。需求维护由 Codex 负责。第一轮「全局设计语言」（设计原则、色彩搭配、布局分区、动效语法、组件板分章，以及首页与列表的低风险收拢）在分支 `feat/workbench-comfort` 实现并自测，未合入，等用户在组件板上定样；其余实施待分配。
 
 从项目选择页进工作台后，用户要能认出当前项目或事项、读到此刻最重要的事实、直接继续手头的工作。2026-11-12 的走查看到，项目选择页的简报已经把进度和下一步排在一起，项目首页却把首屏让给页面说明、空状态和最近更新。建议先把首页、Goals 列表和详情连成一条「定位 → 看清事实 → 做下一步」的路径，再用组件板验证能否复用到其他插件。
 
@@ -56,6 +56,51 @@
 4. Goals 状态、按钮与待处理提示采用哪些新用词。
 5. 桌面壳对 View Transitions 的支持能否满足对象连续转场。
 6. 设计规范、组件板、工程与用词文档如何分工，英文版覆盖到哪里。
+
+## 第一轮：全局设计语言（2026-11-13，分支 `feat/workbench-comfort`）
+
+用户 2026-11-13 定方向：不围着 Goals 做（Goals 之后降为普通插件），先把全局的设计语言、组件板、动效与界面的搭配、色彩搭配定下来，并和之后的全局布局调整（事项线、主线）接得上。这一轮只做平台共用的部分，按「界面先定样」放在组件板上，由用户看实件定。
+
+| 做了什么 | 在哪里 | 对应 |
+| --- | --- | --- |
+| 设计原则：每一屏按顺序回答「我在哪、现在怎样、下一步」，五条搭配规则 | 组件板 `#language`；`DESIGN.md` Overview | UXUP-01、UXUP-05 |
+| 色彩搭配：每种颜色一个意思（墨蓝是你做的，雾蓝是你在哪，琥珀是轮到你，青是等别人，红是走不通，绿是落定，灰是歇着）；角色放在同一张工作面上的标本；当前主题和皮肤下字在面上的实测对比度 | 组件板 `#pairing`；`DESIGN.md` Colors → Pairing | UXUP-02、UXUP-05 |
+| 插件身份色只取冷色（blue、indigo、purple、slate、steel），暖色、红、绿、青、灰留给状态。此前按 id 在全部色相里取，Feed 会取到红色，和「走不通」撞色 | `packages/plugin-sdk/src/ui/presentation-form.ts` 的 `presentationOwnerHue` | UXUP-02 |
+| 布局分区：标题栏、工作面、右侧、底栏、浮层各回答哪个问题，用哪一层面、哪一种动效；事项线落地时沿用底栏那一行 | 组件板 `#zones`；`DESIGN.md` Layout → Zones | UXUP-01 |
+| 动效语法：一种变化对应一种动效。新增三种：同一个对象换了地方（`molisCraft.carry`，视图转场）、前进与返回（`molisCraft.turn`）、轮到你（`molisCraft.ask`，一圈琥珀色的环散开一次）。都用已有的时长和曲线，减少动态效果时直接到位 | `packages/design-system/src/styles/motion.ts`、`craft-finish.ts`；组件板 `#motion` 开头；`DESIGN.md` Motion | UXUP-03 |
+| 组件板：目录按章分组（设计语言、图标与状态、控件、反馈与浮层、列表与条目、模式与场景、平台区域），加「找标本」输入框；窄屏下表格在自己的容器里横向滚动 | `packages/design-system/src/primitives/catalog.ts`、`catalog-language.ts`、`src/browser/catalog-language.ts` | UXUP-05 |
+| 首页：标题是项目名，「项目首页」退成标题上方的小字，去掉说明句；没有等你处理的事时整组收成一行；等你和接着做各画一圈边、行间发丝线；只有第一条等你的行带墨蓝按钮 | `apps/workbench/src/project-home.ts`、`browser/project-home-render.ts`、`styles/project-home.ts` | UXUP-01、UXUP-02 |
+| 智能呈现的列表（当前由 Goals 使用）：加列名；详情旁的窄目录一行一条。之后不再为 Goals 单独加码 | `plugins/native/goals/src/tree-ui.ts`、`apps/workbench/src/styles/goal-canvas.ts` | UXUP-02 |
+
+没有做的：中日韩界面不收字距（字距是字体基线里的取值，按语言给字距要先改基线的结构，建议放进第 71 批）；首页宽度从 1280 收窄（现值有测试守着，是否收窄留给用户定）；顶部「项目 / 事项」位置提示、带名称的侧边视图、起始页、助理起手句和示例空态。这些跟着事项线、主线和首次场景的批次走。桌面壳（WebKit）、分屏和插件 iframe 里的视图转场还没有实测，`carry` 在不支持的环境里直接换内容。
+
+### 决定记录
+
+| 日期 | 决定 | 谁定 |
+| --- | --- | --- |
+| 2026-11-13 | 方向：先做全局设计语言、组件板、动效与色彩搭配，不围着 Goals 做 | 用户 |
+| 2026-11-13 | 批准工作台中英文词包换名（删掉首页不再显示的说明句）和各页首屏增长：冷启动 +7.1～8.5 KB、热载 +0.1～1.4 KB。许可在 `tooling/gates/page-asset-allowances/workbench-comfort.json` | 用户（弹窗） |
+| 2026-11-13 | 把对后续方案的增强建议写进对应批次的需求书（第 32、36、37、40、44、45、53、71 批） | 用户 |
+| 待定 | 琥珀只表示「轮到你」，其余提醒不用暖色（对应待评审的决定 1）。第一轮按这一条写了规则和标本，没有改现有状态的颜色 | 待用户 |
+| 待定 | 插件身份色只取五个冷色。会让已有插件在首页卡片上的颜色变一次 | 待用户 |
+| 待定 | 新增三种动效（走过去、前进与返回、轮到你），「时刻」从两种变成三种 | 待用户 |
+| 待定 | 首页标题用项目名、等你为空时收成一行。2026-11-04 用户定过首页的顺序，这里没有改顺序和宽度，改了标题（对应待评审的决定 3） | 待用户 |
+| 待定 | 详情旁的窄目录由两行改成一行一条 | 待用户 |
+
+### 写进后续批次的增强建议
+
+用户 2026-11-13 要求把这套设计语言对后续方案的增强建议写进对应批次的需求书。都是建议，不增减各批的交付与验收，采纳由用户看各批定样时定。
+
+| 批次 | 建议落在哪 |
+| --- | --- |
+| [32 明确交办与后台任务](../post-anticorruption-roadmap/reference/batches/32.md#design-language-32) | 事项线的分区、节点颜色、节点展开与「轮到你」的动效、后台任务列表先摆例外 |
+| [36 角色设置与主线服务](../post-anticorruption-roadmap/reference/batches/36.md#design-language-36) | 作用范围当位置、合同只说状态不说颜色、「下一步」带动词短句 |
+| [37 生成页面与事项工作台](../post-anticorruption-roadmap/reference/batches/37.md#design-language-37) | 线头事项名、切换事项的转场、生成页面的颜色校验 |
+| [40 产品治理与全产品文案](../post-anticorruption-roadmap/reference/batches/40.md#design-language-40) | 状态词和颜色一一对应、先说还差什么 |
+| [44 插件同等地位收口](../post-anticorruption-roadmap/reference/batches/44.md#design-language-44) | 列名和窄目录上升为公共能力、Goals 状态收进七种语气 |
+| [45 首次／项目场景闭环](../post-anticorruption-roadmap/reference/batches/45.md#design-language-45) | 引导每步答三问、第一次「轮到你」、唯一的庆祝 |
+| [53 回执、智能呈现第二片与主线第二片](../post-anticorruption-roadmap/reference/batches/53.md#design-language-53) | 五种卡一个骨架、整理视图是一张表、等你的排序一份 |
+| [71 字体皮肤语言 D／E 段](../post-anticorruption-roadmap/reference/batches/71.md#design-language-71) | 色彩温度进外观校验、字距按语言给、组件板补英文与密度宽度切换 |
 
 ## 后续验收
 

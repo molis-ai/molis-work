@@ -4,10 +4,11 @@ import { RISK_PROJECT_DATABASE } from "./database.js";
 import { RISK_PLUGIN_ID } from "./identity.js";
 import { riskMethods } from "./methods.js";
 import { riskPresentation, riskPresentationActions } from "./presentation.js";
+import { riskReviewActions, SCHEDULE_TASKS } from "./review.js";
 import { riskSearchActions } from "./search.js";
 import { RISK_UI_CONTRIBUTION_ID } from "./ui.js";
 
-const RISK_ACTIONS = [...Object.values(riskActions), ...riskPresentationActions, riskSearchActions.entries, riskSearchActions.subject];
+const RISK_ACTIONS = [...Object.values(riskActions), ...Object.values(riskReviewActions), ...riskPresentationActions, riskSearchActions.entries, riskSearchActions.subject];
 const ACTION_PERMISSIONS = [...new Set(RISK_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 /**
@@ -37,7 +38,8 @@ export const riskManifest: PluginManifest = {
   read_groups: [{ group_id: "risk", title: "风险", description: "项目里的风险、它们的关联与进展",
     actions: [riskActions.list.capability_id, riskActions.get.capability_id, riskSearchActions.subject.capability_id, riskSearchActions.entries.capability_id] }],
   databases: { project: RISK_PROJECT_DATABASE },
-  capabilities: { provides: [], consumes: [] },
+  // A risk's review is a Schedule task (review.ts); called as the risk action's caller.
+  capabilities: { provides: [], consumes: Object.values(SCHEDULE_TASKS).map(reference => reference.capability_id) },
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [RISK_UI_CONTRIBUTION_ID],

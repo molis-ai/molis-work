@@ -5,6 +5,8 @@ export { RISK_UI_CONTRIBUTION_ID, riskUiContribution } from "./ui.js";
 export { riskActions, createRiskActionHandlers, RISK_READ, RISK_WRITE } from "./actions.js";
 export type { RiskActionPorts } from "./actions.js";
 export { riskSearchActions } from "./search.js";
+export { riskReviewActions, toRiskReview, SCHEDULE_TASKS } from "./review.js";
+export type { RiskReview } from "./review.js";
 export { riskPresentation, riskPresentationActions } from "./presentation.js";
 export { riskMethods } from "./methods.js";
 export { RISK_PROJECT_DATABASE } from "./database.js";

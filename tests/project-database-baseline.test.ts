@@ -129,11 +129,13 @@ test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no 
 });
 
 test("RAC-2362 PLIB-02: every plugin's declared tables match the complete current business fixture", () => {
-  assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.inbox", "io.molis.work.schedule"]);
+  assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.inbox", "io.molis.work.risk", "io.molis.work.schedule"]);
   const expected = shape(fixture("goal-event-history/approved.sql")).tables;
   for (const manifest of declaring) {
     // The business fixture does not activate Inbox's optional scene-binding store.
     if (manifest.plugin_id === "io.molis.work.inbox") continue;
+    // Risk (batch 17) is newer than every Goal history the fixture holds, and a new project does not carry it.
+    if (manifest.plugin_id === "io.molis.work.risk") continue;
     for (const [table, now] of Object.entries(shape(manifest.databases!.project!.schema).tables)) {
       assert.ok(expected[table], `${table} is present in the independent current fixture`);
       assert.deepEqual(now, expected[table], table);
@@ -145,7 +147,8 @@ test("PLIB-09: the project is one root row; the eleven tables and Goals' board, 
   const tables = opened.tables;
   assert.deepEqual(tables.project_root!.columns.map(column => column.name), ["project_id", "created_at"]);
   const pointing = (target: string) => Object.entries(tables).filter(([, table]) => table.foreign_keys.some(key => key.table === target)).map(([name]) => name).sort();
-  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards", "inbox_scene_bindings"].sort(), "and Inbox's scene binding table (FI-6 P3), declared since version 7");
+  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards", "inbox_scene_bindings", "risk_items"].sort(),
+    "and Inbox's scene binding table (FI-6 P3), declared since version 7, and Risk's records (batch 17)");
   const goals = declaring.find(manifest => manifest.plugin_id === GOALS_PLUGIN_ID)!;
   const declared = Object.keys(shape(goals.databases!.project!.schema).tables);
   assert.ok(declared.includes("boards"), "the board is a table Goals declares, no longer one of the baseline's");

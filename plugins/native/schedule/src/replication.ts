@@ -4,6 +4,7 @@ import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contra
 const TASK_COLUMNS = [
   "task_id", "title", "instructions", "hour", "minute", "notify_important",
   "enabled", "archived", "unread", "last_run_at", "last_error", "created_at", "updated_at",
+  "repeat", "run_at", "subject_kind", "subject_id",
 ] as const;
 const TURN_COLUMNS = ["turn_id", "task_id", "kind", "text", "important", "created_at"] as const;
 type Row = Record<string, unknown>;
@@ -38,7 +39,10 @@ function validateTask(value: unknown, taskId: string): Row {
     || !Number.isInteger(row.minute) || Number(row.minute) < 0 || Number(row.minute) > 59
     || !["notify_important", "enabled", "archived", "unread"].every(key => row[key] === 0 || row[key] === 1)
     || !date(row.last_run_at, true) || !str(row.last_error, 10_000, true)
-    || !date(row.created_at) || !date(row.updated_at)) invalid();
+    || !date(row.created_at) || !date(row.updated_at)
+    || !(row.repeat === "daily" && row.run_at === null || row.repeat === "none" && date(row.run_at))
+    || !str(row.subject_kind, 100, true) || !str(row.subject_id, 400, true)
+    || (row.subject_kind === null) !== (row.subject_id === null)) invalid();
   return row;
 }
 function validateTurns(value: unknown, taskId: string): Row[] {

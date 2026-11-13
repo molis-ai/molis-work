@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { RISK_READ, RISK_WRITE, riskActions, riskPresentationActions, riskSearchActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
+import { RISK_READ, RISK_WRITE, riskActions, riskPresentationActions, riskReviewActions, riskSearchActions, toRiskReview, type RiskRecord, type RiskReview } from "@molis-ai/molis-work-plugin-risk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const ref = (definition: { capability_id: string; version: number }) => ({ capability_id: definition.capability_id, version: definition.version });
@@ -104,4 +104,65 @@ test("RISK-05 other plugins read risks through the public source: reader, search
   const home = await call<{ subjects: unknown[] }>(overview!, {}, reader);
   assert.deepEqual(home.subjects, [{ kind: "risk", id: risk.risk_id }]);
   assert.equal(await code(call(riskActions.create, { title: "x", statement: "s", impact: "low", likelihood: "low" }, reader)), "actions.forbidden", "reading does not let one write");
+});
+
+test("RISK-07 a risk's review is a one-off Schedule task about it: scheduled, moved, paused, read with its grant state, cancelled, and archived on close", { timeout: 60_000 }, async t => {
+  const { call, here } = await fixture(t);
+  const scheduler = person([...RISK_WRITE, "schedule:read", "schedule:write"], here.project_id);
+  const as = <O>(definition: { capability_id: string; version: number }, input: unknown) => call<O>(definition, input, scheduler);
+  const { risk } = await as<{ risk: RiskRecord }>(riskActions.create, { title: "供应商延期", statement: "交付可能晚两周", impact: "high", likelihood: "medium" });
+  assert.deepEqual(await as(riskReviewActions.get, { risk_id: risk.risk_id }), { state: "ok", review: null });
+  assert.deepEqual(await call(riskReviewActions.get, { risk_id: risk.risk_id }), { state: "unavailable", review: null },
+    "a caller who cannot reach Schedule sees the review section say so, not a failed detail");
+
+  const at = new Date(Date.now() + 3_600_000).toISOString();
+  const { review } = await as<{ review: RiskReview }>(riskReviewActions.schedule, { risk_id: risk.risk_id, at, focus: "看备选供应商回复了没有" });
+  assert.equal(review.state, "scheduled");
+  assert.equal(review.at, at);
+  assert.equal(review.focus, "看备选供应商回复了没有");
+  assert.equal(review.result, null);
+  assert.deepEqual(review.reads, { categories: 0, granted: 0, needs_confirmation: 0, unavailable: 0, removed: 0 },
+    "no read grant yet: the round would not read the risk, and the detail says so");
+
+  const later = new Date(Date.now() + 7_200_000).toISOString();
+  const moved = await as<{ review: RiskReview }>(riskReviewActions.schedule, { risk_id: risk.risk_id, at: later });
+  assert.equal(moved.review.task_id, review.task_id, "moving a review changes the one task, never a second one");
+  assert.equal(moved.review.at, later);
+  assert.equal(moved.review.focus, "交付可能晚两周", "without a focus the round looks at the risk's own statement");
+
+  assert.equal((await as<{ review: RiskReview }>(riskReviewActions.enabled, { risk_id: risk.risk_id, enabled: false })).review.state, "paused");
+  assert.equal((await as<{ review: RiskReview }>(riskReviewActions.enabled, { risk_id: risk.risk_id, enabled: true })).review.state, "scheduled");
+  assert.equal(await code(as(riskReviewActions.schedule, { risk_id: risk.risk_id, at: new Date(Date.now() - 60_000).toISOString() })), "schedule.task_invalid");
+  // Without Schedule's own permissions the caller cannot reach the review through the risk either: the directory does not show it
+  // Schedule at all, so the risk says the review is unavailable rather than reaching around the caller.
+  assert.equal(await code(call(riskReviewActions.schedule, { risk_id: risk.risk_id, at })), "risk.review_unavailable");
+
+  assert.deepEqual(await as(riskReviewActions.cancel, { risk_id: risk.risk_id }), { cancelled: true });
+  assert.deepEqual(await as(riskReviewActions.get, { risk_id: risk.risk_id }), { state: "ok", review: null });
+  assert.deepEqual(await as(riskReviewActions.cancel, { risk_id: risk.risk_id }), { cancelled: false });
+
+  await as(riskReviewActions.schedule, { risk_id: risk.risk_id, at });
+  const closed = await as<{ risk: RiskRecord; review_left?: unknown }>(riskActions.setStatus, { risk_id: risk.risk_id, expected_revision: risk.revision, status: "closed" });
+  assert.equal(closed.risk.status, "closed");
+  assert.equal(closed.review_left, undefined);
+  assert.deepEqual(await as(riskReviewActions.get, { risk_id: risk.risk_id }), { state: "ok", review: null }, "closing a risk archives its review");
+  assert.equal(await code(as(riskReviewActions.schedule, { risk_id: risk.risk_id, at })), "risk.closed");
+});
+
+test("RISK-08 a review that found nothing new, one that failed, and one paused before its time read as three different states", () => {
+  const base = { task_id: "t", title: "供应商延期", instructions: "看", run_at: "2026-11-01T01:00:00.000Z", last_error: null };
+  const now = Date.parse("2026-11-02T00:00:00.000Z");
+  const quiet = toRiskReview({ ...base, enabled: false, last_run_at: "2026-11-01T01:00:05.000Z",
+    turns: [{ kind: "user", text: "看", important: false, created_at: "x" }, { kind: "assistant", text: "没有变化。", important: false, created_at: "y" }] }, [], now);
+  assert.equal(quiet.state, "done");
+  assert.deepEqual(quiet.result, { text: "没有变化。", important: false, at: "y" });
+  assert.equal(quiet.failure, null);
+  const failed = toRiskReview({ ...base, enabled: false, last_run_at: null, last_error: "模型没接上",
+    turns: [{ kind: "user", text: "看", important: false, created_at: "x" }, { kind: "system", text: "到点了，但这一轮没跑成：模型没接上", important: false, created_at: "y" }] }, null, now);
+  assert.equal(failed.state, "done");
+  assert.equal(failed.result, null);
+  assert.match(failed.failure ?? "", /没跑成/);
+  assert.equal(failed.reads, null, "the platform could not say what it may read: unknown, not none");
+  const paused = toRiskReview({ ...base, run_at: "2026-11-03T01:00:00.000Z", enabled: false, last_run_at: null, turns: [] }, [], now);
+  assert.equal(paused.state, "paused");
 });

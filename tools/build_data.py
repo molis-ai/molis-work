@@ -2,7 +2,7 @@ import re,json,sys,collections,os
 G,R,OUT=sys.argv[1:4]
 sys.path.insert(0,G)
 from data import N,L,M1_HARD,M1_PART,FINAL,M1,MAP,MOVED
-SHA='ef9c6fcbb5a5070e0715bd2874f4511109332368'
+SHA='b66112d0d7ea26cd7152631b1eb7c91e3846e2f2'
 rows=[(n[0],n[1],n[2],list(n[3]),n[4]) for n in N]
 ids={r[0] for r in rows}
 def parse(s):
@@ -34,7 +34,7 @@ def load(b):
     if '需要你做的' in intro:
         i=intro.index('需要你做的');ask=intro[i:];intro=intro[:i].strip()
         ask=re.sub(r'^需要你做的[：:]\s*','',ask)
-    items=[(clean(a),clean(b_)) for _,a,b_ in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*? \|$',t,re.M),key=lambda r:int(r[0]))]
+    items=[(clean(a),clean(b_)) for _,a,b_ in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*?\s*\|$',t,re.M),key=lambda r:int(r[0]))]
     batch[b]=dict(title=title,stage=stage,intro=clean(intro),ask=clean(ask),items=items,
         url=f'https://github.com/molis-ai/molis-work/blob/{SHA}/specs/post-anticorruption-roadmap/reference/batches/{fn}.md')
     return batch[b]

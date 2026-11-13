@@ -36,7 +36,7 @@ out=[]
 for b in B:
     fn=b.lower() if b.startswith('SRV') else b
     t=open(f'{BATCHES}/{fn}.md').read()
-    items=[{'t':clean(a),'d':clean(x)} for _,a,x in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*? \|$',t,re.M),key=lambda r:int(r[0]))]
+    items=[{'t':clean(a),'d':clean(x)} for _,a,x in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*?\s*\|$',t,re.M),key=lambda r:int(r[0]))]
     cond=list(ext[b])+[f"决定 {k}（待定）：{v}" for k,v in sorted(decs[b].items(),key=lambda kv:int(kv[0]))]
     out.append(dict(id=b,title=T[b]['title'],stage=stage[b],intro=T[b]['intro'],ask=T[b]['ask'],
       url=f'https://github.com/molis-ai/molis-work/blob/main/specs/post-anticorruption-roadmap/reference/batches/{fn}.md',

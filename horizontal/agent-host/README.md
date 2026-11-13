@@ -66,6 +66,10 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 
 ## 从哪里读代码
 
+有限委托由 `WorkDelegationStore` 独占当前工作及持续选择，Node adapter 的 `delegations` 使用 `molis-work-delegation-<app hash>` 加密记录。工作 epoch、存储 CAS 版本与单条授权 revision 分开；收窄/撤销在核过当前管理调用后同步失效原引用。`permission().assertCurrent` 同时固定原工作和持续权限（包括未选择），执行入口不自行拼授权限制。取消 listener 同步捕获原 Run，返回可重试的 settle 回执；等待在存储队列外，`cancellationPending/settle` 提供原回执的查询/重试，失败不假称撤销已收口。结束保存 ending，原工作 owner 确认收口后再 finishEnd；新一次明确授权只有 owner 核过可重开后才使用 reopen。当前选择撤销或到期保留确认模式，损坏记录拒绝，不恢复旧自动策略。暂时读回失败可在原键恢复，但旧执行闭包已经失效；列表逐键串行读，关闭等待已接受的列表和取消任务。
+
+工作选择可以早于首个 Session（助理工作现行的 session_id 此时为空），所以持久主键固定可信工作 owner/id 与执行者安装世代；实际 Run 的原 Session 仍由原工作 owner 验证并绑定最终检查，不能把任意同名 Session 接过来。`actionDelegationMatches` 按整行目标交集匹配；`delegationScopesNarrow` 不拼接不同组合。新 Node 存储与这些基础行为的证据见 [S-work-delegations](../../docs/system/security-invariants/S-work-delegations.md)。这不表示工作入口和真实执行派发已接通。
+
 - `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。
 - `src/reviews.ts`：`AgentReviewQueue` 的请求、决定、一次性消费与回执。
 - `src/capability-registration.ts`：对外暴露的动作与它们的授权边界。

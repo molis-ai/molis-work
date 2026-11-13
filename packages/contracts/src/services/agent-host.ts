@@ -3,6 +3,8 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 export type { ReviewReference, ReviewDelegationReference, ReviewDecisionSource, ReviewDecisionRecord } from "../platform/reviews.js";
+export type { AgentDelegationMode, AgentDelegationExecutor, AgentDelegationSubject, AgentDelegationTargetOwner, AgentDelegationOperationScope,
+  AgentActionDelegationScope, AgentExactDelegationScope, AgentDelegationScope, AgentDelegationSelection, AgentDelegationState } from "./agent-delegations.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";

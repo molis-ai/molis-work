@@ -20,6 +20,14 @@ export interface AgentActionClient {
     invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal, review?: AgentActionReviewControl): Promise<unknown>;
 }
 
+export interface AgentActionDelegationScope {
+    readonly kind: "action-objects";
+    readonly action: ExactActionReference;
+    readonly declaration_digest: string;
+    readonly provider_installation_generation: string;
+    readonly operations: readonly AgentDelegationOperationScope[];
+}
+
 export interface AgentActionOffer {
     title: string;
     summary: string;
@@ -169,6 +177,68 @@ export interface AgentDelegation {
     stop(workId: string): Promise<AgentDelegatedWork>;
 }
 
+export interface AgentDelegationExecutor {
+    readonly plugin_id: string;
+    readonly install_id: string;
+    readonly installation_generation: string;
+    readonly role_id: string;
+}
+
+export type AgentDelegationMode = "read-only" | "confirm" | "automatic";
+
+export interface AgentDelegationOperationScope {
+    readonly key: string;
+    readonly targets: Readonly<Record<string, {
+        readonly owner: AgentDelegationTargetOwner | null;
+        readonly ids: readonly string[];
+    }>>;
+}
+
+export type AgentDelegationScope = AgentActionDelegationScope | AgentExactDelegationScope;
+
+export interface AgentDelegationSelection {
+    readonly id: string;
+    readonly revision: number;
+    readonly mode: AgentDelegationMode;
+    readonly scopes: readonly AgentDelegationScope[];
+    readonly expires_at: string | null;
+    readonly granted_by: string;
+    readonly granted_at: string;
+    readonly revoked_at: string | null;
+    readonly supersedes: string | null;
+}
+
+export interface AgentDelegationState {
+    readonly subject: AgentDelegationSubject;
+    readonly storage_version: number;
+    readonly epoch: string;
+    readonly lifecycle: "open" | "ending" | "ended";
+    readonly ended_at: string | null;
+    readonly ended_reason: string | null;
+    readonly selection_id: string | null;
+    readonly selections: readonly AgentDelegationSelection[];
+}
+
+export type AgentDelegationSubject = {
+    readonly actor_id: string;
+    readonly project_id: string | null;
+    readonly executor: AgentDelegationExecutor;
+} & ({
+    readonly kind: "work";
+    readonly work: {
+        readonly owner_id: string;
+        readonly id: string;
+    };
+} | {
+    readonly kind: "ongoing";
+});
+
+export interface AgentDelegationTargetOwner {
+    readonly provider_id: string;
+    readonly installation_generation: string;
+    readonly kind: string;
+}
+
 export interface AgentDocumentCapability {
     parse(input: {
         bytes: Uint8Array;
@@ -242,6 +312,25 @@ export interface AgentEvidenceCheckRequest {
     run_id: string;
     command_call_ids: string[];
 }
+
+export type AgentExactDelegationScope = {
+    readonly input_json: string;
+} & ({
+    readonly kind: "action-exact";
+    readonly action: ExactActionReference;
+    readonly declaration_digest: string;
+    readonly provider_installation_generation: string;
+} | {
+    readonly kind: "mcp-exact";
+    readonly source_id: string;
+    readonly connection_identity: string;
+    readonly tool: string;
+    readonly tool_digest: string;
+} | {
+    readonly kind: "command-exact";
+    readonly workspace_id: string;
+    readonly workspace_path: string;
+});
 
 export interface AgentExecutionPlan {
     source: ArtifactReference;

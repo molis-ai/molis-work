@@ -23,6 +23,8 @@ import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime,
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueReviewDecisions } from "./prologue-review-decisions.js";
+import { createPrologueDelegations } from "./prologue-delegations.js";
+import type { WorkDelegationStore } from "../delegations.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
@@ -89,7 +91,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  */
 export function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore; delegations: WorkDelegationStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
   let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
   const cleanup = new Set<() => Promise<void>>();
@@ -155,6 +157,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
   const effects = prologueEffects(host);
   const decisions = createPrologueReviewDecisions(effects, options.app.appId);
+  const delegations = createPrologueDelegations(effects, options.app.appId);
+  const closeDelegations = onFailureClose(() => delegations.close());
   options.reviewQueue?.bindDecisionStore(decisions);
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
@@ -226,6 +230,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       await closeStepBoards(); await closeMessages(); await closeWaits(); await closeChecks();
       await closeReviews();
       await closeCheckpoints(); await closeGit();
+      await closeDelegations();
       return closeRuntime();
     } });
 
@@ -248,7 +253,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options, effects }),
-  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
+  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, delegations, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
     const seen = runtimeDiagnostics(runtime);
     return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };
   },

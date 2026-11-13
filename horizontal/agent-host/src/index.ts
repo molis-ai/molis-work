@@ -59,6 +59,10 @@ export { registerAgentHostCapabilities } from "./capability-registration.js";
 export { runViewVersion } from "./run-wait.js";
 export { actionDigest } from "./action-digest.js";
 export { ReviewDecisionStore, reviewProposalVersion, reviewDecisionKey, type ReviewDecisionControl, type ReviewDecisionStorage, type ReviewDecisionSave, type StoredReviewDecision } from "./review-decisions.js";
+export { WorkDelegationStore, workDelegationKey, type WorkDelegationStorage, type WorkDelegationGrant, type WorkDelegationChange, type WorkDelegationInvalidation } from "./delegations.js";
+export { actionDelegationMatches, delegationScopesNarrow } from "./delegation-scopes.js";
+export type { WorkDelegationPermission } from "./delegation-permissions.js";
+export type { WorkDelegationCancellation } from "./delegation-cancellations.js";
 export type {
   AgentCapabilityPorts,
   AgentCapabilityRegistrar,

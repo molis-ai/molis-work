@@ -9,8 +9,8 @@
 | 证据 | 本稿状态与最终门槛 |
 | --- | --- |
 | 设计 | 已实施；C 在 `03695c2691` 合审，最终头待补。 |
-| 工程 | 已实现（2026-11-11，见文末实现记录）；B27-UN-01～04、B27-UN-02/04 设置页 e2e 通过；B27-UN-05 的 1440/键盘/项目插件未做。 |
-| 实操 | 已做：隔离 Home 的真实签包卸载/保留项/失败重试与设置页（B27-UN-02/04）；完整生图的真实 1.5 MiB/4×2 MiB 通过；B27-UN-05 的 1440/键盘/项目插件未做；本人验收未做。 |
+| 工程 | 已实现（2026-11-11，见文末实现记录）；B27-UN-01～04、B27-UN-02/04 设置页 e2e 通过；B27-UN-05 的 1440/键盘/项目插件 2026-11-13 补齐（同一用例）。 |
+| 实操 | 已做：隔离 Home 的真实签包卸载/保留项/失败重试与设置页（B27-UN-02/04）；完整生图的真实 1.5 MiB/4×2 MiB 通过；B27-UN-05 的 1440/键盘/项目插件 2026-11-13 补齐；本人验收未做。 |
 | 本人验收 | 设置体验按第 27 批要求由一骏看实物验收，单列结果。 |
 
 适用流程与合同。 [开工前检查](../../../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)、[开发](../../../post-anticorruption-roadmap/reference/development-workflow.md#8-开发)、[评审](../../../post-anticorruption-roadmap/reference/development-workflow.md#10-评审与合并)、[合同变更](../../../../docs/system/CONTRACT-CHANGES.md)、[插件开发 Skill](../../../../skills/molis-plugin-dev/SKILL.md)
@@ -135,7 +135,7 @@ BL-628 §3.7 的原表写明「Home 库（S-91）」，不保留数据时「删�
 - 限额先查后分配：holder 对宿主真实交回的 `Uint8Array` 查张数、单张、合计与 MIME 形状，worker 对描述符再查一遍再分配缓冲、逐段核 offset、长度、尺寸与解码后字节数；agent-host 适配器新增可选的 `output` 上限，只由沙箱的图片端口传入，先 inspect 全部资源、整批合格才分配，超限 `agent.inference.image_too_large`（宿主映射为 `host.image_too_large`，沙箱端口再转成 `sandbox.response_too_large`），资源在 `finally` 全部撤销；读块循环加了「多读」「未到长度就 done」的拒绝。原生图片客户端不传 `output`，行为不变。
 - 切换：第 ② 步（新传输、仍 360 KiB）与第 ③ 步（上限与 agent-host 预检）在同一提交落地，没有长期双解码；旧阶段的 360 KiB+1 拒绝由同一个校验器（holder 给 360 KiB 限额）在 B27-IMG-01 里保留。
 - 新错误码：`agent.inference.image_too_large`、`host.image_too_large`。
-- 证据：`tests/security-invariants-sandbox-image-ranges.test.ts`（B27-IMG-01、03、04，含真 Seatbelt runner 的续读、段间取消与停进程）、`tests/prologue-inference-native.test.ts`（适配器预检）、`tests/security-invariants-sandbox-home-signed-model.test.ts` 的 RAC-2655 trusted 分支（B27-IMG-02：真签包、生产宿主、Seatbelt、Prologue、隔离 HTTPS，1.5 MiB 与 4×(2 MiB−64 KiB) 的真 PNG，每批一次供应商 POST）、RAC-2633 改为新形状。未做：真实 JPEG、峰值 RSS 与最大报文的数字测量、撤项目许可或发布者的分组栅栏（这几种撤销都经同一个 `beforeEffect`／controller，单测覆盖了撤权与取消两种代表）。
+- 证据：`tests/security-invariants-sandbox-image-ranges.test.ts`（B27-IMG-01、03、04，含真 Seatbelt runner 的续读、段间取消与停进程）、`tests/prologue-inference-native.test.ts`（适配器预检）、`tests/security-invariants-sandbox-home-signed-model.test.ts` 的 RAC-2655 trusted 分支（B27-IMG-02：真签包、生产宿主、Seatbelt、Prologue、隔离 HTTPS，1.5 MiB 与 4×(2 MiB−64 KiB) 的真 PNG，每批一次供应商 POST）、RAC-2633 改为新形状。2026-11-13 补了真实 JPEG（1.5 MiB 非整段尾、2 MiB 与 PNG 同批）和 Host 进程峰值（诊断行）。未做：worker 峰值与最大报文的数字测量、撤项目许可或发布者的分组栅栏（这几种撤销都经同一个 `beforeEffect`／controller，单测覆盖了撤权与取消两种代表）。
 
 ## 开工前 15 项
 

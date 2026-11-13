@@ -222,6 +222,9 @@ describe("the records of this repository", () => {
     assert.equal(provenance.source.candidateUpstream, undefined);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
+    // The audit must list the commit the current artifact was packed from (not just its length).
+    assert.ok(json(`${folder}/patch-history.json`).upstream.commitsChecked.includes(provenance.source.commit),
+      "the upstream audit lists the current package's source commit");
     // The custom window package it replaced is recorded, not silently gone.
     const replaced = json(`${folder}/patch-history.json`).packagesWithoutPatch;
     const window = replaced.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-window31.tgz");

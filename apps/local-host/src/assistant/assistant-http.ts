@@ -496,6 +496,10 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
   });
 }
 
+/** The one caller the thread routes use; the action gateway still checks the current authority on every call. */
+const threadCaller = (host: MolisWorkLocalHost, reference: LocalHostProjectReference) =>
+  localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+
 /** Thread requests keep the page's trusted project and pass through the common action gateway. */
 async function handleThreadHttp(parts: string[], method: "GET" | "POST", url: URL, body: Record<string, unknown>,
   ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }) {
@@ -504,7 +508,7 @@ async function handleThreadHttp(parts: string[], method: "GET" | "POST", url: UR
     : parts[1] === "retry" ? assistantThreadActions.retry : parts[1] === "stop" ? assistantThreadActions.stop : null;
   if (!action || method === "GET" && parts[1] !== "status") return null;
   const input = method === "GET" ? { target: { provider_id: url.searchParams.get("provider_id"), subject_kind: url.searchParams.get("subject_kind"), subject_id: url.searchParams.get("subject_id"), thread_id: url.searchParams.get("thread_id") } } : body;
-  const result = await ports.localHost.actionClient(ports.projectRef).invoke(await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS), action, input);
+  const result = await ports.localHost.actionClient(ports.projectRef).invoke(await threadCaller(ports.localHost, ports.projectRef), action, input);
   return { status: 200, body: parts[1] === "status" ? { status: result } : result };
 }
 
@@ -514,7 +518,7 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
   const bound = store.get(WEB_ACTOR, workId);
   if (!bound.reply_target || ["rename", "archive", "recovery", "budget"].includes(parts[2] ?? "")) return null;
   if (parts[2] !== "control" || body.kind !== "stop" || !bound.project_ref) throw assistantErrors.scope("请回到原评论继续这项回复");
-  await ports.localHost.actionClient(bound.project_ref).invoke(await localWebActionContext(ports.localHost, bound.project_ref, LOCAL_OWNER_PERMISSIONS), assistantThreadActions.stop, { work_id: workId });
+  await ports.localHost.actionClient(bound.project_ref).invoke(await threadCaller(ports.localHost, bound.project_ref), assistantThreadActions.stop, { work_id: workId });
   return { status: 200, body: await service.read(workId) };
 }
 

@@ -35,10 +35,11 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
   try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix, maxBodyBytes: MAX_PACKAGE_BYTES,
     async handle({ method, pathname, body }) {
       const client = ports.localHost.actionClient(ports.projectRef);
+      const installCaller = () => localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
       const route = pathname.slice("/api/plugin-trust/".length);
       if (method === "POST" && route === "permissions/set") {
         if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人改插件的授权");
-        const caller = await localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
+        const caller = await installCaller();
         const { capability_id, version } = pluginInstallActions.setPermission;
         return { status: 200, body: await withPluginPermissionSettingsEntry(caller, entry =>
           client.invoke(entry, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };
@@ -71,7 +72,7 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
       if (route === "installed/uninstall") {
         // Taking a plugin off is the project settings door's, as switching its permissions is (S-94, BL-915): a plugin's own page cannot.
         if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
-        const caller = await localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
+        const caller = await installCaller();
         const { capability_id, version } = pluginControlActions.uninstall;
         return { status: 200, body: await withPluginPermissionSettingsEntry(caller, entry =>
           client.invoke(entry, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };

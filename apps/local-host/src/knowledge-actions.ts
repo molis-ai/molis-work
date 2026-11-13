@@ -1,7 +1,7 @@
 import { prepareKnowledgeDispatch, type KnowledgeCatalogAccess, type PreparedKnowledgeCatalog } from "./knowledge-dispatch.js";
 import type { AgentSessionLifecycleCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, isSubjectReader, isSearchEntriesSource, searchRevisionOf, type ActionSubjectState } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   KNOWLEDGE_PROVIDER_ID,
@@ -31,6 +31,7 @@ import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostTextGeneration } from "./host-complete-text.js";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { runBackgroundWorkIn } from "./ui-locale-memory.js";
+import { matchingActions, type HostActionClient } from "./local-host-types.js";
 
 export interface KnowledgeHostPorts {
   homeDirectory: string;
@@ -38,7 +39,7 @@ export interface KnowledgeHostPorts {
   search: Pick<SearchService, "query" | "indexedCatalog">;
   /** The search index: the catalog of each project is what it holds (spec §4.4). */
   index: Pick<SearchIndexPort, "catalog" | "document" | "sources" | "related">;
-  clientFor(caller: ActionCallContext): ActionClient;
+  clientFor(caller: ActionCallContext): HostActionClient;
   /** The project owner's authority, which indexing and organizing read every source with. */
   ownerContext?(projectId: string): Promise<ActionCallContext>;
   /** The project's text model now (tests give their own); by default the Home's configured text model. */
@@ -163,13 +164,16 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   // still recognizes it, and its revision follows the text the index holds, so a changed state-owning subject is organized again.
   const catalog = async (projectId: string) => {
     if (!ports.ownerContext || closed) return [];
-    const caller = await ports.ownerContext(projectId);
-    const current = await ports.search.indexedCatalog({ caller, client: ports.clientFor(caller) });
+    const caller = await ports.ownerContext(projectId), client = ports.clientFor(caller);
+    const current = await ports.search.indexedCatalog({ caller, client: {
+      invoke: client.invoke,
+      discover: caller => matchingActions(client, caller, ({ action }) => isSearchEntriesSource(action) || isSubjectReader(action)
+        || action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_STATE_TYPE),
+    } });
     if (closed) return [];
     const pieces = knowledgeCatalog(current, projectId).map(piece => { piece.assertCurrent = current.assertCurrent; return piece; });
-    const views = await ports.clientFor(caller).discover(caller);
     return pieces.flatMap(piece => {
-      const owner = subjectOwner(views, projectId, piece.subject, piece), previous = store.get(projectId, piece.subject);
+      const owner = subjectOwner(current.views, projectId, piece.subject, piece), previous = store.get(projectId, piece.subject);
       if (!owner || !owner.state && previous && knowledgeCardSource(previous).state_required) return [];
       return [owner.state ? { ...piece, revision: `content-v1:${searchRevisionOf([piece.title, piece.summary, piece.content])}` } : piece];
     });

@@ -10,6 +10,7 @@ import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginActionDependencies } from "./plugin-action-dependencies.js";
 import { activeLocale } from "./web-locale.js";
 import { entryUserAction, type EntryMessage } from "./entry-user-action.js";
+import { matchingActions, type HostActionClient } from "./local-host-types.js";
 
 /**
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
@@ -276,12 +277,14 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
 }
 
 /** Lazily prepare system providers before either read-only discovery or execution. */
-export function withPreparedActions(client: ActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
-  refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): ActionClient {
+export function withPreparedActions(client: HostActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
+  refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): HostActionClient {
+  const ready = async (caller: ActionCallContext) => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); };
   return {
-    discover: async caller => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); return client.discover(caller); },
+    discover: async caller => { await ready(caller); return client.discover(caller); },
+    discoverMatching: async (caller, select) => { await ready(caller); return matchingActions(client, caller, select); },
     invoke: async (caller, capability, input) => {
-      try { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); }
+      try { await ready(caller); }
       catch (error) { return refuse(caller, capability, error); }
       return client.invoke(caller, capability, input);
     },

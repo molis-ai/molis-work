@@ -65,6 +65,7 @@ import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostActionClient } from "./local-host-types.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -370,7 +371,7 @@ export class MolisWorkLocalHost {
   }
 
   /** `preparePlugins: false` skips project Runtime preparation and external MCP restoration; project Runtime actions may not be registered. Home actions are still prepared. */
-  actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
+  actionClient(reference: LocalHostProjectReference, preparePlugins = true): HostActionClient {
     return withPreparedActions(this.host.actionClient(reference), async caller => {
       if (preparePlugins) await this.prepareProjectPlugins(reference, caller);
       caller.signal?.throwIfAborted();
@@ -380,7 +381,7 @@ export class MolisWorkLocalHost {
 
   syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
-  homeActionClient(): ActionClient {
+  homeActionClient(): HostActionClient {
     return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions(),
       (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
   }

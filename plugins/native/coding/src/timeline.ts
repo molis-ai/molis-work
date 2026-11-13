@@ -54,6 +54,8 @@ export interface TimelineTurnChanges {
 
 /** The words and tables the timeline reads with. */
 export type TimelineWords = ReturnType<typeof codingTimelineWords>;
+/** A finished command's end: its exit code, or why it has none. */
+type CommandEnd = number | "cancelled" | "timed-out" | "signal" | "unknown";
 
 const waitingUntil = (at: string) => uiText.text("coding.timeline.until", { time: dateArg(at, "time-with-seconds") });
 
@@ -64,18 +66,29 @@ export function retitleCodingWaits(scope: Element) {
   });
 }
 
+/**
+ * How a finished command ended, read from the first line of its receipt (`exit 0`, `exit cancelled`, `exit timed-out`,
+ * `exit none (a signal ended it)`). Anything else, including no output at all, is an unknown end: "passed" is never
+ * inferred beyond the receipt (BL-222). Null when the item is not a finished command.
+ */
+function commandEnd(item: TimelineActivity): CommandEnd | null {
+  if (item.name !== "run-command" || item.state !== "completed") return null;
+  const line = /^exit (\S+)/.exec(item.output ?? "")?.[1];
+  if (line && /^-?\d+$/.test(line)) return Number(line);
+  return line === "cancelled" ? "cancelled" : line === "timed-out" ? "timed-out" : line === "none" ? "signal" : "unknown";
+}
+const endLabel = (end: CommandEnd): string => typeof end === "number"
+  ? end === 0 ? uiText.text("coding.timeline.end.ok") : uiText.text("coding.timeline.end.exit", { code: end })
+  : { cancelled: uiText.text("coding.timeline.end.cancelled"), "timed-out": uiText.text("coding.timeline.end.timed-out"),
+    signal: uiText.text("coding.timeline.end.signal"), unknown: uiText.text("coding.timeline.end.unknown") }[end];
+const endTone = (end: CommandEnd) => end === 0 ? "ok" : end === "cancelled" ? "quiet" : end === "unknown" || end === "signal" ? "unknown" : "failed";
+
 export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
   const { KIND, FAILURES, toolHint: hintFor, other, tally } = words;
   const kindOf = (item: TimelineActivity) => KIND[item.name] ?? other(item.name);
-  /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
-  const exitCode = (item: TimelineActivity): number | null => {
-    if (item.name !== "run-command" || item.state !== "completed") return null;
-    const match = /^exit (-?\d+)/.exec(item.output ?? "");
-    return match ? Number(match[1]) : null;
-  };
   /**
    * A board-report that fails with TASKBOARD_CONFLICT is a version-conflict retry, not a real failure, when a later
    * board-report in the same group lands successfully. The host records board-report's target as empty (it only
@@ -96,7 +109,7 @@ export function createCodingTimeline(words: TimelineWords) {
   /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
   const REVIEWED = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
-    const code = exitCode(item);
+    const end = commandEnd(item);
     if (item.state === "started") return ended ? { tone: "unknown", label: uiText.text("coding.timeline.no-result") }
       : waiting ? (REVIEWED.has(item.name) ? { tone: "waiting", label: uiText.text("coding.timeline.approve") } : { tone: "held", label: uiText.text("coding.timeline.held") })
       : { tone: "running", label: uiText.text("coding.filter.running") };
@@ -106,7 +119,7 @@ export function createCodingTimeline(words: TimelineWords) {
       return { tone: "failed", label: uiText.text("coding.timeline.failed") };
     }
     if (item.state === "unknown") return { tone: "unknown", label: uiText.text("coding.recovery.unknown") };
-    if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
+    if (end !== null) return { tone: endTone(end), label: endLabel(end) };
     return { tone: "ok", label: "" };
   };
   /**
@@ -240,7 +253,7 @@ export function createCodingTimeline(words: TimelineWords) {
     }
     const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
     const commands = run.activity.filter(item => item.name === "run-command" && item.state === "completed"), dispatched = run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length;
-    const lastCommand = commands.at(-1), lastCode = lastCommand ? exitCode(lastCommand) : null;
+    const lastCommand = commands.at(-1), lastEnd = lastCommand ? commandEnd(lastCommand) : null;
     // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
     const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
     const completedFraction = run.step_board?.nodes.length ? run.step_board.nodes.filter(node => node.state === "succeeded").length / run.step_board.nodes.length : undefined;
@@ -261,7 +274,7 @@ export function createCodingTimeline(words: TimelineWords) {
       edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"),
       dispatched && tally(KIND["dispatch-subagent"]!, dispatched),
       commands.length ? tally(KIND["run-command"]!, commands.length) : "",
-      lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), code: lastCode ?? "?" }) : "",
+      lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "",
     ].filter(Boolean);
     // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing. "已停止" is the runtime's own
     // default reason for a stop, so it restates the title in every language.

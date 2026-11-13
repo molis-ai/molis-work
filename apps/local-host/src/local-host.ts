@@ -9,7 +9,7 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallReports, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionReference,
   type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -41,11 +41,12 @@ interface ProjectActionClient extends ActionClient {
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
-  private readonly settled: CallSettled = (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome);
+  private readonly reports: CallReports = { settled: (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome),
+    observed: (caller, action, observation) => this.options.actionObserved?.(caller, action, observation) };
   private readonly actionService = new ActionService(this.capabilities, { assertCurrent: () => {
     if (this.state !== "running" || this.line.scopeClosing()) throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
   }, beforeEffect: (caller, reference) => this.availability.check(caller, reference),
-    admit: (caller, reference) => this.availability.check(caller, reference), settled: this.settled });
+    admit: (caller, reference) => this.availability.check(caller, reference), ...this.reports });
   private readonly line: ProjectLine<Runtime>;
   private readonly availability: HostAvailability;
   private readonly sceneHost: SceneHost;
@@ -180,7 +181,7 @@ export class LocalHost<Runtime> {
       invoke: async (caller, capability, input) => {
         let context: ActionCallContext;
         try { context = contextFor(caller); }
-        catch (error) { return refuseCall(this.settled, caller, capability, error); }
+        catch (error) { return refuseCall(this.reports, caller, capability, error); }
         const descriptor = this.capabilities.descriptor(capability);
         return this.homeLine.run(() => this.actionService.invoke(context, capability, input), descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
       },
@@ -239,12 +240,12 @@ export class LocalHost<Runtime> {
           await this.withRuntime(project, () => undefined);
           caller.signal?.throwIfAborted();
           this.assertRunning();
-        } catch (error) { return refuseCall(this.settled, bound, capability, error); }
+        } catch (error) { return refuseCall(this.reports, bound, capability, error); }
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
-        if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
+        if (!descriptor) return refuseCall(this.reports, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
         bound = { ...bound, ...callSignal(descriptor, () => this.line.ensureEntry(project), bound.signal) };
         return this.line.enqueue(project, descriptor, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
-          .catch(error => { if (dispatched) throw error; return refuseCall(this.settled, bound, capability, error); });
+          .catch(error => { if (dispatched) throw error; return refuseCall(this.reports, bound, capability, error); });
       },
     };
   }

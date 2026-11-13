@@ -12,7 +12,7 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertCallerProvenance } from "./action-authorship.js";
-import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallSettled } from "./action-settlement.js";
+import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallReports } from "./action-settlement.js";
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
@@ -38,14 +38,12 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly checkingDependencies = new WeakMap<ActionCallContext, Set<string>>(); // per context: a delegated caller's authority check reads its original's own, which is not a cycle
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
-    private readonly effects: {
+    private readonly effects: CallReports & {
       beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
       /** The Host's live runtime check, without yielding after the final authority check. */
       assertCurrent?(context: ActionCallContext, reference: ActionReference): void;
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
-      /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
-      settled?: CallSettled;
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
@@ -210,7 +208,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */
   async invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown> {
     let resolved: HostCapabilityDescriptor | undefined;
-    return settleCall(this.effects.settled, bindCall(context), call => describeCall(this.registry, call, reference, resolved), async call => {
+    return settleCall(this.effects, bindCall(context), call => describeCall(this.registry, call, reference, resolved), async call => {
       await this.effects.admit?.(call, reference);
       const definition = resolved = requireDefinition(this.actionDefinition(call, reference), reference);
       if (call.validate_authority) {
@@ -220,13 +218,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       }
       assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id }, definition.action?.permissions);
       return this.registry.invoke(call, definition, input);
-    });
+    }, { value: input });
   }
 
   /** `entryCheck`: the caller's own synchronous checks, made inside the settled call so that what they refuse is settled too. */
   invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown, entryCheck?: () => void): unknown {
     let resolved: HostCapabilityDescriptor | undefined;
-    return settleCallSync(this.effects.settled, bindCall(context), call => describeCall(this.registry, call, reference, resolved), call => {
+    return settleCallSync(this.effects, bindCall(context), call => describeCall(this.registry, call, reference, resolved), call => {
       entryCheck?.();
       const definition = resolved = requireDefinition(this.actionDefinition(call, reference), reference);
       const registration = this.registry.registrationToken(definition);
@@ -234,7 +232,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
       assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id }, definition.action?.permissions);
       return this.registry.invokeSync(call, definition, input);
-    });
+    }, { value: input });
   }
 
   private sceneDeclarations(context: ActionCallContext, selection?: ActionSceneSelection) {

@@ -40,7 +40,7 @@
 
 ## 非目标
 
-- 本轮不改产品代码、动作合同、库结构、版本号、页面资源或 CI 门禁。
+- 本轮不改产品代码、动作合同、库结构、版本号或页面资源；CI 门禁只加用户 2026-11-13 批准的三项文档检查（`backlog-rows` 类型、`backlog-refs`、`doc-indexes`）。
 - 不重写 500 条 BL 的需求内容；只做状态、编号、索引、失效引用和已失去对象的条目。
 - 不把归档材料重新解释成当前规则。
 - 不合并或删除仍有现行规则价值的 spec 正文；需要保留的合同稿先转现行规范或留原地。
@@ -103,7 +103,7 @@
   - 新增 [specs/archive/README.md](../archive/README.md)、[docs/reviews/README.md](../../docs/reviews/README.md)、[docs/qa/README.md](../../docs/qa/README.md)，`docs/design/README.md` 补目录清单。
   - P2 已做索引与分层说明：`specs/README` 增「相关 spec 族」，`RUNTIME-MIGRATION` 加历史/现行 banner。三族已合并：个人同步五份、Prologue 四份、情境三份；工作线因各有 MLN/WLN 编号暂不合并。
   - 新增生成式门禁：`backlog-rows.mjs` 校验六种类型，`backlog-refs.mjs` 校验活文档里的 BL 编号，`doc-indexes.mjs` 校验评审/设计索引；都接入 `docGates`。
-- 2026-11-13：`doc-links`、`doc-citations`、`spec-index`、`doc-raw-data` 均通过；`check-health-gates.mjs --report` 的 Document references 为 none broken；`check-spec-coverage` 仍为报告模式。P2 的结构合并与门禁生成器未执行，需另立决定。
+- 2026-11-13：`doc-links`、`doc-citations`、`spec-index`、`doc-raw-data` 均通过；`check-health-gates.mjs --report` 的 Document references 为 none broken；`check-spec-coverage` 仍为报告模式。P2 的三族合并与三项文档门禁已做；工作线两份 spec 的合并与 `RUNTIME-MIGRATION` 的历史层拆分仍待另定。
 
 ## 在途 PR 的合并注意（2026-11-13 核对；已合入的 #2009、#2046、#2048 已按 main 更新，不再列在下面）
 

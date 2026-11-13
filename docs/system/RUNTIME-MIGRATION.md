@@ -44,7 +44,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 名字以 2026-10-18 为准，W4-11（#542）登记库；2026-10-24 起（PG-022 P1，#1222）库由 Manifest 的 `databases.home` 声明，删项目时库里的行另由其 `project_rows` 声明（PG-024，第 10 节第 5 项）。
 
-`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 23 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
+`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 22 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
 - `RUNTIME_ASSEMBLED`（15）：coding、dataset、diff、feed、form、git、goals、inbox、lingguang、pages、ppt、schedule、shelf、text-stats、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。
 - Home 级（5）：issues、todo、cognia、images、jelly，Manifest 写 `runtime: { scope: "home" }`、包自己的 `registration` 带 `runtime: { create, … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。

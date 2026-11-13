@@ -42,7 +42,6 @@ function eventText(event: RiskEvent): string {
   const detail = event.detail;
   if (event.kind === "status" && detail.status) return text("event.status", { from: text(`status.${detail.previous_status ?? "open"}`), to: text(`status.${detail.status}`) });
   if (event.kind === "updated") return text("event.updated", { fields: (detail.fields ?? []).map(field => text(`field.${field === "owner_name" ? "owner" : field}`)).join(text("list.separator")) });
-  if (event.kind === "linked" || event.kind === "unlinked") return text(`event.${event.kind}`, { kind: detail.subject?.kind ?? "" });
   return text(`event.${event.kind}`);
 }
 

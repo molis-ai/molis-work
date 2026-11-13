@@ -156,3 +156,10 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 5. 目录对「Schedule 没启用」与「调用者够不到 Schedule」给同一个 `actions.dependency_missing`：风险一侧统一说 `risk.review_unavailable`，文字两种都提。
 6. 复查一轮失败后不重试：一次性任务的唤醒没了、时间也过了，对账就把它停下，结果页写「没跑成」；要再跑由人重新安排（RISK-07「重试不重复」）。
 
+## 10. 实现中的调整（`b17/ui`，2026-11-13）
+
+1. 关联对象在风险详情里由外壳按主人呈现画（`host.view.surfaceSlot`，槽位 `risk.links`），不是页面自己按呈现取值读名字：读不到、已删除、够不到都由外壳说，页面只拿 kind 与 id，也不用自己批量读。
+2. 复查的读取授权入口：平台的授权区只能放在自己安装的任务上（`taskGrants.place`），复查任务是 Schedule 的，所以复查段在「没开读取授权」时给「去开授权」，用 `openItem("schedule", task_id)` 打开 Schedule 页面的这个任务，人在那里开。Schedule 页面为此加了按任务 id 打开详情（`molis-work:select-item`；不在本页的任务回 `molis-work:item-unreadable`）。
+3. Goals 顾虑的引用对象：Goal 页面由外壳直接画，没有插件框，暂时画成「<主人插件名> · 打开」（IUI-02 的退路少了名字），点开经工作台 `[data-workbench-item-plugin]` 打开，于是风险先在侧栏开；名字片与表单里挑选引用记为 [BL-goals-cited-object-names](../backlog/BL-goals-cited-object-names.md)、[BL-goals-concern-cite-picker](../backlog/BL-goals-concern-cite-picker.md)。引用今天由助理与执行 AI 经 `goals.concern@1` 写入。
+4. 侧栏视图叫 `record`（设计稿写 `detail`）；没打开过东西时说「这里显示一条风险」。
+5. 加关联只找 Goal（`search.references` 的 `kinds: ["goal"]`），与设计的「关联 Goal」入口一致；别的种类由助理按动作加。

@@ -102,7 +102,7 @@ export class WebSessions {
     const context = requestSessions.get(request);
     return context?.owner === this && context.session && this.valid(context.session) ? context.session.proof : "";
   }
-  accepts(context: RequestSession, proof: unknown, statusRead = false): boolean {
+  accepts(context: Pick<RequestSession, "session" | "expected">, proof: unknown, statusRead = false): boolean {
     const session = context.session;
     return !!session && this.valid(session) && (statusRead || session.scope === webPageScope(context.expected)) && controlTokenMatches(session.proof, proof);
   }
@@ -168,15 +168,25 @@ export function revokeWebSession(request: IncomingMessage): void { requestSessio
 
 export function withWebSessionRequest<T>(request: IncomingMessage, operation: () => T): T { return currentRequest.run(request, operation); }
 
+/** Prepared workbench actions belong to an actual page session, never the bare control credential. */
+export function webSurfaceSession(): AbortSignal | undefined {
+  const request = currentRequest.getStore(), context = request ? requestSessions.get(request) : undefined;
+  if (context?.session && context.owner.accepts(context, request?.headers[WEB_PAGE_SESSION_HEADER])) return context.session.abort.signal;
+  return undefined;
+}
+
 /** Capture before any await; later effects never borrow a new session or a new account. */
 export function captureWebSessionAuthority(): (reader?: IncomingMessage) => void {
   const request = currentRequest.getStore(), context = request ? requestSessions.get(request) : undefined;
-  const capturedProof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? context?.session?.proof;
+  // Keep the session and scope this request started with; a later replacement of the request's record is not this authority.
+  const owner = context?.owner, session = context?.session, expected = context?.expected;
+  const capturedProof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? session?.proof;
   return reader => {
-    const current = reader ? requestSessions.get(reader) : context;
+    if (!reader && !session) return;
+    const current = reader ? requestSessions.get(reader) : undefined;
     const proof = reader ? reader.headers[WEB_PAGE_SESSION_HEADER] : capturedProof;
-    if (!reader && !context?.session) return;
-    if (!current || !context?.session || current.owner !== context.owner || current.session !== context.session || !current.owner.accepts(current, proof))
+    if (!owner || !session || (reader && (!current || current.owner !== owner || current.session !== session))
+      || !owner.accepts({ session, expected: reader ? current!.expected : expected! }, proof))
       throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
   };
 }

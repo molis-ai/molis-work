@@ -15,6 +15,11 @@ import { informationActionProvider } from "./information-actions.js";
 import { createSettingsVersionClaims } from "./declaration-owners.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
+import { surfaceActionProvider } from "./surface-actions.js";
+import type { SurfaceHomeCatalogReader } from "./surface-home-directory.js";
+import { projectSurfaceHome } from "./surface-home-http.js";
+import { projectSurfaceContext, projectSurfacePosition, projectSurfaceSearch } from "./surface-project-read.js";
+import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -151,6 +156,10 @@ export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private readonly draftReferences = new DraftReferences();
   readonly synchronization: ReturnType<typeof projectSyncAccess>;
+  readonly surfaceHome: ReturnType<typeof projectSurfaceHome>;
+  readonly surfacePosition: ReturnType<typeof projectSurfacePosition>;
+  readonly surfaceSearch: ReturnType<typeof projectSurfaceSearch>;
+  readonly surfaceOperation: ReturnType<typeof projectSurfaceContext>;
   readonly projectCatalogActions: ReturnType<typeof registerHostPlatformProviders>;
   private personalPlanningHome?: string;
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
@@ -173,6 +182,7 @@ export class MolisWorkLocalHost {
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     prepareHostMemoryHome(this, options.homeDirectory);
+    const readCatalog: SurfaceHomeCatalogReader = operation => this.webCatalog?.access.read(operation);
     try {
     this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
     const catalogOwner = () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined;
@@ -201,6 +211,9 @@ export class MolisWorkLocalHost {
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
+            add(surfaceActionProvider({ store, reference, homeDirectory: options.homeDirectory, readCatalog,
+              client: this.host.actionClient(reference),
+              home: () => this.homePlugins, placement: () => this.placement, now: clock }));
             add(projectWorkspaceActionProvider(reference.project_id, catalogOwner,
               workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId), {
                 client: this.actionClient(reference), db: store.db, now: clock,
@@ -231,8 +244,13 @@ export class MolisWorkLocalHost {
       },
     });
     this.synchronization = projectSyncAccess(this.host);
+    this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
+    const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);
+    this.surfaceOperation = position;
+    this.surfacePosition = projectSurfacePosition(position);
+    this.surfaceSearch = projectSurfaceSearch(position);
     const home = options.homeDirectory, settingsVersionClaims = createSettingsVersionClaims();
-    if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
+    if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims, ownerClosing: () => !!this.closing.started,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference) });
@@ -246,7 +264,7 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
-    this.plugins = { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
+    this.plugins = { host: this.host, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)),
@@ -420,7 +438,7 @@ export class MolisWorkLocalHost {
     };
   }
 
-  actionRegistry(reference?: LocalHostProjectReference): ActionRegistryPort {
+  actionRegistry(reference?: LocalHostProjectReference): SurfaceInstallRegistry {
     return this.host.actionRegistry(reference);
   }
 

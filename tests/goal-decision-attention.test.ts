@@ -94,6 +94,23 @@ test("submitting a Goal proposal writes one open Attention row and keeps it for 
   }
 });
 
+test("SCS-17 Attention projects an active Goal decision as the owner's Goal reference without its detail", () => {
+  const data = fixture();
+  try {
+    const proposal = propose(data.app, "child-a", "propose-a");
+    const attention = new AttentionModule(data.store.db, { exists: () => true });
+    const [entry] = attention.query.list(BOARD);
+    assert.deepEqual(attention.listSurfaceEntries(BOARD), [{ owner_plugin_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: data.rootId },
+      reason: "goal_decision", revision: entry!.revision, entered_at: entry!.created_at }]);
+    assert.deepEqual(attention.listSurfaceEntries("other-project"), []);
+    decide(data.app, proposal.proposal_id, "decide-a");
+    assert.deepEqual(attention.listSurfaceEntries(BOARD), []);
+  } finally {
+    data.store.close();
+    rmSync(data.directory, { recursive: true, force: true });
+  }
+});
+
 test("deciding the last pending proposal marks Attention done; a new submit reopens it", () => {
   const data = fixture();
   try {

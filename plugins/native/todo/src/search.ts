@@ -6,13 +6,14 @@ import { withProjectReach } from "./reach.js";
 import { todoCallerProject } from "./caller.js";
 import { todoErrors } from "./error.js";
 
+const subjectReader = withProjectReach(defineSubjectContextAction("todo.item.subject.read", /* @version action.todo.item.subject.read */ 1, TODO_SUBJECT_KIND, "待办", ["todo:read"], "home"));
 // The unified input's ＋ (unified-input-voice K5): a todo picked there goes with the words as a reference, read again by
 // `todo.item.subject.read` when the target takes it. Only reads, and only what the caller's search would find.
 const composerPick: ActionDefinition<ComposerPickInput, ComposerPickOutput> = {
   capability_id: "todo.composer.pick", version: /* @version action.todo.composer.pick */ 1, operation: "query",
   action: { title: "选待办", description: "按标题找还没做完的待办，交给输入框作为资料", kind: "query", scope: "home", audiences: ["user"], permissions: ["todo:read"],
     subject_kinds: [TODO_SUBJECT_KIND], input_type: COMPOSER_PICK_INPUT_TYPE, output_type: COMPOSER_PICK_OUTPUT_TYPE,
-    input_schema: COMPOSER_PICK_INPUT_SCHEMA, output_schema: COMPOSER_PICK_OUTPUT_SCHEMA, composer_source: { title: "待办", layers: ["ai", "plain"] } },
+    input_schema: COMPOSER_PICK_INPUT_SCHEMA, output_schema: COMPOSER_PICK_OUTPUT_SCHEMA, composer_source: { title: "待办", title_text: { key: "todo.directory.name" }, layers: ["ai", "plain"] } },
 };
 
 /** Todo's part in the system search and in object reading (the Assistant's "this todo"). */
@@ -21,7 +22,7 @@ export const todoSearchActions = {
   // are indexed with that project, so a project search finds them and no other project or the personal index holds them.
   entries: defineSearchEntriesAction("todo.search.entries", /* @version action.todo.search.entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "个人待办", ["todo:read"], "home"),
   projectEntries: defineSearchEntriesAction("todo.search.project_entries", /* @version action.todo.search.project_entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "项目待办", ["todo:read"], "project"),
-  subject: withProjectReach(defineSubjectContextAction("todo.item.subject.read", /* @version action.todo.item.subject.read */ 1, TODO_SUBJECT_KIND, "待办", ["todo:read"], "home")),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
   pick: composerPick,
 };
 

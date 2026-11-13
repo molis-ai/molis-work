@@ -214,7 +214,10 @@ if (said && broken.fresh) { broken.fresh = false; requestAnimationFrame(() => { 
 return alert;
 }
 if (plugin.state === "running") step(readText("workbench.settings-plugins.deactivate"), "mw-btn--secondary", "disable", {}, readText("workbench.settings-plugins.switched-off"), readText("workbench.settings-plugins.switch-plugin-off"), readText("workbench.settings-plugins.plugin-stops-running-offers-no-actions-its-data", { plugin: name }));
-else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) step(readText("workbench.settings-plugins.enable"), "mw-btn--secondary", "enable", {}, readText("workbench.settings-plugins.enabled"));
+else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) {
+const { install_id, installation_generation, version, manifest_digest } = plugin;
+step(readText("workbench.settings-plugins.enable"), "mw-btn--secondary", "enable", act === homeApi ? {} : { expected_installation: { scope: "project", install_id, installation_generation, version, manifest_digest } }, readText("workbench.settings-plugins.enabled"));
+}
 step(readText("workbench.settings-plugins.uninstall-keep-data"), "mw-btn--ghost", "uninstall", { keep_data: true, target }, readText("workbench.settings-plugins.uninstalled"), readText("workbench.settings-plugins.uninstall-plugin"), readText("workbench.settings-plugins.plugin-uninstalled-its-data-kept-installing-same-plugin", { plugin: name }));
 step(readText("workbench.settings-plugins.uninstall-delete-data"), "mw-btn--ghost", "uninstall", { keep_data: false, target }, readText("workbench.settings-plugins.uninstalled"), readText("workbench.settings-plugins.uninstall-plugin"), readText("workbench.settings-plugins.plugin-uninstalled-its-data-deleted-cannot-be-undone", { plugin: name }));
 return box;

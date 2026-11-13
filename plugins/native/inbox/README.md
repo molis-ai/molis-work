@@ -27,7 +27,7 @@
 
 ## 接入与边界
 
-不依赖 Feed / Goals 插件实现。关联对象的名字与正文经 Feed 的公开动作取得（`feed.briefs.read`、`feed.items.content`、`feed.items.admission`、`feed.items.admit`）；Feed 没装时条目照常列出（名字缺），重开被拒并说明。完成 / 忽略只改 Attention 状态，不删除原 Feed Item、Goal 或来源。
+不依赖 Feed / Goals 插件实现。关联对象的名字与正文经 Feed 的公开动作取得（`feed.briefs.read`、`feed.items.content`、`feed.items.admission`、`feed.items.admit`）；Feed 没装时条目照常列出（名字缺），重开被拒并说明。详情里的 Inbox 事项由自身数据绘制，`inbox.origin` 挂载位只交出实际关联的原件引用。工作台用原主人的取值与动作绘制并处理该位置，插件不接收其值和结果。完成 / 忽略只改 Attention 状态，不删除原 Feed Item、Goal 或来源。
 
 详情里的“转为待办”只是带数据的按钮（`data-context-intake="todo"`，带事项的 id 与标题）：工作台按页面声明的对象种类，把这件事项交给 Todo 声明的「记成待办」创作入口（`todo.items.create` 的 intake），由 Todo 自己起草、新建并记下来源；Inbox 不认识 Todo 的输入。Todo 不可用时点击会得到拒绝提示。转为待办不改事项状态，处理事项也不会完成那件待办。
 
@@ -84,4 +84,6 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - [Inbox / Feed 拆插件需求](../../../specs/archive/inbox-feed-plugin-split/spec.md)
 
 
-`inbox.home.events` 从原注意力记录提供首页事项，只返回 open/in_progress；旧的未处理记录可放到今天，完成或忽略后撤回。正文和目标关联通过共同对象查询读取，读取期间原记录版本变化则不返回旧投影；相关对象不可读时保留原注意力记录与明确提示，不伪造正文。返回的对象、来源分组导航由 `home.events.open` 在点击时重新核对。完成/忽略仍经 `inbox.actions.prepare` 提供原状态动作，使用同一条记录与版本检查。
+项目首页按本项目 Inbox 的原记录挑选五条可读待处理事项。只借 Feed 和 Goals 的公开读取权限显示原件标题及来源，等待后核对事项的 revision、状态和关联原件；有原判断记录时才显示建议。打开回到 Inbox 的实际条目，处理仍走原 contextual 准备、确认及状态动作。
+
+`inbox.home.events` 保留给仍消费事项窗口的调用方，继续从原注意力记录提供事项。完成或忽略后撤回，正文和目标关联仍走共同对象查询。

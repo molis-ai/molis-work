@@ -1,0 +1,42 @@
+{
+  "reason": "第 15 批 CI 修复（#2017）的界面增量，单项都在 10 KB 以下、没有新资源：助理面板「等你」计数在收起的一行输入框旁边单独占一格，不再盖住发送按钮（craft-finish-assistant 的四条规则：计数放在输入框左边，发送键仍在条的最右端（VUX-16），助理样式同时打进 arrival 与 settings 两张样式表，各 +590）；Inbox 对象标题换行显示全文、不再截断；英文词表给「已关闭插件的条目」补单复数。首屏 pages 是这几处在四个默认页面上、超出 batch-15-first-screen.json 已记数字的冷访余量（CI 首屏门禁对 539d2d7d46 的隔离 Host 实测），热访不变；另含合入 main 3d844d493a（第 25 批）后工作台词包同时带两批键、内容地址变化的冷访余量。",
+  "review": "第 15 批 PR #2017 全 PR 评审核对，见 PR 评论的评审台结论；单项低于 10 KB、无新资源，按页面资源规则经评审放行。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 590,
+    "/assets/molis-work-settings.css": 590
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 1527,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 1590,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 1527,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 1590,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 893,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 956,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 893,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 956,
+      "warm": 0
+    }
+  }
+}

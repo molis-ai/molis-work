@@ -164,12 +164,18 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   assert.ok(tabs.every((tabIndex) => tabIndex === 0), JSON.stringify(tabs));
   await inboxView.evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row => row.textContent.includes('Inbox 详情标题宽度'))?.click()");
   await inboxView.waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
-  const title = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean }>(`(() => {
+  // An active entry's visible title is Inbox's own presentation chip; the h1 keeps the same words for screen readers only.
+  // VISIBLE_TITLE picks the chip's tag when there is one, else the h1; TITLE_TEXT is the element holding the words.
+  const VISIBLE_TITLE = "(h1 => h1.closest('.feed-detail-header').querySelector('.inbox-object-title .mw-presentation__tag') ?? h1)";
+  const TITLE_TEXT = "(shown => shown.querySelector(':scope > strong') ?? shown)";
+  const title = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; spoken: boolean }>(`(() => {
     const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
-    const header = h1.closest('.feed-detail-header');
-    const box = h1.getBoundingClientRect();
-    return { h1: box.width, header: header.getBoundingClientRect().width, maxWidth: getComputedStyle(h1).maxWidth, overflow: h1.scrollWidth > h1.clientWidth + 1 };
+    const header = h1.closest('.feed-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
+    const box = shown.getBoundingClientRect();
+    return { h1: box.width, header: header.getBoundingClientRect().width, maxWidth: getComputedStyle(shown).maxWidth, overflow: text.scrollWidth > text.clientWidth + 1,
+      spoken: h1.textContent.trim() === text.textContent.trim() };
   })()`);
+  assert.ok(title.spoken, "the heading carries the shown title");
   assert.equal(title.maxWidth, "none");
   assert.ok(title.h1 > 500, JSON.stringify(title));
   assert.ok(title.h1 > title.header * 0.9, JSON.stringify(title));
@@ -180,14 +186,14 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     await inboxView.waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
     const box = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; lines: number }>(`(() => {
       const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
-      const header = h1.closest('.feed-detail-header');
-      const style = getComputedStyle(h1);
+      const header = h1.closest('.feed-detail-header'), shown = ${VISIBLE_TITLE}(h1), text = ${TITLE_TEXT}(shown);
+      const style = getComputedStyle(text);
       return {
-        h1: h1.getBoundingClientRect().width,
+        h1: shown.getBoundingClientRect().width,
         header: header.getBoundingClientRect().width,
-        maxWidth: style.maxWidth,
-        overflow: h1.scrollWidth > h1.clientWidth + 1,
-        lines: Math.round(h1.getBoundingClientRect().height / parseFloat(style.lineHeight))
+        maxWidth: getComputedStyle(shown).maxWidth,
+        overflow: text.scrollWidth > text.clientWidth + 1,
+        lines: Math.round(text.getBoundingClientRect().height / parseFloat(style.lineHeight))
       };
     })()`);
     assert.equal(box.maxWidth, "none", JSON.stringify(box));

@@ -46,10 +46,26 @@ export const pptUiContribution: UiContribution<PptUiModel> = {
   },
 };
 
-function pptSwatches(name: string, colors: readonly (readonly [color: string, labelKey: string])[], labelKey: string): string {
+// Every colour's name is its own literal key, so the translation scan sees each word the swatches say (no key from a variable).
+type PptColorKey = (typeof PPT_PRIMARY_SWATCHES | typeof PPT_BACKGROUND_SWATCHES | typeof PPT_TEXT_SWATCHES)[number][1];
+const PPT_COLOR_NAMES: Readonly<Record<PptColorKey, () => string>> = {
+  "ppt.color.indigo": () => uiText.text("ppt.color.indigo"),
+  "ppt.color.blue": () => uiText.text("ppt.color.blue"),
+  "ppt.color.purple": () => uiText.text("ppt.color.purple"),
+  "ppt.color.green": () => uiText.text("ppt.color.green"),
+  "ppt.color.red": () => uiText.text("ppt.color.red"),
+  "ppt.color.off-white": () => uiText.text("ppt.color.off-white"),
+  "ppt.color.pale-purple": () => uiText.text("ppt.color.pale-purple"),
+  "ppt.color.pale-blue": () => uiText.text("ppt.color.pale-blue"),
+  "ppt.color.charcoal": () => uiText.text("ppt.color.charcoal"),
+  "ppt.color.dark-gray": () => uiText.text("ppt.color.dark-gray"),
+  "ppt.color.blue-gray": () => uiText.text("ppt.color.blue-gray"),
+};
+
+function pptSwatches(name: string, colors: readonly (readonly [color: string, nameKey: PptColorKey])[], labelKey: string): string {
   const role = uiText.text(labelKey), label = uiText(labelKey);
   const chips = colors.map(([color, key]) => {
-    const accessibleName = uiText("ppt.color.swatch", { role, color: uiText.text(key) });
+    const accessibleName = uiText("ppt.color.swatch", { role, color: PPT_COLOR_NAMES[key]() });
     return `<button class="ppt-swatch" type="button" role="radio" data-ppt-swatch="${color}" style="background:${color}" aria-label="${accessibleName}"></button>`;
   }).join("");
   return `<div class="ppt-color-field"><span>${label}</span><div class="ppt-swatches" data-ppt-color-${name} role="radiogroup" aria-label="${label}">${chips}</div></div>`;

@@ -52,11 +52,12 @@ test("RAC-2682 a dual plugin is never offered as the person's own, whichever hal
   });
 });
 
-test("RAC-2620.1 installed stages defer their frame and Home packages keep their personal directory entry and icon", () => {
+test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installation, and Home packages keep their personal directory entry and icon", () => {
   const pluginId = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
-  const stage = installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p" });
+  const installation = { scope: "project", install_id: "install", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } as const;
+  const stage = installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p", installation });
   assert.match(stage, /data-work-surface="app-b1" data-work-surface-label="Notes &amp; &lt;Tasks&gt;"/u);
-  assert.ok(stage.includes(`data-installed-plugin="${pluginId}" data-plugin-page-source="/projects/p/plugins/${pluginId}?frame=workbench" data-deferred-surface hidden`));
+  assert.ok(stage.includes(`data-installed-plugin="${pluginId}" data-plugin-page-source="/projects/p/plugins/${pluginId}?frame=workbench&amp;installation=${encodeURIComponent(JSON.stringify(installation))}" data-deferred-surface hidden`));
   assert.doesNotMatch(stage, /<iframe\b/u, "the package is loaded when its surface opens");
   assert.deepEqual(pluginDocuments(stage), [
     '<link rel="stylesheet" href="/assets/molis-work-plugins/plugin-builder.css"><main class="as-preview-page" data-installed-plugin="' + pluginId + '"></main>',
@@ -81,7 +82,7 @@ test("RAC-2620.1 installed stages defer their frame and Home packages keep their
 });
 
 test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {
-  const base = { pluginId: "io.molis.work.example.books", surface: "io.molis.work.example.books", label: "Books", prefix: "" };
+  const base = { pluginId: "io.molis.work.example.books", surface: "io.molis.work.example.books", label: "Books", prefix: "", installation: { scope: "home" as const, install_id: "books", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } };
   assert.match(installedStageSection({ ...base, icon: "book" }), /data-installed-plugin="io\.molis\.work\.example\.books"[^>]*data-installed-plugin-icon="book" data-deferred-surface hidden>/u);
   assert.ok(!installedStageSection(base).includes("data-installed-plugin-icon"), "no icon picked, no attribute");
   assert.match(installedStageSection({ ...base, icon: 'a"b' }), /data-installed-plugin-icon="a&quot;b"/u, "the value is escaped like the others");

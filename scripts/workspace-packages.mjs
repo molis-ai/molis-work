@@ -130,6 +130,7 @@ export const WORKSPACE_PACKAGES = [
   entry("packages/plugin-sandbox", "@molis-ai/molis-work-contracts/platform/plugin-sandbox", {
     maturity: "production",
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-kernel",
       "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
@@ -158,6 +159,8 @@ export const WORKSPACE_PACKAGES = [
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-module-artifacts",
+      // The project discussion's object bridge type (batch 15): the parent draws objects into the im-ui frame it hosts.
+      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
       "@molis-ai/molis-work-plugin-sdk"
@@ -212,6 +215,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-kit",
       "@molis-ai/molis-work-service-knowledge",
       "@molis-ai/molis-work-service-memory",
+      "@molis-ai/molis-work-service-surfaces",
       "@molis-ai/molis-work-storage",
       "@molis-ai/molis-work-ui-host"
     ],
@@ -484,6 +488,11 @@ export const WORKSPACE_PACKAGES = [
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-plugin-sdk"
     ]
+  }),
+  entry("horizontal/surfaces", "@molis-ai/molis-work-contracts/services/surface-composition", {
+    maturity: "slice",
+    capabilities: ["surfaces.compose", "surfaces.correct"],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"]
   }),
   entry("plugins/official-integrations/catalog", "@molis-ai/molis-work-contracts/platform/plugin", {
     maturity: "production",

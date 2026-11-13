@@ -6,7 +6,8 @@ import { KEYBOARD_GROUP_ITEMS, KEYBOARD_GROUP_SELECTOR } from "@molis-ai/molis-w
  * A listbox driven from an input (`aria-activedescendant`) keeps focus in the input and is left out.
  */
 export const KEYBOARD_GROUPS = `(() => {
-  const shown = (el) => { const box = el.getBoundingClientRect(); if (!box.width || !box.height) return false;
+  // checkVisibility: a closed <details> keeps its menu's box under content-visibility: hidden, but nothing in it is drawn or focusable.
+  const shown = (el) => { const box = el.getBoundingClientRect(); if (!box.width || !box.height || !el.checkVisibility()) return false;
     const style = getComputedStyle(el); return style.visibility !== 'hidden' && !el.closest('[hidden], [inert], [aria-hidden=true]'); };
   const items = ${JSON.stringify(KEYBOARD_GROUP_ITEMS)};
   const groups = [];

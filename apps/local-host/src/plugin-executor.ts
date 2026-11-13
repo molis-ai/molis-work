@@ -11,6 +11,7 @@ import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { directoryForHome } from "./plugin-directory-service.js";
+import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
 
 export interface PluginHostExecutorOptions {
@@ -19,7 +20,7 @@ export interface PluginHostExecutorOptions {
   artifacts: ArtifactsApplicationApi;
   /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
   processItems: ProcessItemsApplicationApi;
-  actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
+  actions: { registry: SurfaceInstallRegistry;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
     /** The kernel's scene client for this project: what `services.scenes` of a plugin that declares `scenes:use` is made from (PG-032 P1). */
     scenes?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneClient;

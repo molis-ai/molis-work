@@ -1,3 +1,5 @@
+// A CLI child starts under tsx and compiles cold; on a loaded CI runner that has taken more than 15 seconds, so each child
+// has a minute and each test two (status null was a timed-out child, not a refusal).
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -62,7 +64,7 @@ function uninstaller(home: string, area: string, localHost?: MolisWorkLocalHost)
 
 function snapshotPeer(home: string, destination: string) {
   return spawnSync(process.execPath, ["--import", "tsx", cli, "home", "snapshot", "--home", home, "--to", destination, "--json"],
-    { env: process.env, encoding: "utf8", timeout: 15_000 });
+    { env: process.env, encoding: "utf8", timeout: 60_000 });
 }
 
 test("RAC-105-S-06 S-07: snapshot refuses confirmed uninstall and purge before receipts or installation effects; the same plan retries", { timeout: 60_000 }, async t => {
@@ -92,7 +94,7 @@ test("RAC-105-S-06 S-07: snapshot refuses confirmed uninstall and purge before r
   });
 });
 
-test("RAC-105-S-07 S-07: purge keeps the original lock directory and inode until all cleanup completes and after release", { timeout: 30_000 }, async t => {
+test("RAC-105-S-07 S-07: purge keeps the original lock directory and inode until all cleanup completes and after release", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t);
   await f.file("images/assets/kept.bin");
   const initial = acquireStorageOwner(join(f.home, "agent-runtime")); initial.release();
@@ -124,7 +126,7 @@ test("RAC-105-S-07 S-07: purge keeps the original lock directory and inode until
   assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
 });
 
-test("RAC-105-S-08 S-07: an explicitly selected Home CLI init fallback refuses before mkdir while snapshot owns Home, then really writes after release", { timeout: 30_000 }, async t => {
+test("RAC-105-S-08 S-07: an explicitly selected Home CLI init fallback refuses before mkdir while snapshot owns Home, then really writes after release", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
@@ -132,7 +134,7 @@ test("RAC-105-S-08 S-07: an explicitly selected Home CLI init fallback refuses b
   const before = await snapshotBusinessFingerprint(f.home);
   const invoke = () => spawnSync(process.execPath, ["--import", "tsx", selectedCli, f.home, "init", "--db", database,
     "--json", JSON.stringify({ project_id: "entry-window", idempotency_key: "entry-window" })],
-    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 15_000 });
+    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   const refused = invoke();
   assert.equal(refused.status, 1, refused.stderr);
   assert.match(refused.stderr, /占用|所有权|使用/u);
@@ -143,14 +145,14 @@ test("RAC-105-S-08 S-07: an explicitly selected Home CLI init fallback refuses b
   assert.equal((await fs.stat(database)).isFile(), true);
 });
 
-test("ASR-02 RAC-105-S-08: the shipped installation CLI cannot open anonymous Home business before or after snapshot releases ownership", { timeout: 30_000 }, async t => {
+test("ASR-02 RAC-105-S-08: the shipped installation CLI cannot open anonymous Home business before or after snapshot releases ownership", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const database = join(f.home, "projects", "anonymous-refused", "molis-work.db");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   const before = await snapshotBusinessFingerprint(f.home);
   const invoke = () => spawnSync(process.execPath, ["--import", "tsx", cli, "v1", "init", "--db", database,
     "--json", JSON.stringify({ project_id: "anonymous-refused", idempotency_key: "anonymous-refused" })],
-    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 15_000 });
+    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   const assertRefused = () => {
     const result = invoke(); assert.equal(result.status, 1, result.stderr);
     assert.match(result.stderr, /缺少原生连接凭据.*不能打开匿名业务/u);
@@ -163,7 +165,7 @@ test("ASR-02 RAC-105-S-08: the shipped installation CLI cannot open anonymous Ho
   assert.deepEqual(await snapshotBusinessFingerprint(f.home), before, "releasing the storage owner never grants anonymous account authority");
 });
 
-test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before staging and releases with its Host", { timeout: 30_000 }, async t => {
+test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before staging and releases with its Host", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const database = join(f.home, "projects", "entry-window", "molis-work.db");
   const entry = pausedEntry(t, "cli", f.home, database); await entry.ready;
@@ -176,14 +178,14 @@ test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before st
   assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
 });
 
-test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still initializes while the selected Home is owned by snapshot", { timeout: 30_000 }, async t => {
+test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still initializes while the selected Home is owned by snapshot", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   const before = await snapshotBusinessFingerprint(f.home);
   const database = join(f.area, "standalone", "project.db");
   const result = spawnSync(process.execPath, ["--import", "tsx", cli, "v1", "init", "--db", database,
     "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
-    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 15_000 });
+    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   assert.equal(result.status, 0, result.stderr);
   assert.equal((await fs.stat(database)).isFile(), true);
   assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
@@ -191,7 +193,7 @@ test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still initiali
   await entry.release();
 });
 
-test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership boundary before creating a new directory", { timeout: 60_000 }, async t => {
+test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership boundary before creating a new directory", { timeout: 240_000 }, async t => {
   const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const alias = join(f.area, "home-alias"); await fs.symlink(f.home, alias, "dir");
   const database = join(f.home, "projects", "alias", "molis-work.db");
@@ -200,7 +202,7 @@ test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership bou
   const before = await snapshotBusinessFingerprint(f.home);
   const invoke = (home: string, target: string) => spawnSync(process.execPath, ["--import", "tsx", selectedCli, home, "init", "--db", target,
     "--json", JSON.stringify({ project_id: "alias", idempotency_key: "alias" })],
-    { env: { ...process.env, MOLIS_WORK_HOME: home }, encoding: "utf8", timeout: 15_000 });
+    { env: { ...process.env, MOLIS_WORK_HOME: home }, encoding: "utf8", timeout: 60_000 });
   for (const [home, target] of [[f.home, join(alias, "projects", "alias", "molis-work.db")], [alias, database]]) {
     const refused = invoke(home!, target!);
     assert.equal(refused.status, 1, refused.stderr);
@@ -213,7 +215,7 @@ test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership bou
   assert.equal((await fs.stat(database)).isFile(), true);
 });
 
-test("RAC-105-S-08 S-07: a catalog-owned project's never-delivered resident call cannot bypass snapshot through fallback", { timeout: 30_000 }, async t => {
+test("RAC-105-S-08 S-07: a catalog-owned project's never-delivered resident call cannot bypass snapshot through fallback", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const project = await catalog.createProject({ display_name: "Registered fallback", actor_id: "fixture" }); catalog.close();
@@ -224,7 +226,7 @@ test("RAC-105-S-08 S-07: a catalog-owned project's never-delivered resident call
   const before = await snapshotBusinessFingerprint(f.home);
   const invoke = () => spawnSync(process.execPath, ["--import", "tsx", selectedCli, f.home, "snapshot", "--db", project.database_path,
     "--json", JSON.stringify({ project_id: project.project_id })],
-    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 15_000 });
+    { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   const refused = invoke(); assert.equal(refused.status, 1, refused.stderr);
   assert.match(refused.stderr, /占用|所有权|使用/u);
   assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
@@ -233,7 +235,7 @@ test("RAC-105-S-08 S-07: a catalog-owned project's never-delivered resident call
   assert.equal(JSON.parse(result.stdout).board.project_id, project.project_id);
 });
 
-test("RAC-105-S-09 S-07: an accepted ordinary uninstall retains the real parent until settlement when Host.close interleaves", { timeout: 30_000 }, async t => {
+test("RAC-105-S-09 S-07: an accepted ordinary uninstall retains the real parent until settlement when Host.close interleaves", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t), host = createMolisWorkLocalHost({ completeText: null });
   host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
   await f.file("bin/molis-work", "#!/usr/bin/env node\n// molis-work-home-launcher-v1\n");
@@ -269,7 +271,7 @@ test("RAC-105-S-09 S-07: an accepted ordinary uninstall retains the real parent 
   } finally { release(); await Promise.allSettled([operation, closing, host.close()]); }
 });
 
-test("RAC-105-S-09 S-07: a different Home cannot reuse a Host and a failed ordinary uninstall returns retention for explicit retry", { timeout: 30_000 }, async t => {
+test("RAC-105-S-09 S-07: a different Home cannot reuse a Host and a failed ordinary uninstall returns retention for explicit retry", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t), host = createMolisWorkLocalHost({ completeText: null });
   host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
   try {
@@ -312,7 +314,7 @@ test("RAC-105-S-09: a borrowed Host refuses to stop its own managed service befo
   } finally { await host.close(); }
 });
 
-test("RAC-105-S-10 S-07: a committed business WAL invalidates the preview before any purge effect", { timeout: 30_000 }, async t => {
+test("RAC-105-S-10 S-07: a committed business WAL invalidates the preview before any purge effect", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home }); catalog.close();
   await f.file("bin/molis-work", "#!/usr/bin/env node\n// molis-work-home-launcher-v1\n");
   const service = uninstaller(f.home, f.area), plan = await service.prepare({ purge_user_data: true });
@@ -359,7 +361,7 @@ test("RAC-105-S-10 S-07: changing a nested business file invalidates the old pur
   assert.equal(existsSync(service.receiptPath), false);
 });
 
-test("RAC-105-S-11 S-07: successful purge leaves exactly the original empty lock skeleton and starts as a new Home", { timeout: 30_000 }, async t => {
+test("RAC-105-S-11 S-07: successful purge leaves exactly the original empty lock skeleton and starts as a new Home", { timeout: 120_000 }, async t => {
   const f = await smallSnapshotHome(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   await catalog.createProject({ display_name: "Deleted project", actor_id: "fixture" }); catalog.close();
   const runtime = join(f.home, "agent-runtime"), lock = join(runtime, ".molis-runtime-owner.db");

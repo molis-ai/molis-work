@@ -1,5 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentationOwnerHue, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { InboxStageData } from "./actions.js";
 import type { InboxJudgmentSummary } from "./route-handlers.js";
 import type {
@@ -16,6 +17,9 @@ import {
   defaultInboxNextOptionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { buildInboxUiEntries, isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
+import { INBOX_ORIGIN_SLOT, INBOX_PLUGIN_ID } from "./identity.js";
+import { inboxOrigin } from "./content-actions.js";
+import { inboxPresentation } from "./presentation.js";
 
 export const INBOX_UI_CONTRIBUTION_ID = "io.molis.work.native.inbox.ui.v1";
 
@@ -34,6 +38,7 @@ export interface InboxUiModel {
   readonly entries: readonly InboxUiEntry[];
   readonly filter: InboxUiFilter;
   readonly primitives: InboxUiPrimitives;
+  readonly locale?: string;
 }
 
 export const inboxUiDescriptor: UiContributionDeclaration = {
@@ -45,7 +50,7 @@ export const inboxUiDescriptor: UiContributionDeclaration = {
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
-  slots: [],
+  slots: [{ slot_id: INBOX_ORIGIN_SLOT, accepts: [], accepts_forms: ["card"], max: 1 }],
 };
 
 export const inboxUiContribution: UiContribution<InboxUiModel | StagePageModel<InboxStageData>> = {
@@ -68,7 +73,7 @@ function inboxStageModel(model: StagePageModel<InboxStageData>): InboxUiModel {
   const { entries, subjects, judgments, judgment } = model.data, p = model.primitives;
   const byEntry = new Map(judgments.map(record => [record.subject.id, record]));
   const names = new Map(subjects.map(subject => [subject.entry_id, subject]));
-  return { route_prefix: model.route_prefix, filter: "active", judgment, primitives: p,
+  return { route_prefix: model.route_prefix, filter: "active", judgment, primitives: p, locale: model.drawing?.currentLocale(),
     entries: buildInboxUiEntries(entries.map(entry => {
       const current = byEntry.get(entry.entry_id) ?? null;
       return { ...entry, next_judgment: current, suggested_behavior_ids: current?.outcome === "ok" ? current.suggested_behavior_ids : [] };
@@ -91,7 +96,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const { primitives: p } = model;
   const active = model.entries.filter((entry) => isActiveInboxStatus(entry.status));
   const history = model.entries.filter((entry) => !isActiveInboxStatus(entry.status));
-  const details = model.entries.map((entry) => renderInboxDetail(entry, false, p)).join("");
+  const details = model.entries.map((entry) => renderInboxDetail(entry, p, model.locale ?? null)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
       <header class="plugin-stage-chrome"></header>
@@ -149,13 +154,20 @@ function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string 
   </article>`;
 }
 
-function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPrimitives): string {
+const inboxObject = { ...inboxPresentation.objects[0], owner: INBOX_PLUGIN_ID };
+const inboxOwner = { name: "Inbox", icon: "inbox", hue: presentationOwnerHue(INBOX_PLUGIN_ID) } as const;
+
+function renderInboxDetail(entry: InboxUiEntry, p: InboxUiPrimitives, locale: string | null): string {
   const openAction = openButton(entry, p);
-  return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" ${selected ? "" : " hidden"}>
+  const origin = inboxOrigin(entry);
+  const ownTitle = entry.available && isActiveInboxStatus(entry.status) ? renderPresentationForm(inboxObject, "chip", {
+    locale, ownerDisplay: inboxOwner, read: { state: "ok", values: { title: entry.title, status: entry.status } },
+  }) : "";
+  return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" hidden>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${uiText("inbox.ui.back-inbox-list")}" title="${uiText("inbox.ui.back-inbox-list")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span></div></header>
-    <header class="feed-detail-header"><h1>${p.escape(entry.title)}</h1></header>
+    <header class="feed-detail-header"><h1${ownTitle ? ' class="mw-sr-only"' : ""}>${p.escape(entry.title)}</h1>${ownTitle ? `<div class="inbox-object-title" aria-hidden="true">${ownTitle}</div>` : ""}</header>
     <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="feed-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></div>
-    <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${uiText("inbox.ui.processing-context")}"><dl><div><dt>${uiText("inbox.ui.why-entered-inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${uiText("inbox.ui.related-object")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${uiText("inbox.ui.next")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${uiText("inbox.ui.current-state")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${uiText("inbox.ui.processed-result")}"></section></div>
+    <div class="inbox-reference-body"><div data-inbox-origin-slot data-origin-kind="${p.escape(origin.kind)}" data-origin-id="${p.escape(origin.id)}"></div><section class="inbox-attention-context" aria-label="${uiText("inbox.ui.processing-context")}"><dl><div><dt>${uiText("inbox.ui.why-entered-inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${uiText("inbox.ui.related-object")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${uiText("inbox.ui.next")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${uiText("inbox.ui.current-state")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${uiText("inbox.ui.processed-result")}"></section></div>
   </article>`;
 }
 

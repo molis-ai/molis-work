@@ -70,6 +70,8 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 `pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>` 打随安装包带上的只有声明的插件（如 `plugins/content/design-accessibility/`）。包目录里是 `skills/` 与 `pack-content.json`（`pack-content` 的参数写成文件：`plugin_id`、`version`、`name`、`publisher_id`，可选 `name_text`、`summary`、`summary_text`、`scope`、`compatible_from`、`locales`，多一个键就拒绝）。`locales` 与 Manifest 的 `ui.locales` 同形，打包时读同目录下声明的 `locales/<语言>.json` 并随包签名。它用与 `pack-content` 同一个打包函数，同一步签名并自验，写到 `<output-directory>/<plugin_id>.json`，不覆盖。没有 `--publisher-key` 就以 `plugin.publisher_key_missing` 拒绝，不建目录、不写文件：官方发布者密钥与在发版构建里跑这一步归第 26 批（26-1）。宿主从自己构建产物里的 `bundled-plugins/` 读这些包（`plugins.bundled.list@1`），装仍走 `plugins.install.preview`／`confirm`。
 
+`interface.json` 可选 `ui.slots` 为原舞台声明对象挂载位。打包用 SDK 核对声明形状，保留签名输入中的界面文件；安装仍会验证每个部件和读取绑定。不使用挂载位的包不需要加字段。
+
 ## 开发要求
 
 - 负责：插件的创建、Manifest 与合同校验、本地调试、打包与签名命令。

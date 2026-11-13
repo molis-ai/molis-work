@@ -1,8 +1,11 @@
 import type { ImReadState, ImSearchResult, ImMember, ImMessage, ImMessagePage, ImRoom, ImRoomState, ImThread, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ImDatabase } from "./types.js";
 import { ImError } from "./errors.js";
+import { messageSubjects } from "./subjects.js";
 
 type Row = Record<string, string | number | null>;
+export type DiscussionMessagePart = { message_id: string; part: "message" | "quote" | "share" };
 export class ImReads {
   constructor(readonly db: ImDatabase) {}
 
@@ -30,6 +33,13 @@ export class ImReads {
     if (!allowed) {
       throw new ImError("im.forbidden", "你还不是这个群的成员", 403);
     }
+  }
+
+  discussionProject(roomId: string, memberId: string): string {
+    this.assertMember(roomId, memberId);
+    const project = this.db.prepare<[string], { project_id: string | null }>("SELECT project_id FROM im_rooms WHERE id=?").get(roomId)?.project_id;
+    if (!project) throw new ImError("im.forbidden", "这里不是项目讨论", 403);
+    return project;
   }
 
   room(roomId: string): ImRoom {
@@ -98,6 +108,31 @@ export class ImReads {
         const quoted = this.db.prepare(`SELECT m.id,m.body,m.thread_id,p.id AS author_id,p.display_name FROM im_messages m JOIN mw_members p ON p.id=m.author_id WHERE m.id=? AND m.room_id=?`).get(row.quote_id,roomId) as Row;
         return { id: String(quoted.id), body: String(quoted.body), thread_id: quoted.thread_id === null ? null : String(quoted.thread_id), author: { id: String(quoted.author_id), display_name: String(quoted.display_name) } };
       })() : null };
+  }
+
+  /** A quote or share resolves to the original row. Neither carries a copy of its references. */
+  objectReferences(roomId: string, views: readonly DiscussionMessagePart[]) {
+    const input = JSON.stringify(views);
+    const query = this.db.prepare<[string, string], { message_id: string | null; original_id: string | null; subjects_json: string | null }>(`
+      SELECT m.id AS message_id, original.id AS original_id, original.subjects_json
+      FROM json_each(?) requested
+      LEFT JOIN im_messages m ON m.room_id=? AND m.id=json_extract(requested.value,'$.message_id')
+      LEFT JOIN im_messages original ON original.room_id=m.room_id
+        AND original.id=CASE json_extract(requested.value,'$.part') WHEN 'quote' THEN m.quote_id WHEN 'share' THEN m.shared_message_id ELSE m.id END
+      ORDER BY requested.key`);
+    const read = () => query.all(input, roomId);
+    const unavailable = () => new ActionError("actions.subject_unavailable", "原讨论消息已经变化或不可读");
+    const sampled = read();
+    if (sampled.some(row => row.message_id === null)) throw unavailable();
+    return {
+      subjects: sampled.map(row => row.subjects_json === null ? [] : messageSubjects(JSON.parse(row.subjects_json))),
+      assertCurrent() {
+        if (read().some((row, index) => {
+          const before = sampled[index]!;
+          return row.message_id !== before.message_id || row.original_id !== before.original_id || row.subjects_json !== before.subjects_json;
+        })) throw unavailable();
+      },
+    };
   }
 
   messages(roomId: string, threadId: string | null, before: number | null, limit: number): ImMessagePage {

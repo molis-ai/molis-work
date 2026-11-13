@@ -433,6 +433,7 @@
     "plugin-builder.agent-prompt.builder-revise.title": "Code Agent · Revise",
     "plugin-builder.agent-prompt.builder-revise.purpose": "Revise the existing plugin code from the user’s feedback",
     "plugin-builder.agent-prompt.builder-acceptance.title": "Code Agent · Acceptance",
-    "plugin-builder.agent-prompt.builder-acceptance.purpose": "Check the generated plugin against the design’s acceptance criteria"
+    "plugin-builder.agent-prompt.builder-acceptance.purpose": "Check the generated plugin against the design’s acceptance criteria",
+    "plugin-builder.agent-studio.record-or-form-unavailable": "This record or form is no longer available"
   }
 }

@@ -6,6 +6,7 @@ import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
+import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
   PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
@@ -29,7 +30,7 @@ import {
  * Listener Host tables along with its out rules.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 2,
+  version: /* @version database.project_database_baseline */ 3,
   schema: ([
     STORAGE_SPACE_SCHEMA_SQL,
     PROJECT_ROOT_SCHEMA_SQL,
@@ -49,9 +50,11 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
     SCHEDULER_SCHEMA_SQL,
     MATERIAL_RECENT_USES_SCHEMA_SQL,
     PROJECT_REPLICATION_SCHEMA_SQL,
+    SURFACE_CORRECTIONS_SCHEMA_SQL,
   ].join("\n")),
   upgrades: [
     // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
     { from: 1, sql: `DROP TABLE project_browsing_settings;\n${MATERIAL_RECENT_USES_SCHEMA_SQL}`, reduces_rows: ["project_browsing_settings"] },
+    { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
   ],
 };

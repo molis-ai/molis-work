@@ -113,6 +113,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
   - 服务端 HTML 的文字和属性值使用本包 `escapeHtml`，先处理 `&`，并覆盖单双引号；受信 HTML 槽与 JSON 脚本编码由各自合同处理。
   - 生产只从包名（或 `/floating`）导入，不深入 `src/`；改源码后编进 `dist`，预览和测试读的是包导出。`/floating` 必须保持叶子：不 import 任何东西、不碰 Node（`tests/design-system-floating.test.ts` 看住）。
   - 改共享控件先看规格板 `/__ui/catalog`。
+  - 「呈现形态」用 SDK `renderPresentationForm` 画同一对象的名字片、行、卡片和速览。形态样式在 `src/styles/presentation.ts`，组件板按宽度把同一段速览装进浮层或底部单。主人颜色按规范插件 id 选现成语义色，只给插件色块和色带。组件板上的控件用于本页定位和速览。变更这条路径用独立测试浏览器跑 `node scripts/run-tests.mjs tests/presentation-forms.e2e.test.ts`。
   - 禁止系统色盘、系统日期/时间弹出、`alert`/`confirm`/`prompt` 与未换肤的 `range`。
   - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--ease-*`（`--motion-*` 只是给旧插件的别名，新规则不用）。
   - 进入工作台之前的页面用到的部件（`mw-wordmark`、`mw-caption`、`mw-steps`、`mw-goal-track`、`mw-bar-context`、`mw-bar-status`、`mw-file-kind/row/group`、`mw-brief`、按钮上的 `mw-btn__key`）在这里定义，规格板的「到达」一节各有标本；页面（`apps/workbench/src/arrival/`）只排版，不重画。打字与飞入动效是一段脚本（`ARRIVAL_MOTION_CLIENT_SCRIPT`），在减少动态效果与自动化下静止。

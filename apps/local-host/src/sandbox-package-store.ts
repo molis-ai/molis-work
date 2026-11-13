@@ -30,12 +30,13 @@ export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt
   const { manifest } = pkg;
   const contract: SandboxPluginContract = isContentPackage(pkg)
     ? { version: /* @version format.sandbox.contract */ 1, pluginId: manifest.plugin_id, revision: pluginManifestDigest(manifest), operations: [], entities: [], pages: [], acceptance: [] } : pkg.contract;
-  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isContentPackage(pkg) || isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
+  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation' | 'ui'> = isContentPackage(pkg) || isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
   const blueprint = isContentPackage(pkg) ? pkg.blueprint : undefined;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
     buildId: sandboxPackageBuildId(manifest.plugin_id, manifest.publisher.signature), pluginId: manifest.plugin_id, version: 1,
-    design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
+    design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [],
+      ...(app.presentation ? { presentation: app.presentation } : {}), ...(app.ui ? { ui: app.ui } : {}) },
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
     packaged: { manifest, localePacks: pkg.localePacks, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),

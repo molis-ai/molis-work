@@ -53,6 +53,7 @@ import { assistantSetupMaterial } from "./assistant-setup-material.js";
 import { pageChoices } from "./assistant-pages.js";
 import { hostLog } from "../host-log.js";
 import { assistantConnectionCard } from "./assistant-connection-card.js";
+import { handleAssistantSurfaceHttp } from "./assistant-surface-http.js";
 
 /** The works related to an object, and each one's objects, as `assistant.works.related@1` and its HTTP read them. */
 const relatedSource = (service: AssistantService): RelatedWorksSource => ({ related: (projectId, subject) => service.reads.related(projectId, subject), read: workId => service.read(workId) });
@@ -368,6 +369,12 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
  * scope of a *new* work; an existing work keeps the scope it was started with.
  */
 export async function handleAssistantHttp(request: IncomingMessage, response: ServerResponse, url: URL,
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<boolean> {
+  return handleAssistantSurfaceHttp(request, response, url, ports.localHost, ports.projectRef, () => assistantServiceFor(ports).store)
+    ?? handleAssistantActions(request, response, url, ports);
+}
+
+function handleAssistantActions(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<boolean> {
   // A document the person brings travels as base64 (up to 8 MB of file); everything else stays small.
   return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,

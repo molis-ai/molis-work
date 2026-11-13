@@ -1,5 +1,6 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
+import { INBOX_ORIGIN_SLOT } from "../identity.js";
 
 const uiText = globalThis.t;
 
@@ -28,7 +29,19 @@ export function inboxClient(host: InboxHost): void {
     if (JSON.stringify(next) !== JSON.stringify({ entry_ids: draft.entry_ids, title: draft.title, instructions: draft.instructions })) draft = { ...next, request_id: "" }; saveDraft();
   };
   const expand = (open: boolean) => { root.dataset.expanded = String(open); const area = q("[data-inbox-stage-workspace]"); if (area) area.hidden = !open; };
-  const collapse = () => { if (selected) change(); selected = ""; expand(false); all("[data-inbox-row]").forEach(row => { row.classList.remove("is-selected"); row.setAttribute("aria-selected", "false"); }); all("[data-inbox-detail],[data-inbox-detail-empty]").forEach(node => node.hidden = true); };
+  let origin: { element: HTMLElement; dispose(): void } | undefined;
+  const releaseOrigin = () => { origin?.dispose(); origin = undefined; };
+  const showOrigin = (id: string) => {
+    const element = q('[data-inbox-detail="' + CSS.escape(id) + '"] [data-inbox-origin-slot]');
+    if (origin?.element === element) return;
+    releaseOrigin();
+    const kind = element?.dataset.originKind, subject = element?.dataset.originId;
+    if (!element || !kind || !subject || !scope.visible) return;
+    const mount = host.view.surfaceSlot(element, { slot_id: INBOX_ORIGIN_SLOT, subjects: [{ kind, id: subject }] });
+    origin = { element, dispose: mount.dispose };
+    void mount.ready.catch(() => { /* The existing source control remains available independently. */ });
+  };
+  const collapse = () => { releaseOrigin(); if (selected) change(); selected = ""; expand(false); all("[data-inbox-row]").forEach(row => { row.classList.remove("is-selected"); row.setAttribute("aria-selected", "false"); }); all("[data-inbox-detail],[data-inbox-detail-empty]").forEach(node => node.hidden = true); };
   const openPage = (id: string, title: string) => { q<HTMLDialogElement>("[data-inbox-compose]")?.close(); host.openItem("pages", id, title); };
   const showResult = (result: ComposeResult, area: HTMLElement) => {
     const row = document.createElement("div"), text = document.createElement("span"), button = document.createElement("button"); row.className = "inbox-compose-result"; row.dataset.inboxComposeRequest = result.request_id;
@@ -46,6 +59,7 @@ export function inboxClient(host: InboxHost): void {
     if (id !== selected) change(); selected = id;
     all("[data-inbox-row]").forEach(row => { const active = row.dataset.inboxEntryId === id; row.classList.toggle("is-selected", active); row.setAttribute("aria-selected", String(active)); });
     all("[data-inbox-detail]").forEach(detail => detail.hidden = detail.dataset.inboxDetail !== id); const empty = q("[data-inbox-detail-empty]"); if (empty) empty.hidden = true; expand(true);
+    showOrigin(id);
     const check = guard(); void results().catch(failure => { try { check(); error(failure, q('[data-inbox-entry-results="' + CSS.escape(id) + '"]')); } catch { /* A newer entry owns the reader. */ } });
   };
   let evaluatedNotice = "";
@@ -118,5 +132,5 @@ export function inboxClient(host: InboxHost): void {
     })();
   });
   scope.whenVisible(() => { change(); if (composeBusy) { composeBusy = false; all<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("[data-inbox-compose] input,[data-inbox-compose] textarea,[data-inbox-compose] button[type=submit]").forEach(control => control.disabled = false); const status = q("[data-inbox-compose-status]"); if (status) status.textContent = uiText.text("inbox.client.draft-saved-can-keep-editing-retry"); } scope.frame(() => { if (scope.visible) void refresh().catch(failure => error(failure)); }); return () => { change(); q<HTMLDialogElement>("[data-inbox-compose]")?.close(); }; });
-  scope.own(() => reads.abort());
+  scope.own(() => { reads.abort(); releaseOrigin(); });
 }

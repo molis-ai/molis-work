@@ -296,8 +296,8 @@ plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	use
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
 plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	2fe6c1aede47	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	8f6677d24904	-
+plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	f97bfdcc54f1	ed1bbfdbc8a1	-
+plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	5a07eb4c9c18	-
 plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	57ec6c573f4d	-
 plugins.kit.report	1	plugin-install	query	query	home	read	concurrent	user	plugin-install:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 plugins.local_packages.sign	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	797f765e3f76	5fc8c3bb5a54	-
@@ -479,3 +479,5 @@ skills.import.preview	1	plugin-install	command	operation	home	write	-	user	skill
 skills.kit.report	1	system.skills	query	query	home	read	concurrent	user	skills:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	69404a9dbf5f	b3b4ba8c0864	-
 skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	2b646704d211	-
+surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	f59223c9f9fd	-
+surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-

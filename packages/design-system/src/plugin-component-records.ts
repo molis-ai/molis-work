@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+import type { SandboxDataOperation } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { numberArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Column, Kit, Part, Rel, State } from './plugin-component-types.js';
 import type { PluginComponentNode } from './plugin-components.js';
@@ -14,7 +15,8 @@ export function pcRelations(c: State & Kit) {
   };
   /** A plugin's name: its heading's own title, else the page's title; the designer's note on the part is not a name. */
   const headingOf = (node: PluginComponentNode) => word(node.props.title ?? c.view?.contract.pages.find(page => page.id === node.pageId)?.title) || node.purpose;
-  const operation = (id?: string) => c.view?.contract.operations.find(op => op.id === id), live = (part: Part, generation: number) => !c.disposed && generation === c.epoch && parts.get(part.node.id) === part;
+  const operation = (id?: string) => c.view?.contract.operations.find((op): op is SandboxDataOperation => op.id === id && op.read_protocol === undefined);
+  const live = (part: Part, generation: number) => !c.disposed && generation === c.epoch && parts.get(part.node.id) === part;
   const detailEnabled = (id: string) => !!c.view?.presentation?.parts[id]?.detail;
   const ready = (id?: string) => !!id && !!c.view?.connected.includes(id);
   const collections = new Set(['directory', 'card', 'table', 'calendar', 'accordion']);
@@ -32,8 +34,12 @@ export function pcRelations(c: State & Kit) {
   /** A form that adds something new: every value typed by the person, nothing taken from elsewhere, nothing to show back. */
   const composer = (node: PluginComponentNode) => !node.read && !!node.submit && !node.submit.outputPath && Object.values(node.submit.input).some(source => source.source === 'form')
     && Object.values(node.submit.input).every(source => source.source === 'form' && !source.prefill) && operation(node.submit!.operationId)?.kind === 'command';
-  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, input: operation(node.submit?.operationId)?.input, submitKind: operation(node.submit?.operationId)?.kind, composer: composer(node) });
+  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, slot: node.surfaceSlot,
+    input: operation(node.submit?.operationId)?.input, submitKind: operation(node.submit?.operationId)?.kind, composer: composer(node) });
   const selectPage = (id: string) => {
+    if (id !== c.currentPage) for (const part of c.parts.values()) if (part.node.surfaceSlot && part.node.pageId !== id) {
+      part.query++; part.slot?.dispose(); part.slot = undefined;
+    }
     c.currentPage = id; pages.forEach((page, key) => { page.hidden = key !== id; });
     tabList.querySelectorAll<HTMLButtonElement>('button').forEach(tab => { tab.setAttribute('aria-selected', String(tab.dataset.page === id)); tab.classList.toggle('is-active', tab.dataset.page === id); });
   };

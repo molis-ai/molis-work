@@ -4,7 +4,9 @@ import { usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import type { InstalledRelease } from "../installed-release.js";
 import { installedVersion } from "../installed-release.js";
-import { pluginPagesFor } from "../plugin-page-authority.js";
+import { pluginPagesFor, type installedPageSelection } from "../plugin-page-authority.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { assertStageInstallation } from "../installed-stage-identity.js";
 import { directoryWordResolver } from "../ui-text-provider.js";
 import { inDesignOrder } from "../plugin-builder-surface.js";
 import { studioWordReader } from "./studio-words.js";
@@ -22,13 +24,18 @@ export function installedPluginWords(release: InstalledRelease) {
 
 /** Both the lazy workbench mount and the standalone carrier use the same proof, immutable view and call route. */
 export function installedPluginPage(input: { home: string; actorId: string; projectId: string | null; prefix: string; release: InstalledRelease;
-  running(): PluginInstanceRecord | undefined; assertProject?(): Promise<void>; scope: "home" | "project" }) {
+  running(): PluginInstanceRecord | undefined; assertProject?(): Promise<void>; scope: "home" | "project";
+  /** The installation the person saw, when the page was asked for one; a different one is refused, never substituted. */
+  expected?: SurfaceInstallationRef;
+  /** The exact signed release, with its declared object slots, a stage of the workbench drew. */
+  selection?: ReturnType<typeof installedPageSelection> }) {
   const { release, projectId, prefix } = input, record = input.running();
   const unavailable = () => new ActionError("actions.provider_changed", "插件的已安装版本已更改，请重新打开");
   if (!record || record.state !== "running" || record.plugin_id !== release.pluginId || record.version !== installedVersion(release)
     || record.publisher_signature !== (release.packaged?.manifest.publisher.signature ?? "agent-built:" + release.buildId)) throw unavailable();
+  if (input.expected) assertStageInstallation(input.scope, record, input.expected);
   const { install_id, installation_generation, manifest_digest } = record;
-  const authorization = pluginPagesFor(input.home).open(release.pluginId, projectId, input.actorId, input.assertProject, undefined, {
+  const authorization = pluginPagesFor(input.home).open(release.pluginId, projectId, input.actorId, input.assertProject, undefined, input.selection ?? {
     install_id, installation_generation, project_id: input.scope === "home" ? null : projectId,
     assertCurrent() {
       const current = input.running();

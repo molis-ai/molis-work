@@ -2,12 +2,12 @@
 /// <reference lib="dom.iterable" />
 import { createTextReader, ownedTextRef, t, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginSurfaceWord } from './plugin-surface-text.js';
-import type { TextArgs, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { TextArgs, UiLocalePack, UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SandboxPluginContract, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient as present } from './plugin-presentation-client.js';
-import type { Ctl, Det, Kit, Out, Prt, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
+import type { Ctl, Det, Kit, Out, Part, Prt, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
 import { pcKit } from './plugin-component-kit.js';
 import { pcRecords, pcRelations } from './plugin-component-records.js';
 import { pcControls, pcDetail } from './plugin-component-controls.js';
@@ -15,6 +15,7 @@ import { pcOutput, pcQuery } from './plugin-component-output.js';
 import { pcPart, pcSubmit } from './plugin-component-part.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[]; deriveFieldWords?: boolean }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
+  mountSurfaceSlot?: UiPageView<HTMLElement>['surfaceSlot'];
   /** The inspect button's label (the studio passes it translated). */
   inspectLabel?: string;
   /** Observe only accepted query results, with the same request/selection ordering as the rendered view. */
@@ -59,7 +60,49 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     selectAuthoringWords(state.view); kit.refreshWords(root);
   };
   document.addEventListener("molis-work:language-changed", localeChanged);
-  return { update, refresh: c7.refresh, destroy() {
+  const openInput = (id: string): boolean => {
+    const part = state.parts.get(id);
+    if (state.disposed || !part?.form || !part.node.submit || !c7.ready(part.node.submit.operationId)) return false;
+    c7.selectPage(part.node.pageId);
+    if (part.opener) { part.opener.click(); return true; }
+    part.root.scrollIntoView({ block: "nearest" });
+    part.form.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select")?.focus();
+    return true;
+  };
+  const openRecord = async (id: string): Promise<boolean> => {
+    if (state.disposed) return false;
+    const locate = () => {
+      let match: { part: Part; row: HTMLElement; value: unknown } | undefined;
+      for (const part of state.parts.values()) {
+        const field = part.node.props.idField;
+        if (!field || !c7.ready(part.node.read?.operationId)) continue;
+        const records = part.rows?.filter(row => c7.text(c7.at(row, field)) === id) ?? [];
+        if (records.length > 1) return undefined;
+        if (!records.length) continue;
+        const rows = [...part.output.querySelectorAll<HTMLElement>("[data-record-id]")].filter(row => row.dataset.recordId === id);
+        if (rows.length > 1 || rows.length && match) return undefined;
+        if (rows[0]) match = { part, row: rows[0], value: records[0] };
+      }
+      return match;
+    };
+    const match = locate();
+    if (!match) return false;
+    const { part, value } = match, generation = c7.epoch;
+    c7.selectPage(part.node.pageId);
+    c7.select(part.node.id, value);
+    const selected = c7.selectionVersions.get(part.node.id);
+    if (c7.reading(part.node) || c7.selectable(part.node.id)) await c7.refresh();
+    if (!c7.live(part, generation) || c7.currentPage !== part.node.pageId || c7.selectionVersions.get(part.node.id) !== selected) return false;
+    const actual = locate();
+    if (actual?.part !== part || !c7.selection[part.node.id]) return false;
+    const row = actual.row;
+    part.output.querySelectorAll("[aria-current]").forEach(node => node.removeAttribute("aria-current"));
+    row.setAttribute("aria-current", "true");
+    if (row instanceof HTMLDetailsElement) row.open = true;
+    row.tabIndex = -1; row.focus({ preventScroll: true }); row.scrollIntoView({ block: "center" });
+    return true;
+  };
+  return { update, refresh: c7.refresh, openInput, openRecord, destroy() {
     document.removeEventListener("molis-work:language-changed", localeChanged); life.destroy();
   } };
 }
@@ -91,7 +134,7 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
             const focused = previous?.root.contains(active) ? active?.name : undefined;
             const values = new Map<string, { value: string; checked?: boolean }>();
             previous?.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => values.set(input.name, { value: input.value, ...('checked' in input ? { checked: input.checked } : {}) }));
-            clearTimeout(previous?.feedbackTimer); previous?.opener?.remove(); details.delete(node.id);
+            previous?.slot?.dispose(); clearTimeout(previous?.feedbackTimer); previous?.opener?.remove(); details.delete(node.id);
             const replacement = createPart(node); previous?.root.replaceWith(replacement.root); part = replacement; parts.set(node.id, part);
             replacement.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => { const saved = values.get(input.name); if (saved) { input.value = saved.value; if ('checked' in input && saved.checked !== undefined) input.checked = saved.checked; } if (focused === input.name) input.focus(); });
             if (replacement.form) syncChoices(replacement.form);
@@ -125,7 +168,7 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
         }
       }
     }
-    for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
+    for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; part.slot?.dispose(); clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
     for (const part of parts.values()) {
       const hasReader = detailEnabled(part.node.id) || next.nodes.some(other => other.id !== part.node.id && other.props.textField && Object.values(other.read?.input ?? {}).some(source => source.source === 'selection' && source.componentId === part.node.id));
       part.root.toggleAttribute('data-reading-preview', !!next.presentation && part.node.kind === 'directory' && hasReader);
@@ -149,6 +192,6 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     if (focused?.isConnected && !focused.closest('[hidden]')) { focused.focus({ preventScroll: true }); if (caret) focused.setSelectionRange(caret[0]!, caret[1]!); }
     selectPage(pageIds.has(c.currentPage) ? c.currentPage : next.contract.pages[0]!.id); if (refreshNeeded) await refresh();
   }
-  function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
+  function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { part.slot?.dispose(); clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
   return { update, destroy };
 }

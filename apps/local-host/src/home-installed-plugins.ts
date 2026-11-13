@@ -66,7 +66,7 @@ export type HomeInstalledPlugins = Awaited<ReturnType<typeof openHomeInstalledPl
 const noBuilds = { get: () => null };
 
 export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOptions) {
-  const { home, platform } = options;
+  const { home, platform, integrations } = options;
   const actions: ProjectActions = { ...options.actions, project_id: null };
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
   const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
@@ -148,6 +148,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   let disposePlatform = () => {};
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   // The default catalog is Home-only; a verified invocation adds only its own approved project's current actions.
+  const grantedCapabilities = (identity: Readonly<SandboxIdentity>) => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor });
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
     target: async (context, id) => {
       const resolved = await resolveCall(context), entry = resolved.catalog.find(item => item.id === id);
@@ -155,9 +156,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         ...resolved.project && context.projectReach ? { assertCurrent: () => { reach!.assertCall(context.projectReach!, context.identity); } } : {} };
     },
     declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
-    granted: identity => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor }) });
-  const integrations = options.integrations;
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, earlier: () => [],
+    granted: grantedCapabilities });
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, grantedCapabilities, earlier: () => [],
     ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });
   // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
   const attached = new Map<string, symbol>();

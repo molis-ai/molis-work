@@ -93,7 +93,8 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-block-badge { margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--muted); font-size: 11px; font-weight: 400; line-height: 18px; white-space: nowrap; }
   ${ASSIST} .assistant-block-badge.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
   ${ASSIST} .assistant-block--attention .assistant-block-head { box-shadow: none; padding-top: 2px; }
-  ${ASSIST} .assistant-block-body { min-height: 0; overflow: clip; overflow-clip-margin: 6px; } ${ASSIST} .assistant-block-body::before { /* the space under the head is content, so the row clips it as it folds; nothing but the row moves */ content: ""; display: block; height: 6px; }
+  /* The fold is a grid item and a grid: min-width 0 and a minmax(0, 1fr) column keep one long unwrapped card title from widening it past the side panel, where its actions slid under the thread. */
+  ${ASSIST} .assistant-block-body { min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1fr); overflow: clip; overflow-clip-margin: 6px; } ${ASSIST} .assistant-block-body::before { /* the space under the head is content, so the row clips it as it folds; nothing but the row moves */ content: ""; display: block; height: 6px; }
   ${ASSIST} .assistant-group-list { display: flex; flex-direction: column; gap: 10px; }
   ${ASSIST} .assistant-group > .assistant-block-sub { margin: 0 0 6px; }
   /* Cards: glyph, title and one line; the title opens it and the whole card is its target; actions sit above that. */

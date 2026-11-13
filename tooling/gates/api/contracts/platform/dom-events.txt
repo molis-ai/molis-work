@@ -124,6 +124,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ pane, surface, answer? }; the handler sets answer to a boolean, synchronously";
     readonly summary: "Is a return trip's place still in the layout: the pane is there and has a view or a tab of this surface (not a frame's key). Sent by the settings-return owner when a trip settles with no page claiming it; an embedded pane document does not answer, and with no answer the sender does not judge.";
 }, {
+    readonly name: "molis-work:memory-changed";
+    readonly kind: "announcement";
+    readonly owner: "assistant";
+    readonly on: "document";
+    readonly detail: "{ work_id }";
+    readonly summary: "A memory kept, replaced or undone in an Assistant work changed what the memory settings show; an open memory settings page reads its list again once it is idle.";
+}, {
     readonly name: "molis-work:model-ready";
     readonly kind: "announcement";
     readonly owner: "settings-directory";

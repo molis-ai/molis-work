@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function packages/storage/src/adapters/memory-ledger.ts#openMemoryLedger": {
+      "kind": "cohesive-unit",
+      "reason": "Memory SQLite 账本的单一写主人与事务装配：有界回执查询、原序折叠和批量写入共同服从当前遗忘事实、marker、Run 与版本冲突及状态单调性；事务内重叠回执使预取失效，原首错保留和外层 COMMIT 前检查保证整批回滚。不新增写主人、端口、跨事务缓存或事务框架，不为行数拆成零碎转发。",
+      "size": 204
+    }
+  }
+}

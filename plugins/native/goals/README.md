@@ -76,6 +76,8 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 长期说明的 Web API、项目设置、动作、MCP、Work 提示词和 Agent 项目层共用动作。Agent 使用原修订数标识说明版本，编辑同一条也产生新的冻结版本。说明写入已成功而后续列表读取被拒绝时，HTTP 返回保存回执及独立刷新错误；不把已保存操作报成失败。长期说明变更的 user_confirmed 保留原业务确认前提，不产生用户决定权。
 
+`guidance.add/update` 的成功回执沿 `result_view` 提供原说明正文和本项目“项目说明”管理入口，由平台原结果卡保存并展示；后续步骤失败仍可查看、编辑或停用，不依赖模型再补回答。同文去重只说内容已保存，编辑/停用/恢复只说变更已保存，不声称新增或删除。输入输出、授权、动作版本及原幂等合同不变；直接回归为 `tests/goals-guidance-actions.test.ts` 和 `tests/assistant-process-info.e2e.test.ts`。
+
 生命周期的 Web API、CLI 当前目标与回收站组合动作已转入动作。删除/恢复固定操作方向，拒绝输入 trashed 覆盖；work_state 从本次原回执生成，后续排队写入不会改写它。`goals.active.set` 只收 goal_id、reason、idempotency_key，身份和项目由已授权连接绑定；删除与恢复共享同一授权；原领域数据和回执保留。
 
 目标树的动作、CLI、Web 审批与管理 `goal_tree_decide` 共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。

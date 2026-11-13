@@ -836,7 +836,10 @@ test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a
       const answer = await pending; await invalidated; await finished.promise;
       const expected = invalidation === "cancel" ? { outcome: String(DOMException.ABORT_ERR), message: "This operation was aborted" }
         : { outcome: "actions.forbidden", message: "此插件实例已停止，请重新打开" };
-      assert.deepEqual(answer, expected, invalidation);
+      // A regrant re-registers the probe's own actions, and the kernel checks a query's registration before handing back its result:
+      // the probe's answer (which carries the service's refusal) is itself refused. The service's own refusal is checked below.
+      const answered = invalidation === "cancel" ? expected : { outcome: "actions.provider_changed", message: "能力已重新加载，不能继续原副作用" };
+      assert.deepEqual(answer, answered, invalidation);
       assert.ok(observed instanceof Error && "code" in observed);
       assert.equal(String(observed.code), expected.outcome, "the service itself refuses; the kernel did not merely hide a list result");
       assert.equal(observed.message, expected.message); assert.equal(value, undefined, "neither rows nor an empty list escaped");

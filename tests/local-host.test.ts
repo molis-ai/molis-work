@@ -110,14 +110,15 @@ test("closing the Host ends its concurrent reads: close does not wait out a long
   const own = client.invoke(wait, undefined, { signal: caller.signal });
   await new Promise(resolve => setTimeout(resolve, 10));
   caller.abort(new Error("caller gone"));
-  assert.equal(await own, "ended", "the caller's own signal still ends its wait");
+  // The wait ends; a read whose caller has gone hands out no result (A4-K, tests/action-query-result-current.test.ts).
+  await assert.rejects(own, /caller gone/, "the caller's own signal still ends its wait");
   assert.equal((reasons[0] as Error).message, "caller gone");
   const following = client.invoke(wait, undefined);
   await new Promise(resolve => setTimeout(resolve, 10));
   const started = Date.now();
   await host.close();
   assert.ok(Date.now() - started < 1_000, "close ends the wait instead of waiting out its 25 s");
-  assert.equal(await following, "ended");
+  await assert.rejects(following, { code: "actions.host_closed" }, "and its caller hears the Host closed, not a result read after it");
   assert.ok(reasons[1] instanceof ActionError && reasons[1].code === "actions.host_closed", "the wait hears that its whole Host is closing");
   assert.equal(closed, 1);
 });

@@ -7,7 +7,7 @@ type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 /** What read-capability, change-capability and change-reversible take: the exact identity find-capabilities returned, and the input. */
 export const CAPABILITY_PARAMETERS = { type: "object", properties: {
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-  input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
+  input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "Use the exact input_schema from find-capabilities. For an object schema, put the named fields inside input and use {} when it has no properties. Use a positional array only if the schema declares an array. Leave input out if the schema requires an empty array." },
 }, required: ["capability_id", "version", "provider_id"] };
 
 /** What suggest-action takes: the button's words beside the same identity and input. */
@@ -15,7 +15,7 @@ export const SUGGEST_PARAMETERS = { type: "object", properties: {
   title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
   summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-  input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
+  input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required field inside input, including a field named title. The button title and summary do not supply business fields." },
   editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
   missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
 }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };

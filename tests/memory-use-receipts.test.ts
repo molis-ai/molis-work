@@ -13,7 +13,7 @@ function receipt(state: AgentMemoryUseReceipt["contexts"][number]["status"], ids
       references: ids.map(memory_id => ({ memory_id, version: 1, receipt_id: "retrieval" })) }] };
 }
 
-test("only final dispatch facts advance recent reference; duplicates, unknown and legacy records cannot claim model use", async t => {
+test("MEM-16 only final dispatch facts advance recent reference; duplicates, unknown and legacy records cannot claim model use", async t => {
   const env = await memoryServiceHome(t, { projects: ["project"] });
   const service = await env.open(), ledger = env.ledger();
   const saved = await service.write({ ...caller, operation_id: "seed" }, { scope: "project", kind: "convention", text: "Release notes go in CHANGELOG.md" });

@@ -55,3 +55,23 @@ test("skip and legacy retrieval alone never acquire actual-use evidence", () => 
   assert.deepEqual(state.memory_recalled!.selected, [{ memory_id: "legacy", version: 1 }]);
   assert.deepEqual(state.memory_recalled!.retrievals, [{ receipt_id: "skip", outcome: "skip" }]);
 });
+
+// MEM-07: one retrieval's receipt id runs from selection to the final Context; what recall selected, what it left out,
+// and what the final Context kept after trimming are separate facts; a body the SDK event carries is never projected.
+test("MEM-07 receipt id runs through selection, omission and the final trimmed Context without projecting bodies", () => {
+  const state = emptyPrologueStreamState();
+  applyRunEvent(state, { type: "memory-recalled", method: "recall", segmentation: "given",
+    injected: [{ id: "kept", version: 3, text: "BODY_KEPT" }, { id: "trimmed", version: 1, text: "BODY_TRIMMED" }],
+    omitted: [{ id: "over-budget", version: 2, reason: "budget", text: "BODY_OMITTED" }], unavailable: [],
+    retrieval: { receiptId: "receipt-7", outcome: "ready" } } as never, at);
+  assert.deepEqual(state.memory_recalled!.selected, [{ memory_id: "kept", version: 3 }, { memory_id: "trimmed", version: 1 }]);
+  assert.deepEqual(state.memory_recalled!.omitted, [{ memory_id: "over-budget", version: 2 }]);
+  assert.deepEqual(state.memory_recalled!.injected, [], "selection alone is not delivery");
+  applyRunEvent(state, { type: "memory-context", callId: "call-1", status: "response-observed", tokens: 40, budgetTokens: 60, basis: "conservative-estimate",
+    references: [{ receiptId: "receipt-7", id: "kept", version: 3, text: "BODY_KEPT" }], parts: [{ index: 1, tokens: 40, form: "entry" }] } as never, at);
+  assert.deepEqual(state.memory_recalled!.injected, [{ memory_id: "kept", version: 3 }], "only what the final Context kept counts as injected");
+  assert.deepEqual(state.memory_recalled!.selected.map(one => one.memory_id), ["kept", "trimmed"], "the trimmed selection stays recorded as selected");
+  assert.deepEqual(state.memory_recalled!.contexts?.[0]?.references, [{ receipt_id: "receipt-7", memory_id: "kept", version: 3 }]);
+  assert.equal(state.memory_recalled!.retrievals?.[0]?.receipt_id, state.memory_recalled!.contexts?.[0]?.references[0]?.receipt_id);
+  assert.doesNotMatch(JSON.stringify(state.memory_recalled), /BODY_/, "no body reaches the projection");
+});

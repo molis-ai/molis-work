@@ -1,6 +1,5 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
-import type { createNodeHost } from "@prologue/sdk/node";
+import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill, type PrologueHost } from "@prologue/sdk";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
@@ -59,8 +58,9 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   subscribeMcpConnections?: (listener: (connectionId: string) => void) => () => void;
 }
 
-export type NodeHost = ReturnType<typeof createNodeHost>;
-export type DispatchGuards = AsyncLocalStorage<() => void | Promise<void>>;
+export type NodeHost = PrologueHost;
+export type DispatchGuard = NonNullable<import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution["beforeDispatch"]>;
+export type DispatchGuards = AsyncLocalStorage<DispatchGuard>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
 export type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";
@@ -108,7 +108,7 @@ export interface RoundState {
   /** Main rounds registered as project work: which item, in which project and directory. */
   readonly runWork: Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>;
   /** Each running round's own pre-dispatch check, asked again before every child it dispatches. */
-  readonly dispatchChecks: Map<string, () => Promise<void>>;
+  readonly dispatchChecks: Map<string, DispatchGuard>;
 }
 
 export function createRoundState(): RoundState {

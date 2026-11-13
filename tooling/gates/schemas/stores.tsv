@@ -22,7 +22,7 @@ issues/issues.db	io.molis.work.issues	1	2ebbffe4d0eb92a4	-
 jelly/jelly.db	io.molis.work.jelly	1	f8ed975502abc63b	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
 lingguang/lingguang.db	io.molis.work.lingguang	1	6a6ba024b4fde7ba	-
-memory/memory.db	packages/storage	1	17c9d78d1f64f5b8	-
+memory/memory.db	packages/storage	2	17c9d78d1f64f5b8	1
 pages/pages.db	io.molis.work.pages	1	3070ef951cd25cad	-
 placement/placement.db	apps/local-host	1	cc231f53373dbc13	-
 plugin-directories/plugin-directories.db	apps/local-host	1	4e3877ad46125b3e	-

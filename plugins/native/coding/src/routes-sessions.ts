@@ -1,5 +1,6 @@
+import { changeCodingSessionLifecycle } from "./session-lifecycle.js";
+import { codingSessionEntry, codingSessionSubject } from "./session-source.js";
 import { readCodingSessions } from "./session-observation.js";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection, savedMaterials } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
@@ -16,7 +17,7 @@ import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
 import { outputFolder, projectFolders } from "./project-folders.js";
-import { defineErrorCodes, parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -24,9 +25,6 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
 const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
 
-
-/** A session title for a reader: the stored untitled marker becomes a word of the read's language; storage keeps the marker. */
-const sessionTitleFor = (title: string): string => title === DEFAULT_SESSION_TITLE ? uiText.text("coding.session.new-title") : title || uiText.text("coding.session.untitled");
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
@@ -51,6 +49,10 @@ const codingSessionErrors = defineErrorCodes("coding", {
   wait_choose: "invalid",
 });
 
+/** A directory row's current SDK fact, through this installation's original owner-scoped Action. Drafts need no Runtime. */
+const executionState = async (actions: ReturnType<typeof codingActions>, record: CodingSessionRecord) => record.runtime_session_id
+  ? actions.invoke(agent.readSessionLifecycle, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]).then(view => view.state, () => null) : null;
+
 // The directory reads current facts without changing any persistent record or starting background execution.
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context } = a, actions = codingActions(context, beforeWrite);
@@ -59,7 +61,8 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   // The MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(directory);
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
-  return { sessions, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
+  const shown = await Promise.all(sessions.map(async record => ({ ...record, execution_state: await executionState(actions, record) })));
+  return { sessions: shown, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
     project_runtime_id: library?.runtime_id ?? null,
     // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
@@ -97,6 +100,20 @@ const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: Co
 type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBinding[];
 
 const ROUTES: RouteMaker[] = [
+  a => a.route("coding.session-binding", async (request, _api, execution, beforeWrite) => {
+    beforeWrite.assert_current();
+    const record = execution.sessions.get(a.projectId, text(request.params.sessionId, "coding.field.session"));
+    return { session_id: record.session_id, project_id: record.project_id, archived: record.archived,
+      runtime: record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id } : null };
+  }),
+  a => a.route("coding.list-sessions", async (request, _api, execution, beforeWrite) => {
+    const archived = request.query.archived;
+    if (archived !== "true" && archived !== "false") throw new Error("请选择活动或已归档会话");
+    beforeWrite.assert_current();
+    const page = execution.sessions.page(a.projectId, archived === "true", request.query.limit === undefined ? 50 : Number(request.query.limit), request.query.cursor);
+    const actions = codingActions(a.context, beforeWrite);
+    return { ...page, sessions: await Promise.all(page.sessions.map(async record => ({ ...record, execution_state: await executionState(actions, record) }))) };
+  }),
   (a) => {
     const { route } = a;
     return route("coding.state", async (_request, api, execution, beforeWrite) => {
@@ -127,39 +144,30 @@ const ROUTES: RouteMaker[] = [
     return route("coding.search-entries", async (request, _api, execution, beforeWrite) => {
       const records = execution.sessions.list(projectId).filter(record => !record.archived);
       await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite);
-      return searchEntriesPage(records.map(record => ({
-        subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: sessionTitleFor(record.title),
-        summary: record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : "", updated_at: record.updated_at, content: "context" as const,
-        open: { surface: "coding", id: record.session_id } })), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
+      return searchEntriesPage(records.map(record => codingSessionEntry(record, record.goal_id ? execution.goalTitles.known(record.goal_id) : undefined)), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
         limit: Math.min(500, Math.max(1, Number(request.query.limit ?? 500) || 500)) });
     });
   },
   (a) => {
-    const { context, route } = a;
-    return route("coding.subject", async (request, _api, execution, beforeWrite) => {
-      const record = selected(a, request, execution);
-      if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
-      const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
-      const intent = typeof saved === "string" ? (JSON.parse(saved) as { intent?: string }).intent : undefined;
-      const lines = [`状态：${record.state}${intent ? `；下一轮方式：${intent}` : ""}`, record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : ""];
-      let revision = "0";
-      if (record.runtime_session_id) {
-        const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-        const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
-        const runs = await Promise.all(snapshot.runs.slice(-3).map(ref => codingActions(context, beforeWrite).invoke(agent.readRun, [session, ref])));
-        revision = String(snapshot.runs.length);
-        for (const run of runs) {
-          const task = run.turns.find(turn => turn.kind === "user")?.text ?? "";
-          const reply = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "";
-          const changed = [...new Set(run.activity.filter(item => ["write", "edit", "edit-file"].includes(item.name) && item.state === "completed").map(item => item.target))];
-          lines.push("", `一轮（${run.phase}）：${task.slice(0, 600)}`, ...(changed.length ? [`改动的文件：${changed.join("、")}`] : []), ...(reply ? [`结果：${reply.slice(0, 1200)}`] : []));
+    const { route, projectId } = a;
+    return route("coding.subject-state", async (request, _api, execution, _beforeWrite, control) => {
+      const subject = { kind: "coding_session", id: request.params.sessionId ?? "" };
+      const current = (): import("@molis-ai/molis-work-contracts/platform/actions").ActionSubjectCurrentState => {
+        try {
+          const record = execution.sessions.get(projectId, subject.id);
+          return { subject, state: record.archived ? "archived" : "active", execution_session: record.runtime_session_id
+            ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id } : null };
+        } catch (error) {
+          if (error instanceof ActionError && error.code === "coding.session_unknown") return { subject, state: "deleted", execution_session: null };
+          throw error;
         }
-      }
-      return subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision, title: sessionTitleFor(record.title),
-        content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [],
-        open: { surface: "coding", id: record.session_id } });
+      };
+      control?.provideSubjectState?.(current);
+      const { state } = current();
+      return { subject, state };
     });
   },
+  (a) => a.route("coding.subject", (request, _api, execution, beforeWrite) => codingSessionSubject(a, request, execution, beforeWrite)),
   // Like /compact: the next round starts from the digest of earlier rounds instead of replaying them verbatim.
   (a) => {
     const { context, route } = a;
@@ -178,22 +186,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.update-session", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       const body = bodyOf(request);
-      if (body.archive === true) {
-        const notSubmitting = () => {
-          if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy-archive");
-        };
-        notSubmitting();
-        if (record.runtime_session_id) {
-          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-          const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
-          if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
-            throw codingError(codingSessionErrors.session_busy, "coding.server.stop-before-archive");
-          }
-        }
-        // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
-        notSubmitting();
-        return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), notSubmitting) };
-      }
+      if (typeof body.archive === "boolean") return { session: await changeCodingSessionLifecycle(a, execution, record, body.archive, beforeWrite) };
       if (record.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
       const inputPatch=codingInputPatch(execution.sessions.inputs.read(projectId,record.session_id),body);
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
@@ -209,7 +202,6 @@ const ROUTES: RouteMaker[] = [
       const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
       const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
       if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
-      if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
       if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
       if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
       if (skills !== undefined) context.services!.storage!.set(`skills:${record.session_id}`, JSON.stringify(skills));
@@ -219,7 +211,22 @@ const ROUTES: RouteMaker[] = [
       if (budget === null) context.services!.storage!.delete(`budget:${record.session_id}`);
       else if (budget !== undefined) context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify(budget));
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
-      return { session: title === undefined ? record : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString()), input_revision:savedInputs?.revision??execution.sessions.inputs.read(projectId,record.session_id).revision };
+      let current = record;
+      if (configuration) {
+        const storage = context.services!.storage!, key = `configuration:${record.session_id}`, previous = storage.get(key);
+        const oldIntent = typeof previous === "string" ? (JSON.parse(previous) as { intent?: string }).intent : undefined;
+        if (oldIntent !== configuration.intent) {
+          // Both ports use the project's single Host writer (plugin-project-library/private-storage). Defer this KV write
+          // until after beforeWrite and the original record guard, inside the same SQLite transaction as source invalidation.
+          current = await execution.sessions.setState(beforeWrite, projectId, record.session_id, record.state, new Date(Math.max(Date.now(), Date.parse(record.updated_at) + 1)).toISOString(), () => {
+            const now = execution.sessions.get(projectId, record.session_id);
+            if (now.archived || now.updated_at !== record.updated_at || now.runtime_id !== record.runtime_id
+              || now.runtime_session_id !== record.runtime_session_id || storage.get(key) !== previous) throw codingSessionErrors.session_busy("会话在保存下一轮方式时发生变化，请重试");
+            storage.set(key, JSON.stringify(configuration));
+          });
+        } else storage.set(key, JSON.stringify(configuration));
+      }
+      return { session: title === undefined ? current : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString()), input_revision:savedInputs?.revision??execution.sessions.inputs.read(projectId,record.session_id).revision };
     });
   },
   (a) => {

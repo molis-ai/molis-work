@@ -138,7 +138,8 @@ test("a person takes a step on, records its result, adds a step for themselves a
   let board = "", prefix = "", later = "";
   const b = await bench(t, (side, body, turn) => {
     const messages = JSON.stringify(body.messages);
-    if (JSON.stringify(body.messages).includes("现在每一步谁在负责")) { later = JSON.stringify(body.messages); return response("step-1 用户已完成，step-2 在本会话，插入的一步由用户处理。"); }
+    // The round's own request comes first; the ending review that follows also quotes the person's words, and is not the round.
+    if (JSON.stringify(body.messages).includes("现在每一步谁在负责")) { later ||= JSON.stringify(body.messages); return response("step-1 用户已完成，step-2 在本会话，插入的一步由用户处理。"); }
     if (turn === 1) { ({ board, prefix } = placeIn(JSON.stringify(body.system))); return response("", { name: "board-read", input: { board } }); }
     // The round stops early, leaving the graph unfinished for the person.
     return response(messages.includes("board at version") ? "先停在这里，等用户安排。" : "…");

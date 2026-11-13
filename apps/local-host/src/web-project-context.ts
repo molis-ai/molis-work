@@ -19,6 +19,7 @@ import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+import { matchingActions } from "./local-host-types.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
@@ -160,7 +161,8 @@ export function contextualPorts({ localHost, hostReference, serverOptions, reque
     ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
     actions: () => {
       const client = localHost.actionClient(hostReference);
-      return { discover: async () => client.discover(await context()), invoke: async (reference, input, signal) => client.invoke(await context(signal), reference, input) };
+      return { discover: async select => select ? matchingActions(client, await context(), select) : client.discover(await context()),
+        invoke: async (reference, input, signal) => client.invoke(await context(signal), reference, input) };
     },
     confirmReferences: async (picked, kinds) => localHost.search ? localHost.search.confirmReferences(hostReference.project_id, picked, kinds) : picked.map(() => false),
   };

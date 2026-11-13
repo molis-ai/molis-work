@@ -4,6 +4,7 @@ import type { CapabilityRegistry } from "./index.js";
 
 /** Registered declarations, without handler access, availability evaluation or execution authority. */
 export type RegisteredActionMetadata = Omit<ActionView, "availability">;
+export type ActionSelection = (definition: ActionDefinition, provider: ActionProvider) => boolean;
 export type ObserveActionRegistration = (view: ActionView, assertRegistration: () => void) => void;
 
 export interface RetainedActionDirectory {

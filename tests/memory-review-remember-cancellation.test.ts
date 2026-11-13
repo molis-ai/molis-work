@@ -20,6 +20,7 @@ const scenarios = [
   { boundary: "commit", action: "none" }, { boundary: "commit", action: "stop" },
   { boundary: "commit", action: "withdraw" }, { boundary: "commit", action: "revoke" },
   { boundary: "commit", action: "form-off" },
+  { boundary: "commit", action: "class-off" },
   { boundary: "commit", action: "latest-input" },
   { boundary: "commit", action: "withdraw-unrelated" },
 ] as const;
@@ -119,8 +120,10 @@ for (const { boundary, action } of scenarios) {
       const afterRequest = await adapter.inputs!.read!({ session_id: sent.work.session_id!, input_id: withdrawnId });
       assert.ok(afterRequest?.state === "run" && ["applied", "read"].includes(afterRequest.receipt.state));
       assert.equal(captured?.[0].signal?.aborted, action === "withdraw");
-    } else if (action === "revoke" || action === "form-off") {
-      await home.web.post("/api/memory/prefs", { scope: "personal", prefs: action === "form-off" ? { form: false } : { consumers: { assistant: false } } });
+    } else if (action === "revoke" || action === "form-off" || action === "class-off") {
+      await home.web.post("/api/memory/prefs", { scope: "personal", prefs: action === "class-off" ? {
+        class_restrictions: [{ selector: { consumer: "assistant", current_scene: "assistant" }, read: "inherit", form: "off" }],
+      } : action === "form-off" ? { form: false } : { consumers: { assistant: false } } });
     } else if (action === "latest-input") {
       // Keep the actual newer Send preparation open while the old real tool returns from its held boundary.
       const latest = current.service.continuations.begin(current.store.get(LOCAL_PERSON_ACTOR_ID, sent.work.work_id), "先不要记住，等我补充");

@@ -75,7 +75,7 @@ async function scanTarget(home: string, registry: HomeSnapshotStoreRegistry, inp
 }
 
 /** Target business databases remain opaque originals: no current-version check, WAL open, migration or initialization. */
-export async function planHomeRestoreTarget(home: string, inputs: HomeRestoreInputs, control: HomeRestoreControl): Promise<HomeRestoreTarget> {
+export async function planHomeRestoreTarget(home: string, inputs: HomeRestoreInputs, control: HomeRestoreControl, mustSaveOriginal: (path: string) => boolean = () => false): Promise<HomeRestoreTarget> {
   const { registry, currentRegistryLedgerNeeded } = targetRegistry(home, inputs.registry);
   assertSnapshotHomeInventory(home, registry);
   const root = inspectRestoreNode(home), runtime = inspectRestoreNode(join(home, "agent-runtime"));
@@ -85,7 +85,7 @@ export async function planHomeRestoreTarget(home: string, inputs: HomeRestoreInp
   for (const node of scanned.ordinary) {
     seen.add(node.path);
     const incoming = inputs.files.get(node.path);
-    if (incoming && matchesFile(join(home, node.path), node.identity, incoming)) preserved.push(node);
+    if (incoming && !mustSaveOriginal(node.path) && matchesFile(join(home, node.path), node.identity, incoming)) preserved.push(node);
     else { originals.push(node); if (incoming) files.push(incoming); }
   }
   for (const incoming of inputs.files.values()) if (!seen.has(incoming.path)) {

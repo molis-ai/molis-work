@@ -44,6 +44,10 @@ export function drawComposer(page: Page) {
   }
   q("[data-coding-rename]").hidden = !s.current;
   q("[data-coding-archive]").hidden = !s.current;
+  const memory = q<HTMLAnchorElement>("[data-coding-memory-open]");
+  memory.hidden = !s.current;
+  if (s.current) memory.href = memory.dataset.memoryBase + "&memory_session_id=" + encodeURIComponent(s.current);
+  else memory.removeAttribute("href");
   for (const name of ["workspace", "goal", "writer-directories"]) q<HTMLButtonElement>("[data-coding-" + name + "-open]").disabled = shut(page);
 }
 

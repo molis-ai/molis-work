@@ -120,6 +120,8 @@ export interface HomePageSubject {
 
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
+  /** Host-only capture for one exact subject-state call; never business input. */
+  readonly subject_state_capture?: import("./action-subjects.js").SubjectStateCapture;
   readonly actor_id: string;
   /** Only the same stage entry may inspect its own saved scene bindings through these accepted exact refs. */
   readonly stage_scene_metadata?: StageSceneMetadataAuthority;
@@ -127,6 +129,15 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
   readonly memory_read_mode?: "explicit" | "task";
   /** Validated Memory HTTP command identity, separate from this request's call_id. Grants nothing; never a model argument. */
   readonly memory_operation_id?: string;
+  /** Current live Run selection only; removed from plugin callbacks, never business input. */
+  readonly memory_context_selection?: { assert_current(): void };
+  /** Only a protected person's business entry supplies this; stripped from plugin callbacks and dependencies. */
+  readonly memory_session?: import("../services/memory-session.js").MemorySessionBinding & {
+    beforeEffect(): void | Promise<void>; assertCurrent(): void;
+  };
+  /** Host-frozen original Run restrictions; never an Action input or plugin callback field. */
+  readonly runtime_memory?: { readonly plugin_id: string; readonly current_scene: string;
+    readonly class_restrictions: import("../services/agent-host-memory.js").AgentMemoryClassPolicy };
   /** Host-authenticated delivery of a completed discussion run; never accepted from business input. */
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
@@ -207,6 +218,8 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
    * Additional permissions come from the current consumer's declaration, not from action input.
    * Without a target, retain only the originating call's authority and lifetime (for disabling a binding). */
   readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
+  /** In-process narrowing only. The current source owner synchronously checks every actual formation source. Never persisted. */
+  readonly assert_memory_sources_current?: (sources: readonly Readonly<{ event_id: string; version: string; session_id: string }>[]) => void;
   /** Recheck permissions consumed directly by a scene, without pretending it invoked another action. */
   readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
   readonly signal?: AbortSignal;
@@ -233,6 +246,8 @@ export interface RetainedActionAuthority {
 }
 
 export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
+  /** Kernel-issued, once while this handler is active; only a synchronous owner reader. */
+  readonly provideSubjectState?: (current: () => import("./action-subjects.js").ActionSubjectCurrentState) => void;
   readonly beforeEffect: () => Promise<void>;
   /** The action this handler runs, with the provider the dispatcher resolved: a plugin finds "its own action" here rather than naming itself (PG-030). */
   readonly current_action?: ExactActionReference;
@@ -621,15 +636,19 @@ export interface ActionInvokeTransport { readonly on_progress?: (event: ActionPr
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context, locale: control.locale ?? caller.locale,
         retain_background_authority: control.retainBackgroundAuthority ? (references, additionalPermissions) => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!(), additionalPermissions) : undefined,
+        assert_memory_sources_current: caller.assert_memory_sources_current || control.assert_memory_sources_current ? sources => {
+          requireSynchronous(caller.assert_memory_sources_current?.(sources), "来源检查必须同步完成");
+          requireSynchronous(control.assert_memory_sources_current?.(sources), "来源检查必须同步完成");
+        } : undefined,
         ...withControlChecks(caller, control) } : caller, definition, input) as Output;
     } };
 }

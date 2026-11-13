@@ -16,7 +16,8 @@ const before = (name, path) => {
   if (calls === kill) process.kill(process.pid, "SIGKILL");
   trace.push(`${name}:${path === undefined ? "" : basename(String(path))}`);
 };
-const pathArgument = (name, fd) => name === "fsyncSync" ? descriptors.get(fd) : fd;
+// A durable write goes through its own descriptor (fsync, and writeFileSync on the descriptor): name the file it opened.
+const pathArgument = (_name, target) => typeof target === "number" ? descriptors.get(target) : target;
 for (const name of ["rmSync", "unlinkSync", "copyFileSync", "chmodSync", "fsyncSync", "renameSync", "mkdirSync", "writeFileSync"]) {
   const real = fs[name];
   fs[name] = function (...args) { before(name, pathArgument(name, args[0])); return real.apply(this, args); };

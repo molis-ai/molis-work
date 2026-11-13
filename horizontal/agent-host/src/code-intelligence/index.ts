@@ -125,6 +125,7 @@ export function createCodeIntelligence(input: {
   const clients = new Map<string, LspClient>();
   const texts = new Map<string, string>();
   const versions = new Map<string, number>();
+  const openWith = new Map<string, LspClient>();
   // A round reads a bounded number of files: handing the model an unbounded cache would hold whole trees in memory.
   const MAX_OPEN_DOCUMENTS = 64;
   let closed = false;
@@ -176,6 +177,7 @@ export function createCodeIntelligence(input: {
       if (previous === undefined) {
         client.openDocument({ path: absolute, text, languageId });
         versions.set(absolute, 1);
+        openWith.set(absolute, client);
       } else {
         const version = (versions.get(absolute) ?? 1) + 1;
         client.changeDocument({ path: absolute, text, version });
@@ -184,8 +186,9 @@ export function createCodeIntelligence(input: {
       texts.delete(absolute); texts.set(absolute, text);
       for (const held of texts.keys()) {
         if (texts.size <= MAX_OPEN_DOCUMENTS) break;
-        client.closeDocument?.({ path: held });
-        texts.delete(held); versions.delete(held);
+        // The document may belong to another file type's server: close it on the client that opened it.
+        openWith.get(held)?.closeDocument?.({ path: held });
+        texts.delete(held); versions.delete(held); openWith.delete(held);
       }
     }
     return { client, text };
@@ -196,7 +199,7 @@ export function createCodeIntelligence(input: {
    * `command` is either an absolute path or a name looked up on PATH.
    */
   const localCommand = (command: string): string | undefined => {
-    if (command.includes("/")) return existsSync(command) ? command : undefined;
+    if (command.startsWith("/")) return existsSync(command) ? command : undefined;
     for (const directory of (process.env.PATH ?? "").split(delimiter)) {
       const candidate = path.join(directory, command);
       if (candidate.length > directory.length && existsSync(candidate)) return candidate;
@@ -251,6 +254,7 @@ export function createCodeIntelligence(input: {
       clients.clear();
       texts.clear();
       versions.clear();
+      openWith.clear();
     },
   };
 }

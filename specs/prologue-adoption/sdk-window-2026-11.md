@@ -78,6 +78,10 @@
 | 语言服务器客户端 | 放在 `horizontal/agent-host/src/code-intelligence/`（它是给 Agent 工具提供执行器的运行时件，不是独立动作服务）：按文件类型按需起停、JSON-RPC、只读查询（定义、引用、文件顶层符号）；回合结束关闭 | A4-1 |
 | 执行器 | Agent Host 只接 `coding.symbol-index`（`coding.find-symbol`）；`coding.formatter`、`coding.diagnostics` 留给后续片 | A4-1 的「查到定义与引用」 |
 | 配置与获取 | 人写在 Home 的 `language-servers.json`（示例见下）；允许时缺的工具装进 `<Home>/tools/language-servers`，先找本机版本、复用已装版本；**装完才认** | A4-1、Q5 |
+`downloads` 不写就是 `"deny"`：只找本机/项目已有的 `command`，缺了报「没有服务器、下载关着」，不联网。
+| 需求改写 | `next-requirements.md` A4／A4-1 改成宿主侧执行器写法，删掉「Manifest `lsp_servers`」与「SDK 加 LSP 客户端」 | 文档一致性 |
+
+配置示例（人写在 `<Home>/language-servers.json`）：
 
 ```json
 {
@@ -89,9 +93,6 @@
   ]
 }
 ```
-
-`downloads` 不写就是 `"deny"`：只找本机/项目已有的 `command`，缺了报「没有服务器、下载关着」，不联网。
-| 需求改写 | `next-requirements.md` A4／A4-1 改成宿主侧执行器写法，删掉「Manifest `lsp_servers`」与「SDK 加 LSP 客户端」 | 文档一致性 |
 
 ## 8. 顺序
 

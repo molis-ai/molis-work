@@ -172,16 +172,18 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       }),
     })
     : undefined;
-  // Scoped like the action tools: the catalog keeps one registration per name for the Runtime's life.
-  const symbolToolName = `${FIND_SYMBOL_TOOL}-${actionTools?.scope ?? "app"}`;
-  const withCoding = !wantsSymbols ? actionTools
-    : { ...actionTools!, ...withSymbolTool({
-      pack: actionTools!.pack,
-      executors: actionTools!.executors,
+  // Scoped like the action tools: the catalog keeps one registration per name for the Runtime's life. A round that does
+  // not carry the tool gets no name for it — a Character must not be told about a tool its pack does not hold.
+  const symbolToolName = wantsSymbols ? `${FIND_SYMBOL_TOOL}-${actionTools!.scope}` : undefined;
+  const withCoding = symbolToolName === undefined || actionTools === undefined ? actionTools
+    : { ...actionTools, ...withSymbolTool({
+      pack: actionTools.pack,
+      executors: actionTools.executors,
       symbolIndex: codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
       name: symbolToolName,
-    }), names: [...actionTools!.names, symbolToolName] };
-  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols, symbolToolName };
+    }), names: [...actionTools.names, symbolToolName] };
+  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols,
+    ...(symbolToolName === undefined ? {} : { symbolToolName }) };
 }
 
 /**

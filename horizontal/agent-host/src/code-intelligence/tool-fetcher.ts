@@ -22,7 +22,11 @@ export interface ToolInstallSpec {
 export interface ToolFetcherOptions {
   /** The Home's own tools root, e.g. `<Home>/tools/language-servers`; never the project and never a global prefix. */
   readonly toolsRoot: string;
-  /** Whether the person has allowed downloads at all; the platform's own network rules stay in force around it. */
+  /**
+   * Whether the person has allowed downloads at all. **This switch is the download's authorization** (the person's own
+   * `language-servers.json`), not a plugin's install grant and not the Agent's task network permission; the OS's own
+   * network rules still apply underneath. It is off unless the person writes `downloads: "allow"`.
+   */
   readonly allow: () => boolean | Promise<boolean>;
   readonly registry?: string;
   /** The install itself, injected so the decision, caching and cleanup can be tested without a network. */
@@ -75,7 +79,7 @@ async function installedAlready(directory: string, spec: ToolInstallSpec, option
 export async function ensureTool(spec: ToolInstallSpec, options: ToolFetcherOptions): Promise<ResolvedTool> {
   const directory = directoryFor(options, spec);
   if (await installedAlready(directory, spec, options)) return { command: binPath(directory, spec.bin), source: "installed" };
-  const key = `${directory}\u0000${spec.bin}`;
+  const key = `${directory}\u0000${spec.bin}\u0000${options.registry ?? DEFAULT_REGISTRY}`;
   const held = inFlight.get(key);
   if (held !== undefined) return held;
   const work = download(spec, options, directory).finally(() => inFlight.delete(key));

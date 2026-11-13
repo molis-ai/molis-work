@@ -136,6 +136,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  // Reproducing the slower Linux CI runner on a development machine: MOLIS_WORK_TEST_CPU_THROTTLE=3 runs the page three times slower.
+  const throttle = Number(process.env.MOLIS_WORK_TEST_CPU_THROTTLE ?? "");
+  if (throttle > 1) await command("Emulation.setCPUThrottlingRate", { rate: throttle }, sessionId);
   const { result: { value: windowInsets } } = await command<{ result: { value: { width: number; height: number } } }>("Runtime.evaluate", {
     expression: "({width:Math.max(0,outerWidth-innerWidth),height:Math.max(0,outerHeight-innerHeight)})", returnByValue: true,
   }, sessionId);

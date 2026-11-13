@@ -11,13 +11,14 @@ import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
-// BFP-01～03 (specs/visual-ui-experience/work-items/batch27-feed-inbox-performance): updating the first 20 suggestions in Inbox.
+// BFP-01 / BL-131 (specs/visual-ui-experience/work-items/batch27-feed-inbox-performance): updating the first 20 suggestions in Inbox.
+// BFP-02/03 (CPU, memory, heap, HTTP response/error segments) are not measured here; see BL-batch27-audit-followups.
 // The rule returns a fixed answer, so no model latency is in the samples. Each sample counts the page's document reads after the
 // judgment and records when the notice and the 20 suggestions appear; the timings are printed, the order and the count are asserted.
 const SAMPLES = 5, ENTRIES = 20;
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
-test("BFP-01 BFP-02 BFP-03 BL-131: updating 20 Inbox suggestions reads the page once and says so only after the suggestions are shown", { timeout: 240_000 }, async t => {
+test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says so only after the suggestions are shown", { timeout: 240_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { store, localHost, projectId, command, sessionId, navigate, origin } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "inbox");

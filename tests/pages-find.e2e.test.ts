@@ -139,6 +139,10 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
     await press(b, "Escape", "Escape", 27);
     await frame.waitFor(`document.querySelector('.pages-find')?.hidden && document.activeElement === document.querySelector('${editor}')`);
   };
+  // Find starts at the caret: its first hit is the first match at or after it. Each journey clicks the start of the first paragraph, so
+  // the caret is before "Find target at the start" and that match is 1/2. A click in the paragraph's middle put the caret at the end of
+  // its short line, after that match, and the count then depended on a race: 1/2 while the editor had not yet read the click's
+  // selectionchange (its selection still at the document's start), 2/2 once it had, which a slower machine always reached (QA-033 on CI).
   const openedRecord = () => frame.waitFor(`document.querySelector('${editor}')?.textContent.includes('Paragraph 54')`);
   await frame.click(`button[data-page-id="${record.id}"]`);
   await openedRecord();
@@ -153,7 +157,7 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
           await b.reloadPage();
           await openedRecord();
           assert.equal(await b.evaluate("document.documentElement.dataset.resolvedTheme"), theme);
-          await frame.click(`${editor} p:first-of-type`);
+          await frame.click(`${editor} p:first-of-type`, 1, "start");
           await openFind();
           assert.equal(await frame.evaluate(`document.querySelector('${query}').placeholder`), locale === "en" ? "Find in the text" : "在文中查找");
           await command("Input.insertText", { text: "Find target" }, sessionId);
@@ -210,7 +214,7 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
   // A real replace goes through the same document save as an edit, and the workbench restores it on reload.
   await b.reloadPage();
   await openedRecord();
-  await frame.click(`${editor} p:first-of-type`);
+  await frame.click(`${editor} p:first-of-type`, 1, "start");
   await openFind();
   await command("Input.insertText", { text: "Find target" }, sessionId);
   await count("1/2");
@@ -226,7 +230,7 @@ test("QA-033: Pages find remains usable under the real workbench tabs and after 
   await b.reloadPage();
   await openedRecord();
   assert.match(await frame.evaluate<string>(`document.querySelector('${editor} p:first-of-type').textContent`), /^Saved replacement at the start$/);
-  await frame.click(`${editor} p:first-of-type`);
+  await frame.click(`${editor} p:first-of-type`, 1, "start");
   await openFind();
   await command("Input.insertText", { text: "Saved replacement" }, sessionId);
   await count("1/1");

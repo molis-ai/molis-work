@@ -64,6 +64,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 ## 3. 合并
 
 - **合并前的硬条件（2026-10-20 复审后补）**：PR 只能在最后一轮评审的「要改」全部落实或被评审明确豁免后入队；共享核心（`packages/contracts`、`packages/kernel`、`packages/plugin-sdk`、`packages/plugin-runtime`、`horizontal/agent-host`、`modules/`、`apps/local-host` 的装配、`apps/workbench` 外壳）必须在最终 head 上跑完 full-suite，贴运行链接，不能拿合并后的补跑替代；入队前在最终 head 上跑 `pnpm health:check`、`pnpm boundary:check`、页面资源和 `pnpm secrets:check`；stacked PR 写明父 PR，MERGEED 不等于在 main，父 PR 合入并确认目标分支后才算完成。
+- **全量红不入队、夜间红有人修（用户 2026-11-12）**：路线书批次（`batch/**` 的那个 PR）在最终 head 上的全量须绿，才放进合并队列；只许剩 `tests/quarantine.json` 里登记了 owner 和到期日的已知红，PR 里逐个写明。别的 PR 按第一条的共享核心条件跑全量的，同样要绿。main 的夜间全量不提前停、列出所有两次都失败的文件；红了自动开（或在已开的上追加）一个 issue「main 的夜间全量红了」，写明红文件、运行链接和上次夜间绿以来合入的 PR，由合入它们的批次认领修复，修好前不再入队新的改动到同一区域；第一次全绿的夜间运行自动关掉它（`.github/workflows/full-suite.yml` 的 `nightly-report`）。只在 Linux CI 上红的，按第 8.1 节在本机复现。分支保护不变，仍只要求 `Verify`。
 - 合同与扩展点先合，实现后合；体量大的需求按包与层拆开（`docs/prompts/repository-anti-corruption.md` §4.7）。例外：路线书批次的合同在本批分支上先做、随本批 PR 合入，只有别人确实在等时才切出先合（[开发流程第 8.4 节](../../specs/post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)）；全量和第一条的硬条件照旧在最终 head 上。
 - **合并队列**（spec §1，2026-10-15，取代 2026-10-02「不开合并队列」和 2026-10-03「合并前把分支同步到最新 main」）：CI 通过后用 `gh pr merge <号> --squash`（或网页上的 Merge when ready）把 PR 放进队列，不用再手动同步分支、等 CI 重跑。队列把 PR 建在 main 和排在它前面的 PR 之上，`Verify` 在这个提交上通过就合入；没通过的出队，前面的 PR 不受影响。队列里的 CI 是 `ci.yml` 的 `merge_group` 事件：健康门禁、资源预算与 Studio 回放以 `merge_group.base_sha` 为比较点（`scripts/ci-health-base.mjs`），密钥扫描从那里扫；`security-invariants`、`product-subset` 同样进入队列并运行完整清单。PR 只有在 `test-selection` 成功且对应作业 mode 为 `none` 时才跳过该项；成功的 `some` 按选中文件和分片运行，`whole`、空或未知 mode、选择失败/取消/跳过均回退完整清单和两片。`Verify` 只豁免上述合法 `none` 的 skipped，两个作业分别核自己的 mode（T-130，`scripts/ci-test-selection.mjs`，做法见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」）。走队列合入后的 push main 不重跑挡合并的作业（T-129，`queue-check` 作业、`scripts/ci-queue-verified.mjs`）：同一个提交在队列里的 `ci.yml` 运行结论 success、`Verify` 也 success，并且那次运行的比较起点就是这次推送前的 main 末端（`Verify` 里名为 `Merge queue base <sha>` 的一步记下 `merge_group.base_sha`，要等于推送的 `before`；健康门禁、资源预算、Studio 回放和密钥扫描都以起点比较，叠在别的组上的组起点可能不同），九个挡合并的 job 才跳过，`Verify` 凭那次运行通过并给出链接。跳过要同时满足三条：事件是 push、`queue-check` 成功、它说 `true`；`Verify` 的放行用同一个条件。不是走队列进来的推送（管理员直推、绕过队列）、起点不同或没记、查不到、API 出错、`queue-check` 失败，照旧全跑，`queue-check` 自己失败不算一项检查。几个前后相叠的组在一次推送里一起落地时（队列一次把几个提交推上 main），推送的 `after` 是最后一个组的头，它的起点是前一个组的头，不等于推送前的 main 末端（`before`），目前这样的推送一律全跑，只有一次只落一个组的推送才省；这是有意的保守做法，不是故障。队列重建或 PR 出队后，GitHub 会删掉旧条目的 `gh-readonly-queue/…` 分支，但不会取消那次运行；所以每个挡合并作业在 merge_group 上 checkout 之后、安装之前，先用 `git ls-remote --exit-code` 查自己的分支还在不在，只有「连上了但分支不在」（退出码 2）才退出，网络出错等照常往下跑；这只看领到 runner 那一刻，已经在跑的不会被中断。默认分支上的「Test durations」种子因此改由每晚的运行和不走队列的推送刷新（PR 先找自己的缓存，再找默认分支的）；种子缺了只是用例排序变差。要回退，把 `queue-check` 的 `if` 改成 false 即可；删掉这个作业的话，要同时删掉各作业 `needs` 里的它、条件和 `verify` 里的引用。和别的 PR 冲突的 PR 仍要自己解冲突再进队列。
 - main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到；2026-10-15 去掉了「必须与 main 同步」，加了带合并队列的规则集）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `gates`、`health-gate-rules`（两份）、`architecture-boundaries`、`action-contracts`、`secret-scan`、`native-checks`、`shell-checks`、`security-invariants`、`product-subset` 九项实际检查均成功，仅 PR 成功选择的对应 `none` 允许该项 skipped；needs 里另有 `queue-check`（只在 push main 上运行，T-129）和 `test-selection`（PR 选择），两者是辅助依赖，不是额外必须成功的检查；`queue-check` 只让队列已验过的提交在 main 上不重跑；改这个作业的名字就等于改保护规则）；必需的批准数是 0，没有开「必须由代码所有者批准」。
@@ -189,7 +190,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 ## 7. 集成分支上跑全量
 
-**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 32 个分片，每个分片 2 个文件同时跑、其中浏览器文件 1 个；一次最多同时占 16 台 runner（2026-11-06，用户批准 P1）。Team 的 60 个标准任务并发是组织共享容量；保留余量给 `Verify` 和队列，服务器端合并队列并发设置未改。测试按已提交的耗时权重和浏览器槽位分配，未知文件用已有样本中位数；预测片间偏差写进日志和分片摘要，实际耗时与慢文件用于后续刷新，具体墙钟改善须云端实测。失败的文件自动重跑一次（`--retries 1`），重跑通过的在摘要里单列为「flaky」、不让分片变红，所以 `Full suite` 红只说明有文件两次都失败（2026-10-15：3 个同时跑时，每轮都有一批不同的浏览器文件因 CDP、DOM 等待超时失败，#519 前后五轮）；一个文件两次都失败，这个分片就停下（`--bail`：不再开新文件，正在跑的也停掉），其余分片随之取消（`fail-fast`），所以红的一次只报出第一个失败的文件，要看其余文件要修好后再跑（用户 2026-10-18）。集成分支上不这样（用户 2026-10-20）：不带 `--bail`、不 `fail-fast`，每个分片跑完所有文件；路线书批次（`batch/**` 分支开的那个 PR，或在这条分支上手动跑）也一样（用户 2026-11-07，决定 31），但推 `batch/**` 不触发全量，推送只是备份。一次红的运行列出所有两次都失败的文件，这批的失败可以同时修，不用修一个跑一次；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加上 `full-suite` 标签时跑一次（之后推送不再自动跑；要再跑就去掉标签再加上，或 `gh workflow run full-suite.yml --ref <分支>`）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
+**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 32 个分片，每个分片 2 个文件同时跑、其中浏览器文件 1 个；一次最多同时占 16 台 runner（2026-11-06，用户批准 P1）。Team 的 60 个标准任务并发是组织共享容量；保留余量给 `Verify` 和队列，服务器端合并队列并发设置未改。测试按已提交的耗时权重和浏览器槽位分配，未知文件用已有样本中位数；预测片间偏差写进日志和分片摘要，实际耗时与慢文件用于后续刷新，具体墙钟改善须云端实测。失败的文件自动重跑一次（`--retries 1`），重跑通过的在摘要里单列为「flaky」、不让分片变红，所以 `Full suite` 红只说明有文件两次都失败（2026-10-15：3 个同时跑时，每轮都有一批不同的浏览器文件因 CDP、DOM 等待超时失败，#519 前后五轮）；一个文件两次都失败，这个分片就停下（`--bail`：不再开新文件，正在跑的也停掉），其余分片随之取消（`fail-fast`），所以红的一次只报出第一个失败的文件，要看其余文件要修好后再跑（用户 2026-10-18）。集成分支上不这样（用户 2026-10-20）：不带 `--bail`、不 `fail-fast`，每个分片跑完所有文件；路线书批次（`batch/**` 分支开的那个 PR，或在这条分支上手动跑）也一样（用户 2026-11-07，决定 31），但推 `batch/**` 不触发全量，推送只是备份。一次红的运行列出所有两次都失败的文件，这批的失败可以同时修，不用修一个跑一次；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加上 `full-suite` 标签时跑一次（之后推送不再自动跑；要再跑就去掉标签再加上，或 `gh workflow run full-suite.yml --ref <分支>`）；推到 `integration/**` 分支；每晚的 main（和集成分支一样跑完所有文件，红了开 issue，见第 3 节，用户 2026-11-12）；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
 
 耗时权重用 `node scripts/ci-shard-weights.mjs <run-id> --write` 从核心 CI 或 Full 的成功分片日志刷新。跳过失败、取消、无测试执行和重试通过的样本，保留未测文件的旧值、删除已不存在的文件；同时报告实际各片测试步骤耗时、慢文件和新配置的预计负载。每个 runner 的私有缓存只影响片内启动顺序，不决定分片归属。
 
@@ -218,6 +219,19 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 - 两边的完整输出都留着，不用 grep 把输出剪成只剩失败行，否则看不到失败原因。比较时取以 `✖ ` 开头的用例名，排序后 `comm -23`。
 - 只在你这边失败的，才逐个看原因。负载下的偶发失败，在同一棵树上单独重跑几次来排除。
 - 基线工作树不改任何文件。比完删掉。
+
+### 8.1 只在 Linux CI 上红的用例
+
+全量（`full-suite.yml`）跑在 Ubuntu 上，比开发机慢约 3 倍，字体也不同。一个用例在 CI 上红、本机绿，先在本机的 Linux 容器里复现，不靠盲改：
+
+```sh
+node scripts/linux-repro.mjs tests/<文件>.e2e.test.ts [--test-name-pattern=…] [--rebuild]
+```
+
+- 要有 Docker（Colima、OrbStack 或 Docker Desktop）。镜像（`scripts/linux-repro/Dockerfile`）带 CI 装的那几种字体、Node 24.15 和 Debian 的 Chromium；第一次运行建镜像、克隆、装依赖、构建，十分钟上下，之后复用。
+- 容器测的是本工作树 `HEAD` 的提交，没提交的改动不在里面；改了包的 `src` 或锁文件加 `--rebuild`。
+- 字体与排版和 CI 一致（一行代码的行高、换行、`monospace` 落到哪种字体）；速度不一致（容器比 CI 快）。时序问题（抢先操作、等不到的状态）再加 `MOLIS_WORK_TEST_CPU_THROTTLE=3`，让页面慢三倍；它在 macOS 上直接跑也有效。抢先操作还可以在可疑的那一步前临时插一段等待，看用例是不是随之变红。
+- 用例里的时间门槛写成「开发机上的预算 × 本机的慢倍数」（`tests/fixtures/page-speed.ts`），尺寸门槛按页面里实测的值算，不写死开发机上的数字。
 
 ## 9. 共享 Agent 锁与真实 Home
 

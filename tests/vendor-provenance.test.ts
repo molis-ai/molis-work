@@ -214,7 +214,7 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53");
+    assert.equal(provenance.source.commit, "5cbf26015895138c63f6a22e18bf6086a79223b3");
     // The packed tree is the public main branch at the merge; no branch-only package and no vendor patch.
     assert.match(provenance.source.note, /Official main build/);
     assert.match(provenance.source.note, /1c0654b7/);

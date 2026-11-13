@@ -4,7 +4,7 @@
 
 ## 当前包：official main（2026-11-13，第 31 批换）
 
-当前包为 **1,448,221 字节**，SHA-256 `2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53`**（PR [#114](https://github.com/molis-ai/molis-prologue/pull/114) 合入 `770a2e27`，再由 PR [#115](https://github.com/molis-ai/molis-prologue/pull/115) 补上写后检查的 Run/Session 身份；两次都在 main 上）。这份包就是**官方版本**：不再从自建分支打，源码就是公开 main 上的那棵树，没有 vendor 补丁、没有脏文件，任何人都能按 provenance 里的步骤重建。
+当前包为 **1,448,221 字节**，SHA-256 `2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `5cbf26015895138c63f6a22e18bf6086a79223b3`**（PR [#115](https://github.com/molis-ai/molis-prologue/pull/115)；它接在 PR [#114](https://github.com/molis-ai/molis-prologue/pull/114) 的合并 `1c0654b7` 之后，补上写后检查的 Run/Session 身份；两次都在 main 上）。这份包就是**官方版本**：不再从自建分支打，源码就是公开 main 上的那棵树，没有 vendor 补丁、没有脏文件，任何人都能按 provenance 里的步骤重建。
 
 它按 24 批盘点补上三处上游缺口（子代理、Skill 自动选用、续跑与写后检查），其余与 `memory-p0` 相同：
 

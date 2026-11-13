@@ -9,7 +9,7 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53",
+    "commit": "5cbf26015895138c63f6a22e18bf6086a79223b3",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
@@ -27,7 +27,7 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use the public main commit 5cbf2601d4cd6f1e6eab18d0a41c9d0ad1c9cd53 (the merge of PR #115 on 1c0654b7).",
+      "Use the public main commit 5cbf26015895138c63f6a22e18bf6086a79223b3 (the merge of PR #115 on 1c0654b7).",
       "pnpm install --frozen-lockfile --offline (existing store).",
       "node scripts/public-api.mjs and node scripts/quality-ratchet.mjs pass against that commit.",
       "pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>, run twice from two separate builds; the two archives are byte-for-byte identical.",

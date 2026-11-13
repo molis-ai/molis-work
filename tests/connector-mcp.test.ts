@@ -702,14 +702,14 @@ for (const scenario of ["HTTP tool", "SSE tool", "HTTP resource"] as const) test
     const ref = directory.reference(started.connectionId, id)!;
     const view = (await localHost.inspectActions(caller)).find(row => row.capability_id === id)!;
     const grant = createMcpActionGrant(caller.actor_id, null, view, true);
-    await writeMcpActionGrant(temp, grant);
+    await writeMcpActionGrant(temp, grant, { host_reason: "fixture" });
     const authorized = await authorizeMcpActions(localHost, caller, temp);
-    revoke = () => writeMcpActionGrant(temp, { ...grant, enabled: false }).then(() => undefined);
+    revoke = () => writeMcpActionGrant(temp, { ...grant, enabled: false }, { host_reason: "fixture" }).then(() => undefined);
     await assert.rejects(authorized.service.invoke(authorized.context, ref, resource ? { uri: "fixture://readme" } : { message: "revoked" }));
     assert.equal(remote.stats().callCount, 0, "no tools/call reached the real server");
     assert.equal(remote.stats().readCount, 0, "no resources/read reached the real server");
     revoke = undefined;
-    await writeMcpActionGrant(temp, grant);
+    await writeMcpActionGrant(temp, grant, { host_reason: "fixture" });
     const restored = await authorizeMcpActions(localHost, caller, temp);
     await restored.service.invoke(restored.context, ref, resource ? { uri: "fixture://readme" } : { message: "restored" });
     assert.equal(resource ? remote.stats().readCount : remote.stats().callCount, 1, "regrant recovers without reconnecting or replacing the reference");
@@ -728,7 +728,7 @@ test("online MCP contract changes replace the directory snapshot and require a n
     directory.remember(started.connectionId, started.tools as ConnectorMcpTool[], started.resources);
     const id = connectorMcpCapabilityId(started.connectionId, "echo"), ref = directory.reference(started.connectionId, id)!;
     const view = (await localHost.inspectActions(caller)).find(row => row.capability_id === id)!;
-    await writeMcpActionGrant(temp, createMcpActionGrant(caller.actor_id, null, view, true));
+    await writeMcpActionGrant(temp, createMcpActionGrant(caller.actor_id, null, view, true), { host_reason: "fixture" });
     const authorized = await authorizeMcpActions(localHost, caller, temp);
     changed = true;
     await assert.rejects(authorized.service.invoke(authorized.context, ref, { message: "stale" }), { code: "actions.provider_changed" });
@@ -740,7 +740,7 @@ test("online MCP contract changes replace the directory snapshot and require a n
     const ungranted = await authorizeMcpActions(localHost, caller, temp);
     await assert.rejects(ungranted.service.invoke(ungranted.context, next, { message: "no new grant" }));
     assert.equal(remote.stats().callCount, 0);
-    await writeMcpActionGrant(temp, createMcpActionGrant(caller.actor_id, null, updated, true));
+    await writeMcpActionGrant(temp, createMcpActionGrant(caller.actor_id, null, updated, true), { host_reason: "fixture" });
     const granted = await authorizeMcpActions(localHost, caller, temp);
     await granted.service.invoke(granted.context, next, { message: "new contract" });
     assert.equal(remote.stats().callCount, 1);

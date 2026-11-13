@@ -54,12 +54,17 @@ function withStore<T>(home: string, use: (db: ReturnType<typeof openBaselineHome
   const db = openBaselineHomeSqlite(home, DIRECTORY_GRANTS_HOME_STORE.path, DIRECTORY_GRANTS_BASELINE);
   try { return use(db); } finally { db.close(); }
 }
-/** Removal never creates the store: a Home where no directory was ever granted has nothing to take back. */
-const whenPresent = (home: string, use: (db: ReturnType<typeof openBaselineHomeSqlite>) => number): number =>
-  existsSync(homeSqlitePath(home, DIRECTORY_GRANTS_HOME_STORE.path)) ? withStore(home, use) : 0;
-const remove = (db: ReturnType<typeof openBaselineHomeSqlite>, where: string, value: string): number => {
-  db.prepare(`DELETE FROM plugin_directory_reads WHERE grant_id IN (SELECT grant_id FROM plugin_directory_grants WHERE ${where} = ?)`).run(value);
-  return Number(db.prepare(`DELETE FROM plugin_directory_grants WHERE ${where} = ?`).run(value).changes);
+/** A grant that went: which, whose, for which project. */
+export type RemovedDirectoryGrant = Pick<StoredDirectoryGrant, "grant_id" | "plugin_id" | "install_id" | "project_id">;
+/** Removal never creates the store: a Home where no directory was ever granted has nothing to take back. Answers each grant that went. */
+const whenPresent = (home: string, use: (db: ReturnType<typeof openBaselineHomeSqlite>) => RemovedDirectoryGrant[]): RemovedDirectoryGrant[] =>
+  existsSync(homeSqlitePath(home, DIRECTORY_GRANTS_HOME_STORE.path)) ? withStore(home, use) : [];
+const remove = (db: ReturnType<typeof openBaselineHomeSqlite>, where: string, ...values: string[]): RemovedDirectoryGrant[] => {
+  const gone = db.prepare(`SELECT grant_id, plugin_id, install_id, project_id FROM plugin_directory_grants WHERE ${where}`).all(...values)
+    .map(row => ({ grant_id: String(row.grant_id), plugin_id: String(row.plugin_id), install_id: String(row.install_id), project_id: row.project_id ? String(row.project_id) : null }));
+  db.prepare(`DELETE FROM plugin_directory_reads WHERE grant_id IN (SELECT grant_id FROM plugin_directory_grants WHERE ${where})`).run(...values);
+  db.prepare(`DELETE FROM plugin_directory_grants WHERE ${where}`).run(...values);
+  return gone;
 };
 
 export function saveDirectoryGrant(home: string, grant: Omit<StoredDirectoryGrant, "last_read_at" | "read_count">): void {
@@ -102,12 +107,9 @@ export function recordDirectoryRead(home: string, grantId: string, read: Directo
   });
 }
 
-export const revokeDirectoryGrant = (home: string, grantId: string): number => whenPresent(home, db => remove(db, "grant_id", grantId));
-export const revokePluginDirectoryGrants = (home: string, pluginId: string): number => whenPresent(home, db => remove(db, "plugin_id", pluginId));
+export const revokeDirectoryGrant = (home: string, grantId: string) => whenPresent(home, db => remove(db, "grant_id = ?", grantId));
+export const revokePluginDirectoryGrants = (home: string, pluginId: string) => whenPresent(home, db => remove(db, "plugin_id = ?", pluginId));
 /** A project's installation goes with that project's grants only (an installation id is the same in every project); a Home-level one with all of its own. */
-export const forgetInstallationDirectoryGrants = (home: string, installId: string, projectId: string | null): number => whenPresent(home, db => {
-  const where = projectId === null ? "install_id = ?" : "install_id = ? AND project_id = ?", values = projectId === null ? [installId] : [installId, projectId];
-  db.prepare(`DELETE FROM plugin_directory_reads WHERE grant_id IN (SELECT grant_id FROM plugin_directory_grants WHERE ${where})`).run(...values);
-  return Number(db.prepare(`DELETE FROM plugin_directory_grants WHERE ${where}`).run(...values).changes);
-});
-export const forgetProjectDirectoryGrants = (home: string, projectId: string): number => projectId ? whenPresent(home, db => remove(db, "project_id", projectId)) : 0;
+export const forgetInstallationDirectoryGrants = (home: string, installId: string, projectId: string | null) => whenPresent(home, db =>
+  projectId === null ? remove(db, "install_id = ?", installId) : remove(db, "install_id = ? AND project_id = ?", installId, projectId));
+export const forgetProjectDirectoryGrants = (home: string, projectId: string) => projectId ? whenPresent(home, db => remove(db, "project_id = ?", projectId)) : [];

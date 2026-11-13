@@ -3,6 +3,7 @@ import {bindSavedHistory} from './saved-history-host.js';
 import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { composeAgentHost, workspaceRefFor, type AgentHostComposition, type AgentHostCompositionOptions } from "./agent-host-composition.js";
 import { hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
 import { referenceKindsPort } from "./agent-reference-kinds.js";
@@ -67,8 +68,10 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
           ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.database_path) : undefined),
         memoryUsage: receipt => recordMemoryUsage(localHost, receipt),
         // Each round's work records, bound to its session's owner and the call that started it (observation-collection contract-design §4).
+        // The Assistant's personal work runs under its "home" owner, which is no project (as memory reads it).
         observeRun: ({ owner, call_id }) => localHost.observation?.sink("agent").bind({ kind: "background", entry: "agent", actor_id: owner.actor_id,
-          project_id: owner.project_id, install_id: owner.install_id, ...(call_id ? { call_id } : {}) }),
+          project_id: owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.project_id === ASSISTANT_PERSONAL_OWNER ? null : owner.project_id,
+          install_id: owner.install_id, ...(call_id ? { call_id } : {}) }),
         storageOwner,
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),

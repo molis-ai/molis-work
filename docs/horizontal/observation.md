@@ -18,7 +18,9 @@
 - **正文走证据**：`detail` 只放码、耗时、计数这类标量；正文放 `evidence`，给 `content`（采集层存快照）或主人自己的固定版本引用。拿不到的写 `missing` 并给原因（`not_obtained`、`truncated`、`redacted`、`forbidden`、`by_rule`），不要不写。
 - **关联**：知道这件事属于哪一轮运行、哪项工作就填 `work.run_id`、`work.work_ref`；不知道就不填，读的人会看到「未关联」，不要猜。
 - **来源类别**：插件或服务只能说自己批次的 `first_read`、`catch_up`、`imported`；宿主入口用 `withObservationSource` 包住它整件工作（首次同步、补读、导入、自检）。
-- **登记覆盖**：在 `OBSERVATION_COVERAGE_PLAN` 加一行（主人、事实、入口、状态）；没接上的写 `not_connected` 和原因键。测试核对这张表与真实装配一致。
+- **登记覆盖**：在 `OBSERVATION_COVERAGE_PLAN` 加一行（主人、事实、入口、状态）；没接上的写 `not_connected` 和原因键。`tests/observation-coverage-plan.test.ts` 核对这张表与真实装配一致：说完整的事实要有代码以字面量写它，宿主接上的每个 sink 都要在表里。
+- **草稿**：动作的输入是本人还没发出的草稿（输入框草稿、写到一半的回答），在定义上写 `draft: true`（沙箱包写在操作上）；出口只记存过，不留输入与结果。
+- **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；授权变化走 `recordGrantChanges`，写在保存之后、从不抛错。
 
 ## 出了问题看哪里
 

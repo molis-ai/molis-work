@@ -12,6 +12,8 @@ export interface CallDescription extends ActionReference {
   readonly operation: string;
   readonly title: string;
   readonly provider_title: string;
+  /** The definition says its input is an unsent draft, whose words the exit does not keep. */
+  readonly draft?: true;
 }
 /** How a call ended. `refused`: it was turned away before its handler ran, so nothing was done. */
 export type CallOutcome = { readonly ok: true } | { readonly ok: false; readonly code?: string; readonly message: string; readonly refused?: true };
@@ -114,7 +116,8 @@ export function describeCall(source: { descriptor(reference: ActionReference, pr
   const found = resolved ?? source.descriptor(reference, call.project_id);
   const provider = found?.action_provider;
   if (!found?.action || !provider || (provider.project_id && provider.project_id !== call.project_id)) return describeUnknown(reference);
-  return { ...reference, provider_id: provider.provider_id, operation: found.operation, title: found.action.title, provider_title: provider.title };
+  return { ...reference, provider_id: provider.provider_id, operation: found.operation, title: found.action.title, provider_title: provider.title,
+    ...(found.action.draft ? { draft: true as const } : {}) };
 }
 
 /** How a call failed. The message is recorded to 200 UTF-16 units; a cut between the two halves of a character drops the lone half. */

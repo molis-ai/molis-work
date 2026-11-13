@@ -9,6 +9,8 @@ export interface ExitAction {
   readonly version: number;
   readonly provider_id?: string;
   readonly operation: string;
+  /** An unsent draft's input: its words are not kept, by rule (OCL-11). */
+  readonly draft?: true;
 }
 
 /** What the kernel's exit was told of one call (the kernel's `CallObservation`). */
@@ -61,8 +63,10 @@ export function exitRecord(env: ObservationEnvironment, context: ActionCallConte
   if (context.audit_actor_id) detail.client = context.audit_actor_id;
   // The person's own page (the workbench, or a management command): what it read is already on their screen; the rule keeps its digest only.
   const pageRead = action.operation === "query" && context.audience === "user";
-  const evidence: PendingEvidence[] = outcome === "succeeded"
-    ? [content("input", observation.input), content("result", observation.result, pageRead)]
+  // A draft the person has not sent is kept as saved, not as said: neither its words nor the result that echoes them.
+  const evidence: PendingEvidence[] = outcome === "succeeded" && action.draft
+    ? [{ role: "input", ref: { kind: "missing", reason: "by_rule" } }, { role: "result", ref: { kind: "missing", reason: "by_rule" } }]
+    : outcome === "succeeded" ? [content("input", observation.input), content("result", observation.result, pageRead)]
     : outcome === "refused" ? [{ role: "input", ref: { kind: "missing", reason: "by_rule" } }]
       : [{ role: "input", ref: { kind: "missing", reason: "by_rule" } }, { role: "result", ref: { kind: "missing", reason: "by_rule" } }];
   const fact: ObservationFactInput = { fact: "action.call", outcome, subjects: [{ kind: "action", id: reference }], detail, occurred_at: new Date(observation.started_at).toISOString() };

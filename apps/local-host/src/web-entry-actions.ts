@@ -39,6 +39,8 @@ export interface WebEntryActionSpec<S extends ActionSchema> {
   readonly effect?: "read" | "write" | "irreversible";
   /** Waits for a model or another service (the Host bills it as metered). */
   readonly metered?: boolean;
+  /** Its input is the person's unsent draft (`ActionMetadata.draft`). */
+  readonly draft?: true;
 }
 
 export interface WebEntryCall<Entry> {
@@ -65,7 +67,7 @@ export function webEntryDoor<Entry>(scope: string, refusal: () => string): WebEn
     const definition: ActionDefinition<InferActionInput<S>, Output> = { capability_id: spec.capability_id, version: spec.version, operation: "command",
       action: { title: spec.title, description: spec.description, kind: "operation", scope: spec.scope, effect: spec.effect ?? "write", scheduling: "concurrent",
         audiences: ["user"], permissions: [], subject_kinds: [], input_schema: spec.input_schema, output_schema: { type: "object" },
-        execution: { cost: spec.metered ? "metered" : "none" } } };
+        execution: { cost: spec.metered ? "metered" : "none" }, ...(spec.draft ? { draft: true as const } : {}) } };
     return defineAction<InferActionInput<S>, Output>(definition, (caller, input) => handle(entryOf(caller), input, caller));
   }
   return {

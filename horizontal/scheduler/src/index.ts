@@ -65,6 +65,17 @@ interface ScheduleServiceOptions {
   eachWakeup?: <T>(run: () => Promise<T>) => Promise<T>;
 }
 
+/** Without the Host's own operations, a wakeup runs in the tick's. */
+const inThisOperation = <T>(run: () => Promise<T>): Promise<T> => run();
+
+/** Tells the work records how one wakeup ended, with the installation it was bound to at the end; a fault in them never reaches the clock. */
+function tellEnded(options: ScheduleServiceOptions, job: JobRow, installOf: () => string | undefined) {
+  return (wakeup: ScheduleWakeupRecord, interrupted: boolean): void => {
+    try { const install_id = installOf(); options.wakeupEnded?.({ wakeup, job, ...(install_id ? { install_id } : {}), interrupted }); }
+    catch { /* The records never hold back the clock. */ }
+  };
+}
+
 interface JobRow {
   job_id: string;
   plugin_id: string;
@@ -252,11 +263,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         result.skipped += 1;
         continue;
       }
-      const outcome = await (options.eachWakeup ?? (run => run()))(() => fireScheduleWakeup(db, claimed, at, { now, leaseMs, executions, renewExecutions, actionCurrent: () => actionWakeups.current(claimed), invoke: actionWakeups.invoke,
-        ended: (wakeup, interrupted) => {
-          const install_id = actionWakeups.bindingFor(claimed.job_id)?.install_id;
-          try { options.wakeupEnded?.({ wakeup, job: claimed, ...(install_id ? { install_id } : {}), interrupted }); } catch { /* The records never hold back the clock. */ }
-        } }));
+      const outcome = await (options.eachWakeup ?? inThisOperation)(() => fireScheduleWakeup(db, claimed, at, { now, leaseMs, executions, renewExecutions, actionCurrent: () => actionWakeups.current(claimed), invoke: actionWakeups.invoke, ended: tellEnded(options, claimed, () => actionWakeups.bindingFor(claimed.job_id)?.install_id) }));
       result.invoked += 1;
       if (outcome.status !== "ok") result.failed += 1;
     }

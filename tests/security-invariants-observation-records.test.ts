@@ -89,6 +89,23 @@ test("S-observation-records 4: a call refused before its handler, or failing onc
   assert.ok(!JSON.stringify(calls).includes("the-first-secret") && !JSON.stringify(calls).includes("the-second-secret"));
 });
 
+test("S-observation-records 6: an action that declares its input an unsent draft is recorded as saved, never with the draft's words", async t => {
+  const { service, records } = home(t);
+  const schema = { type: "object", properties: { draft: { type: "string" } }, additionalProperties: false } as const;
+  const draft = { capability_id: "test.save_draft", version: 1, operation: "command" as const, action: { title: "save draft", description: "save draft",
+    kind: "operation" as const, scope: "home" as const, effect: "write" as const, draft: true as const, audiences: ["user" as const], permissions: [], subject_kinds: [],
+    input_schema: schema, output_schema: { type: "object" } } };
+  service.registerProvider({ provider: { provider_id: "system.test", title: "Test", kind: "system" }, definitions: [draft], handlers: [
+    { capability_id: "test.save_draft", version: 1, handle: (_caller, input) => ({ saved: (input as { draft: string }).draft }) },
+  ] });
+  assert.deepEqual(await service.invoke(person(), draft, { draft: "the-unsent-words" }), { saved: "the-unsent-words" });
+  const [call] = records().filter(record => record.fact === "action.call");
+  assert.equal(call?.outcome, "succeeded", "that the draft was saved, by whom and when, is kept");
+  assert.deepEqual(call!.evidence.map(item => [item.role, item.ref.kind, item.ref.kind === "missing" ? item.ref.reason : null]),
+    [["input", "missing", "by_rule"], ["result", "missing", "by_rule"]]);
+  assert.ok(!JSON.stringify(call).includes("the-unsent-words"));
+});
+
 test("S-observation-records 5: a reporter past its day's quota is turned down whole, while other reporters keep their own", async t => {
   const { directory, service, observation } = home(t);
   assert.deepEqual(await service.invoke(plugin("notes"), observationActions.report, facts("notes.saved")), { accepted: 1, rejected: [] });

@@ -8,8 +8,9 @@ import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { pickLocalDirectory } from "./directory-picker.js";
 import { readGrantedDirectory } from "./plugin-directory-read.js";
 import { tellDirectoryRead } from "./plugin-directory-notices.js";
+import { recordGrantChanges, type GrantChangedBy } from "./observation-grants.js";
 import { directoryGrant, forgetInstallationDirectoryGrants, forgetProjectDirectoryGrants, listDirectoryGrants, matchingDirectoryGrant, recordDirectoryRead,
-  revokeDirectoryGrant, revokePluginDirectoryGrants, saveDirectoryGrant, type StoredDirectoryGrant } from "./plugin-directory-store.js";
+  revokeDirectoryGrant, revokePluginDirectoryGrants, saveDirectoryGrant, type RemovedDirectoryGrant, type StoredDirectoryGrant } from "./plugin-directory-store.js";
 
 export const DIRECTORY_READ_PERMISSION = "directory:read";
 type Selection = { plugin_id: string; project_id: string | null; actor_id: string };
@@ -24,8 +25,8 @@ export interface DirectoryGrantService {
   select(owner: Selection, picker?: DirectorySelection, signal?: AbortSignal): Promise<PluginDirectoryGrant | null>;
   /** Settings › 本机目录: every grant with its recent reads. */
   list(): Promise<DirectoryGrantListing>;
-  /** The person takes back one grant, or all of one plugin's; a read under way fails at its next check and delivers nothing. */
-  revoke(target: { grant_id: string } | { plugin_id: string }): number;
+  /** The person takes back one grant, or all of one plugin's; a read under way fails at its next check and delivers nothing. `by` is their call. */
+  revoke(target: { grant_id: string } | { plugin_id: string }, by: ActionCallContext): number;
   /** An uninstall takes its grants: a project's installation those of that project, a Home-level one all of its own. */
   forgetInstallation(install_id: string, project_id: string | null): void;
 }
@@ -72,7 +73,15 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
   const bindings = new Set<Binding>(), deleted = new Map<string, number>(), told = new WeakMap<object, Set<string>>();
   // Every way a grant goes away in this process moves this on; a read under way asks the store again only when it moved.
   let revision = 0;
-  const removed = (count: number) => { if (count) revision++; return count; };
+  // Each grant that went is a work record: its row is deleted, so when it was taken back and whose it was are kept nowhere else.
+  const removed = (gone: readonly RemovedDirectoryGrant[], by: GrantChangedBy) => {
+    if (!gone.length) return 0;
+    revision++;
+    recordGrantChanges(key, by, gone.map(grant => ({ fact: "grants.directory", change: "revoked", project_id: grant.project_id,
+      subjects: [{ kind: "directory_grant", id: grant.grant_id }, { kind: "plugin", id: grant.plugin_id }], detail: { install_id: grant.install_id } })));
+    return gone.length;
+  };
+  // A deleted project's grants go unrecorded: its work records go with it.
   projectDeletedHooksFor(key).register({ id: "directory-grants", label: null, survivesRebuild: true, clear: projectId => {
     deleted.set(projectId, (deleted.get(projectId) ?? 0) + 1);
     forgetProjectDirectoryGrants(key, projectId); revision++;
@@ -94,7 +103,7 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
           if (seen !== revision) { if (!directoryGrant(key, grant.grant_id)) throw denied(); seen = revision; }
         };
         check();
-        if (!(await sameDirectory(grant))) { check(); removed(revokeDirectoryGrant(key, grant.grant_id)); return { outcome: "changed" }; }
+        if (!(await sameDirectory(grant))) { check(); removed(revokeDirectoryGrant(key, grant.grant_id), { host_reason: "folder_changed" }); return { outcome: "changed" }; }
         check();
         const result: PluginDirectoryReadResult = await readGrantedDirectory(grant.root, request, check); check();
         // What is delivered is recorded and told first: a read that cannot be recorded is not delivered.
@@ -133,17 +142,22 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
         device: String(actual.dev), inode: String(actual.ino) };
       const earlier = matchingDirectoryGrant(key, identity);
       if (earlier && earlier.root === root) return { grant_id: earlier.grant_id, root, granted_at: earlier.granted_at };
-      if (earlier) removed(revokeDirectoryGrant(key, earlier.grant_id));
+      // The person's choice at the chooser: a folder chosen again in place of the one held replaces it.
+      const person: ActionCallContext = { actor_id: owner.actor_id, project_id: owner.project_id, audience: "user", permissions: [] };
+      if (earlier) removed(revokeDirectoryGrant(key, earlier.grant_id), person);
       const grant = { ...identity, grant_id: randomUUID(), plugin_name: binding.name, root, granted_at: new Date().toISOString() };
       saveDirectoryGrant(key, grant);
+      recordGrantChanges(key, person, [{ fact: "grants.directory", change: "granted", project_id: grant.project_id,
+        subjects: [{ kind: "directory_grant", id: grant.grant_id }, { kind: "plugin", id: grant.plugin_id }], detail: { install_id: grant.install_id },
+        evidence: [{ role: "folder", ref: { kind: "content", media_type: "text/plain", text: root } }] }]);
       return { grant_id: grant.grant_id, root, granted_at: grant.granted_at };
     },
     // Settings observes the same identity check as a read, without reading contents or changing the grant/history.
     list: async () => Promise.all(listDirectoryGrants(key).map(async (grant): Promise<DirectoryGrantListing[number]> => ({
       ...grant, directory_status: await sameDirectory(grant) ? "current" : "changed",
     }))),
-    revoke: target => removed("grant_id" in target ? revokeDirectoryGrant(key, target.grant_id) : revokePluginDirectoryGrants(key, target.plugin_id)),
-    forgetInstallation(installId, projectId) { removed(forgetInstallationDirectoryGrants(key, installId, projectId)); },
+    revoke: (target, by) => removed("grant_id" in target ? revokeDirectoryGrant(key, target.grant_id) : revokePluginDirectoryGrants(key, target.plugin_id), by),
+    forgetInstallation(installId, projectId) { removed(forgetInstallationDirectoryGrants(key, installId, projectId), { host_reason: "uninstalled" }); },
   };
   byHome.set(key, service); return service;
 }

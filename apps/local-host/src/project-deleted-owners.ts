@@ -122,7 +122,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); forgetOrphanedInstallationBindings(home); } },
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },
     // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
-    { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId); } },
+    { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId, "project_deleted"); } },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),

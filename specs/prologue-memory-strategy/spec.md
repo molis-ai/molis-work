@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-13，Memory P0 的实现与定向验证已提交至可评审的 [#2020](https://github.com/molis-ai/molis-work/pull/2020)。本轮验证基点为 main `6f6ac8d06`（#2041），采用上游 Prologue `770a2e27`（#113）。合入状态、最终检查和公共合同台结论见下方 11-13 收口记录。BL-1072、BL-1073 按用户决定保留未达标结果和后续事项，BL-1076 按用户决定视作通过，完整本人走查留后续。
+状态：2026-11-13，Memory P0 通过 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 交付，采用上游 Prologue `770a2e27`（#113）。合入前同步 main `a720834a0`（第 06 批），用户决定直接走合并队列，不再等待公共合同台；最终 CI 和合入状态见 #2020。BL-1072、BL-1073 按用户决定保留未达标结果和后续事项，BL-1076 按用户决定视作通过，完整本人走查留后续。
 
 补充状态（2026-11-13）：用户同意补清 P2 的判断质量范围，并将「模型判断长期价值与不同表达的关系」归为 P2 的第一个具体改进方案（P2-01，见 §14）；阶段关系及后续范围见 §9.1.1–§9.1.2，进一步的质量审查见 §14.9。本次仅修改文档，未实施、未验证新行为，也未授权代码修改、真实模型评测或真实 Home 数据操作。V0 收口仍在 [PR #2020](https://github.com/molis-ai/molis-work/pull/2020)；本补充不把在途实现当成已合入，不改写其已有验收结论。
 
@@ -81,7 +81,8 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **本轮 Linux 全量。** 32 个分片跑完，28 个通过、4 个失败。会话清除 13/13、会话管理 7/7、遗忘设置 9/9、候选卡 3/3、Coding 问答卡 6/6、SDK 来源 79/79、恢复后遗忘检查 14/14 首轮通过。上轮报红的首页、跨位置呈现、Feed 分页、操作卡和 Coding 自动 Skill 在本轮首轮通过。[候选全量](https://github.com/molis-ai/molis-work/actions/runs/43388049148)
   - 四个失败文件是 `golden-home`、`code-scale.e2e`、`assistant-strip-narrow.e2e`、`pages-find.e2e`。Coding 行高、助理窄栏额外的通知已读写入和 Pages 查找在旧干净主干的 Linux 对照复现。助理大段代码着色 VUX-33 的 0 帧断言在当前干净主干的本机和 #2046 的 Linux 对照均复现。[旧主干全量](https://github.com/molis-ai/molis-work/actions/runs/43373326442) · [主干修复 #2046](https://github.com/molis-ai/molis-work/pull/2046)
   - 本轮候选的 Linux Golden 首轮达到 900 秒上限，自动重试仍失败。候选本机 42/42。当前干净主干本机 41/42，仍在 UPG2-02 的 `prompt_uses` 有生成差异。Linux 超时与复跑失败的原因待核对。[Golden 分片](https://github.com/molis-ai/molis-work/actions/runs/43388049148/job/131761077101)
-- **合审。** 独立复审已核对 `b8aeb1386`。#2020 待全量失败处理和公共合同台的最终合审。[独立复审](https://github.com/molis-ai/molis-work/pull/2020#issuecomment-6847237796) · [合审请求](https://github.com/molis-ai/molis-work/pull/2020#issuecomment-6844856600)
+- **合审决定。** 独立复审已核对 `b8aeb1386` 及后续文档补记。用户随后决定直接走合并队列，不再等待公共合同台。[独立复审](https://github.com/molis-ai/molis-work/pull/2020#issuecomment-6848294896) · [合审请求](https://github.com/molis-ai/molis-work/pull/2020#issuecomment-6844856600)
+- **合入第 06 批后的验证。** 主干 `a720834a0` 已带入 Linux 测试修复 [#2046](https://github.com/molis-ai/molis-work/pull/2046) 和第 06 批的项目资料与调用成本检查。合并保留新版 SDK 回调和 Memory 的对象状态复查。Memory 学习直接沿用项目运行时，只有持久任务恢复时需要准备插件；执行仍使用原安装签发的动作入口。动作合同与公开 API 快照、健康、包边界和 62 项页面资源通过。独立构建的主干页面逐字核对后，66 张中 16 张只增加会话记忆入口，Goals 测试 70 项通过、2 项按原配置跳过。最终提交的 Verify 与 Linux 全量结果记在 [#2020](https://github.com/molis-ai/molis-work/pull/2020)。
 
 ### BL-1071：金样修复走上游，换入 1128126d（2026-11-11）
 

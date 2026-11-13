@@ -248,3 +248,12 @@ test("OCL-11: the exit never records the observation layer's own calls", t => {
   f.layer.observed(person(), { capability_id: "observation.report", version: 1, operation: "command" }, done({}, {}));
   assert.equal(f.records().length, 0);
 });
+
+test("OCL-01: an exit record names the runtime client that acted, from the Host's audit name and never from input", t => {
+  const f = fixture(t);
+  f.layer.observed(agent({ audience: "mcp", audit_actor_id: "client-7:session-2" }), read, done({ client: "forged" }, { ok: true }));
+  f.layer.observed(person(), read, done({}, { ok: true }));
+  const [mcp, page] = f.records({ fact: "action.call" });
+  assert.equal(mcp!.detail.client, "client-7:session-2");
+  assert.equal(page!.detail.client, undefined);
+});

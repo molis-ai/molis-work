@@ -14,7 +14,7 @@ export interface CoveragePlanEntry {
  * checks it against the Host's real wiring. A kind of fact not here is not recorded by this build.
  */
 /** A round's own events, recorded by agent-host from the runtime's stream (`prologue-run-observation.ts`). */
-const AGENT_FACTS = ["run", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes"];
+const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes"];
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", "schedule", "host"], state: "complete" },
@@ -24,6 +24,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // An action tool's input and result are the action exit's record of that call; the round's record only links it.
   { owner: "service:agent", fact: "agent.tool.action_content", entries: ["agent"], state: "by_rule", reason: "kept_by_action_exit" },
   // The request as the runtime assembled it for the model (history, tools, materials together) is not in its event stream.
+  // Images shown to a round are runtime resources that do not outlive it; only that there was one, and which, is kept.
+  { owner: "service:agent", fact: "agent.materials.image", entries: ["agent"], state: "unavailable", reason: "image_resources_not_kept" },
   { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "unavailable", reason: "runtime_does_not_expose_request" },
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },

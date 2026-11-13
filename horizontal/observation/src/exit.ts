@@ -57,6 +57,8 @@ export function exitRecord(env: ObservationEnvironment, context: ActionCallConte
   const detail: Record<string, string | number | boolean> = { action: reference, operation: action.operation };
   if (!observation.outcome.ok && observation.outcome.code) detail.code = observation.outcome.code;
   if (observation.handler_started) detail.duration_ms = Math.max(0, Math.round(observation.ended_at - observation.started_at));
+  // Which runtime client acted (an MCP client and its session, an Agent round): the Host's audit name, never one read from input.
+  if (context.audit_actor_id) detail.client = context.audit_actor_id;
   // The person's own page (the workbench, or a management command): what it read is already on their screen; the rule keeps its digest only.
   const pageRead = action.operation === "query" && context.audience === "user";
   const evidence: PendingEvidence[] = outcome === "succeeded"

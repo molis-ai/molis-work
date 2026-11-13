@@ -49,6 +49,7 @@ async function round(t: test.TestContext, observeRun: (start: { owner: typeof ow
   const skill = { source: { kind: "plugin" as const, plugin_id: plugin, plugin_version: "1.0.0", publisher_signature: "fixture" }, skill_id: "release-notes", version: 2,
     install_id: owner.install_id, installation_generation: "g1" };
   const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "reader", task: "Summarise the release notes", skills: [skill],
+    text_materials: [{ material_id: "m1", title: "Release notes", text: "v2: faster sync; fixed login", source_artifact_id: "artifact-7", source_version: 3 }],
     role: { role_id: "reader", version: 3, workspace: "business", execution: "read-only", host_tools: [],
       prompts: [{ prompt_id: "reader.base", version: 4, body: "Read carefully; answer in one line." }],
       skills: [{ ref: skill, origin: "own", name: "Release notes", tools: [], named: true, body: "Group the notes by area." }] } }, { call_id: "call-start-1" });
@@ -95,6 +96,8 @@ test("OCL-01 OCL-03 OCL-05 OCL-06: an Agent round records its start, the prompt 
   assert.equal(text("prompt:reader.base", find("agent.instructions")), "Read carefully; answer in one line.");
   assert.equal(text("body", find("agent.skill")), "Group the notes by area.");
   assert.deepEqual(find("agent.skill").subjects[1], { kind: "skill", id: "release-notes", version: 2 });
+  assert.equal(text("material:m1", find("agent.materials")), "v2: faster sync; fixed login", "the text the model could read, as it was");
+  assert.deepEqual(find("agent.materials").subjects[1], { kind: "artifact", id: "artifact-7", version: 3 });
   assert.equal(text("reply", find("agent.reply")), "Ready to help.", "one reply per model call, its deltas joined");
   assert.deepEqual(find("agent.usage").detail, { input_tokens: 20, output_tokens: 2 });
 });

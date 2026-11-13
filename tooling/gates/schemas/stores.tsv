@@ -35,6 +35,7 @@ projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e1
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	2	a2446b1f1b0d700d	1
 projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	3	27f1d16ea2cb34c1	1,2
 projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
+projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	d1c505276d1b2bda	-
 projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	2	083dcf10551f13fc	1
 projects/catalog.db	apps/local-host	3	24e0e3c5a6f72a76	1,2
 server/server.sqlite	server	1	2c4efaa24415de5e	-

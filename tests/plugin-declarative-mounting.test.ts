@@ -307,7 +307,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     // Files retired in batch 06: a project's folders are the platform's materials now, not a plugin a project enables.
-    ["coding", "diff", "feed", "git", "goals", "inbox", "schedule",
+    ["coding", "diff", "feed", "git", "goals", "inbox", "risk", "schedule",
       "text-stats"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
@@ -364,7 +364,7 @@ test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it a
   assert.deepEqual(objectTabs([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["artifacts", "notes"]);
   // The shipped plugins: search, placement and side files open these as an object's tab (Artifacts is the platform's own).
   // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
-  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["artifacts", "goals", "inbox", "feed", "pages", "lingguang", "workflows", "coding"]));
+  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["artifacts", "goals", "inbox", "feed", "pages", "lingguang", "workflows", "coding", "risk"]));
   // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
   const { installHostUiText, runWithLocale } = await import("@molis-ai/molis-work-app-local-host");
   installHostUiText();

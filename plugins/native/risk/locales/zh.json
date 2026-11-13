@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.risk",
+  "locale": "zh",
+  "messages": {
+    "risk.directory.summary": "记下项目的风险，按状态看全局，到点复查。",
+    "risk.view.overview": "风险",
+    "risk.empty.title": "还没有风险",
+    "risk.empty.body": "记下可能出问题的事，按影响和可能性看全局。",
+    "risk.presentation.severity-high": "严重",
+    "risk.presentation.severity-medium": "中等",
+    "risk.presentation.severity-low": "轻微",
+    "risk.presentation.summary": "{count} 条风险未关闭",
+    "risk.presentation.empty": "没有未关闭的风险"
+  }
+}

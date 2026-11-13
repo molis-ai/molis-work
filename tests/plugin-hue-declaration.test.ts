@@ -20,7 +20,7 @@ import {
 const COLOURS: Readonly<Record<string, string>> = {
   alchemist: "purple", coding: "cyan", cognia: "blue", dataset: "green", diff: "cyan", feed: "brown",
   form: "orange", git: "orange", goals: "blue", images: "pink", inbox: "mint", jelly: "mint", lingguang: "yellow", pages: "cyan",
-  "plugin-builder": "indigo", ppt: "red", schedule: "yellow", shelf: "slate", "text-stats": "brown", todo: "green", workflows: "orange",
+  "plugin-builder": "indigo", ppt: "red", risk: "orange", schedule: "yellow", shelf: "slate", "text-stats": "brown", todo: "green", workflows: "orange",
 };
 const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow", "mint", "red", "indigo"];
 // PG-077: the Artifact surface belongs to the platform, independent of any Manifest or project membership.

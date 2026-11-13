@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.risk",
+  "locale": "en",
+  "messages": {
+    "risk.directory.summary": "Record the risks in a project, see them by status, and review them when due.",
+    "risk.view.overview": "Risks",
+    "risk.empty.title": "No risks yet",
+    "risk.empty.body": "Record what could go wrong and see it by impact and likelihood.",
+    "risk.presentation.severity-high": "Severe",
+    "risk.presentation.severity-medium": "Moderate",
+    "risk.presentation.severity-low": "Minor",
+    "risk.presentation.summary": "{count} open risks",
+    "risk.presentation.empty": "No open risks"
+  }
+}

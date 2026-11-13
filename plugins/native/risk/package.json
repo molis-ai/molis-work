@@ -1,0 +1,48 @@
+{
+  "name": "@molis-ai/molis-work-plugin-risk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Project risks: a register of their own, a project overview, review on demand, and the public source other plugins cite.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
+    }
+  },
+  "files": [
+    "methods",
+    "locales",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs methods",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+  },
+  "molis-work": {
+    "maturity": "experimental",
+    "capabilities": [
+      "risk.ui-contribution.v1"
+    ],
+    "registration": "./registration",
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {}
+  }
+}

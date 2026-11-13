@@ -179,9 +179,9 @@ molis-work-mcp
 硬规则：
 
 - **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md)。
-- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里），不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
+- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。墨蓝 `--action` 只给主操作和选中的选项；雾蓝 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里），不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
 - **动效成套，而且要做。** 只用 `--dur-*`（按压 130、状态 250、到达 420）/ `--ease-quint` / `--ease-spring` 和已有位移（分段滑块、目录 yield、底栏菜单升起、`craft-rise` 到达）。状态变了要看得出走过去或到达，不要硬切。hover 是色阶，不是浮起；按下回弹。`prefers-reduced-motion` 去掉位移。不为动而动。
-- **键盘焦点**只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
+- **键盘焦点**只用 `--focus-stroke`（2px 雾蓝、偏移 1px）；字段是雾蓝边框加 3px 雾蓝光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
 - **字与层次。** 系统字体栈，字重只有 400 / 500 / 600（`--weight-body` / `--weight-control` / `--weight-title`），不准全局强制字重。工作都在一张连续白色工作面上，插件不画自己的外框卡片；只有浮起的东西投影。
 
 改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手（本机用 `pnpm web` 起宿主，默认地址是 `http://127.0.0.1:4173/__ui/catalog`；真实底栏在 `/__ui/catalog/bar`，组合示例在「组合」一节）。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。

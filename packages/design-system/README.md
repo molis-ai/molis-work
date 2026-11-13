@@ -48,7 +48,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | [src/typeface.ts](src/typeface.ts)、[fonts/](fonts) | `FONT_STACK`（系统无衬线优先，Inter / Noto Sans SC 仅作离线后备）、`MONO_FONT_STACK`、字重角色变量，都从 `resources/fonts/system-sans.json` 算出来；字体文件路径 `interVariableFontFilePath()`、`notoSansScFontFilePath()` 给 Local Host |
 | [src/visual-foundation.ts](src/visual-foundation.ts) | 主题/密度/分层样式入口 |
 | [src/styles/](src/styles) | 工作台、设置、标题栏等表面层 |
-| [src/styles/craft-finish.ts](src/styles/craft-finish.ts) | Soft Workbench 终层（模块名沿用）：珍珠灰桌面与连续白色工作面、底栏几何（Dock、统一对话栏、常驻与项目按钮）、抬升/圆角/动效 token、提示气泡、`molisCraft` 完成与落地时刻。规则按小节切在 `craft-finish-bar.ts`、`craft-finish-assistant.ts`、`craft-finish-pages.ts`（级联顺序就是三份相接的顺序），共用的选择器片段在 `craft-finish-selectors.ts`；`craft-finish.ts` 把它们接起来，并带着 `CRAFT_FINISH_CLIENT_SCRIPT` |
+| [src/styles/craft-finish.ts](src/styles/craft-finish.ts) | Soft Workbench 终层（模块名沿用）：雾蓝桌面与连续白色工作面、底栏几何（Dock、统一对话栏、常驻与项目按钮）、抬升/圆角/动效 token、提示气泡、`molisCraft` 完成与落地时刻。规则按小节切在 `craft-finish-bar.ts`、`craft-finish-assistant.ts`、`craft-finish-pages.ts`（级联顺序就是三份相接的顺序），共用的选择器片段在 `craft-finish-selectors.ts`；`craft-finish.ts` 把它们接起来，并带着 `CRAFT_FINISH_CLIENT_SCRIPT` |
 | [src/plugin-component-client.ts](src/plugin-component-client.ts) 与 `plugin-component-{kit,records,controls,output,part,types}.ts` | 创作台生成的插件在浏览器里的渲染器（`createPluginComponentClient`）。按层拆成函数：`pcKit`（不碰状态的助手）、`pcRelations`/`pcRecords`（从当前视图读出的关系与记录）、`pcDetail`/`pcControls`/`pcOutput`/`pcQuery`/`pcSubmit`/`pcPart`、`pcLifecycle`。每层是「共享状态加前面各层」的函数，返回自己新加的函数；可变的 `view`、`selection`、`epoch`、`fresh` 等放在 `plugin-component-types.ts` 的 `State` 上，各层读 `c.view` 而不是闭包变量。esbuild 将入口和各层打成一个浏览器工厂，页面从 `PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT` 使用同一个产物 |
 | [src/styles/touch-targets.ts](src/styles/touch-targets.ts) | 底栏的触控尺寸，跟在 craft-finish 后面：手机宽度或 `pointer: coarse` 的窗口里底栏与助理输入条是 44px 目标；挤满的助理输入条由岛标记 `data-crowded` 并分步让位（选择器、工作条的清除标记、材料与通知并入「+」菜单） |
 | [src/monogram.ts](src/monogram.ts) | 项目徽标：首字母 + 由项目 id 决定的色相 |
@@ -65,17 +65,17 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 - 栈保持 HTML Slot。新控件用 `render*` / `mw-*`，随共用令牌适应 Soft Workbench 与 Folio。
 - **token 只从基线文件来（`resources/`，经 `src/baseline.ts`）。** 组件规则里不写 hex，不在后面的层重新声明同名 token 换个数，不用 `!important` 或按插件覆盖去"压"前面的规则——改源头。后层绑的别名（`--desk`、`--lift-1/2/3`）留在结构样式里，规格标 `alias_of`，非基线皮肤写它会被拒。
 - **面：** 桌面 `--desk`（=`--page`、`--nav-bg`）承载标题栏和底栏；工作都在一张连续白色纸面 `--paper` 上（14px 圆角、`--sheet-shadow`）；插件目录列和内部块用 `--surface-soft`；局部分组、只读字段、次按钮静止态用 `--rail`。插件不要在纸面里再画外框卡片。
-- **色：** 石墨 `--action` 只给主操作和选中的选项；铜色 `--accent` 给焦点、链接、进行中和选中的小细节（`--blue*` / `--focus` 已指向铜色）。铜色不填按钮。其余颜色只表达状态（`--green` / `--amber` / `--red`）。插件没有身份色：画插件的地方 `--plugin-tint` 一律是 `--ink-soft`，规则不点任何插件的名字；标签条上一组的颜色是 Manifest 视图的 `hue`。选中行用 `--nav-active`，不加左侧色条。
+- **色：** 墨蓝 `--action` 只给主操作和选中的选项；雾蓝 `--accent` 给焦点、链接、进行中和选中的小细节（`--blue*` / `--focus` 已指向雾蓝）。雾蓝不填按钮。其余颜色只表达状态（`--green` / `--amber` / `--red`）。插件没有身份色：画插件的地方 `--plugin-tint` 一律是 `--ink-soft`，规则不点任何插件的名字；标签条上一组的颜色是 Manifest 视图的 `hue`。选中行用 `--nav-active`，不加左侧色条。
 - **深度：** 普通内容靠留白、字重和少量发丝线分层；只有浮起来的东西投影：`--lift-1`（当前标签、分段滑块、当前 Dock 项、主按钮）、`--lift-2`（输入胶囊、内层面板）、`--lift-3`（菜单、对话框、边缘面板、提示）。浮层不再画描边。遮罩只变暗不模糊。渐变只用于引导页的环境光。
 - **字：** 系统字体栈 `FONT_STACK`；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
 - **尺寸：** 控件 32px（紧凑 28，手机/粗指针 44），`--control-h` 只在早层声明，好让密度和触控规则赢。圆角：tag 6、control 8、row 10、card 12、sheet 14、composer 15、dialog 16。
-- **焦点：** 只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不准用 ink 或蓝色描焦点，不准去掉焦点。危险态用 `--red`。
+- **焦点：** 只用 `--focus-stroke`（2px 雾蓝、偏移 1px）；字段是雾蓝边框加 3px 雾蓝光晕。不准用 ink 或浏览器默认蓝描焦点，不准去掉焦点。危险态用 `--red`。
 - **焦点组的局部更新（VUX-28、VUX-36）：** 向页面追加普通正文时，不能因变更的父节点是 `body` 就重新测量全页焦点组；这会把大段代码的布局成本带进无关的键盘维护。`roving-focus` 对子节点增删只标记父节点所属的组，新增子树和属性变化仍检查其中受影响的组；删除、重排、隐藏祖先、禁用与选择变化后仍保留一个有效 Tab 停靠点。本次只收紧已有 DOM 观察范围，不改代码着色、键盘语义或性能门槛。`tests/keyboard-groups.e2e.test.ts` 通过真实页面的几何读取计数验证普通内容变化不再测量无关组，并验证组内更新与原有键盘路径。
 - **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。入场只有四个关键帧（`src/styles/motion.ts`：到达 `craft-rise`、再显示 `craft-fade-in`、菜单 `craft-drop` / `craft-rise-from-bar`），页面与插件不另写；完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`（新到达的那一层底色是 `[data-craft-new]`）。`prefers-reduced-motion` 与自动化下控件入场动画静止。状态环刻的语义周期为 2.8–5.8 秒，由共享组件维护；减少动效时静止，浏览器回归可以显式验证正常运动。
 - **菜单关闭与流式成本（VUX-36、VUX-22）：** `styles/motion.ts` 拥有完整菜单生命周期样式与选择器，craft 层在原位置装配；`details` 菜单的入退场共用可中断的 opacity/transform 过渡（进入 250ms、退出 130ms；反向按进度缩短），入场中关闭也只能逐渐变淡。底栏导航保留朝触发点的方向。关闭立即禁止点击，并仅在 130ms 内保留内容盒；普通折叠、非 details 的 popover 和 Assistant 保留原路径。复用 #1042 的父菜单自定义属性与独立伪元素规则，继续按现有菜单子元素识别动态菜单，不再使用带 `:has()` 的 `::details-content` 选择器。`tests/menu-exit-motion.e2e.test.ts` 覆盖八种现役 host、正常和快速关闭、普通折叠、减少动态效果和自动化静止；`tests/has-anchors.e2e.test.ts` 保持长回复插入节点小于 3ms 的原门槛。短合同见 [visual-ui-experience](../../specs/visual-ui-experience/spec.md#bezier-timing)。
 - **不画滚动条。** `HIDDEN_SCROLLBAR_STYLES`（`src/styles/scrollbars.ts`）在每一页把滚动条藏起来，滚动照常；强制颜色下系统滚动条回来。别处不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`；不在共有样式表里的页面（胶囊、IM、接续页）自己带上这条。
 - **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`；禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值，原生 `<dialog>` 只留行为。
-- 选项组用 `renderChoice` / `mw-choice`：选中是石墨底加对勾，不能只靠光影或颜色表达选中。
+- 选项组用 `renderChoice` / `mw-choice`：选中是墨蓝底加对勾，不能只靠光影或颜色表达选中。
 - 图标从库取：`icon("name")` 或 `#icon-name`。不要第二套 emoji/Unicode 图标。
 - Shelf 阅读面通过 `--content-*` / `--da-*` 别名到同一套 token；`--mark-*` 五色只作文件类型小标签。
 - 这里不拥有业务数据、路由或 Goal 状态。改共享样式要看真实页面、深浅色、紧凑密度和窄屏，编译通过不等于视觉通过。

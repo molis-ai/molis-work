@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/browser/browser-page.ts#BrowserPage": {
+      "kind": "cohesive-unit",
+      "reason": "一个项目浏览器目标页的协议适配器，全部方法围绕同一 CDP 会话、文档代次和页面状态；进程与 Home 管理已独立留在 BrowserHost，页内导航、输入、画面和释放仍共同维护同一个目标的身份。",
+      "size": {
+        "lines": 488,
+        "methods": 48
+      }
+    }
+  }
+}

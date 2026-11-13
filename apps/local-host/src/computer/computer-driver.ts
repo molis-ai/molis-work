@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
-import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceContext, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { scopedDeskContext } from "./computer-round.js";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
 import { isUnnamedContainer, modelImageReason, nodeIsClickable, observationExpired, pointerFromNode, roleName } from "./computer-act.js";
@@ -35,7 +37,7 @@ export interface AppState {
   readonly window?: { readonly title: string; readonly frame: readonly [number, number, number, number]; readonly window_id: number; readonly document: string };
   readonly windows?: readonly { readonly title: string; readonly frame: readonly number[]; readonly focused: boolean; readonly minimized: boolean }[];
 }
-export interface Target { readonly bundle_id: string; readonly name: string; pid: number; readonly verdict: AppTierVerdict }
+export interface Target { readonly bundle_id: string; readonly name: string; readonly pid: number; readonly verdict: AppTierVerdict }
 type Tree = { window: { title: string; frame: [number, number, number, number] }; nodes: TreeNode[]; truncated: boolean; menus: string[] };
 
 /** A refusal is written on the round's record before it leaves the driver, so the words survive Prologue's refusal code. */
@@ -121,8 +123,10 @@ export interface DeskContext {
   setTarget(target: Target | null): void;
   takeovers(): number;
   /** Takes the computer for this session's round (starts its record) after readiness passes; refuses otherwise. */
-  ready(sessionId: string | null): Promise<void>;
-  readiness(sessionId: string | null): Promise<{ refusal: HostSurfaceRefusal; detail: string } | null>;
+  assertCurrent(context: HostSurfaceContext): void;
+  assertReady(context: HostSurfaceContext): void;
+  ready(context: HostSurfaceContext): Promise<void>;
+  readiness(context: HostSurfaceContext): Promise<{ refusal: HostSurfaceRefusal; detail: string } | null>;
   mark(summary: string, point: { x: number; y: number } | null): void;
   activity(): ComputerActivity | null;
   recordStep(step: Parameters<ComputerRecords["step"]>[1], png?: Uint8Array): void;
@@ -135,11 +139,11 @@ export interface DeskContext {
   pendingPersonMove(): boolean;
   changed(): void;
   /** Names the round before the first look, so the record stores its project, run and goal. */
-  describeRound(sessionId: string, context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
+  describeRound(context: HostSurfaceContext, metadata: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
   /** Folds in the run id once the round's run exists. The id here may differ from the session that holds the lease. */
-  noteRun(sessionId: string, runId: string): void;
+  noteRun(context: HostSurfaceContext, runId: string): void;
   /** Ends the round that `describeRound` named: finishes its record and frees the computer. */
-  release(sessionId: string, ended?: HostSurfaceRoundEnd): void;
+  release(context: HostSurfaceContext, ended?: HostSurfaceRoundEnd): void;
   /** The window title just read. Empty when that window is gone. */
   noteWindow?(title: string): void;
   /** A file this round handed over, took out, or found as the window's document. */
@@ -155,39 +159,64 @@ export interface DeskContext {
  */
 export class ComputerDriver {
   /** When the last accessibility tree was read. A coordinate click after it expires is refused; a node id is read again. */
-  private observedAt: number | null = null;
+  private get observedAt(): number | null { return this.state.observedAt; }
+  private set observedAt(value: number | null) { this.state.observedAt = value; }
   /** What the model last saw and what the last step left: a step that changes nothing is told so. */
-  private readonly progress = new StepProgress();
+  private get progress(): StepProgress { return this.state.progress; }
 
-  constructor(private readonly ctx: DeskContext) {}
+  constructor(private readonly ctx: DeskContext, private readonly state = { observedAt: null as number | null, progress: new StepProgress() }) {}
 
   private now(): number { return this.ctx.now?.() ?? Date.now(); }
 
-  /** The stable `HostSurfaceDriver` the Agent Host attaches. */
+  private surfaceDriver: HostSurfaceDriver | undefined;
+
+  /** Every context has its own observations and progress. The shared adapter only selects that exact owner. */
   surface(): HostSurfaceDriver {
-    // The host ends the round with `release(ended)` (`HostSurfaceDriver.release`), saying how the run settled. The lease id
-    // is the Molis session from `describeRound`, not the Prologue session ref the surface host keys its drivers by.
-    const round = { sessionId: null as string | null };
-    return {
-      kind: "desktop",
-      project_id: null,
-      identity: () => this.identity(),
-      scope: async () => this.ctx.target()?.bundle_id ?? NO_APP_SCOPE,
-      readiness: context => this.ctx.readiness(context.session_id),
-      observe: (kind, context) => this.observe(kind, context?.session_id ?? null),
-      perform: (action, context) => this.perform(action, context.session_id),
-      describeRound: (sessionId, context) => { round.sessionId = sessionId; this.progress.reset(); this.ctx.describeRound(sessionId, context); },
-      noteRun: (sessionId, runId) => this.ctx.noteRun(sessionId, runId),
-      // A run that ended without saying how (an older Host) is judged from the facts alone.
-      release: async (ended?: HostSurfaceRoundEnd) => {
-        this.progress.reset();
-        if (round.sessionId) this.ctx.release(round.sessionId, ended);
-      },
-      close: async () => undefined,
-      describePoint: (x, y) => this.describePoint(x, y),
-      focusedField: () => this.focusedField(),
-      assess: action => this.assess(action),
-      currentApp: async () => this.appRef(),
+    if (this.surfaceDriver) return this.surfaceDriver;
+    const rounds = new Map<HostSurfaceContext, { state: ComputerDriver["state"]; live: boolean }>();
+    let closed = false;
+    const retired = new WeakSet<HostSurfaceContext>();
+    const roundFor = (context: HostSurfaceContext) => {
+      requireSynchronous(context.assertCurrent());
+      if (closed || retired.has(context)) throw refused("driver-unavailable", "原轮次的电脑已释放");
+      let round = rounds.get(context);
+      if (!round) rounds.set(context, round = { state: { observedAt: null, progress: new StepProgress() }, live: true });
+      return round;
+    };
+    const checked = async <T>(context: HostSurfaceContext, operation: (driver: ComputerDriver) => Promise<T>): Promise<T> => {
+      const round = roundFor(context);
+      // Dispatch evidence belongs to this call, not to another concurrent read or effect in the same round.
+      const bound = scopedDeskContext(this.ctx, context, () => {
+        if (closed || rounds.get(context) !== round || !round.live) throw refused("driver-unavailable", "原轮次的电脑已释放");
+      });
+      await context.beforeEffect(); bound.assertCurrent();
+      try { const result = await operation(new ComputerDriver(bound.ctx, round.state)); bound.assertCurrent(); return result; }
+      catch (error) {
+        if (bound.dispatches() > 0) throw Object.assign(refused(isRefused(error) ? error.refusal : "driver-unavailable", "无法确认原桌面操作是否完整完成，请核对原应用。", true), { cause: error });
+        throw error;
+      }
+    };
+    const release = async (context: HostSurfaceContext, ended?: HostSurfaceRoundEnd) => {
+      retired.add(context);
+      const round = rounds.get(context); if (!round) return;
+      round.live = false;
+      this.ctx.release(context, ended); rounds.delete(context);
+    };
+    return this.surfaceDriver = {
+      kind: "desktop", project_id: null,
+      identity: context => checked(context, driver => driver.identity()),
+      scope: context => checked(context, async driver => driver.ctx.target()?.bundle_id ?? NO_APP_SCOPE),
+      readiness: context => checked(context, driver => driver.ctx.readiness(context)),
+      observe: (kind, context) => checked(context, driver => driver.observe(kind, context)),
+      perform: (action, context) => checked(context, driver => driver.perform(action, context)),
+      describeRound: (context, metadata) => { const round = roundFor(context); round.state.progress.reset(); this.ctx.describeRound(context, metadata); },
+      noteRun: (context, runId) => { roundFor(context); this.ctx.noteRun(context, runId); },
+      release,
+      close: async () => { closed = true; for (const context of rounds.keys()) await release(context, "stopped"); },
+      describePoint: (x, y, context) => checked(context, driver => driver.describePoint(x, y)),
+      focusedField: context => checked(context, driver => driver.focusedField()),
+      assess: (action, context) => checked(context, driver => driver.assess(action)),
+      currentApp: context => checked(context, async driver => driver.appRef()),
       masked: bytes => this.ctx.masked(bytes),
     };
   }
@@ -197,21 +226,14 @@ export class ComputerDriver {
     return target ? { bundle_id: target.bundle_id, name: target.name } : null;
   }
 
-  private async appState(): Promise<AppState> {
+  private async appState(assertCurrent?: () => void): Promise<AppState> {
+    requireSynchronous(assertCurrent?.());
     const target = this.ctx.target();
     if (!target) throw new Error("还没有选定要操作的应用");
-    try { return await this.ctx.helper.call<AppState>("app.state", { pid: target.pid }); }
-    catch (error) {
-      // The app quit and came back under another process: find it again by its bundle id.
-      if (isHelperFailure(error) && error.code === "app.gone") {
-        const running = await this.ctx.helper.call<{ apps: AppState[] }>("apps.running");
-        const again = running.apps.find(app => app.bundle_id === target.bundle_id);
-        if (!again) throw new Error(`「${target.name}」已经退出了`);
-        target.pid = again.pid;
-        return this.ctx.helper.call<AppState>("app.state", { pid: again.pid });
-      }
-      throw error;
-    }
+    const state = await this.ctx.helper.call<AppState>("app.state", { pid: target.pid }, undefined, assertCurrent);
+    requireSynchronous(assertCurrent?.());
+    if (state.pid !== target.pid || state.bundle_id !== target.bundle_id) throw refused("outside-target", "原应用进程已变化，请重新选择应用后观察");
+    return state;
   }
 
   /** Which app, which window, where it is and what it is called, and how often the person took over: equal or stale. */
@@ -229,8 +251,9 @@ export class ComputerDriver {
     if (why) throw refused("outside-target", why);
   }
 
-  private async screenshot(state: AppState): Promise<Buffer> {
-    const shot = await this.ctx.helper.call<{ png: string; included_pids?: number[]; password_fields?: number; masked?: number }>("observe.screenshot", { pid: state.pid, rect: state.window!.frame, scale: 1 }).catch(error => rememberRefusal(this.ctx, this.appRef(), this.translate(error)));
+  private async screenshot(state: AppState, assertCurrent?: () => void): Promise<Buffer> {
+    const shot = await this.ctx.helper.call<{ png: string; included_pids?: number[]; password_fields?: number; masked?: number }>("observe.screenshot", { pid: state.pid, rect: state.window!.frame, scale: 1 }, undefined, assertCurrent).catch(error => { requireSynchronous(assertCurrent?.()); return rememberRefusal(this.ctx, this.appRef(), this.translate(error)); });
+    requireSynchronous(assertCurrent?.());
     const why = refuseCapture({ targetPid: state.pid, includedPids: shot.included_pids, passwordFields: shot.password_fields, coveredFields: shot.masked });
     if (why) rememberRefusal(this.ctx, this.appRef(), refused("outside-target", why));
     const png = Buffer.from(shot.png, "base64");
@@ -239,16 +262,18 @@ export class ComputerDriver {
   }
 
   /** A fresh picture of the target app, and its bytes for the record; undefined when there is nothing to show. */
-  async freshFrame(): Promise<Uint8Array | undefined> {
+  async freshFrame(assertCurrent?: () => void): Promise<Uint8Array | undefined> {
+    requireSynchronous(assertCurrent?.());
     const target = this.ctx.target();
     if (!target) return undefined;
-    const state = await this.appState();
+    const state = await this.appState(assertCurrent);
+    requireSynchronous(assertCurrent?.());
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
-    return state.window ? this.screenshot(state) : undefined;
+    return state.window ? this.screenshot(state, assertCurrent) : undefined;
   }
 
-  private async observe(kind: HostSurfaceObservationKind, sessionId: string | null): Promise<Uint8Array> {
-    await this.ctx.ready(sessionId);
+  private async observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext): Promise<Uint8Array> {
+    await this.ctx.ready(context);
     const target = this.ctx.target();
     if (!target) {
       this.progress.reset();
@@ -297,9 +322,9 @@ export class ComputerDriver {
     }
   }
 
-  private async perform(action: HostSurfaceAction, sessionId: string | null): Promise<HostSurfaceActReceipt | void> {
-    await this.ctx.ready(sessionId);
-    if (action.what === "app") { const png = await this.switchApp(action.app); this.ctx.noteInjected(); return this.receipt(png); }
+  private async perform(action: HostSurfaceAction, context: HostSurfaceContext): Promise<HostSurfaceActReceipt | void> {
+    await this.ctx.ready(context);
+    if (action.what === "app") { const png = await this.switchApp(action.app); return this.receipt(png); }
     if (action.what === "navigate") throw new Error("桌面应用没有网址可打开；网页上的事用侧栏浏览器");
     const target = this.ctx.target();
     if (!target) throw new Error("还没有选定应用：先用 app 动作打开或切到一个应用");
@@ -321,7 +346,7 @@ export class ComputerDriver {
     }
     try {
       await injectDesktopAction(aimed, target, at, target.pid, {
-        helper: this.ctx.helper, ctx: this.ctx, settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point),
+        helper: this.ctx.helper, ctx: this.ctx, assertCurrent: () => this.ctx.assertReady(context), settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point),
         describePoint: (x, y) => this.describePoint(x, y), focusedField: () => this.focusedField(),
       });
     } catch (error) {
@@ -331,7 +356,6 @@ export class ComputerDriver {
         ...(this.ctx.activity()?.point ? { point: this.ctx.activity()!.point! } : {}) });
       throw translated;
     }
-    this.ctx.noteInjected();
     // The picture is for the person. A password field in it refuses before any receipt can carry the bytes.
     let png: Uint8Array | undefined;
     try { png = await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* a missing picture does not undo the step */ }
@@ -415,11 +439,10 @@ export class ComputerDriver {
 
   private async focusedField(): Promise<{ label: string; sensitive: boolean }> {
     const target = this.ctx.target();
-    if (!target) return { label: "", sensitive: false };
-    try {
-      const field = await this.ctx.helper.call<{ name: string; secure: boolean }>("focused.field", { pid: target.pid });
-      return { label: field.name, sensitive: field.secure };
-    } catch { return { label: "", sensitive: false }; }
+    if (!target) throw refused("outside-target", "还没有选定输入目标");
+    const field = await this.ctx.helper.call<{ name: string; secure: boolean }>("focused.field", { pid: target.pid });
+    if (typeof field.name !== "string" || typeof field.secure !== "boolean") throw refused("driver-unavailable", "无法核对原输入框");
+    return { label: field.name, sensitive: field.secure };
   }
 
   /** When the driver cannot tell, it says irreversible: the person is asked once more rather than once too few. */
@@ -437,9 +460,11 @@ export class ComputerDriver {
         case "person.present":
           this.ctx.pauseForPerson();
           // Some of the step's events may have landed already: Prologue settles it as needing reconciliation, never replays it.
-          return refused("person-present", "用户动了鼠标或键盘，这一步停在半途，助理暂停；等用户交还后先重新观察。", true);
+          return refused("person-present", "用户动了鼠标或键盘，助理暂停；等用户交还后先重新观察。", error.partial !== false);
         case "landing.covered": return refused("outside-target", `${error.message}；不点，先重新观察。`);
-        case "capture.password": case "field.password": case "input.look_only": return refused("outside-target", error.message);
+        case "capture.password": case "field.password": case "field.none": case "input.look_only": return refused("outside-target", error.message);
+        case "presence.unavailable": return refused("screen-locked", error.message);
+        case "permission.input_monitoring": case "monitor.unavailable": case "helper.closed":
         case "permission.accessibility": case "permission.screen_recording": case "helper.crashed": case "computer.crashed": case "helper.timeout": case "computer.timeout":
         case "helper.unsupported": case "computer.unsupported": case "helper.missing": case "computer.missing": case "helper.start_failed": case "computer.start_failed": case "helper.restarting_too_often": case "computer.restarting_too_often":
           return refused("driver-unavailable", error.message);

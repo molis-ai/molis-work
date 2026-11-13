@@ -62,8 +62,9 @@ test("APR-07/08: a revoked starter cannot lend its guard to or cancel a concurre
   await barrier.reached;
   const person = f.page.navigate("https://person.example/"); current = false; barrier.release();
   await rejected; await person;
+  // An explicit destination does not first restore the old page; only the person's ensure() restores it.
   assert.deepEqual(f.frames.filter(frame => frame.method === "Page.navigate").map(frame => frame.params.url), [
-    "https://previous.example/", "https://previous.example/", "https://person.example/",
+    "https://previous.example/", "https://person.example/",
   ]);
   assert.equal(f.page.snapshot().url, "https://person.example/");
 });

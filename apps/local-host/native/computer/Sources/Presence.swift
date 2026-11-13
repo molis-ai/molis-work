@@ -6,16 +6,45 @@ import ApplicationServices
 final class Presence {
     static let shared = Presence()
 
-    private var screensaver = false
-    private var displaysAsleep = false
+    private let stateLock = NSLock()
+    private var savedScreensaver = false, savedDisplaysAsleep = false
+    private var savedTap: CFMachPort?
+    private var screensaver: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return savedScreensaver }
+        set { stateLock.lock(); savedScreensaver = newValue; stateLock.unlock() }
+    }
+    private var displaysAsleep: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return savedDisplaysAsleep }
+        set { stateLock.lock(); savedDisplaysAsleep = newValue; stateLock.unlock() }
+    }
+    private var tap: CFMachPort? {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return savedTap }
+        set { stateLock.lock(); savedTap = newValue; stateLock.unlock() }
+    }
     private var lastReported: [String: Any] = [:]
-    private var tap: CFMachPort?
-    private(set) var watching = false
+    var watching: Bool {
+        guard let tap else { return false }
+        return CFMachPortIsValid(tap) && CGEvent.tapIsEnabled(tap: tap) && CGPreflightListenEventAccess()
+    }
     private var lastMoveReport = 0.0
 
     func permissions() -> [String: Bool] {
         ["accessibility": AXIsProcessTrusted(), "screen_recording": CGPreflightScreenCaptureAccess(),
          "input_monitoring": CGPreflightListenEventAccess()]
+    }
+
+    /// Called on the input queue, without main.sync or an OS prompt; the host's last status is not current authority.
+    func assertInputReady() throws {
+        for (name, allowed) in permissions() where !allowed { throw HelperError("permission.\(name)", "系统权限已被收回") }
+        let state = presence()
+        if state["locked"] as? Bool == true || state["screensaver"] as? Bool == true || state["displays_asleep"] as? Bool == true
+            || state["on_console"] as? Bool != true || (state["idle_seconds"] as? Double ?? 0) > 600 {
+            throw HelperError("presence.unavailable", "当前用户不在可操作的电脑前")
+        }
+        guard watching else {
+            emit("watch_failed", [:])
+            throw HelperError("monitor.unavailable", "原输入监视已不可用")
+        }
     }
 
     func presence() -> [String: Any] {
@@ -82,7 +111,7 @@ final class Presence {
     }
 
     private func report() {
-        let now: [String: Any] = ["presence": presence().filter { $0.key != "idle_seconds" }, "permissions": permissions()]
+        let now: [String: Any] = ["presence": presence().filter { $0.key != "idle_seconds" }, "permissions": permissions(), "watching": watching]
         if !NSDictionary(dictionary: now).isEqual(to: lastReported) {
             lastReported = now
             emit("status", status())
@@ -93,15 +122,20 @@ final class Presence {
 
     /// Listens (never alters) to the person's mouse and keyboard. Events this helper posted carry its marker and are skipped.
     func watchInput(_ on: Bool) {
-        wantWatching = on
-        DispatchQueue.main.async {
+        let update = {
+            self.wantWatching = on
             if !on {
                 if let tap = self.tap { CGEvent.tapEnable(tap: tap, enable: false) }
                 self.tap = nil
-                self.watching = false
                 return
             }
-            guard self.tap == nil else { return }
+            if !CGPreflightListenEventAccess() {
+                if let tap = self.tap { CGEvent.tapEnable(tap: tap, enable: false) }
+                self.tap = nil
+                return
+            }
+            if let tap = self.tap, CFMachPortIsValid(tap), CGEvent.tapIsEnabled(tap: tap) { return }
+            self.tap = nil
             let types: [CGEventType] = [.mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown, .leftMouseDragged,
                                         .rightMouseDragged, .scrollWheel, .keyDown, .flagsChanged]
             let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << CGEventMask($1.rawValue)) }
@@ -111,7 +145,6 @@ final class Presence {
             }
             guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly,
                                               eventsOfInterest: mask, callback: callback, userInfo: nil) else {
-                self.watching = false
                 emit("watch_failed", ["permissions": self.permissions()])
                 return
             }
@@ -119,8 +152,8 @@ final class Presence {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             CGEvent.tapEnable(tap: tap, enable: true)
             self.tap = tap
-            self.watching = true
         }
+        if Thread.isMainThread { update() } else { DispatchQueue.main.sync(execute: update) }
     }
 
     fileprivate func saw(_ type: CGEventType, _ event: CGEvent) {

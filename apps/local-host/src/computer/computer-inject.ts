@@ -19,6 +19,7 @@ function downloadDestination(to: readonly string[]): string {
 export async function injectDesktopAction(action: HostSurfaceAction, target: Target, at: (x: number, y: number) => [number, number], pid: number, deps: {
   helper: DeskContext["helper"];
   ctx: DeskContext;
+  assertCurrent(): void;
   settled(): Promise<void>;
   landsOnTarget(point: [number, number]): Promise<void>;
   describePoint(x: number, y: number): Promise<string>;
@@ -81,7 +82,14 @@ export async function injectDesktopAction(action: HostSurfaceAction, target: Tar
       const document = await helper.call<{ path: string }>("document", { pid });
       if (!document.path) throw new Error(`「${target.name}」的前窗没有对应的文件可取出`);
       ctx.mark(`从「${target.name}」取出 ${path.basename(document.path)}，存到 ${destination}`, null);
-      fs.copyFileSync(document.path, destination, fs.constants.COPYFILE_EXCL);
+      deps.assertCurrent();
+      try { fs.copyFileSync(document.path, destination, fs.constants.COPYFILE_EXCL); }
+      catch (error) {
+        // EXCL refusing an existing destination proves no write; other copy failures may have left bytes.
+        if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) ctx.noteInjected();
+        throw error;
+      }
+      ctx.noteInjected();
       ctx.noteFile?.(path.basename(document.path));
       ctx.noteFile?.(path.basename(destination));
       return;

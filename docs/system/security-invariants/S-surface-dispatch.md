@@ -2,7 +2,7 @@
 
 | ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
 | --- | --- | --- | --- | --- |
-| S-surface-dispatch | 原调用提供同步检查时，Helper 连接建立后的撤权不分配请求 ID、不登记等待或计时器、不发送输入帧；异步函数不能充当最终同步检查。浏览器在启动后、恢复旧地址及发送新导航前核同一检查，拒绝不改目标地址；文件交付拒绝保留原选择器，不发文件帧。后续明确的用户调用仍可恢复原操作。 | `apps/local-host/src/computer/helper-connection.ts`；`apps/local-host/src/browser/browser-host.ts` | `tests/security-invariants-surface-transport.test.ts`「APR-07/08: helper rejects after ensure」「APR-07/08: navigation refuses after page startup」「APR-07/08: a refused file handoff」「APR-07/08: restarting a page cannot send」 | — |
+| S-surface-dispatch | 原调用提供同步检查时，Helper 连接建立后的撤权不分配请求 ID、不登记等待或计时器、不发送输入帧；异步函数不能充当最终同步检查。浏览器在启动后、恢复旧地址及发送新导航前核同一检查，拒绝不改目标地址；文件交付拒绝保留原选择器，不发文件帧。后续明确的用户调用仍可恢复原操作。 | `apps/local-host/src/computer/helper-connection.ts`；`apps/local-host/src/browser/browser-page.ts` | `tests/security-invariants-surface-transport.test.ts`「APR-07/08: helper rejects after ensure」「APR-07/08: navigation refuses after page startup」「APR-07/08: a refused file handoff」「APR-07/08: restarting a page cannot send」 | — |
 
 以上证据使用实际 Unix socket、CDP websocket 与 Host 子进程，另一端是无 OS 输入的协议夹具。它证明底层入口收到原检查后的拒绝；上游 Agent 轮次、Driver 每个输入、桌面记录与原生手势释放仍需完整接线，不能以本片声明整个 Surface 已受新委托保护。
 

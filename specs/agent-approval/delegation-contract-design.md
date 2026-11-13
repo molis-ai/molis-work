@@ -1,6 +1,6 @@
 # 第 39 批有限委托与管理合同细化
 
-状态：2026-11-13 设计评审及公共合同合审通过。同一个 GPT-6.1 high 只读代理核过有限字段声明、Pages 首批范围、模式裁决、管理读写、命令/桌面/MCP 的真实派发接缝，可作为实现依据；最终头仍须合审。承接[本批设计 §3.1、§5](batch-39-design.md)，工作结束与存储原子性沿[已通过的设计](review-contract-design.md#32-工作边界与存储)。本稿不代表已经实现；验收仍是 [APR-07/08/11/13、ASC-51/52 与 H1](spec.md#batch-39-kickoff)。
+状态：§2.6 为 2026-11-14 复审发现后补充的 SDK 接缝设计，用户已批准此 SDK 修复范围；其余已列范围在 2026-11-13 通过设计评审及公共合同合审。同一个 GPT-6.1 high 只读代理核过有限字段声明、Pages 首批范围、模式裁决、管理读写、命令/桌面/MCP 的真实派发接缝，可作为实现依据；最终头仍须合审。承接[本批设计 §3.1、§5](batch-39-design.md)，工作结束与存储原子性沿[已通过的设计](review-contract-design.md#32-工作边界与存储)。本稿不代表已经实现；验收仍是 [APR-07/08/11/13、ASC-51/52 与 H1](spec.md#batch-39-kickoff)。
 
 ## 1. 复杂度与责任
 
@@ -137,6 +137,24 @@ Agent Host 每次 attach 都创建新 SDK target；每个 target 闭包将原 Ru
 失败边界：driver 关闭同一在途尝试共享，成功不重复；失败后显式释放可沿原 driver 重试。存储已接受但响应丢失时，不能把原记录当作从未存在；未核清的原准备 fingerprint/错误或 effect 引用持续保留，释放继续报错，由原 Runtime 恢复核对。SDK 关机先封住新的目标和释放请求，等待已开始的清理再关存储；未知清理不会被报告为成功。实际 Node 同栈提交前失效仍须证明零新 Effect/Pending 行。
 
 SDK 评审补充边界：`UiSurface.assertCurrent?()` 为原 target/epoch 追加进程内同步权限检查，原 observe/prepare/recheck/commit 临界点复用它，拒绝 thenable；失败不自动结束绑定。`SystemToolInput.surfaces.guard?` 是 `createSystemToolRunner` 的可选公开构造参数，捕获同一原 target/epoch；Runtime 装配从原 Surface owner 提供。工具在等待时钟后、保存输入正文前、读取与交付观察正文前后复核，公开构造的回调同样拒绝 thenable，不新增通用资源权限层或持久记录。源码、API 快照与真实 Node/系统工具拒绝证据随受控包一起评审；零新 Effect/Pending 不能单独证明零新正文资源或零正文交付。
+
+<a id="surface-original-target"></a>
+
+### 2.6 原观察目标贯穿 SDK 到实际驱动（补充设计，SDK 范围已获用户批准）
+
+2026-11-14 同一 GPT-6.1 high 只读评审代理指出并核对采用包的实际调用链：SDK 在 identity／scope 核对之后仍等待效果领取；Molis binding 随后等待当前授权和输入正文。浏览器或电脑驱动此时重新捕获页面／目标，会把旧观察的坐标或文字发给后来界面。观察路径也先按旧 scope 许可，再等待 readiness，可能把后来来源内容保存到原观察。仅有 driver 内的原 session／target 检查不能覆盖这条接缝；不接受缩减验收。
+
+最小修复在既有 SDK `UiSurface.observe(kind, expected)`、`perform(action, expected)` 和 `assess(action, expected)` 传同一次调用冻结的只读 `{ identity, scope, assertCurrent }`。身份来自 SDK 已持有的原观察／当次身份读取，不从模型、页面或最近一次全局 identity 缓存获取；同步检查闭包保留原 target 的本次派发代次和单条取消状态，贯穿 Molis 的正文读取等待和最后发送。app 动作先使旧观察代次失效，再为本次派发固定新代次，不能自行失效。保留既有 UiControl 方法与返回形状、持久格式和公开观察记录，不加新 owner、服务、重试或读取兼容。SDK 保存观察正文之前仍核原 target；Molis 把这份原目标经 HostSurfaceDriver 合同传到底层，缺少或核不清时拒绝，不以当前目标补齐。
+
+2026-11-14 同一代理补充 C 合审：`observe/prepare` 输入沿 `perform` 增加可选同步布尔 `cancelled`。原入口没有这一参数，保留完全相同签名无法传递本次工具取消；这是已批准范围内必要的接缝。观察只用本次取消，不写进后续动作；prepare 的取消随原 plan 进入 reviewTarget 与 perform，和 perform 本次取消取 OR，观测到取消或非布尔／异步回答后不得恢复。系统工具将同一 abort.requested 转递到资源发布、正文返回和既有检查点；保留等待人审停表和原 Run 取消，不增加轮询或承诺唤醒任意外部 awaitApproval。
+
+浏览器在取得实际 CDP session 时与原 identity／scope 精确比对，并把同一 session、文档代次、来源和接管代次保留到每次发送；切层必须使原文档代次失效，未知 popup 来源期间拒绝 Agent 读取和输入。桌面保留原 app、pid、稳定 window id 和必要 frame／焦点事实，转换成可信的最小本机参数送到 helper，实际输入前再核；不把 opaque identity 或正文写进 helper 日志。不能证明原窗口或焦点时拒绝。显式 app 动作以切换前的原观察核验，目的地仍只由本次 action.app 指定，切换成功后仅本次动作可读新目标回执。影响不可逆判断的 assess 也核原目标；无法核清沿 SDK 既有保守判断，不降低风险。
+
+人审卡的实时焦点／位置描述和本轮应用许可也必须核对原观察；原 Run 尚活着不足以证明原提案的界面。复用 SDK 已有内存 plan 按 exact effect 找原目标的只读检查，接入 Molis 原审查路径；不建立第二份 plan 索引，不把原 URL／opaque identity 写入页面或日志，不改持久记录。查不到或检查失败的卡沿现有降级规则只保留冻结摘要并可拒绝，不能安装本轮应用许可。采用同一评审代理建议的窄口 `UiControl.reviewTarget(effectRef)`，直接复用 `planned` 与原 `seen.target.effects`，逐项核 kind/id/revision；只在原 effect 当前 awaiting、原 target/epoch 有效且未进入 shutdown 时返回 `{ targetRef, expected }`。不依赖只按 id 的 chain.load 作为 exact 核对，不新增 Molis effect→plan 镜像。expected 是可信进程内参数，不能序列化或从模型／页面输入构造。其同步检查固定计划对象、原 target/epoch 和原轮，但不把“仍 awaiting”写进该闭包：当前 present/approve 沿 Molis 已有决定守卫；SDK 接受后记住仍核原目标与有效焦点，不能证明就不安装，避免把已接受误判成尚未批准。最终接口实现仍须同一代理合审。
+
+补充范围仅在当前采用版本的同一个隔离 SDK 源码实施以上参数传递、原 plan 只读检查和拒绝测试，同一代理再做代码及公共合同合审，更新本批 vendor 包、哈希与来源。没有发布、版本号变化、真实 Home 操作或无关上游内容。用户于 2026-11-14 明确批准本节补充 SDK 修复；此例外仅覆盖以上原目标传递、单条取消及原 plan 检查，其他上游／vendor 红线不变。
+
+验收沿 APR-11/13：在 SDK scope／效果领取等待、Molis 正文读取等待、单条取消及 observe 的策略等待之间切换同网址文档、跨来源 popup 或同 pid 的不同窗口，断言零业务输入、零错误来源观察正文/资源；旧目标的清理仍只释放原手势。实际原生输入和用户视觉体验另行验收，协议夹具不代替。
 
 ## 3. 委托动作与可信入口
 

@@ -117,7 +117,7 @@ enum Observe {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        let app: NSRunningApplication = try waitFor { try await NSWorkspace.shared.openApplication(at: url, configuration: configuration) }
+        let app = try openWorkspace { NSWorkspace.shared.openApplication(at: url, configuration: configuration, completionHandler: $0) }
         for _ in 0..<40 where AX.window(of: AX.app(app.processIdentifier)) == nil { usleep(100_000) }
         try? Input.shared.activate(app.processIdentifier)
         return try appState(app.processIdentifier)
@@ -380,7 +380,7 @@ enum Observe {
 
     static func focusedField(pid: pid_t) throws -> [String: Any] {
         let app = AX.app(pid)
-        guard let focused = AX.element(app, kAXFocusedUIElementAttribute) else { return ["role": "", "name": "", "secure": false] }
+        guard let focused = AX.element(app, kAXFocusedUIElementAttribute) else { throw HelperError("field.none", "无法读取原应用的焦点，请重新选择输入位置") }
         var settable: DarwinBoolean = false
         AXUIElementIsAttributeSettable(focused, kAXSelectedTextAttribute as CFString, &settable)
         let name = AX.string(focused, kAXTitleAttribute) ?? AX.string(focused, kAXDescriptionAttribute) ?? AX.string(focused, kAXPlaceholderValueAttribute) ?? ""
@@ -416,6 +416,22 @@ enum Observe {
 
     static func menuTitle(_ item: AXUIElement) -> String { AX.string(item, kAXTitleAttribute) ?? "" }
 
+    /// The actual OS request and socket EOF share Input's final synchronous boundary.
+    private static func openWorkspace(_ start: @escaping (@escaping (NSRunningApplication?, Error?) -> Void) -> Void) throws -> NSRunningApplication {
+        try waitFor {
+            try await withCheckedThrowingContinuation { continuation in
+                do {
+                    try Input.shared.commit {
+                        start { app, error in
+                            if let app { continuation.resume(returning: app) }
+                            else { continuation.resume(throwing: error ?? HelperError("app.failed", "系统没有打开目标应用")) }
+                        }
+                    }
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
     /// Hands a local file to the app (opens it there). Prologue already checked the path against its floor table and
     /// the person approved this exact file.
     static func giveFile(pid: pid_t, path: String) throws -> [String: Any] {
@@ -426,7 +442,7 @@ enum Observe {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        _ = try waitFor { try await NSWorkspace.shared.open([URL(fileURLWithPath: path)], withApplicationAt: appURL, configuration: configuration) }
+        _ = try openWorkspace { NSWorkspace.shared.open([URL(fileURLWithPath: path)], withApplicationAt: appURL, configuration: configuration, completionHandler: $0) }
         return ["opened": true]
     }
 }

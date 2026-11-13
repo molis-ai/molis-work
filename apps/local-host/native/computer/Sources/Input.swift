@@ -16,32 +16,87 @@ final class Input {
     private let lock = NSLock()
     private var running = false
     private var touched = false
+    private var disconnected = false
+    private var didChange = false
+    private var heldRelease: CGEvent?
+    private let postEvent: (CGEvent) -> Void
+    private let releaseEvent: (CGEvent, pid_t) -> Void
+    private let validateEnvironment: () throws -> Void
     /// When this helper last posted an event (seconds since 1970): local-host refuses an approval answered right after it.
     private(set) var lastSynthetic: Double = 0
+
+    init(postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) },
+         releaseEvent: @escaping (CGEvent, pid_t) -> Void = { $0.postToPid($1) },
+         validateEnvironment: @escaping () throws -> Void = { try Presence.shared.assertInputReady() }) {
+        self.postEvent = postEvent
+        self.releaseEvent = releaseEvent
+        self.validateEnvironment = validateEnvironment
+    }
 
     func personTouched() {
         lock.lock(); if running { touched = true }; lock.unlock()
     }
 
-    private func perform<T>(_ body: () throws -> T) throws -> T {
-        lock.lock(); running = true; touched = false; lock.unlock()
-        defer { lock.lock(); running = false; lock.unlock() }
-        return try body()
+    func disconnect() { lock.lock(); disconnected = true; lock.unlock() }
+
+    func perform<T>(_ pid: pid_t, _ body: () throws -> T) throws -> T {
+        lock.lock()
+        if disconnected { lock.unlock(); throw HelperError("helper.closed", "原连接已断开", partial: false) }
+        didChange = false; running = true; touched = false
+        lock.unlock()
+        defer {
+            // A failed checkpoint must still pair our own down event. Never send text, commands or a click to a new app.
+            if let release = heldRelease {
+                release.flags = []
+                release.setIntegerValueField(.eventSourceUserData, value: SYNTHETIC_MARKER)
+                releaseEvent(release, pid)
+                lastSynthetic = Date().timeIntervalSince1970
+            }
+            heldRelease = nil
+            lock.lock(); running = false; lock.unlock()
+        }
+        do { return try body() }
+        catch let error as HelperError { throw HelperError(error.code, error.message, partial: didChange) }
     }
 
-    private func checkpoint() throws {
-        lock.lock(); let stop = touched; lock.unlock()
-        if stop { throw HelperError("person.present", "用户动了鼠标或键盘，这一步停在半途") }
+    private func checkLocked() throws {
+        if disconnected { throw HelperError("helper.closed", "原连接已断开") }
+        if touched { throw HelperError("person.present", "用户动了鼠标或键盘，这一步停在半途") }
+    }
+
+    func checkpoint() throws { lock.lock(); defer { lock.unlock() }; try checkLocked() }
+
+    /// Closing and actual input share this boundary; a queued request cannot revive after EOF.
+    func commit<T>(_ effect: () throws -> T) throws -> T {
+        lock.lock(); defer { lock.unlock() }
+        try checkLocked(); try validateEnvironment(); didChange = true
+        return try effect()
     }
 
     /// `flags` are always set: an event source remembers the last modifiers it posted, so a Cmd chord would otherwise
     /// turn the next typed character into a shortcut and the next click into a Cmd-click (seen on a real Mac).
-    private func post(_ event: CGEvent?, flags: CGEventFlags = []) throws {
+    func post(_ event: CGEvent?, flags: CGEventFlags = []) throws {
         guard let event else { throw HelperError("helper.failed", "cannot create event") }
         try checkpoint()
+        let paired: CGEvent?
+        switch event.type {
+        case .keyDown:
+            paired = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)), keyDown: false)
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            let button: CGMouseButton = event.type == .leftMouseDown ? .left : event.type == .rightMouseDown ? .right : .center
+            let up: CGEventType = event.type == .leftMouseDown ? .leftMouseUp : event.type == .rightMouseDown ? .rightMouseUp : .otherMouseUp
+            paired = CGEvent(mouseEventSource: source, mouseType: up, mouseCursorPosition: CGPoint(x: -1, y: -1), mouseButton: button)
+            paired?.setIntegerValueField(.mouseEventClickState, value: 0)
+        default: paired = nil
+        }
+        if [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), paired == nil {
+            throw HelperError("helper.failed", "cannot create paired release event")
+        }
         event.flags = flags
         event.setIntegerValueField(.eventSourceUserData, value: SYNTHETIC_MARKER)
-        event.post(tap: .cghidEventTap)
+        try commit { postEvent(event) }
+        if let paired { heldRelease = paired }
+        if [.keyUp, .leftMouseUp, .rightMouseUp, .otherMouseUp].contains(event.type) { heldRelease = nil }
         lastSynthetic = Date().timeIntervalSince1970
     }
 
@@ -55,12 +110,17 @@ final class Input {
     func activate(_ pid: pid_t) throws {
         guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { throw HelperError("app.gone", "应用已经退出") }
         if AX.frontmostPid() == pid { return }
-        if app.isHidden { app.unhide() }
-        AXUIElementSetAttributeValue(AX.app(pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-        if waitFront(pid, 1.0) { return }
-        app.activate(options: [.activateAllWindows])
-        if waitFront(pid, 1.5) { return }
+        if app.isHidden { _ = try commit { app.unhide() } }
+        _ = try commit { AXUIElementSetAttributeValue(AX.app(pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue) }
+        if waitFront(pid, 1.0) { try checkpoint(); return }
+        _ = try commit { app.activate(options: [.activateAllWindows]) }
+        if waitFront(pid, 1.5) { try checkpoint(); return }
         throw HelperError("app.not_front", "没能把「\(app.localizedName ?? "应用")」切到前台")
+    }
+
+    private func readableField(_ pid: pid_t) throws {
+        guard let focused = AX.element(AX.app(pid), kAXFocusedUIElementAttribute) else { throw HelperError("field.none", "无法核对原输入焦点") }
+        if AX.secure(focused) { throw HelperError("field.password", "焦点在密码类输入框里，不替用户输入") }
     }
 
     private func waitFront(_ pid: pid_t, _ seconds: Double) -> Bool {
@@ -127,7 +187,7 @@ final class Input {
         let at = try point(params)
         let button = (params["button"] as? String) ?? "left"
         let clicks = max(1, min(3, params.optionalInt("clicks") ?? 1))
-        return try perform {
+        return try perform(pid) {
             try activate(pid)
             try land(at, pid)
             let (down, up, mouse): (CGEventType, CGEventType, CGMouseButton) = switch button {
@@ -154,7 +214,7 @@ final class Input {
     func hover(_ params: [String: Any]) throws -> [String: Any] {
         let pid = try params.int32("pid")
         let at = try point(params)
-        return try perform {
+        return try perform(pid) {
             try land(at, pid)
             try post(CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: at, mouseButton: .left))
             try pause(0.4)
@@ -166,7 +226,7 @@ final class Input {
         let pid = try params.int32("pid")
         let at = try point(params)
         let dx = params.optionalDouble("dx") ?? 0, dy = params.optionalDouble("dy") ?? 0
-        return try perform {
+        return try perform(pid) {
             try land(at, pid)
             try post(CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: at, mouseButton: .left))
             // A wheel turn of at most 60 points at a time, like a person's: some views ignore one huge delta.
@@ -186,7 +246,7 @@ final class Input {
     func drag(_ params: [String: Any]) throws -> [String: Any] {
         let pid = try params.int32("pid")
         let from = try point(params, "from"), to = try point(params, "to")
-        return try perform {
+        return try perform(pid) {
             try activate(pid)
             try land(from, pid)
             // Dropping onto another app hands it data: a drag stays inside the target app.
@@ -240,14 +300,13 @@ final class Input {
         guard main.count == 1, let code = Input.keyCodes[main[0]] else {
             throw HelperError("key.unknown", main.count > 1 ? "一次只按一个键（可以加 Cmd、Shift 等修饰键）" : "认不出按键「\(parts.joined(separator: "+"))」")
         }
-        return try perform {
+        return try perform(pid) {
             try refuseLookOnly(pid)
             try activate(pid)
             // A character keyed into a password field is a password typed by the Assistant.
-            if Input.printable.contains(main[0]) && !flags.contains(.maskCommand) && !flags.contains(.maskControl),
-               let focused = AX.element(AX.app(pid), kAXFocusedUIElementAttribute), AX.secure(focused) {
-                throw HelperError("field.password", "焦点在密码类输入框里，不替用户输入")
-            }
+            let typesText = Input.printable.contains(main[0]) && !flags.contains(.maskCommand) && !flags.contains(.maskControl)
+            let pastes = main[0] == "v" && (flags.contains(.maskCommand) || flags.contains(.maskControl))
+            if typesText || pastes { try readableField(pid) }
             let press = {
                 try self.post(CGEvent(keyboardEventSource: self.source, virtualKey: CGKeyCode(code), keyDown: true), flags: flags)
                 try self.post(CGEvent(keyboardEventSource: self.source, virtualKey: CGKeyCode(code), keyDown: false), flags: flags)
@@ -264,7 +323,7 @@ final class Input {
     func text(_ params: [String: Any]) throws -> [String: Any] {
         let pid = try params.int32("pid")
         let body = try params.string("text")
-        return try perform {
+        return try perform(pid) {
             try refuseLookOnly(pid)
             try activate(pid)
             let app = AX.app(pid)
@@ -274,7 +333,7 @@ final class Input {
             AXUIElementIsAttributeSettable(focused, kAXSelectedTextAttribute as CFString, &settable)
             if settable.boolValue && params.optionalBool("keys_only") != true {
                 let before = AX.string(focused, kAXValueAttribute)
-                if AXUIElementSetAttributeValue(focused, kAXSelectedTextAttribute as CFString, body as CFString) == .success {
+                if try commit({ AXUIElementSetAttributeValue(focused, kAXSelectedTextAttribute as CFString, body as CFString) }) == .success {
                     usleep(120_000)
                     let after = AX.string(focused, kAXValueAttribute)
                     if before == nil || after != before { lastSynthetic = Date().timeIntervalSince1970; return ["done": true, "via": "accessibility"] }
@@ -294,7 +353,7 @@ final class Input {
         let currentId = TISGetInputSourceProperty(current, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }
         let plainId = TISGetInputSourceProperty(plain, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }
         if currentId == plainId { return try body() }
-        TISSelectInputSource(plain)
+        _ = try commit { TISSelectInputSource(plain) }
         usleep(80_000)
         defer { TISSelectInputSource(current) }
         return try body()
@@ -332,7 +391,7 @@ final class Input {
     func menu(_ params: [String: Any]) throws -> [String: Any] {
         let pid = try params.int32("pid")
         guard let path = params.optionalStrings("path"), !path.isEmpty else { throw HelperError("helper.bad_params", "path is required") }
-        return try perform {
+        return try perform(pid) {
             try refuseLookOnly(pid)
             try activate(pid)
             guard let bar = AX.element(AX.app(pid), kAXMenuBarAttribute) else { throw HelperError("menu.none", "这个应用没有菜单栏") }
@@ -348,7 +407,7 @@ final class Input {
             guard let chosen else { throw HelperError("menu.missing", "没有这个菜单项") }
             if (AX.copy(chosen, kAXEnabledAttribute) as? NSNumber)?.boolValue == false { throw HelperError("menu.disabled", "菜单项「\(path.last!)」现在不可用") }
             try checkpoint()
-            guard AXUIElementPerformAction(chosen, kAXPressAction as CFString) == .success else { throw HelperError("menu.failed", "没能选中菜单项「\(path.last!)」") }
+            guard try commit({ AXUIElementPerformAction(chosen, kAXPressAction as CFString) }) == .success else { throw HelperError("menu.failed", "没能选中菜单项「\(path.last!)」") }
             lastSynthetic = Date().timeIntervalSince1970
             try pause(0.3)
             return ["done": true]

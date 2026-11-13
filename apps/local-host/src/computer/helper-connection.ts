@@ -78,6 +78,8 @@ export class HelperConnection {
   private readonly restarts: number[] = [];
   private closed = false;
   private problemCode: HelperProblem | null = null;
+  private epoch = 0;
+  get generation(): number { return this.epoch; }
 
   constructor(private readonly options: HelperConnectionOptions) {}
 
@@ -177,7 +179,7 @@ export class HelperConnection {
           const token = typeof message.token === "string" ? Buffer.from(message.token) : Buffer.alloc(0);
           const expected = Buffer.from(this.token);
           if (message.event !== "hello" || token.length !== expected.length || !timingSafeEqual(token, expected)) { socket.destroy(); return; }
-          trusted = true;
+          trusted = true; this.epoch++;
           this.socket = socket;
           this.last = message.status as HelperStatus;
           this.onHello?.(this.last);
@@ -212,9 +214,9 @@ export class HelperConnection {
     clearTimeout(entry.timer);
     if (message.ok === true) entry.resolve(message.result);
     else {
-      const error = (message.error ?? {}) as { code?: string; message?: string };
+      const error = (message.error ?? {}) as { code?: string; message?: string; partial?: boolean };
       const text = error.message ?? "电脑助手没能完成这一步";
-      entry.reject(error.code ? helperFailure(error.code, text) : markHelper(computerErrors.failed(text)));
+      entry.reject(error.code ? helperFailure(error.code, text, error.partial) : markHelper(computerErrors.failed(text)));
     }
   }
 
@@ -223,7 +225,7 @@ export class HelperConnection {
   }
 
   /** One request; the original caller's optional synchronous fence runs after ensure, before any request is registered or sent. */
-  async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number, assertCurrent?: () => void): Promise<T> {
+  async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number, assertCurrent?: () => void, onDispatch?: () => void): Promise<T> {
     await this.ensure();
     requireSynchronous(assertCurrent?.());
     const socket = this.socket;
@@ -235,7 +237,13 @@ export class HelperConnection {
         reject(markHelper(computerErrors.timeout("电脑助手没有按时回答，这一步结果不确定。")));
       }, timeoutMs ?? this.options.requestTimeoutMs ?? 20_000);
       this.waiting.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
-      socket.write(`${JSON.stringify({ id, op, params })}\n`);
+      try {
+        const frame = `${JSON.stringify({ id, op, params })}\n`;
+        requireSynchronous(assertCurrent?.());
+        if (this.socket !== socket || socket.destroyed) throw markHelper(computerErrors.crashed("原电脑助手连接已断开"));
+        requireSynchronous(onDispatch?.());
+        socket.write(frame);
+      } catch (error) { clearTimeout(timer); this.waiting.delete(id); reject(error); }
     });
   }
 

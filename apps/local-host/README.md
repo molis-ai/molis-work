@@ -126,6 +126,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 底层派发支持原调用的同步检查：`HelperConnection.call` 在连接建立后、登记等待及发送前检查；`BrowserHost.page()` 的 ensure/navigate 将检查传到冷启动恢复地址和最终导航，chooseFiles 在清选择器与交付文件前检查。异步函数被拒绝；没有检查的直接用户操作仍走原入口。根入口显式导出这两项已有 Host 传输实现，未转入插件 SDK。改这里跑 `tests/security-invariants-surface-transport.test.ts`，其协议夹具不操作真实电脑；完整 Agent 与 Driver 绑定仍须独立验证。
 
+Surface 的浏览器和电脑驱动按原 `HostSurfaceContext` 保留观察与输入，await 后及实际发送前复核原轮、目标和接管状态。浏览器按文档代次拒绝同网址刷新后的旧输入；旧轮释放只清自己的节点和遮罩，新轮输入等原按压释放。桌面只在第一次实际使用时取租约，输入监视确认成功才运行，helper 重连后重新确认；旧事件、预览和 monitor-off 不影响下一轮。原生正常断连先释放原进程上自己的按压再退出，硬崩溃或缺失回执保留未知结果。改这里跑 `tests/security-invariants-browser-round.test.ts`、`tests/security-invariants-computer-round.test.ts`、`tests/security-invariants-computer-gesture.test.ts`；后者只在 macOS 上编译执行生产 Swift，捕获事件，不输入真实电脑。协议夹具和捕获事件只证明对应工程边界。
+
 ## 开发要求
 
 本机内容包签名由 `plugin-install` 的 `plugins.local_packages.sign@1` 持有。本人从发起项目确认导入后，宿主在接触发布身份前核对内容，再返回普通安装预览 ID。安装服务按原项目、操作者和有效期回取视图，沿同一次明确同意确认安装。发布者未被固定时，确认才会固定。隔离 Home 的回归在 [安装](../../tests/security-invariants-plugin-install.test.ts) 与 [导入](../../tests/security-invariants-skill-import.test.ts) 用例中。

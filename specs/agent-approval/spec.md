@@ -152,6 +152,10 @@ Coding 的可选“AI 低风险自动审批”只覆盖用户明确启用范围�
 
 ### 7.4 决策与验收账
 
+浏览器与桌面原轮派发片实施检查（`batch/39-driver-round`）：沿 §7.3 的 15 项和合同 §2.4；事实仍归 BrowserPage、ComputerDesk、原 Surface round 与各自传输，不建新表、不注册新动作、无兼容与迁移。新增状态仅是当前 context 的短期节点/截图/活动和已确认监视代次，复用原连接，按职责拆观察与输入，原轮退出即失效。Home 浏览器进程和项目页面分为各自 owner 文件；桌面按原 context 保留目标和记录，元数据命名不取租约。纯读等待后和每个真实 send 前核原轮；发送结果未知保留 partial，不重发业务输入，仅对原手势做释放。输入许可不来自页面参数，截图/节点不转成果；错误沿 browser owner；调用次数只增加同步检查，不增加目录发现或持久库。当前在途 PR 的浏览器驱动和 native 输入文件无重叠，root index 与 README 受 #2020/#2047 影响已获隔离分支批准；认领板写入仍待原自动审批拒绝解除，不改其他分支。先跑这片新增协议测试，最终再跑原浏览器、电脑与 Host 必跑回归；真实设备、用户视觉体验仍需独立验收。
+
+浏览器／电脑驱动局部工程证据：本片四份新增测试文件共 43 个用例通过，含实际隔离 Chrome 焦点读取与捕获事件的原生 Swift 路径；定向 Host 构建及新用例类型检查通过。覆盖同连接监视失效后重新确认、原输入清理、同网址文档变化、失去权限与文件写前撤销；原设备输入及完整产品体验未验。同一代理仅通过 driver 内部边界复核，SDK 到驱动的原目标接缝按已批准 §2.6 继续实现，不将局部证据当作全链路通过。
+
 BL-359 实施检查（2026-11-13）：同一只读评审代理已通过[生命周期状态表](review-contract-design.md#41-bl-359-生命周期)，范围限现行队列与 caller 释放，不改合同、动作或持久格式。原 owner 决定执行事实，批准仍允许一次消费，deliveryFailed 不等同未执行；新增拒绝／取消／无人点击过期、成功/失败结算、unknown 后核对及真实 Host caller 生命周期证据。认领 `reviews.ts`、`plugin-callers.ts` 与新增生命周期用例；最终 Host dispose 接线原待 #2009/#2020 交接；用户后续允许在隔离分支实施，整批收尾处理冲突。其他 15 项沿 §7.3，完整合同未通过部分继续修订，不能以此窄片通过替代。
 
 BL-360 工程证据：`agent-review-decisions.test.ts` 验证逐决定可用性、原 owner 存活、批量等待后的当前授权与 SDK 等待、迟到失效请求不写决定；`agent-review-http.test.ts` 覆盖通用及 Assistant 真实 HTTP 的撤权、过期、归档、电脑注入和跨项目读取拒绝；`prologue-git.test.ts` 与 `prologue-checkpoints.test.ts` 覆盖真实 SDK 重启不重派及关闭交错。`agent-review-presenters.e2e.test.ts`、`workbench-browser-targets.e2e.test.ts` 和 `companion-client-lifecycle.e2e.test.ts` 验证同 ID 撤下按钮时保留正文、展开、草稿与焦点；电脑原生画面/控制源及通用页响应为夹具，不作为真实桌面产品验收。合同新增 `AgentReviewDecisions`、`AgentReviewRow`、队列 `decisions/readMany`，Assistant 待审投影必带 `decisions`；调用方读取当前投影，不用 pending 字样自行推断按钮。无新插件动作、无读取兼容。原站点设置仍先保存，再提交固定原审批 ID。局部源码及两份合同快照由同一评审代理合审通过，最终 PR 头仍须合审。到当前实现的本批新增用例和 `health --base origin/main` 通过；整批构建、回归、实操和本人验收留在最终合批阶段。
@@ -160,6 +164,7 @@ BL-360 工程证据：`agent-review-decisions.test.ts` 验证逐决定可用性�
 - 2026-11-13 用户允许：在本批隔离分支修改与 #2009/#2020 重叠的 agent-host 公共合同及快照、存储恢复接线和最终关闭入口，整批收尾统一处理冲突；不改其他分支。该许可不含 vendor、CI/门禁与其他轨道独占文件。
 - 2026-11-13 用户扩展上述隔离修改许可至在途 #2047（第 31 批）：包括 `prologue-node-kit.ts`、`prologue-run.ts` 等执行入口，只改本批隔离分支，整批收尾统一处理冲突；原 vendor、CI/门禁等红线不变。
 - 2026-11-13 用户批准 [有限委托合同 §2.5](delegation-contract-design.md#25-sdk-surface-最终释放提案需用户批准红线例外) 的 SDK Surface 生命周期修复例外：从当前采用的准确源码建立隔离工作树，增加最终释放接口与拒绝测试，经同一 GPT-6.1 high 代理评审后更新本批 vendor 包及来源/完整性/依赖记录；不发布、不改版本号、不动真实 Home，不带入无关上游更新。其他上游与 vendor 改动仍在原红线内。
+- 2026-11-14 用户批准 [有限委托合同 §2.6](delegation-contract-design.md#surface-original-target) 的补充 SDK 修复：把原观察目标与单条取消检查贯穿观察、审批及最终输入；只在当前版本的隔离源码实施，同一代理合审后更新本批 vendor 与来源记录，不发布、不改版本号、不动真实 Home。
 - 2026-11-13 用户选择 **B：列表加详情栏，窄屏上下排列**；[原型与走查](../../docs/design/authorization-review/README.md)。A 仅保留对照，不进入产品。此次确认是布局定样，不是最终产品验收。
 - 2026-11-13 用户同意同一个 GPT-6.1 high 只读评审代理提前审合同设计，并代做公共合同合审，最终再审完整 PR；这是本批明确取得的时点与承接角色调整。合同稿审过之前仍不进入合同实现，最终统筹合入安排尚未改变。
 

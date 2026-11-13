@@ -331,6 +331,7 @@ export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
 export { HelperConnection } from "./computer/helper-connection.js";
 export { BrowserHost } from "./browser/browser-host.js";
+export { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 export { desktopTaskComplete, type DesktopTaskFacts, type DesktopTaskWanted } from "./computer/task-outcome.js";
 export { helperFailure, isRefused } from "./computer/computer-errors.js";
 export {

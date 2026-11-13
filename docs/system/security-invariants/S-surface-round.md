@@ -2,7 +2,7 @@
 
 第 39 批的原轮 Surface 边界，设计见 [授权合同 §2.4–2.5](../../../specs/agent-approval/delegation-contract-design.md#24-surface-原轮绑定细化合同分项已合审sdk-最终释放已授权)。SDK 来源与同字节构建证据在 [vendor 记录](../../../vendor/prologue-sdk/README.md)。
 
-本记录覆盖 Agent Host 的真实装配、SDK 原 target/effect/pending、审批与关闭。浏览器 CDP 和桌面 helper 内部的最后派发检查另由各自驱动用例证明；仅有此处的 fake driver 与真实 SDK 证据，不代表实际输入设备或完整产品路径已验收。
+本记录覆盖 Agent Host 的真实装配、SDK 原 target/effect/pending、审批与关闭，以及浏览器 CDP 和桌面 helper 的原轮派发。协议测试使用真实连接与持久记录，替代浏览器和桌面输入端；原生测试运行生产 Swift 输入与断连代码，捕获事件而不发送真实设备输入。这些工程证据不代表完整产品路径或用户体验已验收。
 
 | ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
 | --- | --- | --- | --- | --- |

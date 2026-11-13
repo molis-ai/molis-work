@@ -39,6 +39,9 @@
 
 - [BL-golden-generation-nondeterministic](backlog/BL-golden-generation-nondeterministic.md)：金样生成不逐字节确定（两条用例在干净基线上同样失败）；**回放**本身四份金样全过。
 
+- [BL-lsp-servers-declaration](backlog/BL-lsp-servers-declaration.md)：第三方插件还不能声明自己的语言服务器（`lsp_servers`）；第 31 批先交宿主侧按人配置的那一份。
+- [BL-skill-hand-and-tools-consumers](backlog/BL-skill-hand-and-tools-consumers.md)：`find-skills`／`read-skill` 还没有消费者；Coding 旧的「auto 全列」技能路径留给 Skill 策略的消费者片。
+
 
 ## 8. 交给第二步（防腐整理）
 

@@ -16,6 +16,8 @@ export interface LanguageServerSpec {
   readonly args?: readonly string[];
   /** LSP `languageId`, e.g. `typescript`. Defaults to the extension without the dot. */
   readonly languageId?: string;
+  /** When the executable is not installed: the npm package at an exact version and the bin it ships (Q5). */
+  readonly install?: { readonly package: string; readonly version: string; readonly bin: string };
   readonly initializationOptions?: unknown;
 }
 
@@ -26,6 +28,8 @@ export interface LspClient {
   notify(method: string, params: unknown): void;
   /** Hand the server the document text the caller holds. */
   openDocument(input: { readonly path: string; readonly text: string; readonly languageId: string }): void;
+  /** Tell the server the document changed; the version must go up. */
+  changeDocument(input: { readonly path: string; readonly text: string; readonly version: number }): void;
   /** Shutdown, then exit; a server that will not go is killed. */
   close(): Promise<void>;
   /** Whether the process is still there. */
@@ -37,7 +41,12 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** Start one server for one root. `cwd` is where the server resolves its project files. */
 export function startLanguageServer(spec: LanguageServerSpec, options: { readonly cwd: string; readonly timeoutMs?: number }): LspClient {
-  const child = spawn(spec.command, [...(spec.args ?? [])], { cwd: options.cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env });
+  /*
+   * A language server is somebody else's process, configured by the person but not trusted with this Home's own secrets:
+   * the platform's `MOLIS_WORK_*` environment never crosses (the same rule the terminal's S-103 applies to its child).
+   */
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("MOLIS_WORK_")));
+  const child = spawn(spec.command, [...(spec.args ?? [])], { cwd: options.cwd, stdio: ["pipe", "pipe", "pipe"], env });
   return connect(child, { ...spec, timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS });
 }
 
@@ -102,6 +111,10 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     openDocument: ({ path, text, languageId }) => {
       if (!alive) throw new Error("the language server is not running");
       send({ method: "textDocument/didOpen", params: { textDocument: { uri: fileUri(path), languageId, version: 1, text } } });
+    },
+    changeDocument: ({ path, text, version }) => {
+      if (!alive) throw new Error("the language server is not running");
+      send({ method: "textDocument/didChange", params: { textDocument: { uri: fileUri(path), version }, contentChanges: [{ text }] } });
     },
     get alive() { return alive; },
     async close() {

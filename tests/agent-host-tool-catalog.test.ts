@@ -17,7 +17,8 @@ const { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES } = await import(requireSdk.reso
 };
 // The official coding pack contributes tools too (`coding.find-symbol`), provided by the round's pack rather than the SDK's
 // system closed set; the set may name either, and nothing else.
-const PACK_TOOLS = OFFICIAL_CODING_PACK.tools.map(tool => tool.registration.name);
+// Only the tool the Host actually provides an executor for: the rest of the official pack is not offered here.
+const PACK_TOOLS = OFFICIAL_CODING_PACK.tools.map(tool => tool.registration.name).filter(name => name === "coding.find-symbol");
 
 test("CPK-07: the tool set matches the SDK's tools — each runtime tool exists there, and each SDK tool is offered or says why not", () => {
   const names = AGENT_TOOLS.map(tool => tool.name);

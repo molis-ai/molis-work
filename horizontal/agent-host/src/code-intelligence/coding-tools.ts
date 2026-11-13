@@ -32,7 +32,12 @@ export function withSymbolTool(input: {
   return {
     pack: {
       ...input.pack,
-      needs: { ...input.pack.needs, executors: [...new Set([...(input.pack.needs.executors ?? []), executor])] },
+      needs: {
+        ...input.pack.needs,
+        // The symbol tool reads through the workspace capability; the pack must say so, or an unsatisfied Host would find out late.
+        hostCapabilities: [...new Set([...(input.pack.needs.hostCapabilities ?? []), ...OFFICIAL_CODING_PACK.needs.hostCapabilities.filter(one => one === "workspace.read")])],
+        executors: [...new Set([...(input.pack.needs.executors ?? []), executor])],
+      },
       permissions: { ...input.pack.permissions, tools: [...new Set([...input.pack.permissions.tools, input.name])] },
       tools: [...input.pack.tools, { ...tool, registration: { ...tool.registration, name: input.name } }],
     },

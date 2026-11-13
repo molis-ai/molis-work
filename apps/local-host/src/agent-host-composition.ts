@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
-import { languageServersFrom, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { languageServerSettings, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -124,6 +124,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
     return ready ??= (async () => {
       if (options.prologue === undefined) return;
+      const codeServers = codeIntelligenceConfig(options.homeDirectory);
       // A rejected start may still own resources. Finish that instance before creating another one.
       await initialization?.close();
       if (disposed) return;
@@ -134,7 +135,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
         // The person's language servers for the coding pack's `coding.find-symbol` (see the Home's language-servers.json).
-        ...(codeIntelligenceConfig(options.homeDirectory) === undefined ? {} : { codeIntelligence: codeIntelligenceConfig(options.homeDirectory)! }),
+        ...(codeServers === undefined ? {} : { codeIntelligence: codeServers }),
         reviewQueue: agentHost.reviews,
         app: { appId: "io.molis.work", appVersion: "0.0.0" },
       });
@@ -455,11 +456,23 @@ function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<
  * A file that is there but unreadable or invalid is an error, not a silent "no servers" — a typo in a command should be
  * visible at start, not leave a file type without intelligence forever.
  */
-function codeIntelligenceConfig(homeDirectory: string | undefined): { readonly servers: readonly import("@molis-ai/molis-work-service-agent-host").LanguageServerSpec[] } | undefined {
+function codeIntelligenceConfig(homeDirectory: string | undefined): {
+  readonly servers: readonly import("@molis-ai/molis-work-service-agent-host").LanguageServerSpec[];
+  readonly downloadsAllowed: boolean;
+  readonly registry?: string;
+  readonly toolsRoot: string;
+} | undefined {
   if (homeDirectory === undefined) return undefined;
   const file = path.join(homeDirectory, "language-servers.json");
   if (!existsSync(file)) return undefined;
   let parsed: unknown;
   try { parsed = JSON.parse(readFileSync(file, "utf8")); } catch (error) { throw new Error(`Home 的 language-servers.json 读不了：${(error as Error).message}`); }
-  return { servers: languageServersFrom(parsed) };
+  const settings = languageServerSettings(parsed);
+  return {
+    servers: settings.servers,
+    downloadsAllowed: settings.downloads,
+    // The isolated tools root belongs to this Home, never to a project or a global prefix (Q5).
+    toolsRoot: path.join(homeDirectory, "tools", "language-servers"),
+    ...(settings.registry === undefined ? {} : { registry: settings.registry }),
+  };
 }

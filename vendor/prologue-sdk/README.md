@@ -4,7 +4,7 @@
 
 ## 当前包：window31（2026-11-12，第 31 批换）
 
-当前包为 **1,422,521 字节**，SHA-256 `5927154e8c37d580467927cc0866b75941c0830ce76ec516d9085bcd5b0eadd0`。来源为 Molis fork 的 `feat/batch31-window-base` 分支提交 `4537a570dcb4541f2dc68466f6886880c1b75007`：**当前包源码 `1cc80b05` 加三组窗口改动**，不带别的上游改动（上游此后到 `770a2e27` 的 Memory #109–#113 不在里面），没有 vendor 补丁、没有脏文件；该分支包**尚未合并上游**，provenance 的 `source.note` 写明这一状态。
+当前包为 **1,422,521 字节**，SHA-256 `5927154e8c37d580467927cc0866b75941c0830ce76ec516d9085bcd5b0eadd0`。来源为 Molis fork 的 `feat/batch31-window-base` 分支提交 `4537a570dcb4541f2dc68466f6886880c1b75007`：**当前包源码 `1cc80b05` 加三组窗口改动**，不带别的上游改动（上游此后到 `770a2e27` 的 Memory #109–#113 不在里面），没有 vendor 补丁、没有脏文件；该分支包**尚未合并上游**，但分支已推到 `molis-ai/molis-prologue` 的 `feat/batch31-window-base`（提交 `4537a570` 可取回、可重建），provenance 的 `source.note` 写明这一状态。
 
 它按 24 批盘点补上三处上游缺口（子代理、Skill 自动选用、续跑与写后检查），其余与 `memory-p0` 相同：
 
@@ -20,7 +20,7 @@
 
 快照命令输出的 `manifest.json` 与 `data/` 是离线备份载荷，不含原 Home 密钥，不能直接当作 `recover-home` 的完整 T0/T1 工作副本。本次不增加解包、补密钥或另一套恢复流程。
 
-## 保留的上一主线依赖：final103-bridge（2026-10-25）
+## 已删除的上一主线依赖：final103-bridge（2026-10-25 采用，2026-11-12 换下）
 
 `prologue-sdk-0.0.0-rc.1-final103-bridge.tgz` 为 **1,253,301 字节**，SHA-256 `884295c966ad85ee8be46c5bc6f162c3fa892217aa43a404e600adea7253a834`。准确来源是上游公开分支 `feature/node-storage-final103-bridge` 的 `ba75c9f8437018904b24dabeaaef6ded8054add5`：基点 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（Prologue #60），只移植 #103 定稿 `6523abb47..513237d2` 的功能。它是已提交、已推送的过渡源码，**不是上游 main 的祖先**，不标作 main/dcaa/f175；不带 #61–#101、#104 或旧 `42ccc75` 候选。依据是 [accepted WO 6395049480](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395049480) 和 Root/PIPE 的具体消费派单。
 
@@ -417,7 +417,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `packagesWithoutPatch`：34 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 与 final103-bridge；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
 - `upstream`：43 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核（2026-11-12 补入 `1cc80b05`，即当前包的上一份源码；它已在 main 上）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：

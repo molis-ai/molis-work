@@ -13,7 +13,7 @@
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Branch feat/batch31-window-base: the current package's source 1cc80b05253df798eeb34afff65d1bda06bee587 plus the three Slice-31 commits only, so the window carries no unrelated upstream work. Not yet merged upstream when packed. The tree was clean; only an unrelated untracked grok/ directory sat outside packages/sdk."
+    "note": "Branch feat/batch31-window-base on the Molis fork of the upstream repository, pushed to origin and reachable at commit 4537a570: the previous package's merged source 1cc80b05253df798eeb34afff65d1bda06bee587 plus the three Slice-31 commits, and no other upstream work. Not yet merged upstream when this package was packed. Packed from the clean tree at this commit (only an unrelated untracked grok/ directory sat outside packages/sdk)."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-window31.tgz",

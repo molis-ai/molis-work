@@ -1728,6 +1728,8 @@
     "coding.writers.task": "这个目录的任务与完成条件",
     "coding.writers.task-label": "任务与完成条件：{path}",
     "coding.writers.turn": "本轮分工（{count} 个独立目录）",
-    "coding.writers.use": "用于下一轮"
+    "coding.writers.use": "用于下一轮",
+    "coding.call.find-symbol": "查符号",
+    "coding.call.find-symbol.doing": "正在查符号"
   }
 }

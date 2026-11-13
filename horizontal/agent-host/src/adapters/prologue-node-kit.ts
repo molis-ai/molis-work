@@ -42,7 +42,13 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    * Language servers the person configured, for the official coding pack's `coding.find-symbol`. Absent or empty: a
    * round that asks for the tool is told no server is configured for that file type; nothing is downloaded.
    */
-  codeIntelligence?: { readonly servers: readonly import("../code-intelligence/index.js").LanguageServerSpec[] };
+  codeIntelligence?: {
+    readonly servers: readonly import("../code-intelligence/index.js").LanguageServerSpec[];
+    /** Q5: the person's download switch, the registry, and this Home's isolated tools root. */
+    readonly downloadsAllowed?: boolean;
+    readonly registry?: string;
+    readonly toolsRoot?: string;
+  };
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };
   /** Where the Node host keeps its own storage. A Host fact, never surfaced to Plugins. */

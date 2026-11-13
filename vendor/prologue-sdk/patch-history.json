@@ -791,7 +791,7 @@
       "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
       "gitBlob": "0c7e8e75d8729017e415faba443e5f72118ddc99",
       "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
-      "description": "当前包，2026-11-12 由 window31 换下（第 31 批 SDK 窗口一）。来源为已合并 Prologue #107 的干净提交 1cc80b05；逐字节可从 Git 历史取回（本记录记 gitBlob），源码与重建步骤见当时同名 .provenance.json。"
+      "description": "上一份正式依赖，2026-11-12 由 window31 换下（第 31 批 SDK 窗口一）。来源为已合并 Prologue #107 的干净提交 1cc80b05；逐字节可从 Git 历史取回（本记录记 gitBlob），源码与重建步骤见当时同名 .provenance.json。"
     },
     {
       "file": "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz",

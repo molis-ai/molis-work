@@ -7,12 +7,15 @@
  * the tool reports itself unavailable.
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
+import { ensureTool, type ToolInstallSpec } from "./tool-fetcher.js";
 
 export type { LanguageServerSpec } from "./lsp-client.js";
+export { ensureTool } from "./tool-fetcher.js";
+export type { ToolInstallSpec } from "./tool-fetcher.js";
 export { unconfiguredSymbolIndex } from "./coding-tools.js";
 
 export interface CodeIntelligence {
@@ -30,6 +33,25 @@ const MAX_RESULTS = 50;
  * Validate what a configuration file says about language servers. **Wrong entries are refused, not skipped**: a typo in a
  * command should not silently leave a file type without intelligence.
  */
+export interface LanguageServerSettings {
+  /** Whether the person lets the Host download a tool that is not installed (Q5). Default: off. */
+  readonly downloads: boolean;
+  /** The registry a download comes from; the platform does not pick one silently per package. */
+  readonly registry?: string;
+  readonly servers: readonly LanguageServerSpec[];
+}
+
+/** The whole file: the person's download switch, the registry, and each server. */
+export function languageServerSettings(value: unknown): LanguageServerSettings {
+  const input = value as { readonly servers?: unknown; readonly downloads?: unknown; readonly registry?: unknown };
+  const servers = languageServersFrom(value);
+  const downloads = input.downloads === undefined ? false : input.downloads === "allow" ? true : input.downloads === "deny" ? false : (() => { throw new Error('language-servers.json downloads must be "allow" or "deny"'); })();
+  if (input.registry !== undefined && (typeof input.registry !== "string" || !/^https:\/\/[^\s]+$/u.test(input.registry))) {
+    throw new Error("language-servers.json registry must be an https URL");
+  }
+  return { downloads, servers, ...(input.registry === undefined ? {} : { registry: input.registry }) };
+}
+
 export function languageServersFrom(value: unknown): readonly LanguageServerSpec[] {
   const input = value as { readonly servers?: unknown };
   if (input === null || typeof input !== "object" || !Array.isArray(input.servers)) throw new Error("language-servers.json must be an object with a servers list");
@@ -45,12 +67,20 @@ export function languageServersFrom(value: unknown): readonly LanguageServerSpec
     }
     if (server.args !== undefined && (!Array.isArray(server.args) || server.args.some((one) => typeof one !== "string"))) throw new Error(`${where}.args must be strings`);
     if (server.languageId !== undefined && (typeof server.languageId !== "string" || server.languageId.length === 0)) throw new Error(`${where}.languageId must be a non-empty string`);
+    const install = (server as { readonly install?: unknown }).install;
+    if (install !== undefined) {
+      const one = install as Partial<ToolInstallSpec>;
+      if (typeof one.package !== "string" || !/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/iu.test(one.package)) throw new Error(`${where}.install.package must be a package name`);
+      if (typeof one.version !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/u.test(one.version)) throw new Error(`${where}.install.version must be an exact version`);
+      if (typeof one.bin !== "string" || one.bin.length === 0) throw new Error(`${where}.install.bin must name the executable the package ships`);
+    }
     return {
       command: server.command,
       extensions: extensions.map((one) => one.toLowerCase()),
       ...(server.args === undefined ? {} : { args: [...server.args] }),
       ...(server.languageId === undefined ? {} : { languageId: server.languageId }),
       ...(server.initializationOptions === undefined ? {} : { initializationOptions: server.initializationOptions }),
+      ...(install === undefined ? {} : { install: install as ToolInstallSpec }),
     };
   });
 }
@@ -62,12 +92,19 @@ function serverFor(servers: readonly LanguageServerSpec[], file: string): { read
   return spec === undefined ? undefined : { spec, languageId: spec.languageId ?? extension.slice(1) };
 }
 
-/** A path inside the round's root, or a refusal — the executor never reads outside the directory it was given. */
-function insideRoot(rootPath: string, requested: string): string {
-  const resolved = path.resolve(rootPath, requested);
-  const relative = path.relative(path.resolve(rootPath), resolved);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`coding.find-symbol only reads inside this round's directory; "${requested}" is outside it`);
-  return resolved;
+/**
+ * A path inside the round's root, or a refusal — the executor never reads outside the directory it was given.
+ *
+ * **Both sides are resolved through symlinks** before comparing: a link inside the root that points outside it would
+ * otherwise pass a plain string-prefix check and read a file the round was never granted.
+ */
+async function insideRoot(rootPath: string, requested: string): Promise<string> {
+  const refused = () => new Error(`coding.find-symbol only reads inside this round's directory; "${requested}" is outside it`);
+  const root = await realpath(path.resolve(rootPath));
+  const real = await realpath(path.resolve(rootPath, requested)).catch(() => { throw refused(); });
+  const relative = path.relative(root, real);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw refused();
+  return real;
 }
 
 /**
@@ -78,9 +115,14 @@ export function createCodeIntelligence(input: {
   readonly servers: readonly LanguageServerSpec[];
   readonly rootPath: string;
   readonly timeoutMs?: number;
+  /** Q5: where a not-yet-installed server is fetched to, and whether the person allows it. */
+  readonly tools?: { readonly root: string; readonly allow: () => boolean | Promise<boolean>; readonly registry?: string };
 }): CodeIntelligence {
   const clients = new Map<string, LspClient>();
   const texts = new Map<string, string>();
+  const versions = new Map<string, number>();
+  // A round reads a bounded number of files: handing the model an unbounded cache would hold whole trees in memory.
+  const MAX_OPEN_DOCUMENTS = 64;
   let closed = false;
 
   const clientFor = async (file: string): Promise<{ readonly client: LspClient; readonly languageId: string }> => {
@@ -89,12 +131,14 @@ export function createCodeIntelligence(input: {
     if (found === undefined) {
       throw new Error(`no language server is configured for ${path.extname(file) || "this file"}; coding.find-symbol reports itself unavailable`);
     }
-    const key = `${found.spec.command}\u0000${(found.spec.args ?? []).join("\u0000")}`;
+    const resolved = await resolveSpec(found.spec, input);
+    const key = `${resolved.command}\u0000${(resolved.args ?? []).join("\u0000")}`;
     let client = clients.get(key);
     if (client === undefined || !client.alive) {
-      client = startLanguageServer(found.spec, { cwd: input.rootPath, ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
+      client = startLanguageServer(resolved, { cwd: input.rootPath, ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
       clients.set(key, client);
-      await client.request("initialize", {
+      try {
+        await client.request("initialize", {
         processId: process.pid,
         rootUri: fileUri(input.rootPath),
         capabilities: {
@@ -107,7 +151,13 @@ export function createCodeIntelligence(input: {
         workspaceFolders: [{ uri: fileUri(input.rootPath), name: path.basename(input.rootPath) || "work" }],
         ...(found.spec.initializationOptions === undefined ? {} : { initializationOptions: found.spec.initializationOptions }),
       });
-      client.notify("initialized", {});
+        client.notify("initialized", {});
+      } catch (error) {
+        // A server that never finished its handshake is not reusable: forget it and let the next call start a fresh one.
+        clients.delete(key);
+        await client.close().catch(() => undefined);
+        throw error;
+      }
     }
     return { client, languageId: found.languageId };
   };
@@ -119,10 +169,33 @@ export function createCodeIntelligence(input: {
     if (text.length > MAX_TEXT_CHARS) throw new Error("coding.find-symbol does not read files above 2,000,000 characters");
     const previous = texts.get(absolute);
     if (previous !== text) {
-      client.openDocument({ path: absolute, text, languageId });
-      texts.set(absolute, text);
+      if (previous === undefined) {
+        client.openDocument({ path: absolute, text, languageId });
+        versions.set(absolute, 1);
+      } else {
+        const version = (versions.get(absolute) ?? 1) + 1;
+        client.changeDocument({ path: absolute, text, version });
+        versions.set(absolute, version);
+      }
+      texts.delete(absolute); texts.set(absolute, text);
+      for (const held of texts.keys()) {
+        if (texts.size <= MAX_OPEN_DOCUMENTS) break;
+        texts.delete(held); versions.delete(held);
+      }
     }
     return { client, text };
+  };
+
+  /** A server that is not installed yet comes from the isolated tools root (Q5); one that is uses its own command. */
+  const resolveSpec = async (spec: LanguageServerSpec, options: typeof input): Promise<LanguageServerSpec> => {
+    if (spec.install === undefined) return spec;
+    if (options.tools === undefined) throw new Error(`no ${spec.install.package} is installed and this Host has no tools directory to fetch it into`);
+    const tool = await ensureTool(spec.install, {
+      toolsRoot: options.tools.root,
+      allow: options.tools.allow,
+      ...(options.tools.registry === undefined ? {} : { registry: options.tools.registry }),
+    });
+    return { ...spec, command: tool.command };
   };
 
   const symbolIndex: ToolRunner = async (call) => {
@@ -131,7 +204,7 @@ export function createCodeIntelligence(input: {
     if (requested === undefined) throw new Error("coding.find-symbol needs a path inside this round's directory");
     const symbol = typeof args.symbol === "string" && args.symbol.trim().length > 0 ? args.symbol.trim() : undefined;
     if (symbol !== undefined && symbol.length > MAX_SYMBOL_CHARS) throw new Error("coding.find-symbol takes a symbol name of at most 200 characters");
-    const absolute = insideRoot(input.rootPath, requested);
+    const absolute = await insideRoot(input.rootPath, requested);
     const { client, text } = await open(absolute);
     const position = symbol === undefined ? { line: 0, character: 0 } : findSymbolPosition(text, symbol);
     if (position === undefined) return `no definition of "${symbol}" was found in ${requested}`;
@@ -159,6 +232,7 @@ export function createCodeIntelligence(input: {
       await Promise.all([...clients.values()].map((client) => client.close().catch(() => undefined)));
       clients.clear();
       texts.clear();
+      versions.clear();
     },
   };
 }
@@ -194,8 +268,9 @@ function describeLocation(one: LocationLike, rootPath: string): string {
   const range = one.range ?? one.targetSelectionRange ?? one.targetRange;
   const line = typeof range?.start?.line === "number" ? range.start.line + 1 : undefined;
   const character = typeof range?.start?.character === "number" ? range.start.character + 1 : undefined;
-  return `${uri.replace("file://", "") || "(nowhere)"}${line === undefined ? "" : `:${line}${character === undefined ? "" : `:${character}`}`}`
-    + (uri.startsWith("file://") && !uri.replace("file://", "").startsWith(path.resolve(rootPath)) ? " (outside this round's directory)" : "");
+  const decoded = uri.startsWith("file://") ? decodeURIComponent(uri.slice("file://".length)) : uri;
+  return `${decoded || "(nowhere)"}${line === undefined ? "" : `:${line}${character === undefined ? "" : `:${character}`}`}`
+    + (decoded && path.isAbsolute(decoded) && path.relative(path.resolve(rootPath), decoded).startsWith("..") ? " (outside this round's directory)" : "");
 }
 
 function describeSymbols(symbols: readonly unknown[], requested: string): string {

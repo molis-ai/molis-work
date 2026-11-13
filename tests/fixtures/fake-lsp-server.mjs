@@ -65,3 +65,4 @@ process.stdin.on("data", (chunk) => {
   }
 });
 note("started");
+if (process.env.MOLIS_WORK_ENCRYPTION_KEY) note(`leaked-env:${process.env.MOLIS_WORK_ENCRYPTION_KEY}`);

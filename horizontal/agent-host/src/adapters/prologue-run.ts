@@ -93,9 +93,8 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
     || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
     || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
     || state.actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
-  // A business round may hand bounded sub-tasks to children (they are App-tools rounds: same business tools, no directory).
   if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
-    || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+    || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
     || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
   if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
@@ -131,7 +130,9 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   } } : input.action_gateway;
   const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
-    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
+    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
+      // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
+      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL));
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
     if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
@@ -154,8 +155,20 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
    * Runtime's own rule for a tool whose executor is missing).
    */
   const wantsSymbols = actionTools !== undefined && !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL);
-  const codeIntelligence = wantsSymbols && deps.options.codeIntelligence !== undefined
-    ? createCodeIntelligence({ servers: deps.options.codeIntelligence.servers, rootPath: input.root_path! })
+  const codeServers = deps.options.codeIntelligence;
+  const codeIntelligence = wantsSymbols && codeServers !== undefined
+    ? createCodeIntelligence({
+      servers: codeServers.servers,
+      rootPath: input.root_path!,
+      // Q5: a server that is not installed is fetched into this Home's isolated tools root, only if the person allowed it.
+      ...(codeServers.toolsRoot === undefined ? {} : {
+        tools: {
+          root: codeServers.toolsRoot,
+          allow: () => codeServers.downloadsAllowed === true,
+          ...(codeServers.registry === undefined ? {} : { registry: codeServers.registry }),
+        },
+      }),
+    })
     : undefined;
   // Scoped like the action tools: the catalog keeps one registration per name for the Runtime's life.
   const symbolToolName = `${FIND_SYMBOL_TOOL}-${actionTools?.scope ?? "app"}`;
@@ -206,16 +219,15 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
     childRoots.push({ id: grant.worktree_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
   }
   const childRoles = new Map<string, ChildRole>();
-  const business = input.workspace === "business";
   for (const role of input.subagents ?? []) {
-    assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools, business ? "business" : "workspace");
+    assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools);
     const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
     const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
       ...(ref ? { instructionsRef: ref } : {}), tools: role.host_tools.map(prologueToolName) });
     const published = runtime.characters.publish(draft.ref);
     childRoles.set(exactCharacterKey(published.ref), role);
   }
-  const childScope = business ? "本轮是业务会话，没有目录：子任务只能使用与这里同一套业务工具，不得填写 workspace 参数，也不能读写文件或运行命令。" : childRoots.length
+  const childScope = childRoots.length
     ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
       + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
     : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";

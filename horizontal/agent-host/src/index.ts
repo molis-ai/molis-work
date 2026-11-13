@@ -71,7 +71,7 @@ export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.j
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
 export { guardNodeDispatch } from "./adapters/prologue-dispatch.js";
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
-export { surfaceRules } from "./adapters/prologue-surfaces.js";
+export { createPrologueSurfaces, surfaceRules } from "./adapters/prologue-surfaces.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
 export { projectQuestion, answerProblems } from "./adapters/prologue-questions.js";

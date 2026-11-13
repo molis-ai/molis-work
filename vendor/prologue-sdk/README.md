@@ -1,12 +1,16 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-surface-detach.tgz`；`final103-bridge` 是此前保留的过渡包，不同时装成第二份 Runtime。
 
-当前包为 **1,397,575 字节**，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源为已合并 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净提交 `1cc80b05253df798eeb34afff65d1bda06bee587`，与上游合并提交 `ccafbb74fb9db0e3a124ec502c57291677487e23` 整树一致，没有 vendor 补丁。沿用已验证包的原始字节，816 个 dist 文件曾逐一对照原构建；本次从 Git 中取回同一产物，不声称重新独立制包。
+当前包为 **1,402,959 字节**，SHA-256 `279482ebd7d392ec1d67748d0b10abc0de11a442de3686174ae6dcb5214e2919`。准确源码是隔离仓库里的干净本地提交 `294745ae3efe3a053630ddf368d68c51feb60b37`，树为 `50c75cb86152d9ead0b46a9d0f7d50707f65365c`；尚未推送或合入上游。基线是此前实际采用的 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 提交 `1cc80b05253df798eeb34afff65d1bda06bee587`，只增加用户批准的 Surface 最终释放及原效果保存前检查。包版本及 package.json 不变，没有引入其他上游更新。授权范围与失败边界见[合同设计稿 §2.5](../../specs/agent-approval/delegation-contract-design.md#25-sdk-surface-最终释放用户已批准红线例外)。
 
-它包含既有 Memory CAS、分类、可信来源、采用与恢复能力，以及后续维护修复。新主干快照依赖的 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?})` 公共接口保留；当前组合仍须经过 Molis 实际离线快照、负例和恢复回归。本 Foundation 不采用尚在验证的集合读取优化 #108。
+新增 `UiControl.detach` 同栈使原目标失效并最终释放其索引；保留 `close/get/list` 的原行为。原 `EffectChain.prepare` 增加可选的最终同步检查，三参数调用的错误合同保留。`UiSurface.assertCurrent` 和公开 `SystemToolInput.surfaces.guard` 接同一个原绑定检查；回调必须同步，工具正文发布与交付同样复核，不增加新的权限事实。已经派出或保存结果未知的动作继续由原效果链结算，释放不能把未知结果说成成功。原 Memory、离线存储认证与恢复能力保留；本次不增加恢复流程。
 
-相邻 `.sha256`、`.provenance.json` 记录实际产物和来源；`patch-history.json` 保留历史补丁、已替换包及此前上游祖先审计。旧 #94 的包和 sidecars 可从 Molis `c61508d5e15ab4850d256843a0e4110f9ecf1e20` 取回。来源记录不是应用采用、性能或用户验收结果；以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 为准。
+源码可重建：在准确基线 `1cc80b05253df798eeb34afff65d1bda06bee587` 的空导出目录执行 `git apply --check --whitespace=error surface-detach.patch`，再 `git apply surface-detach.patch`。补丁与相邻 provenance 的大小、SHA-256 对应，含完整源码、测试及公共 API 快照。以 Node 24.15.0 / pnpm 11.9.0 按原锁文件安装依赖；SDK 声明的精确 Node 24.14.0 检查仅在命令上用 `--config.engine-strict=false` 覆盖。然后在 `packages/sdk` 执行 `node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json`，根目录执行 `node scripts/public-api.mjs`，在 `packages/sdk` 执行 `pnpm --config.engine-strict=false pack --out <外部产物路径>`。不修改版本或依赖声明。
+
+本次实际从最终提交与基线加补丁分别导出两棵无旧 dist 的源码树，复制同一份已冻结安装的依赖后独立构建，两份完整 tgz 逐字节一致；这不声称两次独立解析或重新安装了依赖。41 条新增拒绝与生命周期用例、定向类型检查、SDK 构建、公开 API、质量数字与文档链接检查已通过，同一只读代理审过准确源码与公共合同。应用接线、原有受影响回归、完整产品实操和本人验收仍需各自证据。
+
+相邻 `.sha256`、`.provenance.json` 记录实际产物、源码及制包步骤；`patch-history.json` 保留历史补丁和已替换包。此前 memory-p0 的 1,397,575 字节产物及 sidecars 可从 Molis `5f9dc2a037c450ac654f0c1ecc70929164d3d36a` 取回，其 SHA-256 为 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源验证不是应用采用、性能或用户验收结果；Memory 仍以[原需求](../../specs/prologue-memory-strategy/spec.md)为准。
 
 快照命令输出的 `manifest.json` 与 `data/` 是离线备份载荷，不含原 Home 密钥，不能直接当作 `recover-home` 的完整 T0/T1 工作副本。本次不增加解包、补密钥或另一套恢复流程。
 

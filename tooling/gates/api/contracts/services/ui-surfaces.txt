@@ -66,46 +66,46 @@ export interface HostSurfaceActivity {
     } | null;
 }
 
+export interface HostSurfaceContext {
+    readonly session_id: string | null;
+    beforeEffect(): void | Promise<void>;
+    assertCurrent(): void;
+}
+
 export interface HostSurfaceDriver {
     readonly kind: HostSurfaceKind;
     readonly project_id: string | null;
-    identity(): Promise<string>;
-    scope(): Promise<string>;
-    observe(kind: HostSurfaceObservationKind, context?: {
-        readonly session_id: string | null;
-    }): Promise<Uint8Array>;
-    perform(action: HostSurfaceAction, context: {
-        readonly session_id: string | null;
-    }): Promise<HostSurfaceActReceipt | void>;
-    release?(ended?: HostSurfaceRoundEnd): Promise<void>;
+    identity(context: HostSurfaceContext): Promise<string>;
+    scope(context: HostSurfaceContext): Promise<string>;
+    observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext): Promise<Uint8Array>;
+    perform(action: HostSurfaceAction, context: HostSurfaceContext): Promise<HostSurfaceActReceipt | void>;
+    release?(context: HostSurfaceContext, ended?: HostSurfaceRoundEnd): Promise<void>;
     close(): Promise<void>;
-    describePoint?(x: number, y: number): Promise<string>;
-    describeNode?(node: string): Promise<string>;
-    focusedField?(): Promise<{
+    describePoint?(x: number, y: number, context: HostSurfaceContext): Promise<string>;
+    describeNode?(node: string, context: HostSurfaceContext): Promise<string>;
+    focusedField?(context: HostSurfaceContext): Promise<{
         readonly label: string;
         readonly sensitive: boolean;
     }>;
     masked(bytes: Uint8Array): boolean;
-    readiness?(context: {
-        readonly session_id: string | null;
-    }): Promise<{
+    readiness?(context: HostSurfaceContext): Promise<{
         readonly refusal: HostSurfaceRefusal;
         readonly detail: string;
     } | null>;
-    assess?(action: HostSurfaceAction): Promise<{
+    assess?(action: HostSurfaceAction, context: HostSurfaceContext): Promise<{
         readonly irreversible: boolean;
         readonly why: string;
     }>;
-    currentApp?(): Promise<{
+    currentApp?(context: HostSurfaceContext): Promise<{
         readonly bundle_id: string;
         readonly name: string;
     } | null>;
-    describeRound?(sessionId: string, context: {
+    describeRound?(context: HostSurfaceContext, metadata: {
         readonly run_id: string | null;
         readonly project_id: string | null;
         readonly goal: string;
     }): void;
-    noteRun?(sessionId: string, runId: string): void;
+    noteRun?(context: HostSurfaceContext, runId: string): void;
 }
 
 export type HostSurfaceKind = "browser" | "desktop";

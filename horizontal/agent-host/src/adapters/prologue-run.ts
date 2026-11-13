@@ -31,7 +31,7 @@ import { runModelParams } from "./prologue-run-params.js";
 import { blockId, canTakeUp, collaborates, eligibleContinuation, planPrefix, readyStep, releaseStartClaim, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
+import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, emptySurfaceAttachment, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
 import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js";
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
@@ -282,12 +282,16 @@ async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: Ses
  * The project's side panel browser, for this session only: its tools join the round and the round is told how to use
  * them. Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
  */
-async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean): Promise<SurfaceAttachment> {
+async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean, control: NonNullable<ReturnType<DispatchGuards["getStore"]>>): Promise<SurfaceAttachment> {
   const surfaceHost = deps.surfaces();
-  if (!(business && surfaceHost && input.browser !== false)) return { tools: [] as readonly string[], note: null, surfaces: [] as readonly ("browser" | "desktop")[] };
+  if (!(business && surfaceHost && input.browser !== false)) return emptySurfaceAttachment();
   return surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
-    live: sessionRefId => [...deps.state.activeRuns.entries()].some(([runId, run]) => run.live() && deps.state.runSessions.get(runId) === sessionRefId), goal: input.task, projectId: index.owner.project_id })
-    .catch((error: unknown) => ({ tools: [] as readonly string[], note: `界面控制这一轮不可用：${error instanceof Error ? error.message : String(error)}` as string | null, surfaces: [] as readonly ("browser" | "desktop")[] }));
+    control, goal: input.task, projectId: index.owner.project_id })
+    .catch((error: unknown) => {
+      requireSynchronous(control.assertCurrent());
+      if (error instanceof AggregateError) throw error;
+      return emptySurfaceAttachment(`界面控制这一轮不可用：${error instanceof Error ? error.message : String(error)}`);
+    });
 }
 
 /** The round's Character: its instructions (role, methods, guidance, plan, recovery), its tools, and the memories chosen for it. */
@@ -500,20 +504,22 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
 /** After the SDK started the run: its root, its id in the index, its controls, and in a main round its project work. */
 async function afterStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, at: {
   readonly started: Started; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly attemptIndex: number;
-  readonly actionController: AbortController; readonly hasActions: boolean; readonly none: boolean; readonly project: string; readonly scopePaths: string[];
+  readonly actionController: AbortController; readonly surface: SurfaceAttachment; readonly hasActions: boolean; readonly none: boolean; readonly project: string; readonly scopePaths: string[];
   readonly plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"]; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"]; readonly stopping: () => boolean;
 }): Promise<void> {
   const { state } = deps;
   const { started, session } = at;
-  const surfaceHost = deps.surfaces();
   if (at.root) state.runRoots.set(started.run.ref.id, at.root.ref);
   try { await deps.index.update(input.session_id, saved => { saved.attempts[at.attemptIndex]!.run_id = started.run.ref.id; }); }
   catch (error) { at.actionController.abort(); started.control.stop("cancelled"); throw error; }
   if (at.hasActions) state.actionControllers.set(started.run.ref.id, at.actionController);
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
-  state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
-  state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && !at.stopping(),
-    assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
+  state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); at.surface.noteRun(started.run.ref.id);
+  state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state),
+    assertAuthority: () => {
+      if (at.stopping()) throw agentErrors.review_not_permitted("原轮次正在停止");
+      requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+    },
     steer: async text => { await started.control.steer({ text, source: "app" }); } });
   if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
@@ -529,7 +535,7 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
 }
 
 /** When the round ends: its actions and step board let go, the page released, its project work ended and its messages settled. */
-function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: "completed" | "failed" | "cancelled", actionController: AbortController): void {
+function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: "completed" | "failed" | "cancelled", actionController: AbortController, surface: SurfaceAttachment): void {
   const { state } = deps;
   const surfaceHost = deps.surfaces();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
@@ -539,7 +545,8 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   deps.workGraphs.ended(started.run.ref, session.ref, type);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
-  if (surfaceHost) { void surfaceHost.release(session.ref.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
+  void surface.release(type === "cancelled" ? "stopped" : type).catch(() => undefined);
+  surfaceHost?.releaseRun(started.run.ref); state.runRefs.delete(started.run.ref.id);
   const work = state.runWork.get(started.run.ref.id);
   if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); }
   // A round that finished normally saw every message given to it; unanswered requests are settled.
@@ -550,7 +557,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
 
 /** The run and its controls as the adapter sees them; stopping saves the person's intent before the SDK stops the run. */
 function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
-  readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController;
+  readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController; readonly surface: SurfaceAttachment;
   readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
   const { started, actionController } = at;
@@ -560,7 +567,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   let hostStop: string | undefined;
   const stopForHost = (reason: string) => {
     if (hostStop || ["completed", "failed", "stopped", "cancelled"].includes(control.state)) return;
-    hostStop = reason; control.stop("stopped");
+    hostStop = reason; void at.surface.release("stopped").catch(() => undefined); control.stop("stopped");
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
   return {
@@ -568,7 +575,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
-          if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
+          if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController, at.surface);
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
             if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
@@ -579,7 +586,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
             listener({ ...event, receipt });
           } else listener(event);
         })),
-      cancel: () => { actionController.abort(); return started.run.cancel(); },
+      cancel: () => { actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
     },
     control: {
       get state() { const state = control.state; return state === "sleeping" ? "paused" : state; },
@@ -591,7 +598,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         return at.stopping.current ??= (async () => {
           await deps.index.update(input.session_id, index => { index.attempts[at.attemptIndex]!.stop_intent = reason; });
           // The accepted Run owns its terminal settlement after this control invocation returns.
-          deps.effects.detach(() => { actionController.abort(); control.stop(reason); });
+          deps.effects.detach(() => { actionController.abort(); void at.surface.release("stopped").catch(() => undefined); control.stop(reason); });
         })().catch(error => { at.stopping.current = undefined; throw error; });
       },
       pause: () => control.pause(), resume: () => control.resume(),
@@ -616,6 +623,18 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const ref = state.sessions.get(input.session_id);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined);
+  const assertDispatchCurrent = () => {
+    if (stopping.current !== undefined) throw new Error("原轮次正在停止");
+    actionController.signal.throwIfAborted();
+    requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+  };
+  const dispatchGuard = { assertCurrent: assertDispatchCurrent, beforeEffect: async () => {
+    await input.beforeDispatch?.();
+    if (!mode.none && !mode.business) {
+      await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+      await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
+    }
+  } };
   ensureStopGuard(runtime, state, input.session_id);
   const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite);
@@ -631,56 +650,56 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);
   const plan = input.provenance.frozen.execution_plan;
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
-  const surface = await roundSurface(deps, input, index, session, mode.business);
-  const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
-  const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
-  const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
-  // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
-  const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
-  const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
-    ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
-    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
-    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
-  const assertDispatchCurrent = () => {
-    if (stopping.current !== undefined) throw new Error("原轮次正在停止");
-    actionController.signal.throwIfAborted();
-    requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
-  };
-  const dispatchGuard = { assertCurrent: assertDispatchCurrent, beforeEffect: async () => {
-    await input.beforeDispatch?.();
-    if (!mode.none && !mode.business) {
-      await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
-      await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
-    }
-  } };
-  // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
-  // instructions on the round's own model, behind the same pre-dispatch check.
-  guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
-    model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
-  const started = await withDispatchControl(deps.dispatchGuards, dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
-    session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
-  }))).catch(async (error: unknown) => {
+  const surface = await roundSurface(deps, input, index, session, mode.business, dispatchGuard);
+  let accepted: Started | undefined;
+  try {
+    const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
+    const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
+    const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
+    // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
+    const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
+    const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
+      ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
+      ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
+      ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
+    // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
+    // instructions on the round's own model, behind the same pre-dispatch check.
+    guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
+      model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
+    const started = await withDispatchControl(deps.dispatchGuards, dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
+      session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
+    }))).catch(async (error: unknown) => {
+      actionController.abort();
+      // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
+      // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
+      if (!deps.effects.accepted()) {
+        const code = (error as { code?: string }).code;
+        let current = true;
+        try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
+        if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandon();
+        else await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        // The continuation the SDK claimed for this start: its own give-back is refused with the rest once the caller is not current.
+        const requestKey = binding?.requestKey;
+        if (requestKey) await deps.effects.detach(() => releaseStartClaim(runtime, { ...binding!, requestKey })).catch(() => undefined);
+      }
+      throw error;
+    });
+    accepted = started; attempted.run_id = started.run.ref.id;
+    watchRoundFacts(state, started.run);
+    // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
+    state.dispatchChecks.set(started.run.ref.id, async () => { assertDispatchCurrent(); await dispatchGuard.beforeEffect(); assertDispatchCurrent(); });
+    await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, hasActions: Boolean(actionTools?.names.length), none: mode.none,
+      project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
+    return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping }),
+      ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
+  } catch (error) {
     actionController.abort();
-    // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
-    // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
-    if (!deps.effects.accepted()) {
-      const code = (error as { code?: string }).code;
-      let current = true;
-      try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
-      if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandon();
-      else await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
-      // The continuation the SDK claimed for this start: its own give-back is refused with the rest once the caller is not current.
-      const requestKey = binding?.requestKey;
-      if (requestKey) await deps.effects.detach(() => releaseStartClaim(runtime, { ...binding!, requestKey })).catch(() => undefined);
+    if (accepted) {
+      accepted.control.stop("cancelled"); state.activeRuns.delete(accepted.run.ref.id);
+      state.actionControllers.delete(accepted.run.ref.id); state.dispatchChecks.delete(accepted.run.ref.id);
+      deps.surfaces()?.releaseRun(accepted.run.ref); state.runRefs.delete(accepted.run.ref.id);
     }
+    try { await surface.release("failed"); } catch (cleanup) { throw new AggregateError([error, cleanup], "启动失败，原界面尚未释放"); }
     throw error;
-  });
-  attempted.run_id = started.run.ref.id;
-  watchRoundFacts(state, started.run);
-  // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
-  state.dispatchChecks.set(started.run.ref.id, async () => { assertDispatchCurrent(); await dispatchGuard.beforeEffect(); assertDispatchCurrent(); });
-  await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
-    project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
-  return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),
-    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
+  }
 }

@@ -1,47 +1,55 @@
-import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { reviewText, type ReviewWord, type ReviewWords } from "../review-presentation.js";
 
-type DescribeDriver = Pick<HostSurfaceDriver, "describePoint" | "describeNode" | "focusedField"> | undefined;
-export interface SurfaceReviewDetail { readonly raw: string; readonly words: ReviewWords }
+type DescribeDriver = {
+  describePoint?(x: number, y: number): Promise<string>;
+  describeNode?(node: string): Promise<string>;
+  focusedField?(): Promise<{ readonly label: string; readonly sensitive: boolean }>;
+} | undefined;
+export interface SurfaceReviewDetail { readonly raw: string; readonly words: ReviewWords; readonly reviewable: boolean }
 
 const word = (key: string, args?: Record<string, string | number>) => reviewText("surface." + key, args);
-const detail = (raw: string, ...words: ReviewWord[]): SurfaceReviewDetail => ({ raw, words: words.length ? words : [raw] });
+const detail = (raw: string, ...words: ReviewWord[]): SurfaceReviewDetail => ({ raw, words: words.length ? words : [raw], reviewable: true });
+const unreadable = (raw: string, ...words: ReviewWord[]): SurfaceReviewDetail => ({ ...detail(raw, ...words), reviewable: false });
 
 async function typedText(driver: DescribeDriver, typed: string | undefined): Promise<SurfaceReviewDetail> {
-  const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
+  if (!driver?.focusedField) return unreadable("输入内容或目标无法核对，请拒绝后让助理重新说明。", word("input-unreadable"));
+  const field = await driver.focusedField();
   const at = field.label ? "在「" + field.label + "」里输入" : "在当前输入框里输入";
   const place = field.label ? [word("input-in-field"), " ", field.label] : [word("input-in-current-field")];
-  if (typed === undefined) return detail(at + "文字（内容读不到，请拒绝后让助理重新说明）", ...place, " · ", word("input-unreadable"));
+  if (typed === undefined) return unreadable(at + "文字（内容读不到，请拒绝后让助理重新说明）", ...place, " · ", word("input-unreadable"));
   const chars = [...typed];
-  if (field.sensitive) return detail(at + " " + chars.length + " 个字。这是密码类输入框，内容已遮住。", ...place, " · ", word("input-masked", { count: chars.length }));
-  const clipped = chars.length > 2000, visible = clipped ? chars.slice(0, 2000).join("") : typed;
-  return detail(at + "：\n" + visible + (clipped ? "\n……（共 " + chars.length + " 字，只显示前 2000 字）" : ""),
-    ...place, ":\n", visible, ...(clipped ? ["\n", word("input-clipped", { count: chars.length })] : []));
+  if (field.sensitive) return unreadable(at + " " + chars.length + " 个字。这是密码类输入框，内容已遮住。", ...place, " · ", word("input-masked", { count: chars.length }));
+  return detail(at + "：\n" + typed, ...place, ":\n", typed);
 }
 
 function pointerVerb(button?: string, clicks = 1) {
-  return button === "right" ? { raw: "右键点击", word: word("pointer-right") }
-    : clicks > 1 ? { raw: "双击", word: word("pointer-double") } : { raw: "点击", word: word("pointer-click") };
+  if (button === "right" && clicks === 1) return { raw: "右键点击", word: word("pointer-right") };
+  if (button === "left" && clicks === 2) return { raw: "双击", word: word("pointer-double") };
+  if ((!button || button === "left") && clicks === 1) return { raw: "点击", word: word("pointer-click") };
+  const exact = `${clicks}×${button}`;
+  return { raw: exact, word: exact };
 }
 
 async function pointerDetail(driver: DescribeDriver, summary: string, desktop: boolean): Promise<SurfaceReviewDetail> {
-  const point = /at (\d+),(\d+)/u.exec(summary), clicks = /\((\d+)×(\w+)\)/u.exec(summary);
+  const point = /at ([-+\d.e]+),([-+\d.e]+)$/u.exec(summary), clicks = /\((\d+)×(\w+)\)/u.exec(summary);
   const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
   const verb = pointerVerb(clicks?.[2], Number(clicks?.[1] ?? 1));
   if (label) return detail(verb.raw + "「" + label + "」", verb.word, " ", label);
-  if (!point) return detail(verb.raw, verb.word);
+  if (!point) return detail(summary);
   const x = point[1]!, y = point[2]!;
   return detail(verb.raw + (desktop ? "窗口里的位置" : "页面上的位置") + "（" + x + ", " + y + "）",
     verb.word, " ", word(desktop ? "window-position" : "page-position", { x, y }));
 }
 
+const pointerNode = (summary: string) => /^click node ([\s\S]+) \(([1-3])×(left|right|middle)\); the point is read from the tree at injection(\. IRREVERSIBLE(?: \([\s\S]*\))?: this cannot be undone)?$/u.exec(summary);
+
 async function browserPointer(driver: DescribeDriver, summary: string): Promise<SurfaceReviewDetail> {
   // This token is the SDK's labelOf for this effect. It is only used to ask for a display label.
-  const node = /^click node (\S+) \(([1-3])×(left|right|middle)\); the point is read from the tree at injection$/u.exec(summary);
-  if (!node) return summary.startsWith("click node ") ? detail("页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable")) : pointerDetail(driver, summary, false);
+  const node = pointerNode(summary);
+  if (!node) return summary.startsWith("click node ") ? unreadable("页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable")) : pointerDetail(driver, summary, false);
   const verb = pointerVerb(node[3], Number(node[2])), label = await driver?.describeNode?.(node[1]!).catch(() => "");
   return label ? detail(verb.raw + "「" + label + "」", verb.word, " ", label)
-    : detail(verb.raw + "的页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable"));
+    : unreadable(verb.raw + "的页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable"));
 }
 
 const followedBy = (prefix: string, key: string, original: string) => detail(prefix + original, word(key), " ", original);
@@ -65,7 +73,12 @@ export async function describeBrowserAction(driver: DescribeDriver, action: stri
 
 export async function describeDesktopAction(driver: DescribeDriver, action: string, summary: string, typed?: string): Promise<SurfaceReviewDetail> {
   switch (action) {
-    case "pointer": return pointerDetail(driver, summary, true);
+    case "pointer": {
+      const node = pointerNode(summary);
+      if (!node) return summary.startsWith("click node ") ? unreadable(summary) : pointerDetail(driver, summary, true);
+      const verb = pointerVerb(node[3], Number(node[2]));
+      return detail(verb.raw + "「" + node[1] + "」" + (node[4] ?? ""), verb.word, " ", node[1]!, ...(node[4] ? [node[4]] : []));
+    }
     case "key": return followedBy("按下 ", "press", summary.replace(/^press /u, ""));
     case "text": return typedText(driver, typed);
     case "scroll": {

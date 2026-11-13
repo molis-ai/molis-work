@@ -6,6 +6,8 @@
 
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
+Surface 每轮创建新的 SDK target，`HostSurfaceContext` 固定原轮检查与驱动租约身份。临时拒绝不释放独占浏览器；接受停止或实际终态才永久释放。SDK `detach` 清掉活 target/observation/plan，原 effect/pending 仍由 SDK 保存与结算。审批卡展示完整输入和原目标；原权限丢失、目标/焦点/正文不可读只保留可拒绝的摘要，不能批准或记住本轮许可。关闭时 Surface 失败仍执行原关闭链，依赖 SDK 的 owner 失败则保留 Runtime；已确认在关库后抛出的原 Surface 错误不能被一次空 shutdown 冲掉。工程拒绝证据见 [S-surface-round](../../docs/system/security-invariants/S-surface-round.md)；实际 CDP、桌面 helper 和最终用户操作仍须另验。
+
 Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失、空值、相对路径以 `agent.storage_root_invalid` 在 SDK 与磁盘初始化前拒绝，不回退到 cwd 或用户默认目录。适配器通过 storage 的同一 SQLite 独占端口取得所有权，或借用本 Home Host 已持有的 opaque owner；没有另一套锁、同 PID 放行或可复制的 proof。获取或第二借用失败报告 `agent.storage_busy`，不读取恢复记录。只有实际 SDK 关闭成功才归还借用；失败关闭保留所有权，下一次明确 close 可以重试。初始化失败先清理已创建的 Runtime 资源再归还自己的部分，父 Host 继续持锁。跨进程入口转发给常驻 Host，不能用多个 Runtime 直接共享目录。回归：`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
 
 `verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/archive/repository-anti-corruption/slices/w5-16-home-snapshot.md)。

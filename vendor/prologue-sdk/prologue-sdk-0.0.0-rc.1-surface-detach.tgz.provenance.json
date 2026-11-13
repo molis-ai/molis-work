@@ -1,0 +1,57 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "294745ae3efe3a053630ddf368d68c51feb60b37",
+    "tree": "50c75cb86152d9ead0b46a9d0f7d50707f65365c",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "publication": "unpublished-local-commit",
+    "base": "1cc80b05253df798eeb34afff65d1bda06bee587",
+    "note": "Clean local commit in an isolated source clone, reviewed with the public contract. It is not asserted to exist on the upstream remote or main. The adjacent patch reproduces its source from the previously adopted clean #107 head; no unrelated upstream updates or package version change."
+  },
+  "alsoBuildableFrom": {
+    "base": "1cc80b05253df798eeb34afff65d1bda06bee587",
+    "patch": {
+      "file": "surface-detach.patch",
+      "bytes": 210450,
+      "sha256": "407357809c8d501c69da7fffbda10908feba8f053666945d779911ed964a9d5d"
+    },
+    "sourceTree": "50c75cb86152d9ead0b46a9d0f7d50707f65365c"
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-surface-detach.tgz",
+    "bytes": 1402959,
+    "sha256": "279482ebd7d392ec1d67748d0b10abc0de11a442de3686174ae6dcb5214e2919",
+    "integrity": "sha512-1GIJgce+C4Ok7G5sp9RbpEZEMBOtFb90ySzJi6CKBvyoJVZNnt7T8nlAVFuLXiSUxVLfUB8bntI7JPwiHo+jqg=="
+  },
+  "build": {
+    "node": "24.15.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "Export clean source commit 294745ae3efe3a053630ddf368d68c51feb60b37 with git archive into an empty directory (without dist or node_modules).",
+      "Independently export base 1cc80b05253df798eeb34afff65d1bda06bee587 into another empty directory; git apply --check --whitespace=error surface-detach.patch, then git apply surface-detach.patch.",
+      "For both source trees, verify root/package SDK manifests and pnpm-lock.yaml equal the existing frozen isolated install. Copy its root and packages/sdk node_modules, preserving links. No independent dependency resolution is claimed. For a fresh reconstruction, install that lock with pnpm --config.engine-strict=false install --frozen-lockfile first.",
+      "In each packages/sdk: node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json; in each source root: node scripts/public-api.mjs.",
+      "In each packages/sdk: pnpm --config.engine-strict=false pack --out <distinct-external-file>. Compare both complete tgz files byte-for-byte; preserve the original bytes under the adopted file name."
+    ],
+    "packedOn": "2026-11-13",
+    "dependencies": {
+      "method": "copied from existing frozen isolated install; two independent source trees, no dependency-resolution independence claimed",
+      "lockSha256": "6cbb6e1e8e0e7fd456fbd01ee88d5fc0d536ad2894dd5da8827939f03374166b"
+    },
+    "archiveFiles": 830,
+    "distFiles": 828,
+    "note": "Both independent source builds produced identical archives. SDK package.json is byte-for-byte unchanged. Node is 24.15.0, with the exact 24.14.0 engine check overridden only in the command. The 41 newly added Surface detach and original-authority tests, focused type check, build, public API check, quality ratchet and document links passed. Existing/full regressions and Molis product journeys remain pending; no release or real Home was touched."
+  }
+}

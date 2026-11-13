@@ -43,6 +43,8 @@ export interface ProloguePendingPort {
   read(ref: ProloguePendingRef): Promise<ProloguePending | undefined>;
   /** Read the immutable review published by the effect owner; fail if unavailable. */
   document(pending: ProloguePending): Promise<AgentReviewDocument>;
+  /** Synchronous tail: preserve refusal-only summaries, never publish stale live details after an await. */
+  finalPresentation?(pending: ProloguePending, document: AgentReviewDocument): AgentReviewDocument;
   reference(pending: ProloguePending): Promise<ReviewReference>;
   /** Persistent original-owner authority, independent of the completed start request. */
   approvalAuthority(pending: ProloguePending): Promise<AgentActionReviewControl>;
@@ -124,7 +126,7 @@ export class PrologueApprovalBridge {
    */
   mirror(input: MirrorPendingInput): AgentReviewRequest {
     this.#assertOpen();
-    if (input.pending.state !== "open") {
+    if (input.pending.state !== "open" || !Number.isFinite(input.pending.expiresAtWallMs) || input.pending.expiresAtWallMs <= this.#now().getTime()) {
       throw agentErrors.pending_not_open("这笔待批已经结束，不能再放到审查面上");
     }
     if (input.pending.kind !== "effect-approval" || input.pending.origin?.session !== input.run.session_id
@@ -190,12 +192,19 @@ export class PrologueApprovalBridge {
       let approval: AgentActionReviewControl;
       try { approval = await this.#pendings.approvalAuthority(pending); }
       catch (error) { approval = { assertCurrent: () => { throw error; }, beforeEffect: () => { throw error; } }; }
+      // Reading the document and its authority can outlive the original waiter. Do not recreate a pending card after
+      // cancellation already removed it; the execution owner's synchronous check is immediately before publication.
+      if (!this.#pendings.canAnswer(pending.ref)) {
+        const reviewId = `prologue:${pending.ref.id}`;
+        if (this.#queue.get(reviewId)) this.#queue.cancel(reviewId, "原执行等待已结束");
+        throw agentErrors.pending_not_open("原执行等待已结束，不能重新展示待批");
+      }
       const request = this.mirror({
         pending,
         owner: input.owner,
         run: input.run,
         kind: document.kind,
-        document,
+        document: this.#pendings.finalPresentation?.(pending, document) ?? document,
         reference,
         approval,
     });
@@ -242,6 +251,9 @@ export class PrologueApprovalBridge {
     if (!this.#pendings.canAnswer(pendingRef)) {
       this.#queue.cancel(input.review_id, "执行已中断，原待批没有活动等待方；需核对后继续");
       throw agentErrors.pending_not_open("原执行已中断，不能通过批准旧待批恢复它");
+    }
+    if (input.remember === "app-this-round" && (input.decision !== "approve" || request.document.kind !== "tool-operation" || !request.document.round_allow)) {
+      throw agentErrors.review_not_permitted("这张审查卡没有提供本轮应用许可");
     }
     const receipt = await commit(() => this.#assertOpen());
     const assertCurrent = () => {

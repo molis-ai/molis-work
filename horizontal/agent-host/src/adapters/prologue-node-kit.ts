@@ -130,15 +130,18 @@ export const sameRef = (a: { kind?: unknown; id?: unknown; revision?: unknown } 
 /** A text resource the person brought, read whole (bounded at 1 MiB). */
 export async function readResourceText(runtime: Runtime, ref: ExactRef<"resource">): Promise<string> {
   const handle = runtime.resources.inspect(ref);
-  if (!handle || handle.byteLength > 1024 * 1024) throw new Error("要输入的文字不可读取");
+  if (!handle || handle.mediaKind !== "text" || !Number.isSafeInteger(handle.byteLength) || handle.byteLength < 0
+    || handle.byteLength > 1024 * 1024) throw new Error("要输入的文字不可读取");
   const bytes = new Uint8Array(handle.byteLength);
   let offset = 0;
   while (offset < bytes.byteLength) {
-    const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.byteLength - offset));
-    if (!chunk.bytes.byteLength) break;
+    const requested = Math.min(64 * 1024, bytes.byteLength - offset);
+    const chunk = await runtime.resources.readChunk(ref, offset, requested);
+    if (chunk.offset !== offset || !chunk.bytes.byteLength || chunk.bytes.byteLength > requested) throw new Error("要输入的文字不完整");
     bytes.set(chunk.bytes, offset); offset += chunk.bytes.byteLength;
+    if (chunk.done !== (offset === bytes.byteLength)) throw new Error("要输入的文字提前结束或长度不符");
   }
-  return new TextDecoder().decode(bytes.subarray(0, offset));
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
 /** An execution resource (a review, a receipt), read whole and exactly, as JSON; anything short or out of order is refused. */

@@ -62,48 +62,56 @@ export function isHostSurfaceRefusal(error: unknown): error is HostSurfaceRefusa
 /** How the round that used a surface ended, as its run settled: a person or the Host stopping it is `stopped`. */
 export type HostSurfaceRoundEnd = "completed" | "failed" | "stopped";
 
+/** Trusted, in-process control fixed to one original round. Object identity also identifies its exact driver lease. */
+export interface HostSurfaceContext {
+  readonly session_id: string | null;
+  beforeEffect(): void | Promise<void>;
+  /** Must be synchronous; called after the last wait, immediately before IO or a round-owned state change. */
+  assertCurrent(): void;
+}
+
 export interface HostSurfaceDriver {
   readonly kind: HostSurfaceKind;
   /** The project whose page this is: a surface serves only works in that project. The desktop serves every project: null. */
   readonly project_id: string | null;
   /** Opaque, exact: the current page (full address and page identity). Never shown or stored by the caller. */
-  identity(): Promise<string>;
+  identity(context: HostSurfaceContext): Promise<string>;
   /** scheme://host[:port] of the current page, what site rules match; `about:blank` while it has not opened a site. */
-  scope(): Promise<string>;
-  /** Looks at the page; the session looking, when known, is shown as the one using the page. */
-  observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }): Promise<Uint8Array>;
+  scope(context: HostSurfaceContext): Promise<string>;
+  /** Looks at the page under the original round's control; that round is shown as the one using the page. */
+  observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext): Promise<Uint8Array>;
   /**
    * Performs one action. Refuses while the person has taken the page over.
    * A desktop step returns the accessibility tree from after it; a browser step returns nothing.
    */
-  perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<HostSurfaceActReceipt | void>;
-  /** The round using the page ended — finished, failed or stopped (`ended`, when the Host knows it): the page is the person's again at once. */
-  release?(ended?: HostSurfaceRoundEnd): Promise<void>;
+  perform(action: HostSurfaceAction, context: HostSurfaceContext): Promise<HostSurfaceActReceipt | void>;
+  /** Releases only this exact context's lease, even after its authority expired. Never releases a newer round's state. */
+  release?(context: HostSurfaceContext, ended?: HostSurfaceRoundEnd): Promise<void>;
   close(): Promise<void>;
   /** The name of what sits at a point of the page now (for the person's approval card); empty when nothing readable. */
-  describePoint?(x: number, y: number): Promise<string>;
+  describePoint?(x: number, y: number, context: HostSurfaceContext): Promise<string>;
   /** Browser: the retained node's current name for approval, using the same object check as injection; unavailable tokens reject. */
-  describeNode?(node: string): Promise<string>;
+  describeNode?(node: string, context: HostSurfaceContext): Promise<string>;
   /** The field that has focus now: its name, and whether it takes a password, card number or one-time code. */
-  focusedField?(): Promise<{ readonly label: string; readonly sensitive: boolean }>;
+  focusedField?(context: HostSurfaceContext): Promise<{ readonly label: string; readonly sensitive: boolean }>;
   /**
    * Whether a screenshot's bytes are ones this driver produced after covering password, card and one-time-code
    * fields. The Agent Host's redactor refuses any other screenshot (spec D10).
    */
   masked(bytes: Uint8Array): boolean;
   /** Desktop: whether looking and acting may happen at all right now; null when nothing stands in the way. */
-  readiness?(context: { readonly session_id: string | null }): Promise<{ readonly refusal: HostSurfaceRefusal; readonly detail: string } | null>;
+  readiness?(context: HostSurfaceContext): Promise<{ readonly refusal: HostSurfaceRefusal; readonly detail: string } | null>;
   /**
    * Desktop: whether one action cannot be taken back (send, pay, delete, submit), judged from what is at the point or
    * the keys, so even an app allowed for this round still asks for it.
    */
-  assess?(action: HostSurfaceAction): Promise<{ readonly irreversible: boolean; readonly why: string }>;
+  assess?(action: HostSurfaceAction, context: HostSurfaceContext): Promise<{ readonly irreversible: boolean; readonly why: string }>;
   /** Desktop: the app the surface shows now, for the person's approval card; null before any app is targeted. */
-  currentApp?(): Promise<{ readonly bundle_id: string; readonly name: string } | null>;
+  currentApp?(context: HostSurfaceContext): Promise<{ readonly bundle_id: string; readonly name: string } | null>;
   /** Desktop: the round about to use the computer names its goal and ids, so the record started on first look names them. */
-  describeRound?(sessionId: string, context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
+  describeRound?(context: HostSurfaceContext, metadata: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
   /** Desktop: the run id, known only once the round's run has started (after the surface was attached). */
-  noteRun?(sessionId: string, runId: string): void;
+  noteRun?(context: HostSurfaceContext, runId: string): void;
 }
 
 /** The side panel reports who drives the page; the Agent Host tells it when a round starts and stops acting. */

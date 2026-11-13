@@ -173,10 +173,21 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority);
-  const closeRuntime = onFailureClose(() => runtime.shutdown());
+  let runtimeClosing: Promise<unknown> | undefined;
+  const surfaceFailures = new Set<unknown>();
+  const closeRuntime = onFailureClose(() => runtimeClosing ??= runtime.shutdown().catch(error => {
+    // The SDK rethrows this exact Surface failure only after closing storage. A stopped state alone is insufficient:
+    // later run cancellation and subagent flushing may still fail, and their original owner must remain retryable.
+    if (!surfaceFailures.has(error)) runtimeClosing = undefined;
+    throw error;
+  }));
   const closeChecks = onFailureClose(() => checks.close());
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
+  const closeSurfaces = onFailureClose(async () => {
+    try { await surfaceHost?.close(); }
+    catch (error) { rememberSurfaceFailures(error, surfaceFailures); throw error; }
+  });
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
   if (surfaceHost && options.reviewQueue) for (const entry of options.surfaces!.siteDecisions()) if (entry.decision === "allow") surfaceHost.decide(entry);
   const credentials = new PrologueCredentialBridge({
@@ -223,15 +234,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
-      await closeMcp();
-      await closeInference();
       for (const controller of state.actionControllers.values()) controller.abort();
       state.actionControllers.clear();
-      await closeStepBoards(); await closeMessages(); await closeWaits(); await closeChecks();
-      await closeReviews();
-      await closeCheckpoints(); await closeGit();
-      await closeDelegations();
-      return closeRuntime();
+      await closeNodeResources(closeSurfaces, [closeMcp, closeInference, closeStepBoards, closeMessages, closeWaits, closeChecks,
+        closeReviews, closeCheckpoints, closeGit, closeDelegations, closeRuntime]);
     } });
 
   return Object.assign(new PrologueAgentAdapter({
@@ -260,6 +266,21 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });
+}
+
+function rememberSurfaceFailures(error: unknown, failures: Set<unknown>): void {
+  if (error instanceof AggregateError) for (const cause of error.errors) rememberSurfaceFailures(cause, failures);
+  else failures.add(error);
+}
+
+/** Surface cleanup can fail after an unknown write; other owners must finish before the Runtime they depend on closes. */
+async function closeNodeResources(closeSurfaces: () => Promise<void>, closers: readonly (() => Promise<void>)[]): Promise<void> {
+  const failures: unknown[] = [];
+  try { await closeSurfaces(); } catch (error) { failures.push(error); }
+  try { for (const close of closers) await close(); }
+  catch (error) { failures.push(error); }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) throw new AggregateError(failures, "Agent 资源关闭未全部成功；原未知结果仍需核对");
 }
 
 /** The runtime's own receipts, as the developer diagnostics page shows them. */

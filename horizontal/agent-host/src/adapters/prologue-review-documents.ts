@@ -5,11 +5,11 @@ import { GATEWAY_TOOLS, gatewayReview } from "./prologue-action-gateway.js";
 import { agentActionToolName } from "./prologue-action-tools.js";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import { mcpConnectionId } from "./prologue-mcp.js";
-import { allowDesktopAppForRound, desktopActionCard, type PrologueSurfaces } from "./prologue-surfaces.js";
+import { allowDesktopAppForRound, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { presentReview, presentToolReview, reviewField, reviewText, type ReviewWord } from "../review-presentation.js";
-import { surfaceActionWords } from "./prologue-surface-review-words.js";
+import { createSurfaceReview, type SurfaceReview } from "./prologue-surface-review.js";
 import type { createProjectWork } from "./prologue-project-work.js";
-import { readResource, readResourceText, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { readResource, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 import { prologueReviewReference } from "./prologue-review-decisions.js";
 import { inspectReviewEffect } from "./prologue-review-effects.js";
@@ -65,26 +65,6 @@ async function subagentCard(deps: ReviewDeps, pending: Pending, subject: { name:
   return presentToolReview({ kind: "tool-operation", tool: subject.name, summary: dispatch ? (separate ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求" },
     [...readable, reviewField("本次完整参数", JSON.stringify(args, null, 2), "exact-arguments")],
     [reviewText(dispatch ? (separate ? "dispatch-separate" : "dispatch-read-only") : "steer-subtask")]);
-}
-
-/** An action on the side panel's browser or the desktop: on which site or app, what, and which file. */
-async function surfaceCard(deps: ReviewDeps, pending: Pending, effect: Effect, subject: { surface: string; action: string; scope: string }): Promise<Card> {
-  const live = effect.state === "awaiting-approval" && pending.origin?.run && deps.state.activeRuns.get(pending.origin.run)?.live();
-  const surfaceHost = live ? deps.surfaces() : undefined;
-  const label = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
-  // A historical input has no trustworthy current focus. The SDK's saved summary
-  // deliberately omits its text, so never redraw it against a later surface.
-  const typed = live && subject.action === "text" && effect.proposal.reviewRef ? await readResourceText(deps.runtime, effect.proposal.reviewRef).catch(() => undefined) : undefined;
-  if (subject.surface === "desktop") return desktopActionCard(surfaceHost, pending.origin?.session ?? "", subject.action, subject.scope, label, typed, effect.proposal.kind);
-  const detail = surfaceHost ? await surfaceHost.describe(pending.origin?.session ?? "", subject.action, label, typed) : { raw: label, words: [label] };
-  const verbs: Record<string, string> = { pointer: "点击页面", key: "按键", text: "输入文字", navigate: "打开网址", wait: "等待页面", upload: "向网站上传本机文件", download: "把文件存到本机" };
-  const blank = subject.scope === "about:blank", where = blank ? "空白页" : subject.scope;
-  const site = blank ? reviewText("surface.blank-page") : where, action = surfaceActionWords(verbs, subject.action, "browser");
-  return presentToolReview({ kind: "tool-operation", tool: "surface-act", summary: `在 ${where} ${verbs[subject.action] ?? subject.action}` }, [
-    reviewField("网站", where, "site", { value: [site] }), reviewField("动作", verbs[subject.action] ?? subject.action, "action", { value: action }),
-    reviewField("详情", detail.raw, "detail", { value: detail.words }),
-    ...(subject.action === "upload" ? [reviewField("注意", "上传会把这个文件发送给该网站，确认前请核对文件", "warning", { value: [reviewText("surface.site-upload-warning")] })] : []),
-  ], [reviewText("surface.on-site"), " ", site, " · ", ...action]);
 }
 
 /** Stopping a background command has no review resource of its own: the card names the command it stops. */
@@ -188,6 +168,7 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"
 /** The pending port the approval bridge uses: read, whether it can be answered now, answer, and the card to show. */
 export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
   const { runtime, host, state } = deps;
+  const surfaceReviews = new WeakMap<Pending, SurfaceReview>();
   return {
     async read(ref) {
       const pending = await runtime.effects.pendings.read(ref);
@@ -207,16 +188,21 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
       // restored references never enter activeRuns and cannot be approved.
       const pending = runtime.effects.pendings.get(ref);
       const effect = pending?.effectRef && runtime.effects.get(pending.effectRef);
+      const run = pending?.origin?.run ? state.activeRuns.get(pending.origin.run) : undefined;
       return pending?.state === "open" && effect?.state === "awaiting-approval"
         && effect.pending?.ref.id === ref.id && effect.pending.ref.revision === ref.revision
-        && Boolean(pending.origin?.run && state.activeRuns.get(pending.origin.run)?.live());
+        && effect.proposal.origin?.run === pending.origin?.run && effect.proposal.origin?.session === pending.origin?.session
+        && Boolean(run?.live());
     },
+    finalPresentation(pending, document) { return surfaceReviews.get(pending)?.present() ?? document; },
     async answer(ref, answer, assertBeforeAnswer) { return runtime.effects.pendings.answer(ref, answer, await host.readClock(), { assertBeforeAnswer }); },
     async approvalAuthority(pending) {
       const run = pending.origin?.run && state.activeRuns.get(pending.origin.run);
       if (!run) throw new Error("原执行的持续授权不可读取");
       const effect = pending.effectRef && runtime.effects.get(pending.effectRef), subject = effect?.proposal.subject;
-      const selected = effect && subject?.what === "tool" && (subject.name === GATEWAY_TOOLS.change || subject.name.startsWith("molis-action-"))
+      const surfaceReview = surfaceReviews.get(pending);
+      if (subject?.what === "surface" && !surfaceReview) throw new Error("原界面审查内容未核对");
+      const selected = subject?.what === "surface" ? surfaceReview!.control : effect && subject?.what === "tool" && (subject.name === GATEWAY_TOOLS.change || subject.name.startsWith("molis-action-"))
         ? state.actionReviews.get(pending.origin!.session!)?.forEffect(effect).control : undefined;
       if (subject?.what === "tool" && (subject.name === GATEWAY_TOOLS.change || subject.name.startsWith("molis-action-")) && !selected) throw new Error("原能力审查授权不可读取");
       const original = subject?.what === "tool" && subject.name.startsWith("mcp:") ? await attemptOf(deps, pending) : undefined;
@@ -255,7 +241,10 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
         || effect.proposal.origin?.run !== pending.origin?.run) throw new Error("原始审查或执行归属不可用，不能批准");
       const subject = effect.proposal.subject;
       if (subject.what === "tool" && ["dispatch-subagent", "steer-subagent"].includes(subject.name)) return subagentCard(deps, pending, subject);
-      if (subject.what === "surface") return surfaceCard(deps, pending, effect, subject);
+      if (subject.what === "surface") {
+        const review = await createSurfaceReview(runtime, state, deps.surfaces(), pending, effect, subject);
+        surfaceReviews.set(pending, review); return review.document;
+      }
       if (subject.what === "tool" && subject.name === "command-stop") return commandStopCard(deps, subject);
       const action = subject.what === "tool" ? await actionCard(deps, pending, effect, subject) : undefined;
       if (action) return action;
@@ -267,13 +256,14 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
 
 /** The decision the person made on a review, kept in the session's index so it reads back after a restart. */
 export function createReviewMemory(deps: Pick<ReviewDeps, "index" | "options">) {
-  return async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
+  return async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt, assertPending?: () => void): Promise<void> => {
     const request = deps.options.reviewQueue!.get(receipt.review_id);
     if (!request) throw new Error("原审查请求不可读取，不能保存决定");
     const saved = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note,
       requested_at: request.requested_at, expires_at: request.expires_at };
     if (isDeepStrictEqual((await deps.index.read(sessionId))?.review_decisions?.[pendingId], saved)) return;
     await deps.index.update(sessionId, index => {
+      if (saved.status === "pending") assertPending?.();
       const previous = index.review_decisions?.[pendingId];
       // The initial mirror may finish after a fast user decision. It must not
       // replace that decision with its earlier pending snapshot.
@@ -289,11 +279,16 @@ export function createApprovals(deps: ReviewDeps, pendings: ProloguePendingPort,
   if (!queue) return undefined;
   return new PrologueApprovalBridge({
     queue, pendings,
-    async recordRequest(pending, request) { await remember(pending.origin!.session!, pending.ref.id, queue.receipt(request.review_id)!); },
+    async recordRequest(pending, request) {
+      await remember(pending.origin!.session!, pending.ref.id, queue.receipt(request.review_id)!, () => {
+        if (!pendings.canAnswer(pending.ref) || queue.receipt(request.review_id)?.status !== "pending") throw new Error("原等待已结束，不能新增待批投影");
+      });
+    },
     async allowAppForRound(pending) {
       const runId = pending.origin?.run, run = runId && deps.state.activeRuns.get(runId);
       if (!runId || !run || !run.live()) throw new Error("原轮次已结束，不能新增应用许可");
       run.assertAuthority();
+      deps.surfaces()?.reviewControl(runId, pending.origin!.session!, "desktop").assertCurrent();
       allowDesktopAppForRound(deps.surfaces(), pending.effectRef && deps.runtime.effects.get(pending.effectRef), deps.state.runRefs.get(runId));
     },
     async recordDecision(pending, receipt) {

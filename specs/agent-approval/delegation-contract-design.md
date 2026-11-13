@@ -104,6 +104,40 @@ Pages 现状只把 Goal 关联当字符串，`normalizeGoalId` 没有 Goals owne
 
 命中对象声明的普通调用不增加目录发现或目标读口请求：沿当前 AgentActionClient 的一次目录／检查结果计算；beforeEffect 保留原调用预算内的授权复核。持久存储只用原 SDK storage，不每调用重开数据库。连接的当前性仍由原连接 owner 检查，不为省读取而复制账号缓存。直接来源写入是本片新增的一次必要 CAS；同 effect 重复不产生第二条来源或第二次业务写入。
 
+### 2.4 Surface 原轮绑定细化（合同分项已合审，SDK 最终释放已授权）
+
+沿用现有 driver 与 SDK target，不增加持久化租约、代理服务或第二套审批。合同增加必填 `HostSurfaceContext`，只带原 `session_id`、`beforeEffect` 与同步 `assertCurrent`；同一个 context 对象同时标识一次原轮绑定。driver 的 identity、scope、observe、perform、描述、readiness、assess、currentApp 都显式接收它，不能只给 perform 加检查而让旧观察或审批描述去读取新轮。describeRound/noteRun/release 同样接原 context；release 是清理，允许控制已经失效，但只能清理持有同一对象的原轮。close 仍属于整个 driver 生命周期，单轮 target 关闭不关闭共享 driver。
+
+Agent Host 每次 attach 都创建新 SDK target；每个 target 闭包将原 Run 控制与自己的存活状态组合后传给 driver，资源读取完成后再次同步检查。同会话旧 target 不复用；沿用 `PrologueAdapter` 的 `startingSessions/latestEnded/withSessionHeld` 原子占位，不新增 Run owner；新 target 可见前旧轮已终态且旧 target 已同步失效。不同 session 的浏览器独占从 attach 预留时生效，不能等 afterStart 才登记 activeRuns。旧 close 先使自己失效，只比较并删除自己的登记。attach 在任一 await 后重新核对原控制及独占状态，失败则只释放本次已创建的 targets。返回的 `SurfaceAttachment` 自持 noteRun/release 闭包，从 roundBinding 到 afterStart 的失败和原 Run 结束都调用它，不从 session 当前 map 找新目标。审批描述按 pending 的原 run id 找绑定；读取 text 资源之后再核原 run/session/effect，失效只显示原摘要、不带正文或本轮允许选项。run id 到达只补元数据，不替换控制。桌面缓存同一个真实 driver，遮蔽截图白名单按活绑定保留，不能因旧 target 关闭而误删仍被新 target 使用的 driver。
+
+浏览器 driver 用同一 context 绑定当轮控制与节点集合，旧 release 不能清新观察、活动提示或空闲计时器。每个可能恢复导航的 ensure/session、节点读取、截图遮蔽、文件选择和 CDP 输入都把同步检查放到最后 await 后；页面活动通知现经 queueMicrotask 发出，检查仍放在实际 send 前。输入目标固定实际 session/target，不将旧预检结果送往后来弹出的窗口。按下事件在真实 send 边界记录“可能已派出”，响应丢失也只对原 session 做无文字、无命令、无点击数的必要释放；清理不能改新轮业务状态。截图遮蔽使用本次独立标记，旧 finally 不能删掉新截图的遮蔽；节点句柄释放同样只清原对象。
+
+桌面沿现有 ComputerDesk 的唯一 lease，持有原 context 而非仅 session_id；ready 等待返回后核原控制，记录、目标、进度、帧和最后注入时间的读写均绑定该 lease。原 helper 方法最终 socket.write 使用已落地的同步检查；检查包含原轮与原目标，失效后不新增失败业务记录。输入可能派出时即标记原轮，避免响应超时被误当作没有输入；已按下的原手势由 helper 在失败时配对释放，不发新业务输入。应用退出后不把已批准动作自动改投同 bundle 的新 pid；新进程须重新观察。本人暂停、释放及 UI 预览继续走现有 owner，但异步回调要固定进入时的 lease，不能污染后来同会话的 lease。监视关闭的最终写检查原监视代次，不能在新 lease 开始后迟到关闭。浏览器和桌面已发后的未知响应由 `HostSurfaceRefusalError.partial=true` 沿 SDK 原效果链进入核对，不以普通 failed 冒充未执行；实际派发前的拒绝须证明零物理输入；若原 SDK 已持久领取 permit，则保留该派发账的实际状态，不改写成 `not-dispatched`。
+
+分片与证据：先交原轮绑定合同和 Agent Host 消费者，再收浏览器与桌面各自真实派发边界；各片不冒充整链路验收。实际生产装配 `createPrologueSurfaces` 在 Agent Host 根命名导出，供 Host 装配与公共边界测试使用，不转出 SDK、不进插件 SDK；测试用其最小真实依赖形状控制 SDK attach/close 的交错，另由实际 Agent Adapter 用例覆盖 start 失败收尾。新增拒绝用例覆盖同会话换轮、旧 close/旧 release/失败启动、审批描述原 run、授权在资源读取或最后预检中失效，以及已派出的按下事件应有的原目标清理。中途只跑新用例；最终统一补全原 Surface、Computer 和 Agent 包规定的回归。
+
+审批等待与批准权限分开：原 SDK 仍持有同一 open pending/awaiting effect 且可接收拒绝时，原授权丢失或正文/焦点不可读只将卡片降为原摘要、去正文与本轮许可，仍可拒绝。缺少焦点读取能力、敏感输入框或浏览器原节点不可读同样只可拒绝；普通坐标保留原位置，桌面节点展示冻结的原 selector 与不可逆提示。输入正文沿既有字段完整展示，不截为前 2000 字；资源必须是有界文本，分块长度、offset、结束标记和 UTF-8 均核对。最终展示在最后 await 后同步重核，并在入队前再次核过期时间；批准处理器捕获这次卡的完整性与准确绑定，退级后不能因后来的授权恢复而批准同一摘要卡。伪造 `app-this-round` 请求在服务端写决定前拒绝；SDK 接受正常批准后，安装许可核原 Run/绑定与已冻结的资格，不再要求 pending 仍为 open。初次 pending 投影在原 session index 队列尾重核原 waiter 与队列当前回执（含过期状态），取消后不新增待批投影。通用子任务的人审仍按原 SDK pending/effect 与实际 live Run 判断，不额外要求仅主 Run 登记的 Surface map。
+
+临时检查失败不隐式 detach，也不把独占浏览器转给另一轮。停止意图尚在保存时，以原 stopping fence 暂拒新批准和操作；写失败可恢复同一绑定，成功接受停止后才永久释放。结束原因由真实终态/已接受停止给出。成功释放清空原 bindings 并断开原控制引用；失败才保留精确重试上下文。关闭时先封住新操作；Surface 失败不跳过原关闭链，但其他 owner 仍依原顺序关闭，任一失败就保留它依赖的 SDK 供明确重试。仅当 SDK 在关库后重抛与原 Surface 失败严格相同的错误对象时，缓存该失败；不能凭 stopped 状态、错误码或文案判断关库已完成。只有一个旧 closer 失败时保留原错误，两项同时失败才汇总。存储所有权只在实际关闭成功后归还。
+
+关闭故障证据区分三条真实路径：原 prepare 已写入但回应丢失，SDK 最终 drain 后仍保留原未知错误；原 cancel 回应丢失后，现有 Git recovery 读回原版本，SDK 对同一 id 再次提交取消并收到确认，后续明确 close 可完成（原取消在磁盘提交两次，只有第二次得到成功回执，不声称只写一次）；读回也失败时，SDK 在 pending 收尾处即拒绝、仍为 ready，不能冒充已完成最终 drain。三条都以实际隔离 Node 存储、原 effect id 与零物理输入为证据，未核明的原记录不能被删除或换成新操作。
+
+本片 Agent Host/SDK 采用工程证据：`security-invariants-surface-round.test.ts` 的 41 条与 `security-invariants-surface-close.test.ts` 的 3 条新增用例、两份测试的严格类型检查、Agent Host 构建及对 `origin/main` merge-base 的健康门禁通过；同一个 GPT-6.1 high 只读评审代理通过代码与公共合同合审，含完整长文本、原节点、不可逆提示、准确按钮/次数与关闭失败边界。真实 CDP、桌面 helper 派发和完整产品实操仍待各自下一片，不能据此视为已验收。
+
+<a id="25-sdk-surface-最终释放提案需用户批准红线例外"></a>
+
+### 2.5 SDK Surface 最终释放（用户已批准红线例外）
+
+当前实际使用包的 `UiControl.close` 只标 `open=false`，SDK target、observation 和 plan 索引持续持有 driver 闭包，surface-list 也继续列 closed 行。每轮新 target 会放大已有生命周期缺口。只把目标换成同 session 的稳定桥还不能解决：原 observation 可在新轮生成旧 scope 的待审提案，SDK 到 perform 才比 identity。解析工具结果首行并另记观察归属虽能加一道拒绝，但会增加安全协议与事件时序耦合，不采用。
+
+拟改动限定为原 SDK Surface owner 的最终释放，已由同一只读代理审过接口方向：保留现有 `close/get/list` 对 closed 行的默认合同，新增 `detach(ref): Promise<void>`。detach 同栈失效原 target，并移出公开 target/observation/plan 索引；重复 detach 成功，并发共享本次清理，不永久留 tombstone。正在执行的清理只留局部引用，完成后释放；不删已发布资源正文或历史 effect，它们仍由原 owner/GC 管。observe 在最后 stage/publish/register 前核原 target/epoch；prepare 在 assess 后和原 effect 写 lane 的最终保存前核，必要的同步控制接入原 chain，不以 await 前检查代替。已有尚未派出的原 effect 沿同一个 chain.cancel 取消并唤醒原 pending；detach 等这些取消收口，不另造审查或通知待批。perform 在原 claim 后、调用 driver 前再核，已进 driver 的动作保留原结果或未知结算。不得借该修复放宽已取消/撤权调用不再写业务记录的不变量。
+
+用户已于 2026-11-13 批准：从当前采用的准确源码建立隔离上游工作树，只实现上述 Surface 释放合同及拒绝用例；评审通过后制包并更新本批 vendor、完整性/来源记录、依赖与锁文件。保持原版本号，不发布、不动真实 Home 或其他工作树，不带入无关上游更新。新增证据覆盖原 close 行为、detach 重入、关闭时的 observe/assess/effect 保存/dispatch claim 交错、长会话不堆旧 target，以及原 pending/effect 的一次结算。生产 Surface 接线须等该生命周期边界及相应 driver 都完成后启用。
+
+失败边界：driver 关闭同一在途尝试共享，成功不重复；失败后显式释放可沿原 driver 重试。存储已接受但响应丢失时，不能把原记录当作从未存在；未核清的原准备 fingerprint/错误或 effect 引用持续保留，释放继续报错，由原 Runtime 恢复核对。SDK 关机先封住新的目标和释放请求，等待已开始的清理再关存储；未知清理不会被报告为成功。实际 Node 同栈提交前失效仍须证明零新 Effect/Pending 行。
+
+SDK 评审补充边界：`UiSurface.assertCurrent?()` 为原 target/epoch 追加进程内同步权限检查，原 observe/prepare/recheck/commit 临界点复用它，拒绝 thenable；失败不自动结束绑定。`SystemToolInput.surfaces.guard?` 是 `createSystemToolRunner` 的可选公开构造参数，捕获同一原 target/epoch；Runtime 装配从原 Surface owner 提供。工具在等待时钟后、保存输入正文前、读取与交付观察正文前后复核，公开构造的回调同样拒绝 thenable，不新增通用资源权限层或持久记录。源码、API 快照与真实 Node/系统工具拒绝证据随受控包一起评审；零新 Effect/Pending 不能单独证明零新正文资源或零正文交付。
+
 ## 3. 委托动作与可信入口
 
 公开服务仍放 `services/agent-host`，动作以 `agent.delegations.*` 登记一次。`prepare` 为只读候选，可供 Agent 提出范围；`grant/narrow/revoke/mode` 只给有权限的真人入口。输入只能选择工作引用和候选范围，actor、project、安装、工作 epoch、来源、grantor、声明摘要均由实际 owner 从可信上下文核出，不能接受客户端自报。工作引用也必须在原工作 owner 下验归属，不能用同名 id 代替。

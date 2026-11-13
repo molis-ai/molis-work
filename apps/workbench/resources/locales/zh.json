@@ -2140,7 +2140,7 @@
     "workbench.catalog-composer.finally-list-the-files-this-turn-changed-largest": "最后把这一轮改到的文件列出来，按改动大小排序，标出哪些是新文件，哪些只改了测试。",
     "workbench.catalog-composer.focus": "聚焦",
     "workbench.catalog-composer.for-attachments-a-file-over-the-limit-says": "附件那边，超过上限的文件要在附件条上当场写原因、可以移除，不要等到发送时才报错；读到一半取消的也要能重新选。",
-    "workbench.catalog-composer.holds-the-place-only-voice-input-is-not": "只占位置：语音输入还没有接上（第 54 批）。放在输入框底行右侧，停止和发送的左边。",
+    "workbench.catalog-composer.holds-the-place-only-voice-input-is-not": "只占位置：语音输入还没有接上（第 53 批）。放在输入框底行右侧，停止和发送的左边。",
     "workbench.catalog-composer.how-it-is-delivered": "送达方式",
     "workbench.catalog-composer.if-anything-along-the-way-needs-my": "如果中间遇到需要我决定的地方，先停下来问我，不要自己选。",
     "workbench.catalog-composer.if-anything-along-the-way-needs-my-decision": "如果中间遇到需要我决定的地方，先停下来问我，不要自己选；拿不准的写在最后，我一起看。",

@@ -130,15 +130,15 @@ export function codingUiView(directory: () => readonly CodingSessionEntry[]): Ui
  * the platform; a file opens with the platform's 「打开资料」 and shows in the side panel's reader (browser/main/files-face.ts).
  */
 function renderCodingFilesFace(p: CodingUiPrimitives): string {
-  return `<section class="coding-face-panel coding-files-face" data-coding-files-face hidden aria-label="${p.escape(p.text("coding.files.label"))}">
+  return `<section class="coding-face-panel coding-files-face" data-coding-files-face hidden aria-label="${uiText("coding.files.label")}">
       <template data-coding-files-icons><span data-icon="folder">${p.icon("folder")}</span><span data-icon="file">${p.icon("file")}</span></template>
-      <p class="coding-face-meta">${p.escape(p.text("coding.files.where"))}</p>
-      <div class="coding-files-where"><select class="mw-select" data-coding-files-folder aria-label="${p.escape(p.text("coding.files.folder"))}"></select><span class="mw-badge" data-coding-files-role></span></div>
+      <p class="coding-face-meta">${uiText("coding.files.where")}</p>
+      <div class="coding-files-where"><select class="mw-select" data-coding-files-folder aria-label="${uiText("coding.files.folder")}"></select><span class="mw-badge" data-coding-files-role></span></div>
       <p class="coding-face-note" data-coding-files-note></p>
-      ${renderButton({label:p.text("coding.files.back"),icon:"back",variant:"ghost",attrs:{"data-coding-files-back":"",hidden:true}})}
+      ${renderButton({label:uiText.text("coding.files.back"),icon:"back",variant:"ghost",attrs:{"data-coding-files-back":"",hidden:true}})}
       <p class="coding-face-note" data-coding-files-status role="status"></p>
       <div class="mw-dir__list coding-files-tree" data-coding-files-tree></div>
-      ${renderButton({label:p.text("coding.files.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-files-refresh":""}})}
+      ${renderButton({label:uiText.text("coding.files.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-files-refresh":""}})}
     </section>`;
 }
 

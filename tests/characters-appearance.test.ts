@@ -70,6 +70,7 @@ test("Characters is not among the plugins", () => {
   assert.doesNotMatch(without, /data-plugin-id="characters"|data-plugin-tile="characters"|>创作</);
   // 更多 now lists what the project could add: grey entries that open nothing, never a Character.
   const more = without.slice(without.indexOf(">更多<"), without.indexOf("data-rail-tools-toggle"));
-  assert.match(more, /data-plugin-tile="files"/);
+  // Files is retired (batch 06); Diff is one such entry for a project that has only Goals.
+  assert.match(more, /data-plugin-tile="diff"/);
   assert.doesNotMatch(more, /data-plugin-id=|data-plugin-tile="characters"/, "a plugin the project does not have opens nothing");
 });

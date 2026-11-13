@@ -124,6 +124,16 @@ async function fixture(t: import("node:test").TestContext, options: { freshMs?: 
 const ask = (f: { actions: ActionService; search: SearchService }, caller: ActionCallContext, query: string, extra: Record<string, unknown> = {}) =>
   f.search.query({ client: f.actions, caller }, { query, ...extra });
 const ids = (response: { hits: Array<{ subject: { id: string } }> }) => response.hits.map(hit => hit.subject.id).sort();
+/** Every document the index holds for one project, with its text: the catalog's pages, each entry read back whole by its key. */
+function indexedDocuments(index: ReturnType<typeof openTextSearchIndex>, project: string) {
+  const rows: NonNullable<ReturnType<typeof index.document>>[] = [];
+  for (let cursor: string | null = "0"; cursor !== null;) {
+    const page = index.catalog(project, cursor);
+    for (const entry of page.entries) { const row = index.document(entry.source_key, entry.kind, entry.object_id); if (row) rows.push(row); }
+    cursor = page.next_cursor;
+  }
+  return rows;
+}
 
 async function waitForBackground(done: () => boolean): Promise<void> {
   const deadline = performance.now() + 5_000;
@@ -430,7 +440,7 @@ test("BRC-04 · background refresh keeps scope fanout, live refusal and unregist
   memos[0] = next("memo");
   for (const provider of ["denied", "healthy", "shared", "memos"]) f.search.markChanged(provider, "a");
   t.mock.timers.tick(5);
-  const projectBodies = (project: string) => Object.fromEntries(f.index.documents(project).map(row => [row.object_id, row.content]));
+  const projectBodies = (project: string) => Object.fromEntries(indexedDocuments(f.index, project).map(row => [row.object_id, row.content]));
   const memo = f.index.sources().find(row => row.provider_id === "memos");
   assert.ok(memo);
   await waitForBackground(() => projectBodies("a").healthy === "new" && projectBodies("a").shared === "new"
@@ -462,7 +472,7 @@ test("BRC-04 · a second window keeps its latest revision and another project pr
   register(f.actions, b, { provider_id: "notes-b", project_id: "b" });
   for (const project of ["a", "b"]) assert.deepEqual(ids(await ask(f, owner(project), "Indexed", { scope: "project" })), ["note"]);
 
-  const revision = (project: string) => f.index.documents(project)[0]?.revision;
+  const revision = (project: string) => indexedDocuments(f.index, project)[0]?.revision;
   const first = holdNextProjectListing(t, f.actions, "a");
   try {
     a.notes.set("note", note(2));
@@ -503,7 +513,7 @@ test("BRC-04 · a late listing cannot restore an unregistered source", async t =
   } finally { held.release.resolve(); }
   await setImmediate();
   assert.deepEqual(f.index.sources(), []);
-  assert.deepEqual(f.index.documents("a"), []);
+  assert.deepEqual(indexedDocuments(f.index, "a"), []);
 });
 
 test("BRC-04 · an older directory preserves newly registered sources and a re-registered key", async t => {
@@ -542,7 +552,7 @@ test("BRC-04 · an older directory preserves newly registered sources and a re-r
   } finally { held.release.resolve(); }
   await earlier;
   await setImmediate();
-  assert.deepEqual(f.index.documents("a").map(row => [row.object_id, row.revision]).sort(), [["b", "1"], ["c", "2"]]);
+  assert.deepEqual(indexedDocuments(f.index, "a").map(row => [row.object_id, row.revision]).sort(), [["b", "1"], ["c", "2"]]);
   assert.equal(f.index.document(cKey, "note", "c")?.revision, "2");
 });
 
@@ -554,7 +564,7 @@ test("BRC-04 · a background window replaces an older foreground listing before 
   register(f.actions, a, { provider_id: "notes-a", project_id: "a" });
   register(f.actions, b, { provider_id: "notes-b", project_id: "b" });
   for (const project of ["a", "b"]) assert.deepEqual(ids(await ask(f, owner(project), "Indexed", { scope: "project" })), ["note"]);
-  const revision = (project: string) => f.index.documents(project)[0]?.revision;
+  const revision = (project: string) => indexedDocuments(f.index, project)[0]?.revision;
 
   f.tick(60_001);
   a.notes.set("note", note(2));

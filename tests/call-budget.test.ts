@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { readFileSync } from "node:fs";
 import { createRequire, registerHooks } from "node:module";
 import test, { type TestContext } from "node:test";
@@ -224,7 +225,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   assert.equal(rejected.discover, 0);
   const unsupportedKind = new URLSearchParams({ source: source.id, kind: "unsupported", id: file.subject.id });
   await refusal(previewPath + unsupportedKind, 400, /没有说明要预览哪个文件/u);
-  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "pages" });
+  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "pages", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   await refusal(previewPath + previewQuery, 404, /文件来源已经不在/u);
 
   if (process.env.MOLIS_WORK_CALL_BUDGET_REPORT === "1" && !process.env.CI) {

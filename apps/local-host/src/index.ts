@@ -46,7 +46,7 @@ export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, typ
 export { configuredModelChoices } from "./configured-models.js";
 export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismissUpgradeNotice, rollbackHrefFor, upgradeNoticeFor, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
 export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type UpgradeBlock, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
-export { pluginTablesDescriptor, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
+export { pluginTablesDescriptor, projectDatabases, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";

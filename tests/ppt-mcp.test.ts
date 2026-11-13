@@ -41,21 +41,23 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     assert.equal(edits.filter(result=>!result.isError).length,1);assert.equal(edits.filter(result=>result.isError).length,1);
     presentation=(await call(reader,'get',{id})).presentation;assert.equal(presentation.version,2);
     assert.deepEqual(JSON.parse((await call(reader,'export',{id,expected_version:2})).content),presentation);
-    const snapshotTitle=presentation.title;
     const db=openHomeSqliteDatabase(home,'ppt');
     try{
-      db.exec("CREATE TRIGGER fail_ppt_mcp BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
+      const sentinel = (await call(writer, 'create', { title: 'Constraint fixture' })).presentation;
+      const fixedSentinel = (await call(writer, 'promote', { id: sentinel.id, expected_version: sentinel.version })).presentation;
+      db.exec("CREATE UNIQUE INDEX fail_ppt_mcp ON presentations ((1)) WHERE artifact_version > 0");
       assert.equal((await writer.callTool({name:tool('promote'),arguments:{id,expected_version:presentation.version}})).isError,true);
-      assert.equal((await call(reader,'get',{id})).presentation.publication_pending.version,1);
+      assert.deepEqual((await call(reader,'get',{id})).presentation,presentation);
       const current=(await call(reader,'get',{id})).presentation;
       presentation=(await call(writer,'update',{id,expected_version:current.version,title:'Later edit',slides:[{id:'original-slide',title:'保留页',bullets:['真实内容'],notes:'两行\n备注'}]})).presentation;
-      db.exec('DROP TRIGGER fail_ppt_mcp');
+      db.exec('DROP INDEX fail_ppt_mcp');
+      await call(writer, 'delete', { id: fixedSentinel.id, expected_version: fixedSentinel.version });
     }finally{db.close();}
     await writer.close();await secondWriter.close();const restarted=await connect('a');
     const recovered=await call(restarted,'promote',{id,expected_version:presentation.version});
-    assert.equal(recovered.recovered,true);assert.equal(recovered.artifact.version,1);assert.equal(recovered.presentation.title,'Later edit');
+    assert.equal(recovered.recovered,false);assert.equal(recovered.artifact.version,1);assert.equal(recovered.presentation.title,'Later edit');
     const project=new LocalProjectDatabase(projects.a.database_path);
-    try{const library=openProjectVersionStores(project);assert.equal((library.artifacts.query.getArtifactVersion(projects.a.project_id,recovered.artifact)!.payload as any).title,snapshotTitle);
+    try{const library=openProjectVersionStores(project);assert.equal((library.artifacts.query.getArtifactVersion(projects.a.project_id,recovered.artifact)!.payload as any).title,'Later edit');
       assert.equal(library.artifacts.query.getArtifactVersion(projects.a.project_id,{...recovered.artifact,version:2}),null);
     }finally{project.close();}
     const store=openPptStore(home);try{assert.deepEqual(store.get(id,projects.a.project_id),recovered.presentation);}finally{store.close();}

@@ -112,7 +112,8 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     assert.equal(taken.status, 200, JSON.stringify(taken.body));
     assert.equal(taken.body.delegation.state, "completed");
     const materials = (await call("/sessions/A")).body.materials;
-    assert.deepEqual(materials.map((item: { kind: string; id: string }) => [item.kind, item.id]), [["artifact", artifactSubjectId(again.artifact)]],
+    assert.deepEqual(materials.map((item: { ref: { subject: { kind: string; id: string }; pin: { mode: string } } }) => [item.ref.subject.kind, item.ref.subject.id, item.ref.pin.mode]),
+      [["artifact", artifactSubjectId(again.artifact), "fixed"]],
       "what was taken is attached to the next round as a piece of project knowledge, at its fixed version (PMAT-18)");
 
     const late = await call(`/sessions/A/delegations/${id}`, "POST", { action: "cancel" });

@@ -3,7 +3,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { DATASET_NAME_COLUMN } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "./contract.js";
-import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
+import type { promoteDataset } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
 import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifact-preview.js";
@@ -21,13 +21,15 @@ const read = ["dataset:read"], write = ["dataset:read", "dataset:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; columns?: readonly DatasetColumnInput[]; rows?: readonly DatasetRowInput[] };
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return createActionDefinition<I, O>(`dataset.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) }, version);
+  return createActionDefinition<I, O>(`dataset.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" || name === "promote" ? { scheduling: "concurrent" as const } : {}) }, version);
 }
+const artifactPin = defineArtifactPinAction("dataset.artifacts.pin", /* @version action.dataset.artifacts.pin */ 1, "dataset", "数据表", [...write, "artifact:write"]);
+
 export const datasetActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: datasetArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("dataset.artifacts.pin", /* @version action.dataset.artifacts.pin */ 1, "dataset", "数据表", [...write, "artifact:write"]),
+  artifactPin: { ...artifactPin, action: { ...artifactPin.action, scheduling: "concurrent" as const } },
   /** Whether a pinned version still matches the dataset object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", /* @version action.dataset.artifacts.compare */ 1, "数据表", read),
   /** 「从这一版继续」 (A4b): a new 数据表 with the content of a pinned version; the version itself is unchanged. */
@@ -44,7 +46,7 @@ export const datasetActions = {
   versions: define<{ id: string }, { versions: DatasetVersionRecord[] }>("versions", /* @version action.dataset.versions */ 1, "版本列表", "读取当前表的本机快照；保留稳定版本 ID", "query", object({ id }), object({ versions: array(snapshot) })),
   snapshot: define<Identity & { note?: string }, { version: DatasetVersionRecord }>("snapshot", /* @version action.dataset.snapshot */ 1, "保存版本", "把当前表保存为可回滚的本机快照", "command", object({ ...identity, note: { ...text, maxLength: 80 } }, ["id"]), object({ version: snapshot })),
   rollback: define<Identity & { version_id: string }, { dataset: DatasetRecord }>("rollback", /* @version action.dataset.rollback */ 1, "回滚版本", "从当前表的指定快照恢复内容；保留发布引用与其他快照", "command", object({ ...identity, version_id: id }, ["id", "version_id"]), changed),
-  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.dataset.promote */ 1, "发布数据表", "把固定表内容存为成果，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.dataset.promote */ 1, "发布数据表", "把当前表内容固定为成果，本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   searchEntries: datasetSearchActions.entries,
   subject: datasetSearchActions.subject,
   files: datasetSearchActions.files,
@@ -59,20 +61,18 @@ export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActio
 export interface DatasetActionPorts extends DatasetStores {
   modelAvailability(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
-  publishArtifact?: (input: Parameters<DatasetPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetPublishArtifactPort>;
-  readArtifact?: (input: Parameters<DatasetReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetReadArtifactPort>;
-  lineHead?: DatasetLineHeadPort;
+  promote?(id: string, expectedVersion?: number): ReturnType<typeof promoteDataset>;
 }
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const { read, write } = ports;
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
-  // Each step of a pin (the intent, the 成果, the record of it) waits for the call's authority; the library and the 成果 service ask
-  // the original caller again in the same turn as each write, so a call cancelled or revoked between them leaves only the steps already done.
-  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteDataset(ports, caller, id, project(caller),
-    value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion,
-      readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead, beforePublish: () => caller.beforeEffect() });
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "dataset.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
+    project(caller);
+    if (!ports.promote) throw datasetErrors.unavailable("当前环境不能发出成果");
+    return ports.promote(id, expectedVersion);
+  };
+  const publishable = () => ports.promote ? { available: true as const } : { available: false as const, code: "dataset.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [
     datasetArtifactPreviewHandler,
     bind(datasetActions.list, (_, caller) => read(store => {

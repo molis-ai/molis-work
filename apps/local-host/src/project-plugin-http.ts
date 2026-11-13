@@ -2,7 +2,7 @@ import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { webEntryMessage } from "./entry-user-action.js";
 import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
@@ -44,7 +44,7 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
   if (runtimeUpdates) {
     const updates = record.platform.upgradeCandidates().map(candidate => ({
       ...candidate,
-      project_plugin_id: PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === candidate.plugin_id)?.project_plugin_id ?? null,
+      project_plugin_id: builtinPluginByManifestId(candidate.plugin_id)?.project_plugin_id ?? null,
     }));
     sendLocalWebJson(response, 200, { updates });
     return true;

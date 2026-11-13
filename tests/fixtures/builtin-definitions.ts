@@ -3,7 +3,6 @@ import { createCogniaPlugin } from "@molis-ai/molis-work-plugin-cognia";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createImagesPlugin } from "@molis-ai/molis-work-plugin-images";
@@ -23,7 +22,7 @@ import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
  * prompts and methods, which the Host registers while it runs; tests that check those texts read them here, one list for all of them.
  */
 export const BUILTIN_DEFINITIONS: readonly PluginDefinition[] = [createCogniaPlugin(), createCodingPlugin(), createDatasetPlugin(), createDiffPlugin(),
-  createFilesPlugin(), createFormPlugin(), createGitPlugin(), createImagesPlugin(), createIssuesPlugin(), createJellyPlugin(), createLingguangPlugin(),
+  createFormPlugin(), createGitPlugin(), createImagesPlugin(), createIssuesPlugin(), createJellyPlugin(), createLingguangPlugin(),
   createPagesPlugin(), createPptPlugin(), createSchedulePlugin(), createShelfPlugin(), createHomeShelfPlugin(), createTextStatsPlugin(), createTodoPlugin(),
   createWorkflowsPlugin()];
 

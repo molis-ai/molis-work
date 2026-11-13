@@ -246,6 +246,35 @@ export function assertPluginActionCurrent(instance: PluginInstance): void {
 }
 
 /**
+ * Asked by a service right before it reads for a Plugin, and again before it hands back what a read in another process returned
+ * (BL-943, BCC-10): the original caller must still be current, as for a write, but a read-only call may read and the read does not count
+ * as the write's check. Outside every action and job the installation's live grants, which each service checks itself, decide alone.
+ */
+export function assertPluginReadCurrent(instance: PluginInstance): void {
+  const scope = currentPluginInvocation(), turn = currentTurn();
+  // What the caller's checks look at (grants, the Home's catalog, a discussion's members) changes only from another request, which runs
+  // in a task of its own: within one turn the first read's answer holds for the rest, and only the call's own signal is asked again.
+  // A write still asks everything before every statement.
+  if (scope && readCheckedIn.get(scope) === turn && inPluginInstance(scope, instance)) { scope.caller.signal?.throwIfAborted(); return; }
+  assertCapturedPluginActionCurrent(scope, instance);
+  if (scope) readCheckedIn.set(scope, turn);
+}
+
+const readCheckedIn = new WeakMap<PluginInvocationScope, object>();
+let turn: object | undefined;
+
+/**
+ * The turn the code now running is in: the same object until the microtasks queued so far have run. Anything another request changes is
+ * changed in a later turn, so a check answered in this one holds until it ends.
+ */
+export function currentTurn(): object {
+  if (turn) return turn;
+  const started = turn = {};
+  queueMicrotask(() => { if (turn === started) turn = undefined; });
+  return started;
+}
+
+/**
  * A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. The
  * provider outcomes this call uses are checked again here too (`holdPluginResult`), before anything based on them is committed.
  */

@@ -6,19 +6,51 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceFileResult, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./workspace-git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
-import { readWorkspaceFile } from "./workspace-files.js";
+import { readWorkspaceFile, readWorkspaceWindow, type WorkspaceWindowPosition, type WorkspaceWindowResult } from "./workspace-files.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 
 /** Whether a folder of the project is on disk yet, checked before it is read (§3 「碰磁盘之前」); a folder the person chose always is. */
 export type PrepareProjectDirectory = (projectId: string, workspaceId: string, mode: "read" | "write") => { exists: boolean } | Promise<{ exists: boolean }>;
 
-interface ProjectCapabilityPorts {
+export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
   /** See `MolisWorkLocalHostOptions.prepareDirectory`. Absent, every folder a port answers is taken to be there. */
   prepareDirectory?: PrepareProjectDirectory;
+}
+
+/** Reads in the project's folders by the same folder authority the workspace read action uses: a whole file or directory, or one window of a long text file. */
+export interface ProjectWorkspaceFiles {
+  read(projectId: string, query: WorkspaceFileQuery): Promise<WorkspaceFileResult>;
+  window(projectId: string, query: { workspace_id: string; path: readonly string[] }, from: WorkspaceWindowPosition | null): Promise<WorkspaceWindowResult>;
+}
+
+/**
+ * The folder reads the materials service lists, previews and reads long files with (materials-ui-contract §4, §6). The caller's
+ * `workspace:read` and the folder's place in the project are checked by the action that calls them; here, as for the workspace read
+ * action, only folders the port grants are read, and a default output not made yet has no files.
+ */
+export function projectWorkspaceFiles(ports: ProjectCapabilityPorts): ProjectWorkspaceFiles | undefined {
+  const { workspacesFor, workspaceFor, prepareDirectory } = ports;
+  if (!workspacesFor && !workspaceFor) return undefined;
+  const granted = async (projectId: string, workspaceId: string) => {
+    const folders = workspacesFor ? await workspacesFor(projectId) : [await workspaceFor!(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const made = !folders.some(item => item.workspace_id === workspaceId) || !prepareDirectory || (await prepareDirectory(projectId, workspaceId, "read")).exists;
+    return { folders, made };
+  };
+  return {
+    async read(projectId, query) {
+      const { folders, made } = await granted(projectId, query.workspace_id);
+      if (!made) return query.kind === "directory" && query.path.length === 0 ? { outcome: "directory", entries: [], truncated: false } : { outcome: "missing" };
+      return readWorkspaceFile(query, folders);
+    },
+    async window(projectId, query, from) {
+      const { folders, made } = await granted(projectId, query.workspace_id);
+      return made ? readWorkspaceWindow(query, from, folders) : { outcome: "missing" };
+    },
+  };
 }
 
 const NOT_MADE_GIT = { outcome: "not-a-repository", message: "这个文件夹还没有建立，不是 Git 仓库" } as const;

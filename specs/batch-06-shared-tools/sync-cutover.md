@@ -1,0 +1,78 @@
+# Files 同步切换与旧设备恢复合同
+
+**现行版本决定（2026-11-09）。** 用户保留功能和代码范围，确认项目库 2、D1 6、公开过程项同步 1 均维持现有版本。本文定义封旧、播种和历史授权。公开请求到私有同步分区的路由、本地接管和同版本结构采用由[同版本采用](current-version-adoption.md)细化。
+
+状态：隔离实施合同（2026-11-09），产品与真实 Worker 验证未完成。本稿承接[共享需求书](spec.md)的 BSH-11／BSH-14，核对基点 `b60adfd66`；独立审查提出的配额、附件授权、旧队列、播种回读与 R2 回收问题，以及增量审查的旧端接管和读取尾检，均纳入本稿。用户已批准本次隔离实现与验证，真实部署、真实 Home 维护和云端迁移仍另约；公共 C 合审未由本地设计复核代替。
+
+## 范围与状态
+
+Auth 推导账号 space。仅适用公开集合 `N = ["io.molis.work.artifacts","molis","official-artifacts-binding","process_items",1]`。原 N 持久分区称旧流，服务端从账号封印的 cutoverId 派生的私有分区 A 称活动流。普通客户端只提交 N，A 由服务端路由。Rust owner 管策略、头、回执、容量、留存及附件。Host 和成果库 owner 校验、转换、接收业务图；D1 继续承载不透明传输值。普通策略、旧客户端、插件或页面不能自报可信来源。
+
+一条账号切换行保存封印、cutoverId、选择的 planId、剩余预留、历史读同意与其 revision、completedAt。无封印为 `open`，封印未完成为 `seeding`，有 completedAt 为 `complete`。completionHead 取本次专用 seed 回执的最大 revision，空集合为 0。旧源水位取原 N 的不可变回执末端，含 archive；源分页和 begin 同核 policy revision、水位及逐键活跃头。独立历史在封后按现行保留期读取，封前 pin、历史正文到期或 trash 清理无需另设历史 epoch。影响活跃图的任何新增、恢复或删除都推进原回执水位。
+
+| 请求 | 条件与结果 |
+| --- | --- |
+| `GET /v1/process-items/cutover` 和有界源分页 | 本人读取 `phase,policyRevision,sourceHead`，封后另有 `cutoverId,consentRevision,historyRead,completionHead,reservedBytes`。源分页返回精确 key/headRevision 和当前状态，后续每页核同一源观察。 |
+| `PUT …/plan/item` | 本人显式准备采用后，Host 逐键从旧流活跃头解码，按项目库同版本采用的 owner 规则转换，并以现行 owner 在隔离库读回完整图。请求带 `planId,expectedPolicyRevision,expectedSourceHead,key,sourceRevision,value,attachments`。Worker 核有界非空 wire，以实际事件序列化算正文计费字节、fingerprint 与附件描述，回传 canonical 冻结值。实际 plan INSERT／UPSERT 同核账号尚无封印、原 policy／源水位和旧活跃头，条件失效拒绝且不动计划。每账号同时仅一份 open 计划，每键一项；源变化须重读。计划 id 在封印时成为 cutoverId，重试定位相同输入。 |
+| `POST …/begin` | 输入 `planId,expectedPolicyRevision,expectedSourceHead,adoptProcessItems:true,allowRetainedRead:true`。同一次提交核本人选择、源水位、计划与旧活跃 heads 精确匹配、空 A及足额配额，预留后落永久封印并关闭旧流选择。活动流完成前不在普通 selections 中返回 N。旧源完全为空时，同一规则走零项计划；已撤选且仍有旧历史，先在 open 经本人原入口授权预检。配额、计划或 CAS 不符时留 open。begin 响应丢失按 cutoverId 读同一封印。 |
+| `POST …/seed` | 输入 `cutoverId,expectedPolicyRevision,expectedConsentRevision,key,sourceRevision,value,attachments`。实际插入核 seeding、有效同意、已冻 plan、旧活跃 exact key/revision、非空 wire、原 fingerprint、A 内 base=0、附件实际 ready 且来源合格。服务端派生专用 operationId，仅该入口带 seed 标志。精确重放原 receipt；改正文、来源或未在计划内均拒绝。 |
+| `…/seed-blobs/{reserve,chunk,status,complete}` | 转换新编码产生的附件字节（大正文按现行分块编码后的新 digest）只走这组入口：`cutoverId` 与 `expectedConsentRevision`（GET/PUT 用查询参数 `consentRevision`）加 `digest`，reserve 另带 `size`。每步与实际 reserve／part／ready SQL 同核 seeding、`adopting=1`、当前 consentRevision 和该 digest 在冻结计划中；reserve 的 size 须等于计划所记。字节进账号现有 blob 存储并按现有 chunk 校验，不另开账本；撤回同意后下一块、complete 与读回都拒，重授后续传同一上传。完成后计划已删，入口不再认任何 digest。 |
+| `POST …/finish` | Host 先经专用授权只读入口回读实际 seed，下载实际附件、校验 owner 并同封前图逐键比对。输入 `cutoverId,expectedPolicyRevision,expectedConsentRevision`。D1 逐旧活跃头 anti-join，核精确计划、非空 seed event、专用原 receipt、对应 A 内 live head、实际 ready refs 和预留结清。一次提交写 completedAt 并激活活动流。重复 finish 返回原结果。 |
+| `POST …/consent` | 本人输入当前 cutoverId、consentRevision 与新选择。撤回立即拒读和暂停 seed，已提交结果和预留保全；重授权接续原计划。无 scope 的普通 PUT 永远不能重选旧流，也不能覆盖活动流选择。完成前不开放活动流，完成后匹配 scope 的普通策略可关闭或重开活动流。 |
+
+begin、finish 用单条状态变更及其触发器，或用失败会 **ABORT 整组** 的 D1 batch。任何后续状态和 quota 更新均以成功条件为前提；单独的零行 UPDATE 不算断言。保留普通 `/v1/round` format 1。[D1 事务文档](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+
+## 预留、冻结值与恢复
+
+- 计划只有这一次切换的 key／源 revision／wire fingerprint／实际正文长度／附件描述。旧 outbox 属于原 namespace 和 base，且不是全集合；普通活动流 journal 用来接收和上传采用后的新业务，提前写种子会触发首轮接收冲突；receipt 只证明已提交。使用 scoped D1 计划行预存尚未提交的精确成员和计费事实，完成后删除正文计划和未封计划的暂存，长期只留封印、必要附件保护和原回执。
+- `begin` 按服务器实际计费预留：未播种的 canonical 正文 UTF-8 字节，加计划去重后的尚无已计费 ready generation 的 digest/size。就绪的同账号合法共享 digest 只计一次。已有同 digest 但 size 冲突、正在删除或未就绪时留 open，待现行上传／GC 结清再核。预留与封印、policy 写入同提交。普通事件／附件 admission 使用 `used + reserved + charge <= limit`；仅专用 seed 按计划从预留转实际使用。已有收据或同 generation 重用不重复扣费。计划所需、尚无同 size blob 的 digest 无论由 seed-blob 入口还是普通合法写先充入，admission 都扣除它自己的那份预留，插入同事务（`sync_blob_planned` 触发器）释放该预留，`used + reserved` 不变（2026-11-11 实现取此写法：普通写替计划充入的正是计划要的字节，不必先占未预留空间）。GC 删除仍为活跃计划所需的同 size digest 时，`sync_blob_refund` 同事务把实际退款转回该计划预留。始终维持实际已用加未兑现预留不超过上限。finish 只结清本计划；暂停保留预留。
+- Host 在 begin 前把 Worker 回传的 canonical wire 和新编码所需附件字节通过 `blobCache` 放入现有 `sync.db.sync_blob_parts`，使用由账号切换 planId 生成的专用 namespace；wire 用该 canonical 字节的稳定 fingerprint/digest 和长度，附件用现有 digest/size，仍按 part 和当前保护模式存取。重启从受权 plan 页重导 namespace 与 refs，复用同一缓存，不在 sync.db 增表或存指针。缓存核可读后才封，重启优先发送真实冻结值。缓存损坏或换机时，当前确定性 codec 可以从同一旧活跃源重建，但须同整段 wire fingerprint 和各附件 digest/size 逐一相等才发送。随机化或不可重现的 codec 在本切片不接入；未来接入须先证明冻结字节可靠续接。失权缓存保留在 owner 内，禁止交付。
+- 封前隔离 owner 回读 + 原 wire 绑定使正常产品路径无法在 seed 时提交另一正文。读回暂态失败保留同一收据，从原冻结值重传尚未完成的附件或重读，保留 seeding。若 owner 校验发现确定性产品缺陷，停住并保原 N 源、原冻结值、导出和 receipt，先排除 Worker 传输或读链故障。需要更换已提交正文时由 owner 单独裁定恢复，不改同 id 或把错误体发布到普通流。D1 无法证明有本人 token 的非 Host 客户端真的执行过 owner 校验；持本人 token 绕过 Host 可向其本人账号提交业务不合法的不透明值，仍受范围、精确字节、配额和封旧规则限制。正常 Host 收件必须在建项目之前拒绝。若独审要求也能自救，备选仅 seeding 内经同等 owner 预检的单键重备，CAS 撤下未公开的 A 内 provisional head/body、保旧 receipt、换新 op 并重新精算预留。先评估此信任边界，无可变通用 seed 机制。
+
+## 写入封锁、历史授权与 R2
+
+- 旧 `changes`、archive 和两类 restore 只在同账号、旧 namespace、原 operationId 与原 fingerprint／restore tuple 精确匹配时重放。现有 archive/history restore 的选择预检需让旧精确回执先行。新事件在实际 INSERT 拒；`history::pin` INSERT、`history::purge` DELETE、`maintenance::claim(explicit=true)` UPDATE 和 `blobs::{reserve,chunk,complete}` 的实际 reserve／part／ready SQL 同核 scope 与当前许可。旧已存在 reserve 或 purge 的提前返回也检查封印。seed 附件绑定当前 consent 与计划中的精确来源。
+- begin 同一事务标记当前有旧流事件真实引用的 blob generation；旧事件到期后标记留到该 generation 的实物回收，防止 D1 删除最后旧 ref 后到 R2 清理之间泄漏。历史 GET 只凭本次 live grant、仍可读的旧 key/revision、精确 attachment ref 和同世代读取；在 R2 await 后、Host cache 命中交付前再次核。普通其他 namespace 若已经有该集合当前可读的合法 ref，继续使用和新挂；否则状态／chunk GET、空字节 reserve 重用与 `sync_events_validate` 新挂全拒绝。活动流 seed 可凭同一授权与实际引用该 digest 的旧活跃源复用；计划提前核，缺合法来源时留 open。账号里尚无该 digest 的引用视为转换新产生的字节，只能经 seed-blob 入口按实际字节上传；已有 blob 而该键旧源未引用的 digest 拒绝（`SYNC_BLOB_NOT_READY`），同一计划内同 digest 不同 size 拒绝（`SYNC_BLOB_CONFLICT`）。新挂不能用已知 digest/size 当持有证明。首选用现有合法来源，若夹具发现必须支持已有字节却无来源的合法复用，备选仅对本次受保护摘要用现有 chunk 校验收取真实字节，发给同 generation／namespace／operation 的短时附加许可；没有普通集合的全局来源账本。
+- 独立旧历史复用 `history` 和下载 codec，发现并导出保留期内真实 archive/restore、action/sourceRevision、正文和附件。从空隔离项目经 owner 验导出可恢复。旧正文由实际 SQL 同核账号、当前历史 grant、留存资格和精确 event；普通旧流 changes 在 SELECT 时核仍选中且未封。普通 trash 在分页前过滤该账号已封的旧集合。普通旧流附件 GET、以及同账号其他集合读取受保护世代的 GET，均在 R2 返回前复核当前选择、实际 generation 和该集合合法可读 ref；状态查询同核。合法既有他集合引用继续可读，晚到封旧／撤权／换世代时丢弃结果。撤权拒新读，先前合法导出的副本不回收。Seeding 期间旧活跃头保持可重读；旧 trash、被替换版本和已有 pin 沿现有期限。完成后，维护另选 `completedAt + 30d` 已到、旧流中未 pin 的 **当前**正文，绕开现行 skip-current 分支，保留 old head 和 receipt，附件仅在最后有效 ref 消失后按原 R2/配额流程清理。过期立即拒读取。
+- R2 首选保 `space/digest/generation/part/checksum`，无新 metadata。分块实际发布核 current grant、generation、未 deleting 且 ready=0。就绪后 part/checksum 只读。带本次封印的账号，有界 orphan scan 除现有无世代回收外，仅在确认同世代已 ready 且已固定 part 的 checksum 不同才删该准确对象；同 checksum 的共享对象保留，未就绪世代沿既有无引用 24h GC。败方不能仅因自己未写成 D1 就删共享路径。若真实夹具不能证明世代／checksum 条件足以安全定位，才复核 metadata 或私有暂存方案。[R2 Worker API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)
+
+## Home 采用顺序
+
+1. 原构建、原项目库 schema 2 和旧流选择跑原 `PersonalSync.run()`，排空发起端冻结及未冻结队列，查项目 conflict/recovery、sync.db deferred 和真实 partition cursor。进入 Home 维护写屏障，停旧 producer 和同步；受信 owner 锁下用原基线只读预检再核，当前 Host 的普通入口拒绝打开旧布局或发送旧流。新代码只通过限定只读源端口准备／回读远端图；若旧流 head 变化，刷新原观察和整份计划。
+2. 脏旧端先走本人受保护的同步设置「保全旧过程项」，由显式隔离采用入口持 Home owner 锁，在采用前以原 owner 合同读精确旧 schema 2 项目和 sync.db v1。缺受权恢复件时，受影响项目保留待处理，普通启动不拉云端或自动改属；本人重进该维护入口才重核这一项。逐键读取 `replica_changes` 的 seq/key 对应原 owner 完整图或删除意图、冻结 outbox 的原 value/id/base/through_seq、conflicts/recovery；sync owner 读旧 namespace 的 deferred 原事件、stream/partition cursor、必要已存 parts，保旧逐键 head。不能调 `next()` 代替读取；已写丢回执只可按原编码精确查回执，跳过 reserve。
+3. 最小恢复件为 `sync/process-items-recovery/<captureId>.jsonl`，由 `modules/sync-replication` 在原 Home 私有发布；captureId 由 owner 产生，页面不给路径。过程项 owner 供应图，Storage 供应队列证据。头写 `format:1`、原 Home/space、公开 N 和原流身份、cutoverId 与源库版本；按项目/key 写图或删除意图、原操作、冲突及恢复、deferred/cursors，必要 parts 逐块保留实际字节、现有 checksum 和保护绑定。用既有私有临时文件、原子发布，旧件不覆盖。重开核版本、原 Home/space 和项目，再逐键与旧库核正文、意图、队列、分块，并验证图能由现行 owner 在隔离库回读。缺必需 parts 时只按当前授权补，无法回读则保原库并停对应接管。登记 `format.sync.process_items_recovery`，随 `SYNC_HOME_STORE` 走现有设备同步数据的 preserve 分类。恢复件不含凭据，只能经同空间的接管入口消费，旧流队列原样保留。恢复件独立于 U1 会被轮替的临时快照。
+4. 远端 complete 后，本人确认已验证恢复件，显式采用持真实 Home owner 租约，用项目 v2 同版本事务复核，terminal 比对在改属前做。会遮住新版头的本地分支或旧 terminal 活跃图，只在已验证件涵盖且本人选择接收新版时由过程项 owner 移出活跃读面，相关失效输出由 Runtime owner 处理；任何无法保全或安全隔离的键拒采用。活动流 journal 从空开始，转换和种子不记普通 changes。Files 转换仅匹配精确官方 producer/binding/type/schema，保原 ref、作者、正文和历史；活动流 `prepare` 在建项目之前拒旧 Files 与冒用系统来源。
+5. 先 download-only 逐键核 A 内 heads、实际 partition、deferred/conflicts 及旧 terminal 无活跃行，completionHead 只作下限。本人在同步设置查看原件和当前图，显式选「接管」才可由 owner 导入同义完整图，按实时授权与活动流 base CAS 走普通新操作；已相同则无新增。冲突／terminal 原件保留，用户可保当前或另选合法的新操作／新身份；删除意图仅在现行 owner 支持相应动作时重做。旧流 id/base/cursor 不进活动流，旧 terminal 原 key 首写 SQL 永拒。
+
+## 实施面与验收
+
+同一根仓。服务端限 `server/src/sync` 与 `server/migrations/sync`，App 保持薄入口。保留原 D1 v6 `0001_sync.sql`，新增同版本结构采用 SQL，空库与显式隔离采用共享同一脚本。Auth 前同时验 v6 和精确现行结构。Host 使用 PersonalSync、原 owner、同版本隔离维护与受保护同步设置入口。当前保留机制登记限定转换、只读历史、精确原回执及删除条件。真实窗口需排空旧 Worker 的全部请求和 cron，旧 reserve SQL 无 namespace。
+
+| 独立复核 | 隔离验收 |
+| --- | --- |
+| BSH-14-A 原子封旧与配额 | 改旧 event／archive head 或 policy 时 begin 拒且无部分变更；贴近上限时不足保持 open，刚好足额能在并发普通写、GC 退款、丢响应、取消及重启后续播；复用不多收费。证明 completedAt 到期实际清旧当前正文，保已有 pin 和原 receipt。 |
+| BSH-14-B 权限与附件 | 真实 Worker 中两个账号与同账号另一个已选 namespace 直挂已知 digest 及读／reserve 均拒；已有合法引用仍可用。旧正文实际 SQL、普通 trash 分页和普通旧流／他集合 R2 GET 尾检均覆盖。历史 grant 撤回跨 R2 await 与 Host cache，正文/附件不交付；旧精确回执零新增；已过预检的 plan/item 和其他旧 mutation 封后仍拒。 |
+| BSH-14-C 图的真实性 | 漏键、错 key/source、非空约束、错 wire、未就绪引用、A 内 live head 不符都拒。实际回读旧 archive/restore 导出及新版种子，含 Files 固定版本、非 Files owner、跨页和大正文。 |
+| BSH-14-D Home 恢复 | 双 Home 用真旧库保全并重开未冻原值／删除意图、冻结操作、冲突恢复、deferred/cursors/parts。验缺件拒采用、有效件且本人选择后 terminal 隔离、从空活动流 journal 启动、读齐新版后本人逐键接管和原键不复活。 |
+| BSH-14-E R2 并发与清理 | 注入 precheck／R2 put 后 seal 或撤权；D1 part/ready 不发布。随后让另一集合完成同摘要并验证正常读回；败方 checksum 可清，精确共享对象保留。 |
+| BSH-14-F 迁移与运行边界 | 真实 D1 v6 和项目 v2 同版本采用保原事实，拒错版和混形，夹具加载同源采用 SQL；D1 批内失败必须整体回滚。 |
+
+独立裁定允许 writer 做隔离原型。交片前须有三组真实证据：① D1 v6 同版本采用与 quota 边界、GC 回补、并发、重启及清计划缓存后的精确重建；② R2 PUT／GET 跨 seal／revoke、已就绪败方清理与共享 checksum 读回；③ 双 Home 脏旧端保全、重开、拉齐与本人接管。公共 C 另行合审。
+
+设计时本机缺固定 Worker 工具链；2026-11-09 已在临时目录安装 Rust 1.96.0／wasm32、worker-build 0.8.6、wasm-bindgen 0.2.128、该构建器指定的 esbuild 0.28.2，以及仓库锁定的 Miniflare/workerd。保留 Node 24.15.0，未改锁文件或全局工具。`00367bef9` 的现行 Rust/WASM 基线构建通过，`apps/sync-worker/cloud.test.mjs` 7/7 通过，使用 synthetic Auth 和临时 D1；独立工具冒烟实际写读临时 D1/R2 后关闭。Miniflare 首次直用旧构造选项被拒，按仓库已有 `convertV4MiniflareOptions` 后通过，没有修改产品或夹具。
+
+随后在 `9e8583022` 整体构建 Host，通过 `apps/sync-worker/process-items.test.mjs`（1/1、零跳过）：两个临时 Home 使用真实 Host collection、Rust/WASM、D1/R2，完整传输大正文和后续固定版本，归档状态一致、无上传回声，接收不启动 Coding。使用合成 Auth，不涉及真实账号或云端。构建只使用临时编译缓存及 ad hoc helper 签名，保留既有 xterm 构建警告。
+
+这些结果只证明当前 v6 Worker 与双 Home 测试环境可用，未覆盖本稿新增的预留、跨 namespace 附件防护、同版本结构采用或旧设备接管。更早的 Files 专项 Host 探针只用模拟运输和现行 Rust SQL，不能与上述现行版本基线合并宣称新协议通过。Rust 原生 CI 覆盖两 crate 的 wasm32 编译检查，Worker 测试另用 `cloudFixture`、D1/R2 不持久化，机器 slot 各一份，Node `--test-concurrency=1`。仅本地迁移使用 `--local --persist-to <tmp>`。
+
+## Host 一侧实施（2026-11-12）
+
+- 切换前过程项不移动：`PersonalSync` 对公开 N 不建本地 lane，不发不收、也不读旧流；状态只显示等待原因，项目删除仍按两个过程项日志（原日志与采用后日志）的未结算计数拒绝越过本机未发内容。旧选择不需改写。
+- 本机「已采用」记为 `sync.db` 的 `sync_stream_cursors` 一行，名字是 `[spaceId,cutoverId,"process_items_adopted"]`（初值 0），不新增表。只有带这一行的 Home 才在每次引擎运行时读一次 `GET /v1/process-items/cutover`；其余 Home 的空闲轮仍只有一次请求。采用后的游标、失败、附件缓存与保护都按该 lane 记，请求仍写公开 N，并带 `X-Molis-Process-Items-Cutover` 范围头。
+- 采用后的 lane 从空开始；游标低于 completionHead 时这一轮停在「接齐」之前，不上传本机内容。
+- `processItems.cutOver()` 跑本稿的计划、封印、播种、读回与完成；它不采用。`processItems.adopt(cutoverId)` 只接受服务端报告已完成的同一 cutoverId，写入上面的 lane 行。项目库的同版本采用（`adoptProjectDatabase`）仍是独立的维护步骤。
+- 转换由过程项 owner 做：Files 身份及每个版本里的 producer 副本改为平台资料（`system.materials`），版本自己的 `producer_plugin_version`、作者、正文与时间不变；随后在临时目录的现行项目库里回读。活动流收件在建项目前拒 Files 来源和冒用系统来源。
+- 证据：`apps/sync-worker/process-items-cutover-host.test.mjs`（真实 Rust/WASM、D1/R2、两个临时 Home，旧 Host 编码写入旧流的 Files 大正文与 Coding 计划；完成后重跑得同一结果；新附件只经播种入口上传、预留结清；Home B 只从活动流收到转换后的图，无上传回声）与改写后的 `apps/sync-worker/process-items.test.mjs`。同步设置页面（H6）尚未实施。
+- 恢复件与接管（BSH-14-D，2026-11-12）：`captureProcessItemsRecovery` 在维护窗口持 Home owner，逐项目读原过程项日志（state、changes、heads、outbox、conflicts、resolutions 原样）和其中每个键在本机的完整图（不存在的记删除意图），连同 sync.db 里公开 N 的失败、延迟事件、游标、保护模式、上传记录与缓存分块，写成 `sync/process-items-recovery/<captureId>.jsonl`（`format.sync.process_items_recovery` 第 1 版；私有临时文件 fsync 后硬链接发布，同号不覆盖；末行封住行数与摘要）。没有 sync.db 的 Home 不为读取建库。`verifyProcessItemsRecovery` 重开时核空间与库版本、原日志逐行不变、图的键正好是未结算的键且现行 owner 在临时库读回一致、N 的同步行不变（缓存分块可少可多，仍在的必须相同）。原布局项目的原日志若有未上传变更、冻结上传、冲突，或 N 对该项目有失败／延迟事件，采用程序只在给了覆盖该项目、刚核过的恢复件时才采用；只有本机原样的变更也算，因为采用后它们不会再从旧流走。接管（`processItems.takeOver(captureId, keys?)`）只在本机采用了同一 cutover、读到 completionHead 之后：活动流已把该键收成冲突的交给原有冲突处理（本人选「保留本机」即在活动流头上写本机版本），已收到的不动，本机仍有而活动流没有的作为本机新写入排队，本机已没有的保留原样；只能接管恢复件里的键。证据 `tests/process-items-adoption.test.ts` 与 `apps/sync-worker/process-items-takeover.test.mjs`（真实 Worker：旧布局脏设备、B 端切换、采用前拒、保全后采用、三种接管结果、冲突本人保留本机后 B 收到第 2 版）。恢复件里的分块与延迟事件目前只作保全证据，接管不重放它们。
+- 同步设置里的四步（2026-11-12，用户弹窗定样「Inline steps」）：同步设置在「同步内容」下加「过程项同步切换」一节，四行依次是 ① 切换（任一设备一次）② 保全本机未上传的过程项 ③ 采用本机项目库并接上新流 ④ 接管保全的过程项，每行写状态，只有轮到的一步有按钮，按下先经确认框。宿主一侧是 `apps/local-host/src/process-items-maintenance.ts`，入口 `GET /api/sync/process-items` 与 `POST /api/sync/process-items/{cut-over,capture,adopt,take-over}`（只经同步设置的同一道本机控制校验）。保全与采用都在同步引擎的 `processItems.maintain` 里跑，期间没有同步轮次；采用只处理还有东西要搬的项目库，每个项目先关闭运行时并用 `withPassiveProjectChange` 挡住新操作，再带最新一份仍与本 Home 相符的恢复件采用；有任一项目被拒时本机不接新流、不撤同意。全部成功后接上新流（`processItems.adopt`），再按 H5 撤回 Files 自己的同意。接管用同一份恢复件，结果按相同、已排队、冲突给出，冲突进入原有的「同步冲突」处理。没选过程项同步、切换也没开始的空间不显示这一节；没有个人同步的 Home（本地空间）的项目库采用不在这里，随 Files 删除前的维护窗口处理。证据：`apps/sync-worker/process-items-maintenance.test.mjs`（真实 Worker，两个临时 Home：切换前本地步骤被拒、未保全先采用被拒且不接新流、保全后采用只关闭要搬的项目、接上新流并撤回 Files 同意、接管得相同与新写入，另一台设备收到）与 `tests/personal-sync.e2e.test.ts` 的 BSH-14-D 页面用例。
+- 从没同步过的 Home（用户 2026-11-12 定「带过去」）：这台 Home 从没参与过旧流时，原日志里的待上传键不算「未落定」，采用时按首次记录顺序抄进新日志、保持未上传，不需要恢复件；参与判断看 sync.db 对公开集合的全部痕迹与该库原日志的 head、冻结上传、冲突、恢复记录和游标，任一存在即按参与过处理，照旧要恢复件。

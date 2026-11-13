@@ -7,16 +7,13 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from 
 import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { initializeBoard } from "./fixtures/goals-board.js";
 
+import { openTestHome } from "./fixtures/test-home.js";
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
-  const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
+  const { home, host, createProject } = await openTestHome(t, { host: { completeText }, catalogPolicy: true });
+  const { reference: ref } = await createProject("Dataset actions", ["dataset"]);
+  const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
 }
@@ -67,29 +64,29 @@ test("W5-01-DATASET-01: Dataset registers all business actions; snapshots, CSV a
   await invoke("delete", { id: dataset.id }); assert.deepEqual((await invoke("list")).datasets, []);
 });
 
-test("Dataset publication recovers original Artifact after restart without replacing newer edits or another actor", async t => {
-  const { bound, home, host, ref, client, caller } = await fixture(t);
-  const { dataset } = await bound.invoke(actions.create, { title: "Publication v1" });
+test("BSH-03 Dataset refuses the joined row write and the next pin uses the edited draft", async t => {
+  const { bound, home, host, ref } = await fixture(t);
+  const { dataset } = await bound.invoke(actions.create, { title: "Initial draft" });
+  const id = dataset.id, sentinel = (await bound.invoke(actions.create, { title: "Constraint fixture" })).dataset;
+  await bound.invoke(actions.promote, { id: sentinel.id });
   const db = openHomeSqliteDatabase(home, "dataset");
   try {
-    const sentinel = (await bound.invoke(actions.create, { title: "Published constraint fixture" })).dataset;
-    await bound.invoke(actions.promote, { id: sentinel.id });
     db.exec("CREATE UNIQUE INDEX fail_publication ON datasets ((1)) WHERE artifact_version > 0");
-    await assert.rejects(bound.invoke(actions.promote, { id: dataset.id }), /UNIQUE constraint failed/);
-    assert.equal((await bound.invoke(actions.get, { id: dataset.id })).dataset.publication_pending!.version, 1);
-    await assert.rejects(bound.invoke(actions.delete, { id: dataset.id }), { code: "dataset.publication_pending" });
-    const edited = (await bound.invoke(actions.update, { id: dataset.id, title: "New local edit" })).dataset;
-    await assert.rejects(client.invoke({ ...caller, actor_id: "another-user" }, actions.promote, { id: dataset.id }), { code: "dataset.publication_owner" });
-    db.exec("DROP INDEX fail_publication"); await host.closeProject(ref);
-    const restored = await bound.invoke(actions.promote, { id: dataset.id, expected_version: edited.version });
-    assert.equal(restored.recovered, true); assert.equal(restored.dataset.title, "New local edit"); assert.equal(restored.dataset.publication_pending, undefined);
-    await host.withProject(ref, runtime => {
-      assert.equal((runtime.artifacts.query.getArtifactVersion(ref.project_id, restored.artifact)!.payload as any).title, "Publication v1");
-      assert.equal(runtime.artifacts.query.getArtifactVersion(ref.project_id, { ...restored.artifact, version: 2 }), null);
-    });
-    const next = await bound.invoke(actions.promote, { id: dataset.id }); assert.equal(next.artifact.version, 2);
-    await host.withProject(ref, runtime => assert.equal((runtime.artifacts.query.getArtifactVersion(ref.project_id, next.artifact)!.payload as any).title, "New local edit"));
+    await assert.rejects(bound.invoke(actions.promote, { id }), /UNIQUE constraint failed/u);
+    assert.deepEqual((await bound.invoke(actions.get, { id })).dataset, dataset);
+    assert.equal(await host.withProject(ref, ({ artifacts }) => artifacts.query.latestArtifactVersion(ref.project_id, "dataset-" + id)), null);
+    db.exec("DROP INDEX fail_publication");
   } finally { db.close(); }
+  const edited = (await bound.invoke(actions.update, { id, title: "Later edit", expected_version: dataset.version })).dataset;
+  await host.closeProject(ref);
+  const pinned = await bound.invoke(actions.promote, { id, expected_version: edited.version });
+  assert.equal(pinned.recovered, false);
+  assert.equal(pinned.artifact.version, 1);
+  assert.equal(pinned.dataset.title, "Later edit");
+  assert.equal(pinned.dataset.publication_pending, undefined);
+  const first = await host.withProject(ref, ({ artifacts }) => artifacts.query.getArtifactVersion(ref.project_id, pinned.artifact));
+  assert.equal(first?.title, "Later edit");
+  assert.equal((await bound.invoke(actions.promote, { id })).artifact.version, 2);
 });
 
 test("Dataset deletion rolls version removal back when the SQL boundary refuses an undeclared trigger", async t => {

@@ -278,9 +278,9 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
     const report = await platform.start([{ definition: definition("Directory fixture") }]);
     assert.ok(report.running.includes(pluginId), JSON.stringify(report));
     const running = runningPluginDirectory(platform.supervisor);
-    const files = running.find(entry => entry.id === "files")!;
-    assert.equal(files.chosen, true, "a built-in is chosen by the project's plugin list, under the project key the catalog gives it");
-    assert.deepEqual(files.ui.views, BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "files")!.manifest.ui.views, "it declares what its Manifest declares");
+    const diff = running.find(entry => entry.id === "diff")!;
+    assert.equal(diff.chosen, true, "a built-in is chosen by the project's plugin list, under the project key the catalog gives it");
+    assert.deepEqual(diff.ui.views, BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "diff")!.manifest.ui.views, "it declares what its Manifest declares");
     const fixture = running.find(entry => entry.plugin_id === pluginId)!;
     assert.deepEqual([fixture.id, fixture.chosen, fixture.name], [pluginId, false, "Directory fixture"], "an installed plugin has the same shape, keyed by its Manifest id");
     // The directory the shell is given keeps every built-in's rail declarations whole once taken in.
@@ -290,7 +290,7 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
     // RAC-609: a plugin turned off leaves the directory at the next read.
     platform.supervisor.revoke(pluginId);
     assert.equal(runningPluginDirectory(platform.supervisor).some(entry => entry.plugin_id === pluginId), false, "turned off, it has no entry");
-    assert.ok(runningPluginDirectory(platform.supervisor).some(entry => entry.id === "files"), "the others stay");
+    assert.ok(runningPluginDirectory(platform.supervisor).some(entry => entry.id === "diff"), "the others stay");
   } finally {
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
@@ -353,7 +353,9 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   assert.equal(parsed.find(entry => entry.id === "pages")?.accepts_objects, true, "a built-in the Host did not list is the market's, read the same way");
   assert.deepEqual(clientPluginDirectory(builtinPluginDirectory()).map(entry => entry.id), ["artifacts", ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id)]);
   assert.match(CLIENT_SCRIPT, /script\[data-plugin-directory\]/u);
-  assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"/u);
+  // The two platform tabs (成果, and 资料 since batch 06) lead; every plugin after them comes from the page's directory, never a literal.
+  assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"(?!materials")/u);
+  assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"materials",\s*"/u);
 });
 
 test("RAC-607 the rail lists an installed plugin under the group its view names, the one that names none under 更多", () => {

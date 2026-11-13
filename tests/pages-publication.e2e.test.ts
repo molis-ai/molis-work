@@ -8,7 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
-  test(`Pages ${width}px: interrupted publication survives reload, resumes its original snapshot and keeps later edits`, { timeout: 90_000 }, async t => {
+  test(`Pages ${width}px: an interrupted pin leaves no partial version, and a new pin after reload includes later edits`, { timeout: 90_000 }, async t => {
     const browser = await openGoalBrowser(t, true, undefined, null);
     if (!browser) return;
     const {evaluate, waitFor, click} = await pluginFrameBrowser(t, browser, "pages");
@@ -37,26 +37,28 @@ for (const width of [1440, 390]) {
       pages.update(sentinel.id, { artifact_version: 1 }, projectId!);
       db.exec("CREATE UNIQUE INDEX fail_ui_publication ON pages ((1)) WHERE artifact_version > 0");
       await click('[data-pages-artifact-bar]');
-      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('UNIQUE constraint failed') && document.querySelector('[data-pages-artifact-bar]').textContent.includes('继续保存')");
-      assert.equal(pages.get(original.id, projectId!).publication_pending!.version, 1);
+      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('UNIQUE constraint failed') && document.querySelector('[data-pages-artifact-bar]').textContent === '存为固定版本'");
+      assert.equal(pages.get(original.id, projectId!).publication_pending, undefined);
+      assert.equal(pages.get(original.id, projectId!).artifact_version, 0);
+      assert.equal(project.db.prepare("SELECT 1 FROM library_artifact_versions WHERE artifact_id = ?").get("pages-" + original.id), undefined);
       db.exec("DROP INDEX fail_ui_publication");
       pages.delete(sentinel.id, projectId!);
       await openPages();
       // Opening Pages again reopens the page that was open (on a phone it fills the stage and the list steps aside).
       await waitFor(`document.querySelector('[data-pages-title]')?.value === '已确认的发布快照'`);
-      await waitFor("document.querySelector('[data-pages-artifact-bar]').textContent.includes('继续保存') && document.querySelector('[data-pages-note]').textContent.includes('当时的快照')");
+      await waitFor("document.querySelector('[data-pages-artifact-bar]').textContent === '存为固定版本'");
       await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '后续编辑仍在文稿中'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
       await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
       const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
       const screenshot = async (state: string) => writeFile(new URL(`pages-publication-${state}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-      await waitFor("document.querySelector('.pages-doc-row .feed-entry-status .mw-state-ring')?.dataset.mwState === 'unsaved'"); // RING-07: a pending publication is not active saving.
       await screenshot("pending");
       await click('[data-pages-artifact-bar]');
-      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('已恢复上次成果') && document.querySelector('[data-pages-artifact-bar]').textContent === '再存一个固定版本'");
+      await browser.waitFor("[...document.querySelectorAll('.placement-toast--done')].some(toast => toast.textContent.includes('后续编辑仍在文稿中') && toast.querySelector('small')?.textContent.includes('第 1 版'))");
+      await waitFor("document.querySelector('[data-pages-artifact-bar]').textContent === '再存一个固定版本'");
       const final = pages.get(original.id, projectId!);
       assert.equal(final.title, "后续编辑仍在文稿中"); assert.equal(final.artifact_version, 1); assert.equal(final.publication_pending, undefined);
       const artifact = project.db.prepare("SELECT payload_json FROM library_artifact_versions WHERE artifact_id = ? AND version = 1").get(final.artifact_id) as { payload_json: string };
-      assert.equal(JSON.parse(artifact.payload_json).title, "已确认的发布快照");
+      assert.equal(JSON.parse(artifact.payload_json).title, "后续编辑仍在文稿中");
       assert.equal(project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions WHERE artifact_id = ?").get(final.artifact_id)!.n, 1);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
       await waitFor("document.querySelector('.pages-doc-row .feed-entry-status .mw-state-ring')?.dataset.mwState === 'saved'"); // RING-07

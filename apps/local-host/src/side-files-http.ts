@@ -7,10 +7,10 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { artifactTypeDeclarations } from "./artifact-type-registry.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 /**
@@ -44,31 +44,56 @@ async function ownerPreview(subjectId: string, views: readonly ActionView[], inv
   try { return await invoke(view, { artifact }) as FileContent; } catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return null; }
 }
 
+const described = (view: ActionView) => ({ id: sourceId(view), plugin_id: view.provider.plugin_id ?? view.provider.provider_id, title: view.action.title,
+  kinds: view.action.file_source!.kinds });
+const FIRST_PAGE = { cursor: null, limit: FILE_ENTRIES_PAGE_LIMIT };
+
+/**
+ * Every source this project shows, with its first page, in one answer (N52, specs/batch-06-shared-tools BSH-13): the side panel and a
+ * Goal's 「加输入」 read it in one request, on one call context and one discovery. Each source's page is still its own action's,
+ * run under the person's authority as it is now; one that fails says so without hiding the others, and one that cannot run here
+ * (it is listed but not set up) is reported and never called.
+ */
+async function firstPages(listed: readonly ActionView[], read: (view: ActionView) => Promise<unknown>) {
+  return Promise.all(listed.map(async view => {
+    if (!view.availability.available) return { ...described(view), state: "unavailable" as const, reason: view.availability.reason };
+    try { return { ...described(view), state: "ready" as const, page: await read(view) as FileEntriesPage }; } catch (error) {
+      return { ...described(view), state: "failed" as const, error: error instanceof Error ? error.message : String(error), code: (error as { code?: string })?.code ?? "" };
+    }
+  }));
+}
+
 export async function handleSideFilesHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: SideFilesPorts): Promise<boolean> {
   const route = /^\/api\/side\/files\/(sources|entries|content|raw)$/u.exec(url.pathname)?.[1];
   if (!route) return false;
   const json = (status: number, body: unknown) => writeNativePluginJsonResponse(response, { status, body });
   if (request.method !== "GET") { json(405, { error: "不支持这个请求" }); return true; }
+  const unknownSource = () => { json(404, { error: "这个文件来源已经不在了（插件可能已停用）" }); return true; };
+  const missingPreview = () => { json(400, { error: "没有说明要预览哪个文件" }); return true; };
+  const sourceKey = url.searchParams.get("source");
+  const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
   try {
-    const caller = await localWebActionContext(ports.localHost, ports.reference, LOCAL_OWNER_PERMISSIONS);
+    if (route !== "sources" && !sourceKey) return unknownSource();
+    if ((route === "content" || route === "raw") && (!kind || !id)) return missingPreview();
+    // The panel lists the project's folders too, so it carries the folder read the materials service asks (BSH-08).
+    const caller = await localWebActionContext(ports.localHost, ports.reference, [...LOCAL_OWNER_PERMISSIONS, ...MATERIALS_OWNER_PERMISSIONS]);
     const client = ports.localHost.actionClient(ports.reference);
     const views = await client.discover(caller);
     const shown = await ports.shownPlugins?.();
     // A built-in plugin the project does not show lists nothing here; a plugin installed from outside the catalog follows its own state.
     const hiddenHere = (view: ActionView) => {
-      const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === (view.provider.plugin_id ?? view.provider.provider_id));
+      const builtin = builtinPluginByManifestId(view.provider.plugin_id ?? view.provider.provider_id);
       return !!shown && !!builtin && !shown.has(builtin.project_plugin_id);
     };
-    const sources = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && view.availability.available && !hiddenHere(view));
+    const listed = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && !hiddenHere(view));
+    const sources = listed.filter(view => view.availability.available);
     if (route === "sources") {
-      json(200, { sources: sources.map(view => ({
-        id: sourceId(view), plugin_id: view.provider.plugin_id ?? view.provider.provider_id, title: view.action.title,
-        kinds: view.action.file_source!.kinds,
-      })) });
+      if (url.searchParams.get("first_pages") === "1") { json(200, { sources: await firstPages(listed, view => client.invoke(caller, referenceOf(view), FIRST_PAGE)) }); return true; }
+      json(200, { sources: sources.map(described) });
       return true;
     }
-    const source = sources.find(view => sourceId(view) === url.searchParams.get("source"));
-    if (!source) { json(404, { error: "这个文件来源已经不在了（插件可能已停用）" }); return true; }
+    const source = sources.find(view => sourceId(view) === sourceKey);
+    if (!source) return unknownSource();
     if (route === "entries") {
       const cursor = url.searchParams.get("cursor");
       const page = await client.invoke(caller, referenceOf(source), { cursor: cursor || null, limit: FILE_ENTRIES_PAGE_LIMIT }) as FileEntriesPage;
@@ -84,8 +109,7 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
       response.end(Buffer.from(file.data, "base64"));
       return true;
     };
-    const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
-    if (!kind || !id || !source.action.file_source!.kinds.some(entry => entry.kind === kind)) { json(400, { error: "没有说明要预览哪个文件" }); return true; }
+    if (!source.action.file_source!.kinds.some(entry => entry.kind === kind)) return missingPreview();
     const provider = source.provider.provider_id;
     // A 成果 version previews through its type's owner (artifact-positioning A4b), the same as in the 成果库.
     const owned = kind === ARTIFACT_SUBJECT_KIND ? await ownerPreview(id, views, (view, input) => client.invoke(caller, referenceOf(view), input), ports) : null;

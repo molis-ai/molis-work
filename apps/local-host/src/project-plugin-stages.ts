@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { placedDirectoryViews, stageOnlyDirectoryViews, type PluginDirectory } from "@molis-ai/molis-work-ui-host";
+import { directoryRegistry, placedDirectoryViews, stageOnlyDirectoryViews, type PluginDirectory } from "@molis-ai/molis-work-ui-host";
 import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageOpeningView, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type PreparedStageView, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
-import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByProjectKey, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionError, actionEffect, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -324,7 +324,7 @@ export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (act
 export function shownRuntimeOwners(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined): RuntimeStageOwner[] {
   const showing = new Set(shown);
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
-    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];
+    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !builtinPluginByProjectKey(entry.project_plugin_id))];
   return entries.flatMap(entry => stageContributionId(entry.manifest) ? runtimeStageOwner(state, entry, home).owner ?? [] : []);
 }
 
@@ -333,7 +333,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
   bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient, requests: Readonly<Record<string, Readonly<Record<string, string>>>> = {}) {
   const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, PreparedStageView | null> = {};
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
-    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id))];
+    ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !builtinPluginByProjectKey(entry.project_plugin_id))];
   for (const entry of entries) {
     if (!stageContributionId(entry.manifest)) continue;
     const selected = runtimeStageOwner(state, entry, home), key = `${selected.scope}:${entry.project_plugin_id}`, owner = selected.owner;
@@ -367,6 +367,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
 
 /** Rank the project home cards by the shell's rail (ui-host's one placement rule), with one directory entry per shell key. */
 export function projectHomeRailOrder(entries: PluginDirectory): ReadonlyMap<string, number> {
-  const directory = [...new Map(entries.map(entry => [entry.id, entry])).values()], enabled = directory.map(entry => entry.id);
-  return new Map([...placedDirectoryViews(directory, enabled, "navigator"), ...stageOnlyDirectoryViews(directory, enabled)].map(({ id }, index) => [id, index]));
+  const directory = [...new Map(entries.map(entry => [entry.id, entry])).values()];
+  const registry = directoryRegistry(directory, directory.map(entry => entry.id));
+  return new Map([...placedDirectoryViews(registry, "navigator"), ...stageOnlyDirectoryViews(registry)].map(({ id }, index) => [id, index]));
 }

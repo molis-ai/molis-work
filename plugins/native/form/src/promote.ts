@@ -1,68 +1,56 @@
-import type { FormRecord } from "./contract.js";
+import { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginArtifactClient, PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { FORM_ARTIFACT_SCHEMA_VERSION, FORM_ARTIFACT_TYPE_ID, type FormRecord } from "./contract.js";
+import { assertFormVersion, fromRow } from "./store.js";
+import { formManifest } from "./manifest.js";
 import { formErrors } from "./error.js";
-import type { FormStores } from "./store.js";
-import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { isDeepStrictEqual } from "node:util";
-import { nextPinnedVersion, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export type FormPublicationSnapshot = Pick<FormRecord, "title" | "description" | "status" | "questions">;
-export interface FormPublicationIntent { content: FormPublicationSnapshot; version: number; source_version: number; actor_id: string }
-export type FormReadArtifactPort = (input: { project_id: string; record_id: string; version: number }) => FormPublicationSnapshot | null;
-/** The newest fixed version of this record in the project's 成果库, whatever the record counted. */
-export type FormLineHeadPort = (input: { project_id: string; record_id: string }) => ArtifactLineHead | null;
-
-export interface FormPublishArtifactPort {
-  (input: {
-    project_id: string;
-    record_id: string;
-    title: string;
-    version: number;
-    /** The record revision this version pins (artifact-positioning A1). */
-    source_version: number;
-    content: {
-      title: string;
-      description: string;
-      status: FormRecord["status"];
-      questions: FormRecord["questions"];
-    };
-  }): { artifact_id: string; version: number };
+export async function promoteForm(database: PluginDatabase, artifacts: PluginArtifactClient, id: string, expectedVersion?: number):
+  Promise<{ form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
+  if (!database.transactionProjectRow || !artifacts.join) throw formErrors.unavailable("当前环境不能发出成果");
+  const join = artifacts.join;
+  return database.transactionProjectRow(id, row => {
+    const source = row.read();
+    if (!source) throw formErrors.not_found("找不到这份问卷");
+    const current = fromRow(source as Parameters<typeof fromRow>[0]);
+    assertFormVersion(current, expectedVersion);
+    const artifactId = "form-" + id;
+    return join(row, writer => {
+      const head = ownLine(() => writer.head(artifactId));
+      const written = Math.max(current.artifact_version, head?.version ?? 0);
+      if (written > 0) checkPreviousPin(ownLine(() => artifacts.readOwn({ artifact_id: artifactId, version: written })), id);
+      const version = nextPinnedVersion({ recorded: current.artifact_version, pending: null, head });
+      const { title, description, status, questions } = current;
+      const changes = { updated_at: new Date().toISOString() };
+      const { artifact: pinned } = writer.publish({ artifact_id: artifactId, version,
+        artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION,
+        content: { kind: "inline", payload: JSON.parse(JSON.stringify({ title, description, status, questions })) },
+        metadata: { form_id: id, title }, origin: { kind: "pinned", subject: { kind: "form", id }, revision: String(current.version) },
+        title, media_type: "application/json", supersedes_version: version > 1 ? version - 1 : null });
+      if (!row.compareAndSet(current.version, changes)) throw formErrors.conflict("固定成果时问卷已变化，请重新读取");
+      const artifact = { artifact_id: pinned.artifact_id, version: pinned.version };
+      return { form: { ...current, ...changes, artifact_id: artifact.artifact_id, artifact_version: artifact.version, version: current.version + 1 },
+        artifact, recovered: false };
+    });
+  });
 }
 
-/**
- * Pin the form's current revision. Three steps, each its own write: record the intent, pin the version, then record the
- * pin on the form. A pin cut off between them leaves the intent, and the next call recovers it.
- */
-export async function promoteForm(
-  stores: FormStores,
-  caller: ActionExecutionContext,
-  id: string,
-  projectId: string,
-  publishArtifact: FormPublishArtifactPort,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: FormReadArtifactPort; lineHead?: FormLineHeadPort; beforePublish?: () => Promise<void> },
-): Promise<{ form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
-  const current = stores.read(store => store.get(id, projectId));
-  const head = options.lineHead?.({ project_id: projectId, record_id: id }) ?? null;
-  const version = nextPinnedVersion({ recorded: current.artifact_version, pending: current.publication_pending?.version ?? null, head });
-  const existing = options.readArtifact?.({ project_id: projectId, record_id: id, version });
-  // Check the newest version already written for this line too, not only the one the record counted: after a move out and
-  // back the record counts none, and a version that cannot be continued must be refused before an intent is recorded.
-  const written = Math.max(current.artifact_version, head?.version ?? 0);
-  if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
-  const intent = await stores.write(caller, store => store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version));
-  if (existing && !isDeepStrictEqual(existing, intent.content)) throw formErrors.publication_conflict("成果与原发布快照不同，问卷及快照已保留");
-  if (!existing) await options.beforePublish?.();
-  const published = existing ? { artifact_id: "form-" + id, version: intent.version } : publishArtifact({
-    project_id: projectId,
-    record_id: current.id,
-    title: intent.content.title,
-    version: intent.version,
-    source_version: intent.source_version,
-    content: intent.content,
-  });
-  if (published.artifact_id !== "form-" + id || published.version !== intent.version) throw formErrors.publication_conflict("成果返回身份与发布意图不一致，原快照已保留");
-  return {
-    form: await stores.write(caller, store => store.completePublication(current.id, projectId, intent, published)),
-    artifact: published,
-    recovered: !!existing || !!current.publication_pending,
-  };
+function ownLine<T>(read: () => T): T {
+  try { return read(); }
+  catch (error) {
+    if ((error as { code?: string }).code === "artifacts.plugin_denied") throw formErrors.publication_conflict("成果来源或类型不一致，原记录已保留");
+    throw error;
+  }
+}
+
+function checkPreviousPin(artifact: ReturnType<PluginArtifactClient["readOwn"]>, id: string): void {
+  if (!artifact) return;
+  if (artifact.artifact_type_id !== FORM_ARTIFACT_TYPE_ID || artifact.schema_version !== FORM_ARTIFACT_SCHEMA_VERSION
+    || artifact.producer_binding_signature !== formManifest.publisher.signature || artifact.content_kind !== "inline"
+    || artifact.origin.kind !== "pinned" || artifact.origin.subject.kind !== "form" || artifact.origin.subject.id !== id)
+    throw formErrors.publication_conflict("成果来源或类型不一致，原记录已保留");
+  const snapshot = artifact.payload as Record<string, unknown> | null;
+  if (!snapshot || typeof snapshot.title !== "string" || typeof snapshot.description !== "string"
+    || typeof snapshot.status !== "string" || !Array.isArray(snapshot.questions))
+    throw formErrors.publication_conflict("成果问卷内容不完整，原记录已保留");
 }

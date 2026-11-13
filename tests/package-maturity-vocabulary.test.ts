@@ -33,12 +33,13 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   // Module remains production. Personal synchronization adds the slice module-sync-replication,
   // and WORK-01 adds the account service as a slice (2026-11-05). Batch 09 adds the production AI-kits aggregator horizontal/kit.
   // Batch 16 adds horizontal/appearance as a slice; batch 15 adds the composition service horizontal/surfaces as a slice.
+  // Batch 06 retires the production Files plugin package.
   const counts = {};
   for (const item of WORKSPACE_PACKAGES) {
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
-  assert.deepEqual(counts, { production: 48, experimental: 2, slice: 18 });
+  assert.deepEqual(counts, { production: 47, experimental: 2, slice: 18 });
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/account").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/appearance").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/surfaces").map(item => item.maturity), ["slice"]);

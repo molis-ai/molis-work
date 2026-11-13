@@ -220,7 +220,7 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
 
   // W5-01-CODING-81: a start that is refused leaves the session as it was: nothing chosen, so the page still asks.
   const unread = await invoke<{ session_id: string }>("session.open", { title: "材料读不到" });
-  await client.invoke(owner, find("coding.update-session"), { session_id: unread.session_id, materials: [{ kind: "note", id: "missing", title: "不存在的材料" }] });
+  await client.invoke(owner, find("coding.update-session"), { session_id: unread.session_id, materials: [{ ref: { subject: { kind: "note", id: "missing" }, pin: { mode: "current", read_revision: "picked" } }, title: "不存在的材料" }] });
   await assert.rejects(invoke("run.start", { session_id: unread.session_id, task: "按材料修改" }), /不存在的材料/);
   const asked = await page(unread.session_id);
   assert.equal(asked.status, 200, JSON.stringify(asked.body));

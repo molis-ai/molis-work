@@ -95,6 +95,13 @@ test("PMAT-15 PMAT-16 the knowledge routes list, find, edit and keep pieces from
     assert.equal(await excluded(), true);
     assert.equal(typeof (await post<KnowledgeOrganizeResponse>("/api/knowledge/organize", { subjects: [review.subject] })).queued, "number");
 
+    // The side panel asks where the pieces it lists stand by their keys (materials-ui-contract §6): just those, and a key it does
+    // not know has no row.
+    const named = await post<States>("/api/knowledge/states", { subjects: [review.subject, { kind: "artifact", id: "missing" }] });
+    assert.deepEqual(named.states.map(row => [row.id, row.excluded]), [[review.subject.id, true]]);
+    assert.equal(named.model_ready, false);
+    assert.deepEqual((await post<States>("/api/knowledge/states", { subjects: [] })).states, [], "no keys, no rows");
+
     // A change without the control token is refused and changes nothing.
     const refused = await send("/api/knowledge/exclude", { subject: review.subject, excluded: false }, {});
     assert.equal(refused.status, 403, await refused.text());

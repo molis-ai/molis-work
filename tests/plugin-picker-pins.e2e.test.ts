@@ -214,23 +214,23 @@ test("a plugin that brings a stage page gets it in place, and takes it away agai
   if (!b) return;
   const { evaluate, press, state, settled, stayed, waitFor, click } = b;
   const pool = () => evaluate<string[]>("[...document.querySelectorAll('[data-surface-pool] > [data-work-surface]')].map(node => node.dataset.workSurface)");
-  assert.ok(!(await pool()).includes("files"));
-  await press(`${tile("files")} [data-plugin-toggle]`);
-  await settled("files");
-  await waitFor("Boolean(document.querySelector('[data-surface-pool] > [data-work-surface=\"files\"]'))");
-  assert.equal((await state("files")).grey, false);
+  assert.ok(!(await pool()).includes("git"));
+  await press(`${tile("git")} [data-plugin-toggle]`);
+  await settled("git");
+  await waitFor("Boolean(document.querySelector('[data-surface-pool] > [data-work-surface=\"git\"]'))");
+  assert.equal((await state("git")).grey, false);
   assert.equal(await stayed(), true, "in place");
   // Its page loads when it is first shown, as the pages that came with the page do.
-  await click(`${tile("files")} > .plugin-rail-item`);
-  await waitFor("document.body.dataset.desktopSurface === 'files' && !document.querySelector('[data-work-surface=\"files\"]').hidden");
-  await waitFor("!document.querySelector('[data-work-surface=\"files\"]').hasAttribute('data-deferred-surface')");
+  await click(`${tile("git")} > .plugin-rail-item`);
+  await waitFor("document.body.dataset.desktopSurface === 'git' && !document.querySelector('[data-work-surface=\"git\"]').hidden");
+  await waitFor("!document.querySelector('[data-work-surface=\"git\"]').hasAttribute('data-deferred-surface')");
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
   await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
-  await press(`${tile("files")} [data-plugin-toggle]`); await press(`${tile("files")} [data-plugin-toggle]`);
+  await press(`${tile("git")} [data-plugin-toggle]`); await press(`${tile("git")} [data-plugin-toggle]`);
   // The page it showed is in the pane, not the pool: gone means gone from the page.
-  await waitFor("!document.querySelector('[data-work-surface=\"files\"]')");
-  assert.equal((await state("files")).grey, true);
-  assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "files", "the pane that showed it went back");
+  await waitFor("!document.querySelector('[data-work-surface=\"git\"]')");
+  assert.equal((await state("git")).grey, true);
+  assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "git", "the pane that showed it went back");
   assert.equal(await stayed(), true, "still in place");
 });
 

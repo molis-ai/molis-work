@@ -6,12 +6,15 @@ import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { inboxActions, inboxContentActions, inboxNextScene, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
-import { feedContentActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { feedContentActions, feedItemActions, type FeedJudgmentCatalog } from "@molis-ai/molis-work-plugin-feed";
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
-import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionSceneBinding, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
-import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedSourceService, listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
+import { sceneCandidateMeter, type SceneCandidateCounts } from "./fixtures/scene-candidate-meter.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene and refuses drafts, unknown rules, read-only callers and rules of another scene", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-rule-identities-"));
@@ -259,4 +262,127 @@ test("admission actions wait for the Inbox next-step judgment beside the project
       assert.equal(item.source_label, "放进来的内容");
     });
   } finally { gate.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+const functionRef = (key: string): ExactActionReference => ({ capability_id: `functions.published.${key}`, version: 1, provider_id: "system.functions" });
+const candidateKey = ({ capability_id, version, provider_id }: ExactActionReference) => `${capability_id}@${version}:${provider_id}`;
+
+function assertSceneCandidateBudget(counts: SceneCandidateCounts, isInbox: boolean, candidates: number) {
+  assert.deepEqual(counts.discover, { workflow: 2, user: 4 }, "full Kernel discoveries per audience");
+  assert.deepEqual(counts.scenePasses, { workflow: 1, user: 5 }, "actual scene declaration enumerations");
+  assert.equal(counts.sceneRows, 16, "only the requested owner's scene is projected for the batch");
+  assert.deepEqual(counts.bindingReads, { inbox: isInbox ? 4 : 3, feed: 3, home: 0 });
+  assert.deepEqual(counts.kernelUsages, { workflow: 1, user: 2 });
+  assert.deepEqual(counts.ownerUsages, { user: 1 });
+  assert.equal(counts.candidateDirectories, 1);
+  assert.equal(counts.candidates, candidates);
+  assert.deepEqual(counts.sceneCalls, { user: 1 });
+  assert.equal(counts.batchCalls, 1);
+  assert.equal(counts.sceneRefs, candidates);
+}
+
+test("BRC-05 Inbox and Feed HTTP candidate catalogs do the same full reads at either candidate count", { timeout: 60_000 }, async t => {
+  const measure = sceneCandidateMeter(t);
+  let now = Date.parse("2026-11-09T18:00:00Z");
+  t.mock.timers.enable({ apis: ["Date", "setTimeout", "setInterval"], now });
+  const env = { TYPESAFE_API_KEY: "fixture-only" };
+  const feedReason = "Fixture: Feed scene unavailable";
+  let feedUnavailable = false;
+  const home = await openTestHome(t, { host: { clock: () => new Date(), functions: {
+    env, provider: { async evaluate() { return assert.fail("a catalog must not run a judgment"); } },
+  }, sceneAvailability: (_caller, scene) => feedUnavailable && scene.definition.scene_id === "feed.capture"
+    ? { available: false, code: "actions.connection_required", reason: feedReason } : { available: true } } });
+  const host: MolisWorkLocalHost = home.host;
+  const project = await home.createProject("Scene candidate budget", ["feed"]);
+  const prefix = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/`;
+  const inboxId = "io.molis.work.inbox", feedId = "io.molis.work.feed";
+  const inbox = prefix + inboxId + "/judgment", feed = prefix + feedId, catalog = feed + "/out-rules/judgments";
+  const inboxKey = "system_pick_inbox_next", inboxRef = functionRef(inboxKey), feedRef = functionRef("system_admit_inbox");
+  await home.web.get(inbox);
+  await home.web.post(inbox, { function_key: inboxKey });
+  const inboxBinding = (await home.web.get<InboxJudgmentState>(inbox)).binding;
+  assert.ok(inboxBinding?.revision);
+  const { source } = await home.web.post<{ source: { source_id: string } }>(feed + "/sources", { kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id });
+  const { rule } = await home.web.post<{ rule: { rule_id: string; revision: string } }>(feed + "/out-rules",
+    { name: "Capture", source_id: source.source_id, contains: "launch", judgment: feedRef, admission: "suggest" });
+
+  const incompatible = { capability_id: "fixture.n49.feed_incompatible", version: 1, provider_id: "n49-fixture" };
+  const definition: ActionDefinition = { ...incompatible, operation: "command", action: {
+    kind: "judgment", title: "Fixture judgment", description: "Different output contract", scope: "project",
+    audiences: ["user", "workflow"], permissions: [], subject_kinds: ["feed_item"],
+    input_schema: { type: "object", properties: { content: { type: "string" } }, required: ["content"] },
+    output_schema: { type: "object", properties: { choice: { type: "boolean" } }, required: ["choice"] },
+  } };
+  t.after(host.actionRegistry(project.reference).registerProvider({
+    provider: { provider_id: incompatible.provider_id, title: "Fixture", kind: "system" }, definitions: [definition],
+    handlers: [{ ...definition, handle: () => assert.fail("a catalog must not run a judgment") }],
+  }));
+
+  // Select the exact candidates before the real Web action constructs its caller. Scene checks, policy and binding reads stay live.
+  let allowed = new Set<string>();
+  const inspect = host.inspectPreparedActionMetadata;
+  t.mock.method(host, "inspectPreparedActionMetadata", async function (this: MolisWorkLocalHost, ...args: Parameters<typeof inspect>) {
+    return (await inspect.apply(this, args)).filter(row => row.action.kind !== "judgment" ||
+      allowed.has(candidateKey({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id })));
+  });
+  const manyInbox = [inboxRef, feedRef, { ...inboxRef, capability_id: "functions.invoke" }];
+  const fixtures = [
+    { plugin: inboxId, refs: manyInbox },
+    { plugin: inboxId, refs: [inboxRef] },
+    { plugin: inboxId, refs: manyInbox, disconnected: true },
+    { plugin: inboxId, refs: [...manyInbox, functionRef("system_pick_home_dock")] },
+    { plugin: feedId, refs: [feedRef, incompatible] },
+    { plugin: feedId, refs: [feedRef] },
+    { plugin: feedId, refs: [feedRef, incompatible], disconnected: true },
+    { plugin: feedId, refs: [feedRef, incompatible], disconnected: true, sceneDenied: true },
+  ];
+  for (const { plugin, refs, disconnected, sceneDenied } of fixtures) {
+    const isInbox = plugin === inboxId;
+    allowed = new Set(refs.map(candidateKey));
+    env.TYPESAFE_API_KEY = disconnected ? "" : "fixture-only";
+    feedUnavailable = !!sceneDenied;
+    t.mock.timers.setTime(now += 60_000);
+    const { body, counts } = await measure<InboxJudgmentState | FeedJudgmentCatalog>(plugin, () => isInbox
+      ? home.web.get<InboxJudgmentState>(inbox) : home.web.get<FeedJudgmentCatalog>(catalog));
+    t.diagnostic(JSON.stringify({ plugin, candidates: refs.length, disconnected: !!disconnected, sceneDenied: !!sceneDenied, counts }));
+    assertSceneCandidateBudget(counts, isInbox, refs.length);
+    if ("functions" in body) {
+      assert.equal(body.function_key, inboxKey);
+      assert.deepEqual(body.functions.map(value => value.function_key), [inboxKey]);
+      assert.deepEqual(body.capabilities?.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })), [inboxRef]);
+      assert.deepEqual(body.binding, inboxBinding);
+      assert.deepEqual(body.binding?.function, inboxRef);
+      assert.equal(body.summary?.available, !disconnected);
+      assert.equal(body.summary?.reason, disconnected ? "请先连接判断服务" : null);
+    } else {
+      assert.deepEqual(body.choices.map(choice => choice.reference), refs.length > 1 ? [incompatible, feedRef] : [feedRef]);
+      const valid = body.choices.at(-1);
+      assert.equal(valid?.available, !sceneDenied);
+      assert.equal(valid?.reason, sceneDenied ? feedReason : undefined);
+      if (refs.length > 1) assert.deepEqual(body.choices[0], {
+        reference: incompatible, title: "Fixture judgment · Fixture", available: false, reason: "判断结果类型不匹配",
+      });
+      const usage = body.usages.find(row => row.binding_id === `feed.capture:${rule.rule_id}`);
+      assert.deepEqual(usage?.function, feedRef);
+      assert.equal(usage?.revision, rule.revision);
+      assert.equal(usage?.availability.available, !disconnected);
+      if (disconnected) assert.deepEqual(usage?.availability, { available: false, code: "actions.connection_required", reason: "请先连接判断服务" });
+    }
+  }
+
+  // A regression inside the batch could keep the owner call count at one. Make an additional real discovery and prove the budget rejects it.
+  const batch = ActionService.prototype.discoverScenesFor;
+  const extra = t.mock.method(ActionService.prototype, "discoverScenesFor", function (this: ActionService, ...args: Parameters<typeof batch>) {
+    this.discover(args[0]);
+    return batch.apply(this, args);
+  });
+  try {
+    env.TYPESAFE_API_KEY = "fixture-only";
+    feedUnavailable = false;
+    t.mock.timers.setTime(now + 60_000);
+    const { body, counts } = await measure(feedId, () => home.web.get<FeedJudgmentCatalog>(catalog));
+    assert.deepEqual(body.choices.map(choice => choice.reference), [incompatible, feedRef]);
+    t.diagnostic(JSON.stringify({ extraDiscovery: counts.discover, sceneCalls: counts.sceneCalls }));
+    assert.throws(() => assertSceneCandidateBudget(counts, false, 2), /full Kernel discoveries per audience/);
+  } finally { extra.mock.restore(); }
 });

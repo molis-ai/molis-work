@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { assertNoPendingArtifactRows, recoverHomeArtifactRows } from "./home-artifact-recovery.js";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
@@ -10,7 +11,7 @@ import {
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostLog } from "./host-log.js";
 import {
-  homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
+  assertUpgradeDirectory, homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
@@ -60,8 +61,24 @@ const ownReason = (reason: string): UpgradeUnitError => ({ code: "storage.upgrad
 /** The lock itself went away. Nothing more may be done on this Home, its record included. */
 const lockLost = (error: unknown) => { const { code } = (error ?? {}) as ErrorFacts; return typeof code === "string" && code.startsWith("storage.owner."); };
 
-/** Not having enough disk is not this fingerprint's verdict on the store, so the next start looks again (§5.2). Every other failure waits for a new version or U3. */
+/** Not having enough disk is not this fingerprint's verdict on the store, so the next start looks again (§5.2). Every other failure waits for a new version or U3, except one only waiting on another store (`prerequisiteNowMet`). */
 const retriedNextStart = ({ error }: UpgradeUnit) => error?.code === "storage.upgrade_no_space" || error?.reason === "space_check_failed";
+
+/**
+ * A unit that failed only because a store it waits for had not gone through carries no verdict on itself (§2.4). Once no store it waits
+ * for is still older, refused or too new, the next start runs it: the Files retirement's adoption takes an old-layout project library there between
+ * two starts, and that project's plugin tables follow (specs/batch-06-shared-tools/current-version-adoption.md). Until then it stays put.
+ */
+function prerequisiteNowMet(root: string, stores: ReadonlyMap<string, Store>, store: Store, before: UpgradeUnit, holdsLock: boolean): boolean {
+  if (before.error?.reason !== "prerequisite_failed") return false;
+  const { descriptor, relative_path } = store, file = "tables" in descriptor ? upgradeUnitFile(descriptor, relative_path) : undefined;
+  const waits = [...stores.values()].filter(other => other !== store && (other.relative_path === file || descriptor.after?.includes(other.descriptor.pattern)));
+  // The same test `advance` holds it to, read now: none of them still older, refused or too new.
+  return waits.every(other => !["older", "refused", "too_new"].includes(lookAt(root, other, holdsLock).kind));
+}
+
+const settledFailure = (root: string, stores: ReadonlyMap<string, Store>, store: Store, before: UpgradeUnit | undefined, holdsLock: boolean) =>
+  before?.state === "failed" && !retriedNextStart(before) && !prerequisiteNowMet(root, stores, store, before, holdsLock);
 
 function listStores(descriptors: readonly HomeUpgradeDescriptor[], root: string): ReadonlyMap<string, Store> {
   const stores = new Map<string, Store>();
@@ -314,7 +331,7 @@ function scan(round: Round): Scan {
     else if (look.kind === "refused") settled.push(newUnit(store, 0, "failed", ownReason(look.reason)));
     else if (look.kind === "older") {
       const before = earlier.get(store.relative_path);
-      if (before?.state === "failed" && !retriedNextStart(before)) settled.push(before);
+      if (before && settledFailure(round.root, round.stores, store, before, true)) settled.push(before);
       else planned.push(newUnit(store, look.found, "planned"));
     }
   }
@@ -357,6 +374,9 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   const lockDirectory = agentRuntimeDirectory(home);
   assertStorageOwner(lockDirectory, owner);
   const root = realpathSync(home), descriptors = homeUpgradeDescriptors();
+  assertUpgradeDirectory(root);
+  recoverHomeArtifactRows(root, owner, options.expectedSpace);
+  assertNoPendingArtifactRows(root, owner);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);
@@ -425,9 +445,9 @@ export function pendingUpgradeUnits(home: string): number {
     if (unfinished > 0) return unfinished;
     const earlier = new Map((ledger?.to === fingerprint ? ledger.units : []).map(unit => [unit.relative_path, unit]));
     let older = 0;
-    for (const store of listStores(descriptors, root).values()) {
-      const before = earlier.get(store.relative_path);
-      if (lookAt(root, store, false).kind === "older" && !(before?.state === "failed" && !retriedNextStart(before))) older += 1;
+    const stores = listStores(descriptors, root);
+    for (const store of stores.values()) {
+      if (lookAt(root, store, false).kind === "older" && !settledFailure(root, stores, store, earlier.get(store.relative_path), false)) older += 1;
     }
     return older;
   } catch { return 1; }

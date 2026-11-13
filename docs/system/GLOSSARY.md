@@ -330,7 +330,7 @@
 
 - 讲产品时先写界面显示名；要精确指代时写 `project_plugin_id`。路径、包名、`plugin_id` 只在讲代码或身份时写。
 - `manifest.name` 应与界面显示名一致，因为上面几处会把它直接显示出来。曾经只有 `characters` 不一致（名称 Characters，界面「角色」）；它按 2.3 的决定并入宿主后（CHR-1，2026-10-22）这个差异已消失。
-- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 24 个：项目插件 10 个，个人插件 14 个；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
+- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 23 个：项目插件 9 个，个人插件 14 个；Files 第 06 批退役，项目文件夹的阅读与快照归平台资料服务；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
 
 ### 3.3 内置插件的名字对照
 
@@ -344,7 +344,6 @@
 | `schedule` | Schedule | Schedule | |
 | `artifacts` | 成果 | 成果 | |
 | `coding` | Coding | Coding | |
-| `files` | Files | Files | |
 | `git` | Git | Git | |
 | `diff` | Diff | Diff | |
 | `text-stats` | Text stats | Text Stats（导航）、Text stats（页面） | 两个标题大小写不同 |
@@ -363,7 +362,7 @@
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 | `issues` | Issue | Issue | |
 
-中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Files、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 

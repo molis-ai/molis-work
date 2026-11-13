@@ -3,7 +3,7 @@ import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/m
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "./contract.js";
-import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
+import type { promoteForm } from "./promote.js";
 import { formErrors } from "./error.js";
 import type { FormStores } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
@@ -25,13 +25,15 @@ const read = ["form:read"], write = ["form:read", "form:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; questions?: readonly FormQuestionInput[] };
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return createActionDefinition<I, O>(`form.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.draft" ? { scheduling: "concurrent" as const } : {}) }, version);
+  return createActionDefinition<I, O>(`form.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.draft" || name === "promote" ? { scheduling: "concurrent" as const } : {}) }, version);
 }
+const artifactPin = defineArtifactPinAction("form.artifacts.pin", /* @version action.form.artifacts.pin */ 1, "form", "问卷", [...write, "artifact:write"]);
+
 export const formActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: formArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("form.artifacts.pin", /* @version action.form.artifacts.pin */ 1, "form", "问卷", [...write, "artifact:write"]),
+  artifactPin: { ...artifactPin, action: { ...artifactPin.action, scheduling: "concurrent" as const } },
   /** Whether a pinned version still matches the form object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("form.artifacts.compare", /* @version action.form.artifacts.compare */ 1, "问卷", read),
   /** 「从这一版继续」 (A4b): a new 问卷 with the content of a pinned version; the version itself is unchanged. */
@@ -48,7 +50,7 @@ export const formActions = {
     "command", FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema(record), [...write, "model:invoke"], { cost: "metered" }),
   submit: define<Identity & { answers: Record<string, string>; request_id?: string; source?: "preview" | "fill" }, { submission: FormSubmissionRecord }>("submit", /* @version action.form.submit */ 1, "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复。来源按调用方记录：只有本机界面的填写页和试填可以用 source 自称 fill 或 preview，助理、MCP、流程和插件的答卷一律记为各自的来源，source 对它们无效。问卷在收集中才接受提交；草稿或已停止收集时，只有本人在本机界面的试填可以提交，填写页和助理、MCP、流程、插件的提交以 form.closed 拒绝，不写任何答卷", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 }, source: { enum: ["preview", "fill"] } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", /* @version action.form.results */ 1, "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
-  promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.form.promote */ 1, "问卷存为成果", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.form.promote */ 1, "问卷存为成果", "将当前问卷固定为成果，答卷不纳入，问卷仍可编辑", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   close: define<Identity, { form: FormRecord }>("close", /* @version action.form.close */ 1, "停止收集答卷", "停止收集：本机填写页和助理、MCP、流程、插件的提交与答卷文件导入都不再被接受（本人的试填和导入除外），已有答卷保留；之后可以重新开始收集", "command", object(identity, ["id"]), changed),
   importAnswers: define<{ id: string; files: { name: string; content: string }[] }, { imported: number; skipped: number; rejected: { name: string; reason: string }[] }>("answers.import", /* @version action.form.answers.import */ 1, "导入答卷文件",
     "导入别人用填写页生成的答卷文件；同一份只算一次，属于其他问卷或内容无效的会列出原因、不写入。导入的答卷来源一律记为 file，不论谁导入。问卷在收集中才接受助理、MCP、流程和插件的导入；草稿或已停止收集时，只有本人在本机界面可以导入，其余以 form.closed 拒绝整次调用，不写任何答卷", "command",
@@ -67,9 +69,7 @@ export const FORM_ACTION_PERMISSIONS = [...new Set(Object.values(formActions).fl
 export interface FormActionPorts extends FormStores {
   modelAvailability(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
-  publishArtifact?: (input: Parameters<FormPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormPublishArtifactPort>;
-  readArtifact?: (input: Parameters<FormReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormReadArtifactPort>;
-  lineHead?: FormLineHeadPort;
+  promote?(id: string, expectedVersion?: number): ReturnType<typeof promoteForm>;
 }
 /**
  * Where an answer came from is the call's, not the caller's word: the fill page and the trial fill are a person at the
@@ -83,12 +83,12 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const { read, write } = ports;
-  // Each step of a pin (the intent, the 成果, the record of it) waits for the call's authority; the library and the 成果 service ask
-  // the original caller again in the same turn as each write, so a call cancelled or revoked between them leaves only the steps already done.
-  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteForm(ports, caller, id, project(caller),
-    value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion,
-      readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead, beforePublish: () => caller.beforeEffect() });
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
+    project(caller);
+    if (!ports.promote) throw formErrors.unavailable("当前环境不能发出成果");
+    return ports.promote(id, expectedVersion);
+  };
+  const publishable = () => ports.promote ? { available: true as const } : { available: false as const, code: "form.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   const drafting = ports.completeText ? createFormDrafting({ completeText: ports.completeText }) : null;
   return [
     formArtifactPreviewHandler,

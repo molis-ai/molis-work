@@ -1,5 +1,5 @@
 /** Local SQLite technical owner. */
-export { openSqliteConnection, sqliteErrorName, type SqliteAuthorizer } from "./sqlite-connection.js";
+export { openSqliteConnection, sqliteErrorName, sqliteRowAuthorizerCodes, type SqliteAuthorizer } from "./sqlite-connection.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
@@ -36,6 +36,7 @@ export {
   type UpgradeSnapshotUnit,
   type UpgradeSqliteConnection,
 } from "./upgrade-snapshot.js";
+export { recoverSqliteRollbackJournals, type RollbackLibrary } from "./rollback-journal.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   isSqliteSchemaStructureMismatch,

@@ -17,7 +17,7 @@ export function installFileImport(page: DatasetPage): void {
     if (!file || !s.selected || s.busy) return;
     page.setBusy(true);
     let seq = s.editorSeq;
-    const current = () => seq === s.editorSeq && el.bench.isConnected;
+    const current = () => seq === s.editorSeq && page.scope.alive;
     try {
       if (file.size > MAX_CSV_BYTES) throw new Error(uiText.text("dataset.import.too-large"));
       if (!await page.ask(uiText.text("dataset.import.confirm"), uiText.text("dataset.import.action"))) return;
@@ -32,7 +32,7 @@ export function installFileImport(page: DatasetPage): void {
       seq = s.editorSeq;
       await filling;
       await page.loadList();
-      if (s.selected?.id !== target.id || !el.bench.isConnected) return;
+      if (s.selected?.id !== target.id || !page.scope.alive) return;
       input.value = "";
       page.showNote(uiText.text("dataset.import.done", { count: (payload.dataset.rows || []).length }), false);
     } catch (error) {
@@ -41,5 +41,5 @@ export function installFileImport(page: DatasetPage): void {
         page.showNote(messageOf(error) || uiText.text("dataset.import.failed"), true);
       }
     } finally { page.setBusy(false); }
-  });
+  }, { signal: page.scope.signal });
 }

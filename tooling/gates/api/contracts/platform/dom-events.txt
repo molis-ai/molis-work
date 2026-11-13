@@ -100,15 +100,15 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "knowledge-picker";
     readonly on: "document";
-    readonly detail: "{ request_id, selected?: Array<{ kind, id, title }>, max? }";
-    readonly summary: "Open the project knowledge picker with these pieces already chosen. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料.";
+    readonly detail: "{ request_id, selected?: Array<{ ref: MaterialRef, title }>, max?, signal?: AbortSignal }";
+    readonly summary: "Open the project materials picker with these pieces already chosen, by their exact references. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料. A request sent while another is open takes its place; the earlier one is answered cancelled; an aborted signal closes the picker and answers cancelled. A plugin frame sends it on its own document: the frame's port carries it to the page, which asks under an id of its own only for a visible view after a real press, ends it when the view goes away, and hands back only the references that plugin page can read (plugin-frame/materials-picker.ts).";
 }, {
     readonly name: "molis-work:knowledge-picked";
     readonly kind: "announcement";
     readonly owner: "knowledge-picker";
     readonly on: "document";
-    readonly detail: "{ request_id, picks: Array<{ kind, id, title, plugin_title }> }";
-    readonly summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.";
+    readonly detail: "{ request_id, outcome: 'confirmed' | 'cancelled' | 'unavailable', items: Array<{ ref: MaterialRef, title, hint? }> }";
+    readonly summary: "The picker's one answer to request_id. confirmed: items is the person's whole choice, replacing what was chosen before (an empty one clears it); cancelled: they closed it, or another request took its place, and the asking input keeps what it had; unavailable: there is no project here to pick from. Each item is an exact reference: a 成果 version, a piece as its owner indexed it, a folder file as read when ticked, or a quote or snapshot the materials service fixed.";
 }, {
     readonly name: "molis-work:language-changed";
     readonly kind: "announcement";
@@ -291,8 +291,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "assistant";
     readonly on: "document";
-    readonly detail: "{ work_id?, new?, source?, materials? ({ title, text } or a piece of project knowledge { title, subject: { kind, id } }), object? }";
-    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these) and is read from its owner when the message is sent.";
+    readonly detail: "{ work_id?, new?, source?, materials? ({ title, text }, a piece of project knowledge { title, subject: { kind, id } }, or a materials reference { title, ref: MaterialRef }), object? }";
+    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these), a quote or snapshot of the project's folders by its materials reference (the side panel's reader), and either is read from its owner when the message is sent.";
 }, {
     readonly name: "molis:assistant-starter-choose";
     readonly kind: "request";
@@ -566,8 +566,8 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.";
     };
     readonly "knowledge-picker": {
-        readonly files: readonly ["apps/workbench/src/browser/knowledge/picker.ts"];
-        readonly state: "The one picker of project knowledge (specs/project-knowledge PMAT-17): what it was asked for, the person's query and their picks until they confirm.";
+        readonly files: readonly ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"];
+        readonly state: "The one picker of project materials (specs/project-knowledge PMAT-17, materials-ui-contract §3): what it was asked for, the person's query, the file read beside the list and their picks until they confirm; for a plugin frame, the page's own request on the frame's behalf and the answer it relays into the frame.";
     };
 };
 

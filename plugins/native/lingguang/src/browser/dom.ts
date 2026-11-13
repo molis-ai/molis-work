@@ -1,18 +1,8 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 /** An element the server drew; the page cannot work without it. */
-export const required = <T extends Element>(root: ParentNode, selector: string): T => {
-  const node = root.querySelector<T>(selector);
-  if (!node) throw new Error(`Lingguang page is missing ${selector}`);
-  return node;
-};
+export const required = requiredQuery(selector => `Lingguang page is missing ${selector}`);
 
-/** A one-line cell whose full text is also its tooltip. */
-export function textCell(className: string, text: string): HTMLSpanElement {
-  const node = document.createElement("span");
-  node.className = className;
-  node.title = text;
-  node.textContent = text;
-  return node;
-}
+export { textCell } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 /** A short card: who or what it is, then its text. */
 export function textCard(head: string, text: string, className?: string): HTMLElement {
@@ -24,4 +14,4 @@ export function textCard(head: string, text: string, className?: string): HTMLEl
   return card;
 }
 
-export const isAbort = (error: unknown): boolean => (error as { name?: string } | null)?.name === "AbortError";
+export { isAbort } from "@molis-ai/molis-work-plugin-sdk/browser";

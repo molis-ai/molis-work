@@ -16,7 +16,9 @@ declare const host: DatasetHost;
 function mountDataset(): void {
   const bench = document.querySelector<HTMLElement>("[data-dataset=workbench]");
   if (!bench) return;
-  const page = createPage(host, bench);
+  const scope = host.mountPluginClient(bench);
+  if (!scope) return;
+  const page = createPage(host, scope, bench);
   installStatus(page);
   installTable(page);
   installList(page);

@@ -258,31 +258,31 @@ flowchart LR
 
 | 插件 | 已实现的 subject kind（源码读口） | 呈现缺口去处 |
 | --- | --- | --- |
-| Goals | [`goal`](../../plugins/native/goals/src/actions.ts)；要求、证据与验收尚无独立 reader | 15 首片；完整证据链与验收卡归 52 |
+| Goals | [`goal`](../../plugins/native/goals/src/actions.ts)；要求、证据与验收尚无独立 reader | 15 首片；完整证据链与验收卡归 53 |
 | Inbox | [`inbox_entry`](../../plugins/native/inbox/src/content-actions.ts)；读取关联对象时仍经原主人核权 | 15 首片；事项壳不能代替 Feed／Goals 的对象主人 |
-| Coding | [`coding_session`](../../plugins/native/coding/src/routes-sessions.ts)；报告、变更集有读动作，尚无独立 reader | 15 首片；活卡与完整交回归 52 等后续片 |
-| Feed | [`feed_item`、`source`](../../plugins/native/feed/src/content-actions.ts) | 15/S-2 的归属与计数必须补两种对象的最小声明、values 和概况；完整插件呈现归 52 |
-| Todo | [`todo_item`](../../plugins/native/todo/src/search.ts)、[`todo_batch`](../../plugins/native/todo/src/organize-actions.ts)；清单无独立 reader | 52，核定清单粒度 |
-| Pages | [`pages_document`](../../plugins/native/pages/src/actions.ts)；节、段无独立 reader | 52，核定节、段定位 |
-| Dataset | [`dataset`](../../plugins/native/dataset/src/search.ts)；行、汇总无独立 reader | 52 |
-| Workflows | [`workflow`](../../plugins/native/workflows/src/search.ts)；运行、检查结果无独立 reader | 52 |
-| Form | [`form`](../../plugins/native/form/src/search.ts)；答卷有查询，单份答卷无独立 reader | 63 其余声明 |
-| PPT | [`presentation`](../../plugins/native/ppt/src/search.ts)；单页无独立 reader | 63，核定单页定位 |
-| Images | [`image_job`](../../plugins/native/images/src/search.ts)；单图无独立 reader | 63 |
-| Jelly | [`jelly_item`、`jelly_note`](../../plugins/native/jelly/src/search.ts) | 63 |
-| 灵光 | [`lingguang_spark`](../../plugins/native/lingguang/src/search.ts) | 63 |
-| Cognia | [`cognia_material`](../../plugins/native/cognia/src/search.ts)；问答无独立 reader | 63 |
-| Issues | 无；[现有列表和详情](../../plugins/native/issues/src/actions.ts)有提交者，未见负责人和处理状态 | 63，不以提交者代负责人 |
-| Diff | 无；[现有 state/compare](../../plugins/native/diff/src/actions.ts)读取固定输入或计算差异 | 63，核定固定变更与计算结果的对象身份 |
-| Git | 无；[现有动作](../../plugins/native/git/src/actions.ts)读仓库、分支及暂存状态 | 63，核定提交、分支的对象粒度 |
-| Schedule | [`schedule_task`](../../plugins/native/schedule/src/search.ts) | 63 |
-| Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 52 接挂载；Shelf 自有声明归 63 |
+| Coding | [`coding_session`](../../plugins/native/coding/src/routes-sessions.ts)；报告、变更集有读动作，尚无独立 reader | 15 首片；活卡与完整交回归 53 等后续片 |
+| Feed | [`feed_item`、`source`](../../plugins/native/feed/src/content-actions.ts) | 15/S-2 的归属与计数必须补两种对象的最小声明、values 和概况；完整插件呈现归 53 |
+| Todo | [`todo_item`](../../plugins/native/todo/src/search.ts)、[`todo_batch`](../../plugins/native/todo/src/organize-actions.ts)；清单无独立 reader | 53，核定清单粒度 |
+| Pages | [`pages_document`](../../plugins/native/pages/src/actions.ts)；节、段无独立 reader | 53，核定节、段定位 |
+| Dataset | [`dataset`](../../plugins/native/dataset/src/search.ts)；行、汇总无独立 reader | 53 |
+| Workflows | [`workflow`](../../plugins/native/workflows/src/search.ts)；运行、检查结果无独立 reader | 53 |
+| Form | [`form`](../../plugins/native/form/src/search.ts)；答卷有查询，单份答卷无独立 reader | 64 其余声明 |
+| PPT | [`presentation`](../../plugins/native/ppt/src/search.ts)；单页无独立 reader | 64，核定单页定位 |
+| Images | [`image_job`](../../plugins/native/images/src/search.ts)；单图无独立 reader | 64 |
+| Jelly | [`jelly_item`、`jelly_note`](../../plugins/native/jelly/src/search.ts) | 64 |
+| 灵光 | [`lingguang_spark`](../../plugins/native/lingguang/src/search.ts) | 64 |
+| Cognia | [`cognia_material`](../../plugins/native/cognia/src/search.ts)；问答无独立 reader | 64 |
+| Issues | 无；[现有列表和详情](../../plugins/native/issues/src/actions.ts)有提交者，未见负责人和处理状态 | 64，不以提交者代负责人 |
+| Diff | 无；[现有 state/compare](../../plugins/native/diff/src/actions.ts)读取固定输入或计算差异 | 64，核定固定变更与计算结果的对象身份 |
+| Git | 无；[现有动作](../../plugins/native/git/src/actions.ts)读仓库、分支及暂存状态 | 64，核定提交、分支的对象粒度 |
+| Schedule | [`schedule_task`](../../plugins/native/schedule/src/search.ts) | 64 |
+| Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 53 接挂载；Shelf 自有声明归 64 |
 | Files | 无；第 06 批已退役，目录和内容改由平台资料服务（`system.materials`，[`system-materials-actions.ts`](../../apps/local-host/src/system-materials-actions.ts)）给，它不是 subject reader | 06-1 退役交 knowledge 与平台资料服务，不给旧包新增呈现 |
-| 插件创作台 | 无；[自身页面](../../plugins/native/plugin-builder/src/registration.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 67-4，不能把生成页面布局当创作台对象声明 |
-| Alchemist | [`alchemist-direction`、`alchemist-idea`、`alchemist-playbook`](../../plugins/native/alchemist/src/studio/server/services/workspace-operations.ts)，仍走现存 Host 特例 | 63 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
-| 文本统计 | 无；[现有 state/count](../../plugins/native/text-stats/src/actions.ts)读固定快照或计算输入文本 | 63 核定独立身份；15 首页按无概况处理 |
+| 插件创作台 | 无；[自身页面](../../plugins/native/plugin-builder/src/registration.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 68-4，不能把生成页面布局当创作台对象声明 |
+| Alchemist | [`alchemist-direction`、`alchemist-idea`、`alchemist-playbook`](../../plugins/native/alchemist/src/studio/server/services/workspace-operations.ts)，仍走现存 Host 特例 | 64 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
+| 文本统计 | 无；[现有 state/count](../../plugins/native/text-stats/src/actions.ts)读固定快照或计算输入文本 | 64 核定独立身份；15 首页按无概况处理 |
 
-排期依据：[52](../post-anticorruption-roadmap/reference/batches/52.md)、[63](../post-anticorruption-roadmap/reference/batches/63.md)、[67](../post-anticorruption-roadmap/reference/batches/67.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 61／63，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。
+排期依据：[53](../post-anticorruption-roadmap/reference/batches/53.md)、[64](../post-anticorruption-roadmap/reference/batches/64.md)、[68](../post-anticorruption-roadmap/reference/batches/68.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 62／64，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。
 
 现有组件板使用同一份 `inbox_item` 示例切换三个主人，证明共用 renderer 的显示与交互。IUI-21 补片在原「呈现形态」一节明确标示例，另外用现有只读行显示内置登记状态。工作台从生成的 `BUILTIN_PLUGIN_CATALOG` 投影插件身份、显示名和 `Manifest.presentation.objects` 是否有声明，组件板只按这份投影画一行一个插件。仅有概况的插件仍标明缺对象呈现，去处查本节。该清单只读构建登记，零运行时请求和业务副作用，也不另造资源或插件名单。真实浏览器核对名单与登记一致、中英缺口可读、窄屏可用；生产的 `inbox_entry`、`goal`、`coding_session` 消费与本人验收另验。
 

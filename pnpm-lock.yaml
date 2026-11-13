@@ -190,6 +190,9 @@ importers:
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
+      '@molis-ai/molis-work-service-observation':
+        specifier: workspace:*
+        version: link:horizontal/observation
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:horizontal/placement
@@ -702,6 +705,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+
+  horizontal/observation:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   horizontal/placement:
     dependencies:

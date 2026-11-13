@@ -441,6 +441,16 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
+  entry("horizontal/observation", "@molis-ai/molis-work-contracts/services/observation", {
+    maturity: "slice",
+    capabilities: [
+      "observation.report.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
   entry("horizontal/memory", "@molis-ai/molis-work-contracts/services/memory", {
     maturity: "production",
     capabilities: [

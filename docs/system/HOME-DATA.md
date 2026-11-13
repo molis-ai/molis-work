@@ -1,5 +1,7 @@
 # Home 数据：库与文件的 owner 表
 
+索引Home当前容器门：Memory ledger基线2与恢复journal schema 1，普通打开只认当前版本；旧Home的账本只经 [合同变更流程](CONTRACT-CHANGES.md)「当前保留机制」登记的 1 → 2 升级段进入第 2 版。`agent-runtime/records.sqlite` 是SDK拥有的Memory共享材料，原storage.key仍是密钥依赖；App不读写其业务SQL。普通snapshot源在任何SQLite连接前要求standalone且无精确 `records.sqlite-journal/-wal/-shm`；恢复target将这些侧车作为不透明原件保存并reset，不对它们做backup/recovery。SDK清理回执可以多条记录共用同一DB路径，不能据单条回执删除整库。Session恢复前后盘点保护该DB及三种侧车；关闭未确认、未知提交、prepared/publishing回滚和committed收尾仍归原publisher/journal，不新建恢复平台。此处只描述已批准本地实现，不授权操作真实Home或证明产品验收。
+
 一个 Home（默认 `~/.molis-work`，用 `MOLIS_WORK_HOME` 或入口的 `--home` 改写，解析在 `packages/storage/src/adapters/local-security-paths.ts:19`）下，每个库、每类文件归谁、怎样记版本、要不要备份、`uninstall --purge-user-data` 清不清。这是反腐败计划交付第 11 项（路线图 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` §4.11，进度见 `specs/archive/repository-anti-corruption/spec.md`）。
 
 - 基线是 origin/main `15c20920`（2026-10-07）。每一行都由代码推出，并写出打开它的代码位置；代码改了，对应行跟着改，行号会漂移。

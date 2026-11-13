@@ -10,7 +10,7 @@ import { registerRunActions } from "./run-actions.js";
 import { registerSessionActions } from "./session-actions.js";
 import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentSessionView, type AgentRunRef, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
@@ -114,12 +114,14 @@ export function registerAgentHostCapabilities<Context>(
     if (!caller) throw denied();
     return { caller, owner: { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } };
   };
+  const assertSessionOwner = (context: Call, owner: AgentSessionView["owner"]) => {
+    if (owner?.project_id !== ports.projectId(context)) throw agentErrors.session_unknown("当前项目找不到这条会话");
+    const caller = pluginFor(context);
+    if (caller && (owner.plugin_id !== caller.plugin_id || owner.install_id !== caller.install_id || owner.actor_id !== caller.actor_id)) throw denied();
+  };
   const readScopedSession = async (context: Call, session: AgentSessionRef) => {
     const view = await ports.agentHost(context).adapter(session.runtime_id).readSession(session);
-    if (view.owner?.project_id !== ports.projectId(context)) throw agentErrors.session_unknown("当前项目找不到这条会话");
-    const caller = pluginFor(context);
-    if (caller && (view.owner.plugin_id !== caller.plugin_id || view.owner.install_id !== caller.install_id
-      || view.owner.actor_id !== caller.actor_id)) throw denied();
+    assertSessionOwner(context, view.owner);
     await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
     return view;
   };
@@ -148,6 +150,12 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).createSession(runtimeId, { ...input, ...owner }, authority);
     }),
 
+    ...registerLifecycleActions(register, {
+      adapter: (context: Call, runtime: string) => ports.agentHost(context).adapter(runtime),
+      caller: pluginFor, assertOwner: assertSessionOwner, denied,
+      check: async (context: Call) => { await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent(); },
+      assertCurrent: (context: Call) => context.invocation.assertAuthorityCurrent(),
+    }),
     register(agentHostCapabilities.readSession, async (context, [session]) =>
       await readScopedSession(context, session)),
 
@@ -196,6 +204,28 @@ export function registerAgentHostCapabilities<Context>(
   };
 }
 
+/** Canonical lifecycle never restores Run controls or loads transcript history for an owner check. */
+function registerLifecycleActions<Context>(register: <Input, Output>(definition: ActionDefinition<Input, Output>,
+  handler: (context: Context, input: Input) => Output | Promise<Output>) => () => void, ports: {
+  adapter(context: Context, runtime: string): import("@molis-ai/molis-work-contracts/services/agent-host").AgentRuntimeAdapter;
+  caller(context: Context): HostPluginCaller | undefined;
+  assertOwner(context: Context, owner: AgentSessionView["owner"]): void;
+  denied(): Error; check(context: Context): Promise<void>; assertCurrent(context: Context): void;
+}) {
+  const operations = [["read", agentHostCapabilities.readSessionLifecycle], ["archive", agentHostCapabilities.archiveSession],
+    ["unarchive", agentHostCapabilities.unarchiveSession]] as const;
+  return operations.map(([command, definition]) => register(definition, async (context, [session]) => {
+    if (!ports.caller(context)) throw ports.denied();
+    const adapter = ports.adapter(context, session.runtime_id), capability = adapter.sessionLifecycle;
+    if (!capability || !adapter.withEffect) throw agentErrors.capability_unavailable("运行时未接通会话归档与恢复");
+    const current = await capability.read(session); ports.assertOwner(context, current.owner);
+    await ports.check(context);
+    if (command !== "read") await capability[command](session);
+    const result = await capability.read(session);
+    ports.assertOwner(context, result.owner); ports.assertCurrent(context);
+    return result.view;
+  }));
+}
 /** A caller issued for a project, not the Home. */
 const inProject = (caller: HostPluginCaller): caller is HostPluginCaller & { readonly project_id: string } => caller.project_id !== null;
 
@@ -203,6 +233,11 @@ function invocationAuthority(authority: AgentStartAuthority, invocation: HostCap
   return { ...authority,
     beforeStart: async () => { await authority.beforeStart?.(); await invocation.beforeEffect(); },
     assertBeforeStart: () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); invocation.assertAuthorityCurrent(); },
-    beforeDispatch: async () => { caller?.assertActive(); await authority.beforeDispatch?.(); caller?.assertActive(); },
+    beforeDispatch: async () => {
+      caller?.assertActive();
+      const fence = await authority.beforeDispatch?.();
+      caller?.assertActive();
+      return () => { caller?.assertActive(); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); caller?.assertActive(); };
+    },
   };
 }

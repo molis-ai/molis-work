@@ -6,7 +6,7 @@ import test from "node:test";
 import { MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 
-test("Run recipes use live switches without reading bodies, automatically pinning kinds or recording use", async t => {
+test("MEM-14 Run recipes use live switches without reading bodies, automatically pinning kinds or recording use", async t => {
   const home = await mkdtemp(join(tmpdir(), "memory-run-recipe-"));
   const ledger = openMemoryLedger({ homeDirectory: home });
   t.after(async () => { ledger.close(); await rm(home, { recursive: true, force: true }); });

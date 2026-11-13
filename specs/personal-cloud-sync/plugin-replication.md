@@ -56,13 +56,13 @@ Use two isolated personal Homes and synthetic identities; test create/update/del
 
 | Entry | Current support | Remaining work |
 | --- | --- | --- |
-| Pages | Documents/folders, large portable bodies and raw embedded image bytes | Arbitrary local files are not scanned; Goal dependencies wait rather than lose references |
+| Pages | Documents/folders, large portable bodies and raw embedded image bytes | Arbitrary local files are not scanned; references to other plugins' objects wait rather than get lost |
 | Artifacts | Fixed versions, lifecycle, imported original file bytes and large immutable bodies | Unknown external `content_ref` refused; full project lifecycle remains separate |
 | Form | Questions, captured submissions, request IDs, metadata and common large-content codec | Automatic concurrent submission merge is not implemented |
 | Dataset | Columns/rows, saved snapshots, metadata and common large-content codec | Automatic row merge is not implemented |
 | PPT | Slides, theme, notes, metadata and common large-content codec | Complete cross-owner dependencies still require acceptance |
 | Lingguang | Sparks, discard state, completed conversations, stable message ordering, delivery request IDs | Same-spark independently created conversations remain a conflict |
-| Goals | Project-consistent facts, relations, work history, proposals, decisions, Goal-related ContextLedger edges and large aggregate blocks | Stable event anchors and whole-project conflicts remain; execution state is not portable; full project lifecycle/copy is separate |
+| Goals | Project-consistent facts, relations, work history, proposals, decisions, relation edges as the generic relation set and large aggregate blocks | Stable event anchors and whole-project conflicts remain; execution state is not portable; full project lifecycle/copy is separate |
 | Feed / Inbox | 捕捉规则、来源业务描述/历史；Feed 消息/材料、Signal 固定修订/事件及原始证据字节；Inbox 引用/处置/事件，实际 WASM/D1/R2 已验证 | 单位仍为 owner 项目一致图；嵌套 30 天业务回收/语义恢复与全插件验收未完。不传密钥、账号授权和拉取租约，接收不判断/执行 |
 | Images | Saved terminal job records and validated PNG/JPEG/WebP bytes; isolated two-Home + real WASM/D1/R2 verified | No active job migration, credentials or runner; full plugin-set acceptance pending |
 | Cognia | Owner-consistent domains/source descriptions/materials/fixed bytes/history/draft citations; isolated WASM/D1/R2 verified | Local scanner paths and unfinished previews stay local; no automatic scans/AI/adoption; latest v2 editor CAS has separate validation |

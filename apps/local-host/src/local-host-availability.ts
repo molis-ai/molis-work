@@ -1,5 +1,5 @@
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ActionService, CapabilityRegistry, RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import type { ActionSelection, ActionService, CapabilityRegistry, RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import { actionDirectoryLookup, judgmentRecommendationKeys, sampleRetainedActionDirectory, subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { admitPluginCall } from "./plugin-callers.js";
@@ -16,9 +16,9 @@ export class HostAvailability {
     private readonly options: Pick<LocalHostOptions<unknown>, "actionAvailability" | "sceneAvailability" | "assertProjectAvailable">,
   ) {}
 
-  async discover(caller: ActionCallContext): Promise<ActionView[]> {
-    const views = this.actionService.discover(caller);
-    return this.views(caller, views, views);
+  async discover(caller: ActionCallContext, select?: ActionSelection): Promise<ActionView[]> {
+    const views = this.actionService.discover(caller, undefined, select);
+    return this.views(caller, views, select ? undefined : views);
   }
 
   async discoverRetained(caller: ActionCallContext, retain: NonNullable<ActionExecutionContext["retainAuthority"]>): Promise<RetainedActionDirectory> {
@@ -46,11 +46,7 @@ export class HostAvailability {
     }));
   }
 
-  /**
-   * `pass` is the caller's directory for the whole resolution: a check that brings none gets one here, and every dependency, scene, binding and
-   * offer it follows reads that same directory, once, instead of reading the whole directory again at each step.
-   */
-  async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, given?: DiscoveryPass): Promise<ActionAvailability> {
+  async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, pass?: DiscoveryPass): Promise<ActionAvailability> {
     if (!view.availability.available) return view.availability;
     const key = JSON.stringify([view.capability_id, view.version, view.provider.provider_id]);
     if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或消费场景存在循环依赖，请修正配置" };
@@ -58,38 +54,38 @@ export class HostAvailability {
     const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
     if (!view.action.required_actions?.length && !view.action.required_scene) return state;
-    const pass = given ?? dependencyDirectory(this.actionService, caller);
-    const firstAction = pass.actions();
+    const dependencies = pass ?? dependencyDirectory(this.actionService, caller);
+    const firstAction = dependencies.actions();
     for (const reference of view.action.required_actions ?? []) {
       const dependency = firstAction(reference);
       if (!dependency) return { available: false, code: "actions.dependency_missing", reason: "所需能力不存在或不可访问" };
       if (reference.provider_id && dependency.provider.provider_id !== reference.provider_id) {
         return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化，原引用不能自动替换" };
       }
-      const dependencyState = await this.resolve(caller, dependency, path, policy, pass);
+      const dependencyState = await this.resolve(caller, dependency, path, policy, dependencies);
       if (!dependencyState.available) return dependencyState;
     }
     if (!view.action.required_scene) return state;
     const required = view.action.required_scene;
-    const scene = pass.scene(required);
+    const scene = dependencies.scene(required);
     if (!scene) return { available: false, code: "actions.scene_missing", reason: "消费场景不存在或不可访问" };
     const sceneState = scene.availability.available ? await this.options.sceneAvailability?.(caller, scene) ?? scene.availability : scene.availability;
     if (!sceneState.available) return sceneState;
-    const bindings = await pass.bindings(required);
+    const bindings = await dependencies.bindings(required);
     if (!bindings.length) return { available: false, code: "actions.binding_required", reason: "请先为此场景选择并启用判断规则" };
     const states = await Promise.all(bindings.map(async binding => {
       if (!binding.availability.available) return binding.availability;
       const fn = firstAction(binding.function);
       if (!fn) return { available: false as const, code: "actions.binding_invalid", reason: "已绑定的判断能力不可访问" };
-      const fnState = await this.resolve(caller, fn, path, policy, pass);
+      const fnState = await this.resolve(caller, fn, path, policy, dependencies);
       if (!fnState.available || scene.definition.recommendation_source !== "subject-offers") return fnState;
       const keys = judgmentRecommendationKeys(fn) ?? [];
-      const choices = pass.choices().filter(choice => keys.includes(choice.key));
+      const choices = dependencies.choices().filter(choice => keys.includes(choice.key));
       for (const choice of choices) for (const reference of [choice.source, choice.action]) {
         // This caller's directory has at most one row for this id/version. The offer still pins its exact provider.
         const dependency = firstAction(reference);
         if (!dependency || dependency.provider.provider_id !== reference.provider_id) return { available: false as const, code: "actions.binding_invalid", reason: "推荐动作已不可访问" };
-        const available = await this.resolve(caller, dependency, path, policy, pass);
+        const available = await this.resolve(caller, dependency, path, policy, dependencies);
         if (!available.available) return available;
       }
       return fnState;
@@ -122,7 +118,8 @@ function dependencyDirectory(service: ActionService, caller: ActionCallContext, 
   const sceneMatches = new Map<string, ActionSceneView | undefined>();
   const directory = () => actions ??= service.discover(caller);
   return {
-    actions: () => first ??= ((index = projected?.()) => index ? (reference: ActionReference) => index.get(actionKey(reference)) : actionDirectoryLookup(directory()))(),
+    actions: () => first ??= ((index = projected?.()) => index ? (reference: ActionReference) => index.get(actionKey(reference))
+      : snapshot ? actionDirectoryLookup(snapshot) : (reference: ActionReference) => service.discoverOne(caller, reference))(),
     scene: reference => {
       const key = sceneKey(reference.scene_id, reference.version);
       if (!sceneMatches.has(key)) {

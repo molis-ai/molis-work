@@ -25,6 +25,36 @@ function played(events: PrologueEvent[]) {
   return presentActivity(state.activity, undefined);
 }
 
+// Business receipt semantics are projected after the same production tool event pipeline, not inferred from returned transport.
+function memoryReceipt(name: string, text: string, outcome: "returned" | "failed" = "returned") {
+  return played([{ type: "tool-call", call: { id: "memory-result", name, input: {} } },
+    { type: "tool-result", callId: "memory-result", name, text, outcome }])[0]!;
+}
+
+test("Memory candidate and false/true receipts retain their distinct business result", () => {
+  const pending = memoryReceipt("remember", JSON.stringify({ memory_id: "", candidate_id: "candidate", scope: "project", applies: "本项目" }));
+  assert.deepEqual([pending.verb, pending.target, pending.state, pending.detail], ["memory-suggest", "", "completed", undefined]);
+  const untouched = memoryReceipt("forget-memory", JSON.stringify({ forgotten: false }));
+  assert.equal(untouched.state, "failed"); assert.match(untouched.detail ?? "", /没有停用/);
+  assert.equal(untouched.reason, undefined, "false does not by itself prove why the item is unavailable");
+  const disabled = memoryReceipt("forget-memory", JSON.stringify({ forgotten: true }));
+  assert.deepEqual([disabled.verb, disabled.state, disabled.detail], ["memory-forget", "completed", undefined]);
+  const emptyApplies = memoryReceipt("remember", JSON.stringify({ memory_id: "memory", scope: "personal", applies: "" }));
+  assert.deepEqual([emptyApplies.verb, emptyApplies.state], ["memory-keep", "completed"], "the existing contract permits an empty applies string");
+});
+
+test("Memory exceptions and missing, truncated or incomplete receipts never become a successful change", () => {
+  const failed = memoryReceipt("forget-memory", "memory.forbidden: current access is withdrawn", "failed");
+  assert.equal(failed.state, "failed");
+  const absent = presentActivity([{ call_id: "missing", name: "remember", target: "", state: "completed", summary: "", at: null }], undefined)[0]!;
+  assert.equal(absent.state, "unknown");
+  for (const text of ["not JSON", JSON.stringify({ forgotten: "true" }), JSON.stringify({}),
+    JSON.stringify({ forgotten: true, note: "x".repeat(17_000) })]) {
+    assert.equal(memoryReceipt("forget-memory", text).state, "unknown", "invalid or clipped output cannot authorize a success label");
+  }
+  assert.equal(memoryReceipt("remember", JSON.stringify({ memory_id: "memory" })).state, "unknown", "an incomplete saved-memory receipt is unknown");
+});
+
 test("a successful desktop action reads as operating an app, and the same browser receipt stays a web action", () => {
   const desktop = played([
     { type: "tool-call", call: { id: "list", name: "surface-list", input: {} } },
@@ -106,8 +136,9 @@ const STEP_WORDS = [
   ["delegate-stop", ["停止子任务", "正在停止子任务", "已停止子任务"], ["stop a sub-task", "Stopping a sub-task", "Stopped a sub-task"]],
   ["memory-keep", ["记下你的要求", "正在记下你的要求", "已记下你的要求"], ["keep what you asked", "Keeping what you asked", "Kept what you asked"]],
   ["memory-list", ["查看记住的事", "正在查看记住的事", "已查看记住的事"], ["look at what is remembered", "Looking at what is remembered", "Looked at what is remembered"]],
-  ["memory-forget", ["删除一条记忆", "正在删除一条记忆", "已删除一条记忆"], ["delete a memory", "Deleting a memory", "Deleted a memory"]],
-  ["memory-suggest", ["建议记住一条", "正在建议记住一条", "已建议记住一条"], ["suggest something to keep", "Suggesting something to keep", "Suggested something to keep"]],
+  // Memory V0 (#2020): forgetting from a round switches the memory off, and a suggestion stays a candidate until the person accepts it.
+  ["memory-forget", ["停用一条记忆", "正在停用一条记忆", "已停用一条记忆"], ["switch off a memory", "Switching off a memory", "Switched off a memory"]],
+  ["memory-suggest", ["建议记住一条", "正在建议记住一条", "建议记住（等你认可）"], ["suggest something to keep", "Suggesting something to keep", "Suggested to remember (needs your OK)"]],
   ["file-read", ["读取文件", "正在读取文件", "已读取文件"], ["read", "Reading", "Read"]],
   ["file-list", ["查看目录", "正在查看目录", "已查看目录"], ["list", "Listing", "Listed"]],
   ["file-search", ["搜索代码", "正在搜索代码", "已搜索代码"], ["search code for", "Searching code for", "Searched code for"]],

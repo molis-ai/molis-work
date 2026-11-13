@@ -1,8 +1,8 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, visibleAction, prepareSubjectStateResult } from "./action-execution-context.js";
 import { actionDirectoryLookup, actionKey } from "./action-directory-lookup.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
-import { discoveredActionViews, registeredActionMetadata, type ObserveActionRegistration } from "./action-metadata.js";
+import { discoveredActionViews, registeredActionMetadata, type ActionSelection, type ObserveActionRegistration } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
@@ -137,11 +137,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
           });
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
-          const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
-          // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
+            const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
+              definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            const checked = prepareSubjectStateResult(execution, definition, provider, input, this.registry, () => executing, value => checkedActionResult(definition, validateOutput, value), assertCurrent);
+            // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
             const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
@@ -191,8 +191,16 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return dispose;
   }
 
-  discover(context: ActionCallContext, observe?: ObserveActionRegistration): ActionView[] {
-    return this.directory(context, false, observe);
+  discover(context: ActionCallContext, observe?: ObserveActionRegistration, select?: ActionSelection): ActionView[] {
+    return this.directory(context, false, observe, select);
+  }
+
+  /** Resolve one visible dependency without projecting unrelated registrations. */
+  discoverOne(context: ActionCallContext, reference: ActionReference): ActionView | undefined {
+    const descriptor = this.registry.descriptor(reference, context.project_id), provider = descriptor?.action_provider;
+    if (!descriptor?.action || !provider || !visibleAction(descriptor as ActionDefinition, provider, context)) return undefined;
+    return { capability_id: descriptor.capability_id, version: descriptor.version, operation: descriptor.operation,
+      provider, action: descriptor.action, availability: this.registry.availability(context, descriptor) };
   }
 
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */
@@ -200,9 +208,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return this.directory(context, true);
   }
 
-  private directory(context: ActionCallContext, inspection: boolean, observe?: ObserveActionRegistration): ActionView[] {
+  private directory(context: ActionCallContext, inspection: boolean, observe?: ObserveActionRegistration, select?: ActionSelection): ActionView[] {
     // Visibility is checked before any row is made. One pass: a provider is asked once for all its actions, the caller once for its authority.
-    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context), caller = rowCaller(context);
+    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) =>
+      (!select || select(definition, provider)) && visibleAction(definition, provider, context), caller = rowCaller(context);
     return inDirectoryPass(() => discoveredActionViews(this.registry, caller,
       registeredActionMetadata(this.registry, context, visible), observe));
   }

@@ -6,10 +6,10 @@ import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
  * Structure, density and component ownership stay with the existing layers. */
 
 /** Menus, popovers and compact dialogs that share one raised-surface recipe. */
-const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel)";
+const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel)";
 
 /** Modals that dim the app behind them. */
-const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog)";
+const SCRIMMED = ":is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog)";
 
 
 export const INTERACTION_TEXTURE_STYLES = `
@@ -336,18 +336,6 @@ export const INTERACTION_TEXTURE_STYLES = `
     color: var(--faint);
   }
   body.immersive-workbench .tree-pane .tree-filter-empty p { margin: 0 0 8px; }
-
-  /* Home: adding a shortcut is a slot, not the loudest thing on the page. */
-  .immersive-home .home-shortcut-add .home-shortcut-icon {
-    color: var(--muted);
-    background: transparent;
-    box-shadow: inset 0 0 0 1px var(--line-strong);
-  }
-  .immersive-home .home-shortcut-add .home-shortcut-main:hover .home-shortcut-icon {
-    color: var(--ink);
-    background: var(--nav-hover);
-    box-shadow: inset 0 0 0 1px var(--line-strong);
-  }
 
   @media (prefers-reduced-motion: reduce) {
     :where(button, a, summary, [role="button"], .tree-entry, .tab-item, .desktop-module-item, .immersive-plugin-link) { transition: none; }

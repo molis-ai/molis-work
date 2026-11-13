@@ -1135,7 +1135,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 
 只记不留死路要用的。
 
-**2026-11-12 合后审计整改：** 本节是第 16 批开工时的清单；除下列「仍余」外均已随 #2031 落地或被取代。**仍余：** 胶囊 Web 外观已接入（2026-11-12 合后整改），原生窗口/菜单/剪贴板实操仍待（BL-b16-capsule-native-verification）、写死日期语言/模型材料语言残余（BL-b16-language-hardcoding-residual）、给模型的动作说明 A/B 未执行（BL-b16-action-description-ab）、FSS-40/41 按用户决定缓（第 71 批）。逐项：门禁 PR→已随 #2031；字体方案与 `PLUGIN_COMPONENTS`→已落；`ActionLocale`/`WebLocale`/`WEB_LOCALES`→已由语言描述驱动；内置/沙箱语言文件、`FrameConfig`、动作网关→已接；§5.4 合并代码→已进工作台脚本与 iframe（事件改用 `language-changed`）；`/locale` 跳转→客户端原地，`/locale` 保留无 JS 入口；#1795 三条→按定样记录落地（`docs/design/appearance-selection/README.md:79`）。迁移三类、盘点、首屏写法、窄规矩存量、旧字段拒绝、后台通知、内容翻译、脚手架、手册→已随 C 段与手册改动落地；`DESIGN.md` 皮肤章节→本批写了现行描述，自定义制作章节归第 71 批。
+**2026-11-12 合后审计整改：** 本节是第 16 批开工时的清单；除下列「仍余」外均已随 #2031 落地或被取代。**仍余：** 胶囊 Web 外观已接入（2026-11-12 合后整改），原生窗口/菜单/剪贴板实操仍待（BL-b16-capsule-native-verification；胶囊已于第 44 批删除，该项随之关闭，重做时另验胶囊已于第 44 批删除，重做时另验；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)））、写死日期语言/模型材料语言残余（BL-b16-language-hardcoding-residual）、给模型的动作说明 A/B 未执行（BL-b16-action-description-ab）、FSS-40/41 按用户决定缓（第 71 批）。逐项：门禁 PR→已随 #2031；字体方案与 `PLUGIN_COMPONENTS`→已落；`ActionLocale`/`WebLocale`/`WEB_LOCALES`→已由语言描述驱动；内置/沙箱语言文件、`FrameConfig`、动作网关→已接；§5.4 合并代码→已进工作台脚本与 iframe（事件改用 `language-changed`）；`/locale` 跳转→客户端原地，`/locale` 保留无 JS 入口；#1795 三条→按定样记录落地（`docs/design/appearance-selection/README.md:79`）。迁移三类、盘点、首屏写法、窄规矩存量、旧字段拒绝、后台通知、内容翻译、脚手架、手册→已随 C 段与手册改动落地；`DESIGN.md` 皮肤章节→本批写了现行描述，自定义制作章节归第 71 批。
 
 - 门禁 PR：页面总数、第一屏清单、语言和皮肤的路由（第 4.4、9 节），开工前单开。
 - 字体方案加字号、行高、长文阅读、说明文字（第 3.4 节）；圆润字体第 16 批前定；`PLUGIN_COMPONENTS` 搬进共同规格（第 3.3 节）。
@@ -1168,7 +1168,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 
 拿译文做判断、写死语言、`t.text` 拼进模板插值都能静态查，新门禁先问用户，这里不加。
 
-**内容翻译（第 15 节）：** goals 的 37 个方法、内置 Character、提示词段（各升版本）；Todo、Issues、Pages 的方法正文从代码搬成文件；Coding、创作台接回复语言；创作台生成内容的默认语言跟所选语言。**手册和脚手架（第 16 节）：** `create.ts`、`sample-source.ts` 默认生成语言文件；`generated-*.md` 和 `CHAPTERS`（要 `pnpm studio:replay`）；手册删旧写法。**第 71 批不变：** `DESIGN.md` 的皮肤章节、个人助理的外观 Skill。
+**内容翻译（第 15 节）：** 规划方法（41-2 起是能力包里的技能，键与路径以能力包目录为准；原 goals 的 37 个方法）、内置 Character、提示词段（各升版本）；Todo、Issues、Pages 的方法正文从代码搬成文件；Coding、创作台接回复语言；创作台生成内容的默认语言跟所选语言。**手册和脚手架（第 16 节）：** `create.ts`、`sample-source.ts` 默认生成语言文件；`generated-*.md` 和 `CHAPTERS`（要 `pnpm studio:replay`）；手册删旧写法。**第 71 批不变：** `DESIGN.md` 的皮肤章节、个人助理的外观 Skill。
 
 ## 15. 内容语言
 

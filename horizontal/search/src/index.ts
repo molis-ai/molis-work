@@ -583,6 +583,7 @@ async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | 
   };
   // Metadata pages keep the raw cursor even when every entry on a page is hidden.
   return { sources: () => { assertCurrent(); return sources; }, assertCurrent,
+    get views() { assertCurrent(); return currentViews; },
     catalog: (projectId: string, cursor?: string) => {
       assertCurrent();
       if (projectId !== project) return { entries: [], next_cursor: null };

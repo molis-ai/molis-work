@@ -322,7 +322,8 @@ async function startAuthority(
         project_id: runtime.project_id, audience: "user" as const, permissions: [SKILLS_READ_PERMISSION], call_id: callId, locale } } } : {}),
       named: named?.named.refs ?? [] }) } : {}),
     mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
-    actions: async (runtimeId, validate, session, skillRound) => {
+    actions: async (runtimeId, validate, session, skillRound, memory) => {
+      const runtimeMemory = memory ? { plugin_id: pluginId, current_scene: memory.current_scene, class_restrictions: structuredClone(memory.class_restrictions) } : undefined;
       // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
       // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
       // record when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is
@@ -330,19 +331,21 @@ async function startAuthority(
       const source = subject ? taskReadableHost(localHost) : localHost;
       // `skill_round` is the Host's word about this round (§2.3): the grant resolution gets it, so the round's own reads of `system.skills` need
       // no separate 对外接入 grant (mcp-action-grants.ts), and the handler context gets it only on those calls. A tool call into any other
-      // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6).
-      const current = async (signal?: AbortSignal, action?: ExactActionReference) => {
+      // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6). The round's memory scene and
+      // class restrictions, and the selection a memory read is held to, travel the same way.
+      const current = async (signal?: AbortSignal, action?: ExactActionReference, memorySelection?: { assert_current(): void }) => {
         const authorized = await authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
           project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
+          ...(memorySelection ? { memory_context_selection: memorySelection } : {}), ...(runtimeMemory ? { runtime_memory: structuredClone(runtimeMemory) } : {}),
           ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
-            caller?.assertActive(); signal?.throwIfAborted();
+            caller?.assertActive(); signal?.throwIfAborted(); memorySelection?.assert_current();
             if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
           });
         return { ...authorized, context: action?.provider_id === SKILLS_PROVIDER_ID ? authorized.context : withoutSkillRound(authorized.context) };
       };
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal, action); return authorized.service.invoke(authorized.context, action, input); },
+        invoke: async (action, input, signal, memorySelection) => { memorySelection?.assert_current(); const authorized = await current(signal, action, memorySelection); return authorized.service.invoke(authorized.context, action, input); },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },

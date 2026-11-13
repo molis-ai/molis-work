@@ -5,13 +5,20 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, memoryErrors, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentMemoryOptions } from "./fixtures/current-memory.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: "memory-owner", project_id: "project-a", consumer: "ui",
   current_scene: "coding", purpose: "management", person: true, operation_id });
+
+const acceptedPending = (who: MemoryCaller) => (error: unknown) => {
+  assert.ok(error instanceof ActionError); assert.equal(error.code, "memory.unavailable");
+  assert.deepEqual(error.details, { operation_id: who.operation_id, forgetting: "accepted", cleanup: "pending" });
+  return true;
+};
 
 test("MEM-20 candidate decisions retain the observed candidate version and replay the same discard", async t => {
   const setup = await fixture(t), env = await setup.open();
@@ -31,6 +38,11 @@ test("MEM-20 candidate decisions retain the observed candidate version and repla
 
 async function fixture(t: TestContext, character?: { project_id: string; owner: string; additionalOwners?: string[] }, plugin?: string, formedKinds = false) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-cas-"));
+  const storageRoot = join(home, "agent-runtime"), initialOwner = acquireStorageOwner(storageRoot);
+  try { initializeMemoryForgetting({ homeDirectory: home, storageOwner: initialOwner, assertCurrent() {} }); }
+  finally { initialOwner.release(); }
+  let closeCurrent: (() => Promise<void>) | undefined;
+  t.after(async () => { await closeCurrent?.(); await rm(home, { recursive: true, force: true }); });
   const appId = "io.molis.work.memory-cas";
   let denied: string | undefined;
   let afterWrite: (() => Promise<void>) | undefined;
@@ -40,6 +52,8 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
   let afterCandidatePurge: (() => Promise<void>) | undefined;
   let afterCandidateList: (() => Promise<void>) | undefined;
   let afterRemove: (() => void) | undefined;
+  const deniedReads: string[] = [];
+  let appDenials = 0, removeCalls = 0;
   let authorized = true;
   const memory = currentMemoryOptions({ appId, scopesFor: who => [{ scope: "user", owner: who.actor_id },
     ...(who.project_id ? [{ scope: "project" as const, owner: who.project_id }] : []),
@@ -70,33 +84,45 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
           && (request.action !== "delete" || request.target.ref.id !== denied))
       : authorize(who, requests);
   }
+  const authorize = memory.authorize!;
+  memory.authorize = async (who, requests) => {
+    const allowed = await authorize(who, requests);
+    if (allowed === false) for (const request of requests) if (request.action === "manage-read") deniedReads.push(request.target.ref.id);
+    return allowed;
+  };
   const open = async () => {
-    const adapter = await createPrologueNodeAdapter({ app: { appId, appVersion: "0.0.0" }, storageRoot: join(home, "sdk"),
-      reviewQueue: new AgentReviewQueue(), memory, modelConfiguration: async () => null as never, resolveCredential: () => null });
-    const ledger = openMemoryLedger({ homeDirectory: home });
+    const storageOwner = acquireStorageOwner(storageRoot);
+    let ledger: ReturnType<typeof openMemoryLedger> | undefined, pending: ReturnType<typeof createPrologueNodeAdapter> | undefined;
     let closed = false;
-    const close = async () => { if (closed) return; closed = true; ledger.close(); await adapter.close(); };
-    t.after(close);
+    const close = async () => { if (closed) return; await pending?.close(); ledger?.close(); storageOwner.release(); closed = true; };
+    closeCurrent = close;
+    let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>;
+    try {
+      ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
+      pending = createPrologueNodeAdapter({ app: { appId, appVersion: "0.0.0" }, storageRoot, storageOwner,
+        reviewQueue: new AgentReviewQueue(), memory, modelConfiguration: async () => null as never, resolveCredential: () => null });
+      adapter = await pending;
+    } catch (failure) { await close(); throw failure; }
     const backend = prologueMemoryBackend(async () => adapter.memory!);
     const bind = backend.withCaller.bind(backend);
     backend.withCaller = who => {
       const bound = bind(who);
       return { ...bound, write: async input => { const result = await bound.write(input); await afterWrite?.(); return result; },
         update: async input => { await beforeUpdate?.(); const result = await bound.update(input); await afterUpdate?.(); return result; },
-        remove: async input => { await bound.remove(input); afterRemove?.(); },
+        remove: async input => { removeCalls++; await bound.remove(input); afterRemove?.(); },
         candidates: { ...bound.candidates, list: async (...args) => { const result = await bound.candidates.list(...args); await afterCandidateList?.(); return result; }, purge: async input => { await bound.candidates.purge(input); await afterCandidatePurge?.(); } } };
     };
     // SDK grants and App ledger authority are separate boundaries, governed by the same current test grant.
     const service = new MemoryService({ backend, ledger, timeZone: "Asia/Shanghai", beforeEffect: async () => {
       await beforeEffect?.();
-      if (!authorized) throw new Error("fixture App ledger authority revoked");
+      if (!authorized) { appDenials++; throw new Error("fixture App ledger authority revoked"); }
     } });
     return { service, ledger, backend, raw: backend.withCaller(caller("raw-read")), close };
   };
-  t.after(() => rm(home, { recursive: true, force: true }));
   return { open, beforeUpdate: (hook?: () => Promise<void>) => { beforeUpdate = hook; }, beforeEffect: (hook?: () => Promise<void>) => { beforeEffect = hook; }, afterUpdate: (hook?: () => Promise<void>) => { afterUpdate = hook; }, denyDelete: (id?: string) => { denied = id; }, afterWrite: (hook?: () => Promise<void>) => { afterWrite = hook; },
     afterCandidatePurge: (hook?: () => Promise<void>) => { afterCandidatePurge = hook; }, afterCandidateList: (hook?: () => Promise<void>) => { afterCandidateList = hook; },
-    afterRemove: (hook?: () => void) => { afterRemove = hook; }, authorize: (allowed: boolean) => { authorized = allowed; } };
+    afterRemove: (hook?: () => void) => { afterRemove = hook; }, authorize: (allowed: boolean) => { authorized = allowed; },
+    deniedReads: () => [...deniedReads], appDenials: () => appDenials, removeCalls: () => removeCalls };
 }
 
 test("an SDK append survives ledger failure; the same original request repairs one history after restart without a body marker", async t => {
@@ -168,15 +194,52 @@ test("clear returns partial results and retries its fixed preview; a later entry
     const one = await env.service.write(caller("seed-a"), { scope: "personal", text: "Prefer concise notes", kind: "preference" });
     const two = await env.service.write(caller("seed-b"), { scope: "personal", text: "Prefer numbered headings", kind: "preference" });
     const preview = await env.service.previewScope(caller("preview"), "personal");
-    setup.denyDelete(two.memory!.memory_id);
+    const plan = env.ledger.marker(caller("read").actor_id, `memory-clear:${preview.fingerprint}`)!.body as {
+      parts: Array<{ operation_id: string; items: Array<{ memory_id: string; version: number }> }> };
+    const selected = plan.parts[0]!.items, first = selected[0]!.memory_id, last = selected.at(-1)!.memory_id;
+    assert.deepEqual(new Set(selected.map(item => item.memory_id)), new Set([one.memory!.memory_id, two.memory!.memory_id]));
+    const calls: Array<Parameters<typeof env.raw.clearScope>[0]> = [], receipts: Array<Awaited<ReturnType<typeof env.raw.clearScope>>> = [];
+    const bind = env.backend.withCaller.bind(env.backend);
+    t.mock.method(env.backend, "withCaller", (who: MemoryCaller) => {
+      const bound = bind(who);
+      return { ...bound, clearScope: async (input: Parameters<typeof bound.clearScope>[0]) => {
+        calls.push(structuredClone(input));
+        assert.ok(env.ledger.forgetting.read().decisions.some(decision => decision.operation_id === input.operation_id), "the real clear is dispatched only after this part was accepted");
+        if (calls.length === 1) setup.denyDelete(last);
+        const result = await bound.clearScope(input); receipts.push(result); return result;
+      } };
+    });
+    const before = await env.raw.list("personal", caller("read").actor_id);
+    setup.denyDelete(last);
+    await assert.rejects(env.service.clearScope(caller("clear"), "personal", preview.fingerprint), { code: "MEMORY_SCOPE_DENIED" });
+    assert.deepEqual(env.ledger.forgetting.read().decisions, []); assert.equal(calls.length, 0);
+    assert.deepEqual(await env.raw.list("personal", caller("read").actor_id), before, "pre-acceptance denial performs no physical purge");
+    assert.equal(env.ledger.revisions(first).length, 1); assert.equal(env.ledger.revisions(last).length, 1);
+    setup.denyDelete();
     const partial = await env.service.clearScope(caller("clear"), "personal", preview.fingerprint);
-    assert.equal(partial.complete, false); assert.equal(partial.removed, 1);
-    assert.equal(env.ledger.revisions(one.memory!.memory_id).length, 0);
-    assert.equal(env.ledger.revisions(two.memory!.memory_id).length, 1);
+    assert.deepEqual(partial, { complete: false, removed: 1, items: [
+      { memory_id: first, outcome: "completed" }, { memory_id: last, outcome: "unknown" },
+    ] });
+    assert.deepEqual(receipts[0]!.items, [
+      { memory_id: first, outcome: "completed", version: selected[0]!.version + 1 }, { memory_id: last, outcome: "unknown" },
+    ], "the real SDK receipt retains its committed version while the App projects only outcomes");
+    assert.equal(env.ledger.forgetting.read().decisions.length, 1);
+    assert.equal(env.ledger.forgetting.read().decisions[0]!.operation_id, plan.parts[0]!.operation_id);
+    const decisions = env.ledger.forgetting.read().decisions;
+    assert.deepEqual(decisions[0]!.memories, selected);
+    assert.deepEqual(env.ledger.revisions(first), []); assert.deepEqual(env.ledger.revisions(last), [], "accepted selection hides both histories immediately");
+    assert.deepEqual((await env.raw.list("personal", caller("read").actor_id)).map(item => item.memory_id), [last], "the denied physical target remains in the SDK");
     const later = await env.service.write(caller("seed-c"), { scope: "personal", text: "Prefer Sunday planning", kind: "preference" });
     setup.denyDelete();
     const done = await env.service.clearScope(caller("clear"), "personal", preview.fingerprint);
-    assert.equal(done.complete, true);
+    assert.deepEqual(done, { complete: true, removed: 2, items: [
+      { memory_id: first, outcome: "already-absent" }, { memory_id: last, outcome: "completed" },
+    ] });
+    assert.deepEqual(receipts[1]!.items, [
+      { memory_id: first, outcome: "already-absent" }, { memory_id: last, outcome: "completed", version: selected.at(-1)!.version + 1 },
+    ]);
+    assert.deepEqual(calls[1], calls[0], "retry keeps the original SDK preview, operation and versions");
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions, "a later entry cannot join the accepted selection");
     assert.deepEqual((await env.raw.list("personal", caller("read").actor_id)).map(row => row.memory_id), [later.memory!.memory_id]);
   } finally { await env.close(); }
 });
@@ -208,8 +271,11 @@ test("a project clear stops later Character parts after an unknown receipt and r
     ] });
     assert.deepEqual(await env.raw.list("project", "project-a"), [], "the lost receipt does not undo the committed SDK purge");
     assert.deepEqual((await env.raw.list("character", owner)).map(item => item.memory_id), [characterMemory.memory_id]);
-    assert.equal(env.ledger.revisions(project.memory_id).length, 1, "unknown is not proof to clear history");
-    assert.equal(env.ledger.revisions(characterMemory.memory_id).length, 1);
+    assert.deepEqual(env.ledger.revisions(project.memory_id), [], "accepted project history is hidden despite the lost physical receipt");
+    assert.deepEqual(env.ledger.revisions(characterMemory.memory_id), [], "accepted Character history is hidden before its physical cleanup");
+    assert.equal(env.ledger.forgetting.read().decisions.length, 2);
+    const decisions = env.ledger.forgetting.read().decisions;
+    assert.ok(decisions.some(decision => decision.operation_id === calls[0]!.operation_id));
     const done = await env.service.clearScope(caller("clear"), "project", preview.fingerprint);
     assert.deepEqual(calls.map(call => call.scope), ["project", "project", "character"]);
     assert.deepEqual(calls[1], calls[0], "retry preserves every original project target, version and operation");
@@ -219,6 +285,7 @@ test("a project clear stops later Character parts after an unknown receipt and r
       { memory_id: project.memory_id, outcome: "already-absent" }, { memory_id: characterMemory.memory_id, outcome: "completed" },
     ] });
     assert.deepEqual(await env.raw.list("character", owner), []);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.deepEqual(env.ledger.revisions(project.memory_id), []); assert.deepEqual(env.ledger.revisions(characterMemory.memory_id), []);
   } finally { await env.close(); }
 });
@@ -232,20 +299,27 @@ test("cancellation creates no marker, and a purged operation cannot reintroduce 
     const request = { scope: "personal" as const, text: "A preference to forget" };
     const saved = await env.service.write(caller("save"), request);
     const fail = t.mock.method(env.ledger, "forget", () => { throw new Error("forget ledger interrupted"); });
-    await assert.rejects(env.service.change(caller("delete"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: 1 }), /forget ledger interrupted/);
+    await assert.rejects(env.service.change(caller("delete"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: 1 }), acceptedPending(caller("delete")));
+    assert.equal(fail.mock.callCount(), 1, "the original ledger fault was reached after the SDK purge");
     fail.mock.restore();
     assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
-    assert.equal(env.ledger.revisions(saved.memory!.memory_id).length, 1, "the SDK committed before ledger cleanup");
+    assert.deepEqual(env.ledger.revisions(saved.memory!.memory_id), [], "accepted forgetting hides history before ledger cleanup completes");
+    assert.deepEqual(env.ledger.uses({ memory_id: saved.memory!.memory_id }), []);
+    const decisions = env.ledger.forgetting.read().decisions;
+    assert.equal(decisions[0]!.operation_id, "delete");
+    assert.notEqual((env.ledger.marker("memory-owner", `memory-operation:delete:purge:${saved.memory!.memory_id}`)!.body as { phase: string }).phase, "closed");
+    assert.equal(env.ledger.marker("", `memory-forgotten:${saved.memory!.memory_id}`), null);
     await env.close(); env = await setup.open();
     await env.service.change(caller("delete"), { action: "remove", memory_id: saved.memory!.memory_id, expected_version: 1 });
     await assert.rejects(env.service.write(caller("save"), request));
     assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
     assert.deepEqual(env.ledger.revisions(saved.memory!.memory_id), []);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
   } finally { await env.close(); }
 });
 
 for (const interrupted of ["candidate-response", "candidate-projection"] as const) for (const edited of [false, true])
-  test(`a delete interrupted at ${interrupted} retains its original CAS after restart${edited ? " and refuses a newer edit" : " and completes the same version"}`, async t => {
+  test(`a delete interrupted ${edited ? interrupted === "candidate-response" ? "at beforeEffect before acceptance" : "at accept persistence before acceptance" : `at ${interrupted} after acceptance`} retains its original CAS after restart${edited ? " and refuses a newer edit" : " and completes the same version"}`, async t => {
     const setup = await fixture(t); let env = await setup.open();
     try {
       const saved = await env.service.write(caller("seed"), { scope: "personal", text: "Original release preference", kind: "preference" });
@@ -253,26 +327,60 @@ for (const interrupted of ["candidate-response", "candidate-projection"] as cons
       const proposal = await env.service.propose(caller("replacement"), { scope: "personal", text: "Suggested release correction", kind: "preference",
         basis: "explicit", why: "A correction awaiting acceptance", from: "extraction", supersedes: id });
       const request = { action: "remove" as const, memory_id: id, expected_version: saved.memory!.version };
-      const fail = () => { throw new Error("candidate cleanup interrupted"); };
-      const projection = interrupted === "candidate-projection" ? t.mock.method(env.ledger, "dropCandidate", fail) : undefined;
-      if (interrupted === "candidate-response") setup.afterCandidatePurge(async () => fail());
-      await assert.rejects(env.service.change(who, request), /candidate cleanup interrupted/);
-      setup.afterCandidatePurge(); projection?.mock.restore();
+      const formal = await env.raw.list("personal", who.actor_id), candidates = await env.raw.candidates.list("personal", who.actor_id), notes = env.ledger.candidates(who.actor_id);
+      const failure = new Error(edited ? "delete interrupted before acceptance" : "candidate cleanup interrupted");
+      let faults = 0, purges = 0;
+      const fail = () => { faults++; throw failure; };
+      const dropCandidate = env.ledger.dropCandidate.bind(env.ledger);
+      const projection = t.mock.method(env.ledger, "dropCandidate", (candidateId: string) => {
+        if (!edited && interrupted === "candidate-projection") fail();
+        return dropCandidate(candidateId);
+      });
+      setup.afterCandidatePurge(async () => { purges++; if (!edited && interrupted === "candidate-response") fail(); });
+      const acceptance = edited && interrupted === "candidate-projection" ? t.mock.method(env.ledger.forgetting, "accept", fail) : undefined;
+      if (edited && interrupted === "candidate-response") setup.beforeEffect(async () => fail());
+      await assert.rejects(env.service.change(who, request), edited ? interrupted === "candidate-response"
+        ? error => { assert.equal(error, failure); return true; }
+        : { code: "memory.unavailable", details: { operation_id: who.operation_id, forgetting: "not-accepted", cleanup: "not-started" } }
+        : acceptedPending(who));
+      assert.equal(faults, 1, "the selected original failure window was reached");
+      setup.beforeEffect(); acceptance?.mock.restore();
+      if (edited) {
+        assert.deepEqual(env.ledger.forgetting.read().decisions, []); assert.equal(purges, 0); assert.equal(projection.mock.callCount(), 0);
+        assert.deepEqual(await env.raw.list("personal", who.actor_id), formal);
+        assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), candidates); assert.deepEqual(env.ledger.candidates(who.actor_id), notes);
+      } else {
+        assert.equal(purges, 1); assert.equal(projection.mock.callCount(), interrupted === "candidate-projection" ? 1 : 0);
+        assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), [], "the related SDK candidate purge actually committed");
+        assert.deepEqual((await env.service.list(caller("visible"), { scope: "personal" })).items, []);
+        assert.deepEqual(env.ledger.revisions(id), []);
+        await assert.rejects(env.service.change(caller("accepted-edit"), { action: "update", memory_id: id, expected_version: 1, text: "Accepted deletion cannot be edited" }), { code: "memory.not_found" });
+      }
+      setup.afterCandidatePurge(edited ? async () => { purges++; } : undefined); projection.mock.restore();
       assert.equal((await env.raw.list("personal", who.actor_id))[0]!.version, 1);
-      assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), [], "the related SDK candidate purge actually committed");
       assert.ok(env.ledger.candidates(who.actor_id).some(item => item.candidate_id === proposal.candidate_id), "the interrupted ledger projection still needs repair");
       const purgeKey = `memory-operation:${who.operation_id}:purge:${id}`;
       assert.equal((env.ledger.marker(who.actor_id, purgeKey)!.body as { expected_version: number }).expected_version, 1);
+      assert.equal((env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:change:${id}`)!.body as { expected_version: number }).expected_version, 1);
       if (edited) await env.service.change(caller("external-editor"), { action: "update", memory_id: id, expected_version: 1, text: "The newer human edit must survive" });
-      const before = { formal: await env.raw.list("personal", who.actor_id), revisions: env.ledger.revisions(id), changes: env.ledger.changesOf(id) };
+      const before = { formal: await env.raw.list("personal", who.actor_id), revisions: env.ledger.revisions(id), changes: env.ledger.changesOf(id),
+        candidates: await env.raw.candidates.list("personal", who.actor_id), notes: env.ledger.candidates(who.actor_id), decisions: env.ledger.forgetting.read().decisions,
+        purge: env.ledger.marker(who.actor_id, purgeKey), change: env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:change:${id}`) };
+      if (!edited) assert.partialDeepStrictEqual(before.decisions, [{ actor_id: who.actor_id, operation_id: who.operation_id, scope: "personal", owner: who.actor_id,
+        memories: [{ memory_id: id, version: 1 }], candidates: [{ candidate_id: proposal.candidate_id, version: proposal.version }] }]);
       await env.close(); env = await setup.open();
-      assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), []);
+      const drops = t.mock.method(env.ledger, "dropCandidate");
+      assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), before.candidates);
       assert.ok(env.ledger.candidates(who.actor_id).some(item => item.candidate_id === proposal.candidate_id), "the incomplete projection survives restart");
       if (edited) {
         await assert.rejects(env.service.change(who, request), { code: "STORAGE_CONFLICT" });
         assert.deepEqual(await env.raw.list("personal", who.actor_id), before.formal);
         assert.deepEqual(env.ledger.revisions(id), before.revisions);
         assert.deepEqual(env.ledger.changesOf(id), before.changes);
+        assert.deepEqual(env.ledger.candidates(who.actor_id), before.notes); assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), before.candidates);
+        assert.deepEqual(env.ledger.forgetting.read().decisions, []); assert.equal(purges, 0); assert.equal(drops.mock.callCount(), 0);
+        assert.deepEqual(env.ledger.marker(who.actor_id, purgeKey), before.purge);
+        assert.deepEqual(env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:change:${id}`), before.change);
       } else {
         const completed = await env.service.change(who, request);
         assert.equal(completed.memory, null);
@@ -281,8 +389,11 @@ for (const interrupted of ["candidate-response", "candidate-projection"] as cons
         assert.deepEqual(env.ledger.revisions(id), []);
         assert.equal(env.ledger.changesOf(id).filter(item => item.kind === "removed").length, 1);
       }
-      assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), []);
-      assert.deepEqual(env.ledger.candidates(who.actor_id), [], "the original candidate purge receipt repairs the missing projection even when the formal delete conflicts");
+      if (!edited) {
+        assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), []);
+        assert.deepEqual(env.ledger.candidates(who.actor_id), [], "the original candidate purge receipt repairs the missing projection");
+      }
+      assert.deepEqual(env.ledger.forgetting.read().decisions, before.decisions);
       assert.equal((env.ledger.marker(who.actor_id, purgeKey)!.body as { expected_version: number }).expected_version, 1);
     } finally { await env.close(); }
   });
@@ -294,9 +405,17 @@ test("a legacy purge marker that rebased the original delete refuses replay afte
     const id = saved.memory!.memory_id, who = caller("legacy-delete"), request = { action: "remove" as const, memory_id: id, expected_version: 1 };
     await env.service.propose(caller("replacement"), { scope: "personal", text: "Suggested release correction", kind: "preference",
       basis: "explicit", why: "A correction awaiting acceptance", from: "extraction", supersedes: id });
-    setup.afterCandidatePurge(async () => { throw new Error("candidate purge response lost"); });
-    await assert.rejects(env.service.change(who, request), /candidate purge response lost/);
-    setup.afterCandidatePurge();
+    const initial = { formal: await env.raw.list("personal", who.actor_id), candidates: await env.raw.candidates.list("personal", who.actor_id), notes: env.ledger.candidates(who.actor_id) };
+    const interrupted = new Error("original delete stopped before acceptance"); let faults = 0, purges = 0;
+    setup.afterCandidatePurge(async () => { purges++; });
+    const projection = t.mock.method(env.ledger, "dropCandidate");
+    setup.beforeEffect(async () => { faults++; throw interrupted; });
+    await assert.rejects(env.service.change(who, request), error => { assert.equal(error, interrupted); return true; });
+    setup.beforeEffect(); assert.equal(faults, 1); assert.equal(purges, 0); assert.equal(projection.mock.callCount(), 0);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, []);
+    assert.deepEqual({ formal: await env.raw.list("personal", who.actor_id), candidates: await env.raw.candidates.list("personal", who.actor_id), notes: env.ledger.candidates(who.actor_id) }, initial);
+    for (const suffix of [`change:${id}`, `purge:${id}`])
+      assert.partialDeepStrictEqual(env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:${suffix}`)!.body, { expected_version: 1 });
     await env.service.change(caller("external-editor"), { action: "update", memory_id: id, expected_version: 1, text: "The newer human edit must survive" });
     const key = `memory-operation:${who.operation_id}:purge:${id}`, original = env.ledger.marker(who.actor_id, key)!;
     // Persisted upgrade fixture: c416 creates this v2 condition before a denied SDK purge, while change still confirms v1.
@@ -305,7 +424,7 @@ test("a legacy purge marker that rebased the original delete refuses replay afte
     setup.denyDelete(id);
     await assert.rejects(env.raw.remove({ scope: "personal", owner: who.actor_id, memory_id: id, expected_version: 2, operation_id: legacy.operation_id }), { code: "MEMORY_SCOPE_DENIED" });
     const before = { formal: await env.raw.list("personal", who.actor_id), revisions: env.ledger.revisions(id), changes: env.ledger.changesOf(id),
-      candidateNotes: env.ledger.candidates(who.actor_id), marker: env.ledger.marker(who.actor_id, key),
+      candidateNotes: env.ledger.candidates(who.actor_id), candidates: await env.raw.candidates.list("personal", who.actor_id), marker: env.ledger.marker(who.actor_id, key),
       changeMarker: env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:change:${id}`) };
     await env.close(); setup.denyDelete(); env = await setup.open();
     await assert.rejects(env.service.change(who, request), { code: "memory.conflict" });
@@ -313,6 +432,8 @@ test("a legacy purge marker that rebased the original delete refuses replay afte
     assert.deepEqual(env.ledger.revisions(id), before.revisions);
     assert.deepEqual(env.ledger.changesOf(id), before.changes);
     assert.deepEqual(env.ledger.candidates(who.actor_id), before.candidateNotes, "inconsistent formal identity is refused before further cleanup");
+    assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), before.candidates);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, []); assert.equal(purges, 0); assert.equal(projection.mock.callCount(), 0);
     assert.deepEqual(env.ledger.marker(who.actor_id, key), before.marker);
     assert.deepEqual(env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:change:${id}`), before.changeMarker);
   } finally { await env.close(); }
@@ -335,7 +456,8 @@ test("accepted-create replay cannot relabel a later edit as the original accepte
 
 
 for (const kind of ["undo", "move"] as const) for (const originalTargetReceipt of kind === "move" ? [true, false] : [true])
-  test(`${kind} finishes source ledger cleanup after SDK purge and restart${originalTargetReceipt ? "" : " using the original SDK creation"}`, async t => {
+  test(originalTargetReceipt ? `${kind} finishes source ledger cleanup after SDK purge and restart`
+    : "an old move with neither a target receipt nor an available source requires manual reconciliation without automatic effects", async t => {
     const plugin = "io.example.memory-cas", setup = await fixture(t, undefined, plugin); let env = await setup.open();
     const seed = kind === "undo" ? { ...caller("seed-plugin"), consumer: "plugin" as const, plugin_id: plugin, person: false } : caller("seed-move");
     const saved = await env.service.write(seed, { scope: "personal", text: "Keep release conventions concise", kind: "convention" });
@@ -345,8 +467,14 @@ for (const kind of ["undo", "move"] as const) for (const originalTargetReceipt o
     const request = { action: "move" as const, memory_id: id, expected_version: 1, to: "project" as const };
     const invoke = (actor = who) => kind === "undo" ? env.service.undo(actor, saved.change_id!) : env.service.change(actor, request);
     const failure = t.mock.method(env.ledger, "forget", () => { throw new Error("ledger forget interrupted"); });
-    await assert.rejects(invoke(), /ledger forget interrupted/); failure.mock.restore();
+    await assert.rejects(invoke(), acceptedPending(who)); assert.equal(failure.mock.callCount(), 1); failure.mock.restore();
     assert.deepEqual(await env.raw.list("personal", who.actor_id), []);
+    assert.deepEqual(env.ledger.revisions(id), []); assert.deepEqual(env.ledger.uses({ memory_id: id }), []);
+    const decisions = env.ledger.forgetting.read().decisions;
+    assert.partialDeepStrictEqual(decisions, [{ actor_id: who.actor_id, operation_id: who.operation_id, scope: "personal", owner: who.actor_id,
+      memories: [{ memory_id: id, version: 1 }] }]);
+    assert.equal(env.ledger.marker("", `memory-forgotten:${id}`), null, "accepted visibility does not claim ledger cleanup committed");
+    assert.notEqual((env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:purge:${id}`)!.body as { phase: string }).phase, "closed");
     const target = kind === "move" ? (await env.raw.list("project", "project-a"))[0]! : undefined;
     const targetHistory = target ? env.ledger.revisions(target.memory_id) : [];
     if (kind === "move" && !originalTargetReceipt) {
@@ -357,16 +485,42 @@ for (const kind of ["undo", "move"] as const) for (const originalTargetReceipt o
     }
     await env.close(); env = await setup.open();
     const sourceHistory = env.ledger.revisions(id), sourceUses = env.ledger.uses({ memory_id: id }), sourceChanges = env.ledger.changesOf(id);
+    const forget = t.mock.method(env.ledger, "forget"), readsBefore = setup.deniedReads().length, appDenialsBefore = setup.appDenials(), removalsBefore = setup.removeCalls();
+    if (kind === "move" && !originalTargetReceipt) {
+      let writes = 0; setup.afterWrite(async () => { writes++; });
+      const markers = env.ledger.listMarkers(who.actor_id, { prefix: `memory-operation:${who.operation_id}:`, limit: 100 });
+      await assert.rejects(invoke(), { code: "memory.conflict", message: "原移动缺少目标创建回执，源记忆已不可用；请核对现有目标，本操作不能自动继续" });
+      assert.equal(writes, 0); assert.equal(setup.removeCalls(), removalsBefore); assert.equal(forget.mock.callCount(), 0);
+      assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
+      assert.deepEqual(env.ledger.listMarkers(who.actor_id, { prefix: `memory-operation:${who.operation_id}:`, limit: 100 }), markers);
+      assert.deepEqual(await env.raw.list("personal", who.actor_id), []); assert.deepEqual(await env.raw.list("project", "project-a"), [target]);
+      assert.deepEqual(env.ledger.revisions(id), sourceHistory); assert.deepEqual(env.ledger.uses({ memory_id: id }), sourceUses);
+      assert.deepEqual(env.ledger.changesOf(id), sourceChanges); assert.deepEqual(env.ledger.revisions(target!.memory_id), targetHistory);
+      return;
+    }
     setup.authorize(false);
-    await assert.rejects(invoke());
+    if (kind === "undo") {
+      await assert.rejects(invoke(), acceptedPending(who));
+      assert.ok(setup.appDenials() > appDenialsBefore, "the existing App beforeEffect actually refused cleanup");
+    } else {
+      await assert.rejects(invoke(), { code: "memory.conflict" });
+      assert.ok(setup.deniedReads().slice(readsBefore).includes(target!.memory_id), "the original authorize callback rejected the target's manage-read request");
+    }
+    assert.equal(setup.removeCalls(), removalsBefore); assert.equal(forget.mock.callCount(), 0);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.deepEqual(env.ledger.revisions(id), sourceHistory); assert.deepEqual(env.ledger.uses({ memory_id: id }), sourceUses);
     assert.deepEqual(env.ledger.changesOf(id), sourceChanges);
     setup.authorize(true);
-    const cancelled = new AbortController(); setup.afterRemove(() => cancelled.abort());
-    await assert.rejects(invoke({ ...who, signal: cancelled.signal })); setup.afterRemove();
+    const cancelled = new AbortController(); let cancellations = 0;
+    setup.afterRemove(() => { cancellations++; cancelled.abort(); });
+    await assert.rejects(invoke({ ...who, signal: cancelled.signal }), acceptedPending(who)); setup.afterRemove();
+    assert.equal(cancellations, 1, "the cancellation follows the actual original remove, not an earlier rejection");
+    assert.equal(forget.mock.callCount(), 0, "cancellation does not commit ledger cleanup");
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.deepEqual(env.ledger.revisions(id), sourceHistory); assert.deepEqual(env.ledger.uses({ memory_id: id }), sourceUses);
     assert.deepEqual(env.ledger.changesOf(id), sourceChanges);
     const result = await invoke();
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.deepEqual(env.ledger.revisions(id), []); assert.deepEqual(env.ledger.uses({ memory_id: id }), []);
     assert.ok(env.ledger.changesOf(id).every(change => change.text === ""));
     assert.deepEqual(await invoke(), result, "the original completed operation remains repeatable after markers close");
@@ -377,6 +531,42 @@ for (const kind of ["undo", "move"] as const) for (const originalTargetReceipt o
       assert.equal(env.ledger.changesOf(target!.memory_id).filter(change => change.kind === "moved").length, 1);
     }
   });
+
+test("a current move retries its SDK creation after the target ledger transaction rolls back while the source remains available", async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  const saved = (await env.service.write(caller("move-current-seed"), { scope: "personal", text: "Recover the current move transaction", kind: "convention" })).memory!;
+  const source = (await env.raw.list("personal", "memory-owner"))[0]!, sourceHistory = env.ledger.revisions(saved.memory_id);
+  const who = caller("move-target-transaction"), request = { action: "move" as const, memory_id: saved.memory_id, expected_version: saved.version, to: "project" as const };
+  const addRevision = env.ledger.addRevision.bind(env.ledger), key = `memory-operation:${who.operation_id}:move-create`;
+  const interrupted = new Error("target creation transaction interrupted"); let faults = 0;
+  const failure = t.mock.method(env.ledger, "addRevision", (memoryId, revision) => {
+    if (memoryId !== saved.memory_id && revision.change === "created" && faults === 0) {
+      assert.partialDeepStrictEqual(env.ledger.marker(who.actor_id, key)!.body, { phase: "committed", result: { memory_id: memoryId, version: revision.version } });
+      faults++; throw interrupted;
+    }
+    return addRevision(memoryId, revision);
+  });
+  await assert.rejects(env.service.change(who, request), error => { assert.equal(error, interrupted); return true; });
+  failure.mock.restore(); assert.equal(faults, 1);
+  const target = (await env.raw.list("project", "project-a"))[0]!; assert.ok(target); assert.equal(target.version, 1);
+  const marker = env.ledger.marker(who.actor_id, key)!.body as { phase: string; result?: unknown };
+  assert.equal(marker.phase, "pending"); assert.equal(marker.result, undefined, "the target result was rolled back with its history");
+  assert.deepEqual(env.ledger.revisions(target.memory_id), []);
+  assert.deepEqual((await env.raw.list("personal", who.actor_id)), [source]); assert.deepEqual(env.ledger.revisions(saved.memory_id), sourceHistory);
+  assert.deepEqual(env.ledger.forgetting.read().decisions, []); assert.equal(setup.removeCalls(), 0);
+  await env.close(); env = await setup.open();
+  let replayedWrites = 0; setup.afterWrite(async () => { replayedWrites++; });
+  const result = await env.service.change(who, request);
+  assert.equal(result.memory!.memory_id, target.memory_id); assert.equal(replayedWrites, 1);
+  assert.deepEqual(await env.raw.list("project", "project-a"), [target], "the SDK's original creation is reused, not appended again");
+  assert.deepEqual(await env.raw.list("personal", who.actor_id), []);
+  assert.equal(env.ledger.revisions(target.memory_id).length, 1);
+  assert.equal(env.ledger.changesOf(target.memory_id).filter(change => change.kind === "moved").length, 1);
+  const decisions = env.ledger.forgetting.read().decisions; assert.equal(decisions.length, 1);
+  assert.deepEqual(await env.service.change(who, request), result); assert.equal(replayedWrites, 1);
+  assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
+  assert.equal(env.ledger.revisions(target.memory_id).length, 1);
+});
 
 for (const action of ["remove", "move", "undo"] as const)
   test(`a missing ${action} target cannot reuse project A's cleanup marker from project B`, async t => {
@@ -392,7 +582,10 @@ for (const action of ["remove", "move", "undo"] as const)
       assert.equal(env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:undo:${saved.change_id}`), null);
     }
     const failure = t.mock.method(env.ledger, "forget", () => { throw new Error("ledger forget interrupted"); });
-    await assert.rejects(invoke(), /ledger forget interrupted/); failure.mock.restore();
+    await assert.rejects(invoke(), acceptedPending(who)); assert.equal(failure.mock.callCount(), 1); failure.mock.restore();
+    const decisions = env.ledger.forgetting.read().decisions;
+    assert.partialDeepStrictEqual(decisions, [{ actor_id: who.actor_id, operation_id: who.operation_id, scope: "project", owner: "project-a",
+      memories: [{ memory_id: id, version: 1 }] }]);
     await env.close(); env = await setup.open();
     const revisions = env.ledger.revisions(id), changes = env.ledger.changesOf(id);
     const marker = env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:purge:${id}`);
@@ -401,7 +594,9 @@ for (const action of ["remove", "move", "undo"] as const)
     assert.equal(forget.mock.callCount(), 0); assert.deepEqual(env.ledger.revisions(id), revisions);
     assert.deepEqual(env.ledger.changesOf(id), changes);
     assert.deepEqual(env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:purge:${id}`), marker);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     await invoke(); assert.deepEqual(env.ledger.revisions(id), []);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     if (action === "undo") await assert.rejects(invoke({ ...who, project_id: "project-b" }), { code: "memory.scope" });
   });
 
@@ -413,21 +608,73 @@ test("undo commits source cleanup and its undone receipt together, then recovers
   await env.service.recall(seed, { scopes: ["personal"], query: "release conventions" }, { readMode: "explicit" });
   const before = { revisions: env.ledger.revisions(id), uses: env.ledger.uses({ memory_id: id }), changes: env.ledger.changesOf(id) };
   assert.ok(before.revisions.length); assert.ok(before.uses.length);
+  const forgotten = env.ledger.marker("", `memory-forgotten:${id}`), seedKey = "memory-operation:atomic-undo-seed:append";
+  const seedMarker = env.ledger.marker(who.actor_id, seedKey); assert.ok(seedMarker);
+  let faults = 0;
   const save = env.ledger.saveChange.bind(env.ledger);
   const failure = t.mock.method(env.ledger, "saveChange", change => {
-    if (change.state === "undone") throw new Error("undone receipt interrupted");
+    if (change.state === "undone") { faults++; throw new Error("undone receipt interrupted"); }
     return save(change);
   });
-  await assert.rejects(env.service.undo(who, saved.change_id!), /undone receipt interrupted/); failure.mock.restore();
+  await assert.rejects(env.service.undo(who, saved.change_id!), acceptedPending(who)); assert.equal(faults, 1); failure.mock.restore();
   assert.deepEqual(await env.raw.list("personal", who.actor_id), [], "SDK purge committed outside the ledger transaction");
-  assert.deepEqual({ revisions: env.ledger.revisions(id), uses: env.ledger.uses({ memory_id: id }), changes: env.ledger.changesOf(id) }, before);
+  const decisions = env.ledger.forgetting.read().decisions;
+  assert.partialDeepStrictEqual(decisions, [{ operation_id: who.operation_id, memories: [{ memory_id: id, version: 1 }] }]);
+  assert.deepEqual(env.ledger.revisions(id), []); assert.deepEqual(env.ledger.uses({ memory_id: id }), []);
+  assert.deepEqual(env.ledger.changesOf(id), before.changes.map(change => ({ ...change, text: "", reason: null, undoable: false, undo: null })));
+  assert.equal(env.ledger.change(saved.change_id!)!.state, before.changes.find(change => change.change_id === saved.change_id)!.state);
+  assert.deepEqual(env.ledger.marker("", `memory-forgotten:${id}`), forgotten);
+  assert.deepEqual(env.ledger.marker(who.actor_id, seedKey), seedMarker);
+  for (const key of [`undo:${saved.change_id}`, `purge:${id}`])
+    assert.notEqual((env.ledger.marker(who.actor_id, `memory-operation:${who.operation_id}:${key}`)!.body as { phase: string }).phase, "closed");
   await env.close(); env = await setup.open();
   const result = await env.service.undo(who, saved.change_id!);
   assert.equal(result.change.state, "undone");
+  assert.equal(result.change.change_id, saved.change_id); assert.ok(env.ledger.marker("", `memory-forgotten:${id}`));
+  assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
+  for (const key of [seedKey, `memory-operation:${who.operation_id}:undo:${saved.change_id}`, `memory-operation:${who.operation_id}:purge:${id}`])
+    assert.equal((env.ledger.marker(who.actor_id, key)!.body as { phase: string }).phase, "closed");
   assert.deepEqual(env.ledger.revisions(id), []); assert.deepEqual(env.ledger.uses({ memory_id: id }), []);
   assert.ok(env.ledger.changesOf(id).every(change => change.text === ""));
   assert.deepEqual(await env.service.undo(who, saved.change_id!), result);
 });
+
+for (const mismatch of ["missing-undo", "missing-purge", "different-operation", "different-change", "different-change-version", "different-purge-version", "different-kind"] as const)
+  test(`accepted undo cleanup refuses ${mismatch} without dispatching removal or ledger cleanup`, async t => {
+    const plugin = "io.example.memory-cas", setup = await fixture(t, undefined, plugin); let env = await setup.open();
+    const seed = { ...caller("guard-seed"), consumer: "plugin" as const, plugin_id: plugin, person: false };
+    const saved = await env.service.write(seed, { scope: "personal", text: "Only the original accepted undo may finish", kind: "convention" });
+    const id = saved.memory!.memory_id, who = caller("guard-undo"), undoKey = `memory-operation:${who.operation_id}:undo:${saved.change_id}`;
+    const purgeKey = `memory-operation:${who.operation_id}:purge:${id}`;
+    const fault = t.mock.method(env.ledger, "forget", () => { throw new Error("guard cleanup interrupted"); });
+    await assert.rejects(env.service.undo(who, saved.change_id!), acceptedPending(who)); assert.equal(fault.mock.callCount(), 1); fault.mock.restore();
+    await env.close(); env = await setup.open();
+    const record = env.ledger.change(saved.change_id!)!; assert.equal(record.kind, "auto_kept");
+    assert.equal(record.undo, null); assert.equal(record.undoable, false); assert.equal(record.text, "");
+    let changedId = saved.change_id!, actor = who;
+    if (mismatch === "missing-undo" || mismatch === "missing-purge") {
+      const key = mismatch === "missing-undo" ? undoKey : purgeKey, marker = env.ledger.marker(who.actor_id, key)!;
+      env.ledger.setMarker(who.actor_id, key, null, marker.at);
+    } else if (mismatch === "different-operation") actor = caller("another-undo-operation");
+    else if (mismatch === "different-change") {
+      changedId = "another-change-on-the-same-memory";
+      env.ledger.saveChange({ ...record, change_id: changedId });
+    } else if (mismatch === "different-change-version") env.ledger.saveChange({ ...record, applied_version: record.applied_version! + 1 });
+    else if (mismatch === "different-purge-version") {
+      const marker = env.ledger.marker(who.actor_id, purgeKey)!;
+      env.ledger.setMarker(who.actor_id, purgeKey, { ...marker.body as Record<string, unknown>, expected_version: record.applied_version! + 1 }, marker.at);
+    } else env.ledger.saveChange({ ...record, kind: "auto_replaced" });
+    const before = { raw: await env.raw.list("personal", who.actor_id), history: env.ledger.revisions(id), changes: env.ledger.changesOf(id),
+      decisions: env.ledger.forgetting.read().decisions, original: env.ledger.change(saved.change_id!), selected: env.ledger.change(changedId),
+      markers: env.ledger.listMarkers(who.actor_id, { prefix: "memory-operation:", limit: 100 }), forgotten: env.ledger.marker("", `memory-forgotten:${id}`) };
+    const forget = t.mock.method(env.ledger, "forget"), removes = setup.removeCalls();
+    const code = ["different-operation", "different-change-version", "different-kind"].includes(mismatch) ? "memory.invalid" : "memory.conflict";
+    await assert.rejects(env.service.undo(actor, changedId), { code });
+    assert.equal(setup.removeCalls(), removes); assert.equal(forget.mock.callCount(), 0);
+    assert.deepEqual({ raw: await env.raw.list("personal", who.actor_id), history: env.ledger.revisions(id), changes: env.ledger.changesOf(id),
+      decisions: env.ledger.forgetting.read().decisions, original: env.ledger.change(saved.change_id!), selected: env.ledger.change(changedId),
+      markers: env.ledger.listMarkers(who.actor_id, { prefix: "memory-operation:", limit: 100 }), forgotten: env.ledger.marker("", `memory-forgotten:${id}`) }, before);
+  });
 
 for (const disabled of ["personal", "project"] as const)
   test(`a prepared move finishes cleanup and repeats with ${disabled} memory disabled`, async t => {
@@ -436,7 +683,8 @@ for (const disabled of ["personal", "project"] as const)
     const who = caller(`move-off-${disabled}`), id = saved.memory!.memory_id;
     const request = { action: "move" as const, memory_id: id, expected_version: 1, to: "project" as const };
     const failure = t.mock.method(env.ledger, "forget", () => { throw new Error("ledger forget interrupted"); });
-    await assert.rejects(env.service.change(who, request), /ledger forget interrupted/); failure.mock.restore();
+    await assert.rejects(env.service.change(who, request), acceptedPending(who)); assert.equal(failure.mock.callCount(), 1); failure.mock.restore();
+    const decisions = env.ledger.forgetting.read().decisions;
     const target = (await env.raw.list("project", "project-a"))[0]!, history = env.ledger.revisions(target.memory_id);
     env.service.savePrefs(caller("disable-move-scope"), disabled, { enabled: false });
     await env.close(); env = await setup.open();
@@ -445,6 +693,7 @@ for (const disabled of ["personal", "project"] as const)
     assert.equal(result.memory!.memory_id, target.memory_id);
     assert.deepEqual(await env.service.change(who, request), result);
     assert.equal(creates, 0); assert.deepEqual(await env.raw.list("project", "project-a"), [target]);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.deepEqual(env.ledger.revisions(target.memory_id), history); assert.deepEqual(env.ledger.revisions(id), []);
     assert.equal(env.ledger.changesOf(target.memory_id).filter(change => change.kind === "moved").length, 1);
   });
@@ -455,7 +704,8 @@ for (const targetReceipt of [true, false])
     const saved = await env.service.write(caller("move-seed"), { scope: "personal", text: "Original release notes", kind: "convention" });
     const who = caller("move-edited-target"), request = { action: "move" as const, memory_id: saved.memory!.memory_id, expected_version: 1, to: "project" as const };
     const failure = t.mock.method(env.ledger, "forget", () => { throw new Error("ledger forget interrupted"); });
-    await assert.rejects(env.service.change(who, request), /ledger forget interrupted/); failure.mock.restore();
+    await assert.rejects(env.service.change(who, request), acceptedPending(who)); assert.equal(failure.mock.callCount(), 1); failure.mock.restore();
+    const decisions = env.ledger.forgetting.read().decisions;
     const target = (await env.raw.list("project", "project-a"))[0]!;
     if (!targetReceipt) {
       const key = `memory-operation:${who.operation_id}:move-create`, marker = env.ledger.marker(who.actor_id, key)!;
@@ -467,6 +717,7 @@ for (const targetReceipt of [true, false])
     const sourceHistory = env.ledger.revisions(saved.memory!.memory_id);
     await env.close(); env = await setup.open();
     await assert.rejects(env.service.change(who, request), { code: "memory.conflict" });
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.deepEqual(await env.raw.list("project", "project-a"), current); assert.deepEqual(env.ledger.revisions(target.memory_id), history);
     assert.deepEqual(env.ledger.revisions(saved.memory!.memory_id), sourceHistory);
     assert.equal(env.ledger.changesOf(target.memory_id).filter(change => change.kind === "moved").length, 0);
@@ -1022,13 +1273,17 @@ test("an append receipt arriving after an observed deletion cannot restore histo
     await committed;
     const held = (await env.raw.list("personal", "memory-owner"))[0]!;
     await env.service.change(caller("delete-during-receipt"), { action: "remove", memory_id: held.memory_id, expected_version: held.version });
+    const decisions = env.ledger.forgetting.read().decisions;
     release();
-    await assert.rejects(pending, /删除|关闭|清除|冲突/);
+    await assert.rejects(pending, { code: "memory.conflict" });
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
     assert.deepEqual(env.ledger.revisions(held.memory_id), []);
     assert.equal(JSON.stringify(env.ledger.changesOf(held.memory_id)).includes("A later-forgotten preference"), false);
     env.ledger.forgetScopes({ scopes: [{ scope: "personal", owner: "memory-owner" }], project_id: "project-a", prefs_keys: [], signal_prefixes: [], marker_keys: [`memory-forgotten:${held.memory_id}`] });
     await env.close(); env = await setup.open(); setup.afterWrite();
     await assert.rejects(env.service.write(caller("late-create"), { scope: "personal", text: "A later-forgotten preference", kind: "preference" }));
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
+    assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
     assert.throws(() => env.ledger.addRevision(held.memory_id, { version: 1, text: "A later-forgotten preference", kind: "preference", applies: {}, change: "created", by: "person", at: "2026-10-23T00:00:00Z" }), /已经删除/);
     assert.deepEqual(env.ledger.revisions(held.memory_id), []);
   } finally { release(); await env.close(); }

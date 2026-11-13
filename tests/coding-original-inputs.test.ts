@@ -58,6 +58,8 @@ test("Coding protected HTTP keeps the exact original separately from the assembl
 
 test("reusing an input identity retains its first time; changed words are refused before another request", { timeout: 60_000 }, async t => {
   const f = await codingProductHost(t, () => cogniaModelResponse("好的。")), id = await session(f), task = "检查本仓库的安装约定", inputId = randomUUID();
+  // This case counts only dispatch caused by original-input reuse/refusal. Background automatic formation has its own C2 production tests.
+  for (const scope of ["project", "personal"]) assert.equal((await f.call(f.project.project_id, "/api/memory/prefs", { scope, prefs: { learn_from_work: false } })).status, 200);
   const envelope = { original_input: { input_id: inputId, text: task } };
   const first = await completed(f, await start(f, id, task, envelope));
   const retried = await completed(f, await start(f, id, task, envelope));
@@ -75,12 +77,18 @@ test("MEM-35 production source assembly checks the current Coding installation w
   const view = await completed(f, await start(f, id, text, { original_input: { input_id: inputId, text } }));
   const adapter = ensureSystemAgentService(f.host, f.home).agentHost.adapter("prologue");
   const { owner } = await adapter.readSessionStatus!({ session_id: view.ref.session_id, runtime_id: "prologue" });
-  const memory = adapter.memory!.withCaller({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "agent",
-    plugin_id: owner.plugin_id, session_id: view.ref.session_id, current_scene: "coding", purpose: "management", source_use: "learning" });
+  assert.ok(view.class_restrictions, "the accepted Run exposes its original trusted Memory policy");
+  assert.equal(view.memory_scene, "coding");
+  const caller = { actor_id: owner.actor_id, project_id: owner.project_id, consumer: "agent",
+    plugin_id: owner.plugin_id, session_id: view.ref.session_id, current_scene: "coding", purpose: "management", source_use: "learning" } as const;
+  const memory = adapter.memory!.withCaller({ ...caller, class_restrictions: view.class_restrictions });
   const sources = [{ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, view.ref.session_id, "original", inputId]), version: "1" }];
-  const propose = () => memory.candidates.propose({ scope: "project", owner: owner.project_id, text, origin: "source-test", sources,
+  const propose = (target = memory) => target.candidates.propose({ scope: "project", owner: owner.project_id, text, origin: "source-test", sources,
     expected_version: 0, operation_id: randomUUID(), meta: { kind: "convention", source: "extraction", basis: "explicit",
       classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+  await assert.rejects(propose(adapter.memory!.withCaller(caller)), { code: "MEMORY_SCOPE_DENIED" },
+    "a Session-bound learning caller cannot omit the original Run policy");
+  assert.equal((await memory.candidates.list("project", owner.project_id)).length, 0, "the rejected caller leaves no candidate");
   const candidate = await propose();
   assert.deepEqual(candidate.sources, [{ ...sources[0], speaker: { kind: "person", id: owner.actor_id }, derivation: "original",
     occurred_at_ms: Date.parse(view.original_input!.occurred_at) }]);

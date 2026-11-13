@@ -65,6 +65,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 
 ## 开发要求
 
+查询结果在交付前同步复用原调用的注册、可用性、权限与取消检查；同 provider/install 重新登记不能复活等待中的旧查询。该尾检只覆盖 query，command 原有副作用与未知结果语义不变。直接回归：`tests/action-query-result-current.test.ts`。
+
 - 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，注册时按 SDK 的 `inspectActionDeclarations` 检查动作与场景声明、按 `inspectActionCrossReferences` 检查同一次注册里的交叉引用，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 和声明检查都来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
 - 不负责：业务状态机、提供方实现、界面渲染、模型调用与凭据、记忆召回、缓存、计时与取消（这些在宿主 `apps/local-host/src/contextual/`）、任何插件或 Module 的业务事实。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`）与情境排序的子入口 `@molis-ai/molis-work-kernel/contextual`（`src/contextual.ts`），都经 `dist` 导出，不深入 `src/` 导入；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
@@ -119,3 +121,7 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 显式后台受理的额外权限只收窄原 authority：`retainBackgroundAuthority(additionalPermissions?)` 固定原注册与权限，原 handler 的 beforeEffect 不延长；有入口 hook 时由其复核后台授权，无 hook 时保留原取消。父子 bound 身份分别检查。改这条链补跑 `tests/action-background-authority.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`。
 
 目录单轮缓存只允许同步回调，嵌套读取共享当前轮，异常退出不保留缓存；验证 `tests/action-directory-pass.test.ts`。执行生命周期与声明校验经 SDK 的公开 `/execution` 子路径引用同一实现。
+
+## 选中资料的派发边界
+
+选中资料的 state capture 只允许 query + subject-state 协议及同提供方、安装、项目的精确 reader/source。Kernel 自己保留三项实际注册；严格校验输出与 query 尾检之后才交出 current。current 同步读取前后复核原授权，结束 handler 不延长 beforeEffect。

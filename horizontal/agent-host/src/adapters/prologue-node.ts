@@ -1,5 +1,6 @@
 import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prologue-saved-history.js';
 import { AsyncLocalStorage } from "node:async_hooks";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isAbsolute } from "node:path";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
@@ -91,19 +92,24 @@ export function createPrologueNodeAdapter(
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
   let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
+  let storageCleanup: (() => Promise<void>) | undefined;
   const cleanup = new Set<() => Promise<void>>();
-  const keep = (close: () => unknown) => {
+  const keep = (close: () => unknown, nodeStorage = false) => {
     const pending = async () => {
       if (!cleanup.has(pending)) return;
       await close();
       cleanup.delete(pending);
     };
     cleanup.add(pending);
+    if (nodeStorage) storageCleanup = pending;
     return pending;
   };
   const closePending = async () => {
     const failures: unknown[] = [];
-    for (const close of [...cleanup].reverse()) { try { await close(); } catch (failure) { failures.push(failure); } }
+    for (const close of [...cleanup].reverse()) {
+      if (close === storageCleanup && [...cleanup].some(other => other !== storageCleanup)) continue;
+      try { await close(); } catch (failure) { failures.push(failure); }
+    }
     return failures;
   };
   const relinquish = () => { release?.(); release = undefined; };
@@ -128,37 +134,38 @@ export function createPrologueNodeAdapter(
     return closing ??= (async () => {
       await initialized.catch(() => undefined);
       if (closeAdapter) await closeAdapter();
-      else {
-        const failures = await closePending();
-        if (failures.length) throw new AggregateError(failures, "Agent 资源清理失败；仍保留存储所有权");
-      }
+      const failures = await closePending();
+      if (failures.length) throw new AggregateError(failures, "Agent 资源清理失败；仍保留存储所有权");
       relinquish();
     })().catch(error => { closing = undefined; throw error; });
   }
   return Object.assign(initialized, { close });
 }
 
-async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown) => () => Promise<void>) {
+async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown, nodeStorage?: boolean) => () => Promise<void>) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
-  const dispatchGuards: DispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
+  const dispatchGuards: DispatchGuards = new AsyncLocalStorage();
   const host = createNodeHost({
-    // This runtime owns or borrows the storage root's actual owner lock for its whole life, so a write claim
+    // This runtime owns or borrows the actual owner lock until all App I/O and Host storage have closed, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
-    storageRoot: options.storageRoot, exclusiveOwner: true,
+    storageRoot: options.storageRoot, exclusiveOwner: true, memoryStorageFormat: "indexed-v1",
     resolveHost: resolveModelHostname,
-    beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
+    beforeNetworkDispatch: async () => dispatchGuards.getStore()?.(),
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  onFailureClose(() => host.closeStorage(), true);
   // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
-  const effects = prologueEffects(host);
+  const effects = prologueEffects(host, options.app.appId);
+  const closeEffects = onFailureClose(() => effects.close());
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
   const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
+  const closeMemoryAuthority = onFailureClose(() => memoryAuthority.close());
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
@@ -176,7 +183,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => {
       const inherited = dispatchGuards.getStore();
-      return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
+      return dispatchGuards.run(async () => {
+        const inheritedFence = await inherited?.(), fence = await guard();
+        return () => { requireSynchronous(inheritedFence?.(), "最终派发检查必须同步完成"); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); };
+      }, operation);
     },
     directoryAuthorized: options.checks?.directoryAuthorized,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
@@ -213,9 +223,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeInference = onFailureClose(stopInference);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
+  const port = createNodePort({ runtime, effects, memoryAuthority, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
+      await closeMemoryAuthority();
+      await closeEffects();
       await closeMcp();
       await closeInference();
       for (const controller of state.actionControllers.values()) controller.abort();
@@ -231,7 +243,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const started = await port.startAgentRun(input);
       // What the waits this round registers are checked against, look after look.
       const client = input.actions?.client ?? input.action_gateway?.client;
-      checks.remember(started.run.ref.id, { session_id: input.session_id, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}), ...(input.root_path ? { root_path: input.root_path } : {}),
+      checks.remember(started.run.ref.id, { session_id: input.session_id, ...(input.beforeDispatch ? { beforeDispatch: async () => { const fence = await input.beforeDispatch!(); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); } } : {}), ...(input.root_path ? { root_path: input.root_path } : {}),
         ...(client ? { actions: { client } } : {}), tools: index.read(input.session_id).then(saved => {
           const attempt = saved?.attempts.find(item => item.run_id === started.run.ref.id);
           return attempt?.action_tool_scope ? actionToolRefs(attempt.frozen.action_tools ?? [], attempt.action_tool_scope) : new Map();

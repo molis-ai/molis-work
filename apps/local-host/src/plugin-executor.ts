@@ -1,3 +1,6 @@
+import { ActionError, requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -101,7 +104,7 @@ export interface PluginHostExecutorOptions {
 
 /** Trusted in-process Host composition, not an isolation boundary for arbitrary JavaScript. */
 export class PluginHostExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, HostSession>();
+  private readonly sessions = new Map<string, { session: HostSession; definition: PluginDefinition }>();
   private readonly stoppedCalls = new StoppedServiceCalls();
   /** How each running activation was admitted (in process or sandboxed), captured at start: it decides how its stop is waited for (BL-367). */
   private readonly executions = new Map<string, PluginStopExecution>();
@@ -162,12 +165,38 @@ export class PluginHostExecutor implements PluginExecutor {
     this.options = { ...this.options, ...services };
   }
 
+  /** Host composition enters the current installation through its real issued Action client. */
+  async invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
+    reference: ExactActionReference, input: Input, control: PluginExecutionControl): Promise<Output> {
+    const held = this.sessions.get(expected.install_id);
+    const definition = held?.definition.manifest.actions?.find(action => action.capability_id === reference.capability_id && action.version === reference.version);
+    const check = () => {
+      control.signal?.throwIfAborted();
+      requireSynchronous(control.assert_authority_current?.());
+      const record = this.options.record?.(expected.install_id), context = held?.session.context;
+      if (!held || this.sessions.get(expected.install_id) !== held || !context || !record || record.state !== "running"
+        || record.installation_generation !== expected.installation_generation || record.plugin_id !== expected.plugin_id
+        || context.installation_generation !== expected.installation_generation || context.project_id !== expected.project_id
+        || context.actor_id !== expected.actor_id || context.plugin_id !== expected.plugin_id
+        || this.options.project_id !== expected.project_id || this.options.actor_id !== expected.actor_id
+        || !definition || definition.operation !== "command" || !definition.action.audiences?.includes("plugin")
+        || reference.provider_id !== (this.options.providerFor?.(held.definition, expected.install_id) ?? expected.install_id))
+        throw new ActionError("actions.provider_stopped", "原来源安装或自有动作已不再可用");
+    };
+    check(); await control.beforeEffect(); check();
+    const actions = held!.session.context.services?.actions;
+    if (!actions) throw new ActionError("actions.unredeemed", "当前来源安装没有动作入口");
+    const result = await outsidePluginAction(() => actions.invoke(definition!, input, { ...control,
+      assert_authority_current: check, beforeEffect: async () => { await control.beforeEffect(); check(); } }));
+    check(); return result as Output;
+  }
+
   async start(definition: PluginDefinition, context: PluginStartContext) {
     const execution = definition.execution;
     const session = await openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
       const contribution = await runWithPluginText(context, () => session.starting(() => definition.start(session.context)));
-      this.sessions.set(context.install_id, session);
+      this.sessions.set(context.install_id, { session, definition });
       this.executions.set(context.install_id, execution);
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
@@ -177,7 +206,7 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async stop(definition: PluginDefinition, context: PluginStartContext): Promise<void> {
-    const session = this.sessions.get(context.install_id);
+    const session = this.sessions.get(context.install_id)?.session;
     // The plugin owns its cleanup hook, so it may yield indefinitely. Revoke
     // invocation authority before waiting for it, while retaining cleanup data.
     session?.revoke();
@@ -192,7 +221,7 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async stopProjectJobs(projectId: string): Promise<void> {
-    await Promise.all([...this.sessions.values()].map(session => session.stopProjectJobs(projectId)));
+    await Promise.all([...this.sessions.values()].map(held => held.session.stopProjectJobs(projectId)));
   }
 
   async validateUpgrade(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void> {

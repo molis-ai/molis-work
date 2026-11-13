@@ -5,8 +5,8 @@ import { composerDraftInner, parseComposerDraftKey } from "@molis-ai/molis-work-
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { directoryWordResolver, registeredBuiltinText } from "./ui-text-provider.js";
+import type { RunningPluginText, RunningRelease } from "./running-plugin-text.js";
+import { directoryWordResolver } from "./ui-text-provider.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
 /**
@@ -21,7 +21,8 @@ import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./we
  * - The call carries the request's abort: a page that moved on (a newer query, the menu closed) closes the request, so a pick not
  *   started yet is not run and one under way gets the cancellation on its `caller.signal` (N42–N56: a late pick costs nothing).
  */
-export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient): Promise<boolean> {
+export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient,
+  running: (release: RunningRelease) => Promise<RunningPluginText | null>): Promise<boolean> {
   if (url.pathname !== "/api/composer/sources" && url.pathname !== "/api/composer/pick") return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const left = new AbortController();
@@ -33,8 +34,9 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
     const layer = body.layer === "plain" ? "plain" : "ai";
     const directory = await client.discover(), listed = directory.filter((view) => isSource(view, layer));
     if (url.pathname === "/api/composer/sources") {
-      sendJson(response, 200, { sources: listed.map((view) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
-        ...sourceWords(view) })) });
+      const sources = await Promise.all(listed.map(async (view) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
+        ...await sourceWords(view, running) })));
+      sendJson(response, 200, { sources });
       return true;
     }
     const view = listed.find((one) => one.capability_id === body.capability_id && one.version === body.version && one.provider.provider_id === body.provider_id);
@@ -109,16 +111,19 @@ function sourceOwns(view: ActionView, kind: string, directory: readonly ActionVi
 }
 
 /**
- * A source's words in the page's language. For a built-in whose build declares this very source, the provider is the plugin's directory
- * name and the title its `title_text`, both from that build's own language files; anything else (an installed plugin, a declaration the
- * build does not have, no key) shows the provider's and the declaration's own words.
+ * A source's words in the page's language, from the running release that provides it, as the plugin directory takes a plugin's name:
+ * the provider is the plugin's directory name and the title its `title_text`, both from that release's own language files. Built-in,
+ * installed or run with `molis-work plugin dev` alike. A provider no running release backs, or a release whose Manifest does not
+ * declare this very source, shows the provider's and the declaration's own words.
  */
-function sourceWords(view: ActionView): { provider: string; title: string } {
+async function sourceWords(view: ActionView, running: (release: RunningRelease) => Promise<RunningPluginText | null>): Promise<{ provider: string; title: string }> {
   const declared = view.action.composer_source!, original = { provider: view.provider.title, title: declared.title };
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === view.provider.provider_id)?.manifest;
-  const built = manifest?.actions?.some(definition => definition.capability_id === view.capability_id && definition.version === view.version
+  const pluginId = view.provider.plugin_id;
+  const release = view.provider.kind === "plugin" && pluginId ? await running({ plugin_id: pluginId, ...(view.provider.plugin_install_id ? { install_id: view.provider.plugin_install_id } : {}) }) : null;
+  const manifest = release?.manifest;
+  const declares = manifest?.actions?.some(definition => definition.capability_id === view.capability_id && definition.version === view.version
     && definition.action.composer_source?.title === declared.title && JSON.stringify(definition.action.composer_source.title_text) === JSON.stringify(declared.title_text));
-  if (!manifest || !built || view.provider.title !== manifest.name) return original;
-  const resolve = directoryWordResolver(registeredBuiltinText(manifest)), ref = tryOwnedTextRef(declared.title_text, manifest.plugin_id);
+  if (!release || !manifest || !declares) return original;
+  const resolve = directoryWordResolver(release.reader), ref = tryOwnedTextRef(declared.title_text, manifest.plugin_id);
   return { provider: projectDirectoryWords({ ...manifest, ui: {} }, resolve).name, title: ref && "key" in ref ? resolve(ref, declared.title) : declared.title };
 }

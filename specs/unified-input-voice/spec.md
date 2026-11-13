@@ -1,6 +1,6 @@
 # 统一输入体验与本地语音输入
 
-状态：第 10 批已实现并合入 main（2026-11-09，[#1991](https://github.com/molis-ai/molis-work/pull/1991)，合入提交 `ecdfe102d2`）：K0／K0b／K0c／K1／K2／K3 与 H4 用词已实现，首页与助理已换上统一输入组件；第 11 批已实现并随 [#2016](https://github.com/molis-ai/molis-work/pull/2016) 合入 main（2026-11-11，合入提交 `83b10e462c`）：K4 Coding 换上统一输入组件、K5 第一个真实来源「待办」，见[第 11 批进展](../post-anticorruption-roadmap/reference/batches/11.md#batch-11-progress)；K6 其余入口与语音待后续批；本人验收待 [BL-unified-input-acceptance](../backlog/BL-unified-input-acceptance.md)、[BL-unified-input-coding-acceptance](../backlog/BL-unified-input-coding-acceptance.md)。此前状态（2026-11-04）：需求已整理（2026-10-15），2026-10-27 用户确定统一输入组件由平台负责，并增加开放注册与插件通用扩展要求（§2.1～2.2）；2026-11-04 用户定下第 10 批定样（§10），实施方案与开工前检查见[第 10 批实施方案](implementation-plan.md)（当时待审），尚未实现，当时只更新需求书、不代表功能验收通过。目标完成程度为**内部完整**。
+状态：第 10 批已实现并合入 main（2026-11-09，[#1991](https://github.com/molis-ai/molis-work/pull/1991)，合入提交 `ecdfe102d2`）：K0／K0b／K0c／K1／K2／K3 与 H4 用词已实现，首页与助理已换上统一输入组件；第 11 批已实现并随 [#2016](https://github.com/molis-ai/molis-work/pull/2016) 合入 main（2026-11-11，合入提交 `83b10e462c`）：K4 Coding 换上统一输入组件、K5 第一个真实来源「待办」，见[第 11 批进展](../post-anticorruption-roadmap/reference/batches/11.md#batch-11-progress)；UIV-20 的框架页来源未完成，随 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) 留待 K6 灵光之前；K6 其余入口与语音待后续批；本人验收待 [BL-unified-input-acceptance](../backlog/BL-unified-input-acceptance.md)、[BL-unified-input-coding-acceptance](../backlog/BL-unified-input-coding-acceptance.md)。此前状态（2026-11-04）：需求已整理（2026-10-15），2026-10-27 用户确定统一输入组件由平台负责，并增加开放注册与插件通用扩展要求（§2.1～2.2）；2026-11-04 用户定下第 10 批定样（§10），实施方案与开工前检查见[第 10 批实施方案](implementation-plan.md)（当时待审），尚未实现，当时只更新需求书、不代表功能验收通过。目标完成程度为**内部完整**。
 
 ## 1. 目标与完成标准
 
@@ -184,7 +184,7 @@ Tab 保持焦点导航；Esc 用于退出局部菜单等交互，不直接停止
 
 识别准确率、等待时间和单次录音时长上限的具体数值，留待代表性设备与口述样本实测后确定；在这些指标明确并验证前，不宣称语音体验已达到内部完整。
 
-上述新增项均为待实施、待验证的验收要求。实现用例在测试名或注释中引用相应编号；本次只运行文档检查，不以需求落盘代替组件实现或产品实操。
+UIV-18、UIV-19、UIV-21～UIV-23 已随第 11 批实现并有工程用例；UIV-20 只完成「页面只拿自己的实例、列不出结果」的拒绝面，工作台为框架收件人列来源、只交选中引用的部分未完成，随 [BL-composer-frame-sources](../backlog/BL-composer-frame-sources.md) 移交。实现用例在测试名或注释中引用相应编号；工程通过不等于本人验收。
 
 ## 10. 决策记录
 

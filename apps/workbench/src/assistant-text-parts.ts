@@ -35,10 +35,13 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   const resolved = ports.language(hint || "");
   const language = (typeof resolved === "string" ? resolved : "") || guessed, lines = text.split(/\r\n|[\r\n]/).length;
   // A block past a slice goes out as its text and the map of its pieces; the page colours it a slice a frame (assistantPaintMap).
-  const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
-  // HTML parsing normalizes literal CRs, including in attributes. Character references keep the source line endings.
+  // A lone CR keeps the ordinary body: the paint path builds its text from the raw source and has no <br> to show that line.
+  const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 && !/\r(?!\n)/u.test(text) ? assistantPaintMap(pieces) : "";
+  // HTML parsing normalizes literal CRs, including in attributes. Character references keep the source line endings; in the
+  // body a lone CR also needs a <br>, because a browser draws that character as a space (the same rule as Coding and /rich-text).
+  const cr = (value: string) => assistantEscape(value).replace(/\r(?!\n)/g, "&#13;<br>").replace(/\r/g, "&#13;");
   const source = assistantEscape(text).replace(/\r/g, "&#13;");
-  const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("").replace(/\r/g, "&#13;") : source;
+  const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${cr(value)}</span>` : cr(value)).join("") : cr(text);
   const count = (key: string) => assistantEscape(ports.say(key, { n: lines }));
   const html = `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${source}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("workbench.assistant-code-grow.code"))}</span><span class="assistant-code-lines">${count("workbench.assistant-code-grow.lines")}</span><button class="assistant-code-copy" type="button">${assistantEscape(ports.say("common.control.copy"))}</button></figcaption><pre><code${original ? ' translate="no"' : ""}>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("workbench.assistant-code-grow.show-all-n-n")}</button>` : ""}</figure>`;
   return original ? html.replaceAll("\r", "&#13;") : html;

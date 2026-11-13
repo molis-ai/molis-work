@@ -232,6 +232,8 @@ export interface SessionData extends UsageData {
 
 /** A session in the project's list (the state read and the session read both give it). */
 export interface SessionRecord {
+  readonly archived?: boolean;
+  readonly execution_state?: "active" | "archived" | null;
   readonly session_id: string;
   readonly title: string;
   readonly runtime_id?: string;

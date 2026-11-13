@@ -115,7 +115,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         : view.section === "kit" ? renderKitSettings({ projectId: null })
         : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
-          ? renderMemorySettings({ readText, scope: "personal", projectId: null })
+          ? renderMemorySettings({ readText, scope: "personal", projectId: null, projects: view.projects })
         : view.section === "directories" ? renderLocalDirectorySettings({ readText })
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell, primitives)

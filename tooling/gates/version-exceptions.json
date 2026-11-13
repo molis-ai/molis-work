@@ -194,8 +194,8 @@
   {
     "file": "packages/contracts/src/services/agent-host-memory.ts",
     "name": "version",
-    "values": { "1": 1 },
-    "reason": "Prologue SDK 记忆清除决定的字段，形状由上游定义，我们按原样转交。"
+    "values": { "1": 2 },
+    "reason": "Prologue SDK 记忆清除决定的字段（预览与执行两处类型），形状由上游定义，我们按原样转交。"
   },
   {
     "file": "packages/plugin-runtime/src/project-database-statements.ts",
@@ -1088,6 +1088,72 @@
   {
     "entry": "action.sessions.tool.search",
     "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+    },
+    {
+    "file": "horizontal/memory/src/batch.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "Prologue SDK 记忆清除决定的 version 字段：按上游决定的形状构造或核对后原样转交，不是自有版本。"
+  },
+  {
+    "file": "horizontal/memory/src/scope-commands.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "Prologue SDK 记忆清除决定的 version 字段：按上游决定的形状构造或核对后原样转交，不是自有版本。"
+  },
+  {
+    "file": "apps/local-host/src/memory/memory-learning-owner.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "Prologue SDK 记忆来源事件引用（AgentMemorySourceRef）的 version 字段，取值由上游事件账给出，我们只核对是否为上游当前值。"
+  },
+  {
+    "file": "plugins/native/coding/src/memory-learning.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "Prologue SDK 记忆来源事件引用（AgentMemorySourceRef）的 version 字段，取值由上游事件账给出，我们只核对是否为上游当前值。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-memory-restore.ts",
+    "name": "indexed-v1",
+    "values": { "indexed-v1": 3 },
+    "reason": "Prologue SDK NodeHost 的 memoryStorageFormat 选项值，由上游定义；我们只选用它，不是自有版本。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-node.ts",
+    "name": "indexed-v1",
+    "values": { "indexed-v1": 1 },
+    "reason": "Prologue SDK NodeHost 的 memoryStorageFormat 选项值，由上游定义；我们只选用它，不是自有版本。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-session-restore.ts",
+    "name": "indexed-v1",
+    "values": { "indexed-v1": 1 },
+    "reason": "Prologue SDK NodeHost 的 memoryStorageFormat 选项值，由上游定义；我们只选用它，不是自有版本。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-run.ts",
+    "name": "format",
+    "values": { "caller-only-v1": 1 },
+    "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-session-index.ts",
+    "name": "format",
+    "values": { "caller-only-v1": 1 },
+    "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-session-opening.ts",
+    "name": "format",
+    "values": { "caller-only-v1": 2 },
+    "reason": "Prologue SDK 子会话开场观察事实的 format 判别值，由上游定义；我们只原样核对，不是自有版本。"
+  },
+  {
+    "file": "packages/storage/src/adapters/memory-forgetting.ts",
+    "name": "memory-forgetting-v2.json",
+    "values": { "memory-forgetting-v2.json": 1 },
+    "reason": "遗忘决定文件在 Home 里的文件名，v2 只标物理代（2026-11-06 更名片），是名字不是版本；文件里的格式版本由 format.memory.forgetting 管。"
   },
   {
     "file": "horizontal/agent-host/src/code-intelligence/lsp-client.ts",

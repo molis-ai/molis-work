@@ -1,0 +1,15 @@
+{
+  "reason": "共用对话滚动器等到主指针释放、取消或窗口失焦后才继续自动贴底。相对修复前候选，实际下发的工作台脚本增加 104 字节，插件框架脚本增加 124 字节；没有新资源。",
+  "review": "Work PR #2020：BL-assistant-card-press-scrolls；VUX-26 和 AC-05 真实指针回归。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 124
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 167, "warm": 124 },
+    "arrival-empty/en": { "cold": 209, "warm": 124 },
+    "chooser/zh": { "cold": 167, "warm": 124 },
+    "chooser/en": { "cold": 209, "warm": 124 },
+    "workbench-default/zh": { "cold": 84, "warm": 0 },
+    "workbench-default/en": { "cold": 164, "warm": 0 }
+  }
+}

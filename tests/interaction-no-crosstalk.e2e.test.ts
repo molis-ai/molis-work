@@ -463,9 +463,9 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 test("AC-05: an action card keeps the selection it was made from; selecting something else after it shows, or as its button is pressed, changes nothing it does", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
-  const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
+  const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store, setViewport } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await setViewport(1440, 950);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
@@ -511,6 +511,25 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   // Each proposal by the passage it was made from: its steps, as the person selected them.
   const proposals = () => new GoalProjectApplication(store).goalTree.listGoalTreeProposals({ project_id: projectId! }).proposals
     .map(proposal => (proposal.narrative?.main_path ?? []).join("。") + "。");
+  const pressRun = async (card: string, duringPress: () => Promise<unknown>) => {
+    const selector = JSON.stringify(`${card} [data-ix-action="run"]`);
+    const pressAt = await evaluate<{x:number;y:number}>(`(() => {
+      const button=document.querySelector(${selector});
+      button.scrollIntoView({block:"center",behavior:"instant"});
+      const box=button.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2};
+    })()`);
+    await command("Input.dispatchMouseEvent", { type: "mousePressed", ...pressAt, button: "left", clickCount: 1 }, sessionId);
+    try {
+      await duringPress();
+      // Let several browser frames pass during an ordinary press; focus on the button must not let the conversation move it.
+      await evaluate("new Promise(resolve => setTimeout(resolve, 120))");
+      assert.equal(await evaluate(`Boolean(document.querySelector(${selector})?.contains(document.elementFromPoint(${pressAt.x},${pressAt.y})))`),
+        true, "the pressed action remains under the pointer until release");
+    } finally {
+      await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...pressAt, button: "left", clickCount: 1 }, sessionId);
+    }
+    await waitFor(`document.querySelector(${JSON.stringify(card)})?.dataset.status === 'done'`, 20_000);
+  };
 
   // 1. After the card is shown, the person selects the other paragraph; the bar follows the new selection, the card does not.
   const first = await offer(0);
@@ -518,17 +537,12 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   assert.equal(await evaluate<boolean>(`document.querySelector(${JSON.stringify(first)}).textContent.includes(${JSON.stringify(SECOND)})`), false,
     "the shown card does not take up the new selection");
-  await click(`${first} [data-ix-action="run"]`);
-  await waitFor(`document.querySelector(${JSON.stringify(first)})?.dataset.status === 'done'`, 20_000);
+  await pressRun(first, async () => {});
   assert.deepEqual(proposals(), [FIRST], "the card did what it was made from; nothing was made from the selection that came after");
 
   // 2. In the moment its button is pressed: the pointer going down on it selects the other paragraph first.
   const second = await offer(1);
-  const pressAt = await evaluate<{x:number;y:number}>(`(() => {const button=document.querySelector(${JSON.stringify(`${second} [data-ix-action="run"]`)});button.scrollIntoView({block:"center"});const box=button.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2};})()`);
-  await command("Input.dispatchMouseEvent",{type:"mousePressed",...pressAt,button:"left",clickCount:1},sessionId);
-  await select(0);
-  await command("Input.dispatchMouseEvent",{type:"mouseReleased",...pressAt,button:"left",clickCount:1},sessionId);
-  await waitFor(`document.querySelector(${JSON.stringify(second)})?.dataset.status === 'done'`, 20_000);
+  await pressRun(second, () => select(0));
   assert.equal(await child.evaluate("getSelection().toString()"), FIRST, "the selection did change as the button was pressed");
   const runs = await evaluate<unknown[]>("window.__runs");
   assert.equal(runs.length, 2);

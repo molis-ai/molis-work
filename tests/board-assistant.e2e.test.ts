@@ -135,9 +135,10 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   await choose("work", "new", "new");
   const fresh = await inFrame<{ title: string; target: string; scope: string[] }>(`return { title: d.querySelector('[data-assistant-work-title]').textContent, target: d.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent,
     scope: [...d.querySelectorAll('[data-assistant-meta] [aria-label="新工作放在"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')) };`);
-  // K3 (UIV-12): the receiver row says who the Send goes to (发给：助理); where a new work is put is the pane's 新工作放在.
-  assert.deepEqual(fresh, { title: "新工作", target: "助理", scope: ["示例项目*", "个人"] });
-  assert.deepEqual(await inFrame<[string, string[]]>("d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')[1].click(); return [d.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent, [...d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : ''))];"), ["助理", ["示例项目", "个人*"]]);
+  // K3 (UIV-12): the receiver row says who the Send goes to and, for a new work, where it is put (BL-1076: 「示例项目 · 助理」);
+  // the pane's 新工作放在 chooses that place.
+  assert.deepEqual(fresh, { title: "新工作", target: "示例项目 · 助理", scope: ["示例项目*", "个人"] });
+  assert.deepEqual(await inFrame<[string, string[]]>("d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')[1].click(); return [d.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent, [...d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : ''))];"), ["个人 · 助理", ["示例项目", "个人*"]]);
 
   // The interface in English: the island's own words, the groups' titles and the states, with no Chinese of the product's.
   await choose("work", "plan", "board-plan");

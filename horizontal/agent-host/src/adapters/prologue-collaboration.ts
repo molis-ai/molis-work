@@ -1,3 +1,4 @@
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CollaborationHost, ExactRef, Runtime } from "@prologue/sdk";
 
 /**
@@ -120,7 +121,7 @@ export async function releaseStartClaim(runtime: Runtime, at: At): Promise<void>
 
 /** What the Host asks of a parent round before its child is let out: the round's own pre-dispatch check (authority, install, cancel). */
 export interface DispatchChecks {
-  forRun(runId: string): (() => Promise<void>) | undefined;
+  forRun(runId: string): import("./prologue-node-kit.js").DispatchGuard | undefined;
 }
 
 /**
@@ -133,7 +134,7 @@ export function createCollaborationHost(checks: DispatchChecks): CollaborationHo
     async admitDispatch(request) {
       const check = checks.forRun(request.parent.run.id);
       if (!check) return { admit: false, code: "agent.collaboration_not_bound", note: "这一轮没有可用的派出检查" };
-      try { await check(); } catch (error) {
+      try { const fence = await check(); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); } catch (error) {
         return { admit: false, code: (error as { code?: unknown }).code === undefined ? "agent.dispatch_refused" : String((error as { code: unknown }).code).slice(0, 64),
           note: (error instanceof Error ? error.message : String(error)).slice(0, 200) };
       }

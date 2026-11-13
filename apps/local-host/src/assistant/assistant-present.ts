@@ -97,6 +97,7 @@ export function describeObjects(objects: readonly AssistantWorkObject[]): string
  * and the person can let it go on.
  */
 export function stopInWords(reason: string, workBudget?: number): string {
+  if (/^MEMORY_SCOPE_DENIED(?:\b|:)/.test(reason)) return uiText.text("workbench.assistant-stop.memory-permission");
   if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/i.test(reason)) return uiText.text("workbench.assistant-stop.turn-limit", { count: ROUND_TURNS });
   if (/MODEL_BUDGET_EXCEEDED|of its \d+ tokens|token/i.test(reason) && /budget|limit|exceed|of its \d+ tokens/i.test(reason)) {
     // A round whose work has a cap was given only what was left of it: this stop is that cap.
@@ -111,6 +112,25 @@ export function stopInWords(reason: string, workBudget?: number): string {
   return reason;
 }
 
+/** A returned Memory tool can mean a pending candidate or no change; only its bounded receipt says which. */
+function memoryActivityResult(item: AgentToolActivity): Partial<Pick<AssistantActivity, "verb" | "target" | "state" | "detail">> {
+  if (item.state !== "completed" || !["remember", "suggest-memory", "forget-memory"].includes(item.name)) return {};
+  if (!item.output || item.output_truncated || item.output.length > 16_384) return { state: "unknown" };
+  let result: unknown;
+  try { result = JSON.parse(item.output); } catch { return { state: "unknown" }; }
+  if (!result || typeof result !== "object" || Array.isArray(result)) return { state: "unknown" };
+  if (item.name === "forget-memory") {
+    if ("forgotten" in result && result.forgotten === true) return {};
+    if ("forgotten" in result && result.forgotten === false) return { state: "failed", detail: "这条记忆当前不可用或已不存在，没有停用。" };
+    return { state: "unknown" };
+  }
+  const candidate = "candidate_id" in result && typeof result.candidate_id === "string" && result.candidate_id.length > 0;
+  if (item.name === "suggest-memory") return candidate ? { verb: "memory-suggest", target: "" } : { state: "unknown" };
+  if (!("scope" in result) || typeof result.scope !== "string" || !["personal", "project", "character"].includes(result.scope)
+    || !("applies" in result) || typeof result.applies !== "string" || !("memory_id" in result)) return { state: "unknown" };
+  if (result.memory_id === "" && candidate) return { verb: "memory-suggest", target: "" };
+  return typeof result.memory_id === "string" && result.memory_id.length > 0 && !candidate ? {} : { state: "unknown" };
+}
 /**
  * The Agent tools' activity as the person reads it, keyed by a tool's name in the Agent Host's tool set or the runtime's own name for it
  * (`AGENT_TOOLS`; the side panel's browser tools are the runtime's, offered by the surface). Presenting stays here; the names are the set's.
@@ -182,6 +202,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     const capability = (verb === "read" || verb === "change") && item.target ? { capability_id: item.target } : {};
     const answer = verb === "ask" && item.state === "completed" ? answerOf(item.output) : "";
     return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(failure ? { failure } : {}), ...(answer ? { answer } : {}),
+      ...memoryActivityResult(item),
       ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
 }

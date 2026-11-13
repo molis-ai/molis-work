@@ -148,11 +148,13 @@ test("RAC-808 an owner stopped after the Runtime Inbox admitted a call is gone f
   const inbox = await runtimeInbox(t);
   const unassigned = inbox.entry("feed_item", "item-1"), goalsRow = inbox.entry("goal_decision", "goal-1", GOALS_PLUGIN_ID);
   inbox.install(goalsManifest);
-  // At every point a list asks whether the call still stands, Goals stops then: the list that follows does not show its row.
-  let probe = 0;
-  await inbox.listed(inbox.caller(asked => { probe = asked; }));
-  assert.ok(probe >= 1, "a list asks its caller at least once");
-  for (let at = 1; at <= probe; at += 1) {
+  // At every point a list asks whether the call still stands before its entries are read, Goals stops then: the list that follows does
+  // not show its row. The last such point is the platform's read gate (`plugin-attention-service`); the checks after it are the
+  // delivery checks of a list already read, and a stop there cannot reach back into it, so they do not count (user 2026-11-12).
+  let probe = 0, lastRead = 0;
+  await inbox.listed(inbox.caller(asked => { probe = asked; if ((new Error().stack ?? "").includes("plugin-attention-service.")) lastRead = asked; }));
+  assert.ok(lastRead >= 1 && probe >= lastRead, `a list asks its caller at least once before it reads (${lastRead} of ${probe})`);
+  for (let at = 1; at <= lastRead; at += 1) {
     inbox.install(goalsManifest);
     assert.deepEqual(await inbox.listed(inbox.caller(asked => { if (asked === at) inbox.install(goalsManifest, "disabled"); })), idsOf([unassigned]), `stopped at check ${at}`);
   }

@@ -1,3 +1,4 @@
+import { sessionOpeningReader, canonicalCallerOpening } from "./prologue-session-opening.js";
 import { recordOriginalInput } from "./prologue-original-inputs.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -10,6 +11,7 @@ import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/service
 import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
+import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { createCodeIntelligence, unavailableSymbolIndex, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
 import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
@@ -62,6 +64,7 @@ export interface RunDeps {
   readonly runtime: Runtime;
   /** Per-invocation commit checks (prologue-effects): the SDK's writes in a call re-check the caller first. */
   readonly effects: PrologueEffects;
+  readonly memoryAuthority: ReturnType<typeof import("./prologue-memory-authority.js").createPrologueMemoryAuthority>;
   readonly options: PrologueNodeAdapterOptions;
   readonly state: RoundState;
   readonly index: SessionIndexStore;
@@ -201,7 +204,7 @@ async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: Sess
   const declared = tools?.some(tool => tool.afterWriteCheck === true) === true;
   const workspace = !declared || mode.none || mode.business || !input.root_path || !workspaceAt ? undefined : await workspaceAt(projectId, input.root_path);
   if (!workspace || !(await store.read(projectId, workspace)).checkers.length) return undefined;
-  return afterWriteExecutor({ projectId, rootPath: input.root_path!, workspaceAt: workspaceAt!, store, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}),
+  return afterWriteExecutor({ projectId, rootPath: input.root_path!, workspaceAt: workspaceAt!, store, ...(input.beforeDispatch ? { beforeDispatch: async () => { const fence = await input.beforeDispatch!(); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); } } : {}),
     // A round stopped while the index was being read keeps nothing either: the check is in the change itself, just before the write.
     note: (about, note, signal) => deps.index.update(about.session?.id ?? input.session_id, saved => {
       signal?.throwIfAborted();
@@ -384,7 +387,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
  */
 async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: SessionIndex["attempts"][number]): Promise<{ attemptIndex: number; abandon: () => Promise<void> }> {
   const intent = structuredClone({ ...attempt, ...(input.memory ? { memory_context: {
-    consumer: input.memory.consumer, current_scene: input.memory.current_scene,
+    class_restrictions: input.memory.class_restrictions, consumer: input.memory.consumer, current_scene: input.memory.current_scene,
     ...(input.memory.facts ? { facts: input.memory.facts } : {}),
     ...(input.memory.usage ? { usage: input.memory.usage } : {}),
   } } : {}) });
@@ -406,7 +409,7 @@ async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: 
  * A child the round dispatched, as the runtime starts it: checked against the round's fixed roles and directories, and
  * when it has operations to review, recorded under its own index and bridged to the Host's review queue.
  */
-function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, children: { readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
+function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, attemptIndex: number, children: { readonly roles: Map<string, ChildRole>; readonly roots: PrologueSubagentRoot[]; readonly root: { ref: ExactRef<"authorized-root"> } | undefined }) {
   const { runtime, state } = deps;
   return async (observed: Parameters<NonNullable<NonNullable<Parameters<Runtime["startAgentRun"]>[0]["subagents"]>["onStarted"]>>[0]) => {
     verifySubagentStart(runtime, children.roles, children.roots)(observed);
@@ -420,6 +423,23 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text }); } });
     state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
     observed.run.subscribe(event => { if (["completed", "failed", "cancelled"].includes(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
+    // SDK493 invokes this observer only for this claim's newly created child. Its held driver has not started.
+    // subscribe replays the initial opening synchronously; peer/carried input is never this canonical caller.
+    const opening: import("@prologue/sdk").ModelEvent[] = [];
+    let prefix = true;
+    const stopOpening = observed.run.subscribe(event => { if (prefix && event.type === "prompt") opening.push(event); else prefix = false; });
+    stopOpening();
+    const caller = canonicalCallerOpening(opening);
+    if (caller === undefined) throw new Error("新子任务没有唯一 caller 开场，未开始子任务模型请求");
+    await deps.index.update(observed.parentSession.id, saved => {
+      const attempt = saved.attempts[attemptIndex];
+      if (saved.ref.id !== index.ref.id || observed.parentSession.id !== index.ref.id || !attempt || attempt.refused
+        || attempt.task !== input.task || attempt.run_id && attempt.run_id !== observed.parentRun.id) throw new Error("子任务原启动身份不一致");
+      const fact = { parent_run: observed.parentRun.id, session: { ...observed.childSession.ref }, run: { ...observed.run.ref }, format: "caller-only-v1" as const };
+      const held = attempt.child_openings ??= [];
+      if (held.some(item => item.session.id === fact.session.id || item.run.id === fact.run.id)) throw new Error("子任务生成事实已存在，不能重标旧记录");
+      held.push(fact);
+    });
     // A child with operations to review is tracked by the Host: one in its own directory, or one in the main
     // workspace that may run commands. A read-only child in the main workspace has nothing to review.
     // Without its own directory or a main workspace (workspace:none) there is nothing the Host could review.
@@ -428,7 +448,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     const childRun = { session_id: observed.childSession.ref.id, run_id: observed.run.ref.id };
     await deps.index.save({ schema: SESSION_INDEX_SCHEMA, ref: observed.childSession.ref, title: role.name, owner: index.owner,
       parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
-      attempts: [{ started_at: new Date().toISOString(), task: "", run_id: childRun.run_id, root_ref: granted.rootRef,
+      attempts: [{ started_at: new Date().toISOString(), task: caller, run_id: childRun.run_id, root_ref: granted.rootRef,
         frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,
           subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined, workspace: "required", directory: { canonical_path: granted.path, realpath_verified: true },
           host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
@@ -453,9 +473,6 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
         if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
         state.commandEvents.set(childRun.run_id, events);
       }
-      if (event.type === "prompt" && event.role === "user") void deps.index.update(childRun.session_id, saved => {
-        if (!saved.attempts[0]!.task) saved.attempts[0]!.task = event.text;
-      }).catch(bridgeFailed);
       if (event.type === "awaiting-approval") void deps.approvals!.mirrorPending({ pendingRef: event.pendingRef, owner: index.owner, run: childRun })
         .catch(bridgeFailed);
     });
@@ -464,7 +481,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
 
 /** What the SDK is asked to start: the session, workspace, history, children, context, compaction, model and agent. */
 function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, parts: {
-  readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
+  readonly attemptIndex: number; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
   readonly childRoles: Map<string, ChildRole>; readonly childRoots: PrologueSubagentRoot[]; readonly runTools: string[];
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
   readonly pinnedMemory: Awaited<ReturnType<typeof roundCharacter>>["pinnedMemory"];
@@ -479,13 +496,13 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
     ...(parts.binding ? { collaboration: { board: parts.binding.board, node: parts.binding.node } } : {}),
     ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
     // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
-    ...(input.history === "digest" ? {} : { history: "session" as const }),
+    ...(input.history === "digest" ? {} : { history: "session" as const, readOpening: sessionOpeningReader(index, deps.index) }),
     // Supplements kept in the session for the next round come in only when the Host says so (specs/ai-input-receipts §4.4).
     ...(input.queued ? { queued: input.queued } : {}),
     ...(childRoles.size ? { subagents: {
       // The user's decision: a parent that split work across directories may read (never write) exactly those.
       ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true, parentReads: true } : {}),
-      onStarted: watchChild(deps, input, index, { roles: childRoles, roots: childRoots, root }),
+      onStarted: watchChild(deps, input, index, parts.attemptIndex, { roles: childRoles, roots: childRoots, root }),
     } } : {}),
     // Packed against the model's own window when it states a smaller one than the runtime default.
     ...(input.compaction || input.provenance.frozen.model_context ? { context: {
@@ -527,7 +544,11 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
       mcpConnections: [...new Set([...(input.mcp_tools ?? []), ...(input.mcp_sources ?? [])].map(mcpConnectionId))],
       characterRef: parts.character.ref,
       ...(parts.textResources.length ? { mount: { textResources: parts.textResources } } : {}),
+      // Memory IDs reach the model only in a round that can address a memory: the business gateway (forget, replace, or a Memory
+      // Action from the directory) or a frozen Memory Action. Elsewhere they were tokens on every recalled memory that nothing
+      // could use (BL-1073).
       ...(input.memory ? { memory: { consumer: input.memory.consumer, currentScene: input.memory.current_scene,
+        addressable: !!input.action_gateway || !!input.actions?.tools.some(tool => (tool.provider_id ?? tool.provider.provider_id) === MEMORY_PROVIDER_ID),
         ...(input.memory.facts ? { facts: { ...(input.memory.facts.plugins ? { plugins: input.memory.facts.plugins } : {}),
           ...(input.memory.facts.object_kinds ? { objectKinds: input.memory.facts.object_kinds } : {}),
           ...(input.memory.facts.goals ? { goals: input.memory.facts.goals } : {}) } } : {}),
@@ -603,6 +624,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
   return {
+    memory: started.memory,
     run: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
@@ -681,19 +703,20 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
   const dispatchGuard = async () => {
-    await input.beforeDispatch?.();
+    const fence = await input.beforeDispatch?.();
     if (!mode.none && !mode.business) {
       await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
       await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
     }
+    return () => { requireSynchronous(fence?.(), "最终派发检查必须同步完成"); };
   };
   // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
   // instructions on the round's own model, behind the same pre-dispatch check.
   guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
     model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
-  const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
-    session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
-  }))).catch(async (error: unknown) => {
+  const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () => deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
+    attemptIndex, session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
+  }))), input.disposeDispatch).catch(async (error: unknown) => {
     await codeIntelligence?.close().catch(() => undefined);
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
@@ -707,6 +730,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
       const requestKey = binding?.requestKey;
       if (requestKey) await deps.effects.detach(() => releaseStartClaim(runtime, { ...binding!, requestKey })).catch(() => undefined);
     }
+    if ((error as { code?: string }).code === "SESSION_HISTORY_UNAVAILABLE") throw agentErrors.capability_unavailable("旧会话开场无法可靠核验，不能继续携带历史，没有发给模型。原记录仍可查看，请新建会话并补充必要背景。" );
     throw error;
   });
   watchRoundFacts(state, started.run);

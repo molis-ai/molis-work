@@ -1,6 +1,7 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { CodingHost } from "./main/host.js";
+import { mountCodingDirectory } from "./main/directory-mount.js";
 import { mountCoding } from "./main/mount.js";
 
 /** What Git's client hands back; it reads through its own plugin's routes. */
@@ -46,13 +47,18 @@ export interface CodingWorkbenchHost {
  * (its own bundle, loaded beside this one); the files face is Coding's own (main/files-face.ts). Built with esbuild into `dist/workbench-bundle.js` (src/workbench-client.ts reads it).
  */
 export function codingWorkbench(host: CodingWorkbenchHost): void {
+  const codingRoot = (host.root.matches("[data-coding-workbench]") ? host.root : host.root.querySelector("[data-coding-workbench]")) as HTMLElement | null;
+  if (!codingRoot) {
+    const directory = host.root.matches("[data-coding-directory]") ? host.root : host.root.querySelector("[data-coding-directory]");
+    if (directory) mountCodingDirectory({ ...host, root: directory });
+    return;
+  }
   const { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm, clients } = host;
   // What every client mounted here gets besides its own ports.
   const lent = { mountPluginClient, readRefusal, pluginId, pluginRoute, confirm };
   const showReviews = (element: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null,
     query?: { runSession?: string; limit?: number }, control?: { signal?: AbortSignal }) => host.reviews.show(element,
     { runIds: refs.map(ref => ref.run_id), sessionId, workspaceId, ...query }, { signal: control?.signal });
-  const codingRoot = host.root.matches("[data-coding-workbench]") ? host.root as HTMLElement : null;
   const openCompanionResult = (name: string) => {
     if (codingRoot) { codingRoot.dataset.codingDetail = "true"; codingRoot.dataset.codingResults = "true"; }
     codingRoot?.querySelector("[data-coding-tools]")?.setAttribute("data-companion-open", "true");

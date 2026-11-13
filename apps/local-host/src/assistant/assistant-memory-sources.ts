@@ -46,6 +46,8 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       || (body.session_id !== undefined && body.session_id !== task.session_id)) return null;
     const projectId = work.project_ref?.project_id ?? null;
     if (caller && caller.project_id !== projectId) return null;
+    const lifecycle = await adapter.sessionLifecycle?.read({ session_id: task.session_id, runtime_id: adapter.descriptor.runtime_id });
+    if (lifecycle?.view.state !== "active") return null;
     const session = await adapter.readSession({ session_id: task.session_id, runtime_id: adapter.descriptor.runtime_id });
     if (session.owner.actor_id !== actor || session.owner.plugin_id !== ASSISTANT_PLUGIN_ID
       || session.owner.project_id !== (projectId ?? ASSISTANT_PERSONAL_OWNER) || session.recovery?.required) return null;
@@ -59,7 +61,8 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       if (run.ref.session_id !== task.session_id || run.ref.run_id !== id || run.phase !== "completed") return null;
       views.set(id, run); return run;
     };
-    if (!await readRun(trigger.run_id)) return null;
+    const originalRun = await readRun(trigger.run_id), policy = originalRun?.class_restrictions;
+    if (!policy || originalRun.memory_scene !== "assistant") return null;
     let refs: AssistantMemorySourceRef[];
     if (body.sources !== undefined) {
       if (!Array.isArray(body.sources) || !body.sources.length || body.sources.length > 6) return null;
@@ -98,11 +101,12 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       if (!snapshot) return null;
       said.push(source.text); snapshots.push(snapshot);
     }
+    if ((await adapter.sessionLifecycle?.read({ session_id: task.session_id, runtime_id: adapter.descriptor.runtime_id }))?.view.state !== "active") return null;
     const current = store.get(actor, workId);
     if (current.archived || current.delegated_by || current.continuation_hold || current.session_id !== task.session_id
       || (current.project_ref?.project_id ?? null) !== projectId) return null;
     return { source: { actor_id: actor, work_id: workId, session_id: task.session_id, run_id: trigger.run_id, sources: refs },
-      request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,
+      request: { caller: { current_scene: "assistant", class_restrictions: structuredClone(policy), actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,
         work: { work_id: workId, title: current.title } }, said, sources: snapshots } };
   } finally { db.close(); }
 }
@@ -118,6 +122,7 @@ export async function assistantMemorySources(home: string, adapter: AgentRuntime
     const now = await readSources(home, adapter, fixed).catch(() => null);
     return now !== null && now.request.caller.project_id === first.request.caller.project_id
       && now.request.said.length === first.request.said.length && now.request.said.every((text, index) => text === first.request.said[index])
+      && JSON.stringify(now.request.caller.class_restrictions) === JSON.stringify(first.request.caller.class_restrictions)
       && JSON.stringify(now.request.sources) === JSON.stringify(first.request.sources);
   } };
 }

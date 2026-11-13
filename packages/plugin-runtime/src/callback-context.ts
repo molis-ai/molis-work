@@ -45,6 +45,11 @@ export function withoutIssuedIdentity<C extends ActionCallContext>(caller: C): C
 
 function dropIssuedIdentity<C extends ActionCallContext>(view: C): C {
   Reflect.deleteProperty(view, "host_plugin");
+  Reflect.deleteProperty(view, "subject_state_capture");
+  Reflect.deleteProperty(view, "assert_memory_sources_current");
+  Reflect.deleteProperty(view, "runtime_memory");
+  Reflect.deleteProperty(view, "memory_context_selection");
+  Reflect.deleteProperty(view, "memory_session");
   Reflect.deleteProperty(view, "stage_scene_metadata");
   // The Host's own list of projects the person may reach (PG-014) is set by `pluginActionProvider` after this; what a caller carried in is not.
   Reflect.deleteProperty(view, "readable_project_ids");

@@ -1,6 +1,6 @@
 import { type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { pluginActionAvailability } from "./action-availability.js";
+import { pluginActionAvailability, pluginReadOnlyCallback } from "./action-availability.js";
 import { currentPluginInvocation, pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
 import { pluginCallbackContext, withoutIssuedIdentity } from "./callback-context.js";
@@ -51,8 +51,13 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
         const checked = { passed: false }, source = entrySource(context, definition, providerId);
         const run = (readable?: readonly string[]) => {
           state.capturePermissions(definition.action.permissions);
+          const provideSubjectState = context.provideSubjectState ? (current: Parameters<NonNullable<ActionExecutionContext["provideSubjectState"]>>[0]) => {
+            const authority = context.retainAuthority!([context.current_action!]);
+            context.provideSubjectState!(() => pluginReadOnlyCallback(instance, definition,
+              { ...context, assert_authority_current: authority.assertCurrent, retain_background_authority: undefined }, () => current()));
+          } : undefined;
           const view = pluginCallbackContext(context, copy => ({
-            ...copy,
+            ...copy, provideSubjectState,
             ...(readable ? { readable_project_ids: readable } : {}),
             ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}),
             ...(source?.direct_person_entry ? { direct_person_entry: true as const } : {}),

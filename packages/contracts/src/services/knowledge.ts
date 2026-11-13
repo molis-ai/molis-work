@@ -98,7 +98,7 @@ export interface KnowledgeListEntry {
   open: SearchOpenTarget | null;
 }
 export interface KnowledgeListRequest { plugins?: string[]; kinds?: string[]; limit?: number; offset?: number; related_to?: string }
-/** Newest first, or with `related_to` those that hold some of its words first. `sources` counts every listed piece by plugin; `listing` says a source is still being listed for the first time. */
+/** Newest first, or with `related_to` those that hold some of its words first. `total`/`sources` count the authorized indexed catalog snapshot; returned bounded pieces additionally check current owner state. `listing` says a source is still being listed for the first time. */
 export interface KnowledgeListResponse { pieces: KnowledgeListEntry[]; total: number; sources: Array<{ plugin_id: string; plugin_title: string; count: number }>; listing: boolean }
 /** One piece in a round's catalog (§6.4): its card's words and the subject to copy as it is, never its text. */
 export function knowledgeCatalogLine(piece: KnowledgeListEntry): string {
@@ -106,13 +106,13 @@ export function knowledgeCatalogLine(piece: KnowledgeListEntry): string {
 }
 /** A round's catalog as the model reads it (§6.4): how much of the project it is, what it is for, then one line per piece. */
 export function knowledgeCatalogText(catalog: { total: number; whole: boolean; pieces: readonly KnowledgeListEntry[] }): string {
-  return [catalog.whole ? `这个项目的资料一共 ${catalog.total} 份，都列在下面。` : `这个项目的资料一共 ${catalog.total} 份，下面是与这一轮最相关的 ${catalog.pieces.length} 份，其余用「${knowledgeActions.search.action.title}」或「${knowledgeActions.grep.action.title}」找。`,
+  return [catalog.whole ? `这个项目的资料目录已收录 ${catalog.total} 份，本次可用的都列在下面。` : `这个项目的资料目录已收录 ${catalog.total} 份，下面是本次可用且与这一轮相关的 ${catalog.pieces.length} 份，其余用「${knowledgeActions.search.action.title}」或「${knowledgeActions.grep.action.title}」找。`,
     `标题和简介是整理时写的，只用来挑：挑出可能有答案的几份，用「${knowledgeActions.outline.action.title}」看分节、「${knowledgeActions.read.action.title}」读原文。每份前面的 k 开头的编号是它的 ref，调用时 subject 直接写这个编号（例如 "subject": "${catalog.pieces[0]?.ref ?? "k0000000"}"）。`,
     "", ...catalog.pieces.map(knowledgeCatalogLine)].join("\n");
 }
 /** Whether a listing of up to `KNOWLEDGE_CATALOG_WHOLE_PIECES` is the project's whole catalog and short enough to give whole. */
 export function knowledgeCatalogWhole(list: Pick<KnowledgeListResponse, "pieces" | "total">): boolean {
-  return list.total <= KNOWLEDGE_CATALOG_WHOLE_PIECES && list.pieces.map(knowledgeCatalogLine).join("\n").length <= KNOWLEDGE_CATALOG_WHOLE_CHARS;
+  return list.pieces.length === list.total && list.total <= KNOWLEDGE_CATALOG_WHOLE_PIECES && list.pieces.map(knowledgeCatalogLine).join("\n").length <= KNOWLEDGE_CATALOG_WHOLE_CHARS;
 }
 /** At most this many pieces' section trees go to the model at once (§6.4). */
 export const KNOWLEDGE_LOCATE_MAX_SUBJECTS = 5;
@@ -231,8 +231,9 @@ export const KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS = 200;
 /**
  * Where a card stands. `pending` waits for organizing; `listed` is a piece whose owner lets only its title and summary out
  * (nothing of its text goes to a model); `over_quota` waits for the person to confirm more organizing today; `missing` is an
- * edited or kept-back card whose piece is not in the catalog now (it comes back with the piece).
+ * retained card whose source is currently absent, archived or unconfirmed (it may come back with the piece).
  */
+/** missing: source currently invisible or unconfirmed; retained card data is not task-reading authority. */
 export type KnowledgeCardState = "pending" | "ready" | "listed" | "failed" | "over_quota" | "missing";
 export const KNOWLEDGE_CARD_STATES = ["pending", "ready", "listed", "failed", "over_quota", "missing"] as const satisfies readonly KnowledgeCardState[];
 export type KnowledgeEditableField = "title" | "brief" | "keywords";
@@ -251,7 +252,7 @@ export interface KnowledgeCardRecord extends KnowledgeCardFields {
   plugin_id: string;
   plugin_title: string;
   content_policy: "context" | "summary";
-  /** The owner's revision in the catalog now, and the one the card was organized from (null before the first time). */
+  /** Material revision and the revision organized from (null before first organizing); adopted sources use content-v1. Opaque old relations require explicit re-organizing. */
   revision: string;
   organized_revision: string | null;
   state: KnowledgeCardState;

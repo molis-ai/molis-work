@@ -25,7 +25,7 @@ import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
-import { assistantNotices, handleAssistantHttp } from "./assistant/assistant-http.js";
+import { assistantNotices, assistantServiceFor, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
@@ -267,8 +267,11 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** This project's memories (and the person's own), the Assistant scoped to this project, and what needs the person's attention. */
 export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "memory", handle: async ({ request, response, url, serverOptions, localHost, hostReference }) => Boolean(serverOptions.homeDirectory)
-    && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference }) },
+  { id: "memory", handle: async context => {
+    const { request, response, url, serverOptions, localHost, hostReference } = context, assistant = projectAssistant(context);
+    return Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url,
+      { localHost, projectRef: hostReference, ...(assistant ? { assistantBinding: id => assistantServiceFor(assistant).service.memorySessionBinding(id) } : {}) });
+  } },
   { id: "assistant", handle: async context => {
     const assistant = projectAssistant(context);
     return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!);

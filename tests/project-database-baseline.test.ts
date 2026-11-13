@@ -6,6 +6,10 @@ import { basename, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { applySqliteBaseline, bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
+import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
+import { PROJECT_DATABASE_VERSION_2_SCHEMA } from "../apps/local-host/src/project-database-schema.js";
+import { ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "../apps/local-host/src/project-replication-schema.js";
+import { MATERIAL_RECENT_USES_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
@@ -85,6 +89,26 @@ test("RAC-2360 an existing empty file initializes the complete current library a
     try { assert.equal(current.db.pragma("user_version", { simple: true }), 3); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("RAC-2360 the 1→2 step takes a version-1 library to the adopted journal and 2→3 to the current version", () => {
+  const directory = mkdtempSync(join(tmpdir(), "project-v1-upgrade-")), file = join(directory, "project.db");
+  try {
+    const v1 = `${PROJECT_DATABASE_VERSION_2_SCHEMA.replace(PROJECT_REPLICATION_SCHEMA_SQL, ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL)
+      .replace(MATERIAL_RECENT_USES_SCHEMA_SQL, "")}
+      CREATE TABLE project_browsing_settings (project_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL);`;
+    const db = new DatabaseSync(file);
+    db.exec(v1); db.exec("PRAGMA user_version = 1");
+    const result = runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE);
+    assert.deepEqual(result, { from: 1, to: 3 });
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 3);
+    assert.equal(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_browsing_settings'").get(), undefined,
+      "the old browsing setting is gone");
+    assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='material_recent_uses'").get(), "the recent-use table is created");
+    assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='process_items_adopted_replica_state'").get(), "the adopted journal is installed");
+    assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='surface_corrections'").get(), "2→3 adds the surface corrections");
+    db.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

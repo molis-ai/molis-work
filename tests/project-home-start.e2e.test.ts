@@ -9,6 +9,7 @@ import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { CODING_OPEN } from "./fixtures/coding-composer.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { waitForHomeRow } from "./fixtures/home-rows.js";
 
 
 test("The project button holds settings and the account, and opens settings in the stage", { timeout: 45_000 }, async t => {
@@ -118,15 +119,17 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
     await b.click(selector);
   };
   const home = () => open('[data-dock-pin="home"]');
-  await open(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title');
+  // Each owner answers the home under one budget; a slow one shows 重试, which openRow presses as a person would (fixtures/home-rows.ts).
+  const openRow = async (selector: string, owner: string) => { await waitForHomeRow(b, selector, "io.molis.work." + owner); await b.click(selector); };
+  await openRow(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title', "inbox");
   await open('[data-home-peek] [data-presentation-action$=":peek-open"]');
   await inbox.waitFor(`document.querySelector('[data-inbox-detail="${entry.entry_id}"]')?.hidden === false`);
   await home();
-  await open(homeRow("source", source.source_id) + ' [data-presentation-action$=":open"]');
+  await openRow(homeRow("source", source.source_id) + ' [data-presentation-action$=":open"]', "feed");
   await sourceView.waitFor(`document.querySelector('[data-source-detail="${source.source_id}"]')?.hidden === false`);
   assert.equal(await b.evaluate("document.querySelectorAll('[data-tab-id][data-plugin=sources]').length"), 0);
   await home();
-  await open(homeRow("feed_item", material.item_id) + ' [data-presentation-action$=":open"]');
+  await openRow(homeRow("feed_item", material.item_id) + ' [data-presentation-action$=":open"]', "feed");
   await feedView.waitFor(`document.querySelector('[data-feed-detail="${material.item_id}"][data-feed-detail-read=read]')`);
   await home();
   const sessions = async () => (await b.web.post<SurfaceHomeDisplay>("/projects/" + projectId + endpoint, {})).display.rows

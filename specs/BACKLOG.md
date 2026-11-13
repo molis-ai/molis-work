@@ -37,7 +37,7 @@
 
 ## 7. 平台与架构
 
-- [BL-golden-replay-red-main](backlog/BL-golden-replay-red-main.md)：金样生成与回放在 main 上就是红的（金样 `goals.list@1` 报 `golden.action_not_offered`，生成/检查 12 条用例失败）；干净基线上同样失败，与第 31 批换包无关。
+- [BL-golden-generation-nondeterministic](backlog/BL-golden-generation-nondeterministic.md)：金样生成不逐字节确定（两条用例在干净基线上同样失败）；**回放**本身四份金样全过。
 
 
 ## 8. 交给第二步（防腐整理）

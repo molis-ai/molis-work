@@ -12,11 +12,34 @@ import type { StoredWork } from "./assistant-store.js";
 import { hostLog } from "../host-log.js";
 import type { WebLocale } from "../web-locale.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { assistantActionDelegation } from "./assistant-action-delegation.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
 const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
 
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
+
+export const actionReference = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+
+export function assistantActionRows<View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext, disabled: ReadonlySet<string>): View[] {
+  return catalog.filter(view => view.action.audiences.includes("agent") && (!view.provider.project_id || view.provider.project_id === caller.project_id)
+    // Memory reaches the Assistant through its own tools and owner checks.
+    && view.provider.provider_id !== MEMORY_PROVIDER_ID
+    && !disabled.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })));
+}
+
+export const assistantActionContext = (work: StoredWork, options: { call_id?: string; locale?: WebLocale; signal?: AbortSignal } = {}): ActionCallContext => ({
+  actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: "assistant:" + work.work_id, call_id: options.call_id ?? newCallId(),
+  ...(work.session_id ? { runtime_session_id: work.session_id } : {}), project_id: work.project_ref?.project_id ?? null,
+  audience: "agent", permissions: [], locale: options.locale, signal: options.signal,
+});
+
+/** The assistant's granted directory uses installed action metadata as its initial scope. Dispatch rechecks availability. */
+export function assistantActionScope(caller: ActionCallContext, rows: readonly Omit<ActionView, "availability">[]): ActionCallContext {
+  return { ...caller, permissions: [...new Set(rows.flatMap(view => view.action.permissions))], allowed_actions: rows.map(row => ({
+    capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id,
+  })) };
+}
 
 /**
  * Whether a change may run without the person's confirmation: it declares how it is undone, that undo is offered here
@@ -35,7 +58,8 @@ export function directEligible(view: ActionView, offered: readonly ActionView[],
  * default on 2026-09-28; each write still stops at a review of its exact parameters, and the grants are the Assistant's
  * own — separate from Coding's and external agents'.
  */
-export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient" | "prepareActionReview">, work: StoredWork, disabled: () => ReadonlySet<string>,
+export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient" | "prepareActionReview">
+  & Partial<Pick<MolisWorkLocalHost, "projectActionInstallations" | "homePlugins">>, work: StoredWork, disabled: () => ReadonlySet<string>,
   /** Records a suggestion for the person, checked against the capabilities offered now. */
   offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
   /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
@@ -57,27 +81,17 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
   // outside any scope, so the number goes into every call's context.
   const callId = currentCallId() ?? newCallId();
-  const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`, call_id: callId,
-    ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [],
-    page_context: pageContext?.(), ...(locale ? { locale } : {}), ...(signal ? { signal } : {}),
+  const base = (signal?: AbortSignal): ActionCallContext => ({ ...assistantActionContext(work, { call_id: callId, locale, signal }), page_context: pageContext?.(),
     // This round's Skill reads are the Assistant's (`skill_round`, specs/capability-pack/contract-design.md §2.3): the catalog lets
     // through the Skills `applies_to: assistant` and those the person named, and refuses the rest. Host-written, never from input.
     skill_round: { consumer: "assistant", named: roundSkills } });
-  const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => {
-    const off = disabled();
-    // Memory reaches the Assistant through its own remember / list / forget tools (under its switches, no extra
-    // confirmation); the directory's memory actions are for other Agents, so they are not offered here as well.
-    return catalog.filter(view => view.action.audiences.includes("agent") && (!view.provider.project_id || view.provider.project_id === caller.project_id)
-      && view.provider.provider_id !== MEMORY_PROVIDER_ID
-      && !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })));
-  };
+  const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => assistantActionRows(catalog, caller, disabled());
   let offered: readonly ActionView[] = [];
   const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal): Promise<ActionCallContext> => {
-    const caller = base(work.session_id ?? undefined, signal);
+    const caller = base(signal);
     const allowed = accepted(await localHost.inspectActions(caller, reference), caller);
     offered = allowed;
-    return { ...caller, permissions: [...new Set(allowed.flatMap(view => view.action.permissions))],
-      allowed_actions: allowed.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
+    return { ...assistantActionScope(caller, allowed),
       // Re-read at dispatch: an action switched off, removed or no longer offered to agents after the round began is refused.
       validate_authority: async action => {
         await validate?.();
@@ -101,11 +115,18 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       discover: () => discover(validate),
       prepareReview: async (view, input) => {
         await validate?.();
-        const caller = base(work.session_id ?? undefined), action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+        const caller = base(), action = actionReference(view);
         const assertEnabled = () => { if (accepted([view], caller).length !== 1) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用，未执行"); };
         assertEnabled();
         const held = localHost.prepareActionReview({ ...caller, permissions: view.action.permissions, allowed_actions: [action], assert_authority_current: assertEnabled }, view, input, reference);
-        return { assertCurrent: held.assertCurrent, beforeEffect: async () => { await validate?.(); await held.beforeEffect(); } };
+        const originalCatalog = discovered;
+        const installations = localHost.projectActionInstallations?.bind(localHost);
+        return { assertCurrent: held.assertCurrent, beforeEffect: async () => { await validate?.(); await held.beforeEffect(); },
+          ...(installations ? { resolveDelegation: () => assistantActionDelegation({ projectActionInstallations: installations, homePlugins: localHost.homePlugins },
+            work, view, input, originalCatalog, () => confirmAlways?.().has(actionKey(action)) === true,
+            (reader, kind, id) => localHost.prepareActionReview({ ...caller, permissions: reader.action.permissions }, reader,
+              { subjects: [{ kind, id }], fields: [] }, reference).assertCurrent) } : {}),
+        };
       },
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
@@ -134,7 +155,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
           const cached = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
           if (cached?.operation === "command") return await stoppedBeforeDispatch(cached);
           // Naming a cancelled operation needs only registered metadata; it must not start a plugin or Runtime.
-          const metadataCaller = base(work.session_id ?? undefined);
+          const metadataCaller = base();
           let rows: readonly Omit<ActionView, "availability">[];
           try { rows = accepted(localHost.inspectActionMetadata(metadataCaller, reference), metadataCaller); }
           catch { throw error; /* An unavailable diagnostic name does not replace the original cancellation. */ }

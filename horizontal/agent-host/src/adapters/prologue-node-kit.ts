@@ -1,5 +1,5 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
+import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type PolicySnapshot, type Runtime, type Skill } from "@prologue/sdk";
 import type { createNodeHost } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -98,7 +98,7 @@ export interface RoundState {
   readonly roundFacts: Map<string, RoundFacts>;
   readonly actionControllers: Map<string, AbortController>;
   readonly runRoots: Map<string, ExactRef<"authorized-root">>;
-  readonly activeRuns: Map<string, { live(): boolean; assertAuthority(): void; steer(text: string): Promise<void> }>;
+  readonly activeRuns: Map<string, { live(): boolean; assertAuthority(): void; steer(text: string): Promise<void>; readonly policy?: PolicySnapshot; readonly workSelection?: boolean }>;
   /** Which session each run belongs to, and the run ref, so "allow in this app this round" binds to that run. */
   readonly runSessions: Map<string, string>;
   readonly runRefs: Map<string, ExactRef<"run">>;

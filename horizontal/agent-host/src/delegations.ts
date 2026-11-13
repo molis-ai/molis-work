@@ -41,6 +41,12 @@ const assertControl = (control: ReviewDecisionControl) => requireSynchronous(con
 function assertStorageVersion(state: StoredDelegationState | undefined, expected: number): void {
   if (!Number.isSafeInteger(expected) || expected < 0 || (state?.storage_version ?? 0) !== expected) throw agentErrors.delegation_changed("授权已变化，请按当前范围重新决定");
 }
+function selectedAt(state: StoredDelegationState | undefined, token: WorkDelegationChange): AgentDelegationSelection {
+  assertStorageVersion(state, token.expected_version);
+  const row = currentDelegation(state);
+  if (!row || row.id !== token.id || row.revision !== token.revision) throw agentErrors.delegation_changed("当前授权已变化");
+  return row;
+}
 function newDelegationState(subject: AgentDelegationSubject): StoredDelegationState {
   return { schema: 1, submission_id: randomUUID(), subject, storage_version: 0, epoch: randomUUID(), lifecycle: "open", ended_at: null, ended_reason: null, selection_id: null, selections: [] };
 }
@@ -96,6 +102,19 @@ export class WorkDelegationStore {
     const fixed = structuredClone(subject), key = workDelegationKey(fixed);
     return this.#serial(key, async () => { const state = await this.#load(key, fixed); return state && delegationSnapshot(state); });
   }
+  /** An input or handoff holds its original lifetime, including a work that has not started its first round. */
+  async holdWorkLifetime(subject: AgentDelegationSubject): Promise<() => void> {
+    if (subject.kind !== "work") throw agentErrors.delegation_invalid("输入必须属于原工作");
+    const key = workDelegationKey(subject), attempt = this.#endAttempts.get(key);
+    const state = await this.read(subject), epoch = state?.epoch;
+    const check = () => {
+      const current = this.#states.get(key);
+      this.#open(key, current);
+      if (this.#endAttempts.get(key) !== attempt || epoch !== undefined && current?.epoch !== epoch) throw agentErrors.delegation_ended("原工作的权限已结束");
+    };
+    check();
+    return check;
+  }
   list(): Promise<readonly AgentDelegationState[]> {
     if (this.#closed) return Promise.reject(agentErrors.delegation_ended("授权服务已关闭"));
     const read = async () => {
@@ -121,7 +140,7 @@ export class WorkDelegationStore {
     if (permission.automatic) this.assertCurrent(permission.automatic.state.subject, permission.automatic.state.epoch, permission.automatic.selection);
     const key = workDelegationKey(subject), ongoingKey = workDelegationKey(ongoingSubject);
     const fence = this.#fences.get(key) ?? 0, ongoingFence = this.#fences.get(ongoingKey) ?? 0;
-    return { ...permission, work_epoch: work.epoch, assertCurrent: () => {
+    return { ...permission, subject: structuredClone(subject), work_epoch: work.epoch, assertCurrent: () => {
       this.assertCurrent(subject, work.epoch); this.#executing(ongoingKey, this.#states.get(ongoingKey));
       const live = workDelegationPermission(this.#states.get(key)!, this.#states.get(ongoingKey), this.now());
       if ((this.#fences.get(key) ?? 0) !== fence || (this.#fences.get(ongoingKey) ?? 0) !== ongoingFence
@@ -131,10 +150,12 @@ export class WorkDelegationStore {
     } };
   }
   /** Host-only: the original action control validates schema and captures current provider/target identities. */
-  async actionDecision(subject: AgentDelegationSubject, proposal: WorkActionProposal, control: ReviewDecisionControl) {
-    const fixed = structuredClone(subject), prepared = prepareActionDelegation(proposal, control);
+  async actionDecision(subject: AgentDelegationSubject, proposal: WorkActionProposal, control: ReviewDecisionControl, captured?: WorkDelegationPermission) {
+    const fixed = structuredClone(subject);
+    if (captured && !isDeepStrictEqual(captured.subject, fixed)) throw agentErrors.delegation_changed("原轮次授权主体不一致");
+    const prepared = prepareActionDelegation(proposal, control);
     await prepared.beforeEffect();
-    const permission = await this.permission(fixed);
+    const permission = captured ?? await this.permission(fixed);
     return prepared.decide(permission);
   }
   #open(key: string, state: StoredDelegationState | undefined): void {
@@ -172,11 +193,17 @@ export class WorkDelegationStore {
     });
   }
   cancellationPending(subject: AgentDelegationSubject): boolean { return this.#cancellations.pending(workDelegationKey(subject)); }
-  async settle(subject: AgentDelegationSubject): Promise<AgentDelegationState | undefined> {
+  async settle(subject: AgentDelegationSubject, request?: { token: WorkDelegationChange; control: ReviewDecisionControl }): Promise<AgentDelegationState | undefined> {
     if (this.#closed) throw agentErrors.delegation_ended("授权服务已关闭");
-    await this.read(subject);
+    const fixed = structuredClone(subject), key = workDelegationKey(fixed), token = request && structuredClone(request.token);
+    await this.read(fixed);
+    if (request && token) {
+      await request.control.beforeEffect(); assertControl(request.control);
+      selectedAt(this.#states.get(key), token);
+    }
     if (this.#closed) throw agentErrors.delegation_ended("授权服务已关闭");
-    await this.#cancellations.settle(workDelegationKey(subject)); return this.read(subject);
+    await this.#cancellations.settle(key);
+    return this.read(fixed);
   }
   async #save(key: string, next: StoredDelegationState, control: ReviewDecisionControl, assertAllowed: () => void = () => {}, receipts: readonly WorkDelegationCancellation[] = []): Promise<AgentDelegationState> {
     const fixed = readDelegationState({ ...next, submission_id: randomUUID(), storage_version: next.storage_version + 1 }, next.subject);
@@ -247,9 +274,9 @@ export class WorkDelegationStore {
   #change(subject: AgentDelegationSubject, expected: WorkDelegationChange, control: ReviewDecisionControl, update: (row: AgentDelegationSelection) => AgentDelegationSelection): Promise<AgentDelegationState> {
     const fixed = structuredClone(subject), token = structuredClone(expected), key = workDelegationKey(fixed);
     return this.#mutating(key, async receipts => {
-      const current = await this.#load(key, fixed); this.#open(key, current); assertStorageVersion(current, token.expected_version);
-      const row = currentDelegation(current);
-      if (!current || !row || row.id !== token.id || row.revision !== token.revision) throw agentErrors.delegation_changed("当前授权已变化");
+      const current = await this.#load(key, fixed); this.#open(key, current);
+      if (!current) throw agentErrors.delegation_changed("当前授权已变化");
+      const row = selectedAt(current, token);
       const next = { ...update(row), revision: row.revision + 1 };
       await control.beforeEffect(); assertControl(control); this.#open(key, current);
       receipts.push(...this.#invalidate(key, fixed, current, "selection"));

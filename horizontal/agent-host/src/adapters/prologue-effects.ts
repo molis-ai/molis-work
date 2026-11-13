@@ -7,6 +7,7 @@ export interface PrologueEffects {
   readonly host: PrologueHost;
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
+  bindStart(execution: AgentStartExecution): () => void;
   session(target: Session): Session;
   beforeEffect(): Promise<void>;
   assertCurrent(): void;
@@ -45,8 +46,15 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     return calls.run(frame, work);
   };
   const start = <T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T> => {
-    if (!execution?.beforeStart && !execution?.assertBeforeStart) return work();
+    if (!execution?.beforeStart && !execution?.assertBeforeStart && !execution?.delegation) return work();
     return call({ beforeEffect: () => execution.beforeStart?.(), assert_current: () => execution.assertBeforeStart?.() }, work);
+  };
+  const bindStart = (execution: AgentStartExecution) => {
+    const frame = calls.getStore();
+    if (!frame || !frame.active) throw new Error("缺少原执行启动授权");
+    const before = frame.control;
+    frame.control = { beforeEffect: () => execution.beforeStart?.(), assert_current: () => execution.assertBeforeStart?.() };
+    return () => { frame.control = before; };
   };
   const session = (target: Session): Session => new Proxy(target, { get(object, key) {
     // Everything after `drive` goes through as given: `carry` there names the session's waiting supplements the run takes (specs/ai-input-receipts D29).
@@ -57,5 +65,5 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;
   } });
-  return { host: { ...host, storage }, call, start, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
+  return { host: { ...host, storage }, call, start, bindStart, session, beforeEffect, assertCurrent, accepted: () => calls.getStore()?.accepted ?? false, detach: <T>(work: () => T) => calls.exit(work), bind: (memory: AgentMemoryCapability, control: AgentMemoryExecutionControl) => wrap(memory, control) };
 }

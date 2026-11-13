@@ -12,7 +12,6 @@ import { assistantThreadActions, assistantThreadRegistration } from "./assistant
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantControl, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -35,8 +34,9 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { assistantPermissionCaller } from "./assistant-work-permissions.js";
 import type { PersonActions } from "./assistant-executor.js";
-import { ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE, AssistantStore } from "./assistant-store.js";
+import type { AssistantStore } from "./assistant-store.js";
 import { freezeProjectCharacter } from "../characters-host.js";
 import { assistantCharacterChoices } from "./assistant-characters.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -107,7 +107,8 @@ const personCacheKey = (reference: LocalHostProjectReference | undefined) =>
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
-  const store = new AssistantStore(openBaselineHomeSqlite(ports.homeDirectory, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+  const store = ports.localHost.assistantStore?.();
+  if (!store) throw assistantErrors.executor_unavailable("宿主未装配助理工作存储");
   // The person's grants in a project (or the Home), shared by the calls one list or one round makes in quick succession:
   // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
   // checked against its current definition, availability and grant owner when it is dispatched.
@@ -306,24 +307,26 @@ export const assistantPanelActions = {
     { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) }, body.state === "dismissed" ? "dismissed" : "seen") })),
   followupRemove: panel("followups.remove", /* @version action.assistant.panel.followups.remove */ 1, "移除一项跟进", ofPanel,
     async (entry, { body }) => ({ removed: await of(entry).service.followUps.remove(String(body.followup_id ?? "")) })),
-  control: panel("works.control", /* @version action.assistant.panel.works.control */ 1, "暂停、继续、停止或撤回", ofWork, (entry, input) => of(entry).service.control(input.work_id, pageBody<AssistantControl>(input.body))),
+  control: panel("works.control", /* @version action.assistant.panel.works.control */ 1, "暂停、继续、停止或撤回", ofWork,
+    (entry, input, caller) => of(entry).service.control(input.work_id, pageBody<AssistantControl>(input.body), assistantPermissionCaller(caller, entry.page))),
   draft: panel("works.draft", /* @version action.assistant.panel.works.draft */ 1, "保存输入草稿", ofWork,
     (entry, input) => ({ work: of(entry).service.saveDraft(input.work_id, pageBody<{ draft: string }>(input.body).draft) })),
   rename: panel("works.rename", /* @version action.assistant.panel.works.rename */ 1, "改工作名", ofWork,
     async (entry, input) => ({ work: await of(entry).service.rename(input.work_id, Number(input.body.revision), String(input.body.title ?? "")) })),
   mode: panel("works.mode", /* @version action.assistant.panel.works.mode */ 1, "设定执行方的后续模式", ofWork,
     (entry, input) => of(entry).service.dispatcher.setExecutorMode(input.work_id, String(input.body.mode ?? ""))),
-  takeBack: panel("works.take_back", /* @version action.assistant.panel.works.take_back */ 1, "收回委托的子任务", ofWork, (entry, input) => of(entry).service.takeBack(input.work_id)),
+  takeBack: panel("works.take_back", /* @version action.assistant.panel.works.take_back */ 1, "收回委托的子任务", ofWork,
+    (entry, input, caller) => of(entry).service.takeBack(input.work_id, assistantPermissionCaller(caller, entry.page))),
   undo: panel("works.undo", /* @version action.assistant.panel.works.undo */ 1, "撤销一项已做的操作", ofItem, (entry, input) => of(entry).service.outcomes.undo(input.work_id, input.item)),
   budget: panel("works.budget", /* @version action.assistant.panel.works.budget */ 1, "设定工作用量上限", ofWork,
     (entry, input) => of(entry).service.budget.saveWorkBudget(input.work_id, input.body.budget_tokens)),
   results: panel("works.results", /* @version action.assistant.panel.works.results */ 1, "交回页面里的结果", ofWork, (entry, input) => of(entry).service.outcomes.receiveResult(input.work_id, input.body)),
-  handover: panel("works.handover", /* @version action.assistant.panel.works.handover */ 1, "转交给执行方", ofWork, (entry, input) => of(entry).service.dispatcher.handover(input.work_id,
-    { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) })),
+  handover: panel("works.handover", /* @version action.assistant.panel.works.handover */ 1, "转交给执行方", ofWork, (entry, input, caller) => of(entry).service.dispatcher.handover(input.work_id,
+    { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) }, assistantPermissionCaller(caller, entry.page))),
   recovery: panel("works.recovery", /* @version action.assistant.panel.works.recovery */ 1, "关闭中断的一轮", ofWork, async (entry, input): Promise<object> => typeof input.body.run_id === "string"
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
-    async (entry, input) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false) })),
+    async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, assistantPermissionCaller(caller, entry.page)) })),
   review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
     { review_id: input.item, version: input.body.version, decision: input.body.decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) }, {
       beforeEffect: async () => { await caller.beforeEffect(); await entry.page?.beforeEffect(); },
@@ -335,7 +338,7 @@ export const assistantPanelActions = {
         }
       },
     })),
-  answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input) => answerQuestion(entry, input.work_id, input.body), true),
+  answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, assistantPermissionCaller(caller, entry.page)), true),
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
     ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) })),
   runCard: panel("works.cards.run", /* @version action.assistant.panel.works.cards.run */ 1, "执行一张操作卡", ofItem,
@@ -533,14 +536,15 @@ function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result:
 }
 
 /** An answer as the question card's fields hold it (specs/ai-interaction-experience A1): it becomes the Runtime's answer, and its draft goes once the answer is taken. */
-async function answerQuestion(entry: AssistantPageEntry, workId: string, body: Readonly<Record<string, unknown>>) {
+async function answerQuestion(entry: AssistantPageEntry, workId: string, body: Readonly<Record<string, unknown>>, control: ReturnType<typeof assistantPermissionCaller>) {
   const { service, store } = assistantServiceFor(entry.ports);
   const answer = body.values === undefined ? {} : questionAnswer(body.values);
   if (!answer) throw assistantErrors.invalid("请先回答再提交");
   const view = await service.outcomes.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
     ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
     ...(Array.isArray(body.answers) ? { answers: pageBody<Pick<Parameters<typeof service.outcomes.answer>[1], "answers">>(body).answers } : {}), ...answer },
-    { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}) }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+    { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}),
+      beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
     // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
     if (error?.code !== "agent.answer_invalid") throw error;
     // Read back with the questions it answered, so each line can name the limit it crossed.
@@ -550,6 +554,7 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
     }))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
     throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, readText, asked) } : undefined);
   });
+  await control.beforeEffect(); control.assertCurrent();
   questionDrafts(store).drop(workId, String(body.pending_id ?? ""));
   return view;
 }

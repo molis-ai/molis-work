@@ -1,11 +1,12 @@
 import { setTimeout as pause } from "node:timers/promises";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { isTerminalAgentPhase, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCollaborationSessionView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ASSISTANT_PERSONAL_OWNER, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { repeatingFailure } from "../host-log.js";
 import { whenThere } from "./assistant-errors.js";
+import { inAssistantWorkEffect } from "./assistant-work-permissions.js";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
@@ -73,10 +74,13 @@ export class AssistantContinuations {
   blockStart(id: string): () => void { this.enter(id); return () => this.end(id); }
   private enter(id: string): void { this.busy.set(id, (this.busy.get(id) ?? 0) + 1); }
   end(id: string): void { const count = this.busy.get(id) ?? 0; if (count > 1) this.busy.set(id, count - 1); else this.busy.delete(id); }
-  async withdraw(work: StoredWork, note: string): Promise<boolean> {
+  async withdraw(work: StoredWork, note: string, authority?: AgentActionReviewControl): Promise<boolean> {
     const view = await this.view(work);
     if (!view?.wait || view.continuation?.state === "started" || view.continuation?.state === "cancelled") return false;
-    await (await this.ports.host()).adapter(RUNTIME).collaboration!.control(owner(work), { kind: "cancel-wait", wait_id: view.wait.wait_id, note }, this.ports.actorId);
+    const adapter = (await this.ports.host()).adapter(RUNTIME);
+    const cancel = () => adapter.collaboration!.control(owner(work), { kind: "cancel-wait", wait_id: view.wait!.wait_id, note }, this.ports.actorId);
+    if (authority) await inAssistantWorkEffect(adapter, authority, cancel);
+    else await cancel();
     return true;
   }
   watch(work: StoredWork, run: AgentRunRef): void {

@@ -146,6 +146,8 @@ export interface AgentStartAuthority {
   beforeDispatch?(): void | Promise<void>;
   /** Persistent owner fence, synchronous with an approval save or SDK answer. */
   assertBeforeDispatch?(): void;
+  /** Stable work identity resolved by the protected work owner. The request carries no such authority. */
+  delegation?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution["delegation"];
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
@@ -223,7 +225,7 @@ export interface AgentPromptResolver {
 }
 
 export class AgentHost implements AgentHostApi {
-  readonly #adapters = new Map<string, AgentRuntimeAdapter>();
+  readonly #adapters = new Map<string, AgentRuntimeAdapter & { readonly delegations?: import("./delegations.js").WorkDelegationStore }>();
   readonly reviews: AgentReviewQueue;
 
   /** The person's edits of registered prompts, looked up when a run starts. Absent means every prompt runs as shipped. */
@@ -234,7 +236,7 @@ export class AgentHost implements AgentHostApi {
     this.#prompts = options.prompts;
   }
 
-  register(adapter: AgentRuntimeAdapter): void {
+  register(adapter: AgentRuntimeAdapter & { readonly delegations?: import("./delegations.js").WorkDelegationStore }): void {
     const runtimeId = adapter.descriptor.runtime_id;
     if (this.#adapters.has(runtimeId)) {
       throw agentErrors.runtime_duplicate(`Agent Runtime ${runtimeId} 已注册`);
@@ -255,6 +257,9 @@ export class AgentHost implements AgentHostApi {
     }
     return adapter;
   }
+
+  /** Host composition only. The same runtime owner serves both decisions and management. */
+  workDelegations(runtimeId: string) { return this.#adapters.get(runtimeId)?.delegations; }
 
   matrix(runtimeIds: string[]): Array<{
     runtime_id: string;
@@ -335,6 +340,7 @@ export class AgentHost implements AgentHostApi {
         return resolve ? resolve.effective(request.plugin_id, declaration, locale) : { ...prompt, body: agentBodyIn(declaration, locale) };
       }) };
     const adapter = this.adapter(runtimeId);
+    if (authority.delegation && !this.workDelegations(runtimeId)) throw agentErrors.capability_unavailable("当前运行时没有工作授权服务");
     const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);
     const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
     const session = await adapter.readSession(request.session);
@@ -399,7 +405,8 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}),
+      ...(authority.delegation ? { delegation: structuredClone(authority.delegation) } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);

@@ -5,6 +5,10 @@ import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from
 export type { ReviewReference, ReviewDelegationReference, ReviewDecisionSource, ReviewDecisionRecord } from "../platform/reviews.js";
 export type { AgentDelegationMode, AgentDelegationExecutor, AgentDelegationSubject, AgentDelegationTargetOwner, AgentDelegationOperationScope,
   AgentActionDelegationScope, AgentExactDelegationScope, AgentDelegationScope, AgentDelegationSelection, AgentDelegationState } from "./agent-delegations.js";
+export { AGENT_DELEGATIONS_PROVIDER_ID, agentDelegationActions } from "./agent-delegation-actions.js";
+export type { AgentDelegationActionChoice, AgentDelegationCandidate, AgentDelegationWorkChoice, AgentDelegationProposal, AgentDelegationGrantInput,
+  AgentDelegationNarrowInput, AgentDelegationUpdateInput, AgentDelegationModeInput, AgentDelegationToken, AgentDelegationProjection,
+  AgentDelegationPreparation } from "./agent-delegation-actions.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
@@ -32,6 +36,7 @@ export type {
 export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, parseAgentRunBudget } from "./agent-host-start.js";
 export type {
   AgentActionReviewControl,
+  AgentActionReviewAuthority,
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,

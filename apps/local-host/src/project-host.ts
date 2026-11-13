@@ -31,6 +31,8 @@ import { actionUsagesProvider } from "./action-usage-actions.js";
 import { contextOnboardingProvider } from "./context-onboarding-actions.js";
 import { agentReviewProvider } from "./agent-review-http.js";
 import { assistantPanelProvider } from "./assistant/assistant-http.js";
+import { assistantStoreFor, type AssistantStore } from "./assistant/assistant-store.js";
+import { assistantDelegationProvider } from "./assistant/assistant-delegation-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -65,6 +67,7 @@ import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } 
 import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { installedPluginManifest, installedPluginManifestFor } from "./plugin-installation-directory.js";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import { capturePluginSceneAuthority, localWebActionContext } from "./local-web-actions.js";
 import { HomePluginHost } from "./home-plugins.js";
 import { homePackageProjectActions, homeProjectReach, projectReachDetails } from "./project-reach.js";
@@ -148,6 +151,7 @@ export function molisWorkHostProjectReference(input: {
  * The project composition owner: one database and application per Host runtime.
  */
 export class MolisWorkLocalHost {
+  readonly assistantStore?: () => AssistantStore;
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private readonly draftReferences = new DraftReferences();
   readonly synchronization: ReturnType<typeof projectSyncAccess>;
@@ -232,6 +236,7 @@ export class MolisWorkLocalHost {
     });
     this.synchronization = projectSyncAccess(this.host);
     const home = options.homeDirectory, settingsVersionClaims = createSettingsVersionClaims();
+    if (home) this.assistantStore = assistantStoreFor(home);
     if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
@@ -252,6 +257,11 @@ export class MolisWorkLocalHost {
       accountActionProvider(() => accountSessionForHost(this)),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), // the pages' writes, behind their doors (B9)
       ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      ...(this.assistantStore ? [assistantDelegationProvider({ host: this, works: this.assistantStore, permissions: async () => {
+        const service = this.agents?.service;
+        if (service) await service.ready;
+        return service?.agentHost.workDelegations("prologue");
+      } })] : []),
       ...(options.homeDirectory ? [appearanceForHome(options.homeDirectory).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
@@ -373,6 +383,14 @@ export class MolisWorkLocalHost {
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
 
   prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference) { return this.host.prepareActionReview(caller, view, input, project); }
+
+  /** A directory has already prepared these providers. Observe the same installation owner without reactivating plugins. */
+  projectActionInstallations(project: LocalHostProjectReference) {
+    return this.host.withExistingRuntime(project, ({ store }) => ({
+      get: pluginInstallRecords(store.db).get,
+      manifest: (id: string) => installedPluginManifest(store.db, id)?.manifest,
+    }));
+  }
 
   inspectSceneMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectSceneMetadata(caller, reference); }
 

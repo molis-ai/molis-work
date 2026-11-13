@@ -5,6 +5,7 @@ import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
+import { actionReads } from "./prologue-gateway-declared.js";
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
 import type { PrologueActionReviews } from "./prologue-action-reviews.js";
@@ -55,9 +56,10 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
       if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
       try {
         abort.signal.throwIfAborted();
-        const held = reviews && (view.operation !== "query" || actionEffect(view.action, view.capability_id) !== "read")
+        const held = reviews && !actionReads(view)
           ? reviews.forCall(call.callId, name, call.args) : undefined;
-        if (held) held.control.assertCurrent(); else await currentAction(actions!, view);
+        if (held) { await held.control.beforeEffect(); held.control.assertCurrent(); }
+        else await currentAction(actions!, view);
         abort.signal.throwIfAborted();
         const result = await actions!.client.invoke(reference, wrapped ? call.args.input : call.args, abort.signal, held?.control);
         abort.signal.throwIfAborted();
@@ -71,11 +73,12 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
       // A copy: the directory's declarations are frozen, and the runtime owns what it is handed.
       parameters: wrapped ? { type: "object", properties: { input: structuredClone(view.action.input_schema) }, required: ["input"], additionalProperties: false } : structuredClone(view.action.input_schema),
       // A read only when both say so: the runtime may start a read before the model has finished speaking.
-      effectKind: view.operation === "query" && effect === "read" ? "safe-read" as const : "mutate-external" as const,
+      effectKind: actionReads(view) ? "safe-read" as const : "mutate-external" as const,
       gate: "broker" as const, timeoutMs: Math.min(timeoutMs, view.action.execution?.timeout_ms ?? timeoutMs), idempotency: "none" as const } };
   });
   if (suggests) contributions.push(suggestTool(actions!, new Map(contributions.map((row, index) => [row.registration.name, tools[index]!])), scope, executors, runSignal));
   const names = contributions.map(item => item.registration.name);
+  const writes = new Set(contributions.filter(item => item.registration.effectKind === "mutate-external" && item.registration.name.startsWith("molis-action-")).map(item => item.registration.name));
   // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
   const check = afterWriteTool(scope);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,
@@ -85,11 +88,11 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
     planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };
   const prepareReview = async (origin: EffectOrigin | undefined, name: string, args: unknown) => {
     const view = tools.find(view => agentActionToolName({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, scope) === name);
-    if (!view || !reviews || view.operation === "query" && actionEffect(view.action, view.capability_id) === "read") return;
+    if (!view || !reviews || actionReads(view)) return;
     const input = view.action.input_schema.type === "object" ? args : (args as Record<string, unknown>).input;
     await reviews.prepare(origin, name, args, view, input, actions!.client);
   };
-  return { pack, executors, names, scope, prepareReview };
+  return { pack, executors, names, scope, prepareReview, writes };
 }
 
 /** The current view of a frozen action, or why it may not be used now: gone, not for agents, switched off, or changed since the round froze it. */

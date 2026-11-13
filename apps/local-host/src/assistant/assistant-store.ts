@@ -4,7 +4,7 @@ import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
@@ -169,6 +169,7 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  readonly #endingPermissions = new Set<string>();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
@@ -206,6 +207,17 @@ export class AssistantStore {
     if (!row) throw assistantErrors.not_found("找不到这项工作，可能已被删除");
     const work = JSON.parse(String(row.body)) as StoredWork;
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
+  }
+
+  /** One owner's stop, archive or take-back can finish at a time for each work it affects. */
+  holdWorkPermissions(workIds: readonly string[]): () => void {
+    for (const id of workIds) this.assertWorkPermissionTransitionFree(id);
+    for (const id of workIds) this.#endingPermissions.add(id);
+    return () => { for (const id of workIds) this.#endingPermissions.delete(id); };
+  }
+
+  assertWorkPermissionTransitionFree(workId: string): void {
+    if (this.#endingPermissions.has(workId)) throw assistantErrors.state("这项工作正在停止或归档");
   }
 
   list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
@@ -419,6 +431,12 @@ export class AssistantStore {
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
+
+/** The serving Host and its entry points share one Assistant store and its change notifications. */
+export function assistantStoreFor(home: string): () => AssistantStore {
+  let store: AssistantStore | undefined;
+  return () => store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+}
 
 /** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */
 export function assistantWorkForSession(db: DatabaseSync, actorId: string, sessionId: string): StoredWork | undefined {

@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { WORKSPACE_COMMAND_KIND, isAfterWriteCheckOperationKey, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentMcpLibrary, AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { GATEWAY_TOOLS, gatewayReview } from "./prologue-action-gateway.js";
+import { gatewayReview, isGatewayChange } from "./prologue-action-gateway.js";
 import { agentActionToolName } from "./prologue-action-tools.js";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import { mcpConnectionId } from "./prologue-mcp.js";
@@ -83,7 +83,7 @@ function commandStopCard(deps: ReviewDeps, subject: { name: string; input?: unkn
 
 /** A change through the business gateway, a catalog action, or an MCP call: the card from the round's frozen tools. */
 async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, subject: { name: string; input?: unknown }): Promise<Card | undefined> {
-  if (subject.name === GATEWAY_TOOLS.change) {
+  if (isGatewayChange(subject.name)) {
     if (typeof subject.input !== "string") throw new Error("所请求修改的参数不可读，不能批准");
     const { attempt } = await attemptOf(deps, pending);
     const gateway = effect.state === "awaiting-approval" && deps.state.activeRuns.get(pending.origin!.run!)?.live()
@@ -95,7 +95,7 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
       [reviewField("本次完整参数", subject.input, "exact-arguments", { format: "exact" })]);
     const selected = deps.state.actionReviews.get(pending.origin!.session!)?.forEffect(effect);
     if (!selected) throw new Error("原能力审查授权不可读取");
-    return gatewayReview(subject.input, selected.view);
+    return gatewayReview(subject.input, selected.view, subject.name);
   }
   if (subject.name.startsWith("molis-action-")) {
     if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
@@ -194,7 +194,15 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
         && effect.proposal.origin?.run === pending.origin?.run && effect.proposal.origin?.session === pending.origin?.session
         && Boolean(run?.live());
     },
-    finalPresentation(pending, document) { return surfaceReviews.get(pending)?.present() ?? document; },
+    finalPresentation(pending, document) {
+      const presented = surfaceReviews.get(pending)?.present() ?? document;
+      const runId = pending.origin?.run;
+      if (!runId || !state.activeRuns.get(runId)?.workSelection) return presented;
+      if (presented.kind === "command") return { ...presented, session_rule_blocked: true };
+      if (presented.kind !== "tool-operation" || !presented.round_allow) return presented;
+      const { round_allow: _roundAllow, ...once } = presented;
+      return once;
+    },
     async answer(ref, answer, assertBeforeAnswer) { return runtime.effects.pendings.answer(ref, answer, await host.readClock(), { assertBeforeAnswer }); },
     async approvalAuthority(pending) {
       const run = pending.origin?.run && state.activeRuns.get(pending.origin.run);
@@ -202,9 +210,12 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
       const effect = pending.effectRef && runtime.effects.get(pending.effectRef), subject = effect?.proposal.subject;
       const surfaceReview = surfaceReviews.get(pending);
       if (subject?.what === "surface" && !surfaceReview) throw new Error("原界面审查内容未核对");
-      const selected = subject?.what === "surface" ? surfaceReview!.control : effect && subject?.what === "tool" && (subject.name === GATEWAY_TOOLS.change || subject.name.startsWith("molis-action-"))
-        ? state.actionReviews.get(pending.origin!.session!)?.forEffect(effect).control : undefined;
-      if (subject?.what === "tool" && (subject.name === GATEWAY_TOOLS.change || subject.name.startsWith("molis-action-")) && !selected) throw new Error("原能力审查授权不可读取");
+      const changesAction = subject?.what === "tool" && (isGatewayChange(subject.name) || subject.name.startsWith("molis-action-"));
+      const action = effect && changesAction
+        ? state.actionReviews.get(pending.origin!.session!)?.forEffect(effect) : undefined;
+      const selected = subject?.what === "surface" ? surfaceReview!.control : action?.control;
+      if (changesAction && !selected) throw new Error("原能力审查授权不可读取");
+      const automatic = action && run.policy && action.automatic(run.policy);
       const original = subject?.what === "tool" && subject.name.startsWith("mcp:") ? await attemptOf(deps, pending) : undefined;
       const mcp = original?.attempt?.frozen.mcp_tools.find(ref => subject?.what === "tool" && `mcp:${mcpConnectionId(ref)}/${ref.tool}` === subject.name);
       if (original && (!mcp || !original.index)) throw new Error("原 MCP 审查版本不可读取");
@@ -213,7 +224,9 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
         if (mcp && !deps.mcpLibrary.live?.(mcp)) throw new Error("原 MCP 连接或工具版本已不可用");
       };
       assertCurrent();
-      return { assertCurrent, ...(surfaceReview?.control.beforeAnswer ? { beforeAnswer: surfaceReview.control.beforeAnswer } : {}), beforeEffect: async () => {
+      return { assertCurrent, ...(run.workSelection ? { workSelection: true } : {}),
+        ...(automatic ? { automatic } : {}),
+        ...(surfaceReview?.control.beforeAnswer ? { beforeAnswer: surfaceReview.control.beforeAnswer } : {}), beforeEffect: async () => {
         assertCurrent(); await selected?.beforeEffect();
         if (mcp) await deps.mcpLibrary.validate(original!.index!.owner, [mcp]);
         assertCurrent();

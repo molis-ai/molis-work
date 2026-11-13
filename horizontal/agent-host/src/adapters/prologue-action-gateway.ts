@@ -4,7 +4,7 @@ import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, ty
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
 import type { AgentActionClient, AgentActionOffer, AgentActionReviewControl, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueActionReviews } from "./prologue-action-reviews.js";
-import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
+import { actionReads, CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
@@ -22,6 +22,8 @@ export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DE
   MEMORY_TOOLS.remember, MEMORY_TOOLS.forget, MEMORY_TOOLS.propose];
 const FIND_LIMIT = 8;
 
+export const isGatewayChange = (name: string) => name === GATEWAY_TOOLS.change || name === GATEWAY_TOOLS.direct;
+
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]> & { declare?(view: ActionView): void };
 /** `beside`: any other fields written next to the identity, which are not the capability's input. */
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown; beside: string[] }
@@ -32,8 +34,8 @@ const describe = (view: ActionView, direct = false) => {
     title: view.action.title, available: false, reason: view.availability.reason };
   const effect = actionEffect(view.action, view.capability_id);
   return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
-    title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
-    use: effect === "read" ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
+    title: view.action.title, effect: actionReads(view) ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
+    use: actionReads(view) ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
 
 /** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
@@ -179,7 +181,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args, offered));
     known.add(view.capability_id); offered.add(offeredKey(view)); declared.note(view);
     if (!view.availability.available) throw new ActionError(view.availability.code, view.availability.reason);
-    const reads = actionEffect(view.action, view.capability_id) === "read";
+    const reads = actionReads(view);
     if (write && reads) throw new ActionError("actions.gateway_mismatch", `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`);
     if (!write && !reads) throw new ActionError("actions.gateway_mismatch", `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`);
     return view;
@@ -246,18 +248,23 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       const parsed = parseCapability(args);
       const held = reviews?.forCall(callId, GATEWAY_TOOLS.change, args);
       try {
-        held?.control.assertCurrent();
+        await held?.control.beforeEffect(); held?.control.assertCurrent();
         return await invoke(parsed, held?.view ?? await current(parsed, true), signal, true, held?.control);
       } finally { reviews?.release(callId); }
     }),
     // A change that says how it is undone, which the person lets run without asking: it runs now and can be taken back.
-    [GATEWAY_TOOLS.direct]: guarded(async (args, signal) => {
+    [GATEWAY_TOOLS.direct]: guarded(async (args, signal, _operation, callId) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
-      const view = await current(parsed, true);
-      if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
-      const output = await invoke(parsed, view, signal, true);
-      return JSON.stringify({ result: JSON.parse(output), note: "It ran without a confirmation because it can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+      const held = reviews?.forCall(callId, GATEWAY_TOOLS.direct, args);
+      try {
+        const view = held?.view ?? await current(parsed, true);
+        if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
+        await held?.control.beforeEffect();
+        held?.control.assertCurrent();
+        const output = await invoke(parsed, view, signal, true, held?.control);
+        return JSON.stringify({ result: JSON.parse(output), note: "It can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+      } finally { reviews?.release(callId); }
     }),
   };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
@@ -369,8 +376,8 @@ export function capabilityInput(view: ActionView, input: unknown): unknown {
  * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
  */
 export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>, offered?: Set<string>, review?: { calls: PrologueActionReviews; origin?: EffectOrigin }): Promise<string | null> {
-  if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change && toolName !== GATEWAY_TOOLS.direct) return null;
-  if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && !gateway.operate) return "This role may only read.";
+  if (toolName !== GATEWAY_TOOLS.read && !isGatewayChange(toolName)) return null;
+  if (isGatewayChange(toolName) && !gateway.operate) return "This role may only read.";
   let parsed: CapabilityArgs;
   try { parsed = parseCapability((input ?? {}) as Record<string, unknown>); } catch (error) { return (error as Error).message; }
   const views = await gateway.client.discover();
@@ -379,14 +386,14 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   known?.add(view.capability_id); offered?.add(offeredKey(view));
   if (!view.availability.available) return `${view.availability.code}: ${view.availability.reason}; nothing was done.`;
   gateway.declare?.(view);
-  const reads = actionEffect(view.action, view.capability_id) === "read";
-  if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
+  const reads = actionReads(view);
+  if (isGatewayChange(toolName) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
   if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
   const sent = capabilityInput(view, parsed.input);
   try {
-    if (toolName === GATEWAY_TOOLS.change && review) await review.calls.prepare(review.origin, toolName, input, view, gatewayInput(view, parsed), gateway.client);
+    if (isGatewayChange(toolName) && review) await review.calls.prepare(review.origin, toolName, input, view, gatewayInput(view, parsed), gateway.client, toolName === GATEWAY_TOOLS.direct);
     else await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, gatewayInput(view, parsed));
   }
   catch (error) {
@@ -438,12 +445,12 @@ function inputFields(schema: Record<string, unknown>, input: unknown): ToolRevie
 }
 
 /** The readable review for a requested change: which capability, from whom, what it does, with the exact input. */
-export function gatewayReview(input: string, view: ActionView) {
+export function gatewayReview(input: string, view: ActionView, tool: string = GATEWAY_TOOLS.change) {
   const args = JSON.parse(input) as Record<string, unknown>;
   const parsed = parseCapability(args);
   const effect = actionEffect(view.action, view.capability_id);
   const sent = gatewayInput(view, parsed);
-  return presentToolReview({ kind: "tool-operation", tool: GATEWAY_TOOLS.change, summary: `${view.provider.title} · ${view.action.title}` }, [
+  return presentToolReview({ kind: "tool-operation", tool, summary: `${view.provider.title} · ${view.action.title}` }, [
     reviewField("效果", effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回", "effect",
       { value: [reviewText(effect === "irreversible" ? "value.irreversible" : "value.reversible")] }),
     ...inputFields(view.action.input_schema, sent),

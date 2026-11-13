@@ -72,7 +72,7 @@ function standingKey(request: AgentReviewRequest): string | null {
   const document = request.document;
   if (request.kind !== "command" || document.kind !== "command" || !request.run || document.escalate !== false) return null;
   // A command that names extra paths or the network is approved for exactly that, once: it is never a standing rule.
-  if (document.grants !== undefined) return null;
+  if (document.grants !== undefined || document.session_rule_blocked) return null;
   // Running a command and leaving it running in the background are different approvals.
   return JSON.stringify([request.project_id, request.plugin_id, request.run.session_id, document.command, document.args,
     document.cwd, document.workspace_path ?? null, document.env_allowlist ?? null, document.timeout_ms, document.background === true, document.outlives_run === true]);
@@ -292,13 +292,13 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
-  registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>, available?: () => Promise<() => boolean>, assertApprovalCurrent?: () => void, beforeApprovalEffect?: () => void | Promise<void>): void {
+  registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>, available?: () => Promise<() => boolean>, assertApprovalCurrent?: () => void, beforeApprovalEffect?: () => void | Promise<void>, useStanding = true): void {
     const row = this.#pending(reviewId);
     if (this.#deciders.has(reviewId)) throw agentErrors.review_already_decided("审查已有执行所有者，不能替换");
     this.#deciders.set(reviewId, { respond: handler, available, assertApprovalCurrent, beforeApprovalEffect });
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
     // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.
-    const key = standingKey(row.request), rule = key ? this.#standing.get(key) : undefined;
+    const key = useStanding ? standingKey(row.request) : null, rule = key ? this.#standing.get(key) : undefined;
     if (!rule || this.#status(row) !== "pending") return;
     queueMicrotask(() => {
       if (this.#status(row) !== "pending") return;
@@ -310,6 +310,12 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   respond(input: AgentReviewDecisionInput, boundary?: DecisionBoundary): Promise<AgentReviewReceipt> {
     return this.#respond(input, { kind: "person", actor_id: input.actor_id }, boundary);
+  }
+
+  /** Only the trusted execution owner may consume a matched permission for the exact original request. */
+  respondAutomatically(request: AgentReviewRequest, source: Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>, assertCurrent: () => void): Promise<AgentReviewReceipt> {
+    return this.#respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: source.kind === "delegation" ? source.delegation.grantor_id : source.set_by },
+      source, { assertCurrent });
   }
 
   /** The original handler owns settlement until it returns; refresh must not race its final receipt. */

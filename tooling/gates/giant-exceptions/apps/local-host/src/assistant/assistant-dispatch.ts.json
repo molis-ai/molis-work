@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/assistant/assistant-dispatch.ts#AssistantDispatch": {
+      "kind": "cohesive-unit",
+      "reason": "同一工作从确定原执行方到提交输入、转交和记录回执的链条共用工作引用与执行控制。按方法行数拆分会使这些检查分布在多个入口。",
+      "size": {
+        "lines": 313,
+        "methods": 14
+      }
+    }
+  }
+}

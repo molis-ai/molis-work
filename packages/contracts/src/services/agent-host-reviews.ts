@@ -49,6 +49,8 @@ export interface AgentCommandReviewDocument {
   background?: boolean;
   /** A background command that keeps running after the round ends, until it ends or is stopped. */
   outlives_run?: boolean;
+  /** Explicit work permissions disable creating a session rule from this command. */
+  session_rule_blocked?: true;
   /** The person's after-write check this command is: which checker, from which version of its workspace's list. */
   after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }

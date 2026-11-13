@@ -10,6 +10,7 @@ import type {
   AgentReviewDecisionInput,
   ReviewReference,
   AgentActionReviewControl,
+  ReviewDecisionSource,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { AgentReviewQueue, type ReviewDecisionCommit } from "../reviews.js";
@@ -58,7 +59,11 @@ export interface ProloguePendingPort {
   ): Promise<{ authorized: boolean }>;
 }
 
-type PrologueApprovalControl = AgentActionReviewControl & { beforeAnswer?(): void };
+type PrologueApprovalControl = AgentActionReviewControl & {
+  beforeAnswer?(): void;
+  readonly workSelection?: boolean;
+  readonly automatic?: { source: Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>; assertCurrent(): void; activate(): void };
+};
 
 export interface PrologueApprovalBridgeOptions {
   queue: AgentReviewQueue;
@@ -165,7 +170,7 @@ export class PrologueApprovalBridge {
           this.#queue.cancel(request.review_id, "原执行等待已结束");
           return false;
         };
-      }, input.approval.assertCurrent, input.approval.beforeEffect);
+      }, input.approval.assertCurrent, input.approval.beforeEffect, input.approval.workSelection !== true);
       this.#pendingByReview.set(request.review_id, pendingRef);
     }
     return request;
@@ -211,7 +216,11 @@ export class PrologueApprovalBridge {
         reference,
         approval,
     });
-    await this.#recordRequest?.(pending, request);
+    if (approval.automatic) {
+      try { await this.#queue.respondAutomatically(request, approval.automatic.source, approval.automatic.assertCurrent); }
+      catch { /* An uncommitted automatic decision leaves the original wait for the person. */ }
+    }
+    if (this.#queue.receipt(request.review_id)?.status === "pending") await this.#recordRequest?.(pending, request);
     return request;
     });
   }
@@ -255,6 +264,7 @@ export class PrologueApprovalBridge {
       this.#queue.cancel(input.review_id, "执行已中断，原待批没有活动等待方；需核对后继续");
       throw agentErrors.pending_not_open("原执行已中断，不能通过批准旧待批恢复它");
     }
+    if (input.remember && approval?.workSelection) throw agentErrors.review_not_permitted("已明确选择工作的权限方式，单次确认不能添加本轮或会话规则");
     if (input.remember === "app-this-round" && (input.decision !== "approve" || request.document.kind !== "tool-operation" || !request.document.round_allow)) {
       throw agentErrors.review_not_permitted("这张审查卡没有提供本轮应用许可");
     }
@@ -274,7 +284,13 @@ export class PrologueApprovalBridge {
         kind: "effect-approval", answer: input.decision === "approve" ? "allow" : "deny",
       }, () => {
         assertCurrent();
-        if (input.decision === "approve") requireSynchronous(approval?.beforeAnswer?.());
+        if (input.decision === "approve") {
+          requireSynchronous(approval?.beforeAnswer?.());
+          if (receipt.source?.kind === "delegation" || receipt.source?.kind === "policy" && receipt.source.owner === "agent.assistant-reversible") {
+            if (!approval?.automatic) throw agentErrors.review_not_permitted("原自动许可不可读取");
+            approval.automatic.activate();
+          }
+        }
       }));
       if (input.decision === "approve" && result.authorized && input.remember === "app-this-round" && receipt.source?.kind === "person") {
         try {

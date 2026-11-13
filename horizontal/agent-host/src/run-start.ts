@@ -153,7 +153,8 @@ function frozenActionClient(source: AgentActionClient, validateCharacter: (() =>
     ...(source.check ? { check: async (ref: ExactActionReference, input: unknown) => { validateCharacter?.(); return source.check!(ref, input); } } : {}),
     ...(source.prepareReview ? { prepareReview: async (view: ActionView, input: unknown) => {
       validateCharacter?.(); const held = await source.prepareReview!(view, input);
-      return { beforeEffect: () => held.beforeEffect(), assertCurrent: () => { validateCharacter?.(); held.assertCurrent(); } };
+      return { ...(held.resolveDelegation ? { resolveDelegation: held.resolveDelegation.bind(held) } : {}), beforeEffect: () => held.beforeEffect(),
+        assertCurrent: () => { validateCharacter?.(); held.assertCurrent(); } };
     } } : {}),
     invoke: async (ref, input, signal, review) => { validateCharacter?.(); return source.invoke(ref, input, signal, review); },
   };

@@ -68,7 +68,7 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
-      { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
+      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
       // A suggestion, a delegated work, a memory: recorded under the Host's own rules and limits, as before, without asking.
       ...HOST_GOVERNED_TOOLS.map(name => ({ source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name } })),
       // The side panel's browser: looking is allowed, every action asks, the person's standing site decisions apply.
@@ -398,7 +398,11 @@ export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" 
       if (owned.refused.length) throw Object.assign(agentErrors.answer_invalid("选的对象现在不能用，请重新选择", { problems: owned.refused }), { problems: owned.refused });
       reply = { kind: "questionnaire", answers: owned.answers };
     }
-    if (!parked) { await runtime.effects.pendings.answer(pending.ref, reply, now); return "delivered"; }
+    await deps.effects.beforeEffect();
+    if (!parked) {
+      await runtime.effects.pendings.answer(pending.ref, reply, now, { assertBeforeAnswer: deps.effects.assertCurrent });
+      return "delivered";
+    }
     await runtime.sessions.answerInterrupted(parked.session, parked.view.ref, parked.view.version, pending.ref, reply, { assertBeforeAnswer: deps.effects.assertCurrent });
     return "queued";
   };

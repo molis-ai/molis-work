@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class horizontal/agent-host/src/delegations.ts#WorkDelegationStore": {
+      "kind": "cohesive-unit",
+      "reason": "单个 Home 的授权存储在这里持有按主体的串行队列、实际存储版本、工作结束和原运行失效检查。拆成两份状态会失去同一临界区的比较。",
+      "size": {
+        "lines": 282,
+        "methods": 26
+      }
+    }
+  }
+}

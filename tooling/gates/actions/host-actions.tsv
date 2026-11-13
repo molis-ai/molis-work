@@ -62,6 +62,12 @@ agent.collaboration.control	1	platform	command	operation	project	write	concurren
 agent.collaboration.read	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
 agent.collaboration.revise	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	9f29e12ebc0a	516b9424763a	-
 agent.command-output	1	platform	query	query	project	read	-	plugin	-	-	-	-	cfefa0b15b83	7f480fe2c755	-
+agent.delegations.grant	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	e812b23c5397	69435af35886	-
+agent.delegations.mode	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	111f5d442ee2	69435af35886	-
+agent.delegations.narrow	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	bb716ccf74c8	69435af35886	-
+agent.delegations.prepare	1	system.agent-delegations	query	query	home	read	concurrent	agent,user	-	-	-	-	142ff3ae1b08	1079ab327f04	-
+agent.delegations.revoke	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	79652db35e33	69435af35886	-
+agent.delegations.settle	1	system.agent-delegations	command	operation	home	write	concurrent	user	-	-	-	-	79652db35e33	69435af35886	-
 agent.draft-text	1	platform	command	operation	project	write	concurrent	plugin	model:invoke	-	-	-	7cf8de6a3f00	139a601cb87e	613063238287
 agent.evidence.check	1	platform	query	query	project	read	concurrent	agent,workflow	-	-	-	-	d3a20a5da19e	00a24a761748	5e0374458cf9
 agent.inputs.send	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b6b41fbf8db7	fcdd65c576a7	-
@@ -79,7 +85,7 @@ agent.offers.run	1	platform	command	operation	project	write	concurrent	plugin	-	
 agent.project-work.queue	1	platform	command	operation	project	write	-	plugin	-	-	-	-	b6d6dc6b9669	7ff3d00aaec2	-
 agent.project-work.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	721b7d646a52	70b692bc5ff1	-
 agent.project-work.release	1	platform	command	operation	project	write	-	plugin	-	-	-	-	21673f095f49	-	-
-agent.reviews.decide	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	78092b62a5e7	a2c799262a3c	3cfff55e5308
+agent.reviews.decide	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	3622152c68fa	a2c799262a3c	3cfff55e5308
 agent.reviews.recover	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	35bca135e6fa	a2c799262a3c	3cfff55e5308
 agent.roles	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	cb50ef7c59b1	-
 agent.run.control	1	platform	command	operation	project	write	-	plugin	-	-	-	-	632a0ef3732c	-	-
@@ -140,7 +146,7 @@ assistant.panel.works.question_draft	1	system.assistant-panel	command	operation	
 assistant.panel.works.recovery	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.rename	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.results	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
-assistant.panel.works.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
+assistant.panel.works.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	d9542cfb87d1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.take_back	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-

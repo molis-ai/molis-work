@@ -2,6 +2,7 @@ import type { AgentDelegationMode, AgentDelegationSelection, AgentDelegationStat
 import { currentDelegation, delegationModeRank } from "./delegation-state.js";
 
 export interface WorkDelegationPermission {
+  readonly subject: AgentDelegationSubject;
   /** The actual work epoch captured with this permission, including when the selected grant is ongoing. */
   readonly work_epoch: string;
   readonly mode: AgentDelegationMode | "original";
@@ -22,7 +23,7 @@ function mode(selection: AgentDelegationSelection | undefined, now: number): Age
   return selection.revoked_at !== null || !selection.scopes.length || selection.expires_at !== null && Date.parse(selection.expires_at) <= now ? "confirm" : "automatic";
 }
 
-export function workDelegationPermission(work: AgentDelegationState, ongoing: AgentDelegationState | undefined, now: number): Omit<WorkDelegationPermission, "assertCurrent" | "work_epoch"> {
+export function workDelegationPermission(work: AgentDelegationState, ongoing: AgentDelegationState | undefined, now: number): Omit<WorkDelegationPermission, "assertCurrent" | "work_epoch" | "subject"> {
   const current = currentDelegation(work), persistent = currentDelegation(ongoing);
   const currentMode = mode(current, now), ongoingMode = mode(persistent, now);
   const strongest = [currentMode, ongoingMode].filter((value): value is AgentDelegationMode => value !== undefined)

@@ -152,6 +152,10 @@ Coding 的可选“AI 低风险自动审批”只覆盖用户明确启用范围�
 
 ### 7.4 决策与验收账
 
+助理工作到 Pages 实际执行片（`batch/39-work-delegation`）：沿 §7.3 和[有限委托合同 §1、§2、§3、§5](delegation-contract-design.md)，优先验证本人选文稿和编辑范围、保存、后续轮次实际修改、读回可信来源、撤销时拒绝在途写入的完整路径。助理工作、安装目录、Pages 和 Agent 委托分别保有原事实。以工作 owner 固定主体，以原 action registration、目标提供方和实际参数判断范围。沿原 SDK pending/Effect 保存一次来源再回答，同一执行控制到 Pages 写入。持续选择由原存储读取，进程重启后不恢复旧 Run 或重发未知效果。无新表、兼容或迁移；管理操作走既定动作目录，复用 Pages 批量展示读取和项目原权限。整批保留既有工作方式、B 界面、其他调用入口和验收。当前板上第 39 批仍由本会话认领，#2009/#2020 已合入主线；按原批准在隔离分支接线，最终统一处理重叠。认领板自动审批限制仍待解除。
+
+该片工程证据（2026-11-14）：`tests/security-invariants-assistant-pages-permissions.test.ts` 六条通过。临时 Home 走真实动作目录、Prologue 审查与 SQLite，用脚本模型验证 APR-07/08/11/12/13、ASC-51/52 的 Pages 路径。授权前核对文稿名称，跨轮和重启沿用原授权；写前撤销后 Pages 业务行零变化，越界移动停在原待批；停止后拒绝旧工作和迟到回答，明确新授权后可再次写入。原可撤销路径用同一个 SDK 待批保存策略来源，真实 Todo 写入前已能读到决定，重启后仍可核对。旧撤销回执可按当前版本重试收口。统一管理页、Coding/MCP 等入口及最终产品实操与本人验收仍待完成。
+
 原观察目标接缝片实施检查（`batch/39-surface-target`）：沿 §7.3 全部 15 项及用户批准的[合同 §2.6](delegation-contract-design.md#surface-original-target)。SDK 仍唯一拥有 observation/plan/effect，Molis 只转交同一次 expected 与取消检查，不能保存第二份原目标账；BrowserPage 与原生 helper 在实际读／输入前核自身事实。公共 HostSurfaceDriver 参数和快照一次同步消费者，可信进程内参数不进入模型、页面、日志或持久记录；无新表、迁移、兼容或动作。审查元数据及本轮许可从 exact pending 读取原提案，同一上下文租约不替换。恢复沿原效果，不重派未知输入；资源拒绝释放自身 stage。只跑本片新增用例，统一回归留收尾；OS 窗口变化与审批保存不能声称原子化，最终原生输入、实操与本人体验分别验。
 
 原观察目标接缝片工程证据（2026-11-14）：当前采用 SDK 源 `d81e7432ac16c27e5345fd8657c66e7c289fefcb` 的 47 个新增用例、构建和 API 检查通过，两次独立打包字节一致。本批三份原目标测试文件共 29 个用例通过，含 SDK 到真实 Host 的审查和派发、实际隔离 Chrome 的可编辑控件与封闭 shadow root，以及原生输入提交夹具。Agent Host、contracts、local-host 构建和公开快照已核。同一 GPT-6.1 high 只读评审代理通过 SDK 与 Host 的代码和公共合同复核。真实 macOS 输入、文件接收、最终产品实操与本人验收均待完成。

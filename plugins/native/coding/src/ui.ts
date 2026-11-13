@@ -203,6 +203,15 @@ function renderEmpty(p: CodingUiPrimitives): string {
   return `<div class="mw-empty" data-coding-empty><p>${p.escape(uiText.text("coding.directory.empty"))}</p></div>`;
 }
 
+/** 「规则 N」's menu (batch12-design §3.7); its way out when the output is the default location is the project's 输入与输出 settings. */
+function renderRulesDialog(p: CodingUiPrimitives, projectSettingsHref: string): string {
+  return `<dialog class="mw-dialog mw-dialog--form coding-rules" data-coding-rules-dialog data-coding-rules-settings="${p.escape(projectSettingsHref)}" aria-labelledby="coding-rules-title"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2 id="coding-rules-title">${p.escape(uiText.text("coding.rules.title"))}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-rules-close":""}})}</header>
+      <section class="mw-form__body coding-rules__body" data-coding-rules-body></section>
+      <footer class="mw-form__footer coding-rules__foot"><p>${p.escape(uiText.text("coding.rules.foot"))}</p></footer>
+    </div></dialog>`;
+}
+
 export function renderCodingWorkbench(model: CodingUiModel): string {
   const { primitives: p } = model;
   // Relative global URL survives the host's project-local link prefixing.
@@ -253,7 +262,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <label class="mw-field"><span><input type="checkbox" data-coding-workspace-confirm> ${p.escape(uiText.text("coding.workspace.confirm"))}</span></label>
       <p>${p.escape(uiText.text("coding.workspace.note"))}</p><p data-coding-workspace-error role="alert"></p></section>
       <footer class="mw-form__footer"><button class="mw-btn mw-btn--primary" type="submit">${p.escape(uiText.text("coding.workspace.use"))}</button></footer>
-    </form></dialog>
+    </form></dialog>${renderRulesDialog(p, up + "projects/" + project + "/settings/workspaces")}
     <dialog class="mw-dialog mw-dialog--form" data-coding-actions-dialog aria-label="${p.escape(uiText.text("coding.actions.label"))}"><form class="mw-form mw-dialog__shell" data-coding-actions-form>
       <header class="mw-form__header"><h2>${p.escape(uiText.text("coding.actions.title"))}</h2>${renderButton({label:uiText.text("coding.common.cancel"),variant:"ghost",attrs:{"data-coding-actions-close":""}})}</header>
       <section class="mw-form__body"><p>${p.escape(uiText.text("coding.actions.note"))}</p>

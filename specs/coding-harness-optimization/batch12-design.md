@@ -102,7 +102,7 @@ instructions: { trusted: boolean; files: { path: string; chars: number; truncate
 
 ### 3.7 页面
 
-Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文件份数），点开列项目说明与文件、字数、是否截断、读的是哪一版；不信任时写「仓库说明文件没加载」（不说「规则没加载」，以免被理解成项目说明也没用上）和原因：输出是默认位置（给「去项目设置选文件夹」）、输出不是你选的（给「读取这个文件夹的说明文件」，即确认）、你关了（给同一个按钮）。文字键：`coding.composer.readonly-notice`、`coding.composer.switch-to-edit`、`coding.rules.count`、`coding.rules.not-loaded`、`coding.rules.not-loaded-default`、`coding.rules.not-loaded-unconfirmed`、`coding.rules.not-loaded-off`、`coding.rules.confirm`、`coding.rules.unrecorded`、`coding.rules.open-settings`，中英各一份。
+Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文件份数），点开列项目说明与文件、字数、是否截断、读的是哪一版；不信任时写「仓库说明文件没加载」（不说「规则没加载」，以免被理解成项目说明也没用上）和原因：输出是默认位置（给「去项目设置选文件夹」）、输出不是你选的（给「读取这个文件夹的说明文件」，即确认）、你关了（给同一个按钮）。文字键：`coding.composer.readonly-notice`、`coding.composer.switch-to-edit`、`coding.rules.count`、`coding.rules.not-loaded`、`coding.rules.not-loaded-default`、`coding.rules.not-loaded-unconfirmed`、`coding.rules.not-loaded-off`、`coding.rules.confirm`、`coding.rules.unrecorded`、`coding.rules.open-settings`，中英各一份（实现时另加的文字与位置见第 6 节）。
 
 ## 4. 验收
 
@@ -136,3 +136,6 @@ Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文�
 | §2.3 只读描边 | 新语义变量 `--line-readonly` | 组件规则里 `color-mix(in srgb, var(--accent) 22%, var(--line))` | 与失败描边同法；由现有变量推出，皮肤与深浅色自动一致，不在两套皮肤里各写死四个值 |
 | §3.5 子任务继承信任 | 子任务继承这一轮的 `projectTrusted` | 子任务现在读不到说明文件 | vendored SDK（`subagent-dispatch.js`）派子任务时自己拼 `context`，只带压缩与窗口，不传 `projectTrusted`；改 vendored 包是红线。失败方向是不信任（少读，不多读）。要继承得等上游 SDK 把父一轮的信任带给子任务，换包时补测试 |
 | §3.6 补记位置 | 冻结记录 | 写进这一轮在会话索引里的冻结意图（`attempts[i].frozen.instructions`），同一份也放进运行视图 | 冻结记录就存在那里，重启后由它恢复；新增的是可选字段，旧记录没有它，读到即「这一轮没有记录规则来源」，会话索引格式不升版本（与第 16 批给冻结意图加 `reply_locale` 同法） |
+| §3.4 读合同 | `instructions: { off; trusted }` | 加可选 `why_not: "default_output" \| "off" \| "not_chosen"`（不信任时必有，依次判断） | 页面要按原因给不同的出路（去项目设置选文件夹，或确认），只凭 `off`、`trusted` 分不出默认输出与没确认；原因由宿主一处算，Coding 不另读目录行去猜 |
+| §3.7 关掉的位置 | 「项目设置里可以关」 | 项目设置「输入与输出」的「产出写到哪里」下加「读取说明文件」开关；默认输出时开关不可用并说明原因，没确认的输出显示关、打开即确认；Coding 规则菜单「去项目设置」直达这一页 | 设置要有地方关；放在输出目录旁边，与它管的是同一件事 |
+| §3.7 警示标题 | 「仓库说明文件没加载」 | 菜单里分组标题已是「仓库说明文件」，警示标题写「没有读取」；「仓库说明文件没加载」留作「规则」按钮的提示 | 截图里两行重复 |

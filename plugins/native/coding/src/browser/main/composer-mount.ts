@@ -15,6 +15,7 @@ import { api, sessionPath, status } from "./request.js";
 import { select, surfaceChanged } from "./select.js";
 import { startFromComposer } from "./mount-submit.js";
 import type { RoundSelection } from "./shapes.js";
+import { rulesControl } from "./rules.js";
 
 /** How many other sessions 「发给」 lists: the latest; the rest are in the page's own list beside it. */
 const OTHERS = 5;
@@ -81,6 +82,7 @@ function sceneControls(page: Page): ComposerControl[] {
       change: value => chooseIntent(page, value) },
     ...page.refs.composerModels.scene(),
     ...nextRound(page),
+    ...rulesControl(page),
   ];
 }
 

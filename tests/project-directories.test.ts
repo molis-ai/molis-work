@@ -609,19 +609,19 @@ function personChange(env: Env, projectId: string, next: DirectoryChange): Proje
 test("BCD-04 the repository's instruction files are read only from an output the person chose, and not when they turned reading off", () => {
   withHome(env => {
     const project = env.create("代码");
-    assert.deepEqual(env.projects.query.projectDirectories(project).instructions, { off: false, trusted: false }, "the default output is not the person's folder");
+    assert.deepEqual(env.projects.query.projectDirectories(project).instructions, { off: false, trusted: false, why_not: "default_output" }, "the default output is not the person's folder");
     const repo = folder(env, "repo");
     const chosen = personChange(env, project, { kind: "set_output", target: { workspace_path: repo } });
     assert.deepEqual(chosen.instructions, { off: false, trusted: true }, "the person's own folder as the output");
     const off = personChange(env, project, { kind: "set_instructions", off: true });
-    assert.deepEqual(off.instructions, { off: true, trusted: false });
+    assert.deepEqual(off.instructions, { off: true, trusted: false, why_not: "off" });
     assert.notEqual(off.revision, chosen.revision, "BCD-09: the switch is part of the revision");
     // Off belongs to the project, not the folder: another output stays off.
     const other = personChange(env, project, { kind: "set_output", target: { workspace_path: folder(env, "other") } });
-    assert.deepEqual(other.instructions, { off: true, trusted: false });
+    assert.deepEqual(other.instructions, { off: true, trusted: false, why_not: "off" });
     personChange(env, project, { kind: "set_instructions", off: false });
     // Back to the default location: not trusted, at once.
-    assert.deepEqual(personChange(env, project, { kind: "set_output", target: { default_output: true } }).instructions, { off: false, trusted: false });
+    assert.deepEqual(personChange(env, project, { kind: "set_output", target: { default_output: true } }).instructions, { off: false, trusted: false, why_not: "default_output" });
   });
 });
 
@@ -636,7 +636,7 @@ test("BCD-04 an output a tool linked or the catalog upgrade picked is trusted on
     const repoId = linked.directories.find(item => item.roles.includes("output"))!.workspace_id;
     env.db.prepare("UPDATE workspace_project_memberships SET bound_by = 'molis-work-upgrade' WHERE project_id = ? AND workspace_id = ?").run(project, repoId);
     const before = env.projects.query.projectDirectories(project);
-    assert.deepEqual(before.instructions, { off: false, trusted: false }, "not the person's until confirmed");
+    assert.deepEqual(before.instructions, { off: false, trusted: false, why_not: "not_chosen" }, "not the person's until confirmed");
     const confirmed = personChange(env, project, { kind: "set_instructions", off: false });
     assert.deepEqual(confirmed.instructions, { off: false, trusted: true });
     assert.notEqual(confirmed.revision, before.revision, "BCD-09: a change of trust is a new revision");

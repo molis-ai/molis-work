@@ -117,6 +117,7 @@ export interface ProjectDirectories {
     instructions: {
         off: boolean;
         trusted: boolean;
+        why_not?: "default_output" | "off" | "not_chosen";
     };
     revision: string;
 }

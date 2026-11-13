@@ -30,7 +30,7 @@ function roleNames(_L: Page["readText"]): Record<string, string> {
 /** Everything the page remembers, empty: no session is chosen and nothing is read. `ports`, `follow` and `earlierWatch` are made by the caller. */
 function emptyState(readText: Page["readText"]): Omit<State, "ports" | "follow" | "earlierWatch"> {
   return {
-    ROLE_NAMES: roleNames(readText), SECTION_SHORT: {}, SESSION_STATE: Object.fromEntries(Object.entries(CODING_SESSION_MARKS).map(([state, mark]) => [state, mark.label])),
+    ROLE_NAMES: roleNames(readText), SECTION_SHORT: {}, SESSION_STATE: Object.fromEntries(Object.entries(CODING_SESSION_MARKS).map(([state, mark]) => [state, readText(mark.label)])),
     actionSelections: new Map(), adoptedConfigurations: new Map(), allRuns: [], answeredQuestions: new Set(), artifactRows: [], artifactTicket: 0,
     boardAll: { key: "", id: "", value: null }, changeItem: "", characterSelections: new Map(), characterSkills: new Map(), characterTitles: new Map(),
     checkpointBusy: false, checkpointKey: "", checkpointLoading: false,

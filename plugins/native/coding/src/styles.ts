@@ -718,4 +718,10 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 .coding-merge-pick > .mw-btn { min-height:28px; padding:0 12px; font-size:12px; }
 @media (max-width:760px) { .coding-merge-pick > span { flex-basis:100%; } }
 .coding-child-error-code { display:block; margin-top:4px; font:11px/1.5 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); color:var(--muted); overflow-wrap:anywhere; }
+/* The rules menu (batch12-design §3.7): two file groups, the second saying why nothing was read when nothing was. */
+dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
+.coding-rules__body { display:grid; gap:12px; min-width:0; }
+.coding-rules__body .mw-file-row__name { font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); }
+.coding-rules__foot > p { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
+.coding-rules__error { margin:0; font-size:12px; color:var(--red,var(--danger)); }
 ` + CODING_TIMELINE_STYLES;

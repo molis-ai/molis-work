@@ -82,8 +82,8 @@ export class ProjectWorkspaceService {
       project_id: id,
       directories: rows.map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path, realpath_verified: row.realpath_verified,
         display_name: row.display_name, roles: row.roles, state: this.state(row) })),
-      source_links: sourceLinks, instructions: { off: instructions.off, trusted: instructions.trusted },
-      revision: revisionOf(rows, sourceLinks, instructions),
+      source_links: sourceLinks, instructions: instructions.view,
+      revision: revisionOf(rows, sourceLinks, instructions.facts),
     };
   }
 
@@ -362,13 +362,14 @@ export class ProjectWorkspaceService {
  * not the default location, the person chose it (linked it themself, or confirmed this very folder), and reading is not off. A tool's link
  * and an output the catalog upgrade picked are not the person's until confirmed; a confirmation names one folder and does not follow a new output.
  */
-function instructionsOf(repository: ProjectsRepository, projectId: string, rows: readonly ProjectDirectoryRow[]): { off: boolean; trusted: boolean; confirmed: string | null; chosen: boolean } {
+function instructionsOf(repository: ProjectsRepository, projectId: string, rows: readonly ProjectDirectoryRow[]) {
   const setting = repository.workspaces.instructionSetting(projectId);
   const output = rows.find(row => row.roles.includes("output"));
   const own = Boolean(output) && output!.workspace_id !== projectOutputId(repository.db, projectId);
   const chosen = own && (repository.workspaces.isPersonMembership(output!.workspace_id, projectId) || setting?.confirmed_workspace_id === output!.workspace_id);
   const off = setting?.off ?? false;
-  return { off, trusted: chosen && !off, confirmed: setting?.confirmed_workspace_id ?? null, chosen };
+  const whyNot = !own ? "default_output" as const : off ? "off" as const : !chosen ? "not_chosen" as const : undefined;
+  return { view: { off, trusted: chosen && !off, ...(whyNot ? { why_not: whyNot } : {}) }, facts: [off, setting?.confirmed_workspace_id ?? null, chosen] };
 }
 
 /** Off only turns reading off; on also confirms the current output as the person's, when it is not the default location. */
@@ -384,8 +385,8 @@ function setInstructions(repository: ProjectsRepository, current: ProjectDirecto
  * the confirmed folder, whether the output is the person's), so a change of `trusted` is a new revision. Never a folder's live state.
  */
 function revisionOf(rows: readonly ProjectDirectoryRow[], links: readonly { source_workspace_id: string; workspace_id: string }[],
-  instructions: { off: boolean; confirmed: string | null; chosen: boolean }): string {
+  instructions: readonly unknown[]): string {
   const facts = { rows: rows.map(row => [row.workspace_id, row.stored_path, row.display_name, row.roles]).sort(), links: links.map(link => [link.source_workspace_id, link.workspace_id]).sort(),
-    instructions: [instructions.off, instructions.confirmed, instructions.chosen] };
+    instructions };
   return createHash("sha256").update(JSON.stringify(facts)).digest("hex").slice(0, 32);
 }

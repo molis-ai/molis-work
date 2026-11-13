@@ -3,10 +3,11 @@ import type { ProjectDirectories, ProjectDirectory, ProjectDirectoryPage } from 
 /** `page` is the route's drawing half, one shape with the Host (`ProjectDirectoryPage`). */
 export type Answer = ProjectDirectories & { page: ProjectDirectoryPage };
 export type Say = Record<"loading" | "failed" | "stale" | "added" | "removed" | "output" | "repaired" | "mapped" | "unmapped" | "remove_named" | "output_named"
-  | "change_named" | "unmap_named" | "default_name" | "source_folder" | "source_other_default" | "source_former_default" | "choose_output" | "choose_source" | "stands" | "input_role" | "output_role", string>;
+  | "change_named" | "unmap_named" | "default_name" | "source_folder" | "source_other_default" | "source_former_default" | "choose_output" | "choose_source" | "stands" | "input_role" | "output_role"
+  | "instructions_on" | "instructions_off" | "instructions_default" | "instructions_unconfirmed", string>;
 export type Consequence = Record<"output" | "output_pick" | "source" | "source_pick", string>;
 /** A change the page posts, by the name `project-workspace-http.ts` maps to its `projects.directories.*` action; the revision is added there. */
-export type Change = { change: "add_input" | "remove_input" | "set_output" | "repair" | "map_source" | "unmap_source"; input: Record<string, unknown> };
+export type Change = { change: "add_input" | "remove_input" | "set_output" | "repair" | "map_source" | "unmap_source" | "set_instructions"; input: Record<string, unknown> };
 /** What a chooser picks: a folder of the project, its default output directory, or a path from the system window. */
 export type Target = { workspace_id: string } | { default_output: true } | { workspace_path: string };
 /** How a change ended: made, refused because the page was behind (it read again), or refused for its own reason. */

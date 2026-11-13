@@ -188,8 +188,10 @@ export interface ProjectDirectories {
    * Whether a round reads the repository's instruction files (AGENTS.md and the like) in the output (specs/coding-harness-optimization/
    * batch12-design.md §3). `trusted` is worked out now, never stored: the output is not the default location, the person chose it
    * (linked it, or confirmed it with `set_instructions`), and reading is not `off`. It adds no permission; it decides only what is read.
+   * `why_not`, only when not trusted, is the first thing a person would change: the output is the default location (choose a folder),
+   * reading is off, or the output is not the person's yet (confirm it); the last two are both undone by `set_instructions` with `off: false`.
    */
-  instructions: { off: boolean; trusted: boolean };
+  instructions: { off: boolean; trusted: boolean; why_not?: "default_output" | "off" | "not_chosen" };
   /** Where changes commit from, as `expected_revision`. */
   revision: string;
 }
@@ -392,7 +394,8 @@ const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
   }, required: [...WORKSPACE_SCHEMA.required, "roles", "state"], additionalProperties: false } },
   source_links: { type: "array", items: { type: "object", properties: { source_workspace_id: { type: "string" }, workspace_id: { type: "string" } },
     required: ["source_workspace_id", "workspace_id"], additionalProperties: false } },
-  instructions: { type: "object", properties: { off: { type: "boolean" }, trusted: { type: "boolean" } }, required: ["off", "trusted"], additionalProperties: false },
+  instructions: { type: "object", properties: { off: { type: "boolean" }, trusted: { type: "boolean" }, why_not: { enum: ["default_output", "off", "not_chosen"] } },
+    required: ["off", "trusted"], additionalProperties: false },
   revision: { type: "string" },
 }, required: ["project_id", "directories", "source_links", "instructions", "revision"], additionalProperties: false };
 

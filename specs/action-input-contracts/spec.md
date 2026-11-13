@@ -1,6 +1,6 @@
 # 动作的版本字段与输入类型（路线书 05 第 4 项）
 
-状态：本批范围已实现（2026-11-06 设计；N22 余片按决定 29 在第 55 批第 3 项）。N22-06（#1893，`2d6c7b56b`）、N22-01（[#1909](https://github.com/molis-ai/molis-work/pull/1909)，`077073d7b`）、N22-02（[#1939](https://github.com/molis-ai/molis-work/pull/1939)，`87a97032bd`）、N22-04 试点（[#1923](https://github.com/molis-ai/molis-work/pull/1923)，`db4d1e32b`）与防回潮计数（[#1951](https://github.com/molis-ai/molis-work/pull/1951)，`c7acb8416e`）已合入；N14 两段（[#1913](https://github.com/molis-ai/molis-work/pull/1913)，`a49d656d8`；[#1961](https://github.com/molis-ai/molis-work/pull/1961)，`e8a75e8882`）已合入；第 05 批全批随 [#1979](https://github.com/molis-ai/molis-work/pull/1979)（`500d868df3`）合入。用户 2026-11-08 定拆分（[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)，§9.1）：N14 和工具、样板留在第 05 批，余片移到[第 55 批第 3 项](../post-anticorruption-roadmap/reference/batches/55.md#batch-55-item-3)。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
+状态：本批范围已实现（2026-11-06 设计；N22 余片按决定 29 在第 56 批第 3 项）。N22-06（#1893，`2d6c7b56b`）、N22-01（[#1909](https://github.com/molis-ai/molis-work/pull/1909)，`077073d7b`）、N22-02（[#1939](https://github.com/molis-ai/molis-work/pull/1939)，`87a97032bd`）、N22-04 试点（[#1923](https://github.com/molis-ai/molis-work/pull/1923)，`db4d1e32b`）与防回潮计数（[#1951](https://github.com/molis-ai/molis-work/pull/1951)，`c7acb8416e`）已合入；N14 两段（[#1913](https://github.com/molis-ai/molis-work/pull/1913)，`a49d656d8`；[#1961](https://github.com/molis-ai/molis-work/pull/1961)，`e8a75e8882`）已合入；第 05 批全批随 [#1979](https://github.com/molis-ai/molis-work/pull/1979)（`500d868df3`）合入。用户 2026-11-08 定拆分（[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)，§9.1）：N14 和工具、样板留在第 05 批，余片移到[第 56 批第 3 项](../post-anticorruption-roadmap/reference/batches/56.md#batch-56-item-3)。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
 
 验收编号前缀 `AIC`，见 §12。
 
@@ -9,7 +9,7 @@
 这份设计管两件小而散的事，都关于「动作收到的输入」。
 
 - **N14。** 判断规则的编辑动作用一个特别的字段（`updated_at`）表示「我读到的版本」，内核为此写了一条按名字认它的分支；而且不带版本也能过：工作台每次都带，只有省略版本的调用才可能盖掉别人的改动。改完以后，它和别的动作一样必须带上读到的版本；过期了不覆盖，页面就地接住，输入不丢。
-- **N22。** 平台在调用处理器之前已经按声明检查过输入，处理器却拿不到类型，只好再检查一遍，于是同样的读值小函数写了几十份。做一份类型推导，全部处理器一次迁过去，补上声明里缺的约束，删掉重复的检查。这件事很大（约 30 片）。工具和样板在第 05 批做，余片排在第 55 批，第 56 批开工前做完（§9.1）；§8 写了怎样派工、怎样尽量缩短。
+- **N22。** 平台在调用处理器之前已经按声明检查过输入，处理器却拿不到类型，只好再检查一遍，于是同样的读值小函数写了几十份。做一份类型推导，全部处理器一次迁过去，补上声明里缺的约束，删掉重复的检查。这件事很大（约 30 片）。工具和样板在第 05 批做，余片排在第 56 批，第 57 批开工前做完（§9.1）；§8 写了怎样派工、怎样尽量缩短。
 
 用户能看到的只有第一件：编辑判断规则时，别处改过内容或删掉了规则，页面就地说明，能载入最新版，正在写的内容不丢。第二件纯属内部整理。
 
@@ -583,7 +583,7 @@ find <暂存目录> -name '*.d.ts' -print0 | xargs -0 cat | wc -c               
 
 ## 7. 和第 06 批 N12 的边界
 
-N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固定、跨项目移动、复制、搜索与读正文）留在 [06 第 2 项](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2)。按「按批推进」，06 的实现要等第 05 批全部合入，所以第 05 批的这几片和 06 **不会同时改代码**。移到第 55 批的余片不等 06，可能和它同时改同一个插件，后到的 rebase（§8.6）。06 的设计稿可以照常写，开工时对着 N22-06 改过的 store 再核一次。
+N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固定、跨项目移动、复制、搜索与读正文）留在 [06 第 2 项](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2)。按「按批推进」，06 的实现要等第 05 批全部合入，所以第 05 批的这几片和 06 **不会同时改代码**。移到第 56 批的余片不等 06，可能和它同时改同一个插件，后到的 rebase（§8.6）。06 的设计稿可以照常写，开工时对着 N22-06 改过的 store 再核一次。
 
 重复读值函数的现状（台账有出入）：`text` 读值型 38 个定义／21 个包；`optionalText` 10／5；`required` 真正读值的只有 `plugin-builder/agent-experience.ts:23`，其余是 `browser/dom.ts` 取元素（台账写 15）；`field` 8 个包（台账写 6）。`project(caller)` 小包装 12 份不算在 N22 里，其中 `form/src/content-actions.ts:32`、`ppt/src/content-actions.ts:57` 写的是各自的 `invalid`，只是两处写法不一致，调用方看不出差别（内核在处理器之前就拒），第 06 批顺手收；迁移时顺手收到 SDK 一个函数的话单独说明。
 
@@ -605,7 +605,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 ### 8.2 分片表
 
-**去向（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 这张表还是全部分片的依据。留在第 05 批的是 N22-01、N22-04、N22-06（都已合入）、N22-02 和 N14；其余（N22-03、N22-05、T01～T13、S0～S9、N22-Z、N22-G）移到[第 55 批第 3 项](../post-anticorruption-roadmap/reference/batches/55.md#batch-55-item-3)，前置就绪后随时可开。下面说的「同时最多 3 个写手」「排在谁后面」是当时按一次迁完排的，余片的额度看第 55 批。
+**去向（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 这张表还是全部分片的依据。留在第 05 批的是 N22-01、N22-04、N22-06（都已合入）、N22-02 和 N14；其余（N22-03、N22-05、T01～T13、S0～S9、N22-Z、N22-G）移到[第 56 批第 3 项](../post-anticorruption-roadmap/reference/batches/56.md#batch-56-item-3)，前置就绪后随时可开。下面说的「同时最多 3 个写手」「排在谁后面」是当时按一次迁完排的，余片的额度看第 56 批。
 
 #1790、#1836、#1837 都已合入，这一条前置解除。「同时最多 3 个写手」把 N14 也算在内。写手一律子代理。
 
@@ -716,7 +716,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 ### 8.5 排程：三个写手怎样排满
 
-**这张表是 2026-11-06 按一次迁完排的。** 2026-11-08 拆分后，第 05 批只跑到第 2 轮（第 3 轮起移到第 55 批，§8.2），下面当作余片的排法参考。
+**这张表是 2026-11-06 按一次迁完排的。** 2026-11-08 拆分后，第 05 批只跑到第 2 轮（第 3 轮起移到第 56 批，§8.2），下面当作余片的排法参考。
 
 用「轮」计数：一轮是一个写手从开工到合入。这里不估天数，真正的上限是整台机器的构建槽（2026-11-07 起三个，`PARALLEL-DEVELOPMENT.md` 第 5 节）。
 
@@ -746,7 +746,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 5. 小包合并；S 清单为空就取消。
 6. 试点通过之前不扇出：只损失一轮，却防住「全部 T 片按错误写法做完」这种最贵的返工。
 
-**原来还留着一个杠杆**（T 片合完时放行第 06 批里不碰这些包的项）。2026-11-08 的拆分比它走得更远，第 06～54 批不再等余片，这一条不用了。
+**原来还留着一个杠杆**（T 片合完时放行第 06 批里不碰这些包的项）。2026-11-08 的拆分比它走得更远，第 06～55 批不再等余片，这一条不用了。
 
 ### 8.6 和在途 PR 怎样避让
 
@@ -771,7 +771,7 @@ gh pr list --state open --json number,title,files --jq '.[] | select(any(.files[
 
 **别的批新加的处理器**：N22-01 合入后通知在跑的批，新处理器直接用 `bindActionHandler` 和推导写法；来不及的由 N22-Z 兜住。
 
-**第 06～54 批**：余片前置就绪后随时可开，可能和这些批同时改同一个插件（决定 29 写明的代价）。每片开工前照上面的命令查，后到的 rebase；后面的批次改到某个包时，可以顺手带上那个包的 T 片。
+**第 06～55 批**：余片前置就绪后随时可开，可能和这些批同时改同一个插件（决定 29 写明的代价）。每片开工前照上面的命令查，后到的 rebase；后面的批次改到某个包时，可以顺手带上那个包的 T 片。
 
 ### 8.7 一片做完的标准
 
@@ -785,7 +785,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 
 **全部处理器迁到推导类型，补约束，删重复检查。** 合同台原来推荐的是工具加试点（A），用户选了 B。否掉的是 A 和「全量只换类型」（C）。代价用户知道：跨 A、B、C1、E 约 30 片，第 06 批之后的实现要等它。**不降级。**
 
-**拆分（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 范围不变，仍然全部迁完，只改时间。三个条件：工具和样板留在第 05 批；提前加一道只许减少的防回潮计数（§9.2）；余片在第 56 批开工前全部合入，因为第一个外部版本之后再收紧输入要升版本、留过渡期。第 05 批和第 06～54 批不再等余片。代价：新旧写法并存到第 56 批之前，后面改同一个插件的批次可能撞文件。
+**拆分（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 范围不变，仍然全部迁完，只改时间。三个条件：工具和样板留在第 05 批；提前加一道只许减少的防回潮计数（§9.2）；余片在第 57 批开工前全部合入，因为第一个外部版本之后再收紧输入要升版本、留过渡期。第 05 批和第 06～55 批不再等余片。代价：新旧写法并存到第 57 批之前，后面改同一个插件的批次可能撞文件。
 
 **一个用户定的例外（2026-11-06）：** 119 个公开合同定义（05② C-1 合入后 130 个，算上帮手生成的）和 15 组共享帮手留手写接口，证明加反向（§4.3、§4.4）。处理器这一半照样没有 `as`，编译时对照；这些是两份事实，由编译器钉住，钉不住的写进 §4.4 名单。否掉的是全部推导：动 14 份 API 快照、抢合同队列、TS7056 风险。这个方案也动 6 份（原先按 5 份估；#1939 实测 N22-02 4 份、N22-03 2 份，多出 `services/placement.txt`），差异只是字面量变窄。
 
@@ -793,7 +793,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 
 原来那条「`input as` 只许减少」是工具加试点方案的配套，用来容忍两种写法并存。当时按一口气迁完算，没有存量要容忍，所以不留它（2026-11-08 拆分后改了，见下面「过渡计数」）。但类型本身挡不住回潮：`ActionHandlerBinding.handle` 的 `input` 还是 `unknown`，谁都能再写一句 `input as X`。
 
-**过渡计数（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 拆分后新旧写法要并存到第 56 批之前，所以提前加一道只许减少的计数。它是第 05 批的一片，单独一个 PR，排在 #1926 之后（两边都改 `scripts/check-health-gates.mjs`、`tooling/gates/README.md`）。
+**过渡计数（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 拆分后新旧写法要并存到第 57 批之前，所以提前加一道只许减少的计数。它是第 05 批的一片，单独一个 PR，排在 #1926 之后（两边都改 `scripts/check-health-gates.mjs`、`tooling/gates/README.md`）。
 
 - 数什么，两项：处理器输入上的 `as`，范围和下面 N22-G 第一条相同；定义处手写的输入类型，即 `createActionDefinition` 的第一个类型参数，或转交给它的包装函数的类型参数，不是 `InferActionInput` 的（用户 2026-11-08 定）。包装的判定、数字和看不到的写法在 [`tooling/gates/README.md`](../../tooling/gates/README.md#按文件计数只许减少的项)。
 - 按文件计数，对照 merge-base 只许减少，新文件从 0 开始，测试不数。
@@ -805,7 +805,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 - 基线为 0，不用「只许减少」的账本，出现一个就失败。
 - 例外只有 `bindActionHandler` 那一处和 §4.4 的动态 schema，名单写在门禁里，每条带理由。
 - 测试不查。
-- **手写一份和 schema 对不上的 `I`，N22-G 多查一项来挡（统筹 2026-11-07 提出，用户同日同意）：** `createActionDefinition` 的第一个类型参数只能是 `InferActionInput<…>`，定义处也不许标 `ActionDefinition<X, …>`，合同包、SDK 自己（`packages/plugin-sdk/src/actions.ts`）和 §4.4 名单除外。`assistant-executor.ts:77` 这种按调用表取输入类型的写法，N22-G 开时核。原来写的「删 `defineAction` 的手写重载」挡不住：处理器走 `bindActionHandler`，不经过 `defineAction`，合审实跑 `createActionDefinition<错的, O>` 配 `bindActionHandler` 能编译。**还要查 cast 形式（2026-11-09 补）：** 定义处把定义 cast 成 `ActionDefinition<X, O>`（`expr as ActionDefinition<X, O>`）与类型参数同一条判据，`X` 不是 `InferActionInput<…>` 就算，带变异用例（这两项过渡计数都看不到 cast 形式）；第 05 批留下的 12 处（`apps/local-host/src/project-workspace-actions.ts:85-93`、`apps/local-host/src/project-workspace-http.ts:37-42`）由第 55 批 T11/S 片迁掉，N22-G 开时基线为 0。
+- **手写一份和 schema 对不上的 `I`，N22-G 多查一项来挡（统筹 2026-11-07 提出，用户同日同意）：** `createActionDefinition` 的第一个类型参数只能是 `InferActionInput<…>`，定义处也不许标 `ActionDefinition<X, …>`，合同包、SDK 自己（`packages/plugin-sdk/src/actions.ts`）和 §4.4 名单除外。`assistant-executor.ts:77` 这种按调用表取输入类型的写法，N22-G 开时核。原来写的「删 `defineAction` 的手写重载」挡不住：处理器走 `bindActionHandler`，不经过 `defineAction`，合审实跑 `createActionDefinition<错的, O>` 配 `bindActionHandler` 能编译。**还要查 cast 形式（2026-11-09 补）：** 定义处把定义 cast 成 `ActionDefinition<X, O>`（`expr as ActionDefinition<X, O>`）与类型参数同一条判据，`X` 不是 `InferActionInput<…>` 就算，带变异用例（这两项过渡计数都看不到 cast 形式）；第 05 批留下的 12 处（`apps/local-host/src/project-workspace-actions.ts:85-93`、`apps/local-host/src/project-workspace-http.ts:37-42`）由第 56 批 T11/S 片迁掉，N22-G 开时基线为 0。
 - `defineAction` 的手写重载不整个删，留 `input: unknown` 的写法，schema 擦除的定义（比如 TS 作者读 manifest）要有地方去。
 
 否掉两个方案（决策记录 §11）：不加门禁，只靠写法和评审，几个月后会慢慢长回来；类型上封死（品牌类型），测试里 189 个文件、475 处 `handle:` 都要跟着改，量顶得上好几个 T 片。门禁在最后一片之后才开，不影响分片和排程。
@@ -867,11 +867,11 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | `input as` 只许减少的门禁不做 | 留作过渡 | 那是工具加试点方案的配套；一次迁完没有存量要容忍。2026-11-08 拆分后有了存量，改为留过渡计数，§9.2 |
 | 2026-11-06 | **防回潮用一条绝对门禁**（用户定）：N22-Z 之后单独一个小 PR，处理器的输入参数上不许有 `as`，基线为 0，例外写明理由，测试不查 | 不加门禁；品牌类型封死 | §9.2。不加门禁成果会被慢慢磨掉；品牌类型要改 189 个测试文件 |
 | 2026-11-07 | **N22-04 的结论**（统筹定，评审台同意）：§5.2 的 Jelly 例子改到 `aiInput` 的笔记分支；检查分四类，① 类不改哈希和错误码；Jelly 的读值函数留下，登 `BL-jelly-command-readers`；样板收进 §5.4 | 照原例子加在共享片段上；删读值函数 | 共享片段实跑弄坏所有读取和写命令。删读值函数要么一处 `as`，要么 33 个处理器分开写。代价：`store` 那层的 `as` 留着，N22-G 查不到 |
-| 2026-11-08 | **N22 拆分**（用户定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：工具和样板留第 05 批，余片移第 55 批、第 56 批开工前合完；提前加只许减少的过渡计数，N22-G 开时删 | 继续在第 05 批一次迁完 | 范围不变，第 05 批和第 06～54 批不再等这 27 片迁移；第一个外部版本之后再收紧输入要升版本，所以第 56 批是最晚的时间。§9.1、§9.2 |
+| 2026-11-08 | **N22 拆分**（用户定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：工具和样板留第 05 批，余片移第 56 批、第 57 批开工前合完；提前加只许减少的过渡计数，N22-G 开时删 | 继续在第 05 批一次迁完 | 范围不变，第 05 批和第 06～55 批不再等这 27 片迁移；第一个外部版本之后再收紧输入要升版本，所以第 57 批是最晚的时间。§9.1、§9.2 |
 
 ## 12. 验收
 
-**归属（2026-11-08 拆分）：** 第 05 批证明 AIC-01～11、AIC-13～16、AIC-20，以及 AIC-12 的 Jelly 那半（N22-04）和 AIC-17 里 N22-02 的那半；AIC-12 其余、AIC-17 其余（T 片、N22-03）、AIC-18（N22-Z）、AIC-19（N22-G）移到[第 55 批第 3 项](../post-anticorruption-roadmap/reference/batches/55.md#batch-55-item-3)。
+**归属（2026-11-08 拆分）：** 第 05 批证明 AIC-01～11、AIC-13～16、AIC-20，以及 AIC-12 的 Jelly 那半（N22-04）和 AIC-17 里 N22-02 的那半；AIC-12 其余、AIC-17 其余（T 片、N22-03）、AIC-18（N22-Z）、AIC-19（N22-G）移到[第 56 批第 3 项](../post-anticorruption-roadmap/reference/batches/56.md#batch-56-item-3)。
 
 | 编号 | 证明 |
 | --- | --- |

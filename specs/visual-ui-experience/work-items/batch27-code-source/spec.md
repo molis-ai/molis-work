@@ -1,6 +1,6 @@
 # 第 27 批 Coding 围栏原文与逻辑行
 
-状态：用户 2026-11-11 选 B1（换 Micromark），第 27 批主会话已实施，实现记录见文末；两处可见差异用户 2026-11-11 确认接受（按 CommonMark）。设计 2026-11-09（设计 Codex）。本片交付目标沿用 [VUX-33、VUX-35、VUX-36](../../spec.md#code-diff) 的 Coding 余项，先取得工程和隔离实操证据。真实规模由第 56 批验收，本人实物验收依主规格安排。
+状态：用户 2026-11-11 选 B1（换 Micromark），第 27 批主会话已实施，实现记录见文末；两处可见差异用户 2026-11-11 确认接受（按 CommonMark）。设计 2026-11-09（设计 Codex）。本片交付目标沿用 [VUX-33、VUX-35、VUX-36](../../spec.md#code-diff) 的 Coding 余项，先取得工程和隔离实操证据。真实规模由第 57 批验收，本人实物验收依主规格安排。
 
 ## 目标与前置
 
@@ -75,7 +75,7 @@ VUX-33 已授权围栏原文和边界修复，普通 HTML 序列化空白差异�
 | 12 页面与文字 | 现有块、折叠、复制和反馈，核实际 Host 静态资源。无新增 UI 文案或事件。 |
 | 13 错误 | 继续使用清洗后的纯文本回退，现有调用方错误合同沿用。 |
 | 14 冲突面 | 公共 C 的 SDK、共享锁与消费者文件按上表认领，统筹与第 06 批及在途消费者改动查重。 |
-| 15 全局最优 | 插件继续用一份 SDK，外部 `/rich-text` 调用方承担 peer 切换。平台保住根入口离线安装和统一清洗。助理和 Agent 的操作入口沿用，助理消费共享着色需回归。公共呈现和 Feed 走原路径，资料目录、工作流、MCP、同步与授权不涉及。后续插件可直接复用，真实长路径性能留给本片实测和第 56 批复验。 |
+| 15 全局最优 | 插件继续用一份 SDK，外部 `/rich-text` 调用方承担 peer 切换。平台保住根入口离线安装和统一清洗。助理和 Agent 的操作入口沿用，助理消费共享着色需回归。公共呈现和 Feed 走原路径，资料目录、工作流、MCP、同步与授权不涉及。后续插件可直接复用，真实长路径性能留给本片实测和第 57 批复验。 |
 
 ## 验收与测量
 
@@ -139,4 +139,4 @@ git diff --check
   - `tests/code-incremental-colour.test.ts`（B27SRC-04）
   - `tests/code-scale.e2e.test.ts` B27SRC-05：9 万字符 LF、CRLF、CR 三份，渲染出的 HTML 与 Coding 分片着色都逐字读回、显示 1823 行同高；一个单独 CR 先到、LF 后到也不出现重行。
   - 消费者回归 `tests/code-incremental.e2e.test.ts`、`tests/assistant-text-html.e2e.test.ts`、`tests/code-diff-reader.e2e.test.ts`、`tests/feed-rich-content.test.ts` 均通过（B27SRC-06）。
-- 还没做：真实 Host 中 Coding 的 CR-only 回合实操（B27SRC-05 只在组件板页面用生产 painter 证明），以及第 56 批的真实规模复验。
+- 还没做：真实 Host 中 Coding 的 CR-only 回合实操（B27SRC-05 只在组件板页面用生产 painter 证明），以及第 57 批的真实规模复验。

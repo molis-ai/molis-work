@@ -1,6 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
-import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { languageServersFrom, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -132,6 +133,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         documentParsers: [pdfDocumentParser],
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
+        // The person's language servers for the coding pack's `coding.find-symbol` (see the Home's language-servers.json).
+        ...(codeIntelligenceConfig(options.homeDirectory) === undefined ? {} : { codeIntelligence: codeIntelligenceConfig(options.homeDirectory)! }),
         reviewQueue: agentHost.reviews,
         app: { appId: "io.molis.work", appVersion: "0.0.0" },
       });
@@ -443,4 +446,20 @@ function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<
   return { directoryAuthorized: async (project, directory) => await runsIn(project, directory) !== undefined,
     workspaceAt: runsIn,
     owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };
+}
+
+/**
+ * The language servers the person configured for code intelligence, from `<Home>/language-servers.json`.
+ *
+ * The file is optional: without it the coding pack's symbol tool reports that no server is configured for a file type.
+ * A file that is there but unreadable or invalid is an error, not a silent "no servers" — a typo in a command should be
+ * visible at start, not leave a file type without intelligence forever.
+ */
+function codeIntelligenceConfig(homeDirectory: string | undefined): { readonly servers: readonly import("@molis-ai/molis-work-service-agent-host").LanguageServerSpec[] } | undefined {
+  if (homeDirectory === undefined) return undefined;
+  const file = path.join(homeDirectory, "language-servers.json");
+  if (!existsSync(file)) return undefined;
+  let parsed: unknown;
+  try { parsed = JSON.parse(readFileSync(file, "utf8")); } catch (error) { throw new Error(`Home 的 language-servers.json 读不了：${(error as Error).message}`); }
+  return { servers: languageServersFrom(parsed) };
 }

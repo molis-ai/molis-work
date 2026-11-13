@@ -57,7 +57,7 @@
 | A1 | 读仓库说明文件，`/init` 生成 | 五家都有 | ◐ | 接上 | — |
 | A2 | 自定义斜杠命令、提示模板 | 五家都有 | ✗ | 新做 | — |
 | A3 | 图片输入，模型看图 | 五家都有 | ✗ | 接上 | — |
-| A4 | 代码智能：查定义与引用、写后回传诊断、自动格式化 | OpenCode | ✗ | 新做 | Q5 已定；待实施 |
+| A4 | 代码智能：查定义与引用、写后回传诊断、自动格式化 | OpenCode | ◐ | 新做 | Q5 已定；查定义与引用已由第 31 批宿主侧接上（A4-1），写后诊断由 A4-2 的检查器命令承担，格式化仍待实施 |
 | B1 | 模型联网：搜索、读公开网页，默认允许、项目/本次任务可关闭 | Codex、OpenCode、Claude Code、Cursor | ✗ | 接上 | Q1 已定；实施接入平台公共搜索 |
 | B2 | 按规则放行、操作系统沙盒、网络范围、AI 低风险自动审批 | Claude Code、Codex、OpenCode、Pi | ◐ | 扩展 | Q2 已定；待实施 |
 | B3 | 用户钩子 | Codex、Claude Code、OpenCode、Pi、Cursor | ✗ | 扩展 | Q3 已定；待实施 |
@@ -301,7 +301,7 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 
 | 编号 | 补充 | 参照 | 做法 | 验收 |
 | --- | --- | --- | --- | --- |
-| A4-1 | LSP 用**声明式插件**，不在宿主逐语言写死 | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | Manifest 增加 `lsp_servers`（`command`、`args`、`extensionToLanguage`、超时）；Prologue 加 LSP 客户端；先支持 TS/JS、Python、Rust、Go；按已定 Q5 优先复用项目／本机版本，缺少时自动下载到隔离目录并遵守联网限制 | 装一个语言插件就能查到定义/引用；卸载后 server 退出 |
+| A4-1 | 代码理解（LSP）**放宿主侧**，不进 SDK（用户 2026-11-12 定，第 31 批） | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | 复用 SDK 官方编码包已经声明的 `coding.find-symbol` 与执行器缝 `coding.symbol-index`：Molis 在 `horizontal/agent-host` 接语言服务器（JSON-RPC、按文件类型按需启动、会话结束关闭、只读本轮目录），人配置写在 Home 的 `language-servers.json`；不用 Manifest `lsp_servers`、不改 SDK。先支持人在配置里登记的语言（TS/JS 等）；按已定 Q5 优先复用本机版本，**工具不隐式下载**服务器 | 人配一个语言服务器后，Coding 能查到定义与引用；没有登记的扩展名明确报「没有配置服务器」；会话结束服务器进程退出 |
 | A4-2 | 写后诊断 + 审查前格式化 | Claude Code 的 LSP diagnostics | 写入/修改后回传该文件新增诊断；格式化放在审查之前，审查卡显示最终内容 | 改名改全、诊断为零、`tsc` 通过；审查卡看到的是格式化后的内容 |
 | A6 | Coding 也消费**技能包**（与个人助理共用） | `knowledge-work-plugins` 的角色包 | 见 [skill-packs](../skill-packs/spec.md)：`applies_to` 含 `coding` 的包可安装为方法或在起跑时注入 `agent.skills`；不授予权限 | 安装一个工程方法包，Coding session 能选到并按精确版本用 |
 | B3-1 | 用户钩子用**Markdown 规则文件** | `claude-code/plugins/hookify` | `.molis/hooks/<name>.md`：frontmatter 的 event/matcher/conditions/action（warn/block/ask）；首次启用及修改后按 Q3 确认才生效；面板可启停；受限执行、超时与失败按 B3 的触发阶段处理 | 一条 `rm -rf` 规则挡住并告诉模型原因；一条 lint 钩子在写后跑 |

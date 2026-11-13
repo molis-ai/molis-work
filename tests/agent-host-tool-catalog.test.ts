@@ -11,7 +11,13 @@ import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/service
 // tools, and a role naming a tool outside it is not available — shown when the plugin is assembled, and refused before a round starts.
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
-const { SYSTEM_TOOL_NAMES } = await import(requireSdk.resolve("@prologue/sdk")) as { SYSTEM_TOOL_NAMES: readonly string[] };
+const { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES } = await import(requireSdk.resolve("@prologue/sdk")) as {
+  SYSTEM_TOOL_NAMES: readonly string[];
+  OFFICIAL_CODING_PACK: { readonly tools: readonly { readonly registration: { readonly name: string } }[] };
+};
+// The official coding pack contributes tools too (`coding.find-symbol`), provided by the round's pack rather than the SDK's
+// system closed set; the set may name either, and nothing else.
+const PACK_TOOLS = OFFICIAL_CODING_PACK.tools.map(tool => tool.registration.name);
 
 test("CPK-07: the tool set matches the SDK's tools — each runtime tool exists there, and each SDK tool is offered or says why not", () => {
   const names = AGENT_TOOLS.map(tool => tool.name);
@@ -19,7 +25,7 @@ test("CPK-07: the tool set matches the SDK's tools — each runtime tool exists 
   assert.ok(AGENT_TOOLS.every(tool => (KIT_TOOL_ORIGINS as readonly string[]).includes(tool.origin) && tool.description.length > 0));
   const mapped = AGENT_TOOLS.flatMap(tool => tool.runtime_name ? [tool.runtime_name] : []);
   assert.ok(AGENT_TOOLS.filter(tool => tool.origin === "runtime").every(tool => tool.runtime_name), "a runtime tool names the SDK's tool");
-  assert.deepEqual(mapped.filter(name => !SYSTEM_TOOL_NAMES.includes(name)), [], "renamed or removed in the SDK: update the set");
+  assert.deepEqual(mapped.filter(name => !SYSTEM_TOOL_NAMES.includes(name) && !PACK_TOOLS.includes(name)), [], "renamed or removed in the SDK: update the set");
   const notOffered = RUNTIME_TOOLS_NOT_OFFERED.map(row => row.runtime_name);
   assert.deepEqual(notOffered.filter(name => !SYSTEM_TOOL_NAMES.includes(name)), [], "a reason for a tool the SDK no longer has");
   assert.deepEqual(notOffered.filter(name => mapped.includes(name)), [], "a tool is offered or not, never both");

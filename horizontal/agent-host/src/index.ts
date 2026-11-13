@@ -96,6 +96,7 @@ export type {
   PrologueApprovalBridgeOptions,
 } from "./adapters/prologue-approvals.js";
 export type { PrologueNodeAdapterOptions } from "./adapters/prologue-node.js";
+export { createCodeIntelligence, languageServersFrom, type CodeIntelligence, type LanguageServerSpec } from "./code-intelligence/index.js";
 export type {
   PrologueAdapterOptions,
   PrologueAdapterPorts,

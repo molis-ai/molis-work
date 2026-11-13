@@ -59,6 +59,8 @@ export const AGENT_TOOLS: readonly AgentToolEntry[] = [
   runtime("await-commands", false, "Wait for background commands to finish.", { unasked: true }),
   runtime("list-mcp-resources", false, "List the resources the round's MCP servers offer."),
   runtime("read-mcp-resource", false, "Read one resource of the round's MCP servers."),
+  // 代码理解：官方编码包声明的工具，执行器由宿主按人配置的语言服务器提供（code-intelligence）。
+  runtime("find-symbol", false, "Find a symbol's definition and references, or list a file's top-level definitions.", { runtime_name: "coding.find-symbol" }),
   // Skill 的两件只读入口：找只回元数据，读按精确版本取正文或某一份参考/脚本。
   runtime("find-skills", false, "List the skills this round may use, by their metadata only."),
   runtime("read-skill", false, "Read a registered skill's body or one of its own references or scripts."),

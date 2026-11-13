@@ -11,6 +11,8 @@ import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
+import { createCodeIntelligence } from "../code-intelligence/index.js";
+import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -144,7 +146,18 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       } });
     }
   }
-  return { actionController, actionTools, parameterBranches: gatewayTools?.parameterBranches };
+  /*
+   * Code intelligence, only for a workspace round whose role names the tool and whose person configured a server. The
+   * servers start on first use and are closed when the round ends; nothing is downloaded.
+   */
+  const codeIntelligence = actionTools !== undefined && !none && input.root_path !== undefined
+    && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL) && deps.options.codeIntelligence !== undefined
+    ? createCodeIntelligence({ servers: deps.options.codeIntelligence.servers, rootPath: input.root_path })
+    : undefined;
+  const withCoding = actionTools === undefined || codeIntelligence === undefined ? actionTools
+    : { ...actionTools, ...withSymbolTool({ pack: actionTools.pack, executors: actionTools.executors, symbolIndex: codeIntelligence.symbolIndex }),
+      names: [...actionTools.names, FIND_SYMBOL_TOOL] };
+  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence };
 }
 
 /**
@@ -601,10 +614,10 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const index = await deps.index.read(input.session_id);
   assertWorkspace(input, index, state, mode);
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none);
+  const { actionController, actionTools, parameterBranches, codeIntelligence } = roundGateway(deps, input, mode.none);
   ensureStopGuard(runtime, state, input.session_id);
   const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
-  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite);
+  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || codeIntelligence !== undefined);
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
   const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack,
     executors: { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
@@ -641,6 +654,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
   }))).catch(async (error: unknown) => {
+    await codeIntelligence?.close().catch(() => undefined);
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
     if (!deps.effects.accepted()) {
@@ -657,6 +671,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   });
   attempted.run_id = started.run.ref.id;
   watchRoundFacts(state, started.run);
+  // The language servers this round started belong to it: they go when it ends, however it ends.
+  if (codeIntelligence !== undefined) started.run.subscribe(event => { if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") void codeIntelligence.close().catch(() => undefined); });
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);

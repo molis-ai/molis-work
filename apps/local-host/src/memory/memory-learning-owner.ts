@@ -50,19 +50,18 @@ export function pluginMemoryLearning(input: {
   projectExists?(projectId: string): Promise<boolean | null>;
 }) {
   const assertAlive = () => { if (!input.alive()) throw memoryErrors.unavailable("原记忆学习服务已关闭"); };
-  const platformFor = async (owner: Pick<Owner, "project_id" | "plugin_id">): Promise<PluginPlatform> => {
+  const platformFor = async (owner: Pick<Owner, "project_id" | "plugin_id">, activatePlugins = false): Promise<{ reference: LocalHostProjectReference; platform: PluginPlatform }> => {
     assertAlive();
     const reference = await input.projectReference?.(owner.project_id);
     if (!reference) throw memoryErrors.unavailable("项目来源主人尚未装配");
     const reaches = await input.localHost.projectPluginReach(owner.project_id);
     if (reaches(owner.plugin_id) !== true) throw memoryErrors.forbidden("项目已关闭这个来源插件");
-    // Normal Host discovery prepares the project's existing enablement. This person context inspects metadata only;
-    // execution below always uses the current installation's issued client, never this context.
-    await input.localHost.actionClient(reference).discover(await input.localHost.localPersonContext(reference));
+    // A queued run can be the first call after Host restart. Start the same project runtime directly;
+    // an enqueue already comes from its running installation.
+    const platform = await input.localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, owner.project_id), { activatePlugins });
     assertAlive();
-    const platform = await input.localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, owner.project_id));
     if (!platform) throw memoryErrors.unavailable("当前项目来源主人尚未就绪");
-    return platform;
+    return { reference, platform };
   };
   const ownerFor = async (context: ActionExecutionContext): Promise<{ owner: Owner; reference: ExactActionReference }> => {
     verifiedCaller(context);
@@ -72,11 +71,11 @@ export function pluginMemoryLearning(input: {
     const definition = plugin.declaration.manifest.actions?.find(action => action.capability_id === memoryLearningActions.run.capability_id && action.version === memoryLearningActions.run.version);
     if (!definition || definition.operation !== "command" || !definition.action.audiences?.includes("plugin"))
       throw memoryErrors.unavailable("来源插件没有装配学习主人");
-    const platform = await platformFor({ project_id: plugin.project_id, plugin_id: plugin.plugin_id });
+    const { reference, platform } = await platformFor({ project_id: plugin.project_id, plugin_id: plugin.plugin_id });
     const record = platform.runtime.list().find(record => record.install_id === plugin.install_id);
     if (!record || record.state !== "running" || record.plugin_id !== plugin.plugin_id || record.installation_generation !== scope.installation_generation)
       throw memoryErrors.forbidden("原来源安装已经结束");
-    const view = input.localHost.inspectActionMetadata(context, await input.projectReference!(plugin.project_id));
+    const view = input.localHost.inspectActionMetadata(context, reference);
     const own = view.find(view => view.capability_id === definition.capability_id && view.version === definition.version
       && view.provider.plugin_install_id === plugin.install_id);
     if (!own) throw memoryErrors.unavailable("来源插件的原动作注册不可用");
@@ -167,7 +166,7 @@ export function pluginMemoryLearning(input: {
     } finally { binding.dispose(); }
   };
   const run = async (task: AgentScheduledTask) => {
-    const payload = payloadOf(task), platform = await platformFor(payload.owner);
+    const payload = payloadOf(task), { platform } = await platformFor(payload.owner, true);
     const current = () => assertAlive();
     await platform.invokeOwnedAction(payload.owner, payload.owner_action,
       { task_key: task.key, session_id: payload.session_id, run_id: payload.run_id }, { beforeEffect: async () => current(), assert_authority_current: current });

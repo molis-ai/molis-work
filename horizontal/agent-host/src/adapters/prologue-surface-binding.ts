@@ -1,14 +1,14 @@
-import type { ExactRef, Runtime, UiAction, UiSurface } from "@prologue/sdk";
+import type { ExactRef, Runtime, UiAction, UiExpectedTarget, UiSurface } from "@prologue/sdk";
 import { createSurfaceRefusal } from "@prologue/sdk";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostSurfaceAction, HostSurfaceContext, HostSurfaceDriver, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceContext, HostSurfaceDriver, HostSurfaceExpectedTarget, HostSurfacePointerTarget, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { isHostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { agentErrors } from "../errors.js";
 import type { ReviewDecisionControl } from "../review-decisions.js";
 import { deliverDesktopAct } from "./desktop-act-delivery.js";
 
 export type SurfaceRuntime = {
-  readonly surfaces: Pick<Runtime["surfaces"], "attach" | "detach">;
+  readonly surfaces: Pick<Runtime["surfaces"], "attach" | "detach" | "reviewTarget">;
   readonly effects: Pick<Runtime["effects"], "remember" | "forget" | "releaseRun">;
 };
 
@@ -42,7 +42,8 @@ export interface SurfaceBinding {
   held(): boolean;
   current(): boolean;
   detach(ended?: HostSurfaceRoundEnd): Promise<void>;
-  checked<T>(operation: () => Promise<T>): Promise<T>;
+  checked<T>(operation: () => Promise<T>, expected?: UiExpectedTarget): Promise<T>;
+  retainTextApproval(target: UiExpectedTarget, body: ExactRef<"resource">, focus: string): void;
 }
 
 /** One SDK target holds one exact context. Cleanup may outlive it, but cannot act on the next binding. */
@@ -52,7 +53,11 @@ export function createSurfaceBinding(surfaces: SurfaceRuntime["surfaces"], drive
   let live = true, ended: HostSurfaceRoundEnd | undefined, released = false;
   let releasing: Promise<void> | undefined;
   let target: ExactRef<"ui-target"> | undefined;
-  const invalidate = () => { if (live) { live = false; retired(); } };
+  const textApprovals = new Map<string, { target: UiExpectedTarget; focus: string }>();
+  // SDK assessment and dispatch receive the very same action held by the original plan.
+  const pointerAssessments = new WeakMap<UiAction, HostSurfacePointerTarget>();
+  const resourceKey = (ref: ExactRef<"resource">) => JSON.stringify([ref.kind, ref.id, ref.revision]);
+  const invalidate = () => { if (live) { live = false; textApprovals.clear(); retired(); } };
   const context: HostSurfaceContext = {
     session_id: sessionId,
     assertCurrent() {
@@ -65,8 +70,9 @@ export function createSurfaceBinding(surfaces: SurfaceRuntime["surfaces"], drive
       context.assertCurrent();
     },
   };
-  const checked = async <T>(operation: () => Promise<T>): Promise<T> => {
-    try { await context.beforeEffect(); context.assertCurrent(); const value = await operation(); context.assertCurrent(); return value; }
+  const checked = async <T>(operation: () => Promise<T>, expected?: UiExpectedTarget): Promise<T> => {
+    const check = () => { context.assertCurrent(); requireSynchronous(expected?.assertCurrent()); };
+    try { check(); await context.beforeEffect(); check(); const value = await operation(); check(); return value; }
     catch (error) { throw refusal(error); }
   };
   const close = () => {
@@ -75,36 +81,55 @@ export function createSurfaceBinding(surfaces: SurfaceRuntime["surfaces"], drive
     return releasing ??= Promise.resolve().then(() => driver.release?.(context, ended)).then(() => { released = true; })
       .finally(() => { releasing = undefined; });
   };
-  const actionOf = async (action: UiAction) => {
-    const converted = await hostAction(action, ref => checked(() => readText(ref)));
-    context.assertCurrent(); return converted;
-  };
   const surface: UiSurface = {
     kind: driver.kind,
     assertCurrent: context.assertCurrent,
     identity: () => checked(() => driver.identity(context)),
     scope: () => checked(() => driver.scope(context)),
-    observe: kind => checked(() => driver.observe(kind, context)),
-    async perform(action) {
+    observe: (kind, expected) => checked(() => driver.observe(kind, context, expected), expected),
+    async perform(action, expected) {
       try {
-        await context.beforeEffect(); const converted = await actionOf(action); context.assertCurrent();
+        let dispatch: HostSurfaceExpectedTarget = expected;
+        const pointer = pointerAssessments.get(action);
+        if (pointer) dispatch = Object.freeze({ ...expected, assessed_pointer: pointer });
+        if (action.what === "text" && driver.kind === "browser") {
+          const key = resourceKey(action.body), approved = textApprovals.get(key);
+          textApprovals.delete(key);
+          if (approved) {
+            if (approved.target.identity !== expected.identity || approved.target.scope !== expected.scope) {
+              throw createSurfaceRefusal("outside-target");
+            }
+            dispatch = Object.freeze({ ...expected, approved_focus: approved.focus, assertCurrent() {
+              requireSynchronous(expected.assertCurrent());
+              requireSynchronous(approved.target.assertCurrent());
+            } });
+          }
+        }
+        const converted = await checked(() => hostAction(action, readText), dispatch);
         // Once the driver was entered its own dispatch fence and receipt decide the outcome, including partial input.
-        const receipt = await driver.perform(converted, context);
+        const receipt = await driver.perform(converted, context, dispatch);
         return driver.kind === "desktop" ? deliverDesktopAct(receipt) : undefined;
       } catch (error) { throw refusal(error); }
     },
     ...(driver.kind === "desktop" ? {
       readiness: () => checked(async () => (await driver.readiness?.(context))?.refusal ?? "ready"),
-      assess: (action: UiAction) => checked(async () => {
-        const converted = await actionOf(action); context.assertCurrent();
-        return driver.assess ? driver.assess(converted, context) : { irreversible: false };
-      }),
     } : {}),
+    ...(driver.assess ? { assess: (action: UiAction, expected: UiExpectedTarget) => checked(async () => {
+      const converted = await hostAction(action, readText); context.assertCurrent(); requireSynchronous(expected.assertCurrent());
+      const assessed = await driver.assess!(converted, context, expected);
+      if (assessed.pointer) pointerAssessments.set(action, Object.freeze({ ...assessed.pointer }));
+      return assessed;
+    }, expected) } : {}),
     close,
   };
   context.assertCurrent();
   target = surfaces.attach(surface, { owner: session }).ref;
   return { driver, context, target, checked, invalidate,
+    retainTextApproval(original, body, focus) {
+      context.assertCurrent();
+      requireSynchronous(original.assertCurrent());
+      textApprovals.set(resourceKey(body), { target: original, focus });
+    },
     held: () => live,
     current() { try { context.assertCurrent(); return true; } catch { return false; } },
     detach(reason) { ended ??= reason; invalidate(); return surfaces.detach(target!); },

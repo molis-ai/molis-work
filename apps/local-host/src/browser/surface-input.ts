@@ -1,8 +1,8 @@
 import path from "node:path";
-import type { HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceExpectedTarget } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { browserAddress, shortcutCommands } from "./browser-host.js";
 import { browserErrors } from "./errors.js";
-import { surfaceField, surfacePoint } from "./surface-observation.js";
+import { surfacePoint, withSurfaceField } from "./surface-observation.js";
 import type { BrowserSurfaceRound, BrowserSurfaceSession } from "./surface-round.js";
 
 const KEYS: Record<string, { key: string; code: string; keyCode: number; text?: string }> = {
@@ -35,7 +35,7 @@ async function pointer(round: BrowserSurfaceRound, session: BrowserSurfaceSessio
   const gesture: { pressed: BrowserSurfaceSession["cleanup"] | null } = { pressed: null };
   let failure: unknown;
   const send = async (type: string, clickCount: number) => {
-    const target = action.node === undefined ? null : await round.nodes.resolve(action.node);
+    const target = action.node === undefined ? null : await round.nodes.resolve(action.node, session.assertCurrent);
     try {
       const { x, y, label } = target ?? coordinate!;
       session.assertCurrent(); target?.assertCurrent();
@@ -73,15 +73,19 @@ async function key(round: BrowserSurfaceRound, session: BrowserSurfaceSession, k
   const key = keyOf(main.length ? main[0]! : parts.at(-1) ?? "");
   const text = modifiers & (2 | 4) ? undefined : key.text;
   const paste = (key.key.toLowerCase() === "v" && (modifiers & (2 | 4)) !== 0) || (key.key === "Insert" && (modifiers & 8) !== 0);
-  if ((text || paste) && (await surfaceField(session)).sensitive) throw browserErrors.load_failed("焦点在密码类输入框里，助理不能替用户输入");
   const commands = process.platform === "darwin" ? shortcutCommands(key.code, modifiers, 2 | 4) : [];
   const up = { type: "keyUp", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers };
   let held = false, failure: unknown;
   try {
-    await session.send("Input.dispatchKeyEvent", { ...up, type: text ? "keyDown" : "rawKeyDown", ...(text ? { text } : {}), ...(commands.length ? { commands } : {}) }, () => {
+    const press = () => session.send("Input.dispatchKeyEvent", { ...up, type: text ? "keyDown" : "rawKeyDown", ...(text ? { text } : {}), ...(commands.length ? { commands } : {}) }, () => {
       round.mark(`在 ${round.page.snapshot().origin || "空白页"} 按下 ${parts.join(" + ")}`, null); dispatched(); held = true;
     });
-    await session.send("Input.dispatchKeyEvent", up, dispatched); held = false;
+    const stroke = async () => { await press(); await session.send("Input.dispatchKeyEvent", up, dispatched); held = false; };
+    if (text || paste) await withSurfaceField(session, field => {
+      if (field.sensitive) throw browserErrors.load_failed("焦点在密码类输入框里，助理不能替用户输入");
+      return stroke();
+    });
+    else await stroke();
     await round.settle();
   } catch (error) { failure = error; throw error; }
   finally {
@@ -90,20 +94,22 @@ async function key(round: BrowserSurfaceRound, session: BrowserSurfaceSession, k
   }
 }
 
-export async function performBrowserSurface(round: BrowserSurfaceRound, action: HostSurfaceAction): Promise<void> {
+export async function performBrowserSurface(round: BrowserSurfaceRound, action: HostSurfaceAction, expected: HostSurfaceExpectedTarget): Promise<void> {
   let dispatched = false, knownFailure = false;
   const sent = () => { dispatched = true; };
   try {
-    const session = await round.session(); session.assertCurrent();
+    const session = await round.session(expected); session.assertCurrent();
     const origin = round.page.snapshot().origin || "空白页";
     switch (action.what) {
       case "pointer": return await pointer(round, session, action, sent);
       case "key": return await key(round, session, action.keys, sent);
       case "text": {
-        const field = await surfaceField(session);
-        if (field.sensitive) throw browserErrors.load_failed("焦点在密码类输入框里，助理不能替用户输入");
-        await session.send("Input.insertText", { text: action.text }, () => {
-          round.mark(`在 ${origin} ${field.label ? `的「${field.label}」里` : ""}输入 ${[...action.text].length} 个字`, null); sent();
+        await withSurfaceField(session, field => {
+          if (field.sensitive) throw browserErrors.load_failed("焦点在密码类输入框里，助理不能替用户输入");
+          if (expected.approved_focus !== undefined && field.focus !== expected.approved_focus) throw browserErrors.load_failed("原批准的输入焦点已变化，请重新观察");
+          return session.send("Input.insertText", { text: action.text }, () => {
+            round.mark(`在 ${origin} ${field.label ? `的「${field.label}」里` : ""}输入 ${[...action.text].length} 个字`, null); sent();
+          });
         });
         round.assertCurrent(); return;
       }
@@ -116,7 +122,7 @@ export async function performBrowserSurface(round: BrowserSurfaceRound, action: 
       }
       case "wait":
         round.mark(`等待页面（${Math.round(Math.min(action.ms, 10_000) / 100) / 10} 秒）`, null);
-        await new Promise(resolve => setTimeout(resolve, Math.max(0, Math.min(action.ms, 10_000)))); round.assertCurrent(); return;
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, Math.min(action.ms, 10_000)))); session.assertCurrent(); return;
       case "upload": {
         const file = path.resolve(path.sep, ...action.from), chooser = round.page.snapshot().file_chooser;
         if (!chooser) throw browserErrors.load_failed("网页现在没有在等待选择文件：先点击网页上的上传按钮。");

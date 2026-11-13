@@ -1,11 +1,10 @@
 import { reviewText, type ReviewWord, type ReviewWords } from "../review-presentation.js";
 
 type DescribeDriver = {
-  describePoint?(x: number, y: number): Promise<string>;
   describeNode?(node: string): Promise<string>;
   focusedField?(): Promise<{ readonly label: string; readonly sensitive: boolean }>;
 } | undefined;
-export interface SurfaceReviewDetail { readonly raw: string; readonly words: ReviewWords; readonly reviewable: boolean }
+export interface SurfaceReviewDetail { readonly raw: string; readonly words: ReviewWords; readonly reviewable: boolean; readonly focus?: string }
 
 const word = (key: string, args?: Record<string, string | number>) => reviewText("surface." + key, args);
 const detail = (raw: string, ...words: ReviewWord[]): SurfaceReviewDetail => ({ raw, words: words.length ? words : [raw], reviewable: true });
@@ -30,15 +29,13 @@ function pointerVerb(button?: string, clicks = 1) {
   return { raw: exact, word: exact };
 }
 
-async function pointerDetail(driver: DescribeDriver, summary: string, desktop: boolean): Promise<SurfaceReviewDetail> {
-  const point = /at ([-+\d.e]+),([-+\d.e]+)$/u.exec(summary), clicks = /\((\d+)×(\w+)\)/u.exec(summary);
-  const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
-  const verb = pointerVerb(clicks?.[2], Number(clicks?.[1] ?? 1));
-  if (label) return detail(verb.raw + "「" + label + "」", verb.word, " ", label);
-  if (!point) return detail(summary);
-  const x = point[1]!, y = point[2]!;
-  return detail(verb.raw + (desktop ? "窗口里的位置" : "页面上的位置") + "（" + x + ", " + y + "）",
-    verb.word, " ", word(desktop ? "window-position" : "page-position", { x, y }));
+function pointerDetail(summary: string, desktop: boolean): SurfaceReviewDetail {
+  const point = /^click \(([1-3])×(left|right|middle)\) at ([-+\d.e]+),([-+\d.e]+)(\. IRREVERSIBLE(?: \([\s\S]*\))?: this cannot be undone)?$/u.exec(summary);
+  if (!point) return unreadable(summary);
+  const verb = pointerVerb(point[2], Number(point[1]));
+  const x = point[3]!, y = point[4]!, warning = point[5] ?? "";
+  return detail(verb.raw + (desktop ? "窗口里的位置" : "页面上的位置") + "（" + x + ", " + y + "）" + warning,
+    verb.word, " ", word(desktop ? "window-position" : "page-position", { x, y }), ...(warning ? [warning] : []));
 }
 
 const pointerNode = (summary: string) => /^click node ([\s\S]+) \(([1-3])×(left|right|middle)\); the point is read from the tree at injection(\. IRREVERSIBLE(?: \([\s\S]*\))?: this cannot be undone)?$/u.exec(summary);
@@ -46,7 +43,7 @@ const pointerNode = (summary: string) => /^click node ([\s\S]+) \(([1-3])×(left
 async function browserPointer(driver: DescribeDriver, summary: string): Promise<SurfaceReviewDetail> {
   // This token is the SDK's labelOf for this effect. It is only used to ask for a display label.
   const node = pointerNode(summary);
-  if (!node) return summary.startsWith("click node ") ? unreadable("页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable")) : pointerDetail(driver, summary, false);
+  if (!node) return summary.startsWith("click node ") ? unreadable("页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable")) : pointerDetail(summary, false);
   const verb = pointerVerb(node[3], Number(node[2])), label = await driver?.describeNode?.(node[1]!).catch(() => "");
   return label ? detail(verb.raw + "「" + label + "」", verb.word, " ", label)
     : unreadable(verb.raw + "的页面目标已不可用，请拒绝后重新观察页面。", word("node-unavailable"));
@@ -75,7 +72,7 @@ export async function describeDesktopAction(driver: DescribeDriver, action: stri
   switch (action) {
     case "pointer": {
       const node = pointerNode(summary);
-      if (!node) return summary.startsWith("click node ") ? unreadable(summary) : pointerDetail(driver, summary, true);
+      if (!node) return pointerDetail(summary, true);
       const verb = pointerVerb(node[3], Number(node[2]));
       return detail(verb.raw + "「" + node[1] + "」" + (node[4] ?? ""), verb.word, " ", node[1]!, ...(node[4] ? [node[4]] : []));
     }

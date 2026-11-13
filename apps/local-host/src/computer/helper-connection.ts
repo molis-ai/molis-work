@@ -192,11 +192,19 @@ export class HelperConnection {
     socket.on("close", () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      for (const [id, entry] of this.waiting) { clearTimeout(entry.timer); entry.reject(markHelper(computerErrors.crashed("电脑助手中途退出了，这一步结果不确定。"))); this.waiting.delete(id); }
+      this.rejectOutstanding();
       if (!this.closed) this.problemCode = "computer.crashed";
       this.emit({ event: "closed", unexpected: !this.closed });
     });
     socket.on("error", () => undefined);
+  }
+
+  private rejectOutstanding(): void {
+    for (const entry of this.waiting.values()) {
+      clearTimeout(entry.timer);
+      entry.reject(markHelper(computerErrors.crashed("电脑助手中途退出了，这一步结果不确定。")));
+    }
+    this.waiting.clear();
   }
 
   private receive(message: Record<string, unknown>): void {
@@ -250,8 +258,9 @@ export class HelperConnection {
   /** Stops the helper (it exits when its socket closes) and removes the socket. */
   async close(): Promise<void> {
     this.closed = true;
-    this.socket?.end();
+    this.socket?.destroy();
     this.socket = null;
+    this.rejectOutstanding();
     await new Promise<void>(resolve => this.server ? this.server.close(() => resolve()) : resolve());
     this.server = null;
     if (this.socketPath) fs.rmSync(path.dirname(this.socketPath), { recursive: true, force: true });

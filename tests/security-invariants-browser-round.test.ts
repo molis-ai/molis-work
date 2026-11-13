@@ -3,7 +3,8 @@ import test, { type TestContext } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { createBrowserSurfaceDriver } from "@molis-ai/molis-work-app-local-host";
 import { isHostSurfaceRefusal, type HostSurfaceContext } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { browserTransport } from "./fixtures/surface-transport.js";
+import { browserTransport, focusResponse } from "./fixtures/surface-transport.js";
+import { observeSurface, performSurface, surfaceTarget } from "./fixtures/surface-target.js";
 
 function context() {
   let current = true;
@@ -18,8 +19,7 @@ async function fixture(t: TestContext, blocked: (origin: string) => boolean = ()
   f.respondWith(frame => {
     if (frame.method === "Page.getFrameTree") return { frameTree: { frame: { id: "original-frame" } } };
     if (frame.method === "Page.createIsolatedWorld") return { executionContextId: 12 };
-    if (frame.method === "DOM.describeNode") return { node: { attributes: ["type", "text"] } };
-    if (frame.method === "Runtime.callFunctionOn" && String(frame.params.functionDeclaration).includes("this.getAttribute")) return { result: { value: "Original field" } };
+    if (frame.method === "Runtime.evaluate" && frame.params.serializationOptions) return focusResponse({ objectId: `object-${++serial}` });
     if (frame.method === "Page.getNavigationHistory") return { currentIndex: -1, entries: [] };
     if (frame.method === "Runtime.evaluate") {
       if (frame.params.returnByValue === false) return { result: { objectId: `object-${++serial}` } };
@@ -47,7 +47,7 @@ const tokenOf = (bytes: Uint8Array) => { const match = /node=(node_\w+)/u.exec(n
 test("APR-11: browser startup cannot lend a revoked original round to a later page", { timeout: 15_000 }, async t => {
   const f = await browserTransport(t), original = context(), barrier = f.holdNext("Target.attachToTarget");
   const surface = createBrowserSurfaceDriver(f.page); t.after(() => surface.close());
-  const rejected = assert.rejects(surface.observe("dom", original.control), error => error === original.denial);
+  const rejected = assert.rejects(observeSurface(surface, "dom", original.control), error => error === original.denial);
   await barrier.reached; original.revoke(); barrier.release(); await rejected;
   assert.equal(f.frames.filter(frame => frame.method === "Runtime.evaluate" || frame.method.startsWith("Input.")).length, 0);
   assert.equal(f.page.snapshot().control.mode, "person");
@@ -62,25 +62,25 @@ test("APR-11: the CDP send fence runs after serialization and refuses an asynchr
 
 test("APR-11: a delayed old node release leaves the new same-session round's nodes and activity intact", { timeout: 15_000 }, async t => {
   const f = await fixture(t), old = context(), next = context();
-  const oldToken = tokenOf(await f.surface.observe("accessibility-tree", old.control));
+  const oldToken = tokenOf(await observeSurface(f.surface, "accessibility-tree", old.control));
   await assert.rejects(f.surface.identity(next.control), /另一个轮次/u);
   const barrier = f.holdNext("Runtime.releaseObjectGroup"), released = f.surface.release!(old.control);
   await barrier.reached;
-  const newToken = tokenOf(await f.surface.observe("accessibility-tree", next.control));
+  const newToken = tokenOf(await observeSurface(f.surface, "accessibility-tree", next.control));
   assert.notEqual(oldToken, newToken); barrier.release(); await released;
   assert.equal(f.page.snapshot().control.mode, "assistant");
-  assert.equal(await f.surface.describeNode!(newToken, next.control), "Original button");
-  await assert.rejects(f.surface.describeNode!(oldToken, old.control), /已释放/u);
+  assert.equal(await surfaceTarget(f.surface, next.control).then(expected => f.surface.describeNode!(newToken, next.control, expected)), "Original button");
+  await assert.rejects(surfaceTarget(f.surface, old.control).then(expected => f.surface.describeNode!(oldToken, old.control, expected)), /已释放/u);
   await f.surface.release!(old.control);
-  assert.equal(await f.surface.describeNode!(newToken, next.control), "Original button");
+  assert.equal(await surfaceTarget(f.surface, next.control).then(expected => f.surface.describeNode!(newToken, next.control, expected)), "Original button");
 });
 
 test("APR-11: an old screenshot removes only its own mask and cannot authorize bytes after release", { timeout: 15_000 }, async t => {
   const f = await fixture(t), old = context(), next = context();
   const capture = f.holdNext("Page.captureScreenshot");
-  const rejected = assert.rejects(f.surface.observe("screenshot", old.control), /已释放/u);
+  const rejected = assert.rejects(observeSurface(f.surface, "screenshot", old.control), /已释放/u);
   await capture.reached; await f.surface.release!(old.control);
-  const later = f.holdNext("Page.captureScreenshot"), shown = f.surface.observe("screenshot", next.control);
+  const later = f.holdNext("Page.captureScreenshot"), shown = observeSurface(f.surface, "screenshot", next.control);
   await later.reached;
   const masks = f.frames.filter(frame => frame.method === "Runtime.evaluate" && String(frame.params.expression).includes("s.id ="))
     .map(frame => /s.id = '([^']+)'/u.exec(String(frame.params.expression))?.[1]);
@@ -96,17 +96,17 @@ test("APR-11: an old screenshot removes only its own mask and cannot authorize b
 test("APR-13: unreadable or sensitive browser focus never silently becomes a safe empty field", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context();
   const barrier = f.holdNext("Runtime.evaluate");
-  const read = assert.rejects(f.surface.focusedField!(original.control), /无法读取/u);
+  const read = assert.rejects(surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected)), /无法读取/u);
   await barrier.reached; barrier.release({ exceptionDetails: { text: "denied" } }); await read;
-  const sensitive = f.holdNext("DOM.describeNode"), focused = f.surface.focusedField!(original.control);
+  const sensitive = f.holdNext("DOM.describeNode"), focused = surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected));
   await sensitive.reached; sensitive.release({ node: { attributes: ["type", "password"] } });
   assert.deepEqual(await focused, { label: "Original field", sensitive: true }); assert.deepEqual(f.inputs(), []);
 });
 
 test("APR-11: authority lost during original node resolution sends no point or fallback input", { timeout: 15_000 }, async t => {
-  const f = await fixture(t), original = context(), node = tokenOf(await f.surface.observe("accessibility-tree", original.control));
+  const f = await fixture(t), original = context(), node = tokenOf(await observeSurface(f.surface, "accessibility-tree", original.control));
   const barrier = f.holdNext("Runtime.evaluate", frame => frame.params.expression === "document");
-  const rejected = assert.rejects(f.surface.perform({ what: "pointer", node, x: 999, y: 999, button: "left", clicks: 1 }, original.control), error => error === original.denial);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "pointer", node, x: 999, y: 999, button: "left", clicks: 1 }, original.control), error => error === original.denial);
   await barrier.reached; original.revoke(); barrier.release({ result: { objectId: "original-document" } }); await rejected;
   assert.deepEqual(f.inputs(), []);
   assert.ok(f.frames.some(frame => frame.method === "Runtime.releaseObject" && frame.params.objectId === "original-document"));
@@ -114,7 +114,7 @@ test("APR-11: authority lost during original node resolution sends no point or f
 
 test("APR-11: revocation after a mouse press releases only its original session without clicking a new popup", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(), barrier = f.holdNext("Input.dispatchMouseEvent", frame => frame.params.type === "mousePressed");
-  const rejected = assert.rejects(f.surface.perform({ what: "pointer", x: 12, y: 24, button: "left", clicks: 2 }, original.control), partial);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "pointer", x: 12, y: 24, button: "left", clicks: 2 }, original.control), partial);
   await barrier.reached; original.revoke(); await f.page.adoptPopup("new-popup"); barrier.release(); await rejected;
   const inputs = f.inputs();
   assert.deepEqual(inputs.map(frame => frame.params.type), ["mouseMoved", "mousePressed", "mouseReleased"]);
@@ -126,7 +126,7 @@ test("APR-11: a lost key-down response still releases that original key without 
   const f = await fixture(t), original = context(), barrier = f.holdNext("Input.dispatchKeyEvent", frame => frame.params.type !== "keyUp");
   const setTimer = globalThis.setTimeout;
   t.mock.method(globalThis, "setTimeout", (...args: Parameters<typeof setTimer>) => setTimer(args[0], args[1] === 30_000 ? 200 : args[1], ...args.slice(2)));
-  const rejected = assert.rejects(f.surface.perform({ what: "key", keys: ["Control", "a"] }, original.control), partial);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "key", keys: ["Control", "a"] }, original.control), partial);
   await barrier.reached; original.revoke(); await rejected;
   const inputs = f.inputs();
   assert.equal(inputs.length, 2); assert.equal(inputs[1]!.params.type, "keyUp");
@@ -138,7 +138,7 @@ test("APR-11: a lost key-down response still releases that original key without 
 
 test("APR-11: a popup appearing during a text field read cannot receive the old input", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(), barrier = f.holdNext("Runtime.evaluate");
-  const rejected = assert.rejects(f.surface.perform({ what: "text", text: "original-only" }, original.control), /原页面/u);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "text", text: "original-only" }, original.control), /原页面/u);
   await barrier.reached; await f.page.adoptPopup("later-popup");
   barrier.release({ result: { value: JSON.stringify({ label: "Old field", sensitive: false }) } }); await rejected;
   assert.deepEqual(f.inputs(), []);
@@ -146,32 +146,32 @@ test("APR-11: a popup appearing during a text field read cannot receive the old 
 
 test("APR-11: a successful original browser round observes, types, selects files and releases", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context();
-  assert.match(new TextDecoder().decode(await f.surface.observe("dom", original.control)), /Original content/u);
-  await f.surface.perform({ what: "text", text: "complete input" }, original.control);
+  assert.match(new TextDecoder().decode(await observeSurface(f.surface, "dom", original.control)), /Original content/u);
+  await performSurface(f.surface, { what: "text", text: "complete input" }, original.control);
   f.chooser(); for (let n = 0; !f.page.snapshot().file_chooser && n < 1000; n++) await setImmediate();
   assert.ok(f.page.snapshot().file_chooser);
-  await f.surface.perform({ what: "upload", from: ["private", "original.txt"] }, original.control);
+  await performSurface(f.surface, { what: "upload", from: ["private", "original.txt"] }, original.control);
   assert.deepEqual(f.inputs().map(frame => [frame.method, frame.params]), [
     ["Input.insertText", { text: "complete input" }], ["DOM.setFileInputFiles", { files: ["/private/original.txt"], backendNodeId: 9 }],
   ]);
   await f.surface.release!(original.control); assert.equal(f.page.snapshot().control.mode, "person");
-  await assert.rejects(f.surface.perform({ what: "key", keys: ["Enter"] }, original.control), /已释放/u);
+  await assert.rejects(performSurface(f.surface, { what: "key", keys: ["Enter"] }, original.control), /已释放/u);
 });
 
 test("APR-13: browser text, printable keys and paste refuse a sensitive focus at actual dispatch", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context();
   for (const action of [{ what: "text", text: "secret" }, { what: "key", keys: ["a"] }, { what: "key", keys: ["Control", "v"] }] as const) {
-    const barrier = f.holdNext("DOM.describeNode"), rejected = assert.rejects(f.surface.perform(action, original.control), /密码类/u);
+    const barrier = f.holdNext("DOM.describeNode"), rejected = assert.rejects(performSurface(f.surface, action, original.control), /密码类/u);
     await barrier.reached; barrier.release({ node: { attributes: ["type", "password"] } }); await rejected;
   }
   assert.deepEqual(f.inputs(), []);
-  const absent = f.holdNext("Runtime.evaluate"), rejected = assert.rejects(f.surface.perform({ what: "text", text: "secret" }, original.control), /无法核对/u);
+  const absent = f.holdNext("Runtime.evaluate"), rejected = assert.rejects(performSurface(f.surface, { what: "text", text: "secret" }, original.control), /无法核对/u);
   await absent.reached; absent.release({ result: { value: "null" } }); await rejected; assert.deepEqual(f.inputs(), []);
 });
 
 test("APR-11: a same-URL document replacement invalidates an original field and identity", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(), identity = await f.surface.identity(original.control);
-  const barrier = f.holdNext("Runtime.evaluate"), rejected = assert.rejects(f.surface.perform({ what: "text", text: "old document only" }, original.control), /文档/u);
+  const barrier = f.holdNext("Runtime.evaluate"), rejected = assert.rejects(performSurface(f.surface, { what: "text", text: "old document only" }, original.control), /文档/u);
   await barrier.reached;
   const before = f.page.documentGeneration, target = (await f.page.session()).targetId;
   f.event("Page.frameNavigated", { frame: { id: target, url: "https://original.example/" } });
@@ -183,10 +183,10 @@ test("APR-11: a same-URL document replacement invalidates an original field and 
 
 test("APR-11: explicit blocked destinations send no navigation and a known navigation rejection keeps its receipt", { timeout: 15_000 }, async t => {
   const f = await fixture(t, origin => origin === "https://blocked.example"), original = context();
-  await assert.rejects(f.surface.perform({ what: "navigate", url: "https://blocked.example/" }, original.control), /禁止/u);
+  await assert.rejects(performSurface(f.surface, { what: "navigate", url: "https://blocked.example/" }, original.control), /禁止/u);
   assert.deepEqual(f.inputs(), []);
   const barrier = f.holdNext("Page.navigate");
-  const rejected = assert.rejects(f.surface.perform({ what: "navigate", url: "https://allowed.example/" }, original.control), error => error instanceof Error && error.message === "net::ERR_NAME_NOT_RESOLVED" && !partial(error));
+  const rejected = assert.rejects(performSurface(f.surface, { what: "navigate", url: "https://allowed.example/" }, original.control), error => error instanceof Error && error.message === "net::ERR_NAME_NOT_RESOLVED" && !partial(error));
   await barrier.reached; barrier.release({ errorText: "net::ERR_NAME_NOT_RESOLVED" }); await rejected;
   assert.equal(f.page.snapshot().loading, false); assert.ok(f.page.snapshot().problem);
   assert.equal(f.inputs().filter(frame => frame.method === "Page.navigate").length, 1);
@@ -194,9 +194,9 @@ test("APR-11: explicit blocked destinations send no navigation and a known navig
 
 test("APR-11: a new round cannot press its key until the old round's key-up cleanup has drained", { timeout: 15_000 }, async t => {
   const f = await fixture(t), old = context(), next = context(), barrier = f.holdNext("Input.dispatchKeyEvent", frame => frame.params.type !== "keyUp");
-  const rejected = assert.rejects(f.surface.perform({ what: "key", keys: ["Control", "a"] }, old.control), partial);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "key", keys: ["Control", "a"] }, old.control), partial);
   await barrier.reached;
-  const released = f.surface.release!(old.control), later = f.surface.perform({ what: "key", keys: ["Control", "a"] }, next.control);
+  const released = f.surface.release!(old.control), later = performSurface(f.surface, { what: "key", keys: ["Control", "a"] }, next.control);
   await new Promise(resolve => setTimeout(resolve, 20)); assert.equal(f.inputs().length, 1);
   barrier.release(); await rejected; await released; await later;
   assert.deepEqual(f.inputs().map(frame => [frame.params.type, frame.params.modifiers]), [["rawKeyDown", 2], ["keyUp", 0], ["rawKeyDown", 2], ["keyUp", 2]]);
@@ -204,9 +204,9 @@ test("APR-11: a new round cannot press its key until the old round's key-up clea
 
 
 test("APR-11: a same-address document replacement during node resolution refuses before any input", { timeout: 15_000 }, async t => {
-  const f = await fixture(t), original = context(), node = tokenOf(await f.surface.observe("accessibility-tree", original.control));
+  const f = await fixture(t), original = context(), node = tokenOf(await observeSurface(f.surface, "accessibility-tree", original.control));
   const barrier = f.holdNext("Runtime.evaluate", frame => frame.params.expression === "document");
-  const rejected = assert.rejects(f.surface.perform({ what: "pointer", node, x: 999, y: 999, button: "left", clicks: 1 }, original.control), /原页面文档/u);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "pointer", node, x: 999, y: 999, button: "left", clicks: 1 }, original.control), /原页面文档/u);
   await barrier.reached;
   f.event("Page.frameNavigated", { frame: { id: "replacement-document", url: "https://original.example/" } });
   await setImmediate(); await setImmediate(); barrier.release({ result: { objectId: "original-document" } }); await rejected;
@@ -219,7 +219,7 @@ test("APR-11: an unconfirmed popup cannot borrow the old origin and its late rep
   const before = await f.surface.identity(original.control), pending = f.holdNext("Target.getTargetInfo");
   const popup = f.page.adoptPopup("popup-one"); await pending.reached;
   const reads = f.frames.filter(frame => frame.method === "Runtime.evaluate").length;
-  await assert.rejects(f.surface.observe("dom", original.control), /原页面文档/u);
+  await assert.rejects(observeSurface(f.surface, "dom", original.control), /原页面文档/u);
   await assert.rejects(f.surface.scope(original.control), /来源尚未确认/u);
   assert.equal(f.frames.filter(frame => frame.method === "Runtime.evaluate").length, reads);
   const restore = f.holdNext("Target.getTargetInfo"); f.page.targetGone("popup-one", false); await restore.reached;
@@ -230,13 +230,13 @@ test("APR-11: an unconfirmed popup cannot borrow the old origin and its late rep
   assert.notEqual(await f.surface.identity(original.control), before);
   const blocked = f.holdNext("Target.getTargetInfo"), another = f.page.adoptPopup("popup-two"); await blocked.reached;
   blocked.release({ targetInfo: { url: "https://blocked.example/", title: "Blocked popup" } }); await another;
-  await assert.rejects(f.surface.observe("dom", original.control), /禁止/u);
+  await assert.rejects(observeSurface(f.surface, "dom", original.control), /禁止/u);
   assert.equal(f.frames.filter(frame => frame.method === "Runtime.evaluate").length, reads); assert.deepEqual(f.inputs(), []);
 });
 
 test("APR-11: a known navigation refusal stays known when authority is lost with its response", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(), barrier = f.holdNext("Page.navigate");
-  const rejected = assert.rejects(f.surface.perform({ what: "navigate", url: "https://original.example/missing" }, original.control), error =>
+  const rejected = assert.rejects(performSurface(f.surface, { what: "navigate", url: "https://original.example/missing" }, original.control), error =>
     error instanceof Error && error.message === "net::ERR_BLOCKED_BY_CLIENT" && !isHostSurfaceRefusal(error));
   await barrier.reached; const saved = f.page.snapshot(); original.revoke();
   barrier.release({ errorText: "net::ERR_BLOCKED_BY_CLIENT" }); await rejected;
@@ -247,7 +247,7 @@ test("APR-11: a known navigation refusal stays known when authority is lost with
 test("APR-11: agent session acquisition never restores a forbidden retained address before its target fence", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(); await f.page.navigate("https://original.example/"); await f.host.restart();
   const before = f.inputs().length;
-  await assert.rejects(f.surface.observe("dom", original.control), /原页面文档/u);
+  await assert.rejects(observeSurface(f.surface, "dom", original.control), /原页面文档/u);
   assert.equal(f.inputs().length, before);
   await f.page.ensure();
   assert.equal(f.inputs().length, before + 1); assert.equal(f.inputs().at(-1)?.params.url, "https://original.example/");
@@ -257,7 +257,7 @@ test("APR-11: opaque internal popup sources are not treated as an approved blank
   const f = await fixture(t), original = context();
   for (const url of ["data:text/html,private", "file:///private/example.html", "about:srcdoc"]) {
     const session = await f.page.session(); f.page.targetInfo({ targetId: session.targetId, url, title: "Opaque" });
-    await assert.rejects(f.surface.observe("screenshot", original.control), /来源/u);
+    await assert.rejects(observeSurface(f.surface, "screenshot", original.control), /来源/u);
   }
   assert.equal(f.frames.some(frame => frame.method === "Page.captureScreenshot"), false);
 });
@@ -265,7 +265,7 @@ test("APR-11: opaque internal popup sources are not treated as an approved blank
 
 test("APR-11: an isolated focus object received after revocation is released only on its original session", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(), barrier = f.holdNext("Runtime.evaluate");
-  const rejected = assert.rejects(f.surface.focusedField!(original.control), error => error === original.denial);
+  const rejected = assert.rejects(surfaceTarget(f.surface, original.control).then(expected => f.surface.focusedField!(original.control, expected)), error => error === original.denial);
   await barrier.reached; original.revoke(); barrier.release({ result: { objectId: "late-isolated-focus" } }); await rejected;
   assert.equal(f.frames.filter(frame => frame.method === "Runtime.releaseObject" && frame.params.objectId === "late-isolated-focus").length, 1);
   assert.equal(f.frames.some(frame => frame.method === "DOM.describeNode"), false); assert.deepEqual(f.inputs(), []);
@@ -279,6 +279,6 @@ test("APR-11: an explicit destination never consumes a retained address even aft
   const id = String(f.frames.filter(frame => frame.method === "Target.attachToTarget").at(-1)!.params.targetId);
   f.page.targetInfo({ targetId: id, url: "about:blank", title: "" });
   const before = f.inputs().length;
-  await f.surface.perform({ what: "navigate", url: "https://permitted.example/" }, original.control);
+  await performSurface(f.surface, { what: "navigate", url: "https://permitted.example/" }, original.control);
   assert.deepEqual(f.inputs().slice(before).map(frame => frame.params.url), ["https://permitted.example/"]);
 });

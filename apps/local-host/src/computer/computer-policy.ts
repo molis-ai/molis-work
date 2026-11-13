@@ -36,7 +36,7 @@ export function refuseSelfApproval(app: AppIdentity, windowTitle: string, userFo
 }
 
 export interface LandingProbe {
-  readonly window?: { readonly pid?: number; readonly title?: string };
+  readonly window?: { readonly id?: number; readonly pid?: number; readonly title?: string };
   readonly element?: { readonly pid?: number; readonly window_title?: string };
 }
 

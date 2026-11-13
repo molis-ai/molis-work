@@ -43,12 +43,12 @@ export class BrowserSurfaceNodes {
   }
 
   /** Called after the driver invalidates the preceding observation, including any non-tree look. */
-  async observe(generation: number): Promise<Outline> {
-    this.assertRound();
+  async observe(generation: number, original: () => void): Promise<Outline> {
+    original(); this.assertRound();
     if (generation !== this.generation) throw unavailable();
-    const session = await this.page.session(this.assertRound);
+    const session = await this.page.session(() => { original(); this.assertRound(); });
     const retained: Retained = { session, group: `molis-browser-nodes-${randomUUID()}`, objectId: "", url: this.page.snapshot().url, takeovers: this.page.takeoverCount, popupDepth: this.page.snapshot().popup_depth, nodes: new Map() };
-    const assertCurrent = () => { if (generation !== this.generation || !this.current(retained, session)) throw unavailable(); };
+    const assertCurrent = () => { original(); if (generation !== this.generation || !this.current(retained, session)) throw unavailable(); };
     try {
       const captured = await session.send("Runtime.evaluate", { expression: OUTLINE_SCRIPT, objectGroup: retained.group, returnByValue: false }, assertCurrent) as RemoteValue<never>;
       assertCurrent();
@@ -71,15 +71,17 @@ export class BrowserSurfaceNodes {
     }
   }
 
-  async resolve(node: string): Promise<{ x: number; y: number; label: string; session: PageSession; assertCurrent(): void; release(): Promise<void> }> {
-    this.assertRound();
+  async resolve(node: string, original: () => void): Promise<{ x: number; y: number; label: string; session: PageSession; assertCurrent(): void; release(): Promise<void> }> {
+    original(); this.assertRound();
     const retained = this.retained, index = retained?.nodes.get(node), generation = this.generation;
     if (!retained || index === undefined) throw unavailable();
     let documentId: string | undefined;
     try {
-      const session = await this.page.session(this.assertRound);
+      const session = await this.page.session(() => { original(); this.assertRound(); });
+      original();
       if (retained !== this.retained || !this.current(retained, session)) throw unavailable();
       const assertCurrent = () => {
+        original();
         if (retained !== this.retained || generation !== this.generation || !this.current(retained, session)) throw unavailable();
       };
       const document = await session.send("Runtime.evaluate", { expression: "document", objectGroup: retained.group, returnByValue: false }, assertCurrent) as RemoteValue<never>;

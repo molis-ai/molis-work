@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfacePointerTarget } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { refused } from "./computer-errors.js";
 import type { DeskContext, Target } from "./computer-driver.js";
 
@@ -22,18 +23,24 @@ export async function injectDesktopAction(action: HostSurfaceAction, target: Tar
   assertCurrent(): void;
   settled(): Promise<void>;
   landsOnTarget(point: [number, number]): Promise<void>;
-  describePoint(x: number, y: number): Promise<string>;
+  pointerTarget(x: number, y: number): Promise<{ label: string; fingerprint: string }>;
   focusedField(): Promise<{ label: string; sensitive: boolean }>;
+  documentHash?: string;
+  assessedPointer?: HostSurfacePointerTarget;
 }): Promise<void> {
   const { helper, ctx } = deps;
   switch (action.what) {
     case "pointer": {
       await deps.settled();
-      await deps.landsOnTarget(at(action.x, action.y));
-      const label = await deps.describePoint(action.x, action.y);
+      const { label, fingerprint } = await deps.pointerTarget(action.x, action.y);
+      const assessed = deps.assessedPointer;
+      if (assessed && (assessed.x !== action.x || assessed.y !== action.y || assessed.fingerprint !== fingerprint)) {
+        throw refused("outside-target", "原点击位置的控件已变化，请重新观察");
+      }
       const verb = action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击";
       ctx.mark(`在「${target.name}」${verb}${label ? `「${label}」` : `（${action.x}, ${action.y}）`}`, { x: action.x, y: action.y });
-      return void await helper.call("input.pointer", { pid, point: at(action.x, action.y), button: action.button, clicks: action.clicks });
+      return void await helper.call("input.pointer", { pid, point: at(action.x, action.y), button: action.button, clicks: action.clicks,
+        ...(assessed ? { expected_control: assessed.fingerprint } : {}) });
     }
     case "hover":
       await deps.settled();
@@ -78,10 +85,15 @@ export async function injectDesktopAction(action: HostSurfaceAction, target: Tar
       return;
     }
     case "download": {
+      if (!deps.documentHash) throw refused("outside-target", "原观察没有可核对的窗口文件，请重新观察");
       const destination = downloadDestination(action.to);
       const document = await helper.call<{ path: string }>("document", { pid });
-      if (!document.path) throw new Error(`「${target.name}」的前窗没有对应的文件可取出`);
+      if (!document.path || createHash("sha256").update(document.path).digest("hex") !== deps.documentHash) {
+        throw refused("outside-target", "原窗口的文件已变化，请重新观察");
+      }
       ctx.mark(`从「${target.name}」取出 ${path.basename(document.path)}，存到 ${destination}`, null);
+      const current = await helper.call<{ path: string }>("document", { pid });
+      if (current.path !== document.path) throw refused("outside-target", "原窗口的文件已变化，请重新观察");
       deps.assertCurrent();
       try { fs.copyFileSync(document.path, destination, fs.constants.COPYFILE_EXCL); }
       catch (error) {
@@ -89,6 +101,7 @@ export async function injectDesktopAction(action: HostSurfaceAction, target: Tar
         if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) ctx.noteInjected();
         throw error;
       }
+      ctx.noteCompleted?.();
       ctx.noteInjected();
       ctx.noteFile?.(path.basename(document.path));
       ctx.noteFile?.(path.basename(destination));

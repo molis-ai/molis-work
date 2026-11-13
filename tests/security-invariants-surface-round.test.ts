@@ -26,7 +26,7 @@ function driver(kind: "browser" | "desktop" = "browser") {
     async observe(_kind, context) { context.assertCurrent(); reads.push(context); return new TextEncoder().encode("Original page"); },
     async perform(_action, context) { context.assertCurrent(); inputs.push(context); },
     async release(context) { releases.push(context); }, async close() { assert.fail("a round must not close the shared driver"); },
-    async focusedField(context) { context.assertCurrent(); return { label: "Original field", sensitive: false }; },
+    async focusedField(context) { context.assertCurrent(); return { label: "Original field", sensitive: false, focus: "original-field" }; },
     async currentApp(context) { context.assertCurrent(); return { bundle_id: "io.fixture.editor", name: "Original app" }; },
     masked: bytes => bytes[0] === 42,
   };
@@ -36,6 +36,7 @@ function driver(kind: "browser" | "desktop" = "browser") {
 type SurfaceDeps = Parameters<typeof createPrologueSurfaces>;
 type RuntimePort = ReturnType<SurfaceDeps[0]>;
 type SdkSurface = Parameters<RuntimePort["surfaces"]["attach"]>[0];
+const sdkTarget = { identity: "original-page", scope: "https://example.com", assertCurrent() {} };
 
 /** Only the SDK attachment boundary is a fixture; the Molis owner and every per-round wrapper are production code. */
 function assembly(t: TestContext, browser: HostSurfaceDriver | null, desktop?: HostSurfaceDriver) {
@@ -50,6 +51,12 @@ function assembly(t: TestContext, browser: HostSurfaceDriver | null, desktop?: H
         const id = `target-${attached.length + 1}`;
         targets.set(id, surface); attached.push({ id, surface });
         return { ref: { kind: "ui-target", id, revision: 1 }, kind: surface.kind, open: true, owner: options?.owner };
+      },
+      reviewTarget(ref) {
+        const item = attached.find(({ id }) => ref.id === id);
+        if (!item) return undefined;
+        return { targetRef: { kind: "ui-target", id: item.id, revision: 1 },
+          expected: { ...sdkTarget, scope: item.surface.kind === "desktop" ? "io.fixture.editor" : sdkTarget.scope } };
       },
       detach(ref) {
         const running = closing.get(ref.id); if (running) return running;
@@ -75,21 +82,22 @@ test("APR-11: each Surface round gets a new target; delayed old close cannot cle
   const page = driver(), f = assembly(t, page.surface), release = deferred(), entered = deferred();
   t.after(() => release.resolve());
   const first = await f.attach("session"); first.noteRun("run-1");
-  await f.attached[0]!.surface.observe("dom");
+  await f.attached[0]!.surface.observe("dom", sdkTarget);
   const oldContext = page.reads[0]!;
   f.holdClose(async id => { if (id === f.attached[0]!.id) { entered.resolve(); await release.promise; } });
   const ending = first.release("completed"); await entered.promise;
   assert.equal(f.host.current("run-1", "session", "browser"), false);
-  await assert.rejects(f.attached[0]!.surface.perform({ what: "key", keys: ["Enter"] }), /原轮次的界面已释放/);
+  await assert.rejects(f.attached[0]!.surface.perform({ what: "key", keys: ["Enter"] }, sdkTarget), /原轮次的界面已释放/);
   const next = await f.attach("session"); next.noteRun("run-2");
-  await f.attached[1]!.surface.observe("dom");
+  await f.attached[1]!.surface.observe("dom", sdkTarget);
   const nextContext = page.reads[1]!;
   assert.notEqual(oldContext, nextContext); assert.notEqual(f.attached[0]!.id, f.attached[1]!.id);
   release.resolve(); await ending; await first.release("completed");
   assert.deepEqual(page.releases, [oldContext]); assert.equal(f.host.current("run-2", "session", "browser"), true);
   assert.throws(() => first.noteRun("run-2"), /原轮次的界面已释放/);
-  await assert.rejects(f.host.describe("run-1", "text", "type text", "old secret"), /原轮次的界面已不可用/);
-  await f.attached[1]!.surface.perform({ what: "key", keys: ["Enter"] });
+  assert.throws(() => f.host.review("run-1", "session", { kind: "effect", id: f.attached[0]!.id, revision: 1 },
+    { surface: "browser", scope: sdkTarget.scope, action: "text" }), /原观察与这项审查/);
+  await f.attached[1]!.surface.perform({ what: "key", keys: ["Enter"] }, sdkTarget);
   assert.deepEqual(page.inputs, [nextContext]); assert.deepEqual(await f.host.redact(new Uint8Array([42])), new Uint8Array([42]));
 });
 
@@ -109,7 +117,7 @@ test("APR-11: temporary authority refusal keeps browser exclusivity until explic
   const waiting = await f.attach("waiting");
   assert.deepEqual(waiting.surfaces, []); assert.match(waiting.note!, /另一项工作/);
   assert.equal(page.releases.length, 0); assert.equal(f.targets.size, 1);
-  old.restore(); await f.attached[0]!.surface.perform({ what: "key", keys: ["Enter"] });
+  old.restore(); await f.attached[0]!.surface.perform({ what: "key", keys: ["Enter"] }, sdkTarget);
   assert.equal(page.inputs.length, 1);
   await first.release("stopped");
   const newer = await f.attach("new"); newer.noteRun("new-run");
@@ -147,7 +155,7 @@ for (const finish of ["release", "revoke"] as const) test(`APR-11: ${finish} dur
   const page = driver(), f = assembly(t, page.surface), control = authority(), entered = deferred(), release = deferred();
   const old = await f.attach("session", control.control); old.noteRun("old");
   f.read(async () => { entered.resolve(); await release.promise; return "private old body"; });
-  const action = f.attached[0]!.surface.perform({ what: "text", body: { kind: "resource", id: "old-body", revision: 1 } });
+  const action = f.attached[0]!.surface.perform({ what: "text", body: { kind: "resource", id: "old-body", revision: 1 } }, sdkTarget);
   const refused = assert.rejects(action, /原轮次|original authority/); await entered.promise;
   if (finish === "release") await old.release(); else control.expire();
   release.resolve(); await refused;
@@ -159,7 +167,7 @@ test("APR-11: authority loss during desktop assessment refuses work without inve
   const desk = driver("desktop"), f = assembly(t, null, desk.surface), control = authority(), entered = deferred(), release = deferred();
   desk.surface.assess = async () => { entered.resolve(); await release.promise; return { irreversible: false, why: "local edit" }; };
   await f.attach("session", control.control);
-  const result = f.attached[0]!.surface.assess!({ what: "key", keys: ["Enter"] });
+  const result = f.attached[0]!.surface.assess!({ what: "key", keys: ["Enter"] }, { ...sdkTarget, scope: "io.fixture.editor" });
   const refused = assert.rejects(result, /original authority expired/);
   await entered.promise; control.expire(); release.resolve(); await refused;
   assert.equal(f.targets.size, 1); assert.equal(desk.releases.length, 0);
@@ -172,11 +180,13 @@ test("APR-13: a delayed approval description remains tied to its original Run an
   const first = await f.attach("session"); first.noteRun("old");
   const described: HostSurfaceContext[] = [];
   page.surface.focusedField = async context => { described.push(context); entered.resolve(); await release.promise; return { label: "Old field", sensitive: false }; };
-  const description = f.host.describe("old", "text", "type text", "old secret"), refused = assert.rejects(description, /原轮次/);
+  const review = (runId: string, index: number) => f.host.review(runId, "session", { kind: "effect", id: f.attached[index]!.id, revision: 1 },
+    { surface: "browser", scope: sdkTarget.scope, action: "text" });
+  const description = review("old", 0).describe("text", "type text", "old secret"), refused = assert.rejects(description, /原轮次/);
   await entered.promise; await first.release(); const second = await f.attach("session"); second.noteRun("new");
   release.resolve(); await refused; assert.equal(described.length, 1);
   assert.equal(f.host.current("old", "session", "browser"), false); assert.equal(f.host.current("new", "another-session", "browser"), false);
-  const detail = await f.host.describe("new", "text", "type text", "new body");
+  const detail = await review("new", 1).describe("text", "type text", "new body");
   assert.match(detail.raw, /new body/); assert.notEqual(described[0], described[1]);
 });
 
@@ -486,15 +496,18 @@ test("APR-13: fractional and negative coordinates retain their exact position in
   const page = driver(), desk = driver("desktop"), f = assembly(t, page.surface, desk.surface);
   const attached = await f.attach("session"); attached.noteRun("run");
   const summary = "click (1×left) at -1.5,0.25";
-  const browser = await f.host.describe("run", "pointer", summary), desktop = await f.host.describeDesktop("run", "pointer", summary);
+  const review = (index: number, kind: "browser" | "desktop", scope: string) =>
+    f.host.review("run", "session", { kind: "effect", id: f.attached[index]!.id, revision: 1 }, { surface: kind, scope, action: "pointer" });
+  const browserTarget = review(0, "browser", "https://example.com"), desktopTarget = review(1, "desktop", "io.fixture.editor");
+  const browser = await browserTarget.describe("pointer", summary), desktop = await desktopTarget.describe("pointer", summary);
   assert.match(browser.raw, /-1\.5.*0\.25/u); assert.match(desktop.raw, /-1\.5.*0\.25/u);
-  const odd = await f.host.describe("run", "pointer", "click (1×left) at unknown-original-point");
+  const odd = await browserTarget.describe("pointer", "click (1×left) at unknown-original-point");
   assert.equal(odd.raw, "click (1×left) at unknown-original-point");
-  const named = await f.host.describeDesktop("run", "pointer", "click node 按钮:Save draft (1×left); the point is read from the tree at injection");
+  const named = await desktopTarget.describe("pointer", "click node 按钮:Save draft (1×left); the point is read from the tree at injection");
   assert.match(named.raw, /按钮:Save draft/u);
-  const triple = await f.host.describeDesktop("run", "pointer", "click node 按钮:保存 (3×middle); the point is read from the tree at injection");
+  const triple = await desktopTarget.describe("pointer", "click node 按钮:保存 (3×middle); the point is read from the tree at injection");
   assert.match(triple.raw, /3×middle.*按钮:保存/u);
-  const doubleRight = await f.host.describe("run", "pointer", "click (2×right) at -1.5,0.25");
+  const doubleRight = await browserTarget.describe("pointer", "click (2×right) at -1.5,0.25");
   assert.match(doubleRight.raw, /2×right.*-1\.5.*0\.25/u);
 });
 

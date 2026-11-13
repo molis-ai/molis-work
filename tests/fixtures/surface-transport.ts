@@ -63,6 +63,13 @@ export async function helperTransport(t: TestContext) {
 
 interface CdpFrame { id: number; method: string; params: Record<string, unknown>; sessionId?: string }
 
+export function focusResponse({ node = 7, label = "Original field", sensitive = false, objectId = "original-field", hidden = false } = {}) {
+  return { result: { objectId, deepSerializedValue: { type: "array", value: [
+    { type: "node", value: { backendNodeId: node, localName: hidden ? "div" : "input", shadowRoot: hidden ? { type: "node", value: { mode: "closed" } } : null } },
+    { type: "string", value: label }, { type: "boolean", value: sensitive },
+  ] } } };
+}
+
 /** Real Host child/process and CDP websocket, with a protocol peer instead of Chrome or a person's browser. */
 export async function browserTransport(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "surface-browser-fence-"));

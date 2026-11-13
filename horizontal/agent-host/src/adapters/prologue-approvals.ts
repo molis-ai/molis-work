@@ -1,4 +1,5 @@
 import { agentErrors } from "../errors.js";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
 
   AgentReviewDocument,
@@ -47,7 +48,7 @@ export interface ProloguePendingPort {
   finalPresentation?(pending: ProloguePending, document: AgentReviewDocument): AgentReviewDocument;
   reference(pending: ProloguePending): Promise<ReviewReference>;
   /** Persistent original-owner authority, independent of the completed start request. */
-  approvalAuthority(pending: ProloguePending): Promise<AgentActionReviewControl>;
+  approvalAuthority(pending: ProloguePending): Promise<PrologueApprovalControl>;
   /** An open persisted pending without a live SDK waiter cannot resume execution. */
   canAnswer(ref: ProloguePendingRef): boolean;
   answer(
@@ -56,6 +57,8 @@ export interface ProloguePendingPort {
     assertBeforeAnswer: () => void,
   ): Promise<{ authorized: boolean }>;
 }
+
+type PrologueApprovalControl = AgentActionReviewControl & { beforeAnswer?(): void };
 
 export interface PrologueApprovalBridgeOptions {
   queue: AgentReviewQueue;
@@ -76,7 +79,7 @@ export interface MirrorPendingInput {
   kind: AgentReviewKind;
   document: AgentReviewDocument;
   reference: ReviewReference;
-  approval: AgentActionReviewControl;
+  approval: PrologueApprovalControl;
 }
 
 export class PrologueApprovalBridge {
@@ -151,7 +154,7 @@ export class PrologueApprovalBridge {
     });
     if (!this.#pendingByReview.has(request.review_id)) {
       const pendingRef = { ...input.pending.ref };
-      this.#queue.registerDecisionHandler(request.review_id, (decision, commit) => this.decide(decision, commit), async () => {
+      this.#queue.registerDecisionHandler(request.review_id, (decision, commit) => this.#track(() => this.#decide(decision, commit, input.approval)), async () => {
         if (this.#closed) return () => false;
         const pending = await this.#pendings.read(pendingRef);
         return () => {
@@ -189,7 +192,7 @@ export class PrologueApprovalBridge {
       }
       const document = await this.#pendings.document(pending);
       const reference = await this.#pendings.reference(pending);
-      let approval: AgentActionReviewControl;
+      let approval: PrologueApprovalControl;
       try { approval = await this.#pendings.approvalAuthority(pending); }
       catch (error) { approval = { assertCurrent: () => { throw error; }, beforeEffect: () => { throw error; } }; }
       // Reading the document and its authority can outlive the original waiter. Do not recreate a pending card after
@@ -225,7 +228,7 @@ export class PrologueApprovalBridge {
     return this.#track(() => this.#decide(input, commit));
   }
 
-  async #decide(input: AgentReviewDecisionInput, commit?: ReviewDecisionCommit): Promise<AgentReviewReceipt> {
+  async #decide(input: AgentReviewDecisionInput, commit?: ReviewDecisionCommit, approval?: PrologueApprovalControl): Promise<AgentReviewReceipt> {
     if (!commit) return this.#queue.respond(input);
     const pendingRef = this.#pendingByReview.get(input.review_id);
     if (!pendingRef) {
@@ -269,9 +272,18 @@ export class PrologueApprovalBridge {
       if (input.decision === "approve") this.#queue.consumeApproval(input.review_id);
       const result = await commit.effect(() => this.#pendings.answer(pendingRef, {
         kind: "effect-approval", answer: input.decision === "approve" ? "allow" : "deny",
-      }, assertCurrent));
+      }, () => {
+        assertCurrent();
+        if (input.decision === "approve") requireSynchronous(approval?.beforeAnswer?.());
+      }));
       if (input.decision === "approve" && result.authorized && input.remember === "app-this-round" && receipt.source?.kind === "person") {
-        try { this.#assertOpen(); commit.assertCurrent(); await this.#allowAppForRound?.(pending); }
+        try {
+          if (!approval || !this.#allowAppForRound) throw agentErrors.review_not_permitted("原应用许可不可读取");
+          this.#assertOpen(); commit.assertCurrent();
+          await approval.beforeEffect();
+          this.#assertOpen(); commit.assertCurrent();
+          await this.#allowAppForRound(pending);
+        }
         catch { this.#queue.rememberFailed(input.review_id, "原决定已送达，但本轮应用许可未设置；后续操作仍按当前授权确认"); }
       }
       for (const listener of this.#answered) {

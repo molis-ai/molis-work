@@ -70,6 +70,25 @@ export interface HostSurfaceContext {
   assertCurrent(): void;
 }
 
+/** The desktop landing point and private control fingerprint used to classify this exact action. */
+export interface HostSurfacePointerTarget {
+  readonly x: number;
+  readonly y: number;
+  readonly fingerprint: string;
+}
+
+/** Frozen facts of the original SDK observation/plan. Trusted in-process only; never accept these from page/model input or serialize them. */
+export interface HostSurfaceExpectedTarget {
+  readonly identity: string;
+  readonly scope: string;
+  /** Only present after the original text approval reached the SDK. Process-local driver fact. */
+  readonly approved_focus?: string;
+  /** Desktop: if the original assessment resolved the control, recheck it before input. */
+  readonly assessed_pointer?: HostSurfacePointerTarget;
+  /** The exact call's original target/epoch and cancellation; must run synchronously at each final read/input fence. */
+  assertCurrent(): void;
+}
+
 export interface HostSurfaceDriver {
   readonly kind: HostSurfaceKind;
   /** The project whose page this is: a surface serves only works in that project. The desktop serves every project: null. */
@@ -79,21 +98,23 @@ export interface HostSurfaceDriver {
   /** scheme://host[:port] of the current page, what site rules match; `about:blank` while it has not opened a site. */
   scope(context: HostSurfaceContext): Promise<string>;
   /** Looks at the page under the original round's control; that round is shown as the one using the page. */
-  observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext): Promise<Uint8Array>;
+  observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<Uint8Array>;
   /**
    * Performs one action. Refuses while the person has taken the page over.
    * A desktop step returns the accessibility tree from after it; a browser step returns nothing.
    */
-  perform(action: HostSurfaceAction, context: HostSurfaceContext): Promise<HostSurfaceActReceipt | void>;
+  perform(action: HostSurfaceAction, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<HostSurfaceActReceipt | void>;
   /** Releases only this exact context's lease, even after its authority expired. Never releases a newer round's state. */
   release?(context: HostSurfaceContext, ended?: HostSurfaceRoundEnd): Promise<void>;
   close(): Promise<void>;
-  /** The name of what sits at a point of the page now (for the person's approval card); empty when nothing readable. */
-  describePoint?(x: number, y: number, context: HostSurfaceContext): Promise<string>;
   /** Browser: the retained node's current name for approval, using the same object check as injection; unavailable tokens reject. */
-  describeNode?(node: string, context: HostSurfaceContext): Promise<string>;
+  describeNode?(node: string, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<string>;
   /** The field that has focus now: its name, and whether it takes a password, card number or one-time code. */
-  focusedField?(context: HostSurfaceContext): Promise<{ readonly label: string; readonly sensitive: boolean }>;
+  focusedField?(context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<{
+    readonly label: string; readonly sensitive: boolean;
+    /** Opaque driver fact used to verify the same control. Never shown or stored. */
+    readonly focus?: string;
+  }>;
   /**
    * Whether a screenshot's bytes are ones this driver produced after covering password, card and one-time-code
    * fields. The Agent Host's redactor refuses any other screenshot (spec D10).
@@ -105,9 +126,11 @@ export interface HostSurfaceDriver {
    * Desktop: whether one action cannot be taken back (send, pay, delete, submit), judged from what is at the point or
    * the keys, so even an app allowed for this round still asks for it.
    */
-  assess?(action: HostSurfaceAction, context: HostSurfaceContext): Promise<{ readonly irreversible: boolean; readonly why: string }>;
+  assess?(action: HostSurfaceAction, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<{
+    readonly irreversible: boolean; readonly why: string; readonly pointer?: HostSurfacePointerTarget;
+  }>;
   /** Desktop: the app the surface shows now, for the person's approval card; null before any app is targeted. */
-  currentApp?(context: HostSurfaceContext): Promise<{ readonly bundle_id: string; readonly name: string } | null>;
+  currentApp?(context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<{ readonly bundle_id: string; readonly name: string } | null>;
   /** Desktop: the round about to use the computer names its goal and ids, so the record started on first look names them. */
   describeRound?(context: HostSurfaceContext, metadata: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
   /** Desktop: the run id, known only once the round's run has started (after the surface was attached). */

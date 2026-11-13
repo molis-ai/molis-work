@@ -7,6 +7,7 @@ import { basename, join } from "node:path";
 import test from "node:test";
 import { BrowserHost, createBrowserSurfaceDriver } from "@molis-ai/molis-work-app-local-host";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { surfaceTarget } from "./fixtures/surface-target.js";
 import type { HostSurfaceContext } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 test("APR-13: production browser focus reads the open shadow chain and refuses unverifiable frame or closed shadow input", { timeout: 45_000 }, async t => {
@@ -24,6 +25,7 @@ test("APR-13: production browser focus reads the open shadow chain and refuses u
     if (page.snapshot().title === "Focus fixture" && !page.snapshot().loading) break;
     assert.ok(attempt < 100); await new Promise(resolve => setTimeout(resolve, 20));
   }
+  const original = await surfaceTarget(surface, context);
   for (const mode of ["open-password", "open-otp", "closed", "editable-closed", "frame", "tampered"]) {
     await page.evaluate(`(async () => {
       document.body.replaceChildren();
@@ -43,15 +45,29 @@ test("APR-13: production browser focus reads the open shadow chain and refuses u
       field.autocomplete = ${JSON.stringify(mode === "open-otp" ? "one-time-code" : "current-password")};
       root.append(field); field.focus(); window.fixtureField = field;
     })()`);
-    if (mode.startsWith("open") || mode === "tampered") assert.equal((await surface.focusedField!(context)).sensitive, true);
-    else await assert.rejects(surface.focusedField!(context), /无法核对/u);
+    if (mode.startsWith("open") || mode === "tampered") assert.equal((await surface.focusedField!(context, original)).sensitive, true);
+    else await assert.rejects(surface.focusedField!(context, original), /无法核对/u);
     for (const action of [{ what: "text", text: "must not type" }, { what: "key", keys: ["x"] }, { what: "key", keys: ["Control", "v"] }] as const) {
-      await assert.rejects(surface.perform(action, context), /输入框|无法核对/u);
+      await assert.rejects(surface.perform(action, context, original), /输入框|无法核对/u);
     }
     assert.equal(await page.evaluate(mode === "frame" ? "document.querySelector('iframe').contentDocument.querySelector('input').value" : "window.fixtureField.value"), "");
   }
   await page.evaluate("document.body.innerHTML = '<input id=plain aria-label=Name>'; document.getElementById('plain').focus()");
-  assert.deepEqual(await surface.focusedField!(context), { label: "Name", sensitive: false });
-  await surface.perform({ what: "text", text: "permitted text" }, context);
+  const plain = await surface.focusedField!(context, original);
+  assert.equal(plain.label, "Name"); assert.equal(plain.sensitive, false); assert.ok(plain.focus);
+  await surface.perform({ what: "text", text: "permitted text" }, context, original);
   assert.equal(await page.evaluate("document.getElementById('plain').value"), "permitted text");
+
+  await t.test("APR-11/13: an editable host keeps its label and loses input when it gains an opaque shadow field", async () => {
+    await page.evaluate("document.body.innerHTML = '<div id=editor contenteditable aria-label=Editor></div>'; document.getElementById('editor').focus()");
+    const editor = await surface.focusedField!(context, original);
+    assert.equal(editor.label, "Editor"); assert.ok(editor.focus);
+    await surface.perform({ what: "text", text: "plain editor" }, context, { ...original, approved_focus: editor.focus });
+    assert.equal(await page.evaluate("document.getElementById('editor').textContent"), "plain editor");
+    await page.evaluate(`(() => { const host = document.getElementById('editor'); const root = host.attachShadow({ mode: 'closed' });
+      const input = document.createElement('input'); input.type = 'password'; root.append(input); window.closedFixture = input; input.focus(); })()`);
+    assert.equal(await page.evaluate("document.activeElement.id"), "editor");
+    await assert.rejects(surface.perform({ what: "text", text: "must not type" }, context, { ...original, approved_focus: editor.focus }), /无法核对原输入框/u);
+    assert.equal(await page.evaluate("window.closedFixture.value"), "");
+  });
 });

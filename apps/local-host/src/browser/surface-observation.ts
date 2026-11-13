@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HostSurfaceObservationKind } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceObservationKind, HostSurfaceExpectedTarget } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { browserErrors } from "./errors.js";
 import { ELEMENT_LIMIT } from "./surface-nodes.js";
 import type { BrowserSurfaceRound, BrowserSurfaceSession } from "./surface-round.js";
@@ -17,36 +17,42 @@ export async function surfacePoint(session: BrowserSurfaceSession, x: number, y:
   return value;
 }
 
-/** Read focus in a separate JS world, then ask Chrome itself whether the focused host conceals another field. */
-export async function surfaceField(session: BrowserSurfaceSession): Promise<{ label: string; sensitive: boolean }> {
+/** A single isolated-world read with Chrome's DOM serialization includes even a closed shadow root on the returned node. */
+export async function withSurfaceField<T>(session: BrowserSurfaceSession, use: (field: { label: string; sensitive: boolean; focus?: string }) => T | Promise<T>): Promise<T> {
   const frame = await session.send("Page.getFrameTree") as { frameTree?: { frame?: { id?: string } } }; session.assertCurrent();
   const frameId = frame.frameTree?.frame?.id;
   if (!frameId) throw browserErrors.load_failed("无法核对原输入框");
   const world = await session.send("Page.createIsolatedWorld", { frameId, worldName: "molis-surface-focus" }); session.assertCurrent();
   if (!Number.isInteger(world.executionContextId)) throw browserErrors.load_failed("无法核对原输入框");
-  const focus = await session.send("Runtime.evaluate", { contextId: world.executionContextId, returnByValue: false,
+  const focus = await session.send("Runtime.evaluate", { contextId: world.executionContextId,
+    serializationOptions: { serialization: "deep", maxDepth: 2, additionalParameters: { maxNodeDepth: 0, includeShadowTree: "all" } },
     expression: `(() => { let el = document.activeElement; while (el && el.shadowRoot) el = el.shadowRoot.activeElement;
       if (!el || el === document.body || el.localName === 'iframe' || el.localName === 'frame') return null;
-      if (!['input', 'textarea'].includes(el.localName) && !el.isContentEditable) return null; return el; })()` }) as { result?: { objectId?: string }; exceptionDetails?: unknown };
+      if (!['input', 'textarea'].includes(el.localName) && !el.isContentEditable) return null;
+      const label = String(el.getAttribute('aria-label') || (el.labels && el.labels[0] && el.labels[0].innerText) || el.getAttribute('placeholder') || el.getAttribute('name') || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+      const sensitive = el.type === 'password' || /cc-|one-time-code/i.test(el.getAttribute('autocomplete') || '');
+      return [el, label, sensitive]; })()` }) as {
+        result?: { objectId?: string; deepSerializedValue?: { type?: string; value?: readonly { type?: string; value?: unknown }[] } };
+        exceptionDetails?: unknown;
+      };
   const objectId = focus.result?.objectId;
   try {
     session.assertCurrent();
-    if (focus.exceptionDetails) throw browserErrors.load_failed("无法读取原输入框");
-    if (!objectId) throw browserErrors.load_failed("无法核对原输入框");
-    const described = await session.send("DOM.describeNode", { objectId, depth: 1, pierce: true }) as {
-      node?: { attributes?: string[]; shadowRoots?: Array<{ shadowRootType?: string }> };
-    }; session.assertCurrent();
-    const node = described.node;
-    if (!node || !Array.isArray(node.attributes) || node.attributes.length % 2 || node.attributes.some(value => typeof value !== "string")
-      || node.shadowRoots?.some(root => root.shadowRootType !== "user-agent")) throw browserErrors.load_failed("无法核对原输入框");
-    const attributes = new Map<string, string>();
-    for (let i = 0; i < node.attributes.length; i += 2) attributes.set(node.attributes[i]!, node.attributes[i + 1]!);
-    const label = await session.send("Runtime.callFunctionOn", { objectId, returnByValue: true,
-      functionDeclaration: `function() { return String(this.getAttribute('aria-label') || (this.labels && this.labels[0] && this.labels[0].innerText) || this.getAttribute('placeholder') || this.getAttribute('name') || '').replace(/\\s+/g, ' ').trim().slice(0, 40); }` }) as { result?: { value?: unknown }; exceptionDetails?: unknown };
-    session.assertCurrent();
-    if (label.exceptionDetails || typeof label.result?.value !== "string") throw browserErrors.load_failed("无法核对原输入框");
-    return { label: label.result.value, sensitive: attributes.get("type")?.toLowerCase() === "password" || /cc-|one-time-code/iu.test(attributes.get("autocomplete") ?? "") };
-  } finally { if (objectId) await session.cleanup("Runtime.releaseObject", { objectId }).catch(() => undefined); }
+    const result = focus.result?.deepSerializedValue;
+    if (focus.exceptionDetails || result?.type !== "array" || !Array.isArray(result.value) || result.value.length !== 3) {
+      throw browserErrors.load_failed("无法核对原输入框");
+    }
+    const [element, label, sensitive] = result.value;
+    const node = element?.value;
+    if (element?.type !== "node" || !node || typeof node !== "object" || !("shadowRoot" in node)
+      || node.shadowRoot !== null && (!("localName" in node) || node.localName !== "input" && node.localName !== "textarea")
+      || !("backendNodeId" in node) || typeof node.backendNodeId !== "number" || !Number.isSafeInteger(node.backendNodeId) || node.backendNodeId <= 0
+      || typeof label?.value !== "string" || typeof sensitive?.value !== "boolean") throw browserErrors.load_failed("无法核对原输入框");
+    return use({ label: label.value, sensitive: sensitive.value, focus: String(node.backendNodeId) });
+  } finally {
+    // Queue cleanup after synchronous use, which may already have sent input. The original session owns the object.
+    if (objectId) void session.cleanup("Runtime.releaseObject", { objectId }).catch(() => undefined);
+  }
 }
 
 async function screenshot(round: BrowserSurfaceRound, session: BrowserSurfaceSession): Promise<Uint8Array> {
@@ -69,20 +75,19 @@ async function screenshot(round: BrowserSurfaceRound, session: BrowserSurfaceSes
   }
 }
 
-export async function observeBrowserSurface(round: BrowserSurfaceRound, kind: HostSurfaceObservationKind): Promise<Uint8Array> {
-  round.assertCurrent();
-  const generation = await round.nodes.clear(); round.assertCurrent();
-  const session = await round.session(); session.assertCurrent();
+export async function observeBrowserSurface(round: BrowserSurfaceRound, kind: HostSurfaceObservationKind, expected: HostSurfaceExpectedTarget): Promise<Uint8Array> {
+  const session = await round.session(expected); session.assertCurrent();
+  const generation = await round.nodes.clear(); session.assertCurrent();
   const state = round.page.snapshot();
   round.mark(`正在查看 ${state.origin || "空白页"}`, null);
   if (!state.origin && kind !== "screenshot") return new TextEncoder().encode("侧栏浏览器现在是空白页，还没有打开任何网站。\n要打开网站：用 surface-act 的 navigate，带上这次观察，填完整网址（https://…）；用户确认后才会打开。");
-  if (kind === "screenshot") return screenshot(round, session);
+  if (kind === "screenshot") { const bytes = await screenshot(round, session); session.assertCurrent(); return bytes; }
   if (kind === "window-metadata") return new TextEncoder().encode(JSON.stringify({ site: state.origin, title: state.title, viewport: state.viewport, loading: state.loading, popup: state.popup_depth > 0 }));
   if (kind === "dom") {
     const capture = await round.page.capture(session.assertCurrent); session.assertCurrent();
     return new TextEncoder().encode(`页面：${capture.title}\n网站：${capture.origin}\n\n${capture.text}${capture.truncated ? "\n[页面正文较长，只取了开头]" : ""}`);
   }
-  const outline = await round.nodes.observe(generation); session.assertCurrent();
+  const outline = await round.nodes.observe(generation, session.assertCurrent); session.assertCurrent();
   return new TextEncoder().encode([
     `页面：${outline.title || "（无标题）"}`, `地址：${outline.path}`,
     `视口：${outline.vw}×${outline.vh}，已向下滚动 ${outline.sy}/${outline.max}`, "",

@@ -213,7 +213,7 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
         if (mcp && !deps.mcpLibrary.live?.(mcp)) throw new Error("原 MCP 连接或工具版本已不可用");
       };
       assertCurrent();
-      return { assertCurrent, beforeEffect: async () => {
+      return { assertCurrent, ...(surfaceReview?.control.beforeAnswer ? { beforeAnswer: surfaceReview.control.beforeAnswer } : {}), beforeEffect: async () => {
         assertCurrent(); await selected?.beforeEffect();
         if (mcp) await deps.mcpLibrary.validate(original!.index!.owner, [mcp]);
         assertCurrent();
@@ -288,7 +288,6 @@ export function createApprovals(deps: ReviewDeps, pendings: ProloguePendingPort,
       const runId = pending.origin?.run, run = runId && deps.state.activeRuns.get(runId);
       if (!runId || !run || !run.live()) throw new Error("原轮次已结束，不能新增应用许可");
       run.assertAuthority();
-      deps.surfaces()?.reviewControl(runId, pending.origin!.session!, "desktop").assertCurrent();
       allowDesktopAppForRound(deps.surfaces(), pending.effectRef && deps.runtime.effects.get(pending.effectRef), deps.state.runRefs.get(runId));
     },
     async recordDecision(pending, receipt) {

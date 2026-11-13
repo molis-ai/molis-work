@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceContext, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceContext, HostSurfaceDriver, HostSurfaceExpectedTarget, HostSurfaceObservationKind, HostSurfacePointerTarget, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { scopedDeskContext } from "./computer-round.js";
+import { computerWindowTarget, expectedComputerWindow, NO_APP_SCOPE, sameComputerWindow, type ComputerWindowTarget } from "./computer-target.js";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
 import { isUnnamedContainer, modelImageReason, nodeIsClickable, observationExpired, pointerFromNode, roleName } from "./computer-act.js";
@@ -14,9 +15,6 @@ import { windowMenuHint } from "./computer-windows.js";
 import { modelPicture } from "./computer-zoom.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
-
-/** The scope before any app is targeted: Prologue's `DESKTOP_NO_APP_SCOPE`, which no app rule matches. */
-const NO_APP_SCOPE = "desktop:no-app";
 
 /** Moves of the person's mouse this recent make the next action wait for the mouse to settle. */
 const SETTLE_MS = 600;
@@ -36,9 +34,12 @@ export interface AppState {
   readonly bundle_id: string; readonly name: string; readonly pid: number; readonly active: boolean; readonly hidden: boolean; readonly front_pid: number;
   readonly window?: { readonly title: string; readonly frame: readonly [number, number, number, number]; readonly window_id: number; readonly document: string };
   readonly windows?: readonly { readonly title: string; readonly frame: readonly number[]; readonly focused: boolean; readonly minimized: boolean }[];
+  readonly target?: ComputerWindowTarget;
 }
 export interface Target { readonly bundle_id: string; readonly name: string; readonly pid: number; readonly verdict: AppTierVerdict }
 type Tree = { window: { title: string; frame: [number, number, number, number] }; nodes: TreeNode[]; truncated: boolean; menus: string[] };
+const windowChanged = (error: unknown) => isHelperFailure(error) && error.code === "window.changed";
+const noViewReceipt = () => ({ tree: "操作已完成，请重新观察窗口。" });
 
 /** A refusal is written on the round's record before it leaves the driver, so the words survive Prologue's refusal code. */
 function rememberRefusal(ctx: DeskContext, app: { bundle_id: string; name: string } | null, error: Error): never {
@@ -119,6 +120,8 @@ export interface DeskContext {
   readonly settings: { forbiddenIds(): readonly string[] };
   /** An action reached the screen. The desk times it so a confirm on this round cannot be that click. */
   noteInjected(): void;
+  /** This call obtained a definite native acknowledgment or finished a synchronous copy. */
+  noteCompleted?(): void;
   target(): Target | null;
   setTarget(target: Target | null): void;
   takeovers(): number;
@@ -164,7 +167,9 @@ export class ComputerDriver {
   /** What the model last saw and what the last step left: a step that changes nothing is told so. */
   private get progress(): StepProgress { return this.state.progress; }
 
-  constructor(private readonly ctx: DeskContext, private readonly state = { observedAt: null as number | null, progress: new StepProgress() }) {}
+  constructor(private readonly ctx: DeskContext,
+    private readonly state = { observedAt: null as number | null, progress: new StepProgress() },
+    private readonly useWindow?: (expected: ComputerWindowTarget | null) => void) {}
 
   private now(): number { return this.ctx.now?.() ?? Date.now(); }
 
@@ -183,19 +188,34 @@ export class ComputerDriver {
       if (!round) rounds.set(context, round = { state: { observedAt: null, progress: new StepProgress() }, live: true });
       return round;
     };
-    const checked = async <T>(context: HostSurfaceContext, operation: (driver: ComputerDriver) => Promise<T>): Promise<T> => {
+    const checked = async <T>(context: HostSurfaceContext, operation: (driver: ComputerDriver) => Promise<T>, assertOriginal?: () => void,
+      afterCompleted?: () => T): Promise<T> => {
       const round = roundFor(context);
       // Dispatch evidence belongs to this call, not to another concurrent read or effect in the same round.
       const bound = scopedDeskContext(this.ctx, context, () => {
         if (closed || rounds.get(context) !== round || !round.live) throw refused("driver-unavailable", "原轮次的电脑已释放");
+        requireSynchronous(assertOriginal?.());
       });
       await context.beforeEffect(); bound.assertCurrent();
-      try { const result = await operation(new ComputerDriver(bound.ctx, round.state)); bound.assertCurrent(); return result; }
+      try {
+        const driver = new ComputerDriver(bound.ctx, round.state, bound.useWindow);
+        const result = await operation(driver);
+        bound.assertCurrent();
+        return result;
+      }
       catch (error) {
+        if (afterCompleted && bound.acknowledged()) return afterCompleted();
         if (bound.dispatches() > 0) throw Object.assign(refused(isRefused(error) ? error.refusal : "driver-unavailable", "无法确认原桌面操作是否完整完成，请核对原应用。", true), { cause: error });
         throw error;
       }
     };
+    const withOriginal = <T>(context: HostSurfaceContext, expected: HostSurfaceExpectedTarget,
+      operation: (driver: ComputerDriver) => Promise<T>, afterCompleted?: () => T) => checked(context, async driver => {
+      try { return await operation(driver); } catch (error) { throw driver.translate(error); }
+    }, () => expected.assertCurrent(), afterCompleted);
+    const checkedWindow = <T>(context: HostSurfaceContext, expected: HostSurfaceExpectedTarget,
+      operation: (driver: ComputerDriver, state: AppState | null) => Promise<T>) => withOriginal(context, expected,
+      async driver => operation(driver, await driver.requireOriginal(expected)));
     const release = async (context: HostSurfaceContext, ended?: HostSurfaceRoundEnd) => {
       retired.add(context);
       const round = rounds.get(context); if (!round) return;
@@ -207,16 +227,18 @@ export class ComputerDriver {
       identity: context => checked(context, driver => driver.identity()),
       scope: context => checked(context, async driver => driver.ctx.target()?.bundle_id ?? NO_APP_SCOPE),
       readiness: context => checked(context, driver => driver.ctx.readiness(context)),
-      observe: (kind, context) => checked(context, driver => driver.observe(kind, context)),
-      perform: (action, context) => checked(context, driver => driver.perform(action, context)),
+      observe: (kind, context, expected) => withOriginal(context, expected, driver => driver.observe(kind, context, expected)),
+      perform: (action, context, expected) => withOriginal(context, expected, driver => driver.perform(action, context, expected), noViewReceipt),
       describeRound: (context, metadata) => { const round = roundFor(context); round.state.progress.reset(); this.ctx.describeRound(context, metadata); },
       noteRun: (context, runId) => { roundFor(context); this.ctx.noteRun(context, runId); },
       release,
       close: async () => { closed = true; for (const context of rounds.keys()) await release(context, "stopped"); },
-      describePoint: (x, y, context) => checked(context, driver => driver.describePoint(x, y)),
-      focusedField: context => checked(context, driver => driver.focusedField()),
-      assess: (action, context) => checked(context, driver => driver.assess(action)),
-      currentApp: context => checked(context, async driver => driver.appRef()),
+      focusedField: (context, expected) => checkedWindow(context, expected, (driver, state) => {
+        if (state) driver.forbidCheck(state);
+        return driver.focusedField();
+      }),
+      assess: (action, context, expected) => checkedWindow(context, expected, (driver, state) => driver.assess(action, state)),
+      currentApp: (context, expected) => checkedWindow(context, expected, async driver => driver.appRef()),
       masked: bytes => this.ctx.masked(bytes),
     };
   }
@@ -238,11 +260,30 @@ export class ComputerDriver {
 
   /** Which app, which window, where it is and what it is called, and how often the person took over: equal or stale. */
   private async identity(): Promise<string> {
+    const state = this.ctx.target() ? await this.appState().catch(error => {
+      if (isHelperFailure(error) && error.code === "app.gone") return null;
+      throw error;
+    }) : null;
+    if (!state?.target && this.ctx.target()) {
+      this.ctx.setTarget(null);
+      this.progress.reset(); this.ctx.changed();
+    }
+    const window = state?.target ? computerWindowTarget(state.target) : null;
+    return JSON.stringify([window, this.ctx.takeovers()]);
+  }
+
+  private async requireOriginal(expected: HostSurfaceExpectedTarget): Promise<AppState | null> {
+    const original = expectedComputerWindow(expected, this.ctx.takeovers());
     const target = this.ctx.target();
-    if (!target) return `none\u0000${this.ctx.takeovers()}`;
+    if (!original && !target) return null;
+    if (!original || !target || original.pid !== target.pid || original.bundle_id !== target.bundle_id) {
+      throw refused("outside-target", "原应用已变化，请重新观察");
+    }
     const state = await this.appState();
-    const window = state.window;
-    return [state.bundle_id, state.pid, window?.window_id ?? 0, (window?.frame ?? []).join(","), window?.title ?? "", this.ctx.takeovers()].join("\u0000");
+    const current = computerWindowTarget(state.target);
+    if (JSON.stringify(original) !== JSON.stringify(current)) throw refused("outside-target", "原应用窗口或焦点已变化，请重新观察");
+    this.useWindow?.(original);
+    return state;
   }
 
   private forbidCheck(state: AppState, action?: string): void {
@@ -252,10 +293,13 @@ export class ComputerDriver {
   }
 
   private async screenshot(state: AppState, assertCurrent?: () => void): Promise<Buffer> {
-    const shot = await this.ctx.helper.call<{ png: string; included_pids?: number[]; password_fields?: number; masked?: number }>("observe.screenshot", { pid: state.pid, rect: state.window!.frame, scale: 1 }, undefined, assertCurrent).catch(error => { requireSynchronous(assertCurrent?.()); return rememberRefusal(this.ctx, this.appRef(), this.translate(error)); });
+    const expected_window = computerWindowTarget(state.target);
+    const shot = await this.ctx.helper.call<{ png: string; included_pids?: number[]; password_fields?: number; masked?: number }>("observe.screenshot",
+      { pid: state.pid, rect: expected_window.frame, scale: 1, expected_window }, undefined, assertCurrent)
+      .catch(error => { requireSynchronous(assertCurrent?.()); throw windowChanged(error) ? error : this.translate(error); });
     requireSynchronous(assertCurrent?.());
     const why = refuseCapture({ targetPid: state.pid, includedPids: shot.included_pids, passwordFields: shot.password_fields, coveredFields: shot.masked });
-    if (why) rememberRefusal(this.ctx, this.appRef(), refused("outside-target", why));
+    if (why) throw refused("outside-target", why);
     const png = Buffer.from(shot.png, "base64");
     this.ctx.emitFrame(png);
     return png;
@@ -269,11 +313,16 @@ export class ComputerDriver {
     const state = await this.appState(assertCurrent);
     requireSynchronous(assertCurrent?.());
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
-    return state.window ? this.screenshot(state, assertCurrent) : undefined;
+    if (!state.window || !state.target) return undefined;
+    return this.screenshot(state, assertCurrent).catch(error => {
+      requireSynchronous(assertCurrent?.());
+      return rememberRefusal(this.ctx, this.appRef(), this.translate(error));
+    });
   }
 
-  private async observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext): Promise<Uint8Array> {
+  private async observe(kind: HostSurfaceObservationKind, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<Uint8Array> {
     await this.ctx.ready(context);
+    const state = await this.requireOriginal(expected);
     const target = this.ctx.target();
     if (!target) {
       this.progress.reset();
@@ -281,13 +330,13 @@ export class ComputerDriver {
       const running = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.running");
       return new TextEncoder().encode(renderApps(running.apps, this.ctx.settings.forbiddenIds()));
     }
-    const state = await this.appState();
+    if (!state) throw refused("outside-target", "原应用窗口已变化");
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
-    if (!state.window) throw new Error(`「${target.name}」现在没有打开的窗口`);
+    if (!state.window || !state.target) throw new Error(`「${target.name}」现在没有打开的窗口`);
     rememberSeen(this.ctx, state);
     this.ctx.mark(`正在查看「${target.name}」`, null);
     if (kind === "screenshot") {
-      const png = await this.screenshot(state);
+      const png = await this.screenshot(state).catch(error => rememberRefusal(this.ctx, this.appRef(), this.translate(error)));
       this.ctx.rememberProduced(png);
       this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口截图` }, png);
       return png;
@@ -306,10 +355,14 @@ export class ComputerDriver {
       && (tree.truncated || rendered.cut || tree.nodes.filter(nodeIsClickable).length < 3);
     const text = base + await windowMenuHint(this.ctx.helper, target.pid, tree.menus, (state.windows ?? []).map(one => one.title))
       + await ocrText(this.ctx.helper, target.pid, state.window.frame, sparse);
+    // The words go to the model; the person's record and the tab get the picture of the same moment.
+    const png = await this.screenshot(state).catch(error => {
+      if (isRefused(error) || windowChanged(error)) return rememberRefusal(this.ctx, this.appRef(), this.translate(error));
+      return undefined;
+    });
+    this.ctx.assertCurrent(context);
     this.observedAt = this.now();
     this.progress.seen(base);
-    // The words go to the model; the person's record and the tab get the picture of the same moment.
-    const png = await this.screenshot(state).catch(error => { if (isRefused(error)) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
     return new TextEncoder().encode(text);
   }
@@ -322,15 +375,18 @@ export class ComputerDriver {
     }
   }
 
-  private async perform(action: HostSurfaceAction, context: HostSurfaceContext): Promise<HostSurfaceActReceipt | void> {
+  private async perform(action: HostSurfaceAction, context: HostSurfaceContext, expected: HostSurfaceExpectedTarget): Promise<HostSurfaceActReceipt> {
     await this.ctx.ready(context);
-    if (action.what === "app") { const png = await this.switchApp(action.app); return this.receipt(png); }
+    const state = await this.requireOriginal(expected);
+    if (action.what === "app") {
+      return this.receipt(await this.switchApp(action.app), action);
+    }
     if (action.what === "navigate") throw new Error("桌面应用没有网址可打开；网页上的事用侧栏浏览器");
     const target = this.ctx.target();
-    if (!target) throw new Error("还没有选定应用：先用 app 动作打开或切到一个应用");
-    const state = await this.appState();
+    if (!target || !state) throw new Error("还没有选定应用：先用 app 动作打开或切到一个应用");
     try { this.forbidCheck(state, action.what); } catch (error) { const translated = this.translate(error); this.ctx.recordStep({ kind: "refused", app: this.appRef(), summary: translated.message }); throw translated; }
-    if (!state.window) throw new Error(`「${target.name}」现在没有打开的窗口`);
+    if (!state.window || !state.target) throw new Error(`「${target.name}」现在没有打开的窗口`);
+    const originalWindow = computerWindowTarget(state.target);
     const [ox, oy] = state.window.frame;
     const at = (x: number, y: number): [number, number] => [ox + x, oy + y];
     const aimed = await this.aim(action, target.pid, state.window.frame);
@@ -346,22 +402,23 @@ export class ComputerDriver {
     }
     try {
       await injectDesktopAction(aimed, target, at, target.pid, {
-        helper: this.ctx.helper, ctx: this.ctx, assertCurrent: () => this.ctx.assertReady(context), settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point),
-        describePoint: (x, y) => this.describePoint(x, y), focusedField: () => this.focusedField(),
+        helper: this.ctx.helper, ctx: this.ctx, assertCurrent: () => this.ctx.assertReady(context), settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point, originalWindow.window_id),
+        pointerTarget: (x, y) => this.pointerTarget(x, y, state, expected.assessed_pointer !== undefined), focusedField: () => this.focusedField(),
+        ...(originalWindow.document_hash ? { documentHash: originalWindow.document_hash } : {}),
+        ...(expected.assessed_pointer ? { assessedPointer: expected.assessed_pointer } : {}),
       });
     } catch (error) {
       const translated = this.translate(error);
+      if (isHelperFailure(error) && error.code === "window.changed" && error.partial === false) throw translated;
       this.ctx.recordStep({ kind: isRefused(translated) ? "refused" : "failed", app: this.appRef(),
         summary: `${this.ctx.activity()?.summary ?? action.what}：${translated.message}`,
         ...(this.ctx.activity()?.point ? { point: this.ctx.activity()!.point! } : {}) });
       throw translated;
     }
-    // The picture is for the person. A password field in it refuses before any receipt can carry the bytes.
-    let png: Uint8Array | undefined;
-    try { png = await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* a missing picture does not undo the step */ }
-    const activity = this.ctx.activity();
-    this.ctx.recordStep({ kind: "act", app: this.appRef(), summary: activity?.summary ?? action.what, ...(activity?.point ? { point: activity.point } : {}) }, png);
-    return this.receipt(png, { action: aimed, signature: step.signature, beforeHash: step.beforeHash });
+    // From here, only the follow-up view can fail. The helper already confirmed the input.
+    const next = await this.appState().catch(() => null);
+    const sameWindow = next?.target && sameComputerWindow(originalWindow, computerWindowTarget(next.target)) ? next : null;
+    return this.receipt(sameWindow, aimed, step);
   }
 
   /** A node id is resolved on the tree read now. A bare coordinate from an expired look is refused before it is sent. */
@@ -378,25 +435,37 @@ export class ComputerDriver {
   }
 
   /** The tree after the step. The picture leaves toward a model only when that tree was cut or had nothing clickable. */
-  private async receipt(png?: Uint8Array, step?: { readonly action: HostSurfaceAction; readonly signature: string; readonly beforeHash: string | null }): Promise<HostSurfaceActReceipt> {
+  private async receipt(state: AppState | null, action: HostSurfaceAction, step?: ReturnType<StepProgress["before"]>): Promise<HostSurfaceActReceipt> {
     const target = this.ctx.target();
-    const state = target ? await this.appState() : null;
-    rememberSeen(this.ctx, state);
-    if (!target || !state?.window) {
+    const activity = this.ctx.activity();
+    const record = (png?: Uint8Array) => this.ctx.recordStep({ kind: "act", app: this.appRef(), summary: activity?.summary ?? action.what,
+      ...(activity?.point ? { point: activity.point } : {}) }, png);
+    const noView = () => {
       this.progress.reset();
-      return { tree: "这一步之后没有可读的窗口。" };
+      record();
+      return noViewReceipt();
+    };
+    if (!target || !state?.window || !state.target) return noView();
+    try { this.forbidCheck(state); } catch { return noView(); }
+    this.useWindow?.(computerWindowTarget(state.target));
+    const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 }).catch(() => null);
+    if (!tree) return noView();
+    let png: Uint8Array | undefined;
+    try { png = await this.screenshot(state); } catch (error) {
+      if (windowChanged(error) || isRefused(error) && error.refusal === "outside-target") return noView();
     }
-    const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
+    rememberSeen(this.ctx, state);
+    record(png);
     const rendered = renderTree(state, tree);
     let note = "";
-    if (step) note = this.progress.after({ action: step.action, signature: step.signature, beforeHash: step.beforeHash, afterHash: treeHash(rendered.text) });
+    if (step) note = this.progress.after({ action, signature: step.signature, beforeHash: step.beforeHash, afterHash: treeHash(rendered.text) });
     else this.progress.seen(rendered.text);
     const reason = modelImageReason(tree.nodes, rendered.cut);
-    const modelImage = step ? await modelPicture(this.ctx, state, step.action, png, reason !== null) : png;
+    const modelImage = step ? await modelPicture(this.ctx, state, action, png, reason !== null) : png;
     return { tree: rendered.text + note, ...(reason && modelImage ? { model_image: modelImage, image_reason: reason } : {}) };
   }
 
-  private async switchApp(bundleId: string): Promise<Uint8Array | undefined> {
+  private async switchApp(bundleId: string): Promise<AppState> {
     const installed = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.installed");
     const running = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.running");
     const known = running.apps.find(app => app.bundle_id === bundleId) ?? installed.apps.find(app => app.bundle_id === bundleId);
@@ -411,30 +480,33 @@ export class ComputerDriver {
     catch (error) { throw this.translate(error); }
     // Prologue judged the switch by exactly this identity: an app that answers to another one is not the app approved.
     if (state.bundle_id !== bundleId) throw refused("outside-target", `打开的应用是「${state.bundle_id}」，不是要求的「${bundleId}」`);
-    this.ctx.setTarget({ bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict });
-    try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
+    this.ctx.setTarget(state.window && state.target ? { bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict } : null);
     this.ctx.changed();
     this.progress.reset();
-    try { return await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; return undefined; }
+    return state;
   }
 
   /** The point is on the target app and not on a window that shows Molis Work. The helper checks again at the last moment. */
-  private async landsOnTarget(point: [number, number]): Promise<void> {
+  private async landsOnTarget(point: [number, number], windowId: number): Promise<void> {
     const probe = await this.ctx.helper.call<LandingProbe>("probe.point", { point });
     const why = refuseLanding(probe, this.ctx.target()?.pid ?? -1);
-    if (why) throw refused("outside-target", why);
+    if (why || probe.window?.id !== windowId) throw refused("outside-target", why ?? "落点不在原应用窗口");
   }
 
-  private async describePoint(x: number, y: number): Promise<string> {
+  private async pointerTarget(x: number, y: number, state: AppState | null, requireUncovered = true): Promise<{ label: string; fingerprint: string; truncated: boolean }> {
     const target = this.ctx.target();
-    if (!target) return "";
-    try {
-      const state = await this.appState();
-      if (!state.window) return "";
-      const probe = await this.ctx.helper.call<{ element?: { pid: number; name: string; role: string } }>("probe.point", { point: [state.window.frame[0] + x, state.window.frame[1] + y] });
-      if (!probe.element || probe.element.pid !== target.pid) return "";
-      return probe.element.name.replace(/\s+/gu, " ").trim().slice(0, 40);
-    } catch { return ""; }
+    if (!target || !state?.window || !state.target) throw refused("outside-target", "无法核对原点击位置");
+    const probe = await this.ctx.helper.call<LandingProbe & { element?: { name?: string; fingerprint?: string; name_truncated?: boolean } }>(
+      "probe.point", { point: [state.window.frame[0] + x, state.window.frame[1] + y] });
+    const why = refuseLanding(probe, target.pid);
+    if (why || probe.window?.id !== state.target.window_id) {
+      if (requireUncovered || showsMolis(probe.window?.title ?? "") || showsMolis(probe.element?.window_title ?? "")) {
+        throw refused("outside-target", why ?? "原坐标不再落在原应用窗口");
+      }
+      return { label: "", fingerprint: "", truncated: true };
+    }
+    const label = (probe.element?.name ?? "").replace(/\s+/gu, " ").trim();
+    return { label, fingerprint: probe.element?.fingerprint ?? "", truncated: probe.element?.name_truncated !== false };
   }
 
   private async focusedField(): Promise<{ label: string; sensitive: boolean }> {
@@ -446,10 +518,17 @@ export class ComputerDriver {
   }
 
   /** When the driver cannot tell, it says irreversible: the person is asked once more rather than once too few. */
-  private async assess(action: HostSurfaceAction): Promise<{ irreversible: boolean; why: string }> {
+  private async assess(action: HostSurfaceAction, state: AppState | null): Promise<{ irreversible: boolean; why: string; pointer?: HostSurfacePointerTarget }> {
     try {
-      const label = action.what === "pointer" ? await this.describePoint(action.x, action.y) : "";
-      return assessAction(action, label, this.ctx.target()?.name ?? null);
+      if (state) this.forbidCheck(state);
+      const point = action.what === "pointer" && action.node && state?.window
+        ? pointerFromNode(action.node, await this.ctx.helper.call<Tree>("observe.tree", { pid: state.pid, max_nodes: 600 }), state.window.frame)
+        : action.what === "pointer" ? action : undefined;
+      if (!point) return assessAction(action, "", this.ctx.target()?.name ?? null);
+      const { label, fingerprint, truncated } = await this.pointerTarget(point.x, point.y, state);
+      if (!label || !fingerprint) return { irreversible: true, why: "无法辨认将点击的控件" };
+      const risk = truncated ? { irreversible: true, why: "控件名称过长，无法核对完整操作含义" } : assessAction(action, label, null);
+      return { ...risk, pointer: { x: point.x, y: point.y, fingerprint } };
     } catch { return { irreversible: true, why: "判断不出这一步能不能撤回，按不能撤回处理" }; }
   }
 
@@ -461,6 +540,7 @@ export class ComputerDriver {
           this.ctx.pauseForPerson();
           // Some of the step's events may have landed already: Prologue settles it as needing reconciliation, never replays it.
           return refused("person-present", "用户动了鼠标或键盘，助理暂停；等用户交还后先重新观察。", error.partial !== false);
+        case "window.changed": case "file.delivery_unavailable": return refused("outside-target", error.message, error.partial === true);
         case "landing.covered": return refused("outside-target", `${error.message}；不点，先重新观察。`);
         case "capture.password": case "field.password": case "field.none": case "input.look_only": return refused("outside-target", error.message);
         case "presence.unavailable": return refused("screen-locked", error.message);

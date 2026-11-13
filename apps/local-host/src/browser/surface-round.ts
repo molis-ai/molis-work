@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostSurfaceContext } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceContext, HostSurfaceExpectedTarget } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { browserErrors } from "./errors.js";
 import type { BrowserPage } from "./browser-host.js";
 import { BrowserSurfaceNodes } from "./surface-nodes.js";
@@ -38,13 +38,21 @@ export class BrowserSurfaceRound {
     this.assertCurrent(); await this.context.beforeEffect(); this.assertCurrent();
   }
 
-  async session() {
-    this.assertCurrent();
-    const session = await this.page.session(this.assertCurrent);
-    this.assertCurrent(); session.assertCurrent();
+  identity(targetId: string): string {
+    return `${targetId}\u0000${this.page.snapshot().url}\u0000${this.page.takeoverCount}\u0000${this.page.documentGeneration}`;
+  }
+
+  async session(expected?: HostSurfaceExpectedTarget) {
+    const original = () => { requireSynchronous(expected?.assertCurrent()); this.assertCurrent(); };
+    original();
+    const session = await this.page.session(original);
+    original(); session.assertCurrent();
+    if (expected && (expected.identity !== this.identity(session.targetId) || expected.scope !== (this.page.snapshot().origin || "about:blank"))) {
+      throw browserErrors.load_failed("原观察的页面或来源已变化，请重新观察。");
+    }
     const url = this.page.snapshot().url, takeovers = this.page.takeoverCount;
     const assertCurrent = () => {
-      this.assertCurrent(); session.assertCurrent();
+      original(); session.assertCurrent();
       if (this.page.snapshot().url !== url || this.page.takeoverCount !== takeovers) throw browserErrors.load_failed("先前观察的页面已变化，请重新观察页面后再操作。");
     };
     return { ...session, assertCurrent,

@@ -112,3 +112,5 @@ export type MaterialWebsiteReader = (url: string, options?: {
     signal?: AbortSignal;
     beforeDispatch?(): void | Promise<void>;
 }) => Promise<MaterialExtraction>;
+
+export declare function contextFileSkip(path: string): "ignored" | "secret" | "unreadable" | null;

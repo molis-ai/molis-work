@@ -830,3 +830,17 @@ test('RAC-2250 the draft\'s rename check counts 120 characters too',async t=>{
   assert.equal(updateContextDraft(dir,id,{title:wide,body:'正文'}).summary?.title,wide);
   assert.throws(()=>updateContextDraft(dir,id,{title:'🟢'.repeat(121),body:'正文'}),/摘要内容过长或无效/);
 });
+
+test('ONB-37 a code folder\'s source, config, scripts, docs and files with no or a stranger suffix are taken; only build output, hidden folders, secrets and unreadable kinds are left out', async () => {
+  const { contextFileSkip } = await import('@molis-ai/molis-work-contracts/services/materials');
+  const taken = ['src/main.ts', 'src/app.tsx', 'lib/util.js', 'tool.py', 'src/lib.rs', 'cmd/main.go', 'App.java', 'core.c', 'core.hpp', 'View.swift', 'scripts/run.sh',
+    'index.html', 'site.css', 'config.yaml', 'Cargo.toml', 'pom.xml', 'package.json', 'README', 'LICENSE', 'Makefile', 'Dockerfile', '.gitignore', 'notes.weird-suffix', 'docs/guide.md', 'paper.pdf', 'brief.docx', 'yarn.lock'];
+  assert.deepEqual(taken.filter(path => contextFileSkip(path) !== null), [], 'ONB-37: every readable kind is taken, whatever its suffix');
+  assert.deepEqual(['node_modules/x/index.js', 'dist/app.js', '.git/config', 'src/.cache/a.txt', '.DS_Store'].map(contextFileSkip), ['ignored', 'ignored', 'ignored', 'ignored', 'ignored']);
+  assert.deepEqual(['.env', '.env.local', 'certs/server.pem', 'id_rsa'].map(contextFileSkip), ['secret', 'secret', 'secret', 'secret'], 'secrets are not sent because their folder was chosen');
+  assert.deepEqual(['logo.png', 'demo.mp4', 'bundle.zip', 'app.wasm', 'old.xlsx'].map(contextFileSkip), ['unreadable', 'unreadable', 'unreadable', 'unreadable', 'unreadable']);
+  // The Host checks a selection with the same rule: a code file and a file with no suffix are accepted, a secret is refused.
+  const metadata = (paths: string[]) => ({ files: paths.map(path => ({ path, size: 1, modified_ms: 1, identity: 'upload' })), skipped: 0, truncated: false });
+  assert.equal(contextSources([{ kind: 'custom', selected: true, metadata: metadata(['src/main.ts', 'README', '.gitignore']) }])[0]!.metadata!.files.length, 3);
+  assert.throws(() => contextSources([{ kind: 'custom', selected: true, metadata: metadata(['.env']) }]), /文件元数据无效/);
+});

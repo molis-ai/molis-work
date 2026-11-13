@@ -1,3 +1,4 @@
+import { contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
 import { connectorAccountControl } from "./connector-oauth-targets.js";
 import { Buffer } from "node:buffer";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -9,10 +10,11 @@ import { isStagedDigest } from "./context-onboarding-staging.js";
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
 const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
 const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
-const supportedContextFile = (path: string) => /\.(?:md|markdown|txt|csv|json|html?|pdf|docx)$/iu.test(path);
+/** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here, so a selection cannot name another. */
+const supportedContextFile = (path: string) => contextFileSkip(path) === null;
 function relativePath(value: unknown): string {
   if (typeof value !== "string" || !value || value.length > 4096 || /[\\\u0000-\u001f]/u.test(value)
-    || value.split("/").some(part => !part || part === ".." || part.startsWith(".") || ["node_modules", "vendor", "dist", "build"].includes(part))) throw new Error("文件范围无效");
+    || value.split("/").some(part => !part || part === "." || part === "..")) throw new Error("文件范围无效");
   return value;
 }
 /** A file's place in its source, as the person chose it: a relative path of a kind onboarding reads. */

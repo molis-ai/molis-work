@@ -1,3 +1,4 @@
+import { contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
 import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js";
 
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
@@ -13,6 +14,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const native = Boolean(globalThis.__TAURI__?.core?.invoke);
   const firstRun = document.body.dataset.onboardingMode === 'first_run';
   const directories = ['downloads','documents','desktop','custom'];
+  const contextFileSkip = ${contextFileSkip.toString()};
   const kinds = [...(native?directories:['directory']),'files','browser','gmail','chat'];
   const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",browser:"workbench.context-onboarding.browser-content",gmail:"workbench.context-onboarding.gmail",chat:"workbench.context-onboarding.chat-history"};
   const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
@@ -616,7 +618,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     let bytes = 0, index = 0, drawn = 0;
     const take = file => {
       const path = file.webkitRelativePath || file.name;
-      if (/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(path) || !/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(file.name)) return;
+      // One rule with the Host (contextFileSkip in the materials contract): what is left out is counted, never dropped unseen (ONB-37).
+      if (contextFileSkip(path)) return;
       chosen.push(file); bytes += file.size || 0;
     };
     if (total > 2500) {

@@ -2,6 +2,16 @@
 
 状态：进行中。隔离验证不代表已上线或允许维护真实 Home。
 
+### 子文档
+
+- [Goals 同步](goals.md)：Goal 项目一致性集合复用本机增量传输；公网与真实 Home 验收未完成。
+- [关联资产同步](linked-assets.md)：承接 Pages 同步；仅隔离本机联调。
+- [Pages 同步](pages.md)：本机联调闭环；未部署、未上传真实用户数据。
+- [插件复制](plugin-replication.md)：既有适配继续保留，Images/Cognia/Alchemist、Feed/Inbox、Shelf 与大对象传输尚未整合交付。
+- [同步基础](foundation.md)：插件集合声明、空间同步配置、第一阶段契约与 Pages 本地快照适配；整体同步未完成。
+
+本总纲管状态、边界与验收入口；上面的子文档管各自细节。
+
 ### 2026-11-06 PR #1877 质量审查与 CI 修复
 
 审查依据：`docs/prompts/repository-systematic-review.md` §3–12 与开发流程 §10.1；范围是本分支相对 merge-base `b1e0e5b6b` 的新增改动。PR 原 head `cece493e7`；所查 CI 为 run `42196220351`。审查开始时 main `20bdb4c16` 相对基线只有两份文档变化；末轮抓取已到 `c30e251b3`（另含连接器重新登录和终端运行时命令名单重构），后续为解决 PR 冲突合入 `a942bd9c3`，见下方接续记录。清点涵盖桌面、Host、Workbench、Worker/服务端、同步 Module、Storage/Runtime/SDK/contracts、插件 owner 与测试；深入跟踪本轮失败暴露的文件权限、存储基线、关闭生命周期、项目删除、合同消费者与 CI 分工。未声称逐行复核全部约 961 个文件，视觉验收、所有入口调用次数和最终 head Full 仍需完整证据。
@@ -246,9 +256,9 @@
 - Goals、Pages、内嵌 Artifacts、Form、Dataset、PPT、Lingguang、Workflows、Jelly、Todo、Issues、Schedule 会话任务、Character 草稿及 Feed 捕捉规则的限定数据适配。
 - Rust/WASM 与隔离 D1 的本机联调链路。传输仍限单记录或聚合 512 KiB，没有 R2 附件协议。
 
-基线入口：[Host 装配](../../apps/local-host/src/personal-sync.ts)、[同步协调器](../../modules/sync-replication/src/index.ts)、[Worker 配置](../../apps/sync-worker/wrangler.jsonc)、[插件覆盖表](../personal-plugin-replication/spec.md#coverage-and-remaining-owner-work)。基线客户端只接受本机 8788，保存配置或立即同步会启动轮询且重启不恢复；S1 首片已修正设备行为，S2 首片已增加可信 HTTPS 配置。已有简单删除标记不等于具备 30 天回收站；手选冲突版本不等于具备业务对比页面。
+基线入口：[Host 装配](../../apps/local-host/src/personal-sync.ts)、[同步协调器](../../modules/sync-replication/src/index.ts)、[Worker 配置](../../apps/sync-worker/wrangler.jsonc)、[插件覆盖表](plugin-replication.md#coverage-and-remaining-owner-work)。基线客户端只接受本机 8788，保存配置或立即同步会启动轮询且重启不恢复；S1 首片已修正设备行为，S2 首片已增加可信 HTTPS 配置。已有简单删除标记不等于具备 30 天回收站；手选冲突版本不等于具备业务对比页面。
 
-[plugin-sync-foundation](../plugin-sync-foundation/spec.md)、[personal-pages-sync](../personal-pages-sync/spec.md)、[personal-linked-assets-sync](../personal-linked-assets-sync/spec.md) 和 [personal-goals-sync](../personal-goals-sync/spec.md) 保留其阶段范围和证据。较早文件中的“Goal 未接入”是当时记录，不是当前状态。后续迭代遵循本规格，但不得把计划倒写成旧阶段的已交付结果。
+[同步基础](foundation.md)、[Pages 同步](pages.md)、[关联资产同步](linked-assets.md) 和 [Goals 同步](goals.md) 保留其阶段范围和证据。较早文件中的“Goal 未接入”是当时记录，不是当前状态。后续迭代遵循本规格，但不得把计划倒写成旧阶段的已交付结果。
 
 ## 3 技术责任边界
 

@@ -1,15 +1,16 @@
 # Horizontal Services
 
-`horizontal/` 目录下有十个包，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）。
+`horizontal/` 目录下有 **12 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 7 个平台产品服务。
 
 **横向运行服务**是多种业务都会复用的可靠运行能力。它保存 cursor、lease、retry、process handle 等可恢复技术状态，但不拥有正式业务事实，也不替 Module 做业务决定。
 
 - [Account](account.md)：中央账号协议、可信配置与 Host 安全视图；业务事实由 Auth 持有。
 - [Connector Host](connector-host.md)：建立和维护 Provider 连接。
-- [Listener Host](listener-host.md)：持续接收 Raw Event，并可靠投递 Signal Draft。代码在 Feed 插件里（`plugins/native/feed/src/store/listener.ts`），不再是 `horizontal/` 下的包。
 - [Scheduler](scheduler.md)：到点唤醒一个已注册 Capability。
 - [Runtime Host](runtime-host.md)：启动、恢复、停止和观察 Runtime。
 - [Agent Host](agent-host.md)：注册 Agent Runtime、申报能力矩阵、授权一次 Run，并持有副作用审批队列。
+
+> Listener Host 不是独立包：持续接收 Raw Event、投递 Signal Draft 的代码在 Feed 插件里（`plugins/native/feed/src/store/listener.ts`），见 [Listener Host](listener-host.md)。
 
 **平台产品服务**承载跨插件的产品行为，可以持有跨插件的策略和本服务自己的机制记录，但不拥有任何插件或 Module 的业务事实：对象事实总向所有者读取，策略不改写所有者的数据。它们的能力以系统动作登记在同一个动作目录里。代码目录暂留在 `horizontal/` 下。
 
@@ -18,6 +19,8 @@
 - [Memory](memory.md)：个人与项目记忆的开关、写入门、召回、候选、最近变动与撤销。
 - [Placement](placement.md)：对象放在哪里、谁能看到、和哪些工作有关，以及移动、复制、转成。
 - [Appearance](../../horizontal/appearance/README.md)：Home 的外观选择、应用与撤销，以及没有页面的工作所用的最近语言。
+- [Surfaces](../../horizontal/surfaces/README.md)：按调用方、位置和对象排出确定呈现组合，并保存本人的位置纠正；合同见 [surface-composition](../../specs/surface-composition/spec.md) §2、§3、§14。
+- [Kit](../../horizontal/kit/README.md)：现算某个范围里的能力包，给条目盖来源与所属的包、读出包状态；不存注册表。
 
 情境排序（`packages/kernel/src/contextual.ts`）同属平台产品服务，位置不变，合同与边界见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。它是纯函数，只给工作台的选区条用，不登记成系统动作：只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行；删除条件是助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作。与内核核心的边界见 [内核 README](../../packages/kernel/README.md)。
 

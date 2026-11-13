@@ -91,6 +91,10 @@ before(() => {
     "The view is `apps/web/home/view.ts`; notes live in `~/home/notes`; https://example.com/news/home/2026/ is a link."));
   put("docs/design/record.json", `{"a":"${"x".repeat(55)}"}\n`);
   put("docs/文.md", "# 文\n");
+  put("docs/reviews/README.md", "# Reviews\n\n- [old](old.md)\n");
+  put("docs/reviews/old.md", "# Old review\n");
+  put("docs/design/README.md", "# Design\n\n- [one](one/README.md)\n");
+  put("docs/design/one/README.md", "# One\n");
   put("docs/archive/old.md", "[gone](missing.md)\n");
   put("skills/dev/SKILL.md", lines("# Dev", "",
     "Call `alpha.run`, `alpha.sub.do` or `alpha.content.receive`; `ui.views` and `services.events` are manifest fields, not ids.",
@@ -272,6 +276,14 @@ const violations: Scenario[] = [
     expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has priority "", which is not 高, 中 or 低/] },
   { kind: "absolute", name: "VG-18 a BACKLOG row with a priority that is not one of the three", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 一件事 | spec | 未实现 | next | none | 紧急 | Codex |\n"),
     expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has priority "紧急", which is not 高, 中 or 低/] },
+  { kind: "absolute", name: "a BACKLOG type outside the six", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 一件事 | spec | 技术债 | next | none | 中 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has type "技术债"/] },
+  { kind: "absolute", name: "a BL id with no row and no tombstone", mutate: () => append("docs/guide.md", "\nBL-999 is not a row.\n"),
+    expect: [/backlog reference: docs\/guide\.md:\d+: BL-999 has no row in specs\/backlog\/ and is not in docs\/backlog-removed\.md/] },
+  { kind: "absolute", name: "a review missing from the review index", mutate: () => put("docs/reviews/new.md", "# New review\n"),
+    expect: [/doc index: docs\/reviews\/README\.md: new\.md is not linked from the index/] },
+  { kind: "absolute", name: "a design README missing from the design index", mutate: () => put("docs/design/two/README.md", "# Two\n"),
+    expect: [/doc index: docs\/design\/README\.md: two\/README\.md is not linked from the index/] },
 
   // ---- the root allow-list file ----
   { kind: "absolute", name: "an allow-list entry without a reason", mutate: () => put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, "leftover.md": "" })),

@@ -4,6 +4,8 @@
 
 状态：执行中，本线 2026-10-20 交接后停（见下一节）。W0～W3（含助理整合 W3-A1～A3c、落点 W3-B1～B3、右栏 W3-C、W3-C2）、W2' 右栏改版、W4-1 两个创建入口与下一步行的结果位，以及交接时在途的 W4-2（#801）、W4-6a（#804）与 QA-013～018 的修补（#830、#831）都已合入 main；W4 其余各片、W5～W7 与收尾没开工，记在 `specs/BACKLOG.md`；真实 Jev 评估、桌面原生拖出未做，没有一骏本人验收。
 
+三份完整子需求书已并入本目录：[情境浮条](context-toolbar.md)、[快速创建](quick-create.md)、[Side Shelf](side-shelf.md)；本总纲管整体状态与接续，子文档管各自细节。
+
 ## 交接（2026-10-20）
 
 情境线（会话 ⑧）按用户 2026-10-19 的重新安排收尾：除防腐线外，各线把手头的片做完、开 PR 交 ⑤（评审、修意见、合并），写交接，然后停。本线不再开新片。
@@ -77,9 +79,9 @@
 
 | 子需求书 | 管什么 |
 | --- | --- |
-| [side-shelf](../side-shelf/spec.md) | 右栏（Shelf 成为一格）、左右互动、落点、助理接入 |
-| [context-toolbar](../context-toolbar/spec.md) | 情境浮条（取代底部动作条）、工具与面板槽、选区能力 F1–F13、手册与覆盖率门禁、存量补齐 |
-| [quick-create](../quick-create/spec.md) | 创建入口 `ItemIntake`、追加和放进 `ItemAttach`、批量、选中文字运行工作流、起草服务 |
+| [side-shelf](side-shelf.md) | 右栏（Shelf 成为一格）、左右互动、落点、拖放与助理接入 |
+| [context-toolbar](context-toolbar.md) | 情境浮条（取代底部动作条）、工具与面板槽、选区能力 F1–F13、手册与覆盖率门禁、存量补齐 |
+| [quick-create](quick-create.md) | 创建入口 `ItemIntake`、追加和放进 `ItemAttach`、批量、选中文字运行工作流、起草服务 |
 
 承接已合入 main 的 [contextual-interaction](../archive/contextual-interaction/spec.md)：候选派生、Jev 判断、陈列方案、冻结、记忆信号，都沿用。
 

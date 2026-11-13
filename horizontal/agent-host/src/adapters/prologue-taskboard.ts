@@ -2,7 +2,7 @@ import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime,
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
 import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type RoundLedger } from "./prologue-plan-steps.js";
-import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
+import { MOLIS_ACTION_TOOL_PREFIX, SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 import { AGENT_TOOLS } from "../tool-catalog.js";
 
 /** The runtime tools the Host lets run without asking each time, as the tool set marks them. */
@@ -34,7 +34,7 @@ export const codingExecutionRules: readonly PolicyRule[] = [
   // on which site (prologue-surfaces.ts); an ask on the tool itself would outrank a site the person allowed.
   ...SYSTEM_TOOL_NAMES.filter(name => !UNASKED.has(name) && !(APP_MODE_SURFACE_TOOLS as readonly string[]).includes(name)).map(name => ({ source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name } })),
   { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "mcp:" } },
-  { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "molis-action-" } },
+  { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: MOLIS_ACTION_TOOL_PREFIX } },
   // A round's suggestion to the person records a button and runs nothing; clicking it is the person's confirmation (D27).
   { source: "runtime", effect: "allow", match: { what: "tool", namePrefix: SUGGEST_TOOL_PREFIX } },
   // The side panel's browser has its own rules (prologue-surfaces.ts): looking is allowed and each action asks. A blanket

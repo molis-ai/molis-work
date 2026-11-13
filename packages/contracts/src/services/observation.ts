@@ -187,12 +187,18 @@ export interface ObservationRecord {
   readonly coalesced?: { readonly count: number; readonly last_at: string };
 }
 
-/** Who acted, for a fact with no action call behind it (a timer firing, a background sync). */
+/**
+ * Who acted, for a fact with no action call behind it (a timer firing, a background sync, a model round's events). Work that an action
+ * call began and that goes on after it returned (an Agent round) names that call's `call_id` and the installation that made it, from
+ * the Host's own record of the start, so its facts join the calls of the same operation.
+ */
 export interface ObservationBackgroundOrigin {
   readonly kind: "background";
   readonly actor_id: string;
   readonly project_id: string | null;
   readonly entry: Extract<ObservationEntry, "background" | "schedule" | "agent" | "host">;
+  readonly call_id?: string;
+  readonly install_id?: string;
 }
 
 /** Records the facts of one piece of work, bound to who and where once, when the work began. Queued at once: never throws, waits or reads. */

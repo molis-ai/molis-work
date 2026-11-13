@@ -152,7 +152,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
     listeners: new Set(),
   };
   store.rememberRun(session, record);
-  store.follow(record, request.task, started.run, context.ports);
+  store.follow(record, { task: request.task, prompts: role.prompts, skills: role.skills ?? [] }, started.run, context.ports);
   store.publish(ref.run_id);
   return { ref, frozen };
 }

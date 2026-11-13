@@ -1,4 +1,5 @@
-import type { AgentImageMaterial, AgentRoundSkill, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentImageMaterial, AgentRoundSkill, AgentSessionOwner, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ObservationRecorder } from "@molis-ai/molis-work-contracts/services/observation";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
   AgentRuntimeAdapter,
@@ -59,6 +60,11 @@ export interface PrologueAdapterPorts {
   endedOnPromise?(runId: string, sessionId: string): boolean;
   /** Project actual SDK Context receipts into the App's existing memory ledger. Never a model tool. */
   memoryUsage?(receipt: AgentMemoryUseReceipt): void | Promise<void>;
+  /**
+   * The work records' recorder for one round, bound when it starts to the session's owner and the call that started it
+   * (observation-collection contract-design §4). Absent, or undefined for a round: that round is not recorded.
+   */
+  observeRun?(start: { owner: AgentSessionOwner; call_id?: string }): ObservationRecorder | undefined;
 }
 
 export interface PrologueRunPort {

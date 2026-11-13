@@ -137,7 +137,8 @@ test("FSS-36 FSS-39: each Assistant verb keeps its bare, started and completed m
       assert.equal(process.activityLine({ verb, target, state: "failed", reason: "not-authorized" }),
         words[0].charAt(0).toUpperCase() + words[0].slice(1) + suffix + " — " + (locale === "zh" ? "未获授权，没有执行" : "not authorized, nothing done"), verb + ":bare:" + locale);
     }
+    // A step without a verb of its own reads as a generic step, never as its raw tool name (27 audit ③ A1).
     assert.equal(process.activityLine({ verb: "external-tool", target: "原文", state: "unknown" }),
-      "External-tool 原文 — " + (locale === "zh" ? "结果未确认" : "Result unconfirmed"));
+      (locale === "zh" ? "处理一步 原文 — 结果未确认" : "Take a step 原文 — Result unconfirmed"));
   });
 });

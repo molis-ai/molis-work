@@ -3,7 +3,7 @@
   "review": "Work PR #2020（Memory 收口 P0），实测与历次逐片记录见 specs/prologue-memory-strategy/spec.md「6664 隔离采用并入 main」的门禁条和「本轮主干整合工程结果」。",
   "userApproval": "Memory V0 各片的一次性增量由用户逐项批准，或在用户授权统筹裁定的 10 KB 以内由统筹登记，合计工作台脚本 +27,407、Coding 脚本 +6,499 字节（见 specs/prologue-memory-strategy/spec.md 同两节）；本次只用实测值，不扩大额度。；BL-1076 代走后的修复（回执撤销、发送标签写明位置、个人页选项目改为项目记忆、别处改了自动重读等）让工作台脚本合计到 +28,566（超出原批 1,159 字节），用户 2026-11-13 在 #2020 会话里答「Approve」放行；Coding 脚本 +5,758 仍在原批 +6,499 内，两份样式表各 +320 在统筹 10 KB 裁定内。11-13 合入前评审的修复（列出记忆上限、会话页只读链接、标点改取公共键、回到标签页的重读条件）又让工作台脚本多了约 1 KB，各页冷轮相应多 56～1,050 B，在需要另问用户的 10 KB 之下，随本 PR 评审。",
   "assets": {
-    "/assets/molis-work-workbench.js": 29560,
+    "/assets/molis-work-workbench.js": 29601,
     "/assets/molis-work-plugins/coding.js": 5758,
     "/assets/molis-work-settings.css": 320,
     "/assets/molis-work-workbench.css": 320,

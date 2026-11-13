@@ -21,6 +21,7 @@ import { projectSurfaceHome } from "./surface-home-http.js";
 import { projectSurfaceContext, projectSurfacePosition, projectSurfaceSearch } from "./surface-project-read.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
+import { refreshAfterScheduledAction } from "./plugin-scheduler-owner.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectPluginMembershipActionProvider, projectWorkspaceActionProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
@@ -504,9 +505,10 @@ function hostCallSettled(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "
   return (caller, action, outcome) => {
     host.callLog?.record(caller, action, outcome);
     // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
-    if (outcome.ok && action.operation === "command" && action.provider_id) {
-      host.search?.changed(action.provider_id, caller.project_id);
-      host.homePlugins?.invalidateView(action.provider_id);
+    const provider = action.provider_id;
+    if (outcome.ok && action.operation === "command" && provider) {
+      host.search?.changed(provider, caller.project_id);
+      refreshAfterScheduledAction(caller, action, () => host.homePlugins?.invalidateView(provider));
     }
   };
 }

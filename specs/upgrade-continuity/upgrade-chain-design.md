@@ -430,7 +430,7 @@ apps/desktop/launchers/web/server.ts：
   6. 记录写 failed，带错误码和这个库的主人。
 ```
 
-每一步都可以重来：中断后从 `restoring` 接着做。失败的库打开时报 `storage.upgrade_failed`：`onUpgradePending` 的监听可以返回一个替换的错误，打开路径就报它，这个失败不用另开一条路。同一 fingerprint 下不自动重试，免得每次启动都花时间；换版本或 U3 的操作才重试。`snapshot_invalid` 换版本也不重试：这个库的快照对不上，只能等 U3（`Round.waiting`）。
+每一步都可以重来：中断后从 `restoring` 接着做。失败的库打开时报 `storage.upgrade_failed`：`onUpgradePending` 的监听可以返回一个替换的错误，打开路径就报它，这个失败不用另开一条路。同一 fingerprint 下不自动重试（唯一的例外见 §2.4：插件的表只因所在的库没升过去而失败，库到了这一版就补升），免得每次启动都花时间；换版本或 U3 的操作才重试。`snapshot_invalid` 换版本也不重试：这个库的快照对不上，只能等 U3（`Round.waiting`）。
 
 **磁盘空间**：按 Home 算，每个 Home 开始前用 `statfsSync` 现查：可用空间不足「这个 Home 要动的文件总大小 × 2」时，这个 Home 这一轮不动任何东西，全部记 `storage.upgrade_no_space`，下次启动再看，别的 Home 照常。根 Home 排第一，否则一个长期不登录的大账号会让根 Home 这一轮也不升。
 

@@ -61,19 +61,20 @@ const ownReason = (reason: string): UpgradeUnitError => ({ code: "storage.upgrad
 /** The lock itself went away. Nothing more may be done on this Home, its record included. */
 const lockLost = (error: unknown) => { const { code } = (error ?? {}) as ErrorFacts; return typeof code === "string" && code.startsWith("storage.owner."); };
 
-/** Not having enough disk is not this fingerprint's verdict on the store, so the next start looks again (§5.2). Every other failure waits for a new version or U3. */
+/** Not having enough disk is not this fingerprint's verdict on the store, so the next start looks again (§5.2). Every other failure waits for a new version or U3, except one only waiting on another store (`prerequisiteNowMet`). */
 const retriedNextStart = ({ error }: UpgradeUnit) => error?.code === "storage.upgrade_no_space" || error?.reason === "space_check_failed";
 
 /**
- * A unit that failed only because a store it waits for had not gone through carries no verdict on itself (§2.4). Once every store it waits
- * for is at this build's version, the next start runs it: the Files retirement's adoption takes an old-layout project library there between
+ * A unit that failed only because a store it waits for had not gone through carries no verdict on itself (§2.4). Once no store it waits
+ * for is still older, refused or too new, the next start runs it: the Files retirement's adoption takes an old-layout project library there between
  * two starts, and that project's plugin tables follow (specs/batch-06-shared-tools/current-version-adoption.md). Until then it stays put.
  */
 function prerequisiteNowMet(root: string, stores: ReadonlyMap<string, Store>, store: Store, before: UpgradeUnit, holdsLock: boolean): boolean {
   if (before.error?.reason !== "prerequisite_failed") return false;
   const { descriptor, relative_path } = store, file = "tables" in descriptor ? upgradeUnitFile(descriptor, relative_path) : undefined;
   const waits = [...stores.values()].filter(other => other !== store && (other.relative_path === file || descriptor.after?.includes(other.descriptor.pattern)));
-  return waits.every(other => lookAt(root, other, holdsLock).kind === "current");
+  // The same test `advance` holds it to, read now: none of them still older, refused or too new.
+  return waits.every(other => !["older", "refused", "too_new"].includes(lookAt(root, other, holdsLock).kind));
 }
 
 const settledFailure = (root: string, stores: ReadonlyMap<string, Store>, store: Store, before: UpgradeUnit | undefined, holdsLock: boolean) =>

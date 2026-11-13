@@ -61,8 +61,9 @@ function notLoaded(page: Page, why: "default_output" | "off" | "not_chosen" | un
   const action: MwButtonOptions | null = why === "default_output"
     ? settings ? { label: readText("coding.rules.open-settings"), variant: "primary", href: settings, attrs: { "data-coding-rules-settings-link": "" } } : null
     : why ? { label: readText("coding.rules.confirm"), variant: "primary", attrs: { "data-coding-rules-confirm": "" } } : null;
-  const reason = why === "default_output" ? "coding.rules.not-loaded-default" : why === "off" ? "coding.rules.not-loaded-off" : why === "not_chosen" ? "coding.rules.not-loaded-unconfirmed" : "coding.rules.not-loaded-unknown";
-  return renderAlert({ title: readText("coding.rules.not-read"), body: readText(reason), tone: "warning", role: null, ...(action ? { actions: [action] } : {}),
+  const reason = why === "default_output" ? readText("coding.rules.not-loaded-default") : why === "off" ? readText("coding.rules.not-loaded-off")
+    : why === "not_chosen" ? readText("coding.rules.not-loaded-unconfirmed") : readText("coding.rules.not-loaded-unknown");
+  return renderAlert({ title: readText("coding.rules.not-read"), body: reason, tone: "warning", role: null, ...(action ? { actions: [action] } : {}),
     attrs: { "data-coding-rules-not-loaded": why ?? "" } });
 }
 

@@ -30,7 +30,7 @@ function roleNames(_L: Page["readText"]): Record<string, string> {
 /** Everything the page remembers, empty: no session is chosen and nothing is read. `ports`, `follow` and `earlierWatch` are made by the caller. */
 function emptyState(readText: Page["readText"]): Omit<State, "ports" | "follow" | "earlierWatch"> {
   return {
-    ROLE_NAMES: roleNames(readText), SECTION_SHORT: {}, SESSION_STATE: Object.fromEntries(Object.entries(CODING_SESSION_MARKS).map(([state, mark]) => [state, readText(mark.label)])),
+    ROLE_NAMES: roleNames(readText), SECTION_SHORT: {}, SESSION_STATE: sessionStateWords(readText),
     actionSelections: new Map(), adoptedConfigurations: new Map(), allRuns: [], answeredQuestions: new Set(), artifactRows: [], artifactTicket: 0,
     boardAll: { key: "", id: "", value: null }, changeItem: "", characterSelections: new Map(), characterSkills: new Map(), characterTitles: new Map(),
     checkpointBusy: false, checkpointKey: "", checkpointLoading: false,
@@ -87,4 +87,12 @@ export function mountFoundations(page: Page) {
   page.refs.turnChanges = turnChanges;
   lifetime.poll(() => page.refs.timeline.tick(turns), 1000);
   followConversation(page);
+}
+
+/** A session's state in words, one literal key each (the table's keys, CODING_SESSION_MARKS, are what the Host's first paint says). */
+function sessionStateWords(readText: Page["readText"]): Record<keyof typeof CODING_SESSION_MARKS, string> {
+  return { idle: readText("coding.state.idle"), running: readText("coding.state.running"), paused: readText("coding.state.paused"),
+    "waiting-answer": readText("coding.state.waiting-answer"), "waiting-approval": readText("coding.state.waiting-approval"), failed: readText("coding.state.failed"),
+    stopped: readText("coding.phase.stopped"), cancelled: readText("coding.state.cancelled"), "reconcile-required": readText("coding.session.reconcile"),
+    queued: readText("coding.state.queued"), done: readText("coding.state.done") };
 }
